@@ -958,11 +958,14 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 0, 1, 1, 0, 4),
                    row(0, 0, 1, 1, 1, 5));
 
-        assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
-                             "SELECT * FROM %s WHERE a = ? AND (c, d) IN ((?, ?), (?, ?)) ALLOW FILTERING", 0, 1, 1, 2, 1);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c, d) IN ((?, ?)) ALLOW FILTERING", 0, 1, 1),
+                row(0, 0, 1, 1, 0, 4),
+                row(0, 0, 1, 1, 1, 5));
 
-        assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
-                             "SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) ALLOW FILTERING", 0, 1, 1);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) ALLOW FILTERING", 0, 1, 1),
+                row(0, 0, 1, 1, 0, 4),
+                row(0, 0, 1, 1, 1, 5),
+                row(0, 0, 2, 0, 0, 5));
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND (c) IN ((?)) AND f = ?", 0, 0, 1, 5),
                    row(0, 0, 1, 1, 1, 5));

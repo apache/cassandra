@@ -1413,6 +1413,33 @@ public class SelectTest extends CQLTester
     }
 
     @Test
+    public void testAllowFilteringOnPartitionKeyOnStaticColumnsWithRowsWithOnlyStaticValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, s int static, c int, d int, primary key (a, b))");
+
+        for (int i = 0; i < 5; i++)
+        {
+            execute("INSERT INTO %s (a, s) VALUES (?, ?)", i, i);
+            if (i != 2)
+                for (int j = 0; j < 4; j++)
+                    execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", i, j, j, i + j);
+        }
+
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a >= 1 AND c = 2 AND s >= 1 ALLOW FILTERING"),
+                                row(1, 2, 1, 2, 3),
+                                row(3, 2, 3, 2, 5),
+                                row(4, 2, 4, 2, 6));
+
+        assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND c = 2 AND s >= 1 LIMIT 2 ALLOW FILTERING"),
+                row(1, 2, 1, 2, 3),
+                row(4, 2, 4, 2, 6));
+
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a >= 3 AND c = 2 AND s >= 1 LIMIT 2 ALLOW FILTERING"),
+                                row(4, 2, 4, 2, 6),
+                                row(3, 2, 3, 2, 5));
+    }
+
+    @Test
     public void testFilteringOnStaticColumnsWithRowsWithOnlyStaticValues() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, s int static, c int, d int, primary key (a, b))");
@@ -2284,6 +2311,1084 @@ public class SelectTest extends CQLTester
     }
 
     @Test
+    public void testAllowFilteringOnPartitionKeyWithDistinct() throws Throwable
+    {
+        // Test a regular(CQL3) table.
+        createTable("CREATE TABLE %s (pk0 int, pk1 int, ck0 int, val int, PRIMARY KEY((pk0, pk1), ck0))");
+
+        for (int i = 0; i < 3; i++)
+        {
+            execute("INSERT INTO %s (pk0, pk1, ck0, val) VALUES (?, ?, 0, 0)", i, i);
+            execute("INSERT INTO %s (pk0, pk1, ck0, val) VALUES (?, ?, 1, 1)", i, i);
+        }
+
+        beforeAndAfterFlush(() -> {
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT DISTINCT pk0, pk1 FROM %s WHERE pk1 = 1 LIMIT 3");
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT DISTINCT pk0, pk1 FROM %s WHERE pk0 > 0 AND pk1 = 1 LIMIT 3");
+
+            assertRows(execute("SELECT DISTINCT pk0, pk1 FROM %s WHERE pk0 = 1 LIMIT 1 ALLOW FILTERING"),
+                    row(1, 1));
+
+            assertRows(execute("SELECT DISTINCT pk0, pk1 FROM %s WHERE pk1 = 1 LIMIT 3 ALLOW FILTERING"),
+                    row(1, 1));
+
+            assertEmpty(execute("SELECT DISTINCT pk0, pk1 FROM %s WHERE pk0 < 0 AND pk1 = 1 LIMIT 3 ALLOW FILTERING"));
+
+            // Test selection validation.
+            assertInvalidMessage("queries must request all the partition key columns",
+                    "SELECT DISTINCT pk0 FROM %s ALLOW FILTERING");
+            assertInvalidMessage("queries must only request partition key columns",
+                    "SELECT DISTINCT pk0, pk1, ck0 FROM %s ALLOW FILTERING");
+        });
+
+        // Test a 'compact storage' table.
+        createTable("CREATE TABLE %s (pk0 int, pk1 int, val int, PRIMARY KEY((pk0, pk1))) WITH COMPACT STORAGE");
+
+        for (int i = 0; i < 3; i++)
+            execute("INSERT INTO %s (pk0, pk1, val) VALUES (?, ?, ?)", i, i, i);
+
+        beforeAndAfterFlush(() -> {
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT DISTINCT pk0, pk1 FROM %s WHERE pk1 = 1 LIMIT 3");
+
+            assertRows(execute("SELECT DISTINCT pk0, pk1 FROM %s WHERE pk0 < 2 AND pk1 = 1 LIMIT 1 ALLOW FILTERING"),
+                    row(1, 1));
+
+            assertRows(execute("SELECT DISTINCT pk0, pk1 FROM %s WHERE pk1 > 1 LIMIT 3 ALLOW FILTERING"),
+                    row(2, 2));
+        });
+
+        // Test a 'wide row' thrift table.
+        createTable("CREATE TABLE %s (pk int, name text, val int, PRIMARY KEY(pk, name)) WITH COMPACT STORAGE");
+
+        for (int i = 0; i < 3; i++)
+        {
+            execute("INSERT INTO %s (pk, name, val) VALUES (?, 'name0', 0)", i);
+            execute("INSERT INTO %s (pk, name, val) VALUES (?, 'name1', 1)", i);
+        }
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT DISTINCT pk FROM %s WHERE pk > 1 LIMIT 1 ALLOW FILTERING"),
+                    row(2));
+
+            assertRows(execute("SELECT DISTINCT pk FROM %s WHERE pk > 0 LIMIT 3 ALLOW FILTERING"),
+                    row(1),
+                    row(2));
+        });
+    }
+
+    @Test
+    public void testAllowFilteringOnPartitionKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c))");
+
+        execute("INSERT INTO %s (a,b,c,d) VALUES (11, 12, 13, 14)");
+        execute("INSERT INTO %s (a,b,c,d) VALUES (11, 15, 16, 17)");
+        execute("INSERT INTO %s (a,b,c,d) VALUES (21, 22, 23, 24)");
+        execute("INSERT INTO %s (a,b,c,d) VALUES (31, 32, 33, 34)");
+
+        beforeAndAfterFlush(() -> {
+
+            assertInvalidMessage("IN restrictions are not supported when the query involves filtering",
+                    "SELECT * FROM %s WHERE b in (11,12) ALLOW FILTERING");
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a = 11");
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a > 11");
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a > 11 and b = 1");
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 11 ALLOW FILTERING"),
+                    row(11, 12, 13, 14),
+                    row(11, 15, 16, 17));
+
+            assertRows(execute("SELECT * FROM %s WHERE a in (11) and b in (12,15,22)"),
+                    row(11, 12, 13, 14),
+                    row(11, 15, 16, 17));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE b in (12,15,22)");
+
+            assertRows(execute("SELECT * FROM %s WHERE a in (11) and b in (12,15,22) ALLOW FILTERING"),
+                    row(11, 12, 13, 14),
+                    row(11, 15, 16, 17));
+
+            assertRows(execute("SELECT * FROM %s WHERE a in (11) ALLOW FILTERING"),
+                    row(11, 12, 13, 14),
+                    row(11, 15, 16, 17));
+
+            assertRows(execute("SELECT * FROM %s WHERE b = 15 ALLOW FILTERING"),
+                    row(11, 15, 16, 17));
+
+            assertRows(execute("SELECT * FROM %s WHERE b >= 15 ALLOW FILTERING"),
+                    row(11, 15, 16, 17),
+                    row(31, 32, 33, 34),
+                    row(21, 22, 23, 24));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 11 ALLOW FILTERING"),
+                    row(11, 12, 13, 14),
+                    row(11, 15, 16, 17),
+                    row(31, 32, 33, 34),
+                    row(21, 22, 23, 24));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 11 AND b <= 15 ALLOW FILTERING"),
+                    row(11, 12, 13, 14),
+                    row(11, 15, 16, 17));
+
+            assertRows(execute("SELECT * FROM %s WHERE a <= 11 AND b >= 14 ALLOW FILTERING"),
+                    row(11, 15, 16, 17));
+
+            Object[][] res = getRows(execute("SELECT * FROM %s WHERE a < 11 ALLOW FILTERING"));
+            assertEquals(0, res.length);
+            res = getRows(execute("SELECT * FROM %s WHERE b > 32 ALLOW FILTERING"));
+            assertEquals(0, res.length);
+        });
+
+        // Checks filtering with unset
+        assertInvalidMessage("Unsupported unset value for column a",
+                             "SELECT * FROM %s WHERE a = ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column a",
+                             "SELECT * FROM %s WHERE a > ? ALLOW FILTERING",
+                             unset());
+
+        // No clustering key
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b)))");
+
+        execute("INSERT INTO %s (a,b,c,d) VALUES (11, 12, 13, 14)");
+        execute("INSERT INTO %s (a,b,c,d) VALUES (11, 15, 16, 17)");
+        execute("INSERT INTO %s (a,b,c,d) VALUES (21, 22, 23, 24)");
+        execute("INSERT INTO %s (a,b,c,d) VALUES (31, 32, 33, 34)");
+
+        beforeAndAfterFlush(() -> {
+
+             assertInvalidMessage("IN restrictions are not supported when the query involves filtering",
+                    "SELECT * FROM %s WHERE b in (11,12) ALLOW FILTERING");
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a = 11");
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a > 11");
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a > 11 and b = 1");
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 11 ALLOW FILTERING"),
+                    row(11, 12, 13, 14),
+                    row(11, 15, 16, 17));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 11 ALLOW FILTERING"),
+                    row(11, 12, 13, 14),
+                    row(11, 15, 16, 17),
+                    row(31, 32, 33, 34),
+                    row(21, 22, 23, 24));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 11 AND b <= 15 ALLOW FILTERING"),
+                    row(11, 12, 13, 14),
+                    row(11, 15, 16, 17));
+
+            assertRows(execute("SELECT * FROM %s WHERE a <= 11 AND b >= 14 ALLOW FILTERING"),
+                    row(11, 15, 16, 17));
+        });
+
+        // ----------------------------------------------
+        // one partition key
+        // ----------------------------------------------
+        createTable("CREATE TABLE %s (a int primary key, b int, c int)");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, 4)");
+        execute("INSERT INTO %s (a, b, c) VALUES (2, 1, 6)");
+        execute("INSERT INTO %s (a, b, c) VALUES (3, 2, 4)");
+        execute("INSERT INTO %s (a, b, c) VALUES (4, 1, 7)");
+
+        // Adds tomstones
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 1, 4)");
+        execute("INSERT INTO %s (a, b, c) VALUES (5, 2, 7)");
+        execute("DELETE FROM %s WHERE a = 0");
+        execute("DELETE FROM %s WHERE a = 5");
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT * FROM %s WHERE a = 1 ALLOW FILTERING"),
+                    row(1, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 ALLOW FILTERING"),
+                    row(1, 2, 4),
+                    row(2, 1, 6),
+                    row(4, 1, 7),
+                    row(3, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND b >= 2  ALLOW FILTERING"),
+                    row(1, 2, 4),
+                    row(3, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND b >= 2 AND c <= 4 ALLOW FILTERING"),
+                    row(1, 2, 4),
+                    row(3, 2, 4));
+        });
+    }
+
+    @Test
+    public void testAllowFilteringOnPartitionAndClusteringKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY ((a, b), c, d))");
+
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (11, 12, 13, 14, 15)");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (11, 15, 16, 17, 18)");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (21, 22, 23, 24, 25)");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (31, 32, 33, 34, 35)");
+
+        beforeAndAfterFlush(() -> {
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 11 AND b = 15 AND c = 16"),
+                    row(11, 15, 16, 17, 18));
+
+            assertInvalidMessage(
+                    "Clustering column \"d\" cannot be restricted (preceding column \"c\" is restricted by a non-EQ relation)",
+                    "SELECT * FROM %s WHERE a = 11 AND b = 12 AND c > 13 AND d = 14");
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 11 AND b = 15 AND c = 16 AND d > 16"),
+                    row(11, 15, 16, 17, 18));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 11 AND b = 15 AND c > 13 AND d >= 17 ALLOW FILTERING"),
+                    row(11, 15, 16, 17, 18));
+            assertInvalidMessage(
+                    "Clustering column \"d\" cannot be restricted (preceding column \"c\" is restricted by a non-EQ relation)",
+                    "SELECT * FROM %s WHERE a = 11 AND b = 12 AND c > 13 AND d > 17");
+
+            assertRows(execute("SELECT * FROM %s WHERE c > 30 AND d >= 34 ALLOW FILTERING"),
+                    row(31, 32, 33, 34, 35));
+
+            assertRows(execute("SELECT * FROM %s WHERE a <= 11 AND c > 15 AND d >= 16 ALLOW FILTERING"),
+                    row(11, 15, 16, 17, 18));
+
+            assertRows(execute("SELECT * FROM %s WHERE a <= 11 AND b >= 15 AND c > 15 AND d >= 16 ALLOW FILTERING"),
+                    row(11, 15, 16, 17, 18));
+
+            assertRows(execute("SELECT * FROM %s WHERE a <= 100 AND b >= 15 AND c > 0 AND d <= 100 ALLOW FILTERING"),
+                    row(11, 15, 16, 17, 18),
+                    row(31, 32, 33, 34, 35),
+                    row(21, 22, 23, 24, 25));
+
+            assertInvalidMessage(
+                    "Clustering column \"d\" cannot be restricted (preceding column \"c\" is restricted by a non-EQ relation)",
+                    "SELECT * FROM %s WHERE a <= 11 AND c > 15 AND d >= 16");
+        });
+
+        // test clutering order
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY ((a, b), c, d)) WITH CLUSTERING ORDER BY (c DESC)");
+
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (11, 11, 13, 14, 15)");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (11, 11, 14, 17, 18)");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (11, 12, 15, 14, 15)");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (11, 12, 16, 17, 18)");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (21, 11, 23, 24, 25)");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (21, 11, 24, 34, 35)");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (21, 12, 25, 24, 25)");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (21, 12, 26, 34, 35)");
+
+        beforeAndAfterFlush(() -> {
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE b >= 12 ALLOW FILTERING"),
+                                    row(11, 12, 15, 14, 15),
+                                    row(11, 12, 16, 17, 18),
+                                    row(21, 12, 25, 24, 25),
+                                    row(21, 12, 26, 34, 35));
+        });
+    }
+
+    @Test
+    public void testAllowFilteringOnPartitionKeyWithoutIndicesWithCollections() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c list<int>, d set<int>, e map<int, int>, PRIMARY KEY ((a, b)))");
+
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (1, 2, [1, 6], {2, 12}, {1: 6})");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (1, 3, [3, 2], {6, 4}, {3: 2})");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (1, 4, [1, 2], {2, 4}, {1: 2})");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (2, 3, [3, 6], {6, 12}, {3: 6})");
+
+        beforeAndAfterFlush(() -> {
+
+            // Checks filtering for lists
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE b < 0 AND c CONTAINS 2");
+
+            assertRows(execute("SELECT * FROM %s WHERE b >= 4 AND c CONTAINS 2 ALLOW FILTERING"),
+                       row(1, 4, list(1, 2), set(2, 4), map(1, 2)));
+
+            assertRows(
+                    execute("SELECT * FROM %s WHERE a > 0 AND b <= 3 AND c CONTAINS 2 AND c CONTAINS 3 ALLOW FILTERING"),
+                       row(1, 3, list(3, 2), set(6, 4), map(3, 2)));
+
+            // Checks filtering for sets
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a = 1 AND d CONTAINS 4");
+
+            assertRows(execute("SELECT * FROM %s WHERE d CONTAINS 4 ALLOW FILTERING"),
+                       row(1, 3, list(3, 2), set(6, 4), map(3, 2)),
+                       row(1, 4, list(1, 2), set(2, 4), map(1, 2)));
+
+            assertRows(execute("SELECT * FROM %s WHERE d CONTAINS 4 AND d CONTAINS 6 ALLOW FILTERING"),
+                       row(1, 3, list(3, 2), set(6, 4), map(3, 2)));
+
+            // Checks filtering for maps
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE e CONTAINS 2");
+
+            assertRows(execute("SELECT * FROM %s WHERE a < 2 AND b >= 3 AND e CONTAINS 2 ALLOW FILTERING"),
+                       row(1, 3, list(3, 2), set(6, 4), map(3, 2)),
+                       row(1, 4, list(1, 2), set(2, 4), map(1, 2)));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 1 AND e CONTAINS KEY 1 ALLOW FILTERING"),
+                       row(1, 4, list(1, 2), set(2, 4), map(1, 2)),
+                       row(1, 2, list(1, 6), set(2, 12), map(1, 6)));
+
+            assertRows(execute("SELECT * FROM %s WHERE a in (1) AND b in (2) AND e[1] = 6 ALLOW FILTERING"),
+                       row(1, 2, list(1, 6), set(2, 12), map(1, 6)));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 1 AND e CONTAINS KEY 1 AND e CONTAINS 2 ALLOW FILTERING"),
+                       row(1, 4, list(1, 2), set(2, 4), map(1, 2)));
+
+            assertRows(
+                    execute("SELECT * FROM %s WHERE a >= 1 AND b in (3) AND c CONTAINS 2 AND d CONTAINS 4 AND e CONTAINS KEY 3 ALLOW FILTERING"),
+                       row(1, 3, list(3, 2), set(6, 4), map(3, 2)));
+        });
+
+        // Checks filtering with null
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a > 1 AND c CONTAINS null ALLOW FILTERING");
+        assertInvalidMessage("Unsupported null value for column d",
+                             "SELECT * FROM %s WHERE b < 1 AND d CONTAINS null ALLOW FILTERING");
+        assertInvalidMessage("Unsupported null value for column e",
+                             "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e CONTAINS null ALLOW FILTERING");
+        assertInvalidMessage("Unsupported null value for column e",
+                             "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e CONTAINS KEY null ALLOW FILTERING");
+        assertInvalidMessage("Unsupported null map key for column e",
+                             "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e[null] = 2 ALLOW FILTERING");
+        assertInvalidMessage("Unsupported null map value for column e",
+                             "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e[1] = null ALLOW FILTERING");
+
+        // Checks filtering with unset
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND c CONTAINS ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column d",
+                             "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND d CONTAINS ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column e",
+                             "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e CONTAINS ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column e",
+                             "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e CONTAINS KEY ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset map key for column e",
+                             "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e[?] = 2 ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset map value for column e",
+                             "SELECT * FROM %s WHERE a >= 1 AND b < 1 AND e[1] = ? ALLOW FILTERING",
+                             unset());
+    }
+
+    @Test
+    public void testAllowFilteringOnPartitionKeyWithCounters() throws Throwable
+    {
+        for (String compactStorageClause : new String[] { "", " WITH COMPACT STORAGE" })
+        {
+            createTable("CREATE TABLE %s (a int, b int, c int, cnt counter, PRIMARY KEY ((a, b), c))"
+                    + compactStorageClause);
+
+            execute("UPDATE %s SET cnt = cnt + ? WHERE a = ? AND b = ? AND c = ?", 14L, 11, 12, 13);
+            execute("UPDATE %s SET cnt = cnt + ? WHERE a = ? AND b = ? AND c = ?", 24L, 21, 22, 23);
+            execute("UPDATE %s SET cnt = cnt + ? WHERE a = ? AND b = ? AND c = ?", 27L, 21, 22, 26);
+            execute("UPDATE %s SET cnt = cnt + ? WHERE a = ? AND b = ? AND c = ?", 34L, 31, 32, 33);
+            execute("UPDATE %s SET cnt = cnt + ? WHERE a = ? AND b = ? AND c = ?", 24L, 41, 42, 43);
+
+            beforeAndAfterFlush(() -> {
+
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE cnt = 24"),
+                        row(41, 42, 43, 24L),
+                        row(21, 22, 23, 24L));
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE b > 22 AND cnt = 24"),
+                        row(41, 42, 43, 24L));
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE b > 10 AND b < 25 AND cnt = 24"),
+                        row(21, 22, 23, 24L));
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE b > 10 AND c < 25 AND cnt = 24"),
+                        row(21, 22, 23, 24L));
+
+                assertInvalidMessage(
+                        "ORDER BY is only supported when the partition key is restricted by an EQ or an IN.",
+                        "SELECT * FROM %s WHERE a = 21 AND b > 10 AND cnt > 23 ORDER BY c DESC ALLOW FILTERING");
+
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE a = 21 AND b = 22 AND cnt > 23 ORDER BY c DESC"),
+                        row(21, 22, 26, 27L),
+                        row(21, 22, 23, 24L));
+
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE cnt > 20 AND cnt < 30"),
+                        row(41, 42, 43, 24L),
+                        row(21, 22, 23, 24L),
+                        row(21, 22, 26, 27L));
+            });
+        }
+    }
+
+    @Test
+    public void testAllowFilteringOnPartitionKeyOnCompactTablesWithoutIndicesAndWithLists() throws Throwable
+    {
+        // ----------------------------------------------
+        // Test COMPACT table with clustering columns
+        // ----------------------------------------------
+        createTable("CREATE TABLE %s (a int, b int, c frozen<list<int>>, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, [4, 2])");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 3, [6, 2])");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 4, [4, 1])");
+        execute("INSERT INTO %s (a, b, c) VALUES (2, 3, [7, 1])");
+
+        beforeAndAfterFlush(() -> {
+
+            // Checks filtering
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a >= 1 AND b = 4 AND c = [4, 1]");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND b >= 4 AND c = [4, 1] ALLOW FILTERING"),
+                    row(1, 4, list(4, 1)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a > 0 AND c > [4, 2]");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND c > [4, 2] ALLOW FILTERING"),
+                    row(1, 3, list(6, 2)),
+                    row(2, 3, list(7, 1)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a > 1 AND b <= 3 AND c < [6, 2]");
+
+            assertRows(execute("SELECT * FROM %s WHERE a <= 1 AND b <= 3 AND c < [6, 2] ALLOW FILTERING"),
+                    row(1, 2, list(4, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a <= 1 AND c >= [4, 2] AND c <= [6, 4]");
+
+            assertRows(execute("SELECT * FROM %s WHERE a > 0 AND b <= 3 AND c >= [4, 2] AND c <= [6, 4] ALLOW FILTERING"),
+                    row(1, 2, list(4, 2)),
+                    row(1, 3, list(6, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a > 1 AND c CONTAINS 2");
+
+            assertRows(execute("SELECT * FROM %s WHERE a > 0 AND c CONTAINS 2 ALLOW FILTERING"),
+                    row(1, 2, list(4, 2)),
+                    row(1, 3, list(6, 2)));
+
+            assertInvalidMessage("Cannot use CONTAINS KEY on non-map column c",
+                    "SELECT * FROM %s WHERE a > 1 AND c CONTAINS KEY 2 ALLOW FILTERING");
+
+            assertRows(execute("SELECT * FROM %s WHERE a < 2 AND c CONTAINS 2 AND c CONTAINS 6 ALLOW FILTERING"),
+                    row(1, 3, list(6, 2)));
+        });
+        // Checks filtering with null
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                "SELECT * FROM %s WHERE a > 1 AND c = null");
+        assertInvalidMessage("Unsupported null value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c = null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                "SELECT * FROM %s WHERE a > 1 AND c > null");
+        assertInvalidMessage("Unsupported null value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c > null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                "SELECT * FROM %s WHERE a > 1 AND c CONTAINS null");
+        assertInvalidMessage("Unsupported null value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c CONTAINS null ALLOW FILTERING");
+
+        // Checks filtering with unset
+        assertInvalidMessage("Unsupported unset value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c = ? ALLOW FILTERING",
+                unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c > ? ALLOW FILTERING",
+                unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c CONTAINS ? ALLOW FILTERING",
+                unset());
+
+        // ----------------------------------------------
+        // Test COMPACT table without clustering columns
+        // ----------------------------------------------
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c frozen<list<int>>) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, [4, 2])");
+        execute("INSERT INTO %s (a, b, c) VALUES (2, 1, [6, 2])");
+        execute("INSERT INTO %s (a, b, c) VALUES (3, 2, [4, 1])");
+        execute("INSERT INTO %s (a, b, c) VALUES (4, 1, [7, 1])");
+
+        beforeAndAfterFlush(() -> {
+
+            // Checks filtering
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a >= 1 AND b = 2 AND c = [4, 2]");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND b = 2 AND c = [4, 2] ALLOW FILTERING"),
+                    row(1, 2, list(4, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a > 1 AND c > [4, 2]");
+
+            assertRows(execute("SELECT * FROM %s WHERE a > 3 AND c > [4, 2] ALLOW FILTERING"),
+                    row(4, 1, list(7, 1)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a < 1 AND b < 3 AND c <= [4, 2]");
+
+            assertRows(execute("SELECT * FROM %s WHERE a < 3 AND b < 3 AND c <= [4, 2] ALLOW FILTERING"),
+                    row(1, 2, list(4, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a > 1 AND c >= [4, 3] AND c <= [7]");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 2 AND c >= [4, 3] AND c <= [7] ALLOW FILTERING"),
+                    row(2, 1, list(6, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a > 3 AND c CONTAINS 2");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND c CONTAINS 2 ALLOW FILTERING"),
+                    row(1, 2, list(4, 2)),
+                    row(2, 1, list(6, 2)));
+
+            assertInvalidMessage("Cannot use CONTAINS KEY on non-map column c",
+                    "SELECT * FROM %s WHERE a >=1 AND c CONTAINS KEY 2 ALLOW FILTERING");
+
+            assertRows(execute("SELECT * FROM %s WHERE a < 3 AND c CONTAINS 2 AND c CONTAINS 6 ALLOW FILTERING"),
+                    row(2, 1, list(6, 2)));
+        });
+
+        // Checks filtering with null
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                "SELECT * FROM %s WHERE a > 1 AND c = null");
+        assertInvalidMessage("Unsupported null value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c = null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                "SELECT * FROM %s WHERE a > 1 AND c > null");
+        assertInvalidMessage("Unsupported null value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c > null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                "SELECT * FROM %s WHERE a > 1 AND c CONTAINS null");
+        assertInvalidMessage("Unsupported null value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c CONTAINS null ALLOW FILTERING");
+
+        // Checks filtering with unset
+        assertInvalidMessage("Unsupported unset value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c = ? ALLOW FILTERING",
+                unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c > ? ALLOW FILTERING",
+                unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                "SELECT * FROM %s WHERE a > 1 AND c CONTAINS ? ALLOW FILTERING",
+                unset());
+    }
+
+
+    @Test
+    public void testAllowFilteringOnPartitionKeyOnCompactTablesWithoutIndicesAndWithMaps() throws Throwable
+    {
+        //----------------------------------------------
+        // Test COMPACT table with clustering columns
+        //----------------------------------------------
+        createTable("CREATE TABLE %s (a int, b int, c frozen<map<int, int>>, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, {4 : 2})");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 3, {6 : 2})");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 4, {4 : 1})");
+        execute("INSERT INTO %s (a, b, c) VALUES (2, 3, {7 : 1})");
+
+        beforeAndAfterFlush(() -> {
+
+            // Checks filtering
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND b = 4 AND c = {4 : 1}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a <= 1 AND b = 4 AND c = {4 : 1} ALLOW FILTERING"),
+                       row(1, 4, map(4, 1)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a > 1 AND c > {4 : 2}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a > 1 AND c > {4 : 2} ALLOW FILTERING"),
+                       row(2, 3, map(7, 1)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a > 1 AND b <= 3 AND c < {6 : 2}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND b <= 3 AND c < {6 : 2} ALLOW FILTERING"),
+                       row(1, 2, map(4, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a > 1 AND c >= {4 : 2} AND c <= {6 : 4}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a > 0 AND c >= {4 : 2} AND c <= {6 : 4} ALLOW FILTERING"),
+                       row(1, 2, map(4, 2)),
+                       row(1, 3, map(6, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a > 10 AND c CONTAINS 2");
+
+            assertRows(execute("SELECT * FROM %s WHERE a > 0 AND c CONTAINS 2 ALLOW FILTERING"),
+                       row(1, 2, map(4, 2)),
+                       row(1, 3, map(6, 2)));
+
+            assertRows(execute("SELECT * FROM %s WHERE a < 2 AND c CONTAINS KEY 6 ALLOW FILTERING"),
+                       row(1, 3, map(6, 2)));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND c CONTAINS 2 AND c CONTAINS KEY 6 ALLOW FILTERING"),
+                       row(1, 3, map(6, 2)));
+        });
+
+        // Checks filtering with null
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c = null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c = null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c > null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c > null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null ALLOW FILTERING");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY null ALLOW FILTERING");
+
+        // Checks filtering with unset
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c = ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c > ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY ? ALLOW FILTERING",
+                             unset());
+
+        //----------------------------------------------
+        // Test COMPACT table without clustering columns
+        //----------------------------------------------
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c frozen<map<int, int>>) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, {4 : 2})");
+        execute("INSERT INTO %s (a, b, c) VALUES (2, 1, {6 : 2})");
+        execute("INSERT INTO %s (a, b, c) VALUES (3, 2, {4 : 1})");
+        execute("INSERT INTO %s (a, b, c) VALUES (4, 1, {7 : 1})");
+
+        beforeAndAfterFlush(() -> {
+
+            // Checks filtering
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND b = 2 AND c = {4 : 2}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND b = 2 AND c = {4 : 2} ALLOW FILTERING"),
+                       row(1, 2, map(4, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND c > {4 : 2}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND c > {4 : 2} ALLOW FILTERING"),
+                       row(2, 1, map(6, 2)),
+                       row(4, 1, map(7, 1)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND b < 3 AND c <= {4 : 2}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND b < 3 AND c <= {4 : 2} ALLOW FILTERING"),
+                       row(1, 2, map(4, 2)),
+                       row(3, 2, map(4, 1)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND c >= {4 : 3} AND c <= {7 : 1}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 2 AND c >= {5 : 2} AND c <= {7 : 0} ALLOW FILTERING"),
+                       row(2, 1, map(6, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS 2");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND c CONTAINS 2 ALLOW FILTERING"),
+                       row(1, 2, map(4, 2)),
+                       row(2, 1, map(6, 2)));
+
+            assertRows(execute("SELECT * FROM %s WHERE a > 0 AND c CONTAINS KEY 4 ALLOW FILTERING"),
+                       row(1, 2, map(4, 2)),
+                       row(3, 2, map(4, 1)));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 2 AND c CONTAINS 2 AND c CONTAINS KEY 6 ALLOW FILTERING"),
+                       row(2, 1, map(6, 2)));
+        });
+
+        // Checks filtering with null
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c = null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c = null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c > null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c > null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY null ALLOW FILTERING");
+
+        // Checks filtering with unset
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c = ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c > ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY ? ALLOW FILTERING",
+                             unset());
+    }
+
+    @Test
+    public void testAllowFilteringOnPartitionKeyOnCompactTablesWithoutIndicesAndWithSets() throws Throwable
+    {
+        //----------------------------------------------
+        // Test COMPACT table with clustering columns
+        //----------------------------------------------
+        createTable("CREATE TABLE %s (a int, b int, c frozen<set<int>>, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, {4, 2})");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 3, {6, 2})");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 4, {4, 1})");
+        execute("INSERT INTO %s (a, b, c) VALUES (2, 3, {7, 1})");
+
+        beforeAndAfterFlush(() -> {
+
+            // Checks filtering
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND b = 4 AND c = {4, 1}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND b = 4 AND c = {4, 1} ALLOW FILTERING"),
+                       row(1, 4, set(4, 1)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND c > {4, 2}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND c > {4, 2} ALLOW FILTERING"),
+                       row(1, 3, set(6, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND b <= 3 AND c < {6, 2}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a > 0 AND b <= 3 AND c < {6, 2} ALLOW FILTERING"),
+                       row(1, 2, set(2, 4)),
+                       row(2, 3, set(1, 7)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND c >= {4, 2} AND c <= {6, 4}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 0 AND c >= {4, 2} AND c <= {6, 4} ALLOW FILTERING"),
+                       row(1, 2, set(4, 2)),
+                       row(1, 3, set(6, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS 2");
+
+            assertRows(execute("SELECT * FROM %s WHERE a < 2 AND c CONTAINS 2 ALLOW FILTERING"),
+                       row(1, 2, set(4, 2)),
+                       row(1, 3, set(6, 2)));
+
+            assertInvalidMessage("Cannot use CONTAINS KEY on non-map column c",
+                                 "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY 2 ALLOW FILTERING");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND c CONTAINS 2 AND c CONTAINS 6 ALLOW FILTERING"),
+                       row(1, 3, set(6, 2)));
+        });
+        // Checks filtering with null
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c = null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c = null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c > null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c > null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null ALLOW FILTERING");
+
+        // Checks filtering with unset
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c = ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c > ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS ? ALLOW FILTERING",
+                             unset());
+
+        //----------------------------------------------
+        // Test COMPACT table without clustering columns
+        //----------------------------------------------
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c frozen<set<int>>) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, {4, 2})");
+        execute("INSERT INTO %s (a, b, c) VALUES (2, 1, {6, 2})");
+        execute("INSERT INTO %s (a, b, c) VALUES (3, 2, {4, 1})");
+        execute("INSERT INTO %s (a, b, c) VALUES (4, 1, {7, 1})");
+
+        beforeAndAfterFlush(() -> {
+
+            // Checks filtering
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND b = 2 AND c = {4, 2}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND b = 2 AND c = {4, 2} ALLOW FILTERING"),
+                       row(1, 2, set(4, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND c > {4, 2}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND c > {4, 2} ALLOW FILTERING"),
+                       row(2, 1, set(6, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND b < 3 AND c <= {4, 2}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a <= 4 AND b < 3 AND c <= {4, 2} ALLOW FILTERING"),
+                       row(1, 2, set(4, 2)),
+                       row(4, 1, set(1, 7)),
+                       row(3, 2, set(4, 1)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND c >= {4, 3} AND c <= {7}");
+
+            assertRows(execute("SELECT * FROM %s WHERE a < 3 AND c >= {5, 2} AND c <= {7} ALLOW FILTERING"),
+                       row(2, 1, set(6, 2)));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS 2");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 0 AND c CONTAINS 2 ALLOW FILTERING"),
+                       row(1, 2, set(4, 2)),
+                       row(2, 1, set(6, 2)));
+
+            assertInvalidMessage("Cannot use CONTAINS KEY on non-map column c",
+                                 "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY 2 ALLOW FILTERING");
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 2 AND c CONTAINS 2 AND c CONTAINS 6 ALLOW FILTERING"),
+                       row(2, 1, set(6, 2)));
+        });
+
+        // Checks filtering with null
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c = null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c = null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c > null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c > null ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null");
+        assertInvalidMessage("Unsupported null value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null ALLOW FILTERING");
+
+        // Checks filtering with unset
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c = ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c > ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column c",
+                             "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS ? ALLOW FILTERING",
+                             unset());
+    }
+
+    @Test
+    public void testAllowFilteringOnPartitionKeyOnCompactTablesWithoutIndices() throws Throwable
+    {
+        // ----------------------------------------------
+        // Test COMPACT table with clustering columns
+        // ----------------------------------------------
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c)) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (a, b, c, d) VALUES (1, 2, 4, 5)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (1, 3, 6, 7)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (1, 4, 4, 5)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (2, 3, 7, 8)");
+
+        // Adds tomstones
+        execute("INSERT INTO %s (a, b, c, d) VALUES (1, 1, 4, 5)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (2, 2, 7, 8)");
+        execute("DELETE FROM %s WHERE a = 1 AND b = 1 AND c = 4");
+        execute("DELETE FROM %s WHERE a = 2 AND b = 2 AND c = 7");
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b = 4 AND c = 4"),
+                    row(1, 4, 4, 5));
+
+            // Checks filtering
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a = 1 AND b = 4 AND c = 4 AND d = 5");
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b = 4 AND c = 4 ALLOW FILTERING"),
+                    row(1, 4, 4, 5));
+
+            assertInvalidMessage("IN predicates on non-primary-key columns (d) is not yet supported",
+                    "SELECT * FROM %s WHERE a IN (1, 2) AND b = 3 AND d IN (6, 7)");
+
+            assertInvalidMessage("IN predicates on non-primary-key columns (d) is not yet supported",
+                    "SELECT * FROM %s WHERE a IN (1, 2) AND b = 3 AND d IN (6, 7) ALLOW FILTERING");
+
+            assertRows(execute("SELECT * FROM %s WHERE a < 2 AND c > 4 AND c <= 6 ALLOW FILTERING"),
+                    row(1, 3, 6, 7));
+
+            assertRows(execute("SELECT * FROM %s WHERE a <= 1 AND b >= 2 AND c >= 4 AND d <= 8 ALLOW FILTERING"),
+                    row(1, 3, 6, 7),
+                    row(1, 4, 4, 5),
+                    row(1, 2, 4, 5));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 1 AND c >= 4 AND d <= 8 ALLOW FILTERING"),
+                    row(1, 3, 6, 7),
+                    row(1, 4, 4, 5),
+                    row(1, 2, 4, 5));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 2 AND c >= 4 AND d <= 8 ALLOW FILTERING"),
+                    row(2, 3, 7, 8));
+        });
+
+        // Checks filtering with null
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE d = null");
+        assertInvalidMessage("Unsupported null value for column a",
+                             "SELECT * FROM %s WHERE a = null ALLOW FILTERING");
+        assertInvalidMessage("Unsupported null value for column a",
+                             "SELECT * FROM %s WHERE a > null ALLOW FILTERING");
+
+        // Checks filtering with unset
+        assertInvalidMessage("Unsupported unset value for column a",
+                             "SELECT * FROM %s WHERE a = ? ALLOW FILTERING",
+                             unset());
+        assertInvalidMessage("Unsupported unset value for column a",
+                             "SELECT * FROM %s WHERE a > ? ALLOW FILTERING",
+                             unset());
+
+        //----------------------------------------------
+        // Test COMPACT table without clustering columns
+        //----------------------------------------------
+        createTable("CREATE TABLE %s (a int primary key, b int, c int) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, 4)");
+        execute("INSERT INTO %s (a, b, c) VALUES (2, 1, 6)");
+        execute("INSERT INTO %s (a, b, c) VALUES (3, 2, 4)");
+        execute("INSERT INTO %s (a, b, c) VALUES (4, 1, 7)");
+
+        // Adds tomstones
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 1, 4)");
+        execute("INSERT INTO %s (a, b, c) VALUES (5, 2, 7)");
+        execute("DELETE FROM %s WHERE a = 0");
+        execute("DELETE FROM %s WHERE a = 5");
+
+        beforeAndAfterFlush(() -> {
+
+            // Checks filtering
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE a = 1 AND b = 4 AND c = 4");
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b = 2 AND c = 4 ALLOW FILTERING"),
+                    row(1, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b = 2 ALLOW FILTERING"),
+                    row(1, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE b >= 2 AND c <= 4 ALLOW FILTERING"),
+                    row(1, 2, 4),
+                    row(3, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 1 ALLOW FILTERING"),
+                    row(1, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE b >= 2 ALLOW FILTERING"),
+                    row(1, 2, 4),
+                    row(3, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 2 AND b <=1 ALLOW FILTERING"),
+                    row(2, 1, 6),
+                    row(4, 1, 7));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 1 AND c >= 4 ALLOW FILTERING"),
+                    row(1, 2, 4));
+
+            assertInvalidMessage("IN predicates on non-primary-key columns (b) is not yet supported",
+                                 "SELECT * FROM %s WHERE a = 1 AND b IN (1, 2) AND c IN (6, 7)");
+
+            assertInvalidMessage("IN predicates on non-primary-key columns (c) is not yet supported",
+                                 "SELECT * FROM %s WHERE a IN (1, 2) AND c IN (6, 7) ALLOW FILTERING");
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE c > 4");
+
+            assertRows(execute("SELECT * FROM %s WHERE c > 4 ALLOW FILTERING"),
+                    row(2, 1, 6),
+                    row(4, 1, 7));
+
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND b >= 2 AND c <= 4 ALLOW FILTERING"),
+                    row(1, 2, 4),
+                    row(3, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE a < 3 AND c <= 4 ALLOW FILTERING"),
+                    row(1, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE a < 3 AND b >= 2 AND c <= 4 ALLOW FILTERING"),
+                    row(1, 2, 4));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE c >= 3 AND c <= 6");
+
+            assertRows(execute("SELECT * FROM %s WHERE c <=6 ALLOW FILTERING"),
+                    row(1, 2, 4),
+                    row(2, 1, 6),
+                    row(3, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE token(a) >= token(2)"),
+                    row(2, 1, 6),
+                    row(4, 1, 7),
+                    row(3, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE token(a) >= token(2) ALLOW FILTERING"),
+                    row(2, 1, 6),
+                    row(4, 1, 7),
+                    row(3, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE token(a) >= token(2) AND b = 1 ALLOW FILTERING"),
+                       row(2, 1, 6),
+                       row(4, 1, 7));
+
+        });
+    }
+
+    @Test
     public void testFilteringOnCompactTablesWithoutIndicesAndWithMaps() throws Throwable
     {
         //----------------------------------------------
@@ -2981,8 +4086,8 @@ public class SelectTest extends CQLTester
     public void testIndexQueryWithCompositePartitionKey() throws Throwable
     {
         createTable("CREATE TABLE %s (p1 int, p2 int, v int, PRIMARY KEY ((p1, p2)))");
-        assertInvalidMessage("Partition key parts: p2 must be restricted as other parts are",
-                             "SELECT * FROM %s WHERE p1 = 1 AND v = 3 ALLOW FILTERING");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE p1 = 1 AND v = 3");
         createIndex("CREATE INDEX ON %s(v)");
 
         execute("INSERT INTO %s(p1, p2, v) values (?, ?, ?)", 1, 1, 3);

@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -274,9 +275,19 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 return iter;
 
             final CFMetaData metadata = iter.metadata();
-            long numberOfStaticColumnExpressions = expressions.stream().filter(e -> e.column.isStatic()).count();
-            final boolean filterStaticColumns = numberOfStaticColumnExpressions != 0;
-            final boolean filterNonStaticColumns = (expressions.size() - numberOfStaticColumnExpressions) > 0;
+
+            List<Expression> partitionLevelExpressions = new ArrayList<>();
+            List<Expression> rowLevelExpressions = new ArrayList<>();
+            for (Expression e: expressions)
+            {
+                if (e.column.isStatic() || e.column.isPartitionKey())
+                    partitionLevelExpressions.add(e);
+                else
+                    rowLevelExpressions.add(e);
+            }
+
+            long numberOfRegularColumnExpressions = rowLevelExpressions.size();
+            final boolean filterNonStaticColumns = numberOfRegularColumnExpressions > 0;
 
             class IsSatisfiedFilter extends Transformation<UnfilteredRowIterator>
             {
@@ -285,9 +296,10 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 {
                     pk = partition.partitionKey();
 
-                    // The filter might be on static columns, so need to check static row first.
-                    if (filterStaticColumns && applyToRow(partition.staticRow()) == null)
-                        return null;
+                    // Short-circuit all partitions that won't match based on static and partition keys
+                    for (Expression e : partitionLevelExpressions)
+                        if (!e.isSatisfiedBy(metadata, partition.partitionKey(), partition.staticRow()))
+                            return null;
 
                     UnfilteredRowIterator iterator = Transformation.apply(partition, this);
                     return (filterNonStaticColumns && !iterator.hasNext()) ? null : iterator;
@@ -299,9 +311,10 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     if (purged == null)
                         return null;
 
-                    for (Expression e : expressions)
+                    for (Expression e : rowLevelExpressions)
                         if (!e.isSatisfiedBy(metadata, pk, purged))
                             return null;
+
                     return row;
                 }
             }
@@ -668,9 +681,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             // We support null conditions for LWT (in ColumnCondition) but not for RowFilter.
             // TODO: we should try to merge both code someday.
             assert value != null;
-
-            if (row.isStatic() != column.isStatic())
-                return true;
 
             switch (operator)
             {

@@ -266,6 +266,16 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         return false;
     }
 
+    public final boolean hasSlice()
+    {
+        for (SingleRestriction restriction : this)
+        {
+            if (restriction.isSlice())
+                return true;
+        }
+        return false;
+    }
+
     /**
      * Checks if all of the underlying restrictions are EQ or IN restrictions.
      *

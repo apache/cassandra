@@ -190,11 +190,11 @@ public final class StatementRestrictions
         }
 
         // At this point, the select statement if fully constructed, but we still have a few things to validate
-        processPartitionKeyRestrictions(hasQueriableIndex);
+        processPartitionKeyRestrictions(hasQueriableIndex, allowFiltering, forView);
 
         // Some but not all of the partition key columns have been specified;
         // hence we need turn these restrictions into a row filter.
-        if (usesSecondaryIndexing)
+        if (usesSecondaryIndexing || partitionKeyRestrictions.needFiltering(cfm))
             filterRestrictions.add(partitionKeyRestrictions);
 
         if (selectsOnlyStaticColumns && hasClusteringColumnsRestriction())
@@ -385,50 +385,53 @@ public final class StatementRestrictions
         return this.usesSecondaryIndexing;
     }
 
-    private void processPartitionKeyRestrictions(boolean hasQueriableIndex)
+    private void processPartitionKeyRestrictions(boolean hasQueriableIndex, boolean allowFiltering, boolean forView)
     {
         if (!type.allowPartitionKeyRanges())
         {
             checkFalse(partitionKeyRestrictions.isOnToken(),
                        "The token function cannot be used in WHERE clauses for %s statements", type);
 
-            if (hasUnrestrictedPartitionKeyComponents())
+            if (partitionKeyRestrictions.hasUnrestrictedPartitionKeyComponents(cfm))
                 throw invalidRequest("Some partition key parts are missing: %s",
                                      Joiner.on(", ").join(getPartitionKeyUnrestrictedComponents()));
+
+            // slice query
+            checkFalse(partitionKeyRestrictions.hasSlice(),
+                    "Only EQ and IN relation are supported on the partition key (unless you use the token() function)"
+                            + " for %s statements", type);
         }
         else
         {
-        // If there is a queriable index, no special condition are required on the other restrictions.
-        // But we still need to know 2 things:
-        // - If we don't have a queriable index, is the query ok
-        // - Is it queriable without 2ndary index, which is always more efficient
-        // If a component of the partition key is restricted by a relation, all preceding
-        // components must have a EQ. Only the last partition key component can be in IN relation.
-        if (partitionKeyRestrictions.isOnToken())
-            isKeyRange = true;
+            // If there are no partition restrictions or there's only token restriction, we have to set a key range
+            if (partitionKeyRestrictions.isOnToken())
+                isKeyRange = true;
 
-            if (hasUnrestrictedPartitionKeyComponents())
+            if (partitionKeyRestrictions.isEmpty() && partitionKeyRestrictions.hasUnrestrictedPartitionKeyComponents(cfm))
             {
-                if (!partitionKeyRestrictions.isEmpty())
-                {
-                    if (!hasQueriableIndex)
-                        throw invalidRequest("Partition key parts: %s must be restricted as other parts are",
-                                             Joiner.on(", ").join(getPartitionKeyUnrestrictedComponents()));
-                }
+                isKeyRange = true;
+                usesSecondaryIndexing = hasQueriableIndex;
+            }
+
+            // If there is a queriable index, no special condition is required on the other restrictions.
+            // But we still need to know 2 things:
+            // - If we don't have a queriable index, is the query ok
+            // - Is it queriable without 2ndary index, which is always more efficient
+            // If a component of the partition key is restricted by a relation, all preceding
+            // components must have a EQ. Only the last partition key component can be in IN relation.
+            if (partitionKeyRestrictions.needFiltering(cfm))
+            {
+                if (!allowFiltering && !forView && !hasQueriableIndex
+                    && (partitionKeyRestrictions.hasUnrestrictedPartitionKeyComponents(cfm) || partitionKeyRestrictions.hasSlice()))
+                    throw new InvalidRequestException(REQUIRES_ALLOW_FILTERING_MESSAGE);
+
+                if (partitionKeyRestrictions.hasIN())
+                    throw new InvalidRequestException("IN restrictions are not supported when the query involves filtering");
 
                 isKeyRange = true;
                 usesSecondaryIndexing = hasQueriableIndex;
             }
         }
-    }
-
-    /**
-     * Checks if the partition key has some unrestricted components.
-     * @return <code>true</code> if the partition key has some unrestricted components, <code>false</code> otherwise.
-     */
-    private boolean hasUnrestrictedPartitionKeyComponents()
-    {
-        return partitionKeyRestrictions.size() <  cfm.partitionKeyColumns().size();
     }
 
     public boolean hasPartitionKeyRestrictions()
@@ -622,8 +625,8 @@ public final class StatementRestrictions
     private ByteBuffer getPartitionKeyBound(Bound b, QueryOptions options)
     {
         // Deal with unrestricted partition key components (special-casing is required to deal with 2i queries on the
-        // first component of a composite partition key).
-        if (hasUnrestrictedPartitionKeyComponents())
+        // first component of a composite partition key) queries that filter on the partition key.
+        if (partitionKeyRestrictions.needFiltering(cfm))
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
         // We deal with IN queries for keys in other places, so we know buildBound will return only one result
@@ -804,7 +807,7 @@ public final class StatementRestrictions
     public boolean hasAllPKColumnsRestrictedByEqualities()
     {
         return !isPartitionKeyRestrictionsOnToken()
-                && !hasUnrestrictedPartitionKeyComponents()
+                && !partitionKeyRestrictions.hasUnrestrictedPartitionKeyComponents(cfm)
                 && (partitionKeyRestrictions.hasOnlyEqualityRestrictions())
                 && !hasUnrestrictedClusteringColumns()
                 && (clusteringColumnsRestrictions.hasOnlyEqualityRestrictions());

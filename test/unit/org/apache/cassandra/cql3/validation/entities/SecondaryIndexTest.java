@@ -1177,6 +1177,101 @@ public class SecondaryIndexTest extends CQLTester
                    row(bytes("foo124"), EMPTY_BYTE_BUFFER));
     }
 
+    @Test
+    public void testPartitionKeyWithIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY ((a, b)))");
+        createIndex("CREATE INDEX ON %s (a);");
+        createIndex("CREATE INDEX ON %s (b);");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (1,2,3)");
+        execute("INSERT INTO %s (a, b, c) VALUES (2,3,4)");
+        execute("INSERT INTO %s (a, b, c) VALUES (5,6,7)");
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT * FROM %s WHERE a = 1"),
+                       row(1, 2, 3));
+            assertRows(execute("SELECT * FROM %s WHERE b = 3"),
+                       row(2, 3, 4));
+
+        });
+    }
+
+    @Test
+    public void testAllowFilteringOnPartitionKeyWithSecondaryIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk1 int, pk2 int, c1 int, c2 int, v int, " +
+                    "PRIMARY KEY ((pk1, pk2), c1, c2))");
+        createIndex("CREATE INDEX v_idx_1 ON %s (v);");
+
+        for (int i = 1; i <= 5; i++)
+        {
+            for (int j = 1; j <= 2; j++)
+            {
+                execute("INSERT INTO %s (pk1, pk2, c1, c2, v) VALUES (?, ?, ?, ?, ?)", j, 1, 1, 1, i);
+                execute("INSERT INTO %s (pk1, pk2, c1, c2, v) VALUES (?, ?, ?, ?, ?)", j, 1, 1, i, i);
+                execute("INSERT INTO %s (pk1, pk2, c1, c2, v) VALUES (?, ?, ?, ?, ?)", j, 1, i, i, i);
+                execute("INSERT INTO %s (pk1, pk2, c1, c2, v) VALUES (?, ?, ?, ?, ?)", j, i, i, i, i);
+            }
+        }
+
+        beforeAndAfterFlush(() -> {
+            assertEmpty(execute("SELECT * FROM %s WHERE pk1 = 1 AND  c1 > 0 AND c1 < 5 AND c2 = 1 AND v = 3 ALLOW FILTERING;"));
+
+            assertRows(execute("SELECT * FROM %s WHERE pk1 = 1 AND  c1 > 0 AND c1 < 5 AND c2 = 3 AND v = 3 ALLOW FILTERING;"),
+                       row(1, 3, 3, 3, 3),
+                       row(1, 1, 1, 3, 3),
+                       row(1, 1, 3, 3, 3));
+
+            assertEmpty(execute("SELECT * FROM %s WHERE pk1 = 1 AND  c2 > 1 AND c2 < 5 AND v = 1 ALLOW FILTERING;"));
+
+            assertRows(execute("SELECT * FROM %s WHERE pk1 = 1 AND  c1 > 1 AND c2 > 2 AND v = 3 ALLOW FILTERING;"),
+                       row(1, 3, 3, 3, 3),
+                       row(1, 1, 3, 3, 3));
+
+            assertRows(execute("SELECT * FROM %s WHERE pk1 = 1 AND  pk2 > 1 AND c2 > 2 AND v = 3 ALLOW FILTERING;"),
+                       row(1, 3, 3, 3, 3));
+
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk2 > 1 AND  c1 IN(0,1,2) AND v <= 3 ALLOW FILTERING;"),
+                                    row(1, 2, 2, 2, 2),
+                                    row(2, 2, 2, 2, 2));
+
+            assertRows(execute("SELECT * FROM %s WHERE pk1 >= 2 AND pk2 <=3 AND  c1 IN(0,1,2) AND c2 IN(0,1,2) AND v < 3  ALLOW FILTERING;"),
+                       row(2, 2, 2, 2, 2),
+                       row(2, 1, 1, 2, 2),
+                       row(2, 1, 2, 2, 2));
+
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE pk1 >= 1 AND pk2 <=3 AND  c1 IN(0,1,2) AND c2 IN(0,1,2) AND v = 3");
+        });
+    }
+
+    @Test
+    public void testAllowFilteringOnPartitionKeyWithIndexForContains() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 int, k2 int, v set<int>, PRIMARY KEY ((k1, k2)))");
+        createIndex("CREATE INDEX ON %s(k2)");
+
+        execute("INSERT INTO %s (k1, k2, v) VALUES (?, ?, ?)", 0, 0, set(1, 2, 3));
+        execute("INSERT INTO %s (k1, k2, v) VALUES (?, ?, ?)", 0, 1, set(2, 3, 4));
+        execute("INSERT INTO %s (k1, k2, v) VALUES (?, ?, ?)", 1, 0, set(3, 4, 5));
+        execute("INSERT INTO %s (k1, k2, v) VALUES (?, ?, ?)", 1, 1, set(4, 5, 6));
+
+        beforeAndAfterFlush(() -> {
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE k2 > ?", 0);
+
+            assertRows(execute("SELECT * FROM %s WHERE k2 > ? ALLOW FILTERING", 0),
+                       row(0, 1, set(2, 3, 4)),
+                       row(1, 1, set(4, 5, 6)));
+
+            assertRows(execute("SELECT * FROM %s WHERE k2 >= ? AND v CONTAINS ? ALLOW FILTERING", 1, 6),
+                       row(1, 1, set(4, 5, 6)));
+
+            assertEmpty(execute("SELECT * FROM %s WHERE k2 < ? AND v CONTAINS ? ALLOW FILTERING", 0, 7));
+        });
+    }
+
     private ResultMessage.Prepared prepareStatement(String cql, boolean forThrift)
     {
         return QueryProcessor.prepare(String.format(cql, KEYSPACE, currentTable()),

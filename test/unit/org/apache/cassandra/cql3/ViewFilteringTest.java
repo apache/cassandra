@@ -148,13 +148,6 @@ public class ViewFilteringTest extends CQLTester
                 throw new RuntimeException("MV alter failed: " + goodStatements.get(i), e);
             }
         }
-
-        try
-        {
-            createView("mv_foo", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a = 1 AND b IS NOT NULL AND c IS NOT NULL AND d is NOT NULL PRIMARY KEY ((a, b), c, d)");
-            Assert.fail("Partial partition key restriction should not be allowed");
-        }
-        catch (InvalidQueryException exc) {}
     }
 
     @Test
@@ -263,6 +256,210 @@ public class ViewFilteringTest extends CQLTester
                 row(1, 0, 2),
                 row(1, 1, 3)
         );
+    }
+
+    @Test
+    public void testPartitionKeyFilteringUnrestrictedPart() throws Throwable
+    {
+        List<String> mvPrimaryKeys = Arrays.asList("((a, b), c)", "((b, a), c)", "(a, b, c)", "(c, b, a)", "((c, a), b)");
+        for (int i = 0; i < mvPrimaryKeys.size(); i++)
+        {
+            createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c))");
+
+            execute("USE " + keyspace());
+            executeNet(protocolVersion, "USE " + keyspace());
+
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 0, 0);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 0, 0);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 0, 0, 0);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 0, 1, 0);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 0, 0);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 1, 0);
+
+            logger.info("Testing MV primary key: {}", mvPrimaryKeys.get(i));
+
+            // only accept rows where a = 1
+            String viewName= "mv_test" + i;
+            createView(viewName, "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a = 1 AND b IS NOT NULL AND c IS NOT NULL PRIMARY KEY " + mvPrimaryKeys.get(i));
+
+            waitForView(keyspace(), viewName);
+
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 0, 0, 0),
+                                    row(1, 0, 1, 0),
+                                    row(1, 1, 0, 0),
+                                    row(1, 1, 1, 0)
+            );
+
+            // insert new rows that do not match the filter
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 0, 0, 0);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 1, 0, 0);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 0, 0, 0),
+                                    row(1, 0, 1, 0),
+                                    row(1, 1, 0, 0),
+                                    row(1, 1, 1, 0)
+            );
+
+            // insert new row that does match the filter
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 2, 0);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 0, 0, 0),
+                                    row(1, 0, 1, 0),
+                                    row(1, 1, 0, 0),
+                                    row(1, 1, 1, 0),
+                                    row(1, 1, 2, 0)
+            );
+
+            // update rows that don't match the filter
+            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 0, 0, 0);
+            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 0, 1, 0);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 0, 0, 0),
+                                    row(1, 0, 1, 0),
+                                    row(1, 1, 0, 0),
+                                    row(1, 1, 1, 0),
+                                    row(1, 1, 2, 0)
+            );
+
+            // update a row that does match the filter
+            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 1, 1, 0);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 0, 0, 0),
+                                    row(1, 0, 1, 0),
+                                    row(1, 1, 0, 1),
+                                    row(1, 1, 1, 0),
+                                    row(1, 1, 2, 0)
+            );
+
+            // delete rows that don't match the filter
+            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 0, 0, 0);
+            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 0, 1, 0);
+            execute("DELETE FROM %s WHERE a = ? AND b = ?", 0, 0);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 0, 0, 0),
+                                    row(1, 0, 1, 0),
+                                    row(1, 1, 0, 1),
+                                    row(1, 1, 1, 0),
+                                    row(1, 1, 2, 0)
+            );
+
+            // delete a row that does match the filter
+            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 1, 1, 0);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 0, 0, 0),
+                                    row(1, 0, 1, 0),
+                                    row(1, 1, 1, 0),
+                                    row(1, 1, 2, 0)
+            );
+
+            // delete a partition that matches the filter
+            execute("DELETE FROM %s WHERE a = ? AND b = ?", 1, 0);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 1, 1, 0),
+                                    row(1, 1, 2, 0));
+            execute("DELETE FROM %s WHERE a = ? AND b = ?", 1, 1);
+            assertEmpty(execute("SELECT * FROM mv_test" + i));
+        }
+    }
+
+    @Test
+    public void testPartitionKeyFilteringWithSlice() throws Throwable
+    {
+        List<String> mvPrimaryKeys = Arrays.asList("((a, b), c)", "((b, a), c)", "(a, b, c)", "(c, b, a)", "((c, a), b)");
+        for (int i = 0; i < mvPrimaryKeys.size(); i++)
+        {
+            createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c))");
+
+            execute("USE " + keyspace());
+            executeNet(protocolVersion, "USE " + keyspace());
+
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0,  1, 1);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 10, 1, 2);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 0,  2, 1);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 10, 2, 2);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 1,  3, 1);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 10, 3, 2);
+
+            logger.info("Testing MV primary key: {}", mvPrimaryKeys.get(i));
+
+            // only accept rows where a = 1
+            String viewName= "mv_test" + i;
+            createView(viewName, "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a > 0 AND b > 5 AND c IS NOT NULL PRIMARY KEY " + mvPrimaryKeys.get(i));
+
+            waitForView(keyspace(), viewName);
+
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 10, 2, 2),
+                                    row(2, 10, 3, 2)
+            );
+
+            // insert new rows that do not match the filter
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 0, 0, 0);
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 2, 1, 0, 0);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 10, 2, 2),
+                                    row(2, 10, 3, 2)
+            );
+
+            // insert new row that does match the filter
+            execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 3, 10, 4, 2);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 10, 2, 2),
+                                    row(2, 10, 3, 2),
+                                    row(3, 10, 4, 2)
+            );
+
+            // update rows that don't match the filter
+            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 0, 0, 0);
+            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 1, 0, 1, 0);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 10, 2, 2),
+                                    row(2, 10, 3, 2),
+                                    row(3, 10, 4, 2)
+            );
+
+            // update a row that does match the filter
+            execute("UPDATE %s SET d = ? WHERE a = ? AND b = ? AND c = ?", 100, 3, 10, 4);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 10, 2, 2),
+                                    row(2, 10, 3, 2),
+                                    row(3, 10, 4, 100)
+            );
+
+            // delete rows that don't match the filter
+            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 0, 0, 0);
+            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 0, 1, 0);
+            execute("DELETE FROM %s WHERE a = ? AND b = ?", 0, 0);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 10, 2, 2),
+                                    row(2, 10, 3, 2),
+                                    row(3, 10, 4, 100)
+            );
+
+            // delete a row that does match the filter
+            execute("DELETE FROM %s WHERE a = ? AND b = ? AND c = ?", 1, 1, 0);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(1, 10, 2, 2),
+                                    row(2, 10, 3, 2),
+                                    row(3, 10, 4, 100)
+            );
+
+            // delete a partition that matches the filter
+            execute("DELETE FROM %s WHERE a = ? AND b = ?", 1, 10);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                                    row(2, 10, 3, 2),
+                                    row(3, 10, 4, 100));
+        }
+    }
+
+
+
+
+    private static void waitForView(String keyspace, String view) throws InterruptedException
+    {
+        while (!SystemKeyspace.isViewBuilt(keyspace, view))
+            Thread.sleep(10);
     }
 
     @Test

@@ -112,7 +112,7 @@ public class CassandraIndexTest extends CQLTester
                         .indexName("k1_index")
                         .withFirstRow(row(0, 0, 0, 0, 0))
                         .withSecondRow(row(1, 1, 1, 1, 1))
-                        .missingIndexMessage("Partition key parts: k2 must be restricted as other parts are")
+                        .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("k1=0")
                         .secondQueryExpression("k1=1")
                         .run();
@@ -127,7 +127,7 @@ public class CassandraIndexTest extends CQLTester
                         .indexName("k2_index")
                         .withFirstRow(row(0, 0, 0, 0, 0))
                         .withSecondRow(row(1, 1, 1, 1, 1))
-                        .missingIndexMessage("Partition key parts: k1 must be restricted as other parts are")
+                        .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
                         .firstQueryExpression("k2=0")
                         .secondQueryExpression("k2=1")
                         .run();

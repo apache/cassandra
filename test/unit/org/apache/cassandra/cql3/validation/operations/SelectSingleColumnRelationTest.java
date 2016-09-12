@@ -206,9 +206,9 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row("second", 1, 1, 1),
                    row("second", 4, 4, 4));
 
-        assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "select * from %s where a in (?, ?)", "first", "second");
-        assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "select * from %s where a = ?", "first");
         assertInvalidMessage("b cannot be restricted by more than one relation if it includes a IN",
                              "select * from %s where a = ? AND b IN (?, ?) AND b = ?", "first", 2, 2, 3);
@@ -498,11 +498,14 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row(0, 0, 1, 1, 0, 4),
                    row(0, 0, 1, 1, 1, 5));
 
-        assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
-                             "SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND  d IN (?) ALLOW FILTERING", 0, 0, 1, 1);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?) AND  d IN (?) ALLOW FILTERING", 0, 1, 1),
+                row(0, 0, 1, 1, 0, 4),
+                row(0, 0, 1, 1, 1, 5));
 
-        assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
-                             "SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) ALLOW FILTERING", 0, 1, 1);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) ALLOW FILTERING", 0, 1, 1),
+                row(0, 0, 1, 1, 0, 4),
+                row(0, 0, 1, 1, 1, 5),
+                row(0, 0, 2, 0, 0, 5));
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND f = ?", 0, 0, 1, 5);
@@ -520,8 +523,11 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND d IN (?) AND f = ? ALLOW FILTERING", 0, 1, 3, 0, 3),
                    row(0, 0, 1, 0, 0, 3));
 
-        assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
-                             "SELECT * FROM %s WHERE a = ? AND c >= ? ALLOW FILTERING", 0, 1);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c >= ? ALLOW FILTERING", 0, 1),
+                row(0, 0, 1, 0, 0, 3),
+                row(0, 0, 1, 1, 0, 4),
+                row(0, 0, 1, 1, 1, 5),
+                row(0, 0, 2, 0, 0, 5));
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a = ? AND c >= ? AND f = ?", 0, 1, 5);
@@ -592,7 +598,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     public void testInvalidSliceRestrictionOnPartitionKey() throws Throwable
     {
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c text)");
-        assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 and a < 4");
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
                              "SELECT * FROM %s WHERE (a) >= (1) and (a) < (4)");
@@ -604,9 +610,9 @@ public class SelectSingleColumnRelationTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c text, PRIMARY KEY ((a, b)))");
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
                              "SELECT * FROM %s WHERE (a, b) >= (1, 1) and (a, b) < (4, 1)");
-        assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
                              "SELECT * FROM %s WHERE a >= 1 and (a, b) < (4, 1)");
-        assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
                              "SELECT * FROM %s WHERE b >= 1 and (a, b) < (4, 1)");
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
                              "SELECT * FROM %s WHERE (a, b) >= (1, 1) and (b) < (4)");

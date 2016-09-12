@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableRangeSet;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
@@ -135,8 +136,8 @@ final class TokenFilter implements PartitionKeyRestrictions
      */
     private List<ByteBuffer> filter(List<ByteBuffer> values, QueryOptions options) throws InvalidRequestException
     {
-        RangeSet<Token> rangeSet = tokenRestriction.isSlice() ? toRangeSet(tokenRestriction, options)
-                                                              : toRangeSet(tokenRestriction.values(options));
+        RangeSet<Token> rangeSet = tokenRestriction.hasSlice() ? toRangeSet(tokenRestriction, options)
+                                                               : toRangeSet(tokenRestriction.values(options));
 
         return filterWithRangeSet(rangeSet, values);
     }
@@ -284,5 +285,23 @@ final class TokenFilter implements PartitionKeyRestrictions
     public int size()
     {
         return restrictions.size();
+    }
+
+    @Override
+    public boolean needFiltering(CFMetaData cfm)
+    {
+        return restrictions.needFiltering(cfm);
+    }
+
+    @Override
+    public boolean hasUnrestrictedPartitionKeyComponents(CFMetaData cfm)
+    {
+        return restrictions.hasUnrestrictedPartitionKeyComponents(cfm);
+    }
+
+    @Override
+    public boolean hasSlice()
+    {
+        return restrictions.hasSlice();
     }
 }

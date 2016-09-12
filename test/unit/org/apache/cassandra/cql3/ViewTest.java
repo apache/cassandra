@@ -117,6 +117,19 @@ public class ViewTest extends CQLTester
         Assert.assertEquals(0, execute("select * from view1").size());
     }
 
+
+    @Test
+    public void createMvWithUnrestrictedPKParts() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 int, c1 int , val int, PRIMARY KEY (k1, c1))");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("view1", "CREATE MATERIALIZED VIEW view1 AS SELECT k1 FROM %%s WHERE k1 IS NOT NULL AND c1 IS NOT NULL AND val IS NOT NULL PRIMARY KEY (val, k1, c1)");
+
+    }
+
     @Test
     public void testClusteringKeyTombstone() throws Throwable
     {

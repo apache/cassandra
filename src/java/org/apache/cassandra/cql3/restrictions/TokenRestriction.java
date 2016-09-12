@@ -57,11 +57,6 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         this.metadata = metadata;
     }
 
-    public boolean isSlice()
-    {
-        return false;
-    }
-
     public boolean hasIN()
     {
         return false;
@@ -82,6 +77,24 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
     public final boolean isOnToken()
     {
         return true;
+    }
+
+    @Override
+    public boolean needFiltering(CFMetaData cfm)
+    {
+        return false;
+    }
+
+    @Override
+    public boolean hasSlice()
+    {
+        return false;
+    }
+
+    @Override
+    public boolean hasUnrestrictedPartitionKeyComponents(CFMetaData cfm)
+    {
+        return false;
     }
 
     @Override
@@ -225,7 +238,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         }
 
         @Override
-        public boolean isSlice()
+        public boolean hasSlice()
         {
             return true;
         }

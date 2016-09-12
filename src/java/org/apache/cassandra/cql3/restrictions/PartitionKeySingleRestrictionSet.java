@@ -129,4 +129,30 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
              restriction.addRowFilterTo(filter, indexManager, options);
         }
     }
+
+    @Override
+    public boolean needFiltering(CFMetaData cfm)
+    {
+        if (isEmpty())
+            return false;
+        // slice or has unrestricted key component
+        return hasUnrestrictedPartitionKeyComponents(cfm) || hasSlice();
+    }
+
+    @Override
+    public boolean hasUnrestrictedPartitionKeyComponents(CFMetaData cfm)
+    {
+        return size() < cfm.partitionKeyColumns().size();
+    }
+
+    @Override
+    public boolean hasSlice()
+    {
+        for (SingleRestriction restriction : restrictions)
+        {
+            if (restriction.isSlice())
+                return true;
+        }
+        return false;
+    }
 }

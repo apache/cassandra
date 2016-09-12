@@ -55,6 +55,12 @@ public interface Restrictions extends Restriction
     public boolean hasIN();
 
     /**
+     * Checks if any of the underlying restrictions is a slice.
+     * @return <code>true</code> if any of the underlying restrictions is a slice, <code>false</code> otherwise
+     */
+    public boolean hasSlice();
+
+    /**
      * Checks if all of the underlying restrictions are EQ or IN restrictions.
      *
      * @return <code>true</code> if all of the underlying restrictions are EQ or IN restrictions,

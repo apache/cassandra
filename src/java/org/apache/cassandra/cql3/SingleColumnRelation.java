@@ -252,17 +252,6 @@ public final class SingleColumnRelation extends Relation
             checkFalse(!columnDef.isPrimaryKeyColumn() && !canHaveOnlyOneValue(),
                        "IN predicates on non-primary-key columns (%s) is not yet supported", columnDef.name);
         }
-        else if (isSlice())
-        {
-            // Non EQ relation is not supported without token(), even if we have a 2ndary index (since even those
-            // are ordered by partitioner).
-            // Note: In theory we could allow it for 2ndary index queries with ALLOW FILTERING, but that would
-            // probably require some special casing
-            // Note bis: This is also why we don't bother handling the 'tuple' notation of #4851 for keys. If we
-            // lift the limitation for 2ndary
-            // index with filtering, we'll need to handle it though.
-            checkFalse(columnDef.isPartitionKey(), "Only EQ and IN relation are supported on the partition key (unless you use the token() function)");
-        }
 
         checkFalse(isContainsKey() && !(receiver.type instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", receiver.name);
         checkFalse(isContains() && !(receiver.type.isCollection()), "Cannot use CONTAINS on non-collection column %s", receiver.name);
