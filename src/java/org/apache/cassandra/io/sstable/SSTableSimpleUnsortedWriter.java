@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 
-import com.datastax.shaded.netty.util.concurrent.FastThreadLocalThread;
+import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Row;
