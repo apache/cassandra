@@ -1,3 +1,7 @@
+3.0.10
+ * Backport CASSANDRA-10756 (race condition in NativeTransportService shutdown) (CASSANDRA-12472)
+
+
 3.0.9
  * Handle composite prefixes with final EOC=0 as in 2.x and refactor LegacyLayout.decodeBound (CASSANDRA-12423)
  * Fix paging for 2.x to 3.x upgrades (CASSANDRA-11195)

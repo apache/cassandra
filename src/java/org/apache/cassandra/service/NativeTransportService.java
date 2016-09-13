@@ -145,16 +145,7 @@ public class NativeTransportService
         servers = Collections.emptyList();
 
         // shutdown executors used by netty for native transport server
-        Future<?> wgStop = workerGroup.shutdownGracefully(0, 0, TimeUnit.SECONDS);
-
-        try
-        {
-            wgStop.await(5000);
-        }
-        catch (InterruptedException e1)
-        {
-            Thread.currentThread().interrupt();
-        }
+        workerGroup.shutdownGracefully(3, 5, TimeUnit.SECONDS).awaitUninterruptibly();
 
         // shutdownGracefully not implemented yet in RequestThreadPoolExecutor
         eventExecutorGroup.shutdown();
