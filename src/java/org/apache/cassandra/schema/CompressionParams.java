@@ -331,9 +331,9 @@ public final class CompressionParams
             if (!hasLoggedChunkLengthWarning)
             {
                 hasLoggedChunkLengthWarning = true;
-                logger.warn(format("The %s option has been deprecated. You should use %s instead",
+                logger.warn("The {} option has been deprecated. You should use {} instead",
                                    CHUNK_LENGTH_KB,
-                                   CHUNK_LENGTH_IN_KB));
+                                   CHUNK_LENGTH_IN_KB);
             }
 
             return parseChunkLength(options.remove(CHUNK_LENGTH_KB));
@@ -380,9 +380,9 @@ public final class CompressionParams
         if (options.containsKey(SSTABLE_COMPRESSION) && !hasLoggedSsTableCompressionWarning)
         {
             hasLoggedSsTableCompressionWarning = true;
-            logger.warn(format("The %s option has been deprecated. You should use %s instead",
+            logger.warn("The {} option has been deprecated. You should use {} instead",
                                SSTABLE_COMPRESSION,
-                               CLASS));
+                               CLASS);
         }
 
         return options.remove(SSTABLE_COMPRESSION);

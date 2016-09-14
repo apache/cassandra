@@ -570,7 +570,7 @@ public class CompactionManager implements CompactionManagerMBean
                                           final Refs<SSTableReader> sstables,
                                           final long repairedAt)
     {
-        Runnable runnable = new WrappedRunnable() 
+        Runnable runnable = new WrappedRunnable()
         {
             @Override
             @SuppressWarnings("resource")
@@ -856,7 +856,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
                 catch (IOException e)
                 {
-                    logger.error(String.format("forceUserDefinedCleanup failed: %s", e.getLocalizedMessage()));
+                    logger.error("forceUserDefinedCleanup failed: {}", e.getLocalizedMessage());
                 }
             }
         }
@@ -1744,7 +1744,7 @@ public class CompactionManager implements CompactionManagerMBean
         public void afterExecute(Runnable r, Throwable t)
         {
             DebuggableThreadPoolExecutor.maybeResetTraceSessionWrapper(r);
-    
+
             if (t == null)
                 t = DebuggableThreadPoolExecutor.extractThrowable(r);
 

@@ -113,7 +113,7 @@ public class ThriftServer implements CassandraDaemon.Server
                                   TTransportFactory transportFactory)
         {
             // now we start listening for clients
-            logger.info(String.format("Binding thrift service to %s:%s", listenAddr, listenPort));
+            logger.info("Binding thrift service to {}:{}", listenAddr, listenPort);
 
             TServerFactory.Args args = new TServerFactory.Args();
             args.tProtocolFactory = new TBinaryProtocol.Factory(true, true);

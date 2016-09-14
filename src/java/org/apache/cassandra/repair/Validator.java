@@ -92,7 +92,7 @@ public class Validator implements Runnable
         {
             List<DecoratedKey> keys = new ArrayList<>();
             Random random = new Random();
-            
+
             for (Range<Token> range : tree.ranges())
             {
                 for (DecoratedKey sample : cfs.keySamples(range))
@@ -271,7 +271,7 @@ public class Validator implements Runnable
         // respond to the request that triggered this validation
         if (!initiator.equals(FBUtilities.getBroadcastAddress()))
         {
-            logger.info(String.format("[repair #%s] Sending completed merkle tree to %s for %s.%s", desc.sessionId, initiator, desc.keyspace, desc.columnFamily));
+            logger.info("[repair #{}] Sending completed merkle tree to {} for {}.{}", desc.sessionId, initiator, desc.keyspace, desc.columnFamily);
             Tracing.traceRepair("Sending completed merkle tree to {} for {}.{}", initiator, desc.keyspace, desc.columnFamily);
         }
         MessagingService.instance().sendOneWay(new ValidationComplete(desc, trees).createMessage(), initiator);

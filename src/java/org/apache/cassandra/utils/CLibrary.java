@@ -247,7 +247,7 @@ public final class CLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("posix_fadvise(%d, %d) failed, errno (%d).", fd, offset, errno(e)));
+            logger.warn("posix_fadvise({}, {}) failed, errno ({}).", fd, offset, errno(e));
         }
     }
 
@@ -269,7 +269,7 @@ public final class CLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("fcntl(%d, %d, %d) failed, errno (%d).", fd, command, flags, errno(e)));
+            logger.warn("fcntl({}, {}, {}) failed, errno ({}).", fd, command, flags, errno(e));
         }
 
         return result;
@@ -292,7 +292,7 @@ public final class CLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("open(%s, O_RDONLY) failed, errno (%d).", path, errno(e)));
+            logger.warn("open({}, O_RDONLY) failed, errno ({}).", path, errno(e));
         }
 
         return fd;
@@ -339,7 +339,7 @@ public final class CLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("close(%d) failed, errno (%d).", fd, errno(e)));
+            logger.warn("close({}) failed, errno ({}).", fd, errno(e));
         }
     }
 

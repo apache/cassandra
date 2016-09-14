@@ -1190,7 +1190,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         MatchResult range = tokenScanner.match();
                         Token startToken = factory.fromString(range.group(1));
                         Token endToken = factory.fromString(range.group(2));
-                        logger.info(String.format("adding range: (%s,%s]", startToken, endToken));
+                        logger.info("adding range: ({},{}]", startToken, endToken);
                         ranges.add(new Range<>(startToken, endToken));
                     }
                     if (tokenScanner.hasNext())
@@ -2275,19 +2275,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (epToTokenCopy.get(currentOwner).size() < 1)
                     endpointsToRemove.add(currentOwner);
 
-                logger.info(String.format("Nodes %s and %s have the same token %s.  %s is the new owner",
-                                          endpoint,
-                                          currentOwner,
-                                          token,
-                                          endpoint));
+                logger.info("Nodes {} and {} have the same token {}.  {} is the new owner",
+                            endpoint,
+                            currentOwner,
+                            token,
+                            endpoint);
             }
             else
             {
-                logger.info(String.format("Nodes %s and %s have the same token %s.  Ignoring %s",
-                                           endpoint,
-                                           currentOwner,
-                                           token,
-                                           endpoint));
+                logger.info("Nodes {} and {} have the same token {}.  Ignoring %s",
+                            endpoint,
+                            currentOwner,
+                            token,
+                            endpoint);
             }
         }
 
@@ -4977,7 +4977,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setHintedHandoffThrottleInKB(int throttleInKB)
     {
         DatabaseDescriptor.setHintedHandoffThrottleInKB(throttleInKB);
-        logger.info(String.format("Updated hinted_handoff_throttle_in_kb to %d", throttleInKB));
+        logger.info("Updated hinted_handoff_throttle_in_kb to {}", throttleInKB);
     }
 
     public static List<PartitionPosition> getDiskBoundaries(ColumnFamilyStore cfs, Directories.DataDirectory[] directories)

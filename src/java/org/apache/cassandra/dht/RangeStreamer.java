@@ -179,7 +179,7 @@ public class RangeStreamer
         if (logger.isTraceEnabled())
         {
             for (Map.Entry<Range<Token>, InetAddress> entry : rangesForKeyspace.entries())
-                logger.trace(String.format("%s: range %s exists on %s", description, entry.getKey(), entry.getValue()));
+                logger.trace("{}: range {} exists on {}", description, entry.getKey(), entry.getValue());
         }
 
         for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : getRangeFetchMap(rangesForKeyspace, sourceFilters, keyspaceName, useStrictConsistency).asMap().entrySet())
@@ -187,7 +187,7 @@ public class RangeStreamer
             if (logger.isTraceEnabled())
             {
                 for (Range<Token> r : entry.getValue())
-                    logger.trace(String.format("%s: range %s from source %s for keyspace %s", description, r, entry.getKey(), keyspaceName));
+                    logger.trace("{}: range {} from source {} for keyspace {}", description, r, entry.getKey(), keyspaceName);
             }
             toFetch.put(keyspaceName, entry);
         }

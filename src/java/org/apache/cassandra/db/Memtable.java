@@ -115,7 +115,7 @@ public class Memtable implements Comparable<Memtable>
 
     public static final class LastCommitLogPosition extends CommitLogPosition
     {
-        public LastCommitLogPosition(CommitLogPosition copy) 
+        public LastCommitLogPosition(CommitLogPosition copy)
         {
             super(copy.segmentId, copy.position);
         }
@@ -491,15 +491,15 @@ public class Memtable implements Comparable<Memtable>
             }
 
             long bytesFlushed = writer.getFilePointer();
-            logger.debug(String.format("Completed flushing %s (%s) for commitlog position %s",
+            logger.debug("Completed flushing {} ({}) for commitlog position {}",
                                                                               writer.getFilename(),
                                                                               FBUtilities.prettyPrintMemory(bytesFlushed),
-                                                                              commitLogUpperBound));
+                                                                              commitLogUpperBound);
             // Update the metrics
             cfs.metric.bytesFlushed.inc(bytesFlushed);
 
             if (heavilyContendedRowCount > 0)
-                logger.trace(String.format("High update contention in %d/%d partitions of %s ", heavilyContendedRowCount, toFlush.size(), Memtable.this.toString()));
+                logger.trace("High update contention in {}/{} partitions of {} ", heavilyContendedRowCount, toFlush.size(), Memtable.this);
         }
 
         public SSTableMultiWriter createFlushWriter(LifecycleTransaction txn,
@@ -511,7 +511,7 @@ public class Memtable implements Comparable<Memtable>
                     .commitLogIntervals(new IntervalSet<>(commitLogLowerBound.get(), commitLogUpperBound.get()));
 
             return cfs.createSSTableMultiWriter(Descriptor.fromFilename(filename),
-                                                (long)toFlush.size(),
+                                                toFlush.size(),
                                                 ActiveRepairService.UNREPAIRED_SSTABLE,
                                                 sstableMetadataCollector,
                                                 new SerializationHeader(true, cfs.metadata, columns, stats), txn);

@@ -712,12 +712,11 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             }
             catch (UnknownIndexException e)
             {
-                String message = String.format("Couldn't find a defined index on %s.%s with the id %s. " +
-                                               "If an index was just created, this is likely due to the schema not " +
-                                               "being fully propagated. Local read will proceed without using the " +
-                                               "index. Please wait for schema agreement after index creation.",
-                                               cfm.ksName, cfm.cfName, e.indexId.toString());
-                logger.info(message);
+                logger.info("Couldn't find a defined index on {}.{} with the id {}. " +
+                            "If an index was just created, this is likely due to the schema not " +
+                            "being fully propagated. Local read will proceed without using the " +
+                            "index. Please wait for schema agreement after index creation.",
+                            cfm.ksName, cfm.cfName, e.indexId);
                 return Optional.empty();
             }
         }

@@ -187,10 +187,9 @@ final class LogFile implements AutoCloseable
 
         // if only the last record is corrupt and all other records have matching files on disk, @see verifyRecord,
         // then we simply exited whilst serializing the last record and we carry on
-        logger.warn(String.format("Last record of transaction %s is corrupt or incomplete [%s], " +
-                                  "but all previous records match state on disk; continuing",
-                                  id,
-                                  failedOn.error()));
+        logger.warn("Last record of transaction {} is corrupt or incomplete [{}], " +
+                    "but all previous records match state on disk; continuing",
+                    id, failedOn.error());
         return true;
     }
 

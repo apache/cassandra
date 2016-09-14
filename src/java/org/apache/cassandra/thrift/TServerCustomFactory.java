@@ -48,12 +48,12 @@ public class TServerCustomFactory implements TServerFactory
         else if(ThriftServer.ThriftServerType.ASYNC.equalsIgnoreCase(serverType))
         {
             server = new CustomTNonBlockingServer.Factory().buildTServer(args);
-            logger.info(String.format("Using non-blocking/asynchronous thrift server on %s : %s", args.addr.getHostName(), args.addr.getPort()));
+            logger.info("Using non-blocking/asynchronous thrift server on {} : {}", args.addr.getHostName(), args.addr.getPort());
         }
         else if(ThriftServer.ThriftServerType.HSHA.equalsIgnoreCase(serverType))
         {
             server = new THsHaDisruptorServer.Factory().buildTServer(args);
-            logger.info(String.format("Using custom half-sync/half-async thrift server on %s : %s", args.addr.getHostName(), args.addr.getPort()));
+            logger.info("Using custom half-sync/half-async thrift server on {} : {}", args.addr.getHostName(), args.addr.getPort());
         }
         else
         {
@@ -67,7 +67,7 @@ public class TServerCustomFactory implements TServerFactory
                 throw new RuntimeException("Failed to instantiate server factory:" + serverType, e);
             }
             server = serverFactory.buildTServer(args);
-            logger.info(String.format("Using custom thrift server %s on %s : %s", server.getClass().getName(), args.addr.getHostName(), args.addr.getPort()));
+            logger.info("Using custom thrift server {} on {} : {}", server.getClass().getName(), args.addr.getHostName(), args.addr.getPort());
         }
         return server;
     }

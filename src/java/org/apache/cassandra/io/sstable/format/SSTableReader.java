@@ -435,8 +435,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         String partitionerName = metadata.partitioner.getClass().getCanonicalName();
         if (validationMetadata != null && !partitionerName.equals(validationMetadata.partitioner))
         {
-            logger.error(String.format("Cannot open %s; partitioner %s does not match system partitioner %s.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
-                    descriptor, validationMetadata.partitioner, partitionerName));
+            logger.error("Cannot open {}; partitioner {} does not match system partitioner {}.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
+                         descriptor, validationMetadata.partitioner, partitionerName);
             System.exit(1);
         }
 
@@ -496,8 +496,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         String partitionerName = metadata.partitioner.getClass().getCanonicalName();
         if (validationMetadata != null && !partitionerName.equals(validationMetadata.partitioner))
         {
-            logger.error(String.format("Cannot open %s; partitioner %s does not match system partitioner %s.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
-                    descriptor, validationMetadata.partitioner, partitionerName));
+            logger.error("Cannot open {}; partitioner {} does not match system partitioner {}.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
+                         descriptor, validationMetadata.partitioner, partitionerName);
             System.exit(1);
         }
 
@@ -1501,7 +1501,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     protected RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
     {
-        if (keyCache != null && keyCache.getCapacity() > 0 && metadata.params.caching.cacheKeys()) 
+        if (keyCache != null && keyCache.getCapacity() > 0 && metadata.params.caching.cacheKeys())
         {
             if (updateStats)
             {

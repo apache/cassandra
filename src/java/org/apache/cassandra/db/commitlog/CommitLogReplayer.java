@@ -146,7 +146,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
     public int blockForWrites()
     {
         for (Map.Entry<UUID, AtomicInteger> entry : commitLogReader.getInvalidMutations())
-            logger.warn(String.format("Skipped %d mutations from unknown (probably removed) CF with id %s", entry.getValue().intValue(), entry.getKey()));
+            logger.warn("Skipped {} mutations from unknown (probably removed) CF with id {}", entry.getValue(), entry.getKey());
 
         // wait for all the writes to finish on the mutation stage
         FBUtilities.waitOnFutures(futures);

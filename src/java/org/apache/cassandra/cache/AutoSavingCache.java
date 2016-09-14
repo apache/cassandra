@@ -194,7 +194,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             DataInputStreamPlus in = null;
             try
             {
-                logger.info(String.format("reading saved cache %s", dataPath));
+                logger.info("reading saved cache {}", dataPath);
                 in = new DataInputStreamPlus(new LengthAvailableInputStream(new BufferedInputStream(streamFactory.getInputStream(dataPath, crcPath)), dataPath.length()));
 
                 //Check the schema has not changed since CFs are looked up by name which is ambiguous
