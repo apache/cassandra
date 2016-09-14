@@ -55,13 +55,17 @@ public class PendingRangeCalculatorService
     {
         public void run()
         {
-            long start = System.currentTimeMillis();
-            for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
+            try
             {
-                calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName);
+                long start = System.currentTimeMillis();
+                for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
+                    calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName);
+                logger.debug("finished calculation for {} keyspaces in {}ms", Schema.instance.getNonSystemKeyspaces().size(), System.currentTimeMillis() - start);
             }
-            PendingRangeCalculatorService.instance.finishUpdate();
-            logger.debug("finished calculation for {} keyspaces in {}ms", Schema.instance.getNonSystemKeyspaces().size(), System.currentTimeMillis() - start);
+            finally
+            {
+                PendingRangeCalculatorService.instance.finishUpdate();
+            }
         }
     }
 
