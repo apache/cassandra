@@ -1,4 +1,5 @@
 4.0
+ * Make gc_log and gc_warn settable at runtime (CASSANDRA-12661)
  * Take number of files in L0 in account when estimating remaining compaction tasks (CASSANDRA-13354)
  * Skip building views during base table streams on range movements (CASSANDRA-13065)
  * Improve error messages for +/- operations on maps and tuples (CASSANDRA-13197)
