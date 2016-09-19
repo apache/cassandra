@@ -49,4 +49,9 @@ public interface IAsyncCallback<T>
      * given as input to the dynamic snitch.
      */
     boolean isLatencyForSnitch();
+
+    default boolean supportsBackPressure()
+    {
+        return false;
+    }
 }

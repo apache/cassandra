@@ -23,8 +23,7 @@ import java.net.UnknownHostException;
 import java.util.Map;
 
 /**
- * MBean exposing MessagingService metrics.
- * - OutboundConnectionPools - Command/Response - Pending/Completed Tasks
+ * MBean exposing MessagingService metrics plus allowing to enable/disable back-pressure.
  */
 public interface MessagingServiceMBean
 {
@@ -87,6 +86,21 @@ public interface MessagingServiceMBean
      * Number of timeouts per host
      */
     public Map<String, Long> getTimeoutsPerHost();
+
+    /**
+     * Back-pressure rate limiting per host
+     */
+    public Map<String, Double> getBackPressurePerHost();
+
+    /**
+     * Enable/Disable back-pressure
+     */
+    public void setBackPressureEnabled(boolean enabled);
+
+    /**
+     * Get back-pressure enabled state
+     */
+    public boolean isBackPressureEnabled();
 
     public int getVersion(String address) throws UnknownHostException;
 }

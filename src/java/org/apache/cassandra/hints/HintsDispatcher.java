@@ -209,5 +209,11 @@ final class HintsDispatcher implements AutoCloseable
         {
             return false;
         }
+
+        @Override
+        public boolean supportsBackPressure()
+        {
+            return true;
+        }
     }
 }

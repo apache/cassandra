@@ -1,4 +1,5 @@
 3.10
+ * Support optional backpressure strategies at the coordinator (CASSANDRA-9318)
  * Make randompartitioner work with new vnode allocation (CASSANDRA-12647)
  * Fix cassandra-stress graphing (CASSANDRA-12237)
  * Allow filtering on partition key columns for queries without secondary indexes (CASSANDRA-11031)

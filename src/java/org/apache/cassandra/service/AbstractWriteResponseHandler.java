@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import com.google.common.collect.Iterables;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +54,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     private volatile int failures = 0;
     private final Map<InetAddress, RequestFailureReason> failureReasonByEndpoint;
     private final long queryStartNanoTime;
+    private volatile boolean supportsBackPressure = true;
 
     /**
      * @param callback A callback to be called when the write is successful.
@@ -78,11 +80,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
 
     public void get() throws WriteTimeoutException, WriteFailureException
     {
-        long requestTimeout = writeType == WriteType.COUNTER
-                            ? DatabaseDescriptor.getCounterWriteRpcTimeout()
-                            : DatabaseDescriptor.getWriteRpcTimeout();
-
-        long timeout = TimeUnit.MILLISECONDS.toNanos(requestTimeout) - (System.nanoTime() - queryStartNanoTime);
+        long timeout = currentTimeout();
 
         boolean success;
         try
@@ -110,6 +108,14 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
         {
             throw new WriteFailureException(consistencyLevel, ackCount(), totalBlockFor(), writeType, failureReasonByEndpoint);
         }
+    }
+
+    public final long currentTimeout()
+    {
+        long requestTimeout = writeType == WriteType.COUNTER
+                              ? DatabaseDescriptor.getCounterWriteRpcTimeout()
+                              : DatabaseDescriptor.getWriteRpcTimeout();
+        return TimeUnit.MILLISECONDS.toNanos(requestTimeout) - (System.nanoTime() - queryStartNanoTime);
     }
 
     /**
@@ -171,5 +177,16 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
 
         if (totalBlockFor() + n > totalEndpoints())
             signal();
+    }
+
+    @Override
+    public boolean supportsBackPressure()
+    {
+        return supportsBackPressure;
+    }
+
+    public void setSupportsBackPressure(boolean supportsBackPressure)
+    {
+        this.supportsBackPressure = supportsBackPressure;
     }
 }

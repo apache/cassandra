@@ -101,6 +101,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.util.DiskOptimizationStrategy",
     "org.apache.cassandra.locator.SimpleSeedProvider",
     "org.apache.cassandra.locator.SeedProvider",
+    "org.apache.cassandra.net.BackPressureStrategy",
     "org.apache.cassandra.scheduler.IRequestScheduler",
     "org.apache.cassandra.security.EncryptionContext",
     "org.apache.cassandra.service.CacheService$CacheType",
