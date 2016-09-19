@@ -1,4 +1,5 @@
 3.10
+ * Fix NPE when using CQLSSTableWriter (CASSANDRA-12667)
  * Support optional backpressure strategies at the coordinator (CASSANDRA-9318)
  * Make randompartitioner work with new vnode allocation (CASSANDRA-12647)
  * Fix cassandra-stress graphing (CASSANDRA-12237)

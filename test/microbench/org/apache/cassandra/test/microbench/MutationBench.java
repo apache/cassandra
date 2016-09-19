@@ -65,9 +65,6 @@ public class MutationBench
     static
     {
         DatabaseDescriptor.clientInitialization(false);
-        // Partitioner is not set in client mode.
-        if (DatabaseDescriptor.getPartitioner() == null)
-            DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
     static String keyspace = "keyspace1";
