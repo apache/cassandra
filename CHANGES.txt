@@ -1,6 +1,8 @@
 3.0.10
  * Extend ColumnIdentifier.internedInstances key to include the type that generated the byte buffer (CASSANDRA-12516)
  * Backport CASSANDRA-10756 (race condition in NativeTransportService shutdown) (CASSANDRA-12472)
+Merged from 2.1:
+ * Add system property to set the max number of native transport requests in queue (CASSANDRA-11363)
 
 
 3.0.9
@@ -81,7 +83,6 @@ Merged from 2.2:
  * Improve streaming synchronization and fault tolerance (CASSANDRA-11414)
  * MemoryUtil.getShort() should return an unsigned short also for architectures not supporting unaligned memory accesses (CASSANDRA-11973)
 Merged from 2.1:
- * Add system property to set the max number of native transport requests in queue (CASSANDRA-11363)
  * Fix queries with empty ByteBuffer values in clustering column restrictions (CASSANDRA-12127) 
  * Disable passing control to post-flush after flush failure to prevent data loss (CASSANDRA-11828)
  * Allow STCS-in-L0 compactions to reduce scope with LCS (CASSANDRA-12040)
