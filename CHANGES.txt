@@ -63,6 +63,7 @@
  * Remove compaction Severity from DynamicEndpointSnitch (CASSANDRA-11738)
  * Restore resumable hints delivery (CASSANDRA-11960)
 Merged from 3.0:
+ * Extend ColumnIdentifier.internedInstances key to include the type that generated the byte buffer (CASSANDRA-12516)
  * Handle composite prefixes with final EOC=0 as in 2.x and refactor LegacyLayout.decodeBound (CASSANDRA-12423)
  * select_distinct_with_deletions_test failing on non-vnode environments (CASSANDRA-11126)
  * Stack Overflow returned to queries while upgrading (CASSANDRA-12527)

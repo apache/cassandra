@@ -534,7 +534,7 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
                     if (def.name.bytes.equals(bufferName))
                         return def.name;
                 }
-                return ColumnIdentifier.getInterned(thriftColumnNameType.fromString(text), text);
+                return ColumnIdentifier.getInterned(thriftColumnNameType, thriftColumnNameType.fromString(text), text);
             }
 
             public ColumnDefinition prepare(CFMetaData cfm)

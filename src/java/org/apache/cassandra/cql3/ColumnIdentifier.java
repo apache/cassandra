@@ -28,6 +28,7 @@ import com.google.common.collect.MapMaker;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
@@ -54,7 +55,38 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(new ColumnIdentifier(ByteBufferUtil.EMPTY_BYTE_BUFFER, "", false));
 
-    private static final ConcurrentMap<ByteBuffer, ColumnIdentifier> internedInstances = new MapMaker().weakValues().makeMap();
+    private static final ConcurrentMap<InternedKey, ColumnIdentifier> internedInstances = new MapMaker().weakValues().makeMap();
+
+    private static final class InternedKey
+    {
+        private final AbstractType<?> type;
+        private final ByteBuffer bytes;
+
+        InternedKey(AbstractType<?> type, ByteBuffer bytes)
+        {
+            this.type = type;
+            this.bytes = bytes;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o)
+                return true;
+
+            if (o == null || getClass() != o.getClass())
+                return false;
+
+            InternedKey that = (InternedKey) o;
+            return bytes.equals(that.bytes) && type.equals(that.type);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return bytes.hashCode() + 31 * type.hashCode();
+        }
+    }
 
     private static long prefixComparison(ByteBuffer bytes)
     {
@@ -97,24 +129,25 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
 
     public static ColumnIdentifier getInterned(ByteBuffer bytes, AbstractType<?> type)
     {
-        return getInterned(bytes, type.getString(bytes));
+        return getInterned(type, bytes, type.getString(bytes));
     }
 
     public static ColumnIdentifier getInterned(String rawText, boolean keepCase)
     {
         String text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
         ByteBuffer bytes = ByteBufferUtil.bytes(text);
-        return getInterned(bytes, text);
+        return getInterned(UTF8Type.instance, bytes, text);
     }
 
-    public static ColumnIdentifier getInterned(ByteBuffer bytes, String text)
+    public static ColumnIdentifier getInterned(AbstractType<?> type, ByteBuffer bytes, String text)
     {
-        ColumnIdentifier id = internedInstances.get(bytes);
+        InternedKey key = new InternedKey(type, bytes);
+        ColumnIdentifier id = internedInstances.get(key);
         if (id != null)
             return id;
 
         ColumnIdentifier created = new ColumnIdentifier(bytes, text, true);
-        ColumnIdentifier previous = internedInstances.putIfAbsent(bytes, created);
+        ColumnIdentifier previous = internedInstances.putIfAbsent(key, created);
         return previous == null ? created : previous;
     }
 
