@@ -36,7 +36,7 @@ public class PendingRangeCalculatorService
 
     private static Logger logger = LoggerFactory.getLogger(PendingRangeCalculatorService.class);
     private final JMXEnabledThreadPoolExecutor executor = new JMXEnabledThreadPoolExecutor(1, Integer.MAX_VALUE, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(1), new NamedThreadFactory("PendingRangeCalculator"), "internal");
+            new LinkedBlockingQueue<>(1), new NamedThreadFactory("PendingRangeCalculator"), "internal");
 
     private AtomicInteger updateJobs = new AtomicInteger(0);
 
@@ -56,14 +56,18 @@ public class PendingRangeCalculatorService
     {
         public void run()
         {
-            long start = System.currentTimeMillis();
-            List<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
-            for (String keyspaceName : keyspaces)
+            try
             {
-                calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName);
+                long start = System.currentTimeMillis();
+                List<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+                for (String keyspaceName : keyspaces)
+                    calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName);
+                logger.debug("finished calculation for {} keyspaces in {}ms", keyspaces.size(), System.currentTimeMillis() - start);
             }
-            PendingRangeCalculatorService.instance.finishUpdate();
-            logger.debug("finished calculation for {} keyspaces in {}ms", keyspaces.size(), System.currentTimeMillis() - start);
+            finally
+            {
+                PendingRangeCalculatorService.instance.finishUpdate();
+            }
         }
     }
 
