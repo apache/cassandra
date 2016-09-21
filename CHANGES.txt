@@ -1,4 +1,5 @@
 2.2.8
+ * Fix authentication problem when invoking clqsh copy from a SOURCE command (CASSANDRA-12642)
  * Decrement pending range calculator jobs counter in finally block
   (CASSANDRA-12554)
  * Add local address entry in PropertyFileSnitch (CASSANDRA-11332)

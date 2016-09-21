@@ -1903,15 +1903,21 @@ class Shell(cmd.Cmd):
         except IOError, e:
             self.printerr('Could not open %r: %s' % (fname, e))
             return
-        subshell = Shell(self.hostname, self.port,
-                         color=self.color, encoding=self.encoding, stdin=f,
-                         tty=False, use_conn=self.conn, cqlver=self.cql_version,
-                         keyspace=self.current_keyspace,
+        username = self.auth_provider.username if self.auth_provider else None
+        password = self.auth_provider.password if self.auth_provider else None
+        subshell = Shell(self.hostname, self.port, color=self.color,
+                         username=username, password=password,
+                         encoding=self.encoding, stdin=f, tty=False, use_conn=self.conn,
+                         cqlver=self.cql_version, keyspace=self.current_keyspace,
+                         tracing_enabled=self.tracing_enabled,
+                         display_nanotime_format=self.display_nanotime_format,
                          display_timestamp_format=self.display_timestamp_format,
                          display_date_format=self.display_date_format,
-                         display_nanotime_format=self.display_nanotime_format,
                          display_float_precision=self.display_float_precision,
-                         max_trace_wait=self.max_trace_wait)
+                         display_timezone=self.display_timezone,
+                         max_trace_wait=self.max_trace_wait, ssl=self.ssl,
+                         request_timeout=self.session.default_timeout,
+                         connect_timeout=self.conn.connect_timeout)
         subshell.cmdloop()
         f.close()
 
