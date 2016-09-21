@@ -537,7 +537,7 @@ public class Keyspace
                     try
                     {
                         Tracing.trace("Creating materialized view mutations from base table replica");
-                        viewManager.forTable(upd.metadata()).pushViewReplicaUpdates(upd, !isClReplay, baseComplete);
+                        viewManager.forTable(upd.metadata()).pushViewReplicaUpdates(upd, writeCommitLog && !isClReplay, baseComplete);
                     }
                     catch (Throwable t)
                     {
