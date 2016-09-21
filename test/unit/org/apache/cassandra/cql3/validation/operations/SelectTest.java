@@ -379,29 +379,31 @@ public class SelectTest extends CQLTester
 
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, set("lmn"));
 
-        assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "xyz", "lmn"));
+        beforeAndAfterFlush(() -> {
+            assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "xyz", "lmn"));
 
-        assertRows(execute("SELECT * FROM %s WHERE categories CONTAINS ?", "lmn"),
-                   row("test", 5, set("lmn"))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE categories CONTAINS ?", "lmn"),
+                       row("test", 5, set("lmn"))
+            );
 
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "lmn"),
-                   row("test", 5, set("lmn"))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "lmn"),
+                       row("test", 5, set("lmn"))
+            );
 
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, "lmn"),
-                   row("test", 5, set("lmn"))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, "lmn"),
+                       row("test", 5, set("lmn"))
+            );
 
-        assertInvalidMessage("Unsupported null value for column categories",
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
+            assertInvalidMessage("Unsupported null value for column categories",
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
 
-        assertInvalidMessage("Unsupported unset value for column categories",
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, unset());
+            assertInvalidMessage("Unsupported unset value for column categories",
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, unset());
 
-        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS ?", "xyz", "lmn", "notPresent");
-        assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS ? ALLOW FILTERING", "xyz", "lmn", "notPresent"));
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS ?", "xyz", "lmn", "notPresent");
+            assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS ? ALLOW FILTERING", "xyz", "lmn", "notPresent"));
+        });
     }
 
     @Test
@@ -411,32 +413,33 @@ public class SelectTest extends CQLTester
         createIndex("CREATE INDEX ON %s(categories)");
 
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, list("lmn"));
+        beforeAndAfterFlush(() -> {
+            assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "xyz", "lmn"));
 
-        assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "xyz", "lmn"));
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?;", "test", "lmn"),
+                       row("test", 5, list("lmn"))
+            );
 
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?;", "test", "lmn"),
-                   row("test", 5, list("lmn"))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE categories CONTAINS ?", "lmn"),
+                       row("test", 5, list("lmn"))
+            );
 
-        assertRows(execute("SELECT * FROM %s WHERE categories CONTAINS ?", "lmn"),
-                   row("test", 5, list("lmn"))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?;", "test", 5, "lmn"),
+                       row("test", 5, list("lmn"))
+            );
 
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?;", "test", 5, "lmn"),
-                   row("test", 5, list("lmn"))
-        );
+            assertInvalidMessage("Unsupported null value for column categories",
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
 
-        assertInvalidMessage("Unsupported null value for column categories",
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
+            assertInvalidMessage("Unsupported unset value for column categories",
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, unset());
 
-        assertInvalidMessage("Unsupported unset value for column categories",
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, unset());
-
-        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ?",
-                             "test", 5, "lmn", "notPresent");
-        assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ? ALLOW FILTERING",
-                            "test", 5, "lmn", "notPresent"));
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ?",
+                                 "test", 5, "lmn", "notPresent");
+            assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ? ALLOW FILTERING",
+                                "test", 5, "lmn", "notPresent"));
+        });
     }
 
     @Test
@@ -452,9 +455,12 @@ public class SelectTest extends CQLTester
         {
             execute("INSERT INTO %s (e, f, s) VALUES (?, ?, ?)", i, list("Dubai"), 3);
         }
-        assertRows(execute("SELECT * FROM %s WHERE f CONTAINS ? AND s=? allow filtering", "Dubai", 3),
-                   row(4, list("Dubai"), 3),
-                   row(3, list("Dubai"), 3));
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT * FROM %s WHERE f CONTAINS ? AND s=? allow filtering", "Dubai", 3),
+                       row(4, list("Dubai"), 3),
+                       row(3, list("Dubai"), 3));
+        });
     }
 
     @Test
@@ -465,34 +471,36 @@ public class SelectTest extends CQLTester
 
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, map("lmn", "foo"));
 
-        assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "xyz", "lmn"));
+        beforeAndAfterFlush(() -> {
+            assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "xyz", "lmn"));
 
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn"),
-                   row("test", 5, map("lmn", "foo"))
-        );
-        assertRows(execute("SELECT * FROM %s WHERE categories CONTAINS KEY ?", "lmn"),
-                   row("test", 5, map("lmn", "foo"))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn"),
+                       row("test", 5, map("lmn", "foo"))
+            );
+            assertRows(execute("SELECT * FROM %s WHERE categories CONTAINS KEY ?", "lmn"),
+                       row("test", 5, map("lmn", "foo"))
+            );
 
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ?", "test", 5, "lmn"),
-                   row("test", 5, map("lmn", "foo"))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ?", "test", 5, "lmn"),
+                       row("test", 5, map("lmn", "foo"))
+            );
 
-        assertInvalidMessage("Unsupported null value for column categories",
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ?", "test", 5, null);
+            assertInvalidMessage("Unsupported null value for column categories",
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ?", "test", 5, null);
 
-        assertInvalidMessage("Unsupported unset value for column categories",
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ?", "test", 5, unset());
+            assertInvalidMessage("Unsupported unset value for column categories",
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ?", "test", 5, unset());
 
-        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS KEY ?",
-                             "test", 5, "lmn", "notPresent");
-        assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS KEY ? ALLOW FILTERING",
-                            "test", 5, "lmn", "notPresent"));
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS KEY ?",
+                                 "test", 5, "lmn", "notPresent");
+            assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS KEY ? ALLOW FILTERING",
+                                "test", 5, "lmn", "notPresent"));
 
-        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS ?",
-                             "test", 5, "lmn", "foo");
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS KEY ? AND categories CONTAINS ?",
+                                 "test", 5, "lmn", "foo");
+        });
     }
 
     @Test
@@ -503,32 +511,34 @@ public class SelectTest extends CQLTester
 
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, map("lmn", "foo"));
 
-        assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "xyz", "foo"));
+        beforeAndAfterFlush(() -> {
+            assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "xyz", "foo"));
 
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo"),
-                   row("test", 5, map("lmn", "foo"))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo"),
+                       row("test", 5, map("lmn", "foo"))
+            );
 
-        assertRows(execute("SELECT * FROM %s WHERE categories CONTAINS ?", "foo"),
-                   row("test", 5, map("lmn", "foo"))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE categories CONTAINS ?", "foo"),
+                       row("test", 5, map("lmn", "foo"))
+            );
 
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, "foo"),
-                   row("test", 5, map("lmn", "foo"))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, "foo"),
+                       row("test", 5, map("lmn", "foo"))
+            );
 
-        assertInvalidMessage("Unsupported null value for column categories",
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
+            assertInvalidMessage("Unsupported null value for column categories",
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, null);
 
-        assertInvalidMessage("Unsupported unset value for column categories",
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, unset());
+            assertInvalidMessage("Unsupported unset value for column categories",
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ?", "test", 5, unset());
 
-        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ?"
-                            , "test", 5, "foo", "notPresent");
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ?",
+                                 "test", 5, "foo", "notPresent");
 
-        assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ? ALLOW FILTERING"
-                           , "test", 5, "foo", "notPresent"));
+            assertEmpty(execute("SELECT * FROM %s WHERE account = ? AND id = ? AND categories CONTAINS ? AND categories CONTAINS ? ALLOW FILTERING",
+                                "test", 5, "foo", "notPresent"));
+        });
     }
 
     // See CASSANDRA-7525
@@ -541,16 +551,16 @@ public class SelectTest extends CQLTester
         createIndex("CREATE INDEX id_index ON %s(id)");
         createIndex("CREATE INDEX categories_values_index ON %s(categories)");
 
-        execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, map("lmn", "foo"));
+        beforeAndAfterFlush(() -> {
 
-        assertRows(execute("SELECT * FROM %s WHERE categories CONTAINS ? AND id = ? ALLOW FILTERING", "foo", 5),
-                   row("test", 5, map("lmn", "foo"))
-        );
+            execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, map("lmn", "foo"));
 
-        assertRows(
-                  execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND id = ? ALLOW FILTERING", "test", "foo", 5),
-                  row("test", 5, map("lmn", "foo"))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE categories CONTAINS ? AND id = ? ALLOW FILTERING", "foo", 5),
+                       row("test", 5, map("lmn", "foo")));
+
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND id = ? ALLOW FILTERING", "test", "foo", 5),
+                       row("test", 5, map("lmn", "foo")));
+        });
     }
 
     // See CASSANDRA-8033
@@ -565,16 +575,18 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (k1, k2, v) VALUES (?, ?, ?)", 1, 0, set(3, 4, 5));
         execute("INSERT INTO %s (k1, k2, v) VALUES (?, ?, ?)", 1, 1, set(4, 5, 6));
 
-        assertRows(execute("SELECT * FROM %s WHERE k2 = ?", 1),
-                   row(0, 1, set(2, 3, 4)),
-                   row(1, 1, set(4, 5, 6))
-        );
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT * FROM %s WHERE k2 = ?", 1),
+                       row(0, 1, set(2, 3, 4)),
+                       row(1, 1, set(4, 5, 6))
+            );
 
-        assertRows(execute("SELECT * FROM %s WHERE k2 = ? AND v CONTAINS ? ALLOW FILTERING", 1, 6),
-                   row(1, 1, set(4, 5, 6))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE k2 = ? AND v CONTAINS ? ALLOW FILTERING", 1, 6),
+                       row(1, 1, set(4, 5, 6))
+            );
 
-        assertEmpty(execute("SELECT * FROM %s WHERE k2 = ? AND v CONTAINS ? ALLOW FILTERING", 1, 7));
+            assertEmpty(execute("SELECT * FROM %s WHERE k2 = ? AND v CONTAINS ? ALLOW FILTERING", 1, 7));
+        });
     }
 
     // See CASSANDRA-8073
@@ -583,23 +595,26 @@ public class SelectTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d set<int>, PRIMARY KEY (a, b, c))");
         createIndex("CREATE INDEX ON %s(d)");
+
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 0, set(1, 2, 3));
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 1, set(3, 4, 5));
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 0, set(1, 2, 3));
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 1, set(3, 4, 5));
 
-        assertRows(execute("SELECT * FROM %s WHERE a=? AND b=? AND d CONTAINS ?", 0, 1, 3),
-                   row(0, 1, 0, set(1, 2, 3)),
-                   row(0, 1, 1, set(3, 4, 5))
-        );
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT * FROM %s WHERE a=? AND b=? AND d CONTAINS ?", 0, 1, 3),
+                       row(0, 1, 0, set(1, 2, 3)),
+                       row(0, 1, 1, set(3, 4, 5))
+            );
 
-        assertRows(execute("SELECT * FROM %s WHERE a=? AND b=? AND d CONTAINS ?", 0, 1, 2),
-                   row(0, 1, 0, set(1, 2, 3))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE a=? AND b=? AND d CONTAINS ?", 0, 1, 2),
+                       row(0, 1, 0, set(1, 2, 3))
+            );
 
-        assertRows(execute("SELECT * FROM %s WHERE a=? AND b=? AND d CONTAINS ?", 0, 1, 5),
-                   row(0, 1, 1, set(3, 4, 5))
-        );
+            assertRows(execute("SELECT * FROM %s WHERE a=? AND b=? AND d CONTAINS ?", 0, 1, 5),
+                       row(0, 1, 1, set(3, 4, 5))
+            );
+        });
     }
 
     @Test
@@ -611,18 +626,20 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, map("lmn", "foo"));
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 6, map("lmn", "foo2"));
 
-        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo");
+        beforeAndAfterFlush(() -> {
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo");
 
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn"),
-                   row("test", 5, map("lmn", "foo")),
-                   row("test", 6, map("lmn", "foo2")));
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ? AND categories CONTAINS ? ALLOW FILTERING",
-                           "test", "lmn", "foo"),
-                   row("test", 5, map("lmn", "foo")));
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS KEY ? ALLOW FILTERING",
-                           "test", "foo", "lmn"),
-                   row("test", 5, map("lmn", "foo")));
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn"),
+                       row("test", 5, map("lmn", "foo")),
+                       row("test", 6, map("lmn", "foo2")));
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ? AND categories CONTAINS ? ALLOW FILTERING",
+                               "test", "lmn", "foo"),
+                       row("test", 5, map("lmn", "foo")));
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS KEY ? ALLOW FILTERING",
+                               "test", "foo", "lmn"),
+                       row("test", 5, map("lmn", "foo")));
+        });
     }
 
     @Test
@@ -634,18 +651,20 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, map("lmn", "foo"));
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 6, map("lmn2", "foo"));
 
-        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn");
+        beforeAndAfterFlush(() -> {
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                 "SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn");
 
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo"),
-                   row("test", 5, map("lmn", "foo")),
-                   row("test", 6, map("lmn2", "foo")));
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ? AND categories CONTAINS ? ALLOW FILTERING",
-                           "test", "lmn", "foo"),
-                   row("test", 5, map("lmn", "foo")));
-        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS KEY ? ALLOW FILTERING",
-                           "test", "foo", "lmn"),
-                   row("test", 5, map("lmn", "foo")));
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo"),
+                       row("test", 5, map("lmn", "foo")),
+                       row("test", 6, map("lmn2", "foo")));
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ? AND categories CONTAINS ? ALLOW FILTERING",
+                               "test", "lmn", "foo"),
+                       row("test", 5, map("lmn", "foo")));
+            assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS KEY ? ALLOW FILTERING",
+                               "test", "foo", "lmn"),
+                       row("test", 5, map("lmn", "foo")));
+        });
     }
 
     /**
@@ -1313,18 +1332,20 @@ public class SelectTest extends CQLTester
 
         execute("INSERT INTO %s (k, a, b, s, s1) VALUES (?, ?, ?, ?, ?)", 2, 10, 10, 10, 10);
 
-        assertRows(execute("SELECT DISTINCT k, s, s1 FROM %s WHERE s = 90 AND s1 = 90 ALLOW FILTERING"),
-                   row(9, 90, 90));
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT DISTINCT k, s, s1 FROM %s WHERE s = 90 AND s1 = 90 ALLOW FILTERING"),
+                       row(9, 90, 90));
 
-        assertRows(execute("SELECT DISTINCT k, s, s1 FROM %s WHERE s = 90 AND s1 = 90 ALLOW FILTERING"),
-                   row(9, 90, 90));
+            assertRows(execute("SELECT DISTINCT k, s, s1 FROM %s WHERE s = 90 AND s1 = 90 ALLOW FILTERING"),
+                       row(9, 90, 90));
 
-        assertRows(execute("SELECT DISTINCT k, s, s1 FROM %s WHERE s = 10 AND s1 = 10 ALLOW FILTERING"),
-                   row(1, 10, 10),
-                   row(2, 10, 10));
+            assertRows(execute("SELECT DISTINCT k, s, s1 FROM %s WHERE s = 10 AND s1 = 10 ALLOW FILTERING"),
+                       row(1, 10, 10),
+                       row(2, 10, 10));
 
-        assertRows(execute("SELECT DISTINCT k, s, s1 FROM %s WHERE k = 1 AND s = 10 AND s1 = 10 ALLOW FILTERING"),
-                   row(1, 10, 10));
+            assertRows(execute("SELECT DISTINCT k, s, s1 FROM %s WHERE k = 1 AND s = 10 AND s1 = 10 ALLOW FILTERING"),
+                       row(1, 10, 10));
+        });
     }
 
     /**
@@ -1425,18 +1446,20 @@ public class SelectTest extends CQLTester
                     execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", i, j, j, i + j);
         }
 
-        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a >= 1 AND c = 2 AND s >= 1 ALLOW FILTERING"),
-                                row(1, 2, 1, 2, 3),
-                                row(3, 2, 3, 2, 5),
-                                row(4, 2, 4, 2, 6));
+        beforeAndAfterFlush(() -> {
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a >= 1 AND c = 2 AND s >= 1 ALLOW FILTERING"),
+                                    row(1, 2, 1, 2, 3),
+                                    row(3, 2, 3, 2, 5),
+                                    row(4, 2, 4, 2, 6));
 
-        assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND c = 2 AND s >= 1 LIMIT 2 ALLOW FILTERING"),
-                row(1, 2, 1, 2, 3),
-                row(4, 2, 4, 2, 6));
+            assertRows(execute("SELECT * FROM %s WHERE a >= 1 AND c = 2 AND s >= 1 LIMIT 2 ALLOW FILTERING"),
+                       row(1, 2, 1, 2, 3),
+                       row(4, 2, 4, 2, 6));
 
-        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a >= 3 AND c = 2 AND s >= 1 LIMIT 2 ALLOW FILTERING"),
-                                row(4, 2, 4, 2, 6),
-                                row(3, 2, 3, 2, 5));
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a >= 3 AND c = 2 AND s >= 1 LIMIT 2 ALLOW FILTERING"),
+                                    row(4, 2, 4, 2, 6),
+                                    row(3, 2, 3, 2, 5));
+        });
     }
 
     @Test
@@ -1452,9 +1475,11 @@ public class SelectTest extends CQLTester
                     execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", i, j, j, i + j);
         }
 
-        assertRows(execute("SELECT * FROM %s WHERE c = 2 AND s >= 1 LIMIT 2 ALLOW FILTERING"),
-                   row(1, 2, 1, 2, 3),
-                   row(4, 2, 4, 2, 6));
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT * FROM %s WHERE c = 2 AND s >= 1 LIMIT 2 ALLOW FILTERING"),
+                       row(1, 2, 1, 2, 3),
+                       row(4, 2, 4, 2, 6));
+        });
     }
 
     @Test
@@ -1477,7 +1502,7 @@ public class SelectTest extends CQLTester
         execute("DELETE FROM %s WHERE a = 2 AND b = 2");
 
         beforeAndAfterFlush(() -> {
-
+            
             // Checks filtering
             assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                                  "SELECT * FROM %s WHERE c = 4 AND d = 8");
@@ -3925,10 +3950,16 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", "a", 1, "b", 2);
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", "a", 2, "b", 3);
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", "c", 3, "b", 4);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", "d", 4, "d", 5);
 
-        assertRows(executeFilteringOnly("SELECT * FROM %s WHERE a='a' AND b > 0 AND c = 'b'"),
-                   row("a", 1, "b", 2),
-                   row("a", 2, "b", 3));
+        beforeAndAfterFlush(() -> {
+            assertRows(executeFilteringOnly("SELECT * FROM %s WHERE a='a' AND b > 0 AND c = 'b'"),
+                       row("a", 1, "b", 2),
+                       row("a", 2, "b", 3));
+
+            assertRows(executeFilteringOnly("SELECT * FROM %s WHERE c = 'b' AND d = 4"),
+                       row("c", 3, "b", 4));
+        });
     }
 
     @Test
@@ -4064,22 +4095,24 @@ public class SelectTest extends CQLTester
             execute("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 1, i, i, i, i);
         }
 
-        assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 > 0 AND c1 < 5 AND c2 = 1 AND v = 3 ALLOW FILTERING;"),
-                   row(1, 1, 1, 3, 3));
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 > 0 AND c1 < 5 AND c2 = 1 AND v = 3 ALLOW FILTERING;"),
+                       row(1, 1, 1, 3, 3));
 
-        assertEmpty(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 > 1 AND c1 < 5 AND c2 = 1 AND v = 3 ALLOW FILTERING;"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 > 1 AND c1 < 5 AND c2 = 1 AND v = 3 ALLOW FILTERING;"));
 
-        assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 > 1 AND c2 > 2 AND c3 > 2 AND v = 3 ALLOW FILTERING;"),
-                   row(1, 3, 3, 3, 3));
+            assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 > 1 AND c2 > 2 AND c3 > 2 AND v = 3 ALLOW FILTERING;"),
+                       row(1, 3, 3, 3, 3));
 
-        assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 > 1 AND c2 > 2 AND c3 = 3 AND v = 3 ALLOW FILTERING;"),
-                   row(1, 3, 3, 3, 3));
+            assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 > 1 AND c2 > 2 AND c3 = 3 AND v = 3 ALLOW FILTERING;"),
+                       row(1, 3, 3, 3, 3));
 
-        assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 IN(0,1,2) AND c2 = 1 AND v = 3 ALLOW FILTERING;"),
-                   row(1, 1, 1, 3, 3));
+            assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 IN(0,1,2) AND c2 = 1 AND v = 3 ALLOW FILTERING;"),
+                       row(1, 1, 1, 3, 3));
 
-        assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 IN(0,1,2) AND c2 = 1 AND v = 3"),
-                   row(1, 1, 1, 3, 3));
+            assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 IN(0,1,2) AND c2 = 1 AND v = 3"),
+                       row(1, 1, 1, 3, 3));
+        });
     }
 
     @Test
@@ -4094,9 +4127,11 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s(p1, p2, v) values (?, ?, ?)", 1, 2, 3);
         execute("INSERT INTO %s(p1, p2, v) values (?, ?, ?)", 2, 1, 3);
 
-        assertRows(execute("SELECT * FROM %s WHERE p1 = 1 AND v = 3 ALLOW FILTERING"),
-                   row(1, 2, 3),
-                   row(1, 1, 3));
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT * FROM %s WHERE p1 = 1 AND v = 3 ALLOW FILTERING"),
+                       row(1, 2, 3),
+                       row(1, 1, 3));
+        });
     }
 
     @Test
