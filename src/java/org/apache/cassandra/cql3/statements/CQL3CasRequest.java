@@ -26,8 +26,8 @@ import com.google.common.collect.Multimap;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
-import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -48,10 +48,13 @@ public class CQL3CasRequest implements CASRequest
     private final boolean updatesStaticRow;
     private boolean hasExists; // whether we have an exist or if not exist condition
 
+    // Conditions on the static row. We keep it separate from 'conditions' as most things related to the static row are
+    // special cases anyway.
+    private RowCondition staticConditions;
     // We index RowCondition by the clustering of the row they applied to for 2 reasons:
-    //   1) this allows to keep things sorted to build the ColumnSlice array below
+    //   1) this allows to keep things sorted to build the read command below
     //   2) this allows to detect when contradictory conditions are set (not exists with some other conditions on the same row)
-    private final SortedMap<Clustering, RowCondition> conditions;
+    private final TreeMap<Clustering, RowCondition> conditions;
 
     private final List<RowUpdate> updates = new ArrayList<>();
 
@@ -78,40 +81,62 @@ public class CQL3CasRequest implements CASRequest
 
     public void addNotExist(Clustering clustering) throws InvalidRequestException
     {
-        RowCondition previous = conditions.put(clustering, new NotExistCondition(clustering));
-        if (previous != null && !(previous instanceof NotExistCondition))
-        {
-            // these should be prevented by the parser, but it doesn't hurt to check
-            if (previous instanceof ExistCondition)
-                throw new InvalidRequestException("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row");
-            else
-                throw new InvalidRequestException("Cannot mix IF conditions and IF NOT EXISTS for the same row");
-        }
-        hasExists = true;
+        addExistsCondition(clustering, new NotExistCondition(clustering), true);
     }
 
     public void addExist(Clustering clustering) throws InvalidRequestException
     {
-        RowCondition previous = conditions.put(clustering, new ExistCondition(clustering));
-        // this should be prevented by the parser, but it doesn't hurt to check
-        if (previous instanceof NotExistCondition)
-            throw new InvalidRequestException("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row");
+        addExistsCondition(clustering, new ExistCondition(clustering), false);
+    }
+
+    private void addExistsCondition(Clustering clustering, RowCondition condition, boolean isNotExist)
+    {
+        assert condition instanceof ExistCondition || condition instanceof NotExistCondition;
+        RowCondition previous = getConditionsForRow(clustering);
+        if (previous != null && !(previous.getClass().equals(condition.getClass())))
+        {
+            // these should be prevented by the parser, but it doesn't hurt to check
+            throw (previous instanceof NotExistCondition || previous instanceof ExistCondition)
+                ? new InvalidRequestException("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row")
+                : new InvalidRequestException("Cannot mix IF conditions and IF " + (isNotExist ? "NOT " : "") + "EXISTS for the same row");
+        }
+
+        setConditionsForRow(clustering, condition);
         hasExists = true;
     }
 
     public void addConditions(Clustering clustering, Collection<ColumnCondition> conds, QueryOptions options) throws InvalidRequestException
     {
-        RowCondition condition = conditions.get(clustering);
+        RowCondition condition = getConditionsForRow(clustering);
         if (condition == null)
         {
             condition = new ColumnsConditions(clustering);
-            conditions.put(clustering, condition);
+            setConditionsForRow(clustering, condition);
         }
         else if (!(condition instanceof ColumnsConditions))
         {
             throw new InvalidRequestException("Cannot mix IF conditions and IF NOT EXISTS for the same row");
         }
         ((ColumnsConditions)condition).addConditions(conds, options);
+    }
+
+    private RowCondition getConditionsForRow(Clustering clustering)
+    {
+        return clustering == Clustering.STATIC_CLUSTERING ? staticConditions : conditions.get(clustering);
+    }
+
+    private void setConditionsForRow(Clustering clustering, RowCondition condition)
+    {
+        if (clustering == Clustering.STATIC_CLUSTERING)
+        {
+            assert staticConditions == null;
+            staticConditions = condition;
+        }
+        else
+        {
+            RowCondition previous = conditions.put(clustering, condition);
+            assert previous == null;
+        }
     }
 
     private PartitionColumns columnsToRead()
@@ -135,23 +160,37 @@ public class CQL3CasRequest implements CASRequest
 
     public SinglePartitionReadCommand readCommand(int nowInSec)
     {
-        assert !conditions.isEmpty();
-        Slices.Builder builder = new Slices.Builder(cfm.comparator, conditions.size());
-        // We always read CQL rows entirely as on CAS failure we want to be able to distinguish between "row exists
-        // but all values for which there were conditions are null" and "row doesn't exists", and we can't rely on the
-        // row marker for that (see #6623)
-        for (Clustering clustering : conditions.keySet())
-        {
-            if (clustering != Clustering.STATIC_CLUSTERING)
-                builder.add(Slice.make(clustering));
-        }
+        assert staticConditions != null || !conditions.isEmpty();
 
-        ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(builder.build(), false);
+        // With only a static condition, we still want to make the distinction between a non-existing partition and one
+        // that exists (has some live data) but has not static content. So we query the first live row of the partition.
+        if (conditions.isEmpty())
+            return SinglePartitionReadCommand.create(cfm,
+                                                     nowInSec,
+                                                     ColumnFilter.selection(columnsToRead()),
+                                                     RowFilter.NONE,
+                                                     DataLimits.cqlLimits(1),
+                                                     key,
+                                                     new ClusteringIndexSliceFilter(Slices.ALL, false));
+
+        ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(conditions.navigableKeySet(), false);
         return SinglePartitionReadCommand.create(cfm, nowInSec, key, ColumnFilter.selection(columnsToRead()), filter);
     }
 
+    /**
+     * Checks whether the conditions represented by this object applies provided the current state of the partition on
+     * which those conditions are.
+     *
+     * @param current the partition with current data corresponding to these conditions. More precisely, this must be
+     * the result of executing the command returned by {@link #readCommand}. This can be empty but it should not be
+     * {@code null}.
+     * @return whether the conditions represented by this object applies or not.
+     */
     public boolean appliesTo(FilteredPartition current) throws InvalidRequestException
     {
+        if (staticConditions != null && !staticConditions.appliesTo(current))
+            return false;
+
         for (RowCondition condition : conditions.values())
         {
             if (!condition.appliesTo(current))
@@ -228,7 +267,7 @@ public class CQL3CasRequest implements CASRequest
 
         public boolean appliesTo(FilteredPartition current)
         {
-            return current == null || current.getRow(clustering) == null;
+            return current.getRow(clustering) == null;
         }
     }
 
@@ -241,7 +280,7 @@ public class CQL3CasRequest implements CASRequest
 
         public boolean appliesTo(FilteredPartition current)
         {
-            return current != null && current.getRow(clustering) != null;
+            return current.getRow(clustering) != null;
         }
     }
 
@@ -265,12 +304,10 @@ public class CQL3CasRequest implements CASRequest
 
         public boolean appliesTo(FilteredPartition current) throws InvalidRequestException
         {
-            if (current == null)
-                return conditions.isEmpty();
-
+            Row row = current.getRow(clustering);
             for (ColumnCondition.Bound condition : conditions.values())
             {
-                if (!condition.appliesTo(current.getRow(clustering)))
+                if (!condition.appliesTo(row))
                     return false;
             }
             return true;
