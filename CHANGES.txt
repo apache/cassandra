@@ -80,6 +80,7 @@ Merged from 3.0:
  * Disk failure policy should not be invoked on out of space (CASSANDRA-12385)
  * Calculate last compacted key on startup (CASSANDRA-6216)
  * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
+ * If CF has no clustering columns, any row cache is full partition cache (CASSANDRA-12499)
 Merged from 2.2:
  * cqlshlib tests: increase default execute timeout (CASSANDRA-12481)
  * Forward writes to replacement node when replace_address != broadcast_address (CASSANDRA-8523)

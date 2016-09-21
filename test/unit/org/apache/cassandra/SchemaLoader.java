@@ -217,6 +217,7 @@ public class SchemaLoader
                 Tables.of(
                 standardCFMD(ks_rcs, "CFWithoutCache").caching(CachingParams.CACHE_NOTHING),
                 standardCFMD(ks_rcs, "CachedCF").caching(CachingParams.CACHE_EVERYTHING),
+                standardCFMD(ks_rcs, "CachedNoClustering", 1, IntegerType.instance, IntegerType.instance, null).caching(CachingParams.CACHE_EVERYTHING),
                 standardCFMD(ks_rcs, "CachedIntCF").
                         caching(new CachingParams(true, 100)))));
 
@@ -362,17 +363,21 @@ public class SchemaLoader
 
     public static CFMetaData standardCFMD(String ksName, String cfName, int columnCount, AbstractType<?> keyType, AbstractType<?> valType, AbstractType<?> clusteringType)
     {
-        CFMetaData.Builder builder = CFMetaData.Builder.create(ksName, cfName)
-                .addPartitionKey("key", keyType)
-                .addClusteringColumn("name", clusteringType)
-                .addRegularColumn("val", valType);
+        CFMetaData.Builder builder;
+        builder = CFMetaData.Builder.create(ksName, cfName)
+                                    .addPartitionKey("key", keyType)
+                                    .addRegularColumn("val", valType);
+
+        if(clusteringType != null)
+            builder = builder.addClusteringColumn("name", clusteringType);
 
         for (int i = 0; i < columnCount; i++)
             builder.addRegularColumn("val" + i, AsciiType.instance);
 
         return builder.build()
-               .compression(getCompressionParameters());
+                      .compression(getCompressionParameters());
     }
+
 
     public static CFMetaData denseCFMD(String ksName, String cfName)
     {
@@ -783,10 +788,14 @@ public class SchemaLoader
         for (int i = offset; i < offset + numberOfRows; i++)
         {
             RowUpdateBuilder builder = new RowUpdateBuilder(cfm, FBUtilities.timestampMicros(), ByteBufferUtil.bytes("key"+i));
-            builder.clustering(ByteBufferUtil.bytes("col"+ i)).add("val", ByteBufferUtil.bytes("val" + i));
+            if (cfm.clusteringColumns() != null && !cfm.clusteringColumns().isEmpty())
+                builder.clustering(ByteBufferUtil.bytes("col"+ i)).add("val", ByteBufferUtil.bytes("val" + i));
+            else
+                builder.add("val", ByteBufferUtil.bytes("val"+i));
             builder.build().apply();
         }
     }
+
 
     public static void cleanupSavedCaches()
     {
