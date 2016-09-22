@@ -203,6 +203,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     // true when keeping strict consistency while bootstrapping
     private static final boolean useStrictConsistency = Boolean.parseBoolean(System.getProperty("cassandra.consistent.rangemovement", "true"));
     private static final boolean allowSimultaneousMoves = Boolean.parseBoolean(System.getProperty("cassandra.consistent.simultaneousmoves.allow","false"));
+    private static final boolean joinRing = Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true"));
     private boolean replacing;
 
     private final StreamStateStore streamStateStore = new StreamStateStore();
@@ -313,7 +314,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!gossipActive)
         {
             logger.warn("Starting gossip by operator request");
-            setGossipTokens(getLocalTokens());
+            Collection<Token> tokens = SystemKeyspace.getSavedTokens();
+
+            boolean validTokens = tokens != null && !tokens.isEmpty();
+
+            // shouldn't be called before these are set if we intend to join the ring/are in the process of doing so
+            if (joined || joinRing)
+                assert validTokens : "Cannot start gossiping for a node intended to join without valid tokens";
+
+            if (validTokens)
+                setGossipTokens(tokens);
+
             Gossiper.instance.forceNewerGeneration();
             Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
             gossipActive = true;
@@ -454,7 +465,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (SystemKeyspace.bootstrapComplete())
             throw new RuntimeException("Cannot replace address with a node that is already bootstrapped");
 
-        if (!(Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true"))))
+        if (!joinRing)
             throw new ConfigurationException("Cannot set both join_ring=false and attempt to replace a node");
 
         if (!DatabaseDescriptor.isAutoBootstrap() && !Boolean.getBoolean("cassandra.allow_unsafe_replace"))
@@ -681,7 +692,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.warn("Error loading counter cache", t);
         }
 
-        if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
+        if (joinRing)
         {
             joinTokenRing(delay);
         }

@@ -1500,7 +1500,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void stop()
     {
         EndpointState mystate = endpointStateMap.get(FBUtilities.getBroadcastAddress());
-        if (mystate != null && !isSilentShutdownState(mystate))
+        if (mystate != null && !isSilentShutdownState(mystate) && StorageService.instance.isJoined())
         {
             logger.info("Announcing shutdown");
             addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
@@ -1510,7 +1510,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             Uninterruptibles.sleepUninterruptibly(Integer.getInteger("cassandra.shutdown_announce_in_ms", 2000), TimeUnit.MILLISECONDS);
         }
         else
-            logger.warn("No local state or state is in silent shutdown, not announcing shutdown");
+            logger.warn("No local state, state is in silent shutdown, or node hasn't joined, not announcing shutdown");
         if (scheduledGossipTask != null)
             scheduledGossipTask.cancel(false);
     }
