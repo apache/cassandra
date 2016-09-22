@@ -1,4 +1,5 @@
 2.2.9
+ * Fix potential NPE for compactionstats (CASSANDRA-12462)
  * Prepare legacy authenticate statement if credentials table initialised after node startup (CASSANDRA-12813)
  * Change cassandra.wait_for_tracing_events_timeout_secs default to 0 (CASSANDRA-12754)
  * Clean up permissions when a UDA is dropped (CASSANDRA-12720)
@@ -9,8 +10,6 @@
  * Better handle invalid system roles table (CASSANDRA-12700)
  * Split consistent range movement flag correction (CASSANDRA-12786)
 Merged from 2.1:
-=======
-2.1.17
  * Don't skip sstables based on maxLocalDeletionTime (CASSANDRA-12765)
 
 
