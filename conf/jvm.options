@@ -84,8 +84,7 @@
 # GENERAL JVM SETTINGS #
 ########################
 
-# enable assertions.  disabling this in production will give a modest
-# performance benefit (around 5%).
+# enable assertions. highly suggested for correct application functionality.
 -ea
 
 # enable thread priorities, primarily so we can give periodic tasks
