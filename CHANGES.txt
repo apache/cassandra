@@ -5,6 +5,7 @@
  * Backport CASSANDRA-10756 (race condition in NativeTransportService shutdown) (CASSANDRA-12472)
  * If CF has no clustering columns, any row cache is full partition cache (CASSANDRA-12499)
 Merged from 2.2:
+ * Fix authentication problem when invoking clqsh copy from a SOURCE command (CASSANDRA-12642)
  * Decrement pending range calculator jobs counter in finally block
   (CASSANDRA-12554)
 Merged from 2.1:
