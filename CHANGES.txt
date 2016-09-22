@@ -84,6 +84,7 @@ Merged from 3.0:
  * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
  * If CF has no clustering columns, any row cache is full partition cache (CASSANDRA-12499)
 Merged from 2.2:
+ * Fix authentication problem when invoking clqsh copy from a SOURCE command (CASSANDRA-12642)
  * Decrement pending range calculator jobs counter in finally block
  * cqlshlib tests: increase default execute timeout (CASSANDRA-12481)
  * Forward writes to replacement node when replace_address != broadcast_address (CASSANDRA-8523)
