@@ -194,6 +194,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     // true when keeping strict consistency while bootstrapping
     private boolean useStrictConsistency = Boolean.parseBoolean(System.getProperty("cassandra.consistent.rangemovement", "true"));
     private static final boolean allowSimultaneousMoves = Boolean.valueOf(System.getProperty("cassandra.consistent.simultaneousmoves.allow","false"));
+    private static final boolean joinRing = Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true"));
     private boolean replacing;
     private UUID replacingId;
 
@@ -305,7 +306,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!initialized)
         {
             logger.warn("Starting gossip by operator request");
-            setGossipTokens(getLocalTokens());
+            Collection<Token> tokens = SystemKeyspace.getSavedTokens();
+
+            boolean validTokens = tokens != null && !tokens.isEmpty();
+
+            // shouldn't be called before these are set if we intend to join the ring/are in the process of doing so
+            if (joined || joinRing)
+                assert validTokens : "Cannot start gossiping for a node intended to join without valid tokens";
+
+            if (validTokens)
+                setGossipTokens(tokens);
+
             Gossiper.instance.forceNewerGeneration();
             Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
             initialized = true;
@@ -664,7 +675,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.warn("Error loading counter cache", t);
         }
 
-        if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
+        if (joinRing)
         {
             joinTokenRing(delay);
         }
@@ -717,7 +728,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 else
                     throw new ConfigurationException("This node was decommissioned and will not rejoin the ring unless cassandra.override_decommission=true has been set, or all existing data is removed and the node is bootstrapped again");
             }
-            if (replacing && !(Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true"))))
+            if (replacing && !joinRing)
                 throw new ConfigurationException("Cannot set both join_ring=false and attempt to replace a node");
             if (DatabaseDescriptor.getReplaceTokens().size() > 0 || DatabaseDescriptor.getReplaceNode() != null)
                 throw new RuntimeException("Replace method removed; use cassandra.replace_address instead");
