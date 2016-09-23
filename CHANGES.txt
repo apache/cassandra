@@ -1,4 +1,5 @@
 4.0
+ * Allow changing log levels via nodetool for related classes (CASSANDRA-12696)
  * Add stress profile yaml with LWT (CASSANDRA-7960)
  * Reduce memory copies and object creations when acting on ByteBufs (CASSANDRA-13789)
  * simplify mx4j configuration (Cassandra-13578)
