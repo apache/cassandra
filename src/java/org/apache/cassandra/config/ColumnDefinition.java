@@ -48,7 +48,7 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
         ASC, DESC, NONE
     }
 
-    /*
+    /**
      * The type of CQL3 column this definition represents.
      * There is 4 main type of CQL3 columns: those parts of the partition key,
      * those parts of the clustering columns and amongst the others, regular and
@@ -56,6 +56,9 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
      *
      * Note that thrift only knows about definitions of type REGULAR (and
      * the ones whose position == NO_POSITION (-1)).
+     *
+     * IMPORTANT: this enum is serialized as toString() and deserialized by calling
+     * Kind.valueOf(), so do not override toString() or rename existing values.
      */
     public enum Kind
     {

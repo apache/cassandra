@@ -712,7 +712,7 @@ public final class CFMetaData
         // it means that it's a dropped column from before 3.0, and in that case using
         // BytesType is fine for what we'll be using it for, even if that's a hack.
         AbstractType<?> type = dropped.type == null ? BytesType.instance : dropped.type;
-        return isStatic
+        return isStatic || dropped.kind == ColumnDefinition.Kind.STATIC
                ? ColumnDefinition.staticDef(this, name, type)
                : ColumnDefinition.regularDef(this, name, type);
     }
@@ -994,7 +994,7 @@ public final class CFMetaData
      */
     public void recordColumnDrop(ColumnDefinition def, long timeMicros)
     {
-        droppedColumns.put(def.name.bytes, new DroppedColumn(def.name.toString(), def.type, timeMicros));
+        droppedColumns.put(def.name.bytes, new DroppedColumn(def, timeMicros));
     }
 
     public void renameColumn(ColumnIdentifier from, ColumnIdentifier to) throws InvalidRequestException
@@ -1379,11 +1379,19 @@ public final class CFMetaData
         // drop timestamp, in microseconds, yet with millisecond granularity
         public final long droppedTime;
 
-        public DroppedColumn(String name, AbstractType<?> type, long droppedTime)
+        public final ColumnDefinition.Kind kind;
+
+        public DroppedColumn(ColumnDefinition def, long droppedTime)
+        {
+            this(def.name.toString(), def.type, droppedTime, def.kind);
+        }
+
+        public DroppedColumn(String name, AbstractType<?> type, long droppedTime, ColumnDefinition.Kind kind)
         {
             this.name = name;
             this.type = type;
             this.droppedTime = droppedTime;
+            this.kind = kind;
         }
 
         @Override

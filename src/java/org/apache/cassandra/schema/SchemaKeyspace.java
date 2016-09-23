@@ -141,6 +141,7 @@ public final class SchemaKeyspace
                 + "column_name text,"
                 + "dropped_time timestamp,"
                 + "type text,"
+                + "kind text,"
                 + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
 
     private static final CFMetaData Triggers =
@@ -664,7 +665,8 @@ public final class SchemaKeyspace
         builder.update(DroppedColumns)
                .row(table.cfName, column.name)
                .add("dropped_time", new Date(TimeUnit.MICROSECONDS.toMillis(column.droppedTime)))
-               .add("type", expandUserTypes(column.type).asCQL3Type().toString());
+               .add("type", expandUserTypes(column.type).asCQL3Type().toString())
+               .add("kind", column.kind.toString().toLowerCase());
     }
 
     private static void addTriggerToSchemaMutation(CFMetaData table, TriggerMetadata trigger, Mutation.SimpleBuilder builder)
@@ -1068,7 +1070,12 @@ public final class SchemaKeyspace
          */
         AbstractType<?> type = parse(keyspace, row.getString("type"), org.apache.cassandra.schema.Types.none());
         long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getLong("dropped_time"));
-        return new CFMetaData.DroppedColumn(name, type, droppedTime);
+        ColumnDefinition.Kind kind = row.has("kind")
+                                     ? ColumnDefinition.Kind.valueOf(row.getString("kind").toUpperCase())
+                                     : ColumnDefinition.Kind.REGULAR;
+        assert kind == ColumnDefinition.Kind.REGULAR || kind == ColumnDefinition.Kind.STATIC
+            : "Unexpected dropped column kind: " + kind.toString();
+        return new CFMetaData.DroppedColumn(name, type, droppedTime, kind);
     }
 
     private static Indexes fetchIndexes(String keyspace, String table)
