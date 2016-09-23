@@ -1,4 +1,5 @@
 3.0.10
+ * Avoid sstable corrupt exception due to dropped static column (CASSANDRA-12582)
  * Make stress use client mode to avoid checking commit log size on startup (CASSANDRA-12478)
  * Fix exceptions with new vnode allocation (CASSANDRA-12715)
  * Unify drain and shutdown processes (CASSANDRA-12509)
