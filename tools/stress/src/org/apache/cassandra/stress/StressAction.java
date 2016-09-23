@@ -62,7 +62,8 @@ public class StressAction implements Runnable
         if (!settings.command.noWarmup)
             warmup(settings.command.getFactory(settings));
 
-        if (settings.command.truncate == SettingsCommand.TruncateWhen.ONCE)
+        if ((settings.command.truncate == SettingsCommand.TruncateWhen.ONCE) ||
+            ((settings.rate.threadCount != -1) && (settings.command.truncate == SettingsCommand.TruncateWhen.ALWAYS)))
             settings.command.truncateTables(settings);
 
         // Required for creating a graph from the output file

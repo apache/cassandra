@@ -1,4 +1,5 @@
 3.10
+ * Fix cassandra-stress truncate option (CASSANDRA-12695)
  * Fix crossNode value when receiving messages (CASSANDRA-12791)
  * Don't load MX4J beans twice (CASSANDRA-12869)
  * Extend native protocol request flags, add versions to SUPPORTED, and introduce ProtocolVersion enum (CASSANDRA-12838)
