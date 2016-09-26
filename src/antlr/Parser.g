@@ -1332,6 +1332,7 @@ columnOperation[List<Pair<ColumnDefinition.Raw, Operation.RawUpdate>> operations
 
 columnOperationDifferentiator[List<Pair<ColumnDefinition.Raw, Operation.RawUpdate>> operations, ColumnDefinition.Raw key]
     : '=' normalColumnOperation[operations, key]
+    | shorthandColumnOperation[operations, key]
     | '[' k=term ']' collectionColumnOperation[operations, key, k]
     | '.' field=fident udtColumnOperation[operations, key, field]
     ;
@@ -1363,6 +1364,13 @@ normalColumnOperation[List<Pair<ColumnDefinition.Raw, Operation.RawUpdate>> oper
               // We don't yet allow a '+' in front of an integer, but we could in the future really, so let's be future-proof in our error message
               addRecognitionError("Only expressions of the form X = X " + ($i.text.charAt(0) == '-' ? '-' : '+') + " <value> are supported.");
           addRawUpdate(operations, key, new Operation.Addition(Constants.Literal.integer($i.text)));
+      }
+    ;
+
+shorthandColumnOperation[List<Pair<ColumnDefinition.Raw, Operation.RawUpdate>> operations, ColumnDefinition.Raw key]
+    : sig=('+=' | '-=') t=term
+      {
+          addRawUpdate(operations, key, $sig.text.equals("+=") ? new Operation.Addition(t) : new Operation.Substraction(t));
       }
     ;
 

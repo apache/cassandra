@@ -49,6 +49,22 @@ public class CountersTest extends CQLTester
         execute("UPDATE %s SET total = total -2 WHERE userid = 1 AND url = 'http://foo.com'");
         assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
                    row(-4L));
+
+        execute("UPDATE %s SET total += 6 WHERE userid = 1 AND url = 'http://foo.com'");
+        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
+                   row(2L));
+
+        execute("UPDATE %s SET total -= 1 WHERE userid = 1 AND url = 'http://foo.com'");
+        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
+                   row(1L));
+
+        execute("UPDATE %s SET total += -2 WHERE userid = 1 AND url = 'http://foo.com'");
+        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
+                   row(-1L));
+
+        execute("UPDATE %s SET total -= -2 WHERE userid = 1 AND url = 'http://foo.com'");
+        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
+                   row(1L));
     }
 
     /**

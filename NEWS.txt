@@ -18,6 +18,7 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - Support for the assignment operators +=/-= has been added for update queries.
    - An Index implementation may now provide a task which runs prior to joining
      the ring. See CASSANDRA-12039
    - Filtering on partition key columns is now also supported for queries without
