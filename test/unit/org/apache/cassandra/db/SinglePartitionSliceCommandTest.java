@@ -215,4 +215,25 @@ public class SinglePartitionSliceCommandTest
             checkForS(pi);
         }
     }
+
+    @Test
+    public void toCQLStringIsSafeToCall() throws IOException
+    {
+        DecoratedKey key = cfm.decorateKey(ByteBufferUtil.bytes("k1"));
+
+        ColumnFilter columnFilter = ColumnFilter.selection(PartitionColumns.of(s));
+        Slice slice = Slice.make(Slice.Bound.BOTTOM, Slice.Bound.inclusiveEndOf(ByteBufferUtil.bytes("i1")));
+        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.with(cfm.comparator, slice), false);
+        ReadCommand cmd = new SinglePartitionReadCommand(false, MessagingService.VERSION_30, true, cfm,
+                                                         FBUtilities.nowInSeconds(),
+                                                         columnFilter,
+                                                         RowFilter.NONE,
+                                                         DataLimits.NONE,
+                                                         key,
+                                                         sliceFilter);
+
+        String ret = cmd.toCQLString();
+        Assert.assertNotNull(ret);
+        Assert.assertFalse(ret.isEmpty());
+    }
 }
