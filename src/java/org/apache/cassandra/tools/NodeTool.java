@@ -105,6 +105,8 @@ public class NodeTool
                 SetHintedHandoffThrottleInKB.class,
                 SetCompactionThreshold.class,
                 SetCompactionThroughput.class,
+                GetConcurrentCompactors.class,
+                SetConcurrentCompactors.class,
                 SetTimeout.class,
                 SetStreamThroughput.class,
                 SetInterDCStreamThroughput.class,

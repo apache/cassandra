@@ -1863,6 +1863,12 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
+    public void setConcurrentCompactors(int value)
+    {
+        executor.setCorePoolSize(value);
+        executor.setMaximumPoolSize(value);
+    }
+
     public int getCoreCompactorThreads()
     {
         return executor.getCorePoolSize();

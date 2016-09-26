@@ -1495,6 +1495,11 @@ public class DatabaseDescriptor
         return conf.concurrent_compactors;
     }
 
+    public static void setConcurrentCompactors(int value)
+    {
+        conf.concurrent_compactors = value;
+    }
+
     public static int getCompactionThroughputMbPerSec()
     {
         return conf.compaction_throughput_mb_per_sec;
