@@ -1,14 +1,14 @@
-cassandra (3.10) unstable; urgency=medium
+cassandra (3.10) UNRELEASED; urgency=medium
 
   * New release
 
- -- Michael Shuler <mshuler@apache.org>  Tue, 16 Aug 2016 18:26:45 -0500
+ -- Michael Shuler <mshuler@apache.org>  Mon, 26 Sep 2016 09:07:34 -0500
 
 cassandra (3.8) unstable; urgency=medium
 
   * New release
 
- -- Jake Luciani <jake@apache.org>  Mon, 27 Jun 2016 20:40:40 -0400
+ -- Michael Shuler <mshuler@apache.org>  Mon, 26 Sep 2016 08:51:39 -0500
 
 cassandra (3.6) unstable; urgency=medium
 
