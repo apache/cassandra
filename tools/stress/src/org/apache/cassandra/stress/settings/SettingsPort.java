@@ -62,7 +62,7 @@ public class SettingsPort implements Serializable
     {
         out.printf("  Native Port: %d%n", nativePort);
         out.printf("  Thrift Port: %d%n", thriftPort);
-        out.printf("  JMX Port: %d%n", nativePort);
+        out.printf("  JMX Port: %d%n", jmxPort);
     }
 
 
