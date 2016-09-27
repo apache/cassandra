@@ -1,4 +1,6 @@
 3.0.10
+ * Fix potentially incomplete non-frozen UDT values when querying with the
+   full primary key specified (CASSANDRA-12605)
  * Skip writing MV mutations to commitlog on mutation.applyUnsafe() (CASSANDRA-11670)
  * Establish consistent distinction between non-existing partition and NULL value for LWTs on static columns (CASSANDRA-12060)
  * Extend ColumnIdentifier.internedInstances key to include the type that generated the byte buffer (CASSANDRA-12516)
