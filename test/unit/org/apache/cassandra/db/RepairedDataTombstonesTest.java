@@ -60,10 +60,9 @@ public class RepairedDataTombstonesTest extends CQLTester
         Thread.sleep(1000);
         // at this point we have 2 sstables, one repaired and one unrepaired. Both sstables contain expired tombstones, but we should only drop the tombstones from the repaired sstable.
         getCurrentColumnFamilyStore().forceMajorCompaction();
-        verify();
-        verify2(1);
+        verifyIncludingPurgeable();
+        verify2IncludingPurgeable(1);
         assertEquals(2, Iterables.size(getCurrentColumnFamilyStore().getSSTables(SSTableSet.LIVE)));
-
     }
 
     @Test
@@ -85,8 +84,8 @@ public class RepairedDataTombstonesTest extends CQLTester
         flush();
         Thread.sleep(1000);
         getCurrentColumnFamilyStore().forceMajorCompaction();
-        verify();
-        verify2(1);
+        verifyIncludingPurgeable();
+        verify2IncludingPurgeable(1);
         assertEquals(1, Iterables.size(getCurrentColumnFamilyStore().getSSTables(SSTableSet.LIVE)));
         assertFalse(getCurrentColumnFamilyStore().getSSTables(SSTableSet.LIVE).iterator().next().isRepaired());
 
@@ -129,8 +128,8 @@ public class RepairedDataTombstonesTest extends CQLTester
 
         // allow gcgrace to properly expire:
         Thread.sleep(1000);
-        verify();
-        verify2(123);
+        verifyIncludingPurgeable();
+        verify2IncludingPurgeable(123);
     }
 
 
@@ -220,26 +219,74 @@ public class RepairedDataTombstonesTest extends CQLTester
 
         Thread.sleep(2000);
         // we will keep all tombstones since the oldest tombstones are unrepaired:
-        verify(30, 0, 30);
-        verify2(1, 30, 0, 30);
+        verify(30, 0, 30, false);
+        verify2(1, 30, 0, 30, false);
     }
 
     private void verify()
     {
-        verify(10, 10, 20);
+        verify(10, 10, 20, false);
     }
 
-    private void verify(int expectedRows, int minVal, int maxVal)
+    private void verifyIncludingPurgeable()
+    {
+        verify(10, 10, 20, true);
+    }
+
+    private void verify(int expectedRows, int minVal, int maxVal, boolean includePurgeable)
     {
         ReadCommand cmd = Util.cmd(getCurrentColumnFamilyStore()).build();
         int foundRows = 0;
         try (ReadExecutionController executionController = cmd.executionController();
-             UnfilteredPartitionIterator iterator = cmd.executeLocally(executionController))
+             UnfilteredPartitionIterator iterator =
+             includePurgeable ? cmd.queryStorage(getCurrentColumnFamilyStore(), executionController) :
+                                cmd.executeLocally(executionController))
         {
             while (iterator.hasNext())
             {
-                UnfilteredRowIterator rowIter = iterator.next();
-                if (!rowIter.partitionKey().equals(Util.dk(ByteBufferUtil.bytes(999)))) // partition key 999 is 'live' and used to avoid sstables from being dropped
+                try (UnfilteredRowIterator rowIter = iterator.next())
+                {
+                    if (!rowIter.partitionKey().equals(Util.dk(ByteBufferUtil.bytes(999)))) // partition key 999 is 'live' and used to avoid sstables from being dropped
+                    {
+                        while (rowIter.hasNext())
+                        {
+                            AbstractRow row = (AbstractRow) rowIter.next();
+                            for (int i = 0; i < row.clustering().size(); i++)
+                            {
+                                foundRows++;
+                                int val = ByteBufferUtil.toInt(row.clustering().get(i));
+                                assertTrue("val=" + val, val >= minVal && val < maxVal);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assertEquals(expectedRows, foundRows);
+    }
+
+    private void verify2(int key)
+    {
+        verify2(key, 10, 10, 20, false);
+    }
+
+    private void verify2IncludingPurgeable(int key)
+    {
+        verify2(key, 10, 10, 20, true);
+    }
+
+    private void verify2(int key, int expectedRows, int minVal, int maxVal, boolean includePurgeable)
+    {
+        ReadCommand cmd = Util.cmd(getCurrentColumnFamilyStore(), Util.dk(ByteBufferUtil.bytes(key))).build();
+        int foundRows = 0;
+        try (ReadExecutionController executionController = cmd.executionController();
+             UnfilteredPartitionIterator iterator =
+             includePurgeable ? cmd.queryStorage(getCurrentColumnFamilyStore(), executionController) :
+                                cmd.executeLocally(executionController))
+        {
+            while (iterator.hasNext())
+            {
+                try (UnfilteredRowIterator rowIter = iterator.next())
                 {
                     while (rowIter.hasNext())
                     {
@@ -250,35 +297,6 @@ public class RepairedDataTombstonesTest extends CQLTester
                             int val = ByteBufferUtil.toInt(row.clustering().get(i));
                             assertTrue("val=" + val, val >= minVal && val < maxVal);
                         }
-                    }
-                }
-            }
-        }
-        assertEquals(expectedRows, foundRows);
-    }
-    private void verify2(int key)
-    {
-        verify2(key, 10, 10, 20);
-    }
-
-    private void verify2(int key, int expectedRows, int minVal, int maxVal)
-    {
-        ReadCommand cmd = Util.cmd(getCurrentColumnFamilyStore(), Util.dk(ByteBufferUtil.bytes(key))).build();
-        int foundRows = 0;
-        try (ReadExecutionController executionController = cmd.executionController();
-             UnfilteredPartitionIterator iterator = cmd.executeLocally(executionController))
-        {
-            while (iterator.hasNext())
-            {
-                UnfilteredRowIterator rowIter = iterator.next();
-                while (rowIter.hasNext())
-                {
-                    AbstractRow row = (AbstractRow) rowIter.next();
-                    for (int i = 0; i < row.clustering().size(); i++)
-                    {
-                        foundRows++;
-                        int val = ByteBufferUtil.toInt(row.clustering().get(i));
-                        assertTrue("val=" + val, val >= minVal && val < maxVal);
                     }
                 }
             }
