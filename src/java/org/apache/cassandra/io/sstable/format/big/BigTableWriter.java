@@ -84,7 +84,7 @@ public class BigTableWriter extends SSTableWriter
         {
             dataFile = new CompressedSequentialWriter(new File(getFilename()),
                                              descriptor.filenameFor(Component.COMPRESSION_INFO),
-                                             new File(descriptor.filenameFor(descriptor.digestComponent)),
+                                             new File(descriptor.filenameFor(Component.DIGEST)),
                                              writerOption,
                                              metadata.params.compression,
                                              metadataCollector);
@@ -93,7 +93,7 @@ public class BigTableWriter extends SSTableWriter
         {
             dataFile = new ChecksummedSequentialWriter(new File(getFilename()),
                     new File(descriptor.filenameFor(Component.CRC)),
-                    new File(descriptor.filenameFor(descriptor.digestComponent)),
+                    new File(descriptor.filenameFor(Component.DIGEST)),
                     writerOption);
         }
         dbuilder = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).compressed(compression)
@@ -442,7 +442,7 @@ public class BigTableWriter extends SSTableWriter
             builder = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX)).mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap);
             chunkCache.ifPresent(builder::withChunkCache);
             summary = new IndexSummaryBuilder(keyCount, metadata.params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
-            bf = FilterFactory.getFilter(keyCount, metadata.params.bloomFilterFpChance, true, descriptor.version.hasOldBfHashOrder());
+            bf = FilterFactory.getFilter(keyCount, metadata.params.bloomFilterFpChance, true);
             // register listeners to be alerted when the data files are flushed
             indexFile.setPostFlushListener(() -> summary.markIndexSynced(indexFile.getLastFlushOffset()));
             dataFile.setPostFlushListener(() -> summary.markDataSynced(dataFile.getLastFlushOffset()));

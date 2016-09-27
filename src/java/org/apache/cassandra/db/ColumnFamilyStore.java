@@ -747,8 +747,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                descriptor.ksname,
                                                descriptor.cfname,
                                                fileIndexGenerator.incrementAndGet(),
-                                               descriptor.formatType,
-                                               descriptor.digestComponent);
+                                               descriptor.formatType);
             }
             while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
 
@@ -815,26 +814,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return name;
     }
 
-    public String getSSTablePath(File directory)
+    public Descriptor newSSTableDescriptor(File directory)
     {
-        return getSSTablePath(directory, SSTableFormat.Type.current().info.getLatestVersion(), SSTableFormat.Type.current());
+        return newSSTableDescriptor(directory, SSTableFormat.Type.current().info.getLatestVersion(), SSTableFormat.Type.current());
     }
 
-    public String getSSTablePath(File directory, SSTableFormat.Type format)
+    public Descriptor newSSTableDescriptor(File directory, SSTableFormat.Type format)
     {
-        return getSSTablePath(directory, format.info.getLatestVersion(), format);
+        return newSSTableDescriptor(directory, format.info.getLatestVersion(), format);
     }
 
-    private String getSSTablePath(File directory, Version version, SSTableFormat.Type format)
+    private Descriptor newSSTableDescriptor(File directory, Version version, SSTableFormat.Type format)
     {
-        Descriptor desc = new Descriptor(version,
-                                         directory,
-                                         keyspace.getName(),
-                                         name,
-                                         fileIndexGenerator.incrementAndGet(),
-                                         format,
-                                         Component.digestFor(BigFormat.latestVersion.uncompressedChecksumType()));
-        return desc.filenameFor(Component.DATA);
+        return new Descriptor(version,
+                              directory,
+                              keyspace.getName(),
+                              name,
+                              fileIndexGenerator.incrementAndGet(),
+                              format);
     }
 
     /**

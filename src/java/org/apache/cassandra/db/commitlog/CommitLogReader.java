@@ -122,19 +122,6 @@ public class CommitLogReader
 
         try(RandomAccessReader reader = RandomAccessReader.open(file))
         {
-            if (desc.version < CommitLogDescriptor.VERSION_21)
-            {
-                if (!shouldSkipSegmentId(file, desc, minPosition))
-                {
-                    if (minPosition.segmentId == desc.id)
-                        reader.seek(minPosition.position);
-                    ReadStatusTracker statusTracker = new ReadStatusTracker(mutationLimit, tolerateTruncation);
-                    statusTracker.errorContext = desc.fileName();
-                    readSection(handler, reader, minPosition, (int) reader.length(), statusTracker, desc);
-                }
-                return;
-            }
-
             final long segmentIdFromFilename = desc.id;
             try
             {
@@ -430,42 +417,17 @@ public class CommitLogReader
     {
         public static long calculateClaimedChecksum(FileDataInput input, int commitLogVersion) throws IOException
         {
-            switch (commitLogVersion)
-            {
-                case CommitLogDescriptor.VERSION_12:
-                case CommitLogDescriptor.VERSION_20:
-                    return input.readLong();
-                // Changed format in 2.1
-                default:
-                    return input.readInt() & 0xffffffffL;
-            }
+            return input.readInt() & 0xffffffffL;
         }
 
         public static void updateChecksum(CRC32 checksum, int serializedSize, int commitLogVersion)
         {
-            switch (commitLogVersion)
-            {
-                case CommitLogDescriptor.VERSION_12:
-                    checksum.update(serializedSize);
-                    break;
-                // Changed format in 2.0
-                default:
-                    updateChecksumInt(checksum, serializedSize);
-                    break;
-            }
+            updateChecksumInt(checksum, serializedSize);
         }
 
         public static long calculateClaimedCRC32(FileDataInput input, int commitLogVersion) throws IOException
         {
-            switch (commitLogVersion)
-            {
-                case CommitLogDescriptor.VERSION_12:
-                case CommitLogDescriptor.VERSION_20:
-                    return input.readLong();
-                // Changed format in 2.1
-                default:
-                    return input.readInt() & 0xffffffffL;
-            }
+            return input.readInt() & 0xffffffffL;
         }
     }
 

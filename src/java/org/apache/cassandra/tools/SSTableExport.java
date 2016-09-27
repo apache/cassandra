@@ -93,8 +93,8 @@ public class SSTableExport
      */
     public static CFMetaData metadataFromSSTable(Descriptor desc) throws IOException
     {
-        if (!desc.version.storeRows())
-            throw new IOException("pre-3.0 SSTable is not supported.");
+        if (!desc.version.isCompatible())
+            throw new IOException("Cannot process old and unsupported SSTable version.");
 
         EnumSet<MetadataType> types = EnumSet.of(MetadataType.STATS, MetadataType.HEADER);
         Map<MetadataType, MetadataComponent> sstableMetadata = desc.getMetadataSerializer().deserialize(desc, types);
@@ -162,11 +162,6 @@ public class SSTableExport
                         : cmd.getOptionValues(EXCLUDE_KEY_OPTION)));
         String ssTableFileName = new File(cmd.getArgs()[0]).getAbsolutePath();
 
-        if (Descriptor.isLegacyFile(new File(ssTableFileName)))
-        {
-            System.err.println("Unsupported legacy sstable");
-            System.exit(1);
-        }
         if (!new File(ssTableFileName).exists())
         {
             System.err.println("Cannot find file " + ssTableFileName);

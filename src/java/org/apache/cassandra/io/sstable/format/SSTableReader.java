@@ -253,58 +253,48 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         long count = -1;
 
-        // check if cardinality estimator is available for all SSTables
-        boolean cardinalityAvailable = !Iterables.isEmpty(sstables) && Iterables.all(sstables, new Predicate<SSTableReader>()
+        if (Iterables.isEmpty(sstables))
+            return count;
+
+        boolean failed = false;
+        ICardinality cardinality = null;
+        for (SSTableReader sstable : sstables)
         {
-            public boolean apply(SSTableReader sstable)
+            if (sstable.openReason == OpenReason.EARLY)
+                continue;
+
+            try
             {
-                return sstable.descriptor.version.hasNewStatsFile();
-            }
-        });
-
-        // if it is, load them to estimate key count
-        if (cardinalityAvailable)
-        {
-            boolean failed = false;
-            ICardinality cardinality = null;
-            for (SSTableReader sstable : sstables)
-            {
-                if (sstable.openReason == OpenReason.EARLY)
-                    continue;
-
-                try
+                CompactionMetadata metadata = (CompactionMetadata) sstable.descriptor.getMetadataSerializer().deserialize(sstable.descriptor, MetadataType.COMPACTION);
+                // If we can't load the CompactionMetadata, we are forced to estimate the keys using the index
+                // summary. (CASSANDRA-10676)
+                if (metadata == null)
                 {
-                    CompactionMetadata metadata = (CompactionMetadata) sstable.descriptor.getMetadataSerializer().deserialize(sstable.descriptor, MetadataType.COMPACTION);
-                    // If we can't load the CompactionMetadata, we are forced to estimate the keys using the index
-                    // summary. (CASSANDRA-10676)
-                    if (metadata == null)
-                    {
-                        logger.warn("Reading cardinality from Statistics.db failed for {}", sstable.getFilename());
-                        failed = true;
-                        break;
-                    }
-
-                    if (cardinality == null)
-                        cardinality = metadata.cardinalityEstimator;
-                    else
-                        cardinality = cardinality.merge(metadata.cardinalityEstimator);
-                }
-                catch (IOException e)
-                {
-                    logger.warn("Reading cardinality from Statistics.db failed.", e);
+                    logger.warn("Reading cardinality from Statistics.db failed for {}", sstable.getFilename());
                     failed = true;
                     break;
                 }
-                catch (CardinalityMergeException e)
-                {
-                    logger.warn("Cardinality merge failed.", e);
-                    failed = true;
-                    break;
-                }
+
+                if (cardinality == null)
+                    cardinality = metadata.cardinalityEstimator;
+                else
+                    cardinality = cardinality.merge(metadata.cardinalityEstimator);
             }
-            if (cardinality != null && !failed)
-                count = cardinality.cardinality();
+            catch (IOException e)
+            {
+                logger.warn("Reading cardinality from Statistics.db failed.", e);
+                failed = true;
+                break;
+            }
+            catch (CardinalityMergeException e)
+            {
+                logger.warn("Cardinality merge failed.", e);
+                failed = true;
+                break;
+            }
         }
+        if (cardinality != null && !failed)
+            count = cardinality.cardinality();
 
         // if something went wrong above or cardinality is not available, calculate using index summary
         if (count < 0)
@@ -481,14 +471,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         assert !validate || components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
 
         // For the 3.0+ sstable format, the (misnomed) stats component hold the serialization header which we need to deserialize the sstable content
-        assert !descriptor.version.storeRows() || components.contains(Component.STATS) : "Stats component is missing for sstable " + descriptor;
+        assert components.contains(Component.STATS) : "Stats component is missing for sstable " + descriptor;
 
         EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS, MetadataType.HEADER);
         Map<MetadataType, MetadataComponent> sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor, types);
         ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
         StatsMetadata statsMetadata = (StatsMetadata) sstableMetadata.get(MetadataType.STATS);
         SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
-        assert !descriptor.version.storeRows() || header != null;
+        assert header != null;
 
         // Check if sstable is created using same partitioner.
         // Partitioner can be null, which indicates older version of sstable or no stats available.
@@ -730,7 +720,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             // bf is enabled and fp chance matches the currently configured value.
             load(false, true);
-            loadBloomFilter(descriptor.version.hasOldBfHashOrder());
+            loadBloomFilter();
         }
     }
 
@@ -739,11 +729,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      *
      * @throws IOException
      */
-    private void loadBloomFilter(boolean oldBfHashOrder) throws IOException
+    private void loadBloomFilter() throws IOException
     {
         try (DataInputStream stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER)))))
         {
-            bf = FilterFactory.deserialize(stream, true, oldBfHashOrder);
+            bf = FilterFactory.deserialize(stream, true);
         }
     }
 
@@ -829,7 +819,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     : estimateRowsFromIndex(primaryIndex); // statistics is supposed to be optional
 
             if (recreateBloomFilter)
-                bf = FilterFactory.getFilter(estimatedKeys, metadata.params.bloomFilterFpChance, true, descriptor.version.hasOldBfHashOrder());
+                bf = FilterFactory.getFilter(estimatedKeys, metadata.params.bloomFilterFpChance, true);
 
             try (IndexSummaryBuilder summaryBuilder = summaryLoaded ? null : new IndexSummaryBuilder(estimatedKeys, metadata.params.minIndexInterval, samplingLevel))
             {
@@ -883,7 +873,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             iStream = new DataInputStream(new FileInputStream(summariesFile));
             indexSummary = IndexSummary.serializer.deserialize(
-                    iStream, getPartitioner(), descriptor.version.hasSamplingLevel(),
+                    iStream, getPartitioner(),
                     metadata.params.minIndexInterval, metadata.params.maxIndexInterval);
             first = decorateKey(ByteBufferUtil.readWithLength(iStream));
             last = decorateKey(ByteBufferUtil.readWithLength(iStream));
@@ -932,7 +922,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         try (DataOutputStreamPlus oStream = new BufferedDataOutputStreamPlus(new FileOutputStream(summariesFile));)
         {
-            IndexSummary.serializer.serialize(summary, oStream, descriptor.version.hasSamplingLevel());
+            IndexSummary.serializer.serialize(summary, oStream);
             ByteBufferUtil.writeWithLength(first.getKey(), oStream);
             ByteBufferUtil.writeWithLength(last.getKey(), oStream);
         }
@@ -1106,8 +1096,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     @SuppressWarnings("resource")
     public SSTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
     {
-        assert descriptor.version.hasSamplingLevel();
-
         synchronized (tidy.global)
         {
             assert openReason != OpenReason.EARLY;

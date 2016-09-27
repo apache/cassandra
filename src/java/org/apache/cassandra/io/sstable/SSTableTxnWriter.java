@@ -148,14 +148,8 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         return new SSTableTxnWriter(txn, writer);
     }
 
-    public static SSTableTxnWriter create(ColumnFamilyStore cfs, String filename, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header)
+    public static SSTableTxnWriter create(ColumnFamilyStore cfs, Descriptor desc, long keyCount, long repairedAt, SerializationHeader header)
     {
-        Descriptor desc = Descriptor.fromFilename(filename);
-        return create(cfs, desc, keyCount, repairedAt, sstableLevel, header);
-    }
-
-    public static SSTableTxnWriter create(ColumnFamilyStore cfs, String filename, long keyCount, long repairedAt, SerializationHeader header)
-    {
-        return create(cfs, filename, keyCount, repairedAt, 0, header);
+        return create(cfs, desc, keyCount, repairedAt, 0, header);
     }
 }

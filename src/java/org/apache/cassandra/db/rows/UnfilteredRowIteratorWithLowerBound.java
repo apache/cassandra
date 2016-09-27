@@ -211,12 +211,11 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
 
     /**
      * @return true if we can use the clustering values in the stats of the sstable:
-     * - we need the latest stats file format (or else the clustering values create clusterings with the wrong size)
-     * - we cannot create tombstone bounds from these values only and so we rule out sstables with tombstones
+     * we cannot create tombstone bounds from these values only and so we rule out sstables with tombstones
      */
     private boolean canUseMetadataLowerBound()
     {
-        return !sstable.hasTombstones() && sstable.descriptor.version.hasNewStatsFile();
+        return !sstable.hasTombstones();
     }
 
     /**

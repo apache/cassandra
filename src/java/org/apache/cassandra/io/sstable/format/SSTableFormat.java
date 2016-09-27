@@ -41,10 +41,6 @@ public interface SSTableFormat
 
     public static enum Type
     {
-        //Used internally to refer to files with no
-        //format flag in the filename
-        LEGACY("big", BigFormat.instance),
-
         //The original sstable format
         BIG("big", BigFormat.instance);
 
@@ -70,10 +66,6 @@ public interface SSTableFormat
         {
             for (Type valid : Type.values())
             {
-                //This is used internally for old sstables
-                if (valid == LEGACY)
-                    continue;
-
                 if (valid.name.equalsIgnoreCase(name))
                     return valid;
             }

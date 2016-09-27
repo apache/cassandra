@@ -336,11 +336,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     private void writeInternal(MessageOut message, int id, long timestamp) throws IOException
     {
         out.writeInt(MessagingService.PROTOCOL_MAGIC);
-
-        if (targetVersion < MessagingService.VERSION_20)
-            out.writeUTF(String.valueOf(id));
-        else
-            out.writeInt(id);
+        out.writeInt(id);
 
         // int cast cuts off the high-order half of the timestamp, which we can assume remains
         // the same between now and when the recipient reconstructs it.
@@ -427,9 +423,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                 int maxTargetVersion = handshakeVersion(in);
                 if (maxTargetVersion == NO_VERSION)
                 {
-                    // no version is returned, so disconnect an try again: we will either get
-                    // a different target version (targetVersion < MessagingService.VERSION_12)
-                    // or if the same version the handshake will finally succeed
+                    // no version is returned, so disconnect an try again
                     logger.trace("Target max version is {}; no version information yet, will retry", maxTargetVersion);
                     if (DatabaseDescriptor.getSeeds().contains(poolReference.endPoint()))
                         logger.warn("Seed gossip version is {}; will not connect with that version", maxTargetVersion);
@@ -461,22 +455,15 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                 {
                     out.flush();
                     logger.trace("Upgrading OutputStream to {} to be compressed", poolReference.endPoint());
-                    if (targetVersion < MessagingService.VERSION_21)
-                    {
-                        // Snappy is buffered, so no need for extra buffering output stream
-                        out = new WrappedDataOutputStreamPlus(new SnappyOutputStream(socket.getOutputStream()));
-                    }
-                    else
-                    {
-                        // TODO: custom LZ4 OS that supports BB write methods
-                        LZ4Compressor compressor = LZ4Factory.fastestInstance().fastCompressor();
-                        Checksum checksum = XXHashFactory.fastestInstance().newStreamingHash32(LZ4_HASH_SEED).asChecksum();
-                        out = new WrappedDataOutputStreamPlus(new LZ4BlockOutputStream(socket.getOutputStream(),
-                                                                            1 << 14,  // 16k block size
-                                                                            compressor,
-                                                                            checksum,
-                                                                            true)); // no async flushing
-                    }
+
+                    // TODO: custom LZ4 OS that supports BB write methods
+                    LZ4Compressor compressor = LZ4Factory.fastestInstance().fastCompressor();
+                    Checksum checksum = XXHashFactory.fastestInstance().newStreamingHash32(LZ4_HASH_SEED).asChecksum();
+                    out = new WrappedDataOutputStreamPlus(new LZ4BlockOutputStream(socket.getOutputStream(),
+                                                                        1 << 14,  // 16k block size
+                                                                        compressor,
+                                                                        checksum,
+                                                                        true)); // no async flushing
                 }
                 logger.debug("Done connecting to {}", poolReference.endPoint());
                 return true;

@@ -197,6 +197,7 @@ public abstract class CQLTester
         ThreadAwareSecurityManager.install();
 
         Keyspace.setInitialized();
+        SystemKeyspace.persistLocalMetadata();
         isServerPrepared = true;
     }
 

@@ -29,7 +29,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import junit.framework.Assert;
-import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
@@ -65,8 +64,6 @@ public class RealTransactionsTest extends SchemaLoader
     @BeforeClass
     public static void setUp()
     {
-        MockSchema.cleanup();
-
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
@@ -160,7 +157,7 @@ public class RealTransactionsTest extends SchemaLoader
             {
                 long lastCheckObsoletion = System.nanoTime();
                 File directory = txn.originals().iterator().next().descriptor.directory;
-                Descriptor desc = Descriptor.fromFilename(cfs.getSSTablePath(directory));
+                Descriptor desc = cfs.newSSTableDescriptor(directory);
                 CFMetaData metadata = Schema.instance.getCFMetaData(desc);
                 rewriter.switchWriter(SSTableWriter.create(metadata,
                                                            desc,

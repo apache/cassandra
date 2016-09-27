@@ -70,12 +70,11 @@ public class StandaloneSplitter
                     continue;
                 }
 
-                Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file.getParentFile(), file.getName());
-                if (pair == null) {
+                Descriptor desc = SSTable.tryDescriptorFromFilename(file);
+                if (desc == null) {
                     System.out.println("Skipping non sstable file " + file);
                     continue;
                 }
-                Descriptor desc = pair.left;
 
                 if (ksName == null)
                     ksName = desc.ksname;

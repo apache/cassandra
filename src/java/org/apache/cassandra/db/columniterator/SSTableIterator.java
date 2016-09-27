@@ -257,12 +257,10 @@ public class SSTableIterator extends AbstractSSTableIterator
             // so if currentIdx == lastBlockIdx and slice.end < indexes[currentIdx].firstName, we're guaranteed that the
             // whole slice is between the previous block end and this block start, and thus has no corresponding
             // data. One exception is if the previous block ends with an openMarker as it will cover our slice
-            // and we need to return it (we also don't skip the slice for the old format because we didn't have the openMarker
-            // info in that case and can't rely on this optimization).
+            // and we need to return it.
             if (indexState.currentBlockIdx() == lastBlockIdx
                 && metadata().comparator.compare(slice.end(), indexState.currentIndex().firstName) < 0
-                && openMarker == null
-                && sstable.descriptor.version.storeRows())
+                && openMarker == null)
             {
                 sliceDone = true;
             }

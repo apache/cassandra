@@ -83,7 +83,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         SASIIndex sasi = (SASIIndex) cfs.indexManager.getIndexByName("age");
 
         File directory = cfs.getDirectories().getDirectoryForNewSSTables();
-        Descriptor descriptor = Descriptor.fromFilename(cfs.getSSTablePath(directory));
+        Descriptor descriptor = cfs.newSSTableDescriptor(directory);
         PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, OperationType.FLUSH);
 
         SortedMap<DecoratedKey, Row> expectedKeys = new TreeMap<>(DecoratedKey.comparator);
@@ -175,7 +175,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         SASIIndex sasi = (SASIIndex) cfs.indexManager.getIndexByName(columnName);
 
         File directory = cfs.getDirectories().getDirectoryForNewSSTables();
-        Descriptor descriptor = Descriptor.fromFilename(cfs.getSSTablePath(directory));
+        Descriptor descriptor = cfs.newSSTableDescriptor(directory);
         PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, OperationType.FLUSH);
 
         final long now = System.currentTimeMillis();

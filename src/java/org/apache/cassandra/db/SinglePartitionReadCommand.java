@@ -935,9 +935,9 @@ public class SinglePartitionReadCommand extends ReadCommand
                              nowInSec());
     }
 
-    public MessageOut<ReadCommand> createMessage(int version)
+    public MessageOut<ReadCommand> createMessage()
     {
-        return new MessageOut<>(MessagingService.Verb.READ, this, readSerializer);
+        return new MessageOut<>(MessagingService.Verb.READ, this, serializer);
     }
 
     protected void appendCQLWhereClause(StringBuilder sb)

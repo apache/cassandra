@@ -368,21 +368,9 @@ public class Mutation implements IMutation
     {
         public void serialize(Mutation mutation, DataOutputPlus out, int version) throws IOException
         {
-            if (version < MessagingService.VERSION_20)
-                out.writeUTF(mutation.getKeyspaceName());
-
             /* serialize the modifications in the mutation */
             int size = mutation.modifications.size();
-
-            if (version < MessagingService.VERSION_30)
-            {
-                ByteBufferUtil.writeWithShortLength(mutation.key().getKey(), out);
-                out.writeInt(size);
-            }
-            else
-            {
-                out.writeUnsignedVInt(size);
-            }
+            out.writeUnsignedVInt(size);
 
             assert size > 0;
             for (Map.Entry<UUID, PartitionUpdate> entry : mutation.modifications.entrySet())
@@ -391,24 +379,10 @@ public class Mutation implements IMutation
 
         public Mutation deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
         {
-            if (version < MessagingService.VERSION_20)
-                in.readUTF(); // read pre-2.0 keyspace name
-
-            ByteBuffer key = null;
-            int size;
-            if (version < MessagingService.VERSION_30)
-            {
-                key = ByteBufferUtil.readWithShortLength(in);
-                size = in.readInt();
-            }
-            else
-            {
-                size = (int)in.readUnsignedVInt();
-            }
-
+            int size = (int)in.readUnsignedVInt();
             assert size > 0;
 
-            PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, flag, key);
+            PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, flag);
             if (size == 1)
                 return new Mutation(update);
 
@@ -418,7 +392,7 @@ public class Mutation implements IMutation
             modifications.put(update.metadata().cfId, update);
             for (int i = 1; i < size; ++i)
             {
-                update = PartitionUpdate.serializer.deserialize(in, version, flag, dk);
+                update = PartitionUpdate.serializer.deserialize(in, version, flag);
                 modifications.put(update.metadata().cfId, update);
             }
 
@@ -432,22 +406,7 @@ public class Mutation implements IMutation
 
         public long serializedSize(Mutation mutation, int version)
         {
-            int size = 0;
-
-            if (version < MessagingService.VERSION_20)
-                size += TypeSizes.sizeof(mutation.getKeyspaceName());
-
-            if (version < MessagingService.VERSION_30)
-            {
-                int keySize = mutation.key().getKey().remaining();
-                size += TypeSizes.sizeof((short) keySize) + keySize;
-                size += TypeSizes.sizeof(mutation.modifications.size());
-            }
-            else
-            {
-                size += TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
-            }
-
+            int size = TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
             for (Map.Entry<UUID, PartitionUpdate> entry : mutation.modifications.entrySet())
                 size += PartitionUpdate.serializer.serializedSize(entry.getValue(), version);
 

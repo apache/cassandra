@@ -29,6 +29,7 @@ import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.utils.ChecksumType;
 
 public abstract class CompressedChunkReader extends AbstractReaderFileProxy implements ChunkReader
 {
@@ -142,7 +143,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 if (getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
                 {
                     compressed.rewind();
-                    int checksum = (int) metadata.checksumType.of(compressed);
+                    int checksum = (int) ChecksumType.CRC32.of(compressed);
 
                     compressed.clear().limit(Integer.BYTES);
                     if (channel.read(compressed, chunk.offset + chunk.length) != Integer.BYTES
@@ -204,7 +205,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 {
                     compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
 
-                    int checksum = (int) metadata.checksumType.of(compressedChunk);
+                    int checksum = (int) ChecksumType.CRC32.of(compressedChunk);
 
                     compressedChunk.limit(compressedChunk.capacity());
                     if (compressedChunk.getInt() != checksum)

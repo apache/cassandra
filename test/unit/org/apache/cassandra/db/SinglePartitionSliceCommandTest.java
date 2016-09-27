@@ -96,61 +96,6 @@ public class SinglePartitionSliceCommandTest
         Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).truncateBlocking();
     }
 
-    @Test
-    public void staticColumnsAreFiltered() throws IOException
-    {
-        DecoratedKey key = cfm.decorateKey(ByteBufferUtil.bytes("k"));
-
-        UntypedResultSet rows;
-
-        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s, i, v) VALUES ('k', 's', 0, 'v')");
-        QueryProcessor.executeInternal("DELETE v FROM ks.tbl WHERE k='k' AND i=0");
-        QueryProcessor.executeInternal("DELETE FROM ks.tbl WHERE k='k' AND i=0");
-        rows = QueryProcessor.executeInternal("SELECT * FROM ks.tbl WHERE k='k' AND i=0");
-
-        for (UntypedResultSet.Row row: rows)
-        {
-            logger.debug("Current: k={}, s={}, v={}", (row.has("k") ? row.getString("k") : null), (row.has("s") ? row.getString("s") : null), (row.has("v") ? row.getString("v") : null));
-        }
-
-        assert rows.isEmpty();
-
-        ColumnFilter columnFilter = ColumnFilter.selection(PartitionColumns.of(v));
-        ByteBuffer zero = ByteBufferUtil.bytes(0);
-        Slices slices = Slices.with(cfm.comparator, Slice.make(ClusteringBound.inclusiveStartOf(zero), ClusteringBound.inclusiveEndOf(zero)));
-        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(slices, false);
-        ReadCommand cmd = new SinglePartitionReadCommand(false, MessagingService.VERSION_30, true, cfm,
-                                                          FBUtilities.nowInSeconds(),
-                                                          columnFilter,
-                                                          RowFilter.NONE,
-                                                          DataLimits.NONE,
-                                                          key,
-                                                          sliceFilter);
-
-        DataOutputBuffer out = new DataOutputBuffer((int) ReadCommand.legacyReadCommandSerializer.serializedSize(cmd, MessagingService.VERSION_21));
-        ReadCommand.legacyReadCommandSerializer.serialize(cmd, out, MessagingService.VERSION_21);
-        DataInputPlus in = new DataInputBuffer(out.buffer(), true);
-        cmd = ReadCommand.legacyReadCommandSerializer.deserialize(in, MessagingService.VERSION_21);
-
-        logger.debug("ReadCommand: {}", cmd);
-        try (ReadExecutionController controller = cmd.executionController();
-             UnfilteredPartitionIterator partitionIterator = cmd.executeLocally(controller))
-        {
-            ReadResponse response = ReadResponse.createDataResponse(partitionIterator, cmd);
-
-            logger.debug("creating response: {}", response);
-            try (UnfilteredPartitionIterator pIter = response.makeIterator(cmd))
-            {
-                assert pIter.hasNext();
-                try (UnfilteredRowIterator partition = pIter.next())
-                {
-                    LegacyLayout.LegacyUnfilteredPartition rowIter = LegacyLayout.fromUnfilteredRowIterator(cmd, partition);
-                    Assert.assertEquals(Collections.emptyList(), rowIter.cells);
-                }
-            }
-        }
-    }
-
     private void checkForS(UnfilteredPartitionIterator pi)
     {
         Assert.assertTrue(pi.toString(), pi.hasNext());

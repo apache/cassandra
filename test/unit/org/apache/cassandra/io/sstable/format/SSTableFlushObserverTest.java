@@ -89,7 +89,7 @@ public class SSTableFlushObserverTest
 
         SSTableFormat.Type sstableFormat = SSTableFormat.Type.current();
 
-        BigTableWriter writer = new BigTableWriter(new Descriptor(sstableFormat.info.getLatestVersion().version,
+        BigTableWriter writer = new BigTableWriter(new Descriptor(sstableFormat.info.getLatestVersion(),
                                                                   directory,
                                                                   KS_NAME, CF_NAME,
                                                                   0,

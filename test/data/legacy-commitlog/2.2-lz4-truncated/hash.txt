@@ -1,5 +1,0 @@
-#Truncated CommitLog test.
-#This is a copy of 2.2-lz4 with the last 50 bytes deleted.
-cells=6037
-hash=-889057729
-cfid=dc32ce20-360d-11e5-826c-afadad37221d

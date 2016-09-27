@@ -37,18 +37,12 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
 
     public final IBitSet bitset;
     public final int hashCount;
-    /**
-     * CASSANDRA-8413: 3.0 (inverted) bloom filters have no 'static' bits caused by using the same upper bits
-     * for both bloom filter and token distribution.
-     */
-    public final boolean oldBfHashOrder;
 
-    BloomFilter(int hashCount, IBitSet bitset, boolean oldBfHashOrder)
+    BloomFilter(int hashCount, IBitSet bitset)
     {
         super(bitset);
         this.hashCount = hashCount;
         this.bitset = bitset;
-        this.oldBfHashOrder = oldBfHashOrder;
     }
 
     private BloomFilter(BloomFilter copy)
@@ -56,7 +50,6 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
         super(copy);
         this.hashCount = copy.hashCount;
         this.bitset = copy.bitset;
-        this.oldBfHashOrder = copy.oldBfHashOrder;
     }
 
     public long serializedSize()
@@ -101,13 +94,6 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
     @Inline
     private void setIndexes(long base, long inc, int count, long max, long[] results)
     {
-        if (oldBfHashOrder)
-        {
-            long x = inc;
-            inc = base;
-            base = x;
-        }
-
         for (int i = 0; i < count; i++)
         {
             results[i] = FBUtilities.abs(base % max);
@@ -155,7 +141,7 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
 
     public String toString()
     {
-        return "BloomFilter[hashCount=" + hashCount + ";oldBfHashOrder=" + oldBfHashOrder + ";capacity=" + bitset.capacity() + ']';
+        return "BloomFilter[hashCount=" + hashCount + ";capacity=" + bitset.capacity() + ']';
     }
 
     public void addTo(Ref.IdentityCollection identities)

@@ -310,23 +310,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             int currentBlock = indexState.currentBlockIdx();
 
             boolean canIncludeSliceStart = currentBlock == lastBlockIdx;
-
-            // When dealing with old format sstable, we have the problem that a row can span 2 index block, i.e. it can
-            // start at the end of a block and end at the beginning of the next one. That's not a problem per se for
-            // UnfilteredDeserializer.OldFormatSerializer, since it always read rows entirely, even if they span index
-            // blocks, but as we reading index block in reverse we must be careful to not read the end of the row at
-            // beginning of a block before we're reading the beginning of that row. So what we do is that if we detect
-            // that the row starting this block is also the row ending the previous one, we skip that first result and
-            // let it be read when we'll read the previous block.
-            boolean includeFirst = true;
-            if (!sstable.descriptor.version.storeRows() && currentBlock > 0)
-            {
-                ClusteringPrefix lastOfPrevious = indexState.index(currentBlock - 1).lastName;
-                ClusteringPrefix firstOfCurrent = indexState.index(currentBlock).firstName;
-                includeFirst = metadata().comparator.compare(lastOfPrevious, firstOfCurrent) != 0;
-            }
-
-            loadFromDisk(canIncludeSliceStart ? slice.start() : null, canIncludeSliceEnd ? slice.end() : null, includeFirst);
+            loadFromDisk(canIncludeSliceStart ? slice.start() : null, canIncludeSliceEnd ? slice.end() : null, true);
         }
 
         @Override

@@ -256,7 +256,7 @@ public class RowIndexEntryTest extends CQLTester
                                               Collection<SSTableFlushObserver> observers,
                                               Version version) throws IOException
         {
-            assert !iterator.isEmpty() && version.storeRows();
+            assert !iterator.isEmpty();
 
             Builder builder = new Builder(iterator, output, header, observers, version.correspondingMessagingVersion());
             return builder.build();
@@ -422,7 +422,7 @@ public class RowIndexEntryTest extends CQLTester
         SequentialWriter writer = new SequentialWriter(tempFile);
         ColumnIndex columnIndex = RowIndexEntryTest.ColumnIndex.writeAndBuildIndex(partition.unfilteredIterator(), writer, header, Collections.emptySet(), BigFormat.latestVersion);
         Pre_C_11206_RowIndexEntry withIndex = Pre_C_11206_RowIndexEntry.create(0xdeadbeef, DeletionTime.LIVE, columnIndex);
-        IndexInfo.Serializer indexSerializer = cfs.metadata.serializers().indexInfoSerializer(BigFormat.latestVersion, header);
+        IndexInfo.Serializer indexSerializer = IndexInfo.serializer(BigFormat.latestVersion, header);
 
         // sanity check
         assertTrue(columnIndex.columnsIndex.size() >= 3);
@@ -567,14 +567,12 @@ public class RowIndexEntryTest extends CQLTester
 
             Serializer(CFMetaData metadata, Version version, SerializationHeader header)
             {
-                this.idxSerializer = metadata.serializers().indexInfoSerializer(version, header);
+                this.idxSerializer = IndexInfo.serializer(version, header);
                 this.version = version;
             }
 
             public void serialize(Pre_C_11206_RowIndexEntry rie, DataOutputPlus out) throws IOException
             {
-                assert version.storeRows() : "We read old index files but we should never write them";
-
                 out.writeUnsignedVInt(rie.position);
                 out.writeUnsignedVInt(rie.promotedSize(idxSerializer));
 
@@ -622,35 +620,6 @@ public class RowIndexEntryTest extends CQLTester
 
             public Pre_C_11206_RowIndexEntry deserialize(DataInputPlus in) throws IOException
             {
-                if (!version.storeRows())
-                {
-                    long position = in.readLong();
-
-                    int size = in.readInt();
-                    if (size > 0)
-                    {
-                        DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
-
-                        int entries = in.readInt();
-                        List<IndexInfo> columnsIndex = new ArrayList<>(entries);
-
-                        long headerLength = 0L;
-                        for (int i = 0; i < entries; i++)
-                        {
-                            IndexInfo info = idxSerializer.deserialize(in);
-                            columnsIndex.add(info);
-                            if (i == 0)
-                                headerLength = info.offset;
-                        }
-
-                        return new Pre_C_11206_RowIndexEntry.IndexedEntry(position, deletionTime, headerLength, columnsIndex);
-                    }
-                    else
-                    {
-                        return new Pre_C_11206_RowIndexEntry(position);
-                    }
-                }
-
                 long position = in.readUnsignedVInt();
 
                 int size = (int)in.readUnsignedVInt();
@@ -678,7 +647,7 @@ public class RowIndexEntryTest extends CQLTester
             // should be used instead.
             static long readPosition(DataInputPlus in, Version version) throws IOException
             {
-                return version.storeRows() ? in.readUnsignedVInt() : in.readLong();
+                return in.readUnsignedVInt();
             }
 
             public static void skip(DataInputPlus in, Version version) throws IOException
@@ -689,7 +658,7 @@ public class RowIndexEntryTest extends CQLTester
 
             private static void skipPromotedIndex(DataInputPlus in, Version version) throws IOException
             {
-                int size = version.storeRows() ? (int)in.readUnsignedVInt() : in.readInt();
+                int size = (int)in.readUnsignedVInt();
                 if (size <= 0)
                     return;
 
@@ -698,8 +667,6 @@ public class RowIndexEntryTest extends CQLTester
 
             public int serializedSize(Pre_C_11206_RowIndexEntry rie)
             {
-                assert version.storeRows() : "We read old index files but we should never write them";
-
                 int indexedSize = 0;
                 if (rie.isIndexed())
                 {

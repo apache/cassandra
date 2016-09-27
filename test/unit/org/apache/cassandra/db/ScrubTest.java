@@ -327,8 +327,7 @@ public class ScrubTest
             cfs.clearUnsafe();
 
             List<String> keys = Arrays.asList("t", "a", "b", "z", "c", "y", "d");
-            String filename = cfs.getSSTablePath(tempDataDir);
-            Descriptor desc = Descriptor.fromFilename(filename);
+            Descriptor desc = cfs.newSSTableDescriptor(tempDataDir);
 
             LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
             try (SSTableTxnWriter writer = new SSTableTxnWriter(txn, createTestWriter(desc, (long) keys.size(), cfs.metadata, txn)))
@@ -707,43 +706,6 @@ public class ScrubTest
         assertEquals(1, rs.size());
         QueryProcessor.executeInternal(String.format("DELETE FROM \"%s\".cf_with_duplicates_3_0 WHERE a=1 AND b =2", KEYSPACE));
         rs = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".cf_with_duplicates_3_0", KEYSPACE));
-        assertEquals(0, rs.size());
-    }
-
-    @Test
-    public void testUpgradeSstablesWithDuplicates() throws Exception
-    {
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        String cf = "cf_with_duplicates_2_0";
-        QueryProcessor.process(String.format("CREATE TABLE \"%s\".%s (a int, b int, c int, PRIMARY KEY (a, b))", KEYSPACE, cf), ConsistencyLevel.ONE);
-
-        Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cf);
-
-        Path legacySSTableRoot = Paths.get(System.getProperty(INVALID_LEGACY_SSTABLE_ROOT_PROP),
-                                           "Keyspace1",
-                                           cf);
-
-        for (String filename : new String[]{ "lb-1-big-CompressionInfo.db",
-                                             "lb-1-big-Data.db",
-                                             "lb-1-big-Digest.adler32",
-                                             "lb-1-big-Filter.db",
-                                             "lb-1-big-Index.db",
-                                             "lb-1-big-Statistics.db",
-                                             "lb-1-big-Summary.db",
-                                             "lb-1-big-TOC.txt" })
-        {
-            Files.copy(Paths.get(legacySSTableRoot.toString(), filename), cfs.getDirectories().getDirectoryForNewSSTables().toPath().resolve(filename));
-        }
-
-        cfs.loadNewSSTables();
-
-        cfs.sstablesRewrite(true, 1);
-
-        UntypedResultSet rs = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".%s", KEYSPACE, cf));
-        assertEquals(1, rs.size());
-        QueryProcessor.executeInternal(String.format("DELETE FROM \"%s\".%s WHERE a=1 AND b =2", KEYSPACE, cf));
-        rs = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".%s", KEYSPACE, cf));
         assertEquals(0, rs.size());
     }
 }

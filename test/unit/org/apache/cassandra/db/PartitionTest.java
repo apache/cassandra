@@ -119,12 +119,6 @@ public class PartitionTest
         testDigest(MessagingService.current_version);
     }
 
-    @Test
-    public void testLegacyDigest() throws NoSuchAlgorithmException
-    {
-        testDigest(MessagingService.VERSION_22);
-    }
-
     public void testDigest(int version) throws NoSuchAlgorithmException
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_TENCOL);
@@ -145,16 +139,16 @@ public class PartitionTest
 
             MessageDigest digest1 = MessageDigest.getInstance("MD5");
             MessageDigest digest2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(cmd1, p1.unfilteredIterator(), digest1, version);
-            UnfilteredRowIterators.digest(cmd2, p2.unfilteredIterator(), digest2, version);
+            UnfilteredRowIterators.digest(p1.unfilteredIterator(), digest1, version);
+            UnfilteredRowIterators.digest(p2.unfilteredIterator(), digest2, version);
             assertFalse(Arrays.equals(digest1.digest(), digest2.digest()));
 
             p1 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
             p2 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
             digest1 = MessageDigest.getInstance("MD5");
             digest2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(cmd1, p1.unfilteredIterator(), digest1, version);
-            UnfilteredRowIterators.digest(cmd2, p2.unfilteredIterator(), digest2, version);
+            UnfilteredRowIterators.digest(p1.unfilteredIterator(), digest1, version);
+            UnfilteredRowIterators.digest(p2.unfilteredIterator(), digest2, version);
             assertTrue(Arrays.equals(digest1.digest(), digest2.digest()));
 
             p1 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
@@ -162,8 +156,8 @@ public class PartitionTest
             p2 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
             digest1 = MessageDigest.getInstance("MD5");
             digest2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(cmd1, p1.unfilteredIterator(), digest1, version);
-            UnfilteredRowIterators.digest(cmd2, p2.unfilteredIterator(), digest2, version);
+            UnfilteredRowIterators.digest(p1.unfilteredIterator(), digest1, version);
+            UnfilteredRowIterators.digest(p2.unfilteredIterator(), digest2, version);
             assertFalse(Arrays.equals(digest1.digest(), digest2.digest()));
         }
         finally

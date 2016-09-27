@@ -97,8 +97,7 @@ public class Verifier implements Closeable
         {
             validator = null;
 
-            if (sstable.descriptor.digestComponent != null &&
-                new File(sstable.descriptor.filenameFor(sstable.descriptor.digestComponent)).exists())
+            if (new File(sstable.descriptor.filenameFor(Component.DIGEST)).exists())
             {
                 validator = DataIntegrityMetadata.fileDigestValidator(sstable.descriptor);
                 validator.validate();

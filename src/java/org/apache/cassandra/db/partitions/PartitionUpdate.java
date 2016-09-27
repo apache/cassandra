@@ -238,12 +238,10 @@ public class PartitionUpdate extends AbstractBTreePartition
      *
      * @param bytes the byte buffer that contains the serialized update.
      * @param version the version with which the update is serialized.
-     * @param key the partition key for the update. This is only used if {@code version &lt 3.0}
-     * and can be {@code null} otherwise.
      *
      * @return the deserialized update or {@code null} if {@code bytes == null}.
      */
-    public static PartitionUpdate fromBytes(ByteBuffer bytes, int version, DecoratedKey key)
+    public static PartitionUpdate fromBytes(ByteBuffer bytes, int version)
     {
         if (bytes == null)
             return null;
@@ -252,8 +250,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         {
             return serializer.deserialize(new DataInputBuffer(bytes, true),
                                           version,
-                                          SerializationHelper.Flag.LOCAL,
-                                          version < MessagingService.VERSION_30 ? key : null);
+                                          SerializationHelper.Flag.LOCAL);
         }
         catch (IOException e)
         {
@@ -780,47 +777,12 @@ public class PartitionUpdate extends AbstractBTreePartition
             {
                 assert !iter.isReverseOrder();
 
-                if (version < MessagingService.VERSION_30)
-                {
-                    LegacyLayout.serializeAsLegacyPartition(null, iter, out, version);
-                }
-                else
-                {
-                    CFMetaData.serializer.serialize(update.metadata(), out, version);
-                    UnfilteredRowIteratorSerializer.serializer.serialize(iter, null, out, version, update.rowCount());
-                }
+                CFMetaData.serializer.serialize(update.metadata(), out, version);
+                UnfilteredRowIteratorSerializer.serializer.serialize(iter, null, out, version, update.rowCount());
             }
         }
 
-        public PartitionUpdate deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag, ByteBuffer key) throws IOException
-        {
-            if (version >= MessagingService.VERSION_30)
-            {
-                assert key == null; // key is only there for the old format
-                return deserialize30(in, version, flag);
-            }
-            else
-            {
-                assert key != null;
-                return deserializePre30(in, version, flag, key);
-            }
-        }
-
-        // Used to share same decorated key between updates.
-        public PartitionUpdate deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag, DecoratedKey key) throws IOException
-        {
-            if (version >= MessagingService.VERSION_30)
-            {
-                return deserialize30(in, version, flag);
-            }
-            else
-            {
-                assert key != null;
-                return deserializePre30(in, version, flag, key.getKey());
-            }
-        }
-
-        private static PartitionUpdate deserialize30(DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
+        public PartitionUpdate deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
         {
             CFMetaData metadata = CFMetaData.serializer.deserialize(in, version);
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, null, in, version, flag);
@@ -854,22 +816,10 @@ public class PartitionUpdate extends AbstractBTreePartition
                                        false);
         }
 
-        private static PartitionUpdate deserializePre30(DataInputPlus in, int version, SerializationHelper.Flag flag, ByteBuffer key) throws IOException
-        {
-            try (UnfilteredRowIterator iterator = LegacyLayout.deserializeLegacyPartition(in, version, flag, key))
-            {
-                assert iterator != null; // This is only used in mutation, and mutation have never allowed "null" column families
-                return PartitionUpdate.fromIterator(iterator, ColumnFilter.all(iterator.metadata()));
-            }
-        }
-
         public long serializedSize(PartitionUpdate update, int version)
         {
             try (UnfilteredRowIterator iter = update.unfilteredIterator())
             {
-                if (version < MessagingService.VERSION_30)
-                    return LegacyLayout.serializedSizeAsLegacyPartition(null, iter, version);
-
                 return CFMetaData.serializer.serializedSize(update.metadata(), version)
                      + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, version, update.rowCount());
             }

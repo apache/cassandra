@@ -18,7 +18,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
-import java.io.FilenameFilter;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
@@ -90,12 +90,11 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     private static int getNextGeneration(File directory, final String columnFamily)
     {
         final Set<Descriptor> existing = new HashSet<>();
-        directory.list(new FilenameFilter()
+        directory.listFiles(new FileFilter()
         {
-            public boolean accept(File dir, String name)
+            public boolean accept(File file)
             {
-                Pair<Descriptor, Component> p = SSTable.tryComponentFromFilename(dir, name);
-                Descriptor desc = p == null ? null : p.left;
+                Descriptor desc = SSTable.tryDescriptorFromFilename(file);
                 if (desc == null)
                     return false;
 

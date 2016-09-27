@@ -512,7 +512,7 @@ public class DataResolver extends ResponseResolver
                 if (StorageProxy.canDoLocalRequest(source))
                       StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(retryCommand, handler));
                 else
-                    MessagingService.instance().sendRRWithFailure(retryCommand.createMessage(MessagingService.current_version), source, handler);
+                    MessagingService.instance().sendRRWithFailure(retryCommand.createMessage(), source, handler);
 
                 // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.
                 handler.awaitResults();

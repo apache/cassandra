@@ -260,9 +260,8 @@ public class Directories
                         if (file.isDirectory())
                             return false;
 
-                        Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file.getParentFile(),
-                                                                                            file.getName());
-                        return pair != null && pair.left.ksname.equals(metadata.ksName) && pair.left.cfname.equals(metadata.cfName);
+                        Descriptor desc = SSTable.tryDescriptorFromFilename(file);
+                        return desc != null && desc.ksname.equals(metadata.ksName) && desc.cfname.equals(metadata.cfName);
 
                     }
                 });
@@ -308,8 +307,9 @@ public class Directories
     {
         for (File dir : dataPaths)
         {
-            if (new File(dir, filename).exists())
-                return Descriptor.fromFilename(dir, filename).left;
+            File file = new File(dir, filename);
+            if (file.exists())
+                return Descriptor.fromFilename(file);
         }
         return null;
     }
@@ -755,7 +755,7 @@ public class Directories
                             return false;
 
                     case FINAL:
-                        Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file.getParentFile(), file.getName());
+                        Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file);
                         if (pair == null)
                             return false;
 
@@ -768,24 +768,6 @@ public class Directories
                         {
                             previous = new HashSet<>();
                             components.put(pair.left, previous);
-                        }
-                        else if (pair.right.type == Component.Type.DIGEST)
-                        {
-                            if (pair.right != pair.left.digestComponent)
-                            {
-                                // Need to update the DIGEST component as it might be set to another
-                                // digest type as a guess. This may happen if the first component is
-                                // not the DIGEST (but the Data component for example), so the digest
-                                // type is _guessed_ from the Version.
-                                // Although the Version explicitly defines the digest type, it doesn't
-                                // seem to be true under all circumstances. Generated sstables from a
-                                // post 2.1.8 snapshot produced Digest.sha1 files although Version
-                                // defines Adler32.
-                                // TL;DR this piece of code updates the digest component to be "correct".
-                                components.remove(pair.left);
-                                Descriptor updated = pair.left.withDigestComponent(pair.right);
-                                components.put(updated, previous);
-                            }
                         }
                         previous.add(pair.right);
                         nbFiles++;
@@ -1043,11 +1025,11 @@ public class Directories
         public boolean isAcceptable(Path path)
         {
             File file = path.toFile();
-            Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(path.getParent().toFile(), file.getName());
-            return pair != null
-                    && pair.left.ksname.equals(metadata.ksName)
-                    && pair.left.cfname.equals(metadata.cfName)
-                    && !toSkip.contains(file);
+            Descriptor desc = SSTable.tryDescriptorFromFilename(file);
+            return desc != null
+                && desc.ksname.equals(metadata.ksName)
+                && desc.cfname.equals(metadata.cfName)
+                && !toSkip.contains(file);
         }
     }
 }

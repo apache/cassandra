@@ -509,16 +509,12 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         {
             public void serialize(Expression expression, DataOutputPlus out, int version) throws IOException
             {
-                if (version >= MessagingService.VERSION_30)
-                    out.writeByte(expression.kind().ordinal());
+                out.writeByte(expression.kind().ordinal());
 
                 // Custom expressions include neither a column or operator, but all
-                // other expressions do. Also, custom expressions are 3.0+ only, so
-                // the column & operator will always be the first things written for
-                // any pre-3.0 version
+                // other expressions do.
                 if (expression.kind() == Kind.CUSTOM)
                 {
-                    assert version >= MessagingService.VERSION_30;
                     IndexMetadata.serializer.serialize(((CustomExpression)expression).targetIndex, out, version);
                     ByteBufferUtil.writeWithShortLength(expression.value, out);
                     return;
@@ -526,7 +522,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
                 if (expression.kind() == Kind.USER)
                 {
-                    assert version >= MessagingService.VERSION_30;
                     UserExpression.serialize((UserExpression)expression, out, version);
                     return;
                 }
@@ -541,15 +536,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         break;
                     case MAP_EQUALITY:
                         MapEqualityExpression mexpr = (MapEqualityExpression)expression;
-                        if (version < MessagingService.VERSION_30)
-                        {
-                            ByteBufferUtil.writeWithShortLength(mexpr.getIndexValue(), out);
-                        }
-                        else
-                        {
-                            ByteBufferUtil.writeWithShortLength(mexpr.key, out);
-                            ByteBufferUtil.writeWithShortLength(mexpr.value, out);
-                        }
+                        ByteBufferUtil.writeWithShortLength(mexpr.key, out);
+                        ByteBufferUtil.writeWithShortLength(mexpr.value, out);
                         break;
                     case THRIFT_DYN_EXPR:
                         ByteBufferUtil.writeWithShortLength(((ThriftExpression)expression).value, out);
@@ -559,62 +547,33 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
             public Expression deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
             {
-                Kind kind = null;
-                ByteBuffer name;
-                Operator operator;
-                ColumnDefinition column;
+                Kind kind = Kind.values()[in.readByte()];
 
-                if (version >= MessagingService.VERSION_30)
+                // custom expressions (3.0+ only) do not contain a column or operator, only a value
+                if (kind == Kind.CUSTOM)
                 {
-                    kind = Kind.values()[in.readByte()];
-                    // custom expressions (3.0+ only) do not contain a column or operator, only a value
-                    if (kind == Kind.CUSTOM)
-                    {
-                        return new CustomExpression(metadata,
-                                                    IndexMetadata.serializer.deserialize(in, version, metadata),
-                                                    ByteBufferUtil.readWithShortLength(in));
-                    }
-
-                    if (kind == Kind.USER)
-                    {
-                        return UserExpression.deserialize(in, version, metadata);
-                    }
+                    return new CustomExpression(metadata,
+                            IndexMetadata.serializer.deserialize(in, version, metadata),
+                            ByteBufferUtil.readWithShortLength(in));
                 }
 
-                name = ByteBufferUtil.readWithShortLength(in);
-                operator = Operator.readFrom(in);
-                column = metadata.getColumnDefinition(name);
+                if (kind == Kind.USER)
+                    return UserExpression.deserialize(in, version, metadata);
+
+                ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
+                Operator operator = Operator.readFrom(in);
+                ColumnDefinition column = metadata.getColumnDefinition(name);
+
                 if (!metadata.isCompactTable() && column == null)
                     throw new RuntimeException("Unknown (or dropped) column " + UTF8Type.instance.getString(name) + " during deserialization");
 
-                if (version < MessagingService.VERSION_30)
-                {
-                    if (column == null)
-                        kind = Kind.THRIFT_DYN_EXPR;
-                    else if (column.type instanceof MapType && operator == Operator.EQ)
-                        kind = Kind.MAP_EQUALITY;
-                    else
-                        kind = Kind.SIMPLE;
-                }
-
-                assert kind != null;
                 switch (kind)
                 {
                     case SIMPLE:
                         return new SimpleExpression(column, operator, ByteBufferUtil.readWithShortLength(in));
                     case MAP_EQUALITY:
-                        ByteBuffer key, value;
-                        if (version < MessagingService.VERSION_30)
-                        {
-                            ByteBuffer composite = ByteBufferUtil.readWithShortLength(in);
-                            key = CompositeType.extractComponent(composite, 0);
-                            value = CompositeType.extractComponent(composite, 0);
-                        }
-                        else
-                        {
-                            key = ByteBufferUtil.readWithShortLength(in);
-                            value = ByteBufferUtil.readWithShortLength(in);
-                        }
+                        ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
+                        ByteBuffer value = ByteBufferUtil.readWithShortLength(in);
                         return new MapEqualityExpression(column, key, operator, value);
                     case THRIFT_DYN_EXPR:
                         return new ThriftExpression(metadata, name, operator, ByteBufferUtil.readWithShortLength(in));
@@ -622,16 +581,12 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 throw new AssertionError();
             }
 
-
             public long serializedSize(Expression expression, int version)
             {
-                // version 3.0+ includes a byte for Kind
-                long size = version >= MessagingService.VERSION_30 ? 1 : 0;
+                long size = 1; // kind byte
 
                 // Custom expressions include neither a column or operator, but all
-                // other expressions do. Also, custom expressions are 3.0+ only, so
-                // the column & operator will always be the first things written for
-                // any pre-3.0 version
+                // other expressions do.
                 if (expression.kind() != Kind.CUSTOM && expression.kind() != Kind.USER)
                     size += ByteBufferUtil.serializedSizeWithShortLength(expression.column().name.bytes)
                             + expression.operator.serializedSize();
@@ -643,23 +598,19 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         break;
                     case MAP_EQUALITY:
                         MapEqualityExpression mexpr = (MapEqualityExpression)expression;
-                        if (version < MessagingService.VERSION_30)
-                            size += ByteBufferUtil.serializedSizeWithShortLength(mexpr.getIndexValue());
-                        else
-                            size += ByteBufferUtil.serializedSizeWithShortLength(mexpr.key)
-                                  + ByteBufferUtil.serializedSizeWithShortLength(mexpr.value);
+                        size += ByteBufferUtil.serializedSizeWithShortLength(mexpr.key)
+                              + ByteBufferUtil.serializedSizeWithShortLength(mexpr.value);
                         break;
                     case THRIFT_DYN_EXPR:
                         size += ByteBufferUtil.serializedSizeWithShortLength(((ThriftExpression)expression).value);
                         break;
                     case CUSTOM:
-                        if (version >= MessagingService.VERSION_30)
-                            size += IndexMetadata.serializer.serializedSize(((CustomExpression)expression).targetIndex, version)
-                                   + ByteBufferUtil.serializedSizeWithShortLength(expression.value);
+                        size += IndexMetadata.serializer.serializedSize(((CustomExpression)expression).targetIndex, version)
+                               + ByteBufferUtil.serializedSizeWithShortLength(expression.value);
                         break;
                     case USER:
-                        if (version >= MessagingService.VERSION_30)
-                            size += UserExpression.serializedSize((UserExpression)expression, version);
+                        size += UserExpression.serializedSize((UserExpression)expression, version);
+                        break;
                 }
                 return size;
             }

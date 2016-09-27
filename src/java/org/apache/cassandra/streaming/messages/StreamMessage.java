@@ -33,8 +33,6 @@ import org.apache.cassandra.streaming.StreamSession;
 public abstract class StreamMessage
 {
     /** Streaming protocol version */
-    public static final int VERSION_20 = 2;
-    public static final int VERSION_22 = 3;
     public static final int VERSION_30 = 4;
     public static final int CURRENT_VERSION = VERSION_30;
 

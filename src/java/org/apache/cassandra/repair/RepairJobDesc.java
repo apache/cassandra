@@ -93,12 +93,10 @@ public class RepairJobDesc
     {
         public void serialize(RepairJobDesc desc, DataOutputPlus out, int version) throws IOException
         {
-            if (version >= MessagingService.VERSION_21)
-            {
-                out.writeBoolean(desc.parentSessionId != null);
-                if (desc.parentSessionId != null)
-                    UUIDSerializer.serializer.serialize(desc.parentSessionId, out, version);
-            }
+            out.writeBoolean(desc.parentSessionId != null);
+            if (desc.parentSessionId != null)
+                UUIDSerializer.serializer.serialize(desc.parentSessionId, out, version);
+
             UUIDSerializer.serializer.serialize(desc.sessionId, out, version);
             out.writeUTF(desc.keyspace);
             out.writeUTF(desc.columnFamily);
@@ -111,11 +109,8 @@ public class RepairJobDesc
         public RepairJobDesc deserialize(DataInputPlus in, int version) throws IOException
         {
             UUID parentSessionId = null;
-            if (version >= MessagingService.VERSION_21)
-            {
-                if (in.readBoolean())
-                    parentSessionId = UUIDSerializer.serializer.deserialize(in, version);
-            }
+            if (in.readBoolean())
+                parentSessionId = UUIDSerializer.serializer.deserialize(in, version);
             UUID sessionId = UUIDSerializer.serializer.deserialize(in, version);
             String keyspace = in.readUTF();
             String columnFamily = in.readUTF();
@@ -136,13 +131,9 @@ public class RepairJobDesc
 
         public long serializedSize(RepairJobDesc desc, int version)
         {
-            int size = 0;
-            if (version >= MessagingService.VERSION_21)
-            {
-                size += TypeSizes.sizeof(desc.parentSessionId != null);
-                if (desc.parentSessionId != null)
-                    size += UUIDSerializer.serializer.serializedSize(desc.parentSessionId, version);
-            }
+            int size = TypeSizes.sizeof(desc.parentSessionId != null);
+            if (desc.parentSessionId != null)
+                size += UUIDSerializer.serializer.serializedSize(desc.parentSessionId, version);
             size += UUIDSerializer.serializer.serializedSize(desc.sessionId, version);
             size += TypeSizes.sizeof(desc.keyspace);
             size += TypeSizes.sizeof(desc.columnFamily);

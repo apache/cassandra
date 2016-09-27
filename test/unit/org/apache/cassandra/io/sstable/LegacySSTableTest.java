@@ -71,7 +71,7 @@ public class LegacySSTableTest
      * See {@link #testGenerateSstables()} to generate sstables.
      * Take care on commit as you need to add the sstable files using {@code git add -f}
      */
-    public static final String[] legacyVersions = {"mc", "mb", "ma", "la", "ka", "jb"};
+    public static final String[] legacyVersions = {"mc", "mb", "ma"};
 
     // 1200 chars
     static final String longString = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
@@ -121,9 +121,12 @@ public class LegacySSTableTest
      */
     protected Descriptor getDescriptor(String legacyVersion, String table)
     {
-        return new Descriptor(legacyVersion, getTableDir(legacyVersion, table), "legacy_tables", table, 1,
-                              BigFormat.instance.getVersion(legacyVersion).hasNewFileName()?
-                              SSTableFormat.Type.BIG :SSTableFormat.Type.LEGACY);
+        return new Descriptor(SSTableFormat.Type.BIG.info.getVersion(legacyVersion),
+                              getTableDir(legacyVersion, table),
+                              "legacy_tables",
+                              table,
+                              1,
+                              SSTableFormat.Type.BIG);
     }
 
     @Test
@@ -242,10 +245,7 @@ public class LegacySSTableTest
         CacheService.instance.invalidateKeyCache();
         Assert.assertEquals(startCount, CacheService.instance.keyCache.size());
         CacheService.instance.keyCache.loadSaved();
-        if (BigFormat.instance.getVersion(legacyVersion).storeRows())
-            Assert.assertEquals(endCount, CacheService.instance.keyCache.size());
-        else
-            Assert.assertEquals(startCount, CacheService.instance.keyCache.size());
+        Assert.assertEquals(endCount, CacheService.instance.keyCache.size());
     }
 
     private static void verifyReads(String legacyVersion)

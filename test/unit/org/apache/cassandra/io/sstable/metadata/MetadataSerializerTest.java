@@ -102,12 +102,6 @@ public class MetadataSerializerTest
     }
 
     @Test
-    public void testLaReadLb() throws IOException
-    {
-        testOldReadsNew("la", "lb");
-    }
-
-    @Test
     public void testMaReadMb() throws IOException
     {
         testOldReadsNew("ma", "mb");
@@ -134,7 +128,8 @@ public class MetadataSerializerTest
         File statsFileLb = serialize(originalMetadata, serializer, BigFormat.instance.getVersion(newV));
         File statsFileLa = serialize(originalMetadata, serializer, BigFormat.instance.getVersion(oldV));
         // Reading both as earlier version should yield identical results.
-        Descriptor desc = new Descriptor(oldV, statsFileLb.getParentFile(), "", "", 0, SSTableFormat.Type.current());
+        SSTableFormat.Type stype = SSTableFormat.Type.current();
+        Descriptor desc = new Descriptor(stype.info.getVersion(oldV), statsFileLb.getParentFile(), "", "", 0, stype);
         try (RandomAccessReader inLb = RandomAccessReader.open(statsFileLb);
              RandomAccessReader inLa = RandomAccessReader.open(statsFileLa))
         {

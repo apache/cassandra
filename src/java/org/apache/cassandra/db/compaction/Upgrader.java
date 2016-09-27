@@ -70,7 +70,7 @@ public class Upgrader
     {
         MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.getComparator());
         sstableMetadataCollector.sstableLevel(sstable.getSSTableLevel());
-        return SSTableWriter.create(Descriptor.fromFilename(cfs.getSSTablePath(directory)),
+        return SSTableWriter.create(cfs.newSSTableDescriptor(directory),
                                     estimatedRows,
                                     repairedAt,
                                     cfs.metadata,

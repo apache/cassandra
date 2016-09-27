@@ -556,9 +556,6 @@ public final class StatementRestrictions
                                                VariableSpecifications boundNames,
                                                SecondaryIndexManager indexManager)
     {
-        if (!MessagingService.instance().areAllNodesAtLeast30())
-            throw new InvalidRequestException("Please upgrade all nodes to at least 3.0 before using custom index expressions");
-
         if (expressions.size() > 1)
             throw new InvalidRequestException(IndexRestrictions.MULTIPLE_EXPRESSIONS);
 

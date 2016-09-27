@@ -35,6 +35,7 @@ import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamReader;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.FileMessageHeader;
+import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -81,7 +82,7 @@ public class CompressedStreamReader extends StreamReader
                      cfs.getColumnFamilyName());
 
         CompressedInputStream cis = new CompressedInputStream(Channels.newInputStream(channel), compressionInfo,
-                                                              inputVersion.compressedChecksumType(), cfs::getCrcCheckChance);
+                                                              ChecksumType.CRC32, cfs::getCrcCheckChance);
         TrackedInputStream in = new TrackedInputStream(cis);
 
         StreamDeserializer deserializer = new StreamDeserializer(cfs.metadata, in, inputVersion, getHeader(cfs.metadata),

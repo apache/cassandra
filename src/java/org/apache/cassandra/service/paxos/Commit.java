@@ -113,32 +113,20 @@ public class Commit
     {
         public void serialize(Commit commit, DataOutputPlus out, int version) throws IOException
         {
-            if (version < MessagingService.VERSION_30)
-                ByteBufferUtil.writeWithShortLength(commit.update.partitionKey().getKey(), out);
-
             UUIDSerializer.serializer.serialize(commit.ballot, out, version);
             PartitionUpdate.serializer.serialize(commit.update, out, version);
         }
 
         public Commit deserialize(DataInputPlus in, int version) throws IOException
         {
-            ByteBuffer key = null;
-            if (version < MessagingService.VERSION_30)
-                key = ByteBufferUtil.readWithShortLength(in);
-
             UUID ballot = UUIDSerializer.serializer.deserialize(in, version);
-            PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, SerializationHelper.Flag.LOCAL, key);
+            PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, SerializationHelper.Flag.LOCAL);
             return new Commit(ballot, update);
         }
 
         public long serializedSize(Commit commit, int version)
         {
-            int size = 0;
-            if (version < MessagingService.VERSION_30)
-                size += ByteBufferUtil.serializedSizeWithShortLength(commit.update.partitionKey().getKey());
-
-            return size
-                 + UUIDSerializer.serializer.serializedSize(commit.ballot, version)
+            return UUIDSerializer.serializer.serializedSize(commit.ballot, version)
                  + PartitionUpdate.serializer.serializedSize(commit.update, version);
         }
     }

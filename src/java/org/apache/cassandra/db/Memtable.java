@@ -449,9 +449,9 @@ public class Memtable implements Comparable<Memtable>
             this.isBatchLogTable = cfs.name.equals(SystemKeyspace.BATCHES) && cfs.keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
 
             if (flushLocation == null)
-                writer = createFlushWriter(txn, cfs.getSSTablePath(getDirectories().getWriteableLocationAsFile(estimatedSize)), columnsCollector.get(), statsCollector.get());
+                writer = createFlushWriter(txn, cfs.newSSTableDescriptor(getDirectories().getWriteableLocationAsFile(estimatedSize)), columnsCollector.get(), statsCollector.get());
             else
-                writer = createFlushWriter(txn, cfs.getSSTablePath(getDirectories().getLocationForDisk(flushLocation)), columnsCollector.get(), statsCollector.get());
+                writer = createFlushWriter(txn, cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(flushLocation)), columnsCollector.get(), statsCollector.get());
 
         }
 
@@ -503,14 +503,14 @@ public class Memtable implements Comparable<Memtable>
         }
 
         public SSTableMultiWriter createFlushWriter(LifecycleTransaction txn,
-                                                  String filename,
-                                                  PartitionColumns columns,
-                                                  EncodingStats stats)
+                                                    Descriptor descriptor,
+                                                    PartitionColumns columns,
+                                                    EncodingStats stats)
         {
             MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator)
                     .commitLogIntervals(new IntervalSet<>(commitLogLowerBound.get(), commitLogUpperBound.get()));
 
-            return cfs.createSSTableMultiWriter(Descriptor.fromFilename(filename),
+            return cfs.createSSTableMultiWriter(descriptor,
                                                 toFlush.size(),
                                                 ActiveRepairService.UNREPAIRED_SSTABLE,
                                                 sstableMetadataCollector,

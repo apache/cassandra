@@ -259,14 +259,15 @@ public class StartupChecks
 
             FileVisitor<Path> sstableVisitor = new SimpleFileVisitor<Path>()
             {
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                public FileVisitResult visitFile(Path path, BasicFileAttributes attrs)
                 {
-                    if (!Descriptor.isValidFile(file.getFileName().toString()))
+                    File file = path.toFile();
+                    if (!Descriptor.isValidFile(file))
                         return FileVisitResult.CONTINUE;
 
                     try
                     {
-                        if (!Descriptor.fromFilename(file.toString()).isCompatible())
+                        if (!Descriptor.fromFilename(file).isCompatible())
                             invalid.add(file.toString());
                     }
                     catch (Exception e)

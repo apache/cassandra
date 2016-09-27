@@ -85,8 +85,9 @@ public class CompressedInputStreamTest
         assert valuesToCheck != null && valuesToCheck.length > 0;
 
         // write compressed data file of longs
-        File tmp = new File(File.createTempFile("cassandra", "unittest").getParent(), "ks-cf-ib-1-Data.db");
-        Descriptor desc = Descriptor.fromFilename(tmp.getAbsolutePath());
+        File parentDir = new File(System.getProperty("java.io.tmpdir"));
+        Descriptor desc = new Descriptor(parentDir, "ks", "cf", 1);
+        File tmp = new File(desc.filenameFor(Component.DATA));
         MetadataCollector collector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         CompressionParams param = CompressionParams.snappy(32);
         Map<Long, Long> index = new HashMap<Long, Long>();

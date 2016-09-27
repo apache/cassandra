@@ -196,16 +196,7 @@ public class StreamReader
                                   long totalSize, UUID sessionId) throws IOException
         {
             this.metadata = metadata;
-            // streaming pre-3.0 sstables require mark/reset support from source stream
-            if (version.correspondingMessagingVersion() < MessagingService.VERSION_30)
-            {
-                logger.trace("Initializing rewindable input stream for reading legacy sstable with {} bytes with following " +
-                             "parameters: initial_mem_buffer_size={}, max_mem_buffer_size={}, max_spill_file_size={}.",
-                             totalSize, INITIAL_MEM_BUFFER_SIZE, MAX_MEM_BUFFER_SIZE, MAX_SPILL_FILE_SIZE);
-                File bufferFile = getTempBufferFile(metadata, totalSize, sessionId);
-                this.in = new RewindableDataInputStreamPlus(in, INITIAL_MEM_BUFFER_SIZE, MAX_MEM_BUFFER_SIZE, bufferFile, MAX_SPILL_FILE_SIZE);
-            } else
-                this.in = new DataInputPlus.DataInputStreamPlus(in);
+            this.in = new DataInputPlus.DataInputStreamPlus(in);
             this.helper = new SerializationHelper(metadata, version.correspondingMessagingVersion(), SerializationHelper.Flag.PRESERVE_SIZE);
             this.header = header;
         }

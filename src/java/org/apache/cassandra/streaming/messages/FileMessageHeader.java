@@ -189,13 +189,7 @@ public class FileMessageHeader
             UUIDSerializer.serializer.serialize(header.cfId, out, version);
             out.writeInt(header.sequenceNumber);
             out.writeUTF(header.version.toString());
-
-            //We can't stream to a node that doesn't understand a new sstable format
-            if (version < StreamMessage.VERSION_22 && header.format != SSTableFormat.Type.LEGACY && header.format != SSTableFormat.Type.BIG)
-                throw new UnsupportedOperationException("Can't stream non-legacy sstables to nodes < 2.2");
-
-            if (version >= StreamMessage.VERSION_22)
-                out.writeUTF(header.format.name);
+            out.writeUTF(header.format.name);
 
             out.writeLong(header.estimatedKeys);
             out.writeInt(header.sections.size());
@@ -212,8 +206,7 @@ public class FileMessageHeader
             out.writeLong(header.repairedAt);
             out.writeInt(header.sstableLevel);
 
-            if (version >= StreamMessage.VERSION_30 && header.version.storeRows())
-                SerializationHeader.serializer.serialize(header.version, header.header, out);
+            SerializationHeader.serializer.serialize(header.version, header.header, out);
             return compressionInfo;
         }
 
@@ -222,10 +215,7 @@ public class FileMessageHeader
             UUID cfId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
             int sequenceNumber = in.readInt();
             Version sstableVersion = SSTableFormat.Type.current().info.getVersion(in.readUTF());
-
-            SSTableFormat.Type format = SSTableFormat.Type.LEGACY;
-            if (version >= StreamMessage.VERSION_22)
-                format = SSTableFormat.Type.validate(in.readUTF());
+            SSTableFormat.Type format = SSTableFormat.Type.validate(in.readUTF());
 
             long estimatedKeys = in.readLong();
             int count = in.readInt();
@@ -235,9 +225,7 @@ public class FileMessageHeader
             CompressionInfo compressionInfo = CompressionInfo.serializer.deserialize(in, MessagingService.current_version);
             long repairedAt = in.readLong();
             int sstableLevel = in.readInt();
-            SerializationHeader.Component header = version >= StreamMessage.VERSION_30 && sstableVersion.storeRows()
-                                                 ? SerializationHeader.serializer.deserialize(sstableVersion, in)
-                                                 : null;
+            SerializationHeader.Component header =  SerializationHeader.serializer.deserialize(sstableVersion, in);
 
             return new FileMessageHeader(cfId, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, sstableLevel, header);
         }
@@ -247,10 +235,7 @@ public class FileMessageHeader
             long size = UUIDSerializer.serializer.serializedSize(header.cfId, version);
             size += TypeSizes.sizeof(header.sequenceNumber);
             size += TypeSizes.sizeof(header.version.toString());
-
-            if (version >= StreamMessage.VERSION_22)
-                size += TypeSizes.sizeof(header.format.name);
-
+            size += TypeSizes.sizeof(header.format.name);
             size += TypeSizes.sizeof(header.estimatedKeys);
 
             size += TypeSizes.sizeof(header.sections.size());

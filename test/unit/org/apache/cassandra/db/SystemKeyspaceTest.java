@@ -45,8 +45,6 @@ import static org.junit.Assert.assertTrue;
 
 public class SystemKeyspaceTest
 {
-    public static final String MIGRATION_SSTABLES_ROOT = "migration-sstable-root";
-
     @BeforeClass
     public static void prepSnapshotTracker()
     {
@@ -153,81 +151,6 @@ public class SystemKeyspaceTest
         assertDeletedOrDeferred(baseline + 10);
 
         Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
-    }
-
-    @Test
-    public void testMigrateEmptyDataDirs() throws IOException
-    {
-        File dataDir = Paths.get(DatabaseDescriptor.getAllDataFileLocations()[0]).toFile();
-        if (new File(dataDir, "Emptykeyspace1").exists())
-            FileUtils.deleteDirectory(new File(dataDir, "Emptykeyspace1"));
-        assertTrue(new File(dataDir, "Emptykeyspace1").mkdirs());
-        assertEquals(0, numLegacyFiles());
-        SystemKeyspace.migrateDataDirs();
-        assertEquals(0, numLegacyFiles());
-
-        assertTrue(new File(dataDir, "Emptykeyspace1/table1").mkdirs());
-        assertEquals(0, numLegacyFiles());
-        SystemKeyspace.migrateDataDirs();
-        assertEquals(0, numLegacyFiles());
-
-        assertTrue(new File(dataDir, "Emptykeyspace1/wrong_file").createNewFile());
-        assertEquals(0, numLegacyFiles());
-        SystemKeyspace.migrateDataDirs();
-        assertEquals(0, numLegacyFiles());
-
-    }
-
-    @Test
-    public void testMigrateDataDirs_2_1() throws IOException
-    {
-        testMigrateDataDirs("2.1", 5); // see test data for num legacy files
-    }
-
-    @Test
-    public void testMigrateDataDirs_2_2() throws IOException
-    {
-        testMigrateDataDirs("2.2", 7); // see test data for num legacy files
-    }
-
-    private void testMigrateDataDirs(String version, int numLegacyFiles) throws IOException
-    {
-        Path migrationSSTableRoot = Paths.get(System.getProperty(MIGRATION_SSTABLES_ROOT), version);
-        Path dataDir = Paths.get(DatabaseDescriptor.getAllDataFileLocations()[0]);
-
-        FileUtils.copyDirectory(migrationSSTableRoot.toFile(), dataDir.toFile());
-
-        assertEquals(numLegacyFiles, numLegacyFiles());
-
-        SystemKeyspace.migrateDataDirs();
-
-        assertEquals(0, numLegacyFiles());
-    }
-
-    private static int numLegacyFiles()
-    {
-        int ret = 0;
-        Iterable<String> dirs = Arrays.asList(DatabaseDescriptor.getAllDataFileLocations());
-        for (String dataDir : dirs)
-        {
-            File dir = new File(dataDir);
-            for (File ksdir : dir.listFiles((d, n) -> new File(d, n).isDirectory()))
-            {
-                for (File cfdir : ksdir.listFiles((d, n) -> new File(d, n).isDirectory()))
-                {
-                    if (Descriptor.isLegacyFile(cfdir))
-                    {
-                        ret++;
-                    }
-                    else
-                    {
-                        File[] legacyFiles = cfdir.listFiles((d, n) -> Descriptor.isLegacyFile(new File(d, n)));
-                        ret += legacyFiles.length;
-                    }
-                }
-            }
-        }
-        return ret;
     }
 
     private String getOlderVersionString()

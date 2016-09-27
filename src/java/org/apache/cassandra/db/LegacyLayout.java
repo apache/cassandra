@@ -17,33 +17,24 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
-import java.io.IOError;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
 
-import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import com.google.common.collect.PeekingIterator;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -52,17 +43,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
  */
 public abstract class LegacyLayout
 {
-    private static final Logger logger = LoggerFactory.getLogger(LegacyLayout.class);
-
     public final static int MAX_CELL_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
-
-    public final static int STATIC_PREFIX = 0xFFFF;
-
-    public final static int DELETION_MASK        = 0x01;
-    public final static int EXPIRATION_MASK      = 0x02;
-    public final static int COUNTER_MASK         = 0x04;
-    public final static int COUNTER_UPDATE_MASK  = 0x08;
-    private final static int RANGE_TOMBSTONE_MASK = 0x10;
 
     private LegacyLayout() {}
 
@@ -135,7 +116,7 @@ public abstract class LegacyLayout
         return decodeCellName(metadata, cellname, false);
     }
 
-    public static LegacyCellName decodeCellName(CFMetaData metadata, ByteBuffer cellname, boolean readAllAsDynamic) throws UnknownColumnException
+    private static LegacyCellName decodeCellName(CFMetaData metadata, ByteBuffer cellname, boolean readAllAsDynamic) throws UnknownColumnException
     {
         Clustering clustering = decodeClustering(metadata, cellname);
 
@@ -233,30 +214,6 @@ public abstract class LegacyLayout
         return new LegacyBound(cb, metadata.isCompound() && CompositeType.isStaticName(bound), collectionName);
     }
 
-    public static ByteBuffer encodeBound(CFMetaData metadata, ClusteringBound bound, boolean isStart)
-    {
-        if (bound == ClusteringBound.BOTTOM || bound == ClusteringBound.TOP || metadata.comparator.size() == 0)
-            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-
-        ClusteringPrefix clustering = bound.clustering();
-
-        if (!metadata.isCompound())
-        {
-            assert clustering.size() == 1;
-            return clustering.get(0);
-        }
-
-        CompositeType ctype = CompositeType.getInstance(metadata.comparator.subtypes());
-        CompositeType.Builder builder = ctype.builder();
-        for (int i = 0; i < clustering.size(); i++)
-            builder.add(clustering.get(i));
-
-        if (isStart)
-            return bound.isInclusive() ? builder.build() : builder.buildAsEndOfRange();
-        else
-            return bound.isInclusive() ? builder.buildAsEndOfRange() : builder.build();
-    }
-
     public static ByteBuffer encodeCellName(CFMetaData metadata, ClusteringPrefix clustering, ByteBuffer columnName, ByteBuffer collectionElement)
     {
         boolean isStatic = clustering == Clustering.STATIC_CLUSTERING;
@@ -330,213 +287,6 @@ public abstract class LegacyLayout
         return Clustering.make(components.subList(0, Math.min(csize, components.size())).toArray(new ByteBuffer[csize]));
     }
 
-    public static ByteBuffer encodeClustering(CFMetaData metadata, ClusteringPrefix clustering)
-    {
-        if (clustering.size() == 0)
-            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-
-        if (!metadata.isCompound())
-        {
-            assert clustering.size() == 1;
-            return clustering.get(0);
-        }
-
-        ByteBuffer[] values = new ByteBuffer[clustering.size()];
-        for (int i = 0; i < clustering.size(); i++)
-            values[i] = clustering.get(i);
-        return CompositeType.build(values);
-    }
-
-    /**
-     * The maximum number of cells to include per partition when converting to the old format.
-     * <p>
-     * We already apply the limit during the actual query, but for queries that counts cells and not rows (thrift queries
-     * and distinct queries as far as old nodes are concerned), we may still include a little bit more than requested
-     * because {@link DataLimits} always include full rows. So if the limit ends in the middle of a queried row, the
-     * full row will be part of our result. This would confuse old nodes however so we make sure to truncate it to
-     * what's expected before writting it on the wire.
-     *
-     * @param command the read commmand for which to determine the maximum cells per partition. This can be {@code null}
-     * in which case {@code Integer.MAX_VALUE} is returned.
-     * @return the maximum number of cells per partition that should be enforced according to the read command if
-     * post-query limitation are in order (see above). This will be {@code Integer.MAX_VALUE} if no such limits are
-     * necessary.
-     */
-    private static int maxCellsPerPartition(ReadCommand command)
-    {
-        if (command == null)
-            return Integer.MAX_VALUE;
-
-        DataLimits limits = command.limits();
-
-        // There is 2 types of DISTINCT queries: those that includes only the partition key, and those that include static columns.
-        // On old nodes, the latter expects the first row in term of CQL count, which is what we already have and there is no additional
-        // limit to apply. The former however expect only one cell per partition and rely on it (See CASSANDRA-10762).
-        if (limits.isDistinct())
-            return command.columnFilter().fetchedColumns().statics.isEmpty() ? 1 : Integer.MAX_VALUE;
-
-        switch (limits.kind())
-        {
-            case THRIFT_LIMIT:
-            case SUPER_COLUMN_COUNTING_LIMIT:
-                return limits.perPartitionCount();
-            default:
-                return Integer.MAX_VALUE;
-        }
-    }
-
-    // For serializing to old wire format
-    public static LegacyUnfilteredPartition fromUnfilteredRowIterator(ReadCommand command, UnfilteredRowIterator iterator)
-    {
-        // we need to extract the range tombstone so materialize the partition. Since this is
-        // used for the on-wire format, this is not worst than it used to be.
-        final ImmutableBTreePartition partition = ImmutableBTreePartition.create(iterator);
-        DeletionInfo info = partition.deletionInfo();
-        Pair<LegacyRangeTombstoneList, Iterator<LegacyCell>> pair = fromRowIterator(partition.metadata(), partition.iterator(), partition.staticRow());
-
-        LegacyLayout.LegacyRangeTombstoneList rtl = pair.left;
-
-        // Processing the cell iterator results in the LegacyRangeTombstoneList being populated, so we do this
-        // before we use the LegacyRangeTombstoneList at all
-        List<LegacyLayout.LegacyCell> cells = Lists.newArrayList(pair.right);
-
-        int maxCellsPerPartition = maxCellsPerPartition(command);
-        if (cells.size() > maxCellsPerPartition)
-            cells = cells.subList(0, maxCellsPerPartition);
-
-        // The LegacyRangeTombstoneList already has range tombstones for the single-row deletions and complex
-        // deletions.  Go through our normal range tombstones and add then to the LegacyRTL so that the range
-        // tombstones all get merged and sorted properly.
-        if (info.hasRanges())
-        {
-            Iterator<RangeTombstone> rangeTombstoneIterator = info.rangeIterator(false);
-            while (rangeTombstoneIterator.hasNext())
-            {
-                RangeTombstone rt = rangeTombstoneIterator.next();
-                Slice slice = rt.deletedSlice();
-                LegacyLayout.LegacyBound start = new LegacyLayout.LegacyBound(slice.start(), false, null);
-                LegacyLayout.LegacyBound end = new LegacyLayout.LegacyBound(slice.end(), false, null);
-                rtl.add(start, end, rt.deletionTime().markedForDeleteAt(), rt.deletionTime().localDeletionTime());
-            }
-        }
-
-        return new LegacyUnfilteredPartition(info.getPartitionDeletion(), rtl, cells);
-    }
-
-    public static void serializeAsLegacyPartition(ReadCommand command, UnfilteredRowIterator partition, DataOutputPlus out, int version) throws IOException
-    {
-        assert version < MessagingService.VERSION_30;
-
-        out.writeBoolean(true);
-
-        LegacyLayout.LegacyUnfilteredPartition legacyPartition = LegacyLayout.fromUnfilteredRowIterator(command, partition);
-
-        UUIDSerializer.serializer.serialize(partition.metadata().cfId, out, version);
-        DeletionTime.serializer.serialize(legacyPartition.partitionDeletion, out);
-
-        legacyPartition.rangeTombstones.serialize(out, partition.metadata());
-
-        // begin cell serialization
-        out.writeInt(legacyPartition.cells.size());
-        for (LegacyLayout.LegacyCell cell : legacyPartition.cells)
-        {
-            ByteBufferUtil.writeWithShortLength(cell.name.encode(partition.metadata()), out);
-            out.writeByte(cell.serializationFlags());
-            if (cell.isExpiring())
-            {
-                out.writeInt(cell.ttl);
-                out.writeInt(cell.localDeletionTime);
-            }
-            else if (cell.isTombstone())
-            {
-                out.writeLong(cell.timestamp);
-                out.writeInt(TypeSizes.sizeof(cell.localDeletionTime));
-                out.writeInt(cell.localDeletionTime);
-                continue;
-            }
-            else if (cell.isCounterUpdate())
-            {
-                out.writeLong(cell.timestamp);
-                long count = CounterContext.instance().getLocalCount(cell.value);
-                ByteBufferUtil.writeWithLength(ByteBufferUtil.bytes(count), out);
-                continue;
-            }
-            else if (cell.isCounter())
-            {
-                out.writeLong(Long.MIN_VALUE);  // timestampOfLastDelete (not used, and MIN_VALUE is the default)
-            }
-
-            out.writeLong(cell.timestamp);
-            ByteBufferUtil.writeWithLength(cell.value, out);
-        }
-    }
-
-    // For the old wire format
-    // Note: this can return null if an empty partition is serialized!
-    public static UnfilteredRowIterator deserializeLegacyPartition(DataInputPlus in, int version, SerializationHelper.Flag flag, ByteBuffer key) throws IOException
-    {
-        assert version < MessagingService.VERSION_30;
-
-        // This is only used in mutation, and mutation have never allowed "null" column families
-        boolean present = in.readBoolean();
-        if (!present)
-            return null;
-
-        CFMetaData metadata = CFMetaData.serializer.deserialize(in, version);
-        LegacyDeletionInfo info = LegacyDeletionInfo.deserialize(metadata, in);
-        int size = in.readInt();
-        Iterator<LegacyCell> cells = deserializeCells(metadata, in, flag, size);
-        SerializationHelper helper = new SerializationHelper(metadata, version, flag);
-        return onWireCellstoUnfilteredRowIterator(metadata, metadata.partitioner.decorateKey(key), info, cells, false, helper);
-    }
-
-    // For the old wire format
-    public static long serializedSizeAsLegacyPartition(ReadCommand command, UnfilteredRowIterator partition, int version)
-    {
-        assert version < MessagingService.VERSION_30;
-
-        if (partition.isEmpty())
-            return TypeSizes.sizeof(false);
-
-        long size = TypeSizes.sizeof(true);
-
-        LegacyLayout.LegacyUnfilteredPartition legacyPartition = LegacyLayout.fromUnfilteredRowIterator(command, partition);
-
-        size += UUIDSerializer.serializer.serializedSize(partition.metadata().cfId, version);
-        size += DeletionTime.serializer.serializedSize(legacyPartition.partitionDeletion);
-        size += legacyPartition.rangeTombstones.serializedSize(partition.metadata());
-
-        // begin cell serialization
-        size += TypeSizes.sizeof(legacyPartition.cells.size());
-        for (LegacyLayout.LegacyCell cell : legacyPartition.cells)
-        {
-            size += ByteBufferUtil.serializedSizeWithShortLength(cell.name.encode(partition.metadata()));
-            size += 1;  // serialization flags
-            if (cell.kind == LegacyLayout.LegacyCell.Kind.EXPIRING)
-            {
-                size += TypeSizes.sizeof(cell.ttl);
-                size += TypeSizes.sizeof(cell.localDeletionTime);
-            }
-            else if (cell.kind == LegacyLayout.LegacyCell.Kind.DELETED)
-            {
-                size += TypeSizes.sizeof(cell.timestamp);
-                // localDeletionTime replaces cell.value as the body
-                size += TypeSizes.sizeof(TypeSizes.sizeof(cell.localDeletionTime));
-                size += TypeSizes.sizeof(cell.localDeletionTime);
-                continue;
-            }
-            else if (cell.kind == LegacyLayout.LegacyCell.Kind.COUNTER)
-            {
-                size += TypeSizes.sizeof(Long.MIN_VALUE);  // timestampOfLastDelete
-            }
-
-            size += TypeSizes.sizeof(cell.timestamp);
-            size += ByteBufferUtil.serializedSizeWithLength(cell.value);
-        }
-
-        return size;
-    }
-
     // For thrift sake
     public static UnfilteredRowIterator toUnfilteredRowIterator(CFMetaData metadata,
                                                                 DecoratedKey key,
@@ -545,32 +295,6 @@ public abstract class LegacyLayout
     {
         SerializationHelper helper = new SerializationHelper(metadata, 0, SerializationHelper.Flag.LOCAL);
         return toUnfilteredRowIterator(metadata, key, delInfo, cells, false, helper);
-    }
-
-    // For deserializing old wire format
-    public static UnfilteredRowIterator onWireCellstoUnfilteredRowIterator(CFMetaData metadata,
-                                                                           DecoratedKey key,
-                                                                           LegacyDeletionInfo delInfo,
-                                                                           Iterator<LegacyCell> cells,
-                                                                           boolean reversed,
-                                                                           SerializationHelper helper)
-    {
-
-        // If the table is a static compact, the "column_metadata" are now internally encoded as
-        // static. This has already been recognized by decodeCellName, but it means the cells
-        // provided are not in the expected order (the "static" cells are not necessarily at the front).
-        // So sort them to make sure toUnfilteredRowIterator works as expected.
-        // Further, if the query is reversed, then the on-wire format still has cells in non-reversed
-        // order, but we need to have them reverse in the final UnfilteredRowIterator. So reverse them.
-        if (metadata.isStaticCompactTable() || reversed)
-        {
-            List<LegacyCell> l = new ArrayList<>();
-            Iterators.addAll(l, cells);
-            Collections.sort(l, legacyCellComparator(metadata, reversed));
-            cells = l.iterator();
-        }
-
-        return toUnfilteredRowIterator(metadata, key, delInfo, cells, reversed, helper);
     }
 
     private static UnfilteredRowIterator toUnfilteredRowIterator(CFMetaData metadata,
@@ -624,47 +348,6 @@ public abstract class LegacyLayout
                                                true);
     }
 
-    public static Row extractStaticColumns(CFMetaData metadata, DataInputPlus in, Columns statics) throws IOException
-    {
-        assert !statics.isEmpty();
-        assert metadata.isCompactTable();
-
-        if (metadata.isSuper())
-            // TODO: there is in practice nothing to do here, but we need to handle the column_metadata for super columns somewhere else
-            throw new UnsupportedOperationException();
-
-        Set<ByteBuffer> columnsToFetch = new HashSet<>(statics.size());
-        for (ColumnDefinition column : statics)
-            columnsToFetch.add(column.name.bytes);
-
-        Row.Builder builder = BTreeRow.unsortedBuilder(FBUtilities.nowInSeconds());
-        builder.newRow(Clustering.STATIC_CLUSTERING);
-
-        boolean foundOne = false;
-        LegacyAtom atom;
-        while ((atom = readLegacyAtom(metadata, in, false)) != null)
-        {
-            if (atom.isCell())
-            {
-                LegacyCell cell = atom.asCell();
-                if (!columnsToFetch.contains(cell.name.encode(metadata)))
-                    continue;
-
-                foundOne = true;
-                builder.addCell(new BufferCell(cell.name.column, cell.timestamp, cell.ttl, cell.localDeletionTime, cell.value, null));
-            }
-            else
-            {
-                LegacyRangeTombstone tombstone = atom.asRangeTombstone();
-                // TODO: we need to track tombstones and potentially ignore cells that are
-                // shadowed (or even better, replace them by tombstones).
-                throw new UnsupportedOperationException();
-            }
-        }
-
-        return foundOne ? builder.build() : Rows.EMPTY_STATIC_ROW;
-    }
-
     private static Row getNextRow(CellGrouper grouper, PeekingIterator<? extends LegacyAtom> cells)
     {
         if (!cells.hasNext())
@@ -714,7 +397,7 @@ public abstract class LegacyLayout
             private Iterator<LegacyCell> initializeRow()
             {
                 if (staticRow == null || staticRow.isEmpty())
-                    return Collections.<LegacyLayout.LegacyCell>emptyIterator();
+                    return Collections.emptyIterator();
 
                 Pair<LegacyRangeTombstoneList, Iterator<LegacyCell>> row = fromRow(metadata, staticRow);
                 deletions.addAll(row.left);
@@ -843,7 +526,7 @@ public abstract class LegacyLayout
         return legacyCellComparator(metadata, false);
     }
 
-    public static Comparator<LegacyCell> legacyCellComparator(final CFMetaData metadata, final boolean reversed)
+    private static Comparator<LegacyCell> legacyCellComparator(final CFMetaData metadata, final boolean reversed)
     {
         final Comparator<LegacyCellName> cellNameComparator = legacyCellNameComparator(metadata, reversed);
         return new Comparator<LegacyCell>()
@@ -1013,121 +696,7 @@ public abstract class LegacyLayout
         };
     }
 
-    public static LegacyAtom readLegacyAtom(CFMetaData metadata, DataInputPlus in, boolean readAllAsDynamic) throws IOException
-    {
-        while (true)
-        {
-            ByteBuffer cellname = ByteBufferUtil.readWithShortLength(in);
-            if (!cellname.hasRemaining())
-                return null; // END_OF_ROW
-
-            try
-            {
-                int b = in.readUnsignedByte();
-                return (b & RANGE_TOMBSTONE_MASK) != 0
-                    ? readLegacyRangeTombstoneBody(metadata, in, cellname)
-                    : readLegacyCellBody(metadata, in, cellname, b, SerializationHelper.Flag.LOCAL, readAllAsDynamic);
-            }
-            catch (UnknownColumnException e)
-            {
-                // We can get there if we read a cell for a dropped column, and ff that is the case,
-                // then simply ignore the cell is fine. But also not that we ignore if it's the
-                // system keyspace because for those table we actually remove columns without registering
-                // them in the dropped columns
-                assert metadata.ksName.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME) || metadata.getDroppedColumnDefinition(e.columnName) != null : e.getMessage();
-            }
-        }
-    }
-
-    public static LegacyCell readLegacyCell(CFMetaData metadata, DataInput in, SerializationHelper.Flag flag) throws IOException, UnknownColumnException
-    {
-        ByteBuffer cellname = ByteBufferUtil.readWithShortLength(in);
-        int b = in.readUnsignedByte();
-        return readLegacyCellBody(metadata, in, cellname, b, flag, false);
-    }
-
-    public static LegacyCell readLegacyCellBody(CFMetaData metadata, DataInput in, ByteBuffer cellname, int mask, SerializationHelper.Flag flag, boolean readAllAsDynamic)
-    throws IOException, UnknownColumnException
-    {
-        // Note that we want to call decodeCellName only after we've deserialized other parts, since it can throw
-        // and we want to throw only after having deserialized the full cell.
-        if ((mask & COUNTER_MASK) != 0)
-        {
-            in.readLong(); // timestampOfLastDelete: this has been unused for a long time so we ignore it
-            long ts = in.readLong();
-            ByteBuffer value = ByteBufferUtil.readWithLength(in);
-            if (flag == SerializationHelper.Flag.FROM_REMOTE || (flag == SerializationHelper.Flag.LOCAL && CounterContext.instance().shouldClearLocal(value)))
-                value = CounterContext.instance().clearAllLocal(value);
-            return new LegacyCell(LegacyCell.Kind.COUNTER, decodeCellName(metadata, cellname, readAllAsDynamic), value, ts, Cell.NO_DELETION_TIME, Cell.NO_TTL);
-        }
-        else if ((mask & EXPIRATION_MASK) != 0)
-        {
-            int ttl = in.readInt();
-            int expiration = in.readInt();
-            long ts = in.readLong();
-            ByteBuffer value = ByteBufferUtil.readWithLength(in);
-            return new LegacyCell(LegacyCell.Kind.EXPIRING, decodeCellName(metadata, cellname, readAllAsDynamic), value, ts, expiration, ttl);
-        }
-        else
-        {
-            long ts = in.readLong();
-            ByteBuffer value = ByteBufferUtil.readWithLength(in);
-            LegacyCellName name = decodeCellName(metadata, cellname, readAllAsDynamic);
-            return (mask & COUNTER_UPDATE_MASK) != 0
-                ? new LegacyCell(LegacyCell.Kind.COUNTER, name, CounterContext.instance().createLocal(ByteBufferUtil.toLong(value)), ts, Cell.NO_DELETION_TIME, Cell.NO_TTL)
-                : ((mask & DELETION_MASK) == 0
-                        ? new LegacyCell(LegacyCell.Kind.REGULAR, name, value, ts, Cell.NO_DELETION_TIME, Cell.NO_TTL)
-                        : new LegacyCell(LegacyCell.Kind.DELETED, name, ByteBufferUtil.EMPTY_BYTE_BUFFER, ts, ByteBufferUtil.toInt(value), Cell.NO_TTL));
-        }
-    }
-
-    public static LegacyRangeTombstone readLegacyRangeTombstoneBody(CFMetaData metadata, DataInputPlus in, ByteBuffer boundname) throws IOException
-    {
-        LegacyBound min = decodeBound(metadata, boundname, true);
-        LegacyBound max = decodeBound(metadata, ByteBufferUtil.readWithShortLength(in), false);
-        DeletionTime dt = DeletionTime.serializer.deserialize(in);
-        return new LegacyRangeTombstone(min, max, dt);
-    }
-
-    public static Iterator<LegacyCell> deserializeCells(final CFMetaData metadata,
-                                                        final DataInput in,
-                                                        final SerializationHelper.Flag flag,
-                                                        final int size)
-    {
-        return new AbstractIterator<LegacyCell>()
-        {
-            private int i = 0;
-
-            protected LegacyCell computeNext()
-            {
-                if (i >= size)
-                    return endOfData();
-
-                ++i;
-                try
-                {
-                    return readLegacyCell(metadata, in, flag);
-                }
-                catch (UnknownColumnException e)
-                {
-                    // We can get there if we read a cell for a dropped column, and if that is the case,
-                    // then simply ignore the cell is fine. But also not that we ignore if it's the
-                    // system keyspace because for those table we actually remove columns without registering
-                    // them in the dropped columns
-                    if (metadata.ksName.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME) || metadata.getDroppedColumnDefinition(e.columnName) != null)
-                        return computeNext();
-                    else
-                        throw new IOError(e);
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
-            }
-        };
-    }
-
-    public static class CellGrouper
+    private static class CellGrouper
     {
         public final CFMetaData metadata;
         private final boolean isStatic;
@@ -1282,53 +851,6 @@ public abstract class LegacyLayout
         public Row getRow()
         {
             return builder.build();
-        }
-    }
-
-    public static class LegacyUnfilteredPartition
-    {
-        public final DeletionTime partitionDeletion;
-        public final LegacyRangeTombstoneList rangeTombstones;
-        public final List<LegacyCell> cells;
-
-        private LegacyUnfilteredPartition(DeletionTime partitionDeletion, LegacyRangeTombstoneList rangeTombstones, List<LegacyCell> cells)
-        {
-            this.partitionDeletion = partitionDeletion;
-            this.rangeTombstones = rangeTombstones;
-            this.cells = cells;
-        }
-
-        public void digest(CFMetaData metadata, MessageDigest digest)
-        {
-            for (LegacyCell cell : cells)
-            {
-                digest.update(cell.name.encode(metadata).duplicate());
-
-                if (cell.isCounter())
-                    CounterContext.instance().updateDigest(digest, cell.value);
-                else
-                    digest.update(cell.value.duplicate());
-
-                FBUtilities.updateWithLong(digest, cell.timestamp);
-                FBUtilities.updateWithByte(digest, cell.serializationFlags());
-
-                if (cell.isExpiring())
-                    FBUtilities.updateWithInt(digest, cell.ttl);
-
-                if (cell.isCounter())
-                {
-                    // Counters used to have the timestampOfLastDelete field, which we stopped using long ago and has been hard-coded
-                    // to Long.MIN_VALUE but was still taken into account in 2.2 counter digests (to maintain backward compatibility
-                    // in the first place).
-                    FBUtilities.updateWithLong(digest, Long.MIN_VALUE);
-                }
-            }
-
-            if (partitionDeletion.markedForDeleteAt() != Long.MIN_VALUE)
-                digest.update(ByteBufferUtil.bytes(partitionDeletion.markedForDeleteAt()));
-
-            if (!rangeTombstones.isEmpty())
-                rangeTombstones.updateDigest(digest);
         }
     }
 
@@ -1822,7 +1344,7 @@ public abstract class LegacyLayout
      * This class is needed to allow us to convert single-row deletions and complex deletions into range tombstones
      * and properly merge them into the normal set of range tombstones.
      */
-    public static class LegacyRangeTombstoneList
+    private static class LegacyRangeTombstoneList
     {
         private final LegacyBoundComparator comparator;
 

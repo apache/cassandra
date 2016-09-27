@@ -1,6 +1,0 @@
-#CommitLog upgrade test, version 2.2.0-SNAPSHOT
-#This is a copy of 2.2-lz4 with some overwritten bytes.
-#Replaying this should result in an error which can be overridden.
-cells=6037
-hash=-1312748407
-cfid=dc32ce20-360d-11e5-826c-afadad37221d

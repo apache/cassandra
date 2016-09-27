@@ -88,10 +88,6 @@ public final class MessagingService implements MessagingServiceMBean
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=MessagingService";
 
     // 8 bits version, so don't waste versions
-    public static final int VERSION_12 = 6;
-    public static final int VERSION_20 = 7;
-    public static final int VERSION_21 = 8;
-    public static final int VERSION_22 = 9;
     public static final int VERSION_30 = 10;
     public static final int current_version = VERSION_30;
 
@@ -104,9 +100,6 @@ public final class MessagingService implements MessagingServiceMBean
      * we preface every message with this number so the recipient can validate the sender is sane
      */
     public static final int PROTOCOL_MAGIC = 0xCA552DFA;
-
-    private boolean allNodesAtLeast22 = true;
-    private boolean allNodesAtLeast30 = true;
 
     public final MessagingMetrics metrics = new MessagingMetrics();
 
@@ -236,16 +229,6 @@ public final class MessagingService implements MessagingServiceMBean
         UNUSED_5,
         ;
 
-        // This is to support a "late" choice of the verb based on the messaging service version.
-        // See CASSANDRA-12249 for more details.
-        public static Verb convertForMessagingServiceVersion(Verb verb, int version)
-        {
-            if (verb == PAGED_RANGE && version >= VERSION_30)
-                return RANGE_SLICE;
-
-            return verb;
-        }
-
         public long getTimeout()
         {
             return DatabaseDescriptor.getRpcTimeout();
@@ -319,9 +302,9 @@ public final class MessagingService implements MessagingServiceMBean
 
         put(Verb.MUTATION, Mutation.serializer);
         put(Verb.READ_REPAIR, Mutation.serializer);
-        put(Verb.READ, ReadCommand.readSerializer);
-        put(Verb.RANGE_SLICE, ReadCommand.rangeSliceSerializer);
-        put(Verb.PAGED_RANGE, ReadCommand.pagedRangeSerializer);
+        put(Verb.READ, ReadCommand.serializer);
+        put(Verb.RANGE_SLICE, ReadCommand.serializer);
+        put(Verb.PAGED_RANGE, ReadCommand.serializer);
         put(Verb.BOOTSTRAP_TOKEN, BootStrapper.StringSerializer.instance);
         put(Verb.REPAIR_MESSAGE, RepairMessage.serializer);
         put(Verb.GOSSIP_DIGEST_ACK, GossipDigestAck.serializer);
@@ -350,8 +333,8 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.HINT, HintResponse.serializer);
         put(Verb.READ_REPAIR, WriteResponse.serializer);
         put(Verb.COUNTER_MUTATION, WriteResponse.serializer);
-        put(Verb.RANGE_SLICE, ReadResponse.rangeSliceSerializer);
-        put(Verb.PAGED_RANGE, ReadResponse.rangeSliceSerializer);
+        put(Verb.RANGE_SLICE, ReadResponse.serializer);
+        put(Verb.PAGED_RANGE, ReadResponse.serializer);
         put(Verb.READ, ReadResponse.serializer);
         put(Verb.TRUNCATE, TruncateResponse.serializer);
         put(Verb.SNAPSHOT, null);
@@ -1041,16 +1024,6 @@ public final class MessagingService implements MessagingServiceMBean
         return packed >>> (start + 1) - count & ~(-1 << count);
     }
 
-    public boolean areAllNodesAtLeast22()
-    {
-        return allNodesAtLeast22;
-    }
-
-    public boolean areAllNodesAtLeast30()
-    {
-        return allNodesAtLeast30;
-    }
-
     /**
      * @return the last version associated with address, or @param version if this is the first such version
      */
@@ -1058,50 +1031,16 @@ public final class MessagingService implements MessagingServiceMBean
     {
         // We can't talk to someone from the future
         version = Math.min(version, current_version);
-
         logger.trace("Setting version {} for {}", version, endpoint);
 
-        if (version < VERSION_22)
-            allNodesAtLeast22 = false;
-        if (version < VERSION_30)
-            allNodesAtLeast30 = false;
-
         Integer v = versions.put(endpoint, version);
-
-        // if the version was increased to 2.2 or later see if the min version across the cluster has changed
-        if (v != null && (v < VERSION_30 && version >= VERSION_22))
-            refreshAllNodeMinVersions();
-
         return v == null ? version : v;
     }
 
     public void resetVersion(InetAddress endpoint)
     {
         logger.trace("Resetting version for {}", endpoint);
-        Integer removed = versions.remove(endpoint);
-        if (removed != null && removed <= VERSION_30)
-            refreshAllNodeMinVersions();
-    }
-
-    private void refreshAllNodeMinVersions()
-    {
-        boolean anyNodeLowerThan30 = false;
-        for (Integer version : versions.values())
-        {
-            if (version < MessagingService.VERSION_30)
-            {
-                anyNodeLowerThan30 = true;
-                allNodesAtLeast30 = false;
-            }
-
-            if (version < MessagingService.VERSION_22)
-            {
-                allNodesAtLeast22 = false;
-                return;
-            }
-        }
-        allNodesAtLeast22 = true;
-        allNodesAtLeast30 = !anyNodeLowerThan30;
+        versions.remove(endpoint);
     }
 
     public int getVersion(InetAddress endpoint)

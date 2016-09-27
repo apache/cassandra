@@ -845,16 +845,6 @@ public class MerkleTree implements Serializable
         {
             public void serialize(Inner inner, DataOutputPlus out, int version) throws IOException
             {
-                if (version < MessagingService.VERSION_30)
-                {
-                    if (inner.hash == null)
-                        out.writeInt(-1);
-                    else
-                    {
-                        out.writeInt(inner.hash.length);
-                        out.write(inner.hash);
-                    }
-                }
                 Token.serializer.serialize(inner.token, out, version);
                 Hashable.serializer.serialize(inner.lchild, out, version);
                 Hashable.serializer.serialize(inner.rchild, out, version);
@@ -862,13 +852,6 @@ public class MerkleTree implements Serializable
 
             public Inner deserialize(DataInput in, IPartitioner p, int version) throws IOException
             {
-                if (version < MessagingService.VERSION_30)
-                {
-                    int hashLen = in.readInt();
-                    byte[] hash = hashLen >= 0 ? new byte[hashLen] : null;
-                    if (hash != null)
-                        in.readFully(hash);
-                }
                 Token token = Token.serializer.deserialize(in, p, version);
                 Hashable lchild = Hashable.serializer.deserialize(in, p, version);
                 Hashable rchild = Hashable.serializer.deserialize(in, p, version);
@@ -877,18 +860,9 @@ public class MerkleTree implements Serializable
 
             public long serializedSize(Inner inner, int version)
             {
-                long size = 0;
-                if (version < MessagingService.VERSION_30)
-                {
-                    size += inner.hash == null
-                                       ? TypeSizes.sizeof(-1)
-                                       : TypeSizes.sizeof(inner.hash().length) + inner.hash().length;
-                }
-
-                size += Token.serializer.serializedSize(inner.token, version)
-                + Hashable.serializer.serializedSize(inner.lchild, version)
-                + Hashable.serializer.serializedSize(inner.rchild, version);
-                return size;
+                return Token.serializer.serializedSize(inner.token, version)
+                     + Hashable.serializer.serializedSize(inner.lchild, version)
+                     + Hashable.serializer.serializedSize(inner.rchild, version);
             }
         }
     }
@@ -938,24 +912,18 @@ public class MerkleTree implements Serializable
             {
                 if (leaf.hash == null)
                 {
-                    if (version < MessagingService.VERSION_30)
-                        out.writeInt(-1);
-                    else
-                        out.writeByte(-1);
+                    out.writeByte(-1);
                 }
                 else
                 {
-                    if (version < MessagingService.VERSION_30)
-                        out.writeInt(leaf.hash.length);
-                    else
-                        out.writeByte(leaf.hash.length);
+                    out.writeByte(leaf.hash.length);
                     out.write(leaf.hash);
                 }
             }
 
             public Leaf deserialize(DataInput in, IPartitioner p, int version) throws IOException
             {
-                int hashLen = version < MessagingService.VERSION_30 ? in.readInt() : in.readByte();
+                int hashLen = in.readByte();
                 byte[] hash = hashLen < 0 ? null : new byte[hashLen];
                 if (hash != null)
                     in.readFully(hash);
@@ -964,11 +932,9 @@ public class MerkleTree implements Serializable
 
             public long serializedSize(Leaf leaf, int version)
             {
-                long size = version < MessagingService.VERSION_30 ? TypeSizes.sizeof(1) : 1;
+                long size = 1;
                 if (leaf.hash != null)
-                {
                     size += leaf.hash().length;
-                }
                 return size;
             }
         }

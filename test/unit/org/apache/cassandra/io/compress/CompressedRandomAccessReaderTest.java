@@ -103,9 +103,7 @@ public class CompressedRandomAccessReaderTest
         }
 
         try (FileHandle.Builder builder = new FileHandle.Builder(filename)
-                                                              .withCompressionMetadata(new CompressionMetadata(filename + ".metadata",
-                                                                                                               f.length(),
-                                                                                                               ChecksumType.CRC32));
+                                                              .withCompressionMetadata(new CompressionMetadata(filename + ".metadata", f.length()));
              FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
         {
@@ -149,7 +147,7 @@ public class CompressedRandomAccessReaderTest
         }
         assert f.exists();
 
-        CompressionMetadata compressionMetadata = compressed ? new CompressionMetadata(filename + ".metadata", f.length(), ChecksumType.CRC32) : null;
+        CompressionMetadata compressionMetadata = compressed ? new CompressionMetadata(filename + ".metadata", f.length()) : null;
         try (FileHandle.Builder builder = new FileHandle.Builder(filename).mmapped(usemmap).withCompressionMetadata(compressionMetadata);
              FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
@@ -197,7 +195,7 @@ public class CompressedRandomAccessReaderTest
         }
 
         // open compression metadata and get chunk information
-        CompressionMetadata meta = new CompressionMetadata(metadata.getPath(), file.length(), ChecksumType.CRC32);
+        CompressionMetadata meta = new CompressionMetadata(metadata.getPath(), file.length());
         CompressionMetadata.Chunk chunk = meta.chunkFor(0);
 
         try (FileHandle.Builder builder = new FileHandle.Builder(file.getPath()).withCompressionMetadata(meta);

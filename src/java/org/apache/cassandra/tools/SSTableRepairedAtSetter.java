@@ -82,21 +82,20 @@ public class SSTableRepairedAtSetter
         for (String fname: fileNames)
         {
             Descriptor descriptor = Descriptor.fromFilename(fname);
-            if (descriptor.version.hasRepairedAt())
+            if (!descriptor.version.isCompatible())
             {
-                if (setIsRepaired)
-                {
-                    FileTime f = Files.getLastModifiedTime(new File(descriptor.filenameFor(Component.DATA)).toPath());
-                    descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, f.toMillis());
-                }
-                else
-                {
-                    descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, ActiveRepairService.UNREPAIRED_SSTABLE);
-                }
+                System.err.println("SSTable " + fname + " is in a old and unsupported format");
+                continue;
+            }
+
+            if (setIsRepaired)
+            {
+                FileTime f = Files.getLastModifiedTime(new File(descriptor.filenameFor(Component.DATA)).toPath());
+                descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, f.toMillis());
             }
             else
             {
-                System.err.println("SSTable " + fname + " does not have repaired property, run upgradesstables");
+                descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, ActiveRepairService.UNREPAIRED_SSTABLE);
             }
         }
     }

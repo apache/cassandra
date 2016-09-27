@@ -69,51 +69,22 @@ public class PrepareResponse
         {
             out.writeBoolean(response.promised);
             Commit.serializer.serialize(response.inProgressCommit, out, version);
-
-            if (version < MessagingService.VERSION_30)
-            {
-                UUIDSerializer.serializer.serialize(response.mostRecentCommit.ballot, out, version);
-                PartitionUpdate.serializer.serialize(response.mostRecentCommit.update, out, version);
-            }
-            else
-            {
-                Commit.serializer.serialize(response.mostRecentCommit, out, version);
-            }
+            Commit.serializer.serialize(response.mostRecentCommit, out, version);
         }
 
         public PrepareResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             boolean success = in.readBoolean();
             Commit inProgress = Commit.serializer.deserialize(in, version);
-            Commit mostRecent;
-            if (version < MessagingService.VERSION_30)
-            {
-                UUID ballot = UUIDSerializer.serializer.deserialize(in, version);
-                PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, SerializationHelper.Flag.LOCAL, inProgress.update.partitionKey());
-                mostRecent = new Commit(ballot, update);
-            }
-            else
-            {
-                mostRecent = Commit.serializer.deserialize(in, version);
-            }
+            Commit mostRecent = Commit.serializer.deserialize(in, version);
             return new PrepareResponse(success, inProgress, mostRecent);
         }
 
         public long serializedSize(PrepareResponse response, int version)
         {
-            long size = TypeSizes.sizeof(response.promised)
-                      + Commit.serializer.serializedSize(response.inProgressCommit, version);
-
-            if (version < MessagingService.VERSION_30)
-            {
-                size += UUIDSerializer.serializer.serializedSize(response.mostRecentCommit.ballot, version);
-                size += PartitionUpdate.serializer.serializedSize(response.mostRecentCommit.update, version);
-            }
-            else
-            {
-                size += Commit.serializer.serializedSize(response.mostRecentCommit, version);
-            }
-            return size;
+            return TypeSizes.sizeof(response.promised)
+                 + Commit.serializer.serializedSize(response.inProgressCommit, version)
+                 + Commit.serializer.serializedSize(response.mostRecentCommit, version);
         }
     }
 }

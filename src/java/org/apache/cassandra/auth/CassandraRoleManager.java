@@ -375,16 +375,6 @@ public class CassandraRoleManager implements IRoleManager
         {
             public void run()
             {
-                // If not all nodes are on 2.2, we don't want to initialize the role manager as this will confuse 2.1
-                // nodes (see CASSANDRA-9761 for details). So we re-schedule the setup for later, hoping that the upgrade
-                // will be finished by then.
-                if (!MessagingService.instance().areAllNodesAtLeast22())
-                {
-                    logger.trace("Not all nodes are upgraded to a version that supports Roles yet, rescheduling setup task");
-                    scheduleSetupTask(setupTask);
-                    return;
-                }
-
                 isClusterReady = true;
                 try
                 {
