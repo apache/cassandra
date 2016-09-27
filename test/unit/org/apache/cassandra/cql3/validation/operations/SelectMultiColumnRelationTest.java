@@ -629,10 +629,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
 
             // same query, but reversed order for the IN values
             assertRows(execute("SELECT * FROM %s WHERE a IN (?, ?) AND (b, c, d) IN (?, ?)", 1, 0, tuple(0, 1, 1), tuple(0, 1, 0)),
-                    row(1, 0, 1, 0),
-                    row(1, 0, 1, 1),
                     row(0, 0, 1, 0),
-                    row(0, 0, 1, 1)
+                    row(0, 0, 1, 1),
+                    row(1, 0, 1, 0),
+                    row(1, 0, 1, 1)
             );
 
             assertRows(execute("SELECT * FROM %s WHERE a IN (?, ?) and (b, c) IN ((?, ?))", 0, 1, 0, 1),

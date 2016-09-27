@@ -517,12 +517,12 @@ public class SelectOrderByTest extends CQLTester
                    row(2),
                    row(0));
         assertRows(execute("SELECT v FROM %s WHERE k IN (1, 0)"),
-                   row(3),
-                   row(4),
-                   row(5),
                    row(0),
                    row(1),
-                   row(2));
+                   row(2),
+                   row(3),
+                   row(4),
+                   row(5));
 
         assertRows(execute("SELECT v FROM %s WHERE k IN (1, 0) ORDER BY c1 ASC"),
                    row(0),

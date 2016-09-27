@@ -85,8 +85,8 @@ public class FrozenCollectionsTest extends CQLTester
         );
 
         assertRows(execute("SELECT * FROM %s WHERE k IN ?", list(set(4, 5, 6), set())),
-                row(set(4, 5, 6), 0),
-                row(set(), 0)
+                row(set(), 0),
+                row(set(4, 5, 6), 0)
         );
 
         assertRows(execute("SELECT * FROM %s WHERE token(k) >= token(?)", set(4, 5, 6)),
@@ -154,9 +154,9 @@ public class FrozenCollectionsTest extends CQLTester
         );
 
         assertRows(execute("SELECT * FROM %s WHERE k IN ?", list(map(set(4, 5, 6), list(1, 2, 3)), map(), map(set(), list(1, 2, 3)))),
-            row(map(set(4, 5, 6), list(1, 2, 3)), 0),
             row(map(), 0),
-            row(map(set(), list(1, 2, 3)), 0)
+            row(map(set(), list(1, 2, 3)), 0),
+            row(map(set(4, 5, 6), list(1, 2, 3)), 0)
         );
 
         assertRows(execute("SELECT * FROM %s WHERE token(k) >= token(?)", map(set(4, 5, 6), list(1, 2, 3))),

@@ -72,7 +72,7 @@ public class SelectLimitTest extends CQLTester
         // Check that we do limit the output to 1 *and* that we respect query
         // order of keys (even though 48 is after 2)
         assertRows(execute("SELECT * FROM %s WHERE userid IN (48, 2) LIMIT 1"),
-                   row(48, "http://foo.com", 42L));
+                   row(2, "http://foo.com", 42L));
     }
 
     /**

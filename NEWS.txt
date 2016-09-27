@@ -18,6 +18,13 @@ using the provided 'sstableupgrade' tool.
 
 Upgrading
 ---------
+    - Duplicate partition keys in SELECT statement IN clauses will now be
+      filtered out, meaning that duplicate results will no longer be returned.
+      Futhermore, the partitions will be returned in the order of the sorted
+      partition keys instead of the order of the IN values; this matches the
+      behavior of Cassandra 2.2+.  This was necessary to avoid an infinitely
+      looping result set when combined with paging under some circumstances.
+      See CASSANDRA-12420 for details.
     - The ReversedType behaviour has been corrected for clustering columns of
       BYTES type containing empty value. Scrub should be run on the existing
       SSTables containing a descending clustering column of BYTES type to correct
