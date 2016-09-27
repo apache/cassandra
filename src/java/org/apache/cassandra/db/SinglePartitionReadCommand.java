@@ -527,11 +527,11 @@ public class SinglePartitionReadCommand extends ReadCommand
          *   2) If we have a name filter (so we query specific rows), we can make a bet: that all column for all queried row
          *      will have data in the most recent sstable(s), thus saving us from reading older ones. This does imply we
          *      have a way to guarantee we have all the data for what is queried, which is only possible for name queries
-         *      and if we have neither collections nor counters (indeed, for a collection, we can't guarantee an older sstable
-         *      won't have some elements that weren't in the most recent sstables, and counters are intrinsically a collection
-         *      of shards so have the same problem).
+         *      and if we have neither non-frozen collections/UDTs nor counters (indeed, for a non-frozen collection or UDT,
+         *      we can't guarantee an older sstable won't have some elements that weren't in the most recent sstables,
+         *      and counters are intrinsically a collection of shards and so have the same problem).
          */
-        if (clusteringIndexFilter() instanceof ClusteringIndexNamesFilter && queryNeitherCountersNorCollections())
+        if (clusteringIndexFilter() instanceof ClusteringIndexNamesFilter && !queriesMulticellType())
             return queryMemtableAndSSTablesInTimestampOrder(cfs, (ClusteringIndexNamesFilter)clusteringIndexFilter());
 
         Tracing.trace("Acquiring sstable references");
@@ -705,14 +705,14 @@ public class SinglePartitionReadCommand extends ReadCommand
         return Transformation.apply(merged, new UpdateSstablesIterated());
     }
 
-    private boolean queryNeitherCountersNorCollections()
+    private boolean queriesMulticellType()
     {
         for (ColumnDefinition column : columnFilter().fetchedColumns())
         {
-            if (column.type.isCollection() || column.type.isCounter())
-                return false;
+            if (column.type.isMultiCell() || column.type.isCounter())
+                return true;
         }
-        return true;
+        return false;
     }
 
     /**
