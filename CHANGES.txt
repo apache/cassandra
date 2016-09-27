@@ -10,6 +10,7 @@ Merged from 2.2:
  * Decrement pending range calculator jobs counter in finally block
   (CASSANDRA-12554)
 Merged from 2.1:
+ * Make Collections deserialization more robust (CASSANDRA-12618)
  * Add system property to set the max number of native transport requests in queue (CASSANDRA-11363)
 
 

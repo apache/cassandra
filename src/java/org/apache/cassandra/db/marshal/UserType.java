@@ -27,7 +27,7 @@ import com.google.common.base.Objects;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.serializers.*;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -121,7 +121,7 @@ public class UserType extends TupleType
                 return;
 
             if (input.remaining() < 4)
-                throw new MarshalException(String.format("Not enough bytes to read size of %dth field %s", i, fieldName(i)));
+                throw new MarshalException(String.format("Not enough bytes to read size of %dth field %s", i, fieldNameAsString(i)));
 
             int size = input.getInt();
 
@@ -130,7 +130,7 @@ public class UserType extends TupleType
                 continue;
 
             if (input.remaining() < size)
-                throw new MarshalException(String.format("Not enough bytes to read %dth field %s", i, fieldName(i)));
+                throw new MarshalException(String.format("Not enough bytes to read %dth field %s", i, fieldNameAsString(i)));
 
             ByteBuffer field = ByteBufferUtil.readBytes(input, size);
             types.get(i).validate(field);
