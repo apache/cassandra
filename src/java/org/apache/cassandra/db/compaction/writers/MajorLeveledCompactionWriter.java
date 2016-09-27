@@ -41,6 +41,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     private int sstablesWritten = 0;
     private final long keysPerSSTable;
     private Directories.DataDirectory sstableDirectory;
+    private final int levelFanoutSize;
 
     public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
                                         Directories directories,
@@ -73,6 +74,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     {
         super(cfs, directories, txn, nonExpiredSSTables, keepOriginals);
         this.maxSSTableSize = maxSSTableSize;
+        this.levelFanoutSize = cfs.getLevelFanoutSize();
         long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(nonExpiredSSTables) / maxSSTableSize);
         keysPerSSTable = estimatedTotalKeys / estimatedSSTables;
     }
@@ -87,7 +89,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
         if (totalWrittenInCurrentWriter > maxSSTableSize)
         {
             totalWrittenInLevel += totalWrittenInCurrentWriter;
-            if (totalWrittenInLevel > LeveledManifest.maxBytesForLevel(currentLevel, maxSSTableSize))
+            if (totalWrittenInLevel > LeveledManifest.maxBytesForLevel(currentLevel, levelFanoutSize, maxSSTableSize))
             {
                 totalWrittenInLevel = 0;
                 currentLevel++;

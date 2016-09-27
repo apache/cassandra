@@ -177,12 +177,12 @@ public class StandaloneScrubber
             List<SSTableReader> repaired = Lists.newArrayList(Iterables.filter(sstables, repairedPredicate));
             List<SSTableReader> unRepaired = Lists.newArrayList(Iterables.filter(sstables, Predicates.not(repairedPredicate)));
 
-            LeveledManifest repairedManifest = LeveledManifest.create(cfs, maxSizeInMB, repaired);
+            LeveledManifest repairedManifest = LeveledManifest.create(cfs, maxSizeInMB, cfs.getLevelFanoutSize(), repaired);
             for (int i = 1; i < repairedManifest.getLevelCount(); i++)
             {
                 repairedManifest.repairOverlappingSSTables(i);
             }
-            LeveledManifest unRepairedManifest = LeveledManifest.create(cfs, maxSizeInMB, unRepaired);
+            LeveledManifest unRepairedManifest = LeveledManifest.create(cfs, maxSizeInMB, cfs.getLevelFanoutSize(), unRepaired);
             for (int i = 1; i < unRepairedManifest.getLevelCount(); i++)
             {
                 unRepairedManifest.repairOverlappingSSTables(i);

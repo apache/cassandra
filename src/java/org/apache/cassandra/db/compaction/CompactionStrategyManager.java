@@ -341,6 +341,23 @@ public class CompactionStrategyManager implements INotificationConsumer
         return 0;
     }
 
+    public int getLevelFanoutSize()
+    {
+        readLock.lock();
+        try
+        {
+            if (repaired.get(0) instanceof LeveledCompactionStrategy)
+            {
+                return ((LeveledCompactionStrategy) repaired.get(0)).getLevelFanoutSize();
+            }
+        }
+        finally
+        {
+            readLock.unlock();
+        }
+        return LeveledCompactionStrategy.DEFAULT_LEVEL_FANOUT_SIZE;
+    }
+
     public int[] getSSTableCountPerLevel()
     {
         readLock.lock();
