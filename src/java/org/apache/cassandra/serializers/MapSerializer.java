@@ -100,7 +100,15 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         {
             ByteBuffer input = bytes.duplicate();
             int n = readCollectionSize(input, version);
-            Map<K, V> m = new LinkedHashMap<K, V>(n);
+
+            if (n < 0)
+                throw new MarshalException("The data cannot be deserialized as a map");
+
+            // If the received bytes are not corresponding to a map, n might be a huge number.
+            // In such a case we do not want to initialize the map with that initialCapacity as it can result
+            // in an OOM when put is called (see CASSANDRA-12618). On the other hand we do not want to have to resize
+            // the map if we can avoid it, so we put a reasonable limit on the initialCapacity.
+            Map<K, V> m = new LinkedHashMap<K, V>(Math.min(n, 256));
             for (int i = 0; i < n; i++)
             {
                 ByteBuffer kbb = readValue(input, version);

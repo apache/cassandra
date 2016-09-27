@@ -154,7 +154,7 @@ public class TupleType extends AbstractType<ByteBuffer>
             if (!input.hasRemaining())
                 return;
 
-            if (input.remaining() < 4)
+            if (input.remaining() < Integer.BYTES)
                 throw new MarshalException(String.format("Not enough bytes to read size of %dth component", i));
 
             int size = input.getInt();
@@ -188,6 +188,11 @@ public class TupleType extends AbstractType<ByteBuffer>
                 return Arrays.copyOfRange(components, 0, i);
 
             int size = input.getInt();
+
+            if (input.remaining() < size)
+                throw new MarshalException(String.format("Not enough bytes to read %dth component", i));
+
+            // size < 0 means null value
             components[i] = size < 0 ? null : ByteBufferUtil.readBytes(input, size);
         }
 

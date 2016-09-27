@@ -84,7 +84,16 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
         {
             ByteBuffer input = bytes.duplicate();
             int n = readCollectionSize(input, version);
-            Set<T> l = new LinkedHashSet<T>(n);
+
+            if (n < 0)
+                throw new MarshalException("The data cannot be deserialized as a set");
+
+            // If the received bytes are not corresponding to a set, n might be a huge number.
+            // In such a case we do not want to initialize the set with that initialCapacity as it can result
+            // in an OOM when add is called (see CASSANDRA-12618). On the other hand we do not want to have to resize
+            // the set if we can avoid it, so we put a reasonable limit on the initialCapacity.
+            Set<T> l = new LinkedHashSet<T>(Math.min(n, 256));
+
             for (int i = 0; i < n; i++)
             {
                 ByteBuffer databb = readValue(input, version);
