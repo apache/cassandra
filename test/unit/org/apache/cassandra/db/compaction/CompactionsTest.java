@@ -641,4 +641,15 @@ public class CompactionsTest
                                                                        200, 209,
                                                                        300, 301)));
     }
+
+    @Test
+    public void testConcurrencySettings()
+    {
+        CompactionManager.instance.setConcurrentCompactors(2);
+        assertEquals(2, CompactionManager.instance.getCoreCompactorThreads());
+        CompactionManager.instance.setConcurrentCompactors(3);
+        assertEquals(3, CompactionManager.instance.getCoreCompactorThreads());
+        CompactionManager.instance.setConcurrentCompactors(1);
+        assertEquals(1, CompactionManager.instance.getCoreCompactorThreads());
+    }
 }
