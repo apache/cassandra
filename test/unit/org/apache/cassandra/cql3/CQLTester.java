@@ -57,6 +57,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -83,6 +84,8 @@ public abstract class CQLTester
     protected static final long ROW_CACHE_SIZE_IN_MB = Integer.valueOf(System.getProperty("cassandra.test.row_cache_size_in_mb", "0"));
     private static final AtomicInteger seqNumber = new AtomicInteger();
     protected static final ByteBuffer TOO_BIG = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT + 1024);
+    public static final String DATA_CENTER = "datacenter1";
+    public static final String RACK1 = "rack1";
 
     private static org.apache.cassandra.transport.Server server;
     protected static final int nativePort;
@@ -114,6 +117,14 @@ public abstract class CQLTester
         PROTOCOL_VERSIONS = builder.build();
 
         nativeAddr = InetAddress.getLoopbackAddress();
+
+        // Register an EndpointSnitch which returns fixed values for test.
+        DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
+        {
+            @Override public String getRack(InetAddress endpoint) { return RACK1; }
+            @Override public String getDatacenter(InetAddress endpoint) { return DATA_CENTER; }
+            @Override public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2) { return 0; }
+        });
 
         try
         {

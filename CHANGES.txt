@@ -89,6 +89,7 @@ Merged from 3.0:
  * Calculate last compacted key on startup (CASSANDRA-6216)
  * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
  * If CF has no clustering columns, any row cache is full partition cache (CASSANDRA-12499)
+ * Reject invalid replication settings when creating or altering a keyspace (CASSANDRA-12681)
 Merged from 2.2:
  * Make Collections deserialization more robust (CASSANDRA-12618)
  * Fix exceptions when enabling gossip on nodes that haven't joined the ring (CASSANDRA-12253)
