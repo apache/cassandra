@@ -281,7 +281,7 @@ A ``set`` is a (sorted) collection of unique values. You can define and insert a
                 VALUES ('cat.jpg', 'jsmith', { 'pet', 'cute' });
 
     // Replace the existing set entirely
-    UPDATE images SET tags = { 'kitten', 'cat', 'lol' } WHERE id = 'jsmith';
+    UPDATE images SET tags = { 'kitten', 'cat', 'lol' } WHERE name = 'cat.jpg';
 
 Further, sets support:
 
@@ -388,7 +388,7 @@ type, including collections or other UDT. For instance::
     CREATE TYPE address (
         street text,
         city text,
-        zip int,
+        zip text,
         phones map<text, phone>
     )
 
@@ -426,7 +426,7 @@ For instance, one could insert into the table define in the previous section usi
                       zip: '20500',
                       phones: { 'cell' : { country_code: 1, number: '202 456-1111' },
                                 'landline' : { country_code: 1, number: '...' } }
-                  }
+                  },
                   'work' : {
                       street: '1600 Pennsylvania Ave NW',
                       city: 'Washington',
