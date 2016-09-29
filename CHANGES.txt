@@ -22,6 +22,7 @@ Merged from 3.0:
  * AssertionError with MVs on updating a row that isn't indexed due to a null value (CASSANDRA-12247)
  * Fix potential race in schema during new table creation (CASSANDRA-12083)
 Merged from 2.2:
+ * Fix merkle tree depth calculation (CASSANDRA-12580)
  * Persist local metadata earlier in startup sequence (CASSANDRA-11742)
  * cqlsh: fix tab completion for case-sensitive identifiers (CASSANDRA-11664)
  * Avoid showing estimated key as -1 in tablestats (CASSANDRA-11587)
