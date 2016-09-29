@@ -2,6 +2,7 @@
 
 
 3.10
+ * cdc column addition still breaks schema migration tasks (CASSANDRA-12697)
  * Upgrade metrics-reporter dependencies (CASSANDRA-12089)
  * Tune compaction thread count via nodetool (CASSANDRA-12248)
  * Add +=/-= shortcut syntax for update queries (CASSANDRA-12232)

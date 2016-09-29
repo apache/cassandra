@@ -22,6 +22,7 @@ package org.apache.cassandra.db.transform;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.PartitionColumns;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
@@ -107,6 +108,17 @@ public abstract class Transformation<I extends BaseRowIterator<?>>
     protected DeletionTime applyToDeletion(DeletionTime deletionTime)
     {
         return deletionTime;
+    }
+
+    /**
+     * Applied to the {@code PartitionColumns} of any rows iterator.
+     *
+     * NOTE: same remark than for applyToDeletion: it is only applied to the first iterator in a sequence of iterators
+     * filled by MoreContents.
+     */
+    protected PartitionColumns applyToPartitionColumns(PartitionColumns columns)
+    {
+        return columns;
     }
 
 

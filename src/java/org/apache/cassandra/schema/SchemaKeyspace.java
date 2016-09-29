@@ -40,6 +40,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -369,10 +370,35 @@ public final class SchemaKeyspace
                         mutationMap.put(key, mutation);
                     }
 
-                    mutation.add(PartitionUpdate.fromIterator(partition, cmd.columnFilter()));
+                    mutation.add(makeUpdateForSchema(partition, cmd.columnFilter()));
                 }
             }
         }
+    }
+
+    /**
+     * Creates a PartitionUpdate from a partition containing some schema table content.
+     * This is mainly calling {@code PartitionUpdate.fromIterator} except for the fact that it deals with
+     * the problem described in #12236.
+     */
+    private static PartitionUpdate makeUpdateForSchema(UnfilteredRowIterator partition, ColumnFilter filter)
+    {
+        // This method is used during schema migration tasks, and if cdc is disabled, we want to force excluding the
+        // 'cdc' column from the TABLES schema table because it is problematic if received by older nodes (see #12236
+        // and #12697). Otherwise though, we just simply "buffer" the content of the partition into a PartitionUpdate.
+        if (DatabaseDescriptor.isCDCEnabled() || !partition.metadata().cfName.equals(TABLES))
+            return PartitionUpdate.fromIterator(partition, filter);
+
+        // We want to skip the 'cdc' column. A simple solution for that is based on the fact that
+        // 'PartitionUpdate.fromIterator()' will ignore any columns that are marked as 'fetched' but not 'queried'.
+        ColumnFilter.Builder builder = ColumnFilter.allColumnsBuilder(partition.metadata());
+        for (ColumnDefinition column : filter.fetchedColumns())
+        {
+            if (!column.name.toString().equals("cdc"))
+                builder.add(column);
+        }
+
+        return PartitionUpdate.fromIterator(partition, builder.build());
     }
 
     private static boolean isSystemKeyspaceSchemaPartition(DecoratedKey partitionKey)
