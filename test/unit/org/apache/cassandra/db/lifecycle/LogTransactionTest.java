@@ -1002,10 +1002,14 @@ public class LogTransactionTest extends AbstractTransactionalTest
         assertNotNull(log);
 
         log.trackNew(sstableNew);
-        log.obsoleted(sstableOld);
+        LogTransaction.SSTableTidier tidier = log.obsoleted(sstableOld);
 
         // Modify the transaction log or disk state for sstableOld
         modifier.accept(log, sstableOld);
+
+        // Sync the folder to make sure that later on removeUnfinishedLeftovers picks up
+        // any changes to the txn files done by the modifier
+        assertNull(log.txnFile().syncDirectory(null));
 
         assertNull(log.complete(null));
 
@@ -1039,6 +1043,9 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                                                                oldFiles,
                                                                                log.logFilePaths())));
         }
+
+        // make sure to run the tidier to avoid any leaks in the logs
+        tidier.run();
     }
 
     @Test
@@ -1067,7 +1074,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         assertNotNull(log);
 
         log.trackNew(sstableNew);
-        /*TransactionLog.SSTableTidier tidier =*/ log.obsoleted(sstableOld);
+        LogTransaction.SSTableTidier tidier = log.obsoleted(sstableOld);
 
         //modify the old sstable files
         modifier.accept(sstableOld);
@@ -1092,6 +1099,9 @@ public class LogTransactionTest extends AbstractTransactionalTest
         assertFiles(dataFolder.getPath(), Sets.newHashSet(Iterables.concat(sstableNew.getAllFilePaths(),
                                                                            sstableOld.getAllFilePaths(),
                                                                            log.logFilePaths())));
+
+        // make sure to run the tidier to avoid any leaks in the logs
+        tidier.run();
     }
 
     @Test

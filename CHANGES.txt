@@ -69,6 +69,7 @@
  * Remove compaction Severity from DynamicEndpointSnitch (CASSANDRA-11738)
  * Restore resumable hints delivery (CASSANDRA-11960)
 Merged from 3.0:
+ * Fix failure in LogTransactionTest (CASSANDRA-12632)
  * Fix potentially incomplete non-frozen UDT values when querying with the
    full primary key specified (CASSANDRA-12605)
  * Make sure repaired tombstones are dropped when only_purge_repaired_tombstones is enabled (CASSANDRA-12703)
