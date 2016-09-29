@@ -115,7 +115,7 @@ public class CompactionsTest
         return store;
     }
 
-    private long populate(String ks, String cf, int startRowKey, int endRowKey, int ttl)
+    public static long populate(String ks, String cf, int startRowKey, int endRowKey, int ttl)
     {
         long timestamp = System.currentTimeMillis();
         CFMetaData cfm = Keyspace.open(ks).getColumnFamilyStore(cf).metadata;
