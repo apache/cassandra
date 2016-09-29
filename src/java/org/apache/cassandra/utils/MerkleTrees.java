@@ -319,6 +319,16 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
         return merkleTrees.entrySet().iterator();
     }
 
+    public long rowCount()
+    {
+        long totalCount = 0;
+        for (MerkleTree tree : merkleTrees.values())
+        {
+            totalCount += tree.rowCount();
+        }
+        return totalCount;
+    }
+
     public class TreeRangeIterator extends AbstractIterator<MerkleTree.TreeRange> implements
             Iterable<MerkleTree.TreeRange>,
             PeekingIterator<MerkleTree.TreeRange>
