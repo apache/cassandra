@@ -103,4 +103,30 @@ public class ColumnFamilyMetricTest
 
         store.enableAutoCompaction();
     }
+
+    @Test
+    public void testColUpdateTimeDeltaFiltering()
+    {
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
+
+        // This confirms another test/set up did not overflow the histogram
+        store.metric.colUpdateTimeDeltaHistogram.cf.getSnapshot().get999thPercentile();
+
+        ByteBuffer key = ByteBufferUtil.bytes(4242);
+        Mutation m = new Mutation("Keyspace1", key);
+        m.add("Standard2", cellname("0"), ByteBufferUtil.bytes("0"), 0);
+        m.apply();
+
+        // The histogram should not have overflowed on the first write
+        store.metric.colUpdateTimeDeltaHistogram.cf.getSnapshot().get999thPercentile();
+
+        m = new Mutation("Keyspace1", key);
+        // smallest time delta that would overflow the histogram if unfiltered
+        m.add("Standard2", cellname("0"), ByteBufferUtil.bytes("1"), 18165375903307L);
+        m.apply();
+
+        // CASSANDRA-11117 - update with large timestamp delta should not overflow the histogram
+        store.metric.colUpdateTimeDeltaHistogram.cf.getSnapshot().get999thPercentile();
+    }
 }
