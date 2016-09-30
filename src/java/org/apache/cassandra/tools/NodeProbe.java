@@ -580,6 +580,16 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.isJoined();
     }
 
+    public boolean isDrained()
+    {
+        return ssProxy.isDrained();
+    }
+
+    public boolean isDraining()
+    {
+        return ssProxy.isDraining();
+    }
+
     public void joinRing() throws IOException
     {
         ssProxy.joinRing();
