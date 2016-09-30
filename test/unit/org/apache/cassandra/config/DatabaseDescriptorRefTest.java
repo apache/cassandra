@@ -99,6 +99,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.util.DataOutputStreamPlus",
     "org.apache.cassandra.io.util.DataOutputPlus",
     "org.apache.cassandra.io.util.DiskOptimizationStrategy",
+    "org.apache.cassandra.io.util.SpinningDiskOptimizationStrategy",
     "org.apache.cassandra.locator.SimpleSeedProvider",
     "org.apache.cassandra.locator.SeedProvider",
     "org.apache.cassandra.net.BackPressureStrategy",

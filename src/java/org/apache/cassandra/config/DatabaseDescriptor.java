@@ -44,7 +44,6 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
@@ -220,7 +219,6 @@ public class DatabaseDescriptor
         Config.setClientMode(true);
         conf = new Config();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
-        partitioner = Murmur3Partitioner.instance;
     }
 
     public static boolean isClientInitialized()
