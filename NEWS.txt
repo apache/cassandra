@@ -21,7 +21,10 @@ New features
 
 Upgrading
 ---------
-
+    - Cassandra will no longer allow invalid keyspace replication options, such as invalid datacenter names for
+      NetworkTopologyStrategy. Operators MUST add new nodes to a datacenter before they can set set ALTER or 
+      CREATE keyspace replication policies using that datacenter. Existing keyspaces will continue to operate, 
+      but CREATE and ALTER will validate that all datacenters specified exist in the cluster. 
 
 3.10
 ====
@@ -108,9 +111,6 @@ Upgrading
     - Application layer keep-alives were added to the streaming protocol to prevent idle incoming connections from
       timing out and failing the stream session (CASSANDRA-11839). This effectively deprecates the streaming_socket_timeout_in_ms
       property in favor of streaming_keep_alive_period_in_secs. See cassandra.yaml for more details about this property.
-    - Cassandra will no longer allow invalid keyspace replication options, such as invalid datacenter names for
-      NetworkTopologyStrategy. Existing keyspaces will continue to operate, but CREATE and ALTER will validate that
-      all datacenters specified exist in the cluster. 
 
 3.8
 ===
