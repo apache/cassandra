@@ -33,7 +33,7 @@ public final class CounterCacheKey extends CacheKey
     public final byte[] partitionKey;
     public final byte[] cellName;
 
-    public CounterCacheKey(Pair<String, String> ksAndCFName, ByteBuffer partitionKey, ByteBuffer cellName)
+    private CounterCacheKey(Pair<String, String> ksAndCFName, ByteBuffer partitionKey, ByteBuffer cellName)
     {
         super(ksAndCFName);
         this.partitionKey = ByteBufferUtil.getArray(partitionKey);
