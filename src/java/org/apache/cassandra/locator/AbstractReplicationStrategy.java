@@ -320,7 +320,7 @@ public abstract class AbstractReplicationStrategy
         }
     }
 
-    protected void validateExpectedOptions() throws ConfigurationException
+    private void validateExpectedOptions() throws ConfigurationException
     {
         Collection expectedOptions = recognizedOptions();
         if (expectedOptions == null)
