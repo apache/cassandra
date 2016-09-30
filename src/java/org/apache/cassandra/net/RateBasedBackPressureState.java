@@ -48,7 +48,6 @@ import org.apache.cassandra.utils.concurrent.IntervalLock;
 class RateBasedBackPressureState extends IntervalLock implements BackPressureState
 {
     private final InetAddress host;
-    private final long windowSize;
     final SlidingTimeRate incomingRate;
     final SlidingTimeRate outgoingRate;
     final RateLimiter rateLimiter;
@@ -57,9 +56,8 @@ class RateBasedBackPressureState extends IntervalLock implements BackPressureSta
     {
         super(timeSource);
         this.host = host;
-        this.windowSize = windowSize;
-        this.incomingRate = new SlidingTimeRate(timeSource, this.windowSize, this.windowSize / 10, TimeUnit.MILLISECONDS);
-        this.outgoingRate = new SlidingTimeRate(timeSource, this.windowSize, this.windowSize / 10, TimeUnit.MILLISECONDS);
+        this.incomingRate = new SlidingTimeRate(timeSource, windowSize, windowSize / 10, TimeUnit.MILLISECONDS);
+        this.outgoingRate = new SlidingTimeRate(timeSource, windowSize, windowSize / 10, TimeUnit.MILLISECONDS);
         this.rateLimiter = RateLimiter.create(Double.POSITIVE_INFINITY);
     }
 
