@@ -804,9 +804,8 @@ public final class CFMetaData
         if (!cfm.cfId.equals(cfId))
             throw new ConfigurationException(String.format("Column family ID mismatch (found %s; expected %s)",
                                                            cfm.cfId, cfId));
-
         if (!cfm.flags.equals(flags))
-            throw new ConfigurationException("types do not match.");
+            throw new ConfigurationException(String.format("Column family type mismatch (found %s; expected %s)", cfm.flags, flags));
 
         if (!cfm.comparator.isCompatibleWith(comparator))
             throw new ConfigurationException(String.format("Column family comparators do not match or are not compatible (found %s; expected %s).", cfm.comparator.toString(), comparator.toString()));
