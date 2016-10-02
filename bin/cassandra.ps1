@@ -313,12 +313,13 @@ Function VerifyPortsAreAvailable
         }
     }
     $portRegex = $portRegex.Substring(0, $portRegex.Length - 2)
+    $portRegex = "^[\s]+TCP\s+[^\s:]+(?:$portRegex).*LISTENING$"
 
     $netstat = netstat -an
 
     foreach ($line in $netstat)
     {
-        if ($line -match "TCP" -and $line -match $portRegex)
+        if ($line -match $portRegex)
         {
             Write-Error "Found a port already in use. Aborting startup"
             Write-Error $line
