@@ -1,4 +1,5 @@
 3.0.10
+ * Abort cqlsh copy-from in case of no answer after prolonged period of time (CASSANDRA-12740)
  * Avoid sstable corrupt exception due to dropped static column (CASSANDRA-12582)
  * Make stress use client mode to avoid checking commit log size on startup (CASSANDRA-12478)
  * Fix exceptions with new vnode allocation (CASSANDRA-12715)
