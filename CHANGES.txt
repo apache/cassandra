@@ -1,4 +1,5 @@
 4.0
+ * Update bundled cqlsh python driver to 3.7.0 (CASSANDRA-12736)
  * Reject invalid replication settings when creating or altering a keyspace (CASSANDRA-12681)
 
 
