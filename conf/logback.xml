@@ -24,7 +24,8 @@ appender reference in the root level section below.
 
 <configuration scan="true">
   <jmxConfigurator />
-  <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
+
+  <!-- No shutdown hook; we run it ourselves in StorageService after shutdown -->
 
   <!-- SYSTEMLOG rolling file appender to system.log (INFO level) -->
 
