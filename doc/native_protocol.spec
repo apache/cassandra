@@ -1,4 +1,3 @@
-
                              CQL BINARY PROTOCOL v1
 
 
@@ -525,13 +524,37 @@ Table of Contents
   flag (see Section 2.2) is set.
 
 
-6. Collection types
+6. Data types
 
-  This section describe the serialization format for the collection types:
-  list, map and set. This serialization format is both useful to decode values
-  returned in RESULT messages but also to encode values for EXECUTE ones.
+  This section describes the serialization format used for the data types, both
+  in the values retured by RESULT messages and also in the values expected by
+  EXECUTE messages.
 
   The serialization formats are:
+
+     Ascii: US-ASCII bytes.
+     Bigint: is a 64-bit big-endian signed integer.
+     Blob: opaque bytes.
+     Boolean: either 0x00 (false) or 0x01 (true).
+     Counter: a 64-bit big-endian signed integer.
+     Decimal: a 32-bit big-endian unsigned integer giving a decimal digit shift,
+              followed by a Varint encoding of the digits.
+     Double: an IEEE 754 double-precision floating point number in big-endian.
+     Float: an IEEE 754 single-precision floating point number in big-endian.
+     Int: a 32-bit big-endian signed integer.
+     Text: UTF-8 bytes.
+     Timestamp: a 64-bit big-endian unsigned integer giving the number of
+                miliseconds since the epoch (1970-01-01 00:00:00+0000).
+     Uuid: 16 bytes.
+     Varchar: UTF-8 bytes.
+     Varint: a variable-length 2s-complement big-endian integer, sign-extended
+             to the next whole byte.
+     Timeuuid: 16 bytes.
+     Inet: 4 bytes of AF_INET address, or 16 bytes of AF_INET6 address.
+
+  The serialization formats of the collection types re-use these as their
+  elements:
+
      List: a [short] n indicating the size of the list, followed by n elements.
            Each element is [short bytes] representing the serialized element
            value.
