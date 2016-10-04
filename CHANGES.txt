@@ -1,7 +1,9 @@
 4.0
  * Reject invalid replication settings when creating or altering a keyspace (CASSANDRA-12681)
 
+
 3.10
+ * Add hint delivery metrics (CASSANDRA-12693)
  * Remove IndexInfo cache from FileIndexInfoRetriever (CASSANDRA-12731)
  * ColumnIndex does not reuse buffer (CASSANDRA-12502)
  * cdc column addition still breaks schema migration tasks (CASSANDRA-12697)

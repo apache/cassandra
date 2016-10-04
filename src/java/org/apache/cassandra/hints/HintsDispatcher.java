@@ -28,6 +28,7 @@ import java.util.function.Function;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -126,11 +127,33 @@ final class HintsDispatcher implements AutoCloseable
         if (action == Action.ABORT)
             return action;
 
+        boolean hadFailures = false;
         for (Callback cb : callbacks)
-            if (cb.await() != Callback.Outcome.SUCCESS)
-                return Action.ABORT;
+        {
+            Callback.Outcome outcome = cb.await();
+            updateMetrics(outcome);
 
-        return Action.CONTINUE;
+            if (outcome != Callback.Outcome.SUCCESS)
+                hadFailures = true;
+        }
+
+        return hadFailures ? Action.ABORT : Action.CONTINUE;
+    }
+
+    private void updateMetrics(Callback.Outcome outcome)
+    {
+        switch (outcome)
+        {
+            case SUCCESS:
+                HintsServiceMetrics.hintsSucceeded.mark();
+                break;
+            case FAILURE:
+                HintsServiceMetrics.hintsFailed.mark();
+                break;
+            case TIMEOUT:
+                HintsServiceMetrics.hintsTimedOut.mark();
+                break;
+        }
     }
 
     /*
