@@ -26,12 +26,14 @@ import java.util.stream.Collectors;
 
 import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.TypeCodec;
+import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
@@ -657,14 +659,14 @@ public class StressCQLSSTableWriter implements Closeable
     {
         try
         {
-            ParsedStatement stmt = QueryProcessor.parseStatement(query);
+            ParsedStatement stmt = CQLFragmentParser.parseAnyUnhandled(CqlParser::query, query);
 
             if (!stmt.getClass().equals(klass))
                 throw new IllegalArgumentException("Invalid query, must be a " + type + " statement but was: " + stmt.getClass());
 
             return klass.cast(stmt);
         }
-        catch (RequestValidationException e)
+        catch (RecognitionException | RequestValidationException e)
         {
             throw new IllegalArgumentException(e.getMessage(), e);
         }

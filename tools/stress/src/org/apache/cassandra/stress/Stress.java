@@ -72,7 +72,7 @@ public final class Stress
     {
         try
         {
-            DatabaseDescriptor.toolInitialization();
+            DatabaseDescriptor.clientInitialization();
 
             final StressSettings settings;
             try
