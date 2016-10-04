@@ -15,9 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.io.sstable;
 
+import java.util.Iterator;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Ignore;
@@ -26,6 +26,7 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.metrics.CacheMetrics;
 import org.apache.cassandra.service.CacheService;
 
@@ -49,7 +50,7 @@ public class LargePartitionsTest extends CQLTester
         long t0 = System.currentTimeMillis();
         measured.measure();
         long t = System.currentTimeMillis() - t0;
-        System.out.println(name + " took " + t + " ms");
+        System.out.println("LargePartitionsTest-measured: " + name + " took " + t + " ms");
     }
 
     private static String randomText(int bytes)
@@ -96,6 +97,9 @@ public class LargePartitionsTest extends CQLTester
         measured("SELECTs 1 for " + name, () -> selects(partitionKBytes, totalKBytes));
 
         measured("SELECTs 2 for " + name, () -> selects(partitionKBytes, totalKBytes));
+
+        CacheService.instance.keyCache.clear();
+        measured("Scan for " + name, () -> scan(partitionKBytes, totalKBytes));
     }
 
     private void selects(long partitionKBytes, long totalKBytes) throws Throwable
@@ -111,6 +115,20 @@ public class LargePartitionsTest extends CQLTester
                 keyCacheMetrics("after " + i + " selects");
         }
         keyCacheMetrics("after all selects");
+    }
+
+    private void scan(long partitionKBytes, long totalKBytes) throws Throwable
+    {
+        long pk = ThreadLocalRandom.current().nextLong(totalKBytes / partitionKBytes) * partitionKBytes;
+        Iterator<UntypedResultSet.Row> iter = execute("SELECT val FROM %s WHERE pk=?", Long.toBinaryString(pk)).iterator();
+        int i = 0;
+        while (iter.hasNext())
+        {
+            iter.next();
+            if (i++ % 1000 == 0)
+                keyCacheMetrics("after " + i + " iteration");
+        }
+        keyCacheMetrics("after all iteration");
     }
 
     private static void keyCacheMetrics(String title)

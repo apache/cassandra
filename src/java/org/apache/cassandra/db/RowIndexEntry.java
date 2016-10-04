@@ -19,7 +19,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.List;
 
 import com.codahale.metrics.Histogram;
@@ -556,7 +555,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
         private LegacyIndexInfoRetriever(long indexFilePosition, int[] offsets, FileDataInput reader, IndexInfo.Serializer idxInfoSerializer)
         {
-            super(indexFilePosition, offsets.length, reader, idxInfoSerializer);
+            super(indexFilePosition, reader, idxInfoSerializer);
             this.offsets = offsets;
         }
 
@@ -889,7 +888,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                                             VIntCoding.computeUnsignedVIntSize(indexedPartSize + fieldsSerializedSize) +
                                             fieldsSerializedSize,
                                             offsetsOffset - fieldsSerializedSize,
-                                            columnsIndexCount, indexFile.createReader(), idxInfoSerializer);
+                                            indexFile.createReader(), idxInfoSerializer);
         }
 
         @Override
@@ -954,17 +953,15 @@ public class RowIndexEntry<T> implements IMeasurableMemory
     {
         private final int offsetsOffset;
 
-        private ShallowInfoRetriever(long indexInfoFilePosition, int offsetsOffset, int indexCount,
+        private ShallowInfoRetriever(long indexInfoFilePosition, int offsetsOffset,
                                      FileDataInput indexReader, ISerializer<IndexInfo> idxInfoSerializer)
         {
-            super(indexInfoFilePosition, indexCount, indexReader, idxInfoSerializer);
+            super(indexInfoFilePosition, indexReader, idxInfoSerializer);
             this.offsetsOffset = offsetsOffset;
         }
 
         IndexInfo fetchIndex(int index) throws IOException
         {
-            assert index >= 0 && index < indexCount;
-
             retrievals++;
 
             // seek to position in "offsets to IndexInfo" table
@@ -998,46 +995,26 @@ public class RowIndexEntry<T> implements IMeasurableMemory
     private abstract static class FileIndexInfoRetriever implements IndexInfoRetriever
     {
         final long indexInfoFilePosition;
-        final int indexCount;
         final ISerializer<IndexInfo> idxInfoSerializer;
         final FileDataInput indexReader;
         int retrievals;
 
-        private IndexInfo[] lastIndexes;
-
         /**
          *
          * @param indexInfoFilePosition offset of first serialized {@link IndexInfo} object
-         * @param indexCount number of {@link IndexInfo} objects
          * @param indexReader file data input to access the index file, closed by this instance
          * @param idxInfoSerializer the index serializer to deserialize {@link IndexInfo} objects
          */
-        FileIndexInfoRetriever(long indexInfoFilePosition, int indexCount, FileDataInput indexReader, ISerializer<IndexInfo> idxInfoSerializer)
+        FileIndexInfoRetriever(long indexInfoFilePosition, FileDataInput indexReader, ISerializer<IndexInfo> idxInfoSerializer)
         {
             this.indexInfoFilePosition = indexInfoFilePosition;
-            this.indexCount = indexCount;
             this.idxInfoSerializer = idxInfoSerializer;
             this.indexReader = indexReader;
         }
 
         public final IndexInfo columnsIndex(int index) throws IOException
         {
-            if (lastIndexes != null
-                && lastIndexes.length > index && lastIndexes[index] != null)
-            {
-                // return a previously read/deserialized IndexInfo
-                return lastIndexes[index];
-            }
-
-            if (lastIndexes == null)
-                lastIndexes = new IndexInfo[index + 1];
-            else if (lastIndexes.length <= index)
-                lastIndexes = Arrays.copyOf(lastIndexes, index + 1);
-
-            IndexInfo indexInfo = fetchIndex(index);
-            lastIndexes[index] = indexInfo;
-
-            return indexInfo;
+            return fetchIndex(index);
         }
 
         abstract IndexInfo fetchIndex(int index) throws IOException;
