@@ -1114,8 +1114,7 @@ public class CompactionManager implements CompactionManagerMBean
 
                     long bytesScanned = scanner.getBytesScanned();
 
-                    int lengthRead = (int) (Ints.checkedCast(bytesScanned - lastBytesScanned) * compressionRatio);
-                    limiter.acquire(lengthRead + 1);
+                    compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio);
 
                     lastBytesScanned = bytesScanned;
                 }
@@ -1140,6 +1139,20 @@ public class CompactionManager implements CompactionManagerMBean
                                       FBUtilities.prettyPrintMemory(endsize), (int) (ratio * 100), totalkeysWritten, dTime));
         }
 
+    }
+
+    static void compactionRateLimiterAcquire(RateLimiter limiter, long bytesScanned, long lastBytesScanned, double compressionRatio)
+    {
+        long lengthRead = (long) ((bytesScanned - lastBytesScanned) * compressionRatio) + 1;
+        while (lengthRead >= Integer.MAX_VALUE)
+        {
+            limiter.acquire(Integer.MAX_VALUE);
+            lengthRead -= Integer.MAX_VALUE;
+        }
+        if (lengthRead > 0)
+        {
+            limiter.acquire((int) lengthRead);
+        }
     }
 
     private static abstract class CleanupStrategy

@@ -40,7 +40,7 @@
  * Make decommission operation resumable (CASSANDRA-12008)
  * Add support to one-way targeted repair (CASSANDRA-9876)
  * Remove clientutil jar (CASSANDRA-11635)
- * Fix compaction throughput throttle (CASSANDRA-12366)
+ * Fix compaction throughput throttle (CASSANDRA-12366, CASSANDRA-12717)
  * Delay releasing Memtable memory on flush until PostFlush has finished running (CASSANDRA-12358)
  * Cassandra stress should dump all setting on startup (CASSANDRA-11914)
  * Make it possible to compact a given token range (CASSANDRA-10643)
