@@ -2038,7 +2038,6 @@
 
   <target name="publish"
           depends="mvn-install"
-          if="release"
           description="Publishes the artifacts to the Maven repository">
 
     <!-- the parent -->
