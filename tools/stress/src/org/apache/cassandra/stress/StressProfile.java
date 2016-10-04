@@ -32,15 +32,15 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.exceptions.AlreadyExistsException;
+import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.statements.CreateKeyspaceStatement;
+import org.apache.cassandra.cql3.CQLFragmentParser;
+import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -166,10 +166,10 @@ public class StressProfile implements Serializable
         {
             try
             {
-                String name = ((CreateKeyspaceStatement) QueryProcessor.parseStatement(keyspaceCql)).keyspace();
+                String name = CQLFragmentParser.parseAnyUnhandled(CqlParser::createKeyspaceStatement, keyspaceCql).keyspace();
                 assert name.equalsIgnoreCase(keyspaceName) : "Name in keyspace_definition doesn't match keyspace property: '" + name + "' != '" + keyspaceName + "'";
             }
-            catch (SyntaxException e)
+            catch (RecognitionException | SyntaxException e)
             {
                 throw new IllegalArgumentException("There was a problem parsing the keyspace cql: " + e.getMessage());
             }
@@ -183,10 +183,10 @@ public class StressProfile implements Serializable
         {
             try
             {
-                String name = CFMetaData.compile(tableCql, keyspaceName).cfName;
+                String name = CQLFragmentParser.parseAnyUnhandled(CqlParser::createTableStatement, tableCql).columnFamily();
                 assert name.equalsIgnoreCase(tableName) : "Name in table_definition doesn't match table property: '" + name + "' != '" + tableName + "'";
             }
-            catch (RuntimeException e)
+            catch (RecognitionException | RuntimeException e)
             {
                 throw new IllegalArgumentException("There was a problem parsing the table cql: " + e.getMessage());
             }
