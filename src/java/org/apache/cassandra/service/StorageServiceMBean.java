@@ -526,6 +526,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     // allows a node that have been started without joining the ring to join it
     public void joinRing() throws IOException;
     public boolean isJoined();
+    public boolean isDrained();
+    public boolean isDraining();
 
     public void setRpcTimeout(long value);
     public long getRpcTimeout();

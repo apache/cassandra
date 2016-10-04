@@ -2331,7 +2331,7 @@ public class UFTest extends CQLTester
                                     '}'},
         {"org.apache.cassandra.service.StorageService",
                                     "try {" +
-                                    "     org.apache.cassandra.service.StorageService v = org.apache.cassandra.service.StorageService.instance; v.isInShutdownHook(); return 0d;" +
+                                    "     org.apache.cassandra.service.StorageService v = org.apache.cassandra.service.StorageService.instance; v.isShutdown(); return 0d;" +
                                     "} catch (Exception t) {" +
                                     "     throw new RuntimeException(t);" +
                                     '}'},
@@ -2371,7 +2371,7 @@ public class UFTest extends CQLTester
                                           "RETURNS NULL ON NULL INPUT " +
                                           "RETURNS double " +
                                           "LANGUAGE javascript\n" +
-                                          "AS 'org.apache.cassandra.service.StorageService.instance.isInShutdownHook(); 0;';");
+                                          "AS 'org.apache.cassandra.service.StorageService.instance.isShutdown(); 0;';");
             execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
             Assert.fail("Javascript security check failed");
         }
