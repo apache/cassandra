@@ -77,6 +77,7 @@
  * Remove compaction Severity from DynamicEndpointSnitch (CASSANDRA-11738)
  * Restore resumable hints delivery (CASSANDRA-11960)
 Merged from 3.0:
+ * Fix exceptions with new vnode allocation (CASSANDRA-12715)
  * Unify drain and shutdown processes (CASSANDRA-12509)
  * Fix NPE in ComponentOfSlice.isEQ() (CASSANDRA-12706)
  * Fix failure in LogTransactionTest (CASSANDRA-12632)
