@@ -51,15 +51,15 @@ public class TokenAllocation
                                                    final InetAddress endpoint,
                                                    int numTokens)
     {
-        StrategyAdapter strategy = getStrategy(tokenMetadata, rs, endpoint);
+        TokenMetadata tokenMetadataCopy = tokenMetadata.cloneOnlyTokenMap();
+        StrategyAdapter strategy = getStrategy(tokenMetadataCopy, rs, endpoint);
         Collection<Token> tokens = create(tokenMetadata, strategy).addUnit(endpoint, numTokens);
         tokens = adjustForCrossDatacenterClashes(tokenMetadata, strategy, tokens);
 
         if (logger.isWarnEnabled())
         {
             logger.warn("Selected tokens {}", tokens);
-            SummaryStatistics os = replicatedOwnershipStats(tokenMetadata, rs, endpoint);
-            TokenMetadata tokenMetadataCopy = tokenMetadata.cloneOnlyTokenMap();
+            SummaryStatistics os = replicatedOwnershipStats(tokenMetadataCopy, rs, endpoint);
             tokenMetadataCopy.updateNormalTokens(tokens, endpoint);
             SummaryStatistics ns = replicatedOwnershipStats(tokenMetadataCopy, rs, endpoint);
             logger.warn("Replicated node load in datacentre before allocation {}", statToString(os));
