@@ -403,7 +403,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                 {
                     socket.setTcpNoDelay(DatabaseDescriptor.getInterDCTcpNoDelay());
                 }
-                if (DatabaseDescriptor.getInternodeSendBufferSize() != null)
+                if (DatabaseDescriptor.getInternodeSendBufferSize() > 0)
                 {
                     try
                     {

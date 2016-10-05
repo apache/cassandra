@@ -276,7 +276,7 @@ public final class SchemaKeyspace
 
     static void flush()
     {
-        if (!Boolean.getBoolean("cassandra.unsafesystem"))
+        if (!DatabaseDescriptor.isUnsafeSystem())
             ALL.forEach(table -> FBUtilities.waitOnFuture(getSchemaCFS(table).forceFlush()));
     }
 

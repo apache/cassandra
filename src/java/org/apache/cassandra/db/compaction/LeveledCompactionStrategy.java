@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -45,6 +46,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
     private static final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
+    private static final boolean tolerateSstableSize = Boolean.getBoolean(Config.PROPERTY_PREFIX + "tolerate_sstable_size");
 
     @VisibleForTesting
     final LeveledManifest manifest;
@@ -56,12 +58,12 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         int configuredMaxSSTableSize = 160;
         SizeTieredCompactionStrategyOptions localOptions = new SizeTieredCompactionStrategyOptions(options);
         if (options != null)
-        {
-            if (options.containsKey(SSTABLE_SIZE_OPTION))
-            {
-                configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));
-                if (!Boolean.getBoolean("cassandra.tolerate_sstable_size"))
-                {
+        {             
+            if (options.containsKey(SSTABLE_SIZE_OPTION))             
+            {                 
+                configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));                 
+                if (!tolerateSstableSize)
+                {                     
                     if (configuredMaxSSTableSize >= 1000)
                         logger.warn("Max sstable size of {}MB is configured for {}.{}; having a unit of compaction this large is probably a bad idea",
                                 configuredMaxSSTableSize, cfs.name, cfs.getColumnFamilyName());
