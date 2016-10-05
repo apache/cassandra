@@ -142,6 +142,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private Thread drainOnShutdown = null;
     private volatile boolean isShutdown = false;
+    private final List<Runnable> preShutdownHooks = new ArrayList<>();
+    private final List<Runnable> postShutdownHooks = new ArrayList<>();
 
     public static final StorageService instance = new StorageService();
 
@@ -4379,6 +4381,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         assert !isShutdown;
         isShutdown = true;
 
+        Throwable preShutdownHookThrowable = Throwables.perform(null, preShutdownHooks.stream().map(h -> h::run));
+        if (preShutdownHookThrowable != null)
+            logger.error("Attempting to continue draining after pre-shutdown hooks returned exception", preShutdownHookThrowable);
+
         try
         {
             setMode(Mode.DRAINING, "starting drain process", !isFinalShutdown);
@@ -4480,6 +4486,59 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             logger.error("Caught an exception while draining ", t);
         }
+        finally
+        {
+            Throwable postShutdownHookThrowable = Throwables.perform(null, postShutdownHooks.stream().map(h -> h::run));
+            if (postShutdownHookThrowable != null)
+                logger.error("Post-shutdown hooks returned exception", postShutdownHookThrowable);
+        }
+    }
+
+    /**
+     * Add a runnable which will be called before shut down or drain. This is useful for other
+     * applications running in the same JVM which may want to shut down first rather than time
+     * out attempting to use Cassandra calls which will no longer work.
+     * @param hook: the code to run
+     * @return true on success, false if Cassandra is already shutting down, in which case the runnable
+     * has NOT been added.
+     */
+    public synchronized boolean addPreShutdownHook(Runnable hook)
+    {
+        if (!isDraining() && !isDrained())
+            return preShutdownHooks.add(hook);
+
+        return false;
+    }
+
+    /**
+     * Remove a preshutdown hook
+     */
+    public synchronized boolean removePreShutdownHook(Runnable hook)
+    {
+        return preShutdownHooks.remove(hook);
+    }
+
+    /**
+     * Add a runnable which will be called after shutdown or drain. This is useful for other applications
+     * running in the same JVM that Cassandra needs to work and should shut down later.
+     * @param hook: the code to run
+     * @return true on success, false if Cassandra is already shutting down, in which case the runnable has NOT been
+     * added.
+     */
+    public synchronized boolean addPostShutdownHook(Runnable hook)
+    {
+        if (!isDraining() && !isDrained())
+            return postShutdownHooks.add(hook);
+
+        return false;
+    }
+
+    /**
+     * Remove a postshutdownhook
+     */
+    public synchronized boolean removePostShutdownHook(Runnable hook)
+    {
+        return postShutdownHooks.remove(hook);
     }
 
     /**

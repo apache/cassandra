@@ -3,6 +3,7 @@
 
 
 3.10
+ * Add pre- and post-shutdown hooks to Storage Service (CASSANDRA-12461)
  * Add hint delivery metrics (CASSANDRA-12693)
  * Remove IndexInfo cache from FileIndexInfoRetriever (CASSANDRA-12731)
  * ColumnIndex does not reuse buffer (CASSANDRA-12502)
