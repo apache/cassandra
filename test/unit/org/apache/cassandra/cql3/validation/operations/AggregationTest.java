@@ -2043,6 +2043,8 @@ public class AggregationTest extends CQLTester
 
         assertRows(execute("select avg(v1), avg(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
                    row(Float.NaN, Double.NaN));
+        assertRows(execute("select sum(v1), sum(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
+                   row(Float.NaN, Double.NaN));
     }
 
     @Test
@@ -2062,6 +2064,9 @@ public class AggregationTest extends CQLTester
 
             assertRows(execute("select avg(v1), avg(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
                        row(FLOAT_INFINITY, DOUBLE_INFINITY));
+            assertRows(execute("select sum(v1), avg(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
+                       row(FLOAT_INFINITY, DOUBLE_INFINITY));
+
             execute("truncate %s");
         }
     }
@@ -2073,5 +2078,8 @@ public class AggregationTest extends CQLTester
 
         for (int i = 1; i <= 17; i++)
             execute("insert into %s (bucket, v1, v2, v3) values (?, ?, ?, ?)", i, (float) (i / 10.0), i / 10.0, BigDecimal.valueOf(i / 10.0));
+
+        assertRows(execute("select sum(v1), sum(v2), sum(v3) from %s;"),
+                   row((float) 15.3, 15.3, BigDecimal.valueOf(15.3)));
     }
 }

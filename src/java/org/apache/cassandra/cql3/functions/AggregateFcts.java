@@ -480,29 +480,11 @@ public abstract class AggregateFcts
             {
                 public Aggregate newAggregate()
                 {
-                    return new Aggregate()
+                    return new FloatSumAggregate(FloatType.instance)
                     {
-                        private float sum;
-
-                        public void reset()
+                        public ByteBuffer compute(int protocolVersion) throws InvalidRequestException
                         {
-                            sum = 0;
-                        }
-
-                        public ByteBuffer compute(int protocolVersion)
-                        {
-                            return ((FloatType) returnType()).decompose(sum);
-                        }
-
-                        public void addInput(int protocolVersion, List<ByteBuffer> values)
-                        {
-                            ByteBuffer value = values.get(0);
-
-                            if (value == null)
-                                return;
-
-                            Number number = ((Number) argTypes().get(0).compose(value));
-                            sum += number.floatValue();
+                            return FloatType.instance.decompose((float) computeInternal());
                         }
                     };
                 }
@@ -534,33 +516,68 @@ public abstract class AggregateFcts
             {
                 public Aggregate newAggregate()
                 {
-                    return new Aggregate()
+                    return new FloatSumAggregate(DoubleType.instance)
                     {
-                        private double sum;
-
-                        public void reset()
+                        public ByteBuffer compute(int protocolVersion) throws InvalidRequestException
                         {
-                            sum = 0;
-                        }
-
-                        public ByteBuffer compute(int protocolVersion)
-                        {
-                            return ((DoubleType) returnType()).decompose(sum);
-                        }
-
-                        public void addInput(int protocolVersion, List<ByteBuffer> values)
-                        {
-                            ByteBuffer value = values.get(0);
-
-                            if (value == null)
-                                return;
-
-                            Number number = ((Number) argTypes().get(0).compose(value));
-                            sum += number.doubleValue();
+                            return DoubleType.instance.decompose(computeInternal());
                         }
                     };
                 }
             };
+
+    /**
+     * Sum aggregate function for floating point numbers, using double arithmetics and
+     * Kahan's algorithm to improve result precision.
+     */
+    private static abstract class FloatSumAggregate implements AggregateFunction.Aggregate
+    {
+        private double sum;
+        private double compensation;
+        private double simpleSum;
+
+        private final AbstractType numberType;
+
+        public FloatSumAggregate(AbstractType numberType)
+        {
+            this.numberType = numberType;
+        }
+
+        public void reset()
+        {
+            sum = 0;
+            compensation = 0;
+            simpleSum = 0;
+        }
+
+        public void addInput(int protocolVersion, List<ByteBuffer> values)
+        {
+            ByteBuffer value = values.get(0);
+
+            if (value == null)
+                return;
+
+            double number = ((Number) numberType.compose(value)).doubleValue();
+            simpleSum += number;
+            double tmp = number - compensation;
+            double rounded = sum + tmp;
+            compensation = (rounded - sum) - tmp;
+            sum = rounded;
+        }
+
+        public double computeInternal()
+        {
+            // correctly compute final sum if it's NaN from consequently
+            // adding same-signed infinite values.
+            double tmp = sum + compensation;
+
+            if (Double.isNaN(tmp) && Double.isInfinite(simpleSum))
+                return simpleSum;
+            else
+                return tmp;
+        }
+    }
+
     /**
      * Average aggregate for floating point umbers, using double arithmetics and Kahan's algorithm
      * to calculate sum by default, switching to BigDecimal on sum overflow. Resulting number is
