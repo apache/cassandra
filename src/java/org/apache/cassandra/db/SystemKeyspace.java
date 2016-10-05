@@ -808,7 +808,7 @@ public final class SystemKeyspace
 
     public static void forceBlockingFlush(String cfname)
     {
-        if (!Boolean.getBoolean("cassandra.unsafesystem"))
+        if (!DatabaseDescriptor.isUnsafeSystem())
             FBUtilities.waitOnFuture(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(cfname).forceFlush());
     }
 

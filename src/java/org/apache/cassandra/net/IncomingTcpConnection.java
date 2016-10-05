@@ -62,7 +62,7 @@ public class IncomingTcpConnection extends FastThreadLocalThread implements Clos
         this.compressed = compressed;
         this.socket = socket;
         this.group = group;
-        if (DatabaseDescriptor.getInternodeRecvBufferSize() != null)
+        if (DatabaseDescriptor.getInternodeRecvBufferSize() > 0)
         {
             try
             {

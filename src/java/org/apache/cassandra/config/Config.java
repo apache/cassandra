@@ -63,10 +63,10 @@ public class Config
     /* Hashing strategy Random or OPHF */
     public String partitioner;
 
-    public Boolean auto_bootstrap = true;
+    public boolean auto_bootstrap = true;
     public volatile boolean hinted_handoff_enabled = true;
     public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
-    public volatile Integer max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
+    public volatile int max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
     public String hints_directory;
 
     public ParameterizedClass seed_provider;
@@ -77,29 +77,29 @@ public class Config
 
     /* initial token in the ring */
     public String initial_token;
-    public Integer num_tokens = 1;
+    public int num_tokens = 1;
     /** Triggers automatic allocation of tokens if set, using the replication strategy of the referenced keyspace */
     public String allocate_tokens_for_keyspace = null;
 
-    public volatile Long request_timeout_in_ms = 10000L;
+    public volatile long request_timeout_in_ms = 10000L;
 
-    public volatile Long read_request_timeout_in_ms = 5000L;
+    public volatile long read_request_timeout_in_ms = 5000L;
 
-    public volatile Long range_request_timeout_in_ms = 10000L;
+    public volatile long range_request_timeout_in_ms = 10000L;
 
-    public volatile Long write_request_timeout_in_ms = 2000L;
+    public volatile long write_request_timeout_in_ms = 2000L;
 
-    public volatile Long counter_write_request_timeout_in_ms = 5000L;
+    public volatile long counter_write_request_timeout_in_ms = 5000L;
 
-    public volatile Long cas_contention_timeout_in_ms = 1000L;
+    public volatile long cas_contention_timeout_in_ms = 1000L;
 
-    public volatile Long truncate_request_timeout_in_ms = 60000L;
+    public volatile long truncate_request_timeout_in_ms = 60000L;
 
     /**
      * @deprecated use {@link this#streaming_keep_alive_period_in_secs} instead
      */
     @Deprecated
-    public Integer streaming_socket_timeout_in_ms = 86400000; //24 hours
+    public int streaming_socket_timeout_in_ms = 86400000; //24 hours
 
     public Integer streaming_keep_alive_period_in_secs = 300; //5 minutes
 
@@ -107,88 +107,88 @@ public class Config
 
     public volatile long slow_query_log_timeout_in_ms = 500L;
 
-    public volatile Double phi_convict_threshold = 8.0;
+    public volatile double phi_convict_threshold = 8.0;
 
-    public Integer concurrent_reads = 32;
-    public Integer concurrent_writes = 32;
-    public Integer concurrent_counter_writes = 32;
-    public Integer concurrent_materialized_view_writes = 32;
+    public int concurrent_reads = 32;
+    public int concurrent_writes = 32;
+    public int concurrent_counter_writes = 32;
+    public int concurrent_materialized_view_writes = 32;
 
     @Deprecated
     public Integer concurrent_replicates = null;
 
-    public Integer memtable_flush_writers = null;
+    public int memtable_flush_writers = 0;
     public Integer memtable_heap_space_in_mb;
     public Integer memtable_offheap_space_in_mb;
     public Float memtable_cleanup_threshold = null;
 
-    public Integer storage_port = 7000;
-    public Integer ssl_storage_port = 7001;
+    public int storage_port = 7000;
+    public int ssl_storage_port = 7001;
     public String listen_address;
     public String listen_interface;
-    public Boolean listen_interface_prefer_ipv6 = false;
+    public boolean listen_interface_prefer_ipv6 = false;
     public String broadcast_address;
-    public Boolean listen_on_broadcast_address = false;
+    public boolean listen_on_broadcast_address = false;
     public String internode_authenticator;
 
     /* intentionally left set to true, despite being set to false in stock 2.2 cassandra.yaml
        we don't want to surprise Thrift users who have the setting blank in the yaml during 2.1->2.2 upgrade */
-    public Boolean start_rpc = true;
+    public boolean start_rpc = true;
     public String rpc_address;
     public String rpc_interface;
-    public Boolean rpc_interface_prefer_ipv6 = false;
+    public boolean rpc_interface_prefer_ipv6 = false;
     public String broadcast_rpc_address;
-    public Integer rpc_port = 9160;
-    public Integer rpc_listen_backlog = 50;
+    public int rpc_port = 9160;
+    public int rpc_listen_backlog = 50;
     public String rpc_server_type = "sync";
-    public Boolean rpc_keepalive = true;
-    public Integer rpc_min_threads = 16;
-    public Integer rpc_max_threads = Integer.MAX_VALUE;
+    public boolean rpc_keepalive = true;
+    public int rpc_min_threads = 16;
+    public int rpc_max_threads = Integer.MAX_VALUE;
     public Integer rpc_send_buff_size_in_bytes;
     public Integer rpc_recv_buff_size_in_bytes;
-    public Integer internode_send_buff_size_in_bytes;
-    public Integer internode_recv_buff_size_in_bytes;
+    public int internode_send_buff_size_in_bytes = 0;
+    public int internode_recv_buff_size_in_bytes = 0;
 
-    public Boolean start_native_transport = false;
-    public Integer native_transport_port = 9042;
+    public boolean start_native_transport = false;
+    public int native_transport_port = 9042;
     public Integer native_transport_port_ssl = null;
-    public Integer native_transport_max_threads = 128;
-    public Integer native_transport_max_frame_size_in_mb = 256;
-    public volatile Long native_transport_max_concurrent_connections = -1L;
-    public volatile Long native_transport_max_concurrent_connections_per_ip = -1L;
+    public int native_transport_max_threads = 128;
+    public int native_transport_max_frame_size_in_mb = 256;
+    public volatile long native_transport_max_concurrent_connections = -1L;
+    public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
 
     @Deprecated
-    public Integer thrift_max_message_length_in_mb = 16;
+    public int thrift_max_message_length_in_mb = 16;
     /**
      * Max size of values in SSTables, in MegaBytes.
      * Default is the same as the native protocol frame limit: 256Mb.
      * See AbstractType for how it is used.
      */
-    public Integer max_value_size_in_mb = 256;
+    public int max_value_size_in_mb = 256;
 
-    public Integer thrift_framed_transport_size_in_mb = 15;
-    public Boolean snapshot_before_compaction = false;
-    public Boolean auto_snapshot = true;
+    public int thrift_framed_transport_size_in_mb = 15;
+    public boolean snapshot_before_compaction = false;
+    public boolean auto_snapshot = true;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
-    public Integer column_index_size_in_kb = 64;
-    public Integer column_index_cache_size_in_kb = 2;
+    public int column_index_size_in_kb = 64;
+    public int column_index_cache_size_in_kb = 2;
     public volatile int batch_size_warn_threshold_in_kb = 5;
     public volatile int batch_size_fail_threshold_in_kb = 50;
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public volatile Integer concurrent_compactors;
-    public volatile Integer compaction_throughput_mb_per_sec = 16;
-    public volatile Integer compaction_large_partition_warning_threshold_mb = 100;
-    public Integer min_free_space_per_drive_in_mb = 50;
+    public volatile int compaction_throughput_mb_per_sec = 16;
+    public volatile int compaction_large_partition_warning_threshold_mb = 100;
+    public int min_free_space_per_drive_in_mb = 50;
 
     /**
      * @deprecated retry support removed on CASSANDRA-10992
      */
     @Deprecated
-    public Integer max_streaming_retries = 3;
+    public int max_streaming_retries = 3;
 
-    public volatile Integer stream_throughput_outbound_megabits_per_sec = 200;
-    public volatile Integer inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
+    public volatile int stream_throughput_outbound_megabits_per_sec = 200;
+    public volatile int inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
 
     public String[] data_file_directories = new String[0];
 
@@ -198,8 +198,8 @@ public class Config
     public String commitlog_directory;
     public Integer commitlog_total_space_in_mb;
     public CommitLogSync commitlog_sync;
-    public Double commitlog_sync_batch_window_in_ms;
-    public Integer commitlog_sync_period_in_ms;
+    public double commitlog_sync_batch_window_in_ms = Double.NaN;
+    public int commitlog_sync_period_in_ms;
     public int commitlog_segment_size_in_mb = 32;
     public ParameterizedClass commitlog_compression;
     public int commitlog_max_compression_buffers_in_pool = 3;
@@ -208,19 +208,19 @@ public class Config
     public Integer max_mutation_size_in_kb;
 
     // Change-data-capture logs
-    public Boolean cdc_enabled = false;
+    public boolean cdc_enabled = false;
     public String cdc_raw_directory;
-    public Integer cdc_total_space_in_mb;
-    public Integer cdc_free_space_check_interval_ms = 250;
+    public int cdc_total_space_in_mb = 0;
+    public int cdc_free_space_check_interval_ms = 250;
 
     @Deprecated
     public int commitlog_periodic_queue_size = -1;
 
     public String endpoint_snitch;
-    public Boolean dynamic_snitch = true;
-    public volatile Integer dynamic_snitch_update_interval_in_ms = 100;
-    public volatile Integer dynamic_snitch_reset_interval_in_ms = 600000;
-    public volatile Double dynamic_snitch_badness_threshold = 0.1;
+    public boolean dynamic_snitch = true;
+    public int dynamic_snitch_update_interval_in_ms = 100;
+    public int dynamic_snitch_reset_interval_in_ms = 600000;
+    public double dynamic_snitch_badness_threshold = 0.1;
 
     public String request_scheduler;
     public RequestSchedulerId request_scheduler_id;
