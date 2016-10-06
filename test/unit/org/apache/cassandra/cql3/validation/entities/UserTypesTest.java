@@ -278,7 +278,7 @@ public class UserTypesTest extends CQLTester
 
         execute("INSERT INTO %s (x, y) VALUES(1, {'firstValue': {a: 1}})");
         assertRows(execute("SELECT * FROM %s"),
-                   row(1, map("firstValue", userType(1))));
+                   row(1, map("firstValue", userType("a", 1))));
 
         flush();
 
@@ -286,14 +286,14 @@ public class UserTypesTest extends CQLTester
         execute("UPDATE %s SET y['secondValue'] = {a: 2, b: 2} WHERE x = 1");
 
         assertRows(execute("SELECT * FROM %s"),
-                   row(1, map("firstValue", userType(1),
-                              "secondValue", userType(2, 2))));
+                   row(1, map("firstValue", userType("a", 1),
+                              "secondValue", userType("a", 2, "b", 2))));
 
         flush();
 
         assertRows(execute("SELECT * FROM %s"),
-                   row(1, map("firstValue", userType(1),
-                              "secondValue", userType(2, 2))));
+                   row(1, map("firstValue", userType("a", 1),
+                              "secondValue", userType("a", 2, "b", 2))));
     }
 
     @Test
