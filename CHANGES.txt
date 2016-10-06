@@ -1,4 +1,5 @@
 4.0
+ * Expose tasks queue length via JMX (CASSANDRA-12758)
  * Fix race / ref leak in PendingRepairManager (CASSANDRA-13751)
  * Enable ppc64le runtime as unsupported architecture (CASSANDRA-13615)
  * Improve sstablemetadata output (CASSANDRA-11483)

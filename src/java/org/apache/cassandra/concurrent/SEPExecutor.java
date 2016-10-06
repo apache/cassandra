@@ -35,7 +35,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
 
     public final int maxWorkers;
     public final String name;
-    private final int maxTasksQueued;
+    public final int maxTasksQueued;
     private final SEPMetrics metrics;
 
     // stores both a set of work permits and task permits:

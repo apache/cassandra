@@ -193,6 +193,7 @@ CompletedTasks        Counter        Number of tasks completed.
 TotalBlockedTasks     Counter        Number of tasks that were blocked due to queue saturation.
 CurrentlyBlockedTask  Counter        Number of tasks that are currently blocked due to queue saturation but on retry will become unblocked.
 MaxPoolSize           Gauge<Integer> The maximum number of threads in this pool.
+MaxTasksQueued        Gauge<Integer> The maximum number of tasks queued before a task get blocked.
 ===================== ============== ===========
 
 The following thread pools can be monitored.
