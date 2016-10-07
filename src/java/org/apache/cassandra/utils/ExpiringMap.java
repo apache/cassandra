@@ -105,12 +105,12 @@ public class ExpiringMap<K, V>
         service.scheduleWithFixedDelay(runnable, defaultExpiration / 2, defaultExpiration / 2, TimeUnit.MILLISECONDS);
     }
 
-    public void shutdownBlocking()
+    public boolean shutdownBlocking()
     {
         service.shutdown();
         try
         {
-            service.awaitTermination(defaultExpiration * 2, TimeUnit.MILLISECONDS);
+            return service.awaitTermination(defaultExpiration * 2, TimeUnit.MILLISECONDS);
         }
         catch (InterruptedException e)
         {

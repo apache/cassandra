@@ -4453,8 +4453,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                 remainingCFs--;
             }
-            // flush the system ones after all the rest are done, just in case flushing modifies any system state
-            // like CASSANDRA-5151. don't bother with progress tracking since system data is tiny.
+
+            // Interrupt ongoing compactions and shutdown CM to prevent further compactions.
+            CompactionManager.instance.forceShutdown();
+            // Flush the system tables after all other tables are flushed, just in case flushing modifies any system state
+            // like CASSANDRA-5151. Don't bother with progress tracking since system data is tiny.
+            // Flush system tables after stopping compactions since they modify
+            // system tables (for example compactions can obsolete sstables and the tidiers in SSTableReader update
+            // system tables, see SSTableReader.GlobalTidy)
             flushes.clear();
             for (Keyspace keyspace : Keyspace.system())
             {
@@ -4477,7 +4483,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
             ScheduledExecutors.nonPeriodicTasks.shutdown();
             if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, TimeUnit.MINUTES))
-                logger.warn("Miscellaneous task executor still busy after one minute; proceeding with shutdown");
+                logger.warn("Failed to wait for non periodic tasks to shutdown");
 
             ColumnFamilyStore.shutdownPostFlushExecutor();
             setMode(Mode.DRAINED, !isFinalShutdown);
