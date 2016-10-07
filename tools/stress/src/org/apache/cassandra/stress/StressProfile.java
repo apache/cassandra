@@ -41,6 +41,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.CqlParser;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -61,8 +62,6 @@ import org.apache.thrift.TException;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.error.YAMLException;
-
-import static org.apache.cassandra.io.sstable.StressCQLSSTableWriter.parseStatement;
 
 public class StressProfile implements Serializable
 {
@@ -449,7 +448,7 @@ public class StressProfile implements Serializable
 
     public CreateTableStatement.RawStatement getCreateStatement()
     {
-        CreateTableStatement.RawStatement createStatement = parseStatement(tableCql, CreateTableStatement.RawStatement.class, "CREATE TABLE");
+        CreateTableStatement.RawStatement createStatement = QueryProcessor.parseStatement(tableCql, CreateTableStatement.RawStatement.class, "CREATE TABLE");
         createStatement.prepareKeyspace(keyspaceName);
 
         return createStatement;

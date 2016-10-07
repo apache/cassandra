@@ -27,7 +27,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
 
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -48,6 +47,7 @@ import com.datastax.driver.core.UDTValue;
 import com.datastax.driver.core.UserType;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 
 public class CQLSSTableWriterTest
@@ -126,7 +126,7 @@ public class CQLSSTableWriterTest
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testForbidCounterUpdates() throws Exception
     {
         String KS = "cql_keyspace";
@@ -142,10 +142,18 @@ public class CQLSSTableWriterTest
                         "  PRIMARY KEY (my_id)" +
                         ")";
         String insert = String.format("UPDATE cql_keyspace.counter1 SET my_counter = my_counter - ? WHERE my_id = ?");
-        CQLSSTableWriter.builder().inDirectory(dataDir)
-                        .forTable(schema)
-                        .withPartitioner(Murmur3Partitioner.instance)
-                        .using(insert).build();
+        try
+        {
+            CQLSSTableWriter.builder().inDirectory(dataDir)
+                            .forTable(schema)
+                            .withPartitioner(Murmur3Partitioner.instance)
+                            .using(insert).build();
+            fail("Counter update statements should not be supported");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertEquals(e.getMessage(), "Counter update statements are not supported");
+        }
     }
 
     @Test
@@ -167,8 +175,8 @@ public class CQLSSTableWriterTest
         String insert = "INSERT INTO ks.test (k, v) VALUES (?, ?)";
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
-                                                  .forTable(schema)
                                                   .using(insert)
+                                                  .forTable(schema)
                                                   .withBufferSizeInMB(1)
                                                   .build();
 
@@ -530,6 +538,55 @@ public class CQLSSTableWriterTest
         assertEquals(5, r5.getInt("c2"));
         assertEquals(true, r5.has("v"));
         assertEquals("5", r5.getString("v"));
+    }
+
+    @Test
+    public void testUpdateSatement() throws Exception
+    {
+        final String KS = "cql_keyspace6";
+        final String TABLE = "table6";
+
+        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+                              + "  k int,"
+                              + "  c1 int,"
+                              + "  c2 int,"
+                              + "  v text,"
+                              + "  PRIMARY KEY (k, c1, c2)"
+                              + ")";
+
+        File tempdir = Files.createTempDir();
+        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
+        assert dataDir.mkdirs();
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("UPDATE " + KS + "." + TABLE + " SET v = ? " +
+                                                         "WHERE k = ? AND c1 = ? AND c2 = ?")
+                                                  .build();
+
+        writer.addRow("a", 1, 2, 3);
+        writer.addRow("b", 4, 5, 6);
+        writer.addRow(null, 7, 8, 9);
+        writer.addRow(CQLSSTableWriter.UNSET_VALUE, 10, 11, 12);
+        writer.close();
+        loadSSTables(dataDir, KS);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+        assertEquals(2, resultSet.size());
+
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        UntypedResultSet.Row r1 = iter.next();
+        assertEquals(1, r1.getInt("k"));
+        assertEquals(2, r1.getInt("c1"));
+        assertEquals(3, r1.getInt("c2"));
+        assertEquals("a", r1.getString("v"));
+        UntypedResultSet.Row r2 = iter.next();
+        assertEquals(4, r2.getInt("k"));
+        assertEquals(5, r2.getInt("c1"));
+        assertEquals(6, r2.getInt("c2"));
+        assertEquals("b", r2.getString("v"));
+        assertFalse(iter.hasNext());
     }
 
     private static void loadSSTables(File dataDir, String ks) throws ExecutionException, InterruptedException
