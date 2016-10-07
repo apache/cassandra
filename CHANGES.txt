@@ -4,6 +4,7 @@
 
 
 3.10
+ * CQLSSTableWriter does not allow Update statement (CASSANDRA-12450)
  * Config class uses boxed types but DD exposes primitive types (CASSANDRA-12199)
  * Add pre- and post-shutdown hooks to Storage Service (CASSANDRA-12461)
  * Add hint delivery metrics (CASSANDRA-12693)

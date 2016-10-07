@@ -41,6 +41,7 @@ import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.cql3.statements.CreateTypeStatement;
+import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
 import org.apache.cassandra.db.Clustering;
@@ -50,7 +51,6 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -343,7 +343,7 @@ public class CQLSSTableWriter implements Closeable
 
         private CreateTableStatement.RawStatement schemaStatement;
         private final List<CreateTypeStatement> typeStatements;
-        private UpdateStatement.ParsedInsert insertStatement;
+        private ModificationStatement.Parsed insertStatement;
         private IPartitioner partitioner;
 
         private boolean sorted = false;
@@ -391,7 +391,7 @@ public class CQLSSTableWriter implements Closeable
 
         public Builder withType(String typeDefinition) throws SyntaxException
         {
-            typeStatements.add(parseStatement(typeDefinition, CreateTypeStatement.class, "CREATE TYPE"));
+            typeStatements.add(QueryProcessor.parseStatement(typeDefinition, CreateTypeStatement.class, "CREATE TYPE"));
             return this;
         }
 
@@ -411,7 +411,7 @@ public class CQLSSTableWriter implements Closeable
          */
         public Builder forTable(String schema)
         {
-            this.schemaStatement = parseStatement(schema, CreateTableStatement.RawStatement.class, "CREATE TABLE");
+            this.schemaStatement = QueryProcessor.parseStatement(schema, CreateTableStatement.RawStatement.class, "CREATE TABLE");
             return this;
         }
 
@@ -432,14 +432,13 @@ public class CQLSSTableWriter implements Closeable
         }
 
         /**
-         * The INSERT statement defining the order of the values to add for a given CQL row.
+         * The INSERT or UPDATE statement defining the order of the values to add for a given CQL row.
          * <p>
          * Please note that the provided INSERT statement <b>must</b> use a fully-qualified
-         * table name, one that include the keyspace name. Morewover, said statement must use
-         * bind variables since it is those bind variables that will be bound to values by the
-         * resulting writer.
+         * table name, one that include the keyspace name. Moreover, said statement must use
+         * bind variables since these variables will be bound to values by the resulting writer.
          * <p>
-         * This is a mandatory option, and this needs to be called after foTable().
+         * This is a mandatory option.
          *
          * @param insert an insertion statement that defines the order
          * of column values to use.
@@ -450,7 +449,7 @@ public class CQLSSTableWriter implements Closeable
          */
         public Builder using(String insert)
         {
-            this.insertStatement = parseStatement(insert, UpdateStatement.ParsedInsert.class, "INSERT");
+            this.insertStatement = QueryProcessor.parseStatement(insert, ModificationStatement.Parsed.class, "INSERT/UPDATE");
             return this;
         }
 
@@ -584,23 +583,6 @@ public class CQLSSTableWriter implements Closeable
                 throw new IllegalArgumentException("Provided insert statement has no bind variables");
 
             return Pair.create(insert, cqlStatement.boundNames);
-        }
-    }
-
-    private static <T extends ParsedStatement> T parseStatement(String query, Class<T> klass, String type)
-    {
-        try
-        {
-            ParsedStatement stmt = QueryProcessor.parseStatement(query);
-
-            if (!stmt.getClass().equals(klass))
-                throw new IllegalArgumentException("Invalid query, must be a " + type + " statement but was: " + stmt.getClass());
-
-            return klass.cast(stmt);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new IllegalArgumentException(e.getMessage(), e);
         }
     }
 }

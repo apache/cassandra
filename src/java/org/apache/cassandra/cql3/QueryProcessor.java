@@ -546,6 +546,22 @@ public class QueryProcessor implements QueryHandler
         return statement.prepare();
     }
 
+    public static <T extends ParsedStatement> T parseStatement(String queryStr, Class<T> klass, String type) throws SyntaxException
+    {
+        try
+        {
+            ParsedStatement stmt = parseStatement(queryStr);
+
+            if (!klass.isAssignableFrom(stmt.getClass()))
+                throw new IllegalArgumentException("Invalid query, must be a " + type + " statement but was: " + stmt.getClass());
+
+            return klass.cast(stmt);
+        }
+        catch (RequestValidationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
+    }
     public static ParsedStatement parseStatement(String queryStr) throws SyntaxException
     {
         try
@@ -622,7 +638,7 @@ public class QueryProcessor implements QueryHandler
             while (iterator.hasNext())
             {
                 Map.Entry<MD5Digest, ParsedStatement.Prepared> entry = iterator.next();
-                if (shouldInvalidate(ksName, cfName, entry.getValue().statement)) 
+                if (shouldInvalidate(ksName, cfName, entry.getValue().statement))
                 {
                     SystemKeyspace.removePreparedStatement(entry.getKey());
                     iterator.remove();
