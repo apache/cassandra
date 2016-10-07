@@ -12,6 +12,7 @@
  * Backport CASSANDRA-10756 (race condition in NativeTransportService shutdown) (CASSANDRA-12472)
  * If CF has no clustering columns, any row cache is full partition cache (CASSANDRA-12499)
 Merged from 2.2:
+ * Fix leak errors and execution rejected exceptions when draining (CASSANDRA-12457)
  * Fix merkle tree depth calculation (CASSANDRA-12580)
  * Make Collections deserialization more robust (CASSANDRA-12618)
  * Fix exceptions when enabling gossip on nodes that haven't joined the ring (CASSANDRA-12253)
