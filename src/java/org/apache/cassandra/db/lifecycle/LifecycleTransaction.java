@@ -95,6 +95,12 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
             update.clear();
             obsolete.clear();
         }
+
+        @Override
+        public String toString()
+        {
+            return String.format("[obsolete: %s, update: %s]", obsolete, update);
+        }
     }
 
     public final Tracker tracker;
@@ -201,7 +207,9 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     public Throwable doCommit(Throwable accumulate)
     {
         assert staged.isEmpty() : "must be no actions introduced between prepareToCommit and a commit";
-        logger.trace("Committing update:{}, obsolete:{}", staged.update, staged.obsolete);
+
+        if (logger.isTraceEnabled())
+            logger.trace("Committing transaction over {} staged: {}, logged: {}", originals, staged, logged);
 
         // accumulate must be null if we have been used correctly, so fail immediately if it is not
         maybeFail(accumulate);
@@ -227,7 +235,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     public Throwable doAbort(Throwable accumulate)
     {
         if (logger.isTraceEnabled())
-            logger.trace("Aborting transaction over {}, with ({},{}) logged and ({},{}) staged", originals, logged.update, logged.obsolete, staged.update, staged.obsolete);
+            logger.trace("Aborting transaction over {} staged: {}, logged: {}", originals, staged, logged);
 
         accumulate = abortObsoletion(obsoletions, accumulate);
 
@@ -291,7 +299,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     private Throwable checkpoint(Throwable accumulate)
     {
         if (logger.isTraceEnabled())
-            logger.trace("Checkpointing update:{}, obsolete:{}", staged.update, staged.obsolete);
+            logger.trace("Checkpointing staged {}", staged);
 
         if (staged.isEmpty())
             return accumulate;

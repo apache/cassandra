@@ -54,7 +54,7 @@ public class DebuggableScheduledThreadPoolExecutor extends ScheduledThreadPoolEx
                 if (task instanceof Future)
                     ((Future) task).cancel(false);
 
-                logger.trace("ScheduledThreadPoolExecutor has shut down as part of C* shutdown");
+                logger.debug("ScheduledThreadPoolExecutor has shut down as part of C* shutdown");
             }
             else
             {
