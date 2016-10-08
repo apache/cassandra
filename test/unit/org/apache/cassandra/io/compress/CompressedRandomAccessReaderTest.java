@@ -21,6 +21,7 @@ package org.apache.cassandra.io.compress;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.Arrays;
 import java.util.Random;
 
 import org.junit.Test;
@@ -176,6 +177,9 @@ public class CompressedRandomAccessReaderTest
         }
     }
 
+    /**
+     * If the data read out doesn't match the checksum, an exception should be thrown
+     */
     @Test
     public void testDataCorruptionDetection() throws IOException
     {
@@ -206,59 +210,49 @@ public class CompressedRandomAccessReaderTest
             try(RandomAccessReader reader = new CompressedRandomAccessReader.Builder(channel, meta).build())
             {// read and verify compressed data
                 assertEquals(CONTENT, reader.readLine());
+            }
 
-                Random random = new Random();
-                RandomAccessFile checksumModifier = null;
+            Random random = new Random();
+            try(RandomAccessFile checksumModifier = new RandomAccessFile(file, "rw"))
+            {
+                byte[] checksum = new byte[4];
 
-                try
+                // seek to the end of the compressed chunk
+                checksumModifier.seek(chunk.length);
+                // read checksum bytes
+                checksumModifier.read(checksum);
+
+                byte[] corruptChecksum = new byte[4];
+                do
                 {
-                    checksumModifier = new RandomAccessFile(file, "rw");
-                    byte[] checksum = new byte[4];
+                    random.nextBytes(corruptChecksum);
+                } while (Arrays.equals(corruptChecksum, checksum));
 
-                    // seek to the end of the compressed chunk
-                    checksumModifier.seek(chunk.length);
-                    // read checksum bytes
-                    checksumModifier.read(checksum);
-                    // seek back to the chunk end
-                    checksumModifier.seek(chunk.length);
+                updateChecksum(checksumModifier, chunk.length, corruptChecksum);
 
-                    // lets modify one byte of the checksum on each iteration
-                    for (int i = 0; i < checksum.length; i++)
+                try (final RandomAccessReader r = new CompressedRandomAccessReader.Builder(channel, meta).build())
+                {
+                    Throwable exception = null;
+                    try
                     {
-                        checksumModifier.write(random.nextInt());
-                        SyncUtil.sync(checksumModifier); // making sure that change was synced with disk
-
-                        try (final RandomAccessReader r = new CompressedRandomAccessReader.Builder(channel, meta).build())
-                        {
-                            Throwable exception = null;
-                            try
-                            {
-                                r.readLine();
-                            }
-                            catch (Throwable t)
-                            {
-                                exception = t;
-                            }
-                            assertNotNull(exception);
-                            assertSame(exception.getClass(), CorruptSSTableException.class);
-                            assertSame(exception.getCause().getClass(), CorruptBlockException.class);
-                        }
+                        r.readLine();
                     }
-
-                    // lets write original checksum and check if we can read data
-                    updateChecksum(checksumModifier, chunk.length, checksum);
-
-                    try (RandomAccessReader cr = new CompressedRandomAccessReader.Builder(channel, meta).build())
+                    catch (Throwable t)
                     {
-                        // read and verify compressed data
-                        assertEquals(CONTENT, cr.readLine());
-                        // close reader
+                        exception = t;
                     }
+                    assertNotNull(exception);
+                    assertSame(exception.getClass(), CorruptSSTableException.class);
+                    assertSame(exception.getCause().getClass(), CorruptBlockException.class);
                 }
-                finally
+
+                // lets write original checksum and check if we can read data
+                updateChecksum(checksumModifier, chunk.length, checksum);
+
+                // read and verify compressed data
+                try (RandomAccessReader cr = new CompressedRandomAccessReader.Builder(channel, meta).build())
                 {
-                    if (checksumModifier != null)
-                        checksumModifier.close();
+                    assertEquals(CONTENT, cr.readLine());
                 }
             }
         }
