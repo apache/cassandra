@@ -303,7 +303,8 @@ public class SerializationHeader
                     // If we don't find the definition, it could be we have data for a dropped column, and we shouldn't
                     // fail deserialization because of that. So we grab a "fake" ColumnDefinition that ensure proper
                     // deserialization. The column will be ignore later on anyway.
-                    column = metadata.getDroppedColumnDefinition(name);
+                    boolean isStatic = staticColumns.containsKey(name);
+                    column = metadata.getDroppedColumnDefinition(name, isStatic);
                     if (column == null)
                         throw new RuntimeException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
                 }

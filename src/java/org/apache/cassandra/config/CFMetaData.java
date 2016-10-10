@@ -690,11 +690,19 @@ public final class CFMetaData
         return droppedColumns;
     }
 
+    public ColumnDefinition getDroppedColumnDefinition(ByteBuffer name)
+    {
+        return getDroppedColumnDefinition(name, false);
+    }
+
     /**
      * Returns a "fake" ColumnDefinition corresponding to the dropped column {@code name}
      * of {@code null} if there is no such dropped column.
+     *
+     * @param name - the column name
+     * @param isStatic - whether the column was a static column, if known
      */
-    public ColumnDefinition getDroppedColumnDefinition(ByteBuffer name)
+    public ColumnDefinition getDroppedColumnDefinition(ByteBuffer name, boolean isStatic)
     {
         DroppedColumn dropped = droppedColumns.get(name);
         if (dropped == null)
@@ -704,7 +712,9 @@ public final class CFMetaData
         // it means that it's a dropped column from before 3.0, and in that case using
         // BytesType is fine for what we'll be using it for, even if that's a hack.
         AbstractType<?> type = dropped.type == null ? BytesType.instance : dropped.type;
-        return ColumnDefinition.regularDef(this, name, type);
+        return isStatic
+               ? ColumnDefinition.staticDef(this, name, type)
+               : ColumnDefinition.regularDef(this, name, type);
     }
 
     @Override
