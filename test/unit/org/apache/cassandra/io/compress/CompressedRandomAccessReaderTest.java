@@ -21,6 +21,7 @@ package org.apache.cassandra.io.compress;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.Arrays;
 import java.util.Random;
 
 import org.junit.BeforeClass;
@@ -169,6 +170,9 @@ public class CompressedRandomAccessReaderTest
         }
     }
 
+    /**
+     * If the data read out doesn't match the checksum, an exception should be thrown
+     */
     @Test
     public void testDataCorruptionDetection() throws IOException
     {
@@ -201,59 +205,48 @@ public class CompressedRandomAccessReaderTest
              RandomAccessReader reader = fh.createReader())
         {// read and verify compressed data
             assertEquals(CONTENT, reader.readLine());
-
             Random random = new Random();
-            RandomAccessFile checksumModifier = null;
-
-            try
+            try(RandomAccessFile checksumModifier = new RandomAccessFile(file, "rw"))
             {
-                checksumModifier = new RandomAccessFile(file, "rw");
                 byte[] checksum = new byte[4];
 
                 // seek to the end of the compressed chunk
                 checksumModifier.seek(chunk.length);
                 // read checksum bytes
                 checksumModifier.read(checksum);
-                // seek back to the chunk end
-                checksumModifier.seek(chunk.length);
 
-                // lets modify one byte of the checksum on each iteration
-                for (int i = 0; i < checksum.length; i++)
+                byte[] corruptChecksum = new byte[4];
+                do
                 {
-                    checksumModifier.write(random.nextInt());
-                    SyncUtil.sync(checksumModifier); // making sure that change was synced with disk
+                    random.nextBytes(corruptChecksum);
+                } while (Arrays.equals(corruptChecksum, checksum));
 
-                    try (final RandomAccessReader r = fh.createReader())
+                updateChecksum(checksumModifier, chunk.length, corruptChecksum);
+
+                try (final RandomAccessReader r = fh.createReader())
+                {
+                    Throwable exception = null;
+                    try
                     {
-                        Throwable exception = null;
-                        try
-                        {
-                            r.readLine();
-                        }
-                        catch (Throwable t)
-                        {
-                            exception = t;
-                        }
-                        assertNotNull(exception);
-                        assertSame(exception.getClass(), CorruptSSTableException.class);
-                        assertSame(exception.getCause().getClass(), CorruptBlockException.class);
+                        r.readLine();
                     }
+                    catch (Throwable t)
+                    {
+                        exception = t;
+                    }
+                    assertNotNull(exception);
+                    assertSame(exception.getClass(), CorruptSSTableException.class);
+                    assertSame(exception.getCause().getClass(), CorruptBlockException.class);
                 }
 
                 // lets write original checksum and check if we can read data
                 updateChecksum(checksumModifier, chunk.length, checksum);
 
+                // read and verify compressed data
                 try (RandomAccessReader cr = fh.createReader())
                 {
-                    // read and verify compressed data
                     assertEquals(CONTENT, cr.readLine());
-                    // close reader
                 }
-            }
-            finally
-            {
-                if (checksumModifier != null)
-                    checksumModifier.close();
             }
         }
     }
