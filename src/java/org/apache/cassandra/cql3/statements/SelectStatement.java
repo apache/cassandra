@@ -141,13 +141,19 @@ public class SelectStatement implements CQLStatement
         if (selection.isWildcard())
             return ColumnFilter.all(cfm);
 
-        ColumnFilter.Builder builder = ColumnFilter.allColumnsBuilder(cfm);
+        ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(cfm);
         // Adds all selected columns
         for (ColumnDefinition def : selection.getColumns())
             if (!def.isPrimaryKeyColumn())
                 builder.add(def);
         // as well as any restricted column (so we can actually apply the restriction)
         builder.addAll(restrictions.nonPKRestrictedColumns(true));
+
+        // In a number of cases, we want to distinguish between a partition truly empty and one with only static content
+        // (but no rows). In those cases, we should force querying all static columns (to make the distinction).
+        if (cfm.hasStaticColumns() && returnStaticContentOnPartitionWithNoRows())
+            builder.addAll(cfm.partitionColumns().statics);
+
         return builder.build();
     }
 
@@ -734,6 +740,20 @@ public class SelectStatement implements CQLStatement
         }
     }
 
+    // Determines whether, when we have a partition result with not rows, we still return the static content (as a
+    // result set row with null for all other regular columns.)
+    private boolean returnStaticContentOnPartitionWithNoRows()
+    {
+        // The general rational is that if some rows are specifically selected by the query, we ignore partitions that
+        // are empty outside of static content, but if it's a full partition query, then we include that content.
+        // In practice, we consider rows are specifically selected if either there is some restrictions on the
+        // clustering columns or it's a 2ndary index query (the later is debatable but historical). An exception however
+        // is 'static compact' table, for which 2ndary index indexes full partition (and so for which we consider 2ndary
+        // indexquery to be full partition query).
+        return !restrictions.hasClusteringColumnsRestriction()
+            && (!restrictions.usesSecondaryIndexing() || cfm.isStaticCompactTable());
+    }
+
     // Used by ModificationStatement for CAS operations
     void processPartition(RowIterator partition, QueryOptions options, Selection.ResultSetBuilder result, int nowInSec)
     throws InvalidRequestException
@@ -744,12 +764,10 @@ public class SelectStatement implements CQLStatement
 
         Row staticRow = partition.staticRow();
         // If there is no rows, then provided the select was a full partition selection
-        // (i.e. not a 2ndary index search and there was no condition on clustering columns),
         // we want to include static columns and we're done.
         if (!partition.hasNext())
         {
-            if (!staticRow.isEmpty() && (!restrictions.usesSecondaryIndexing() || cfm.isStaticCompactTable())
-                    && !restrictions.hasClusteringColumnsRestriction())
+            if (!staticRow.isEmpty() && returnStaticContentOnPartitionWithNoRows())
             {
                 result.newRow(protocolVersion);
                 for (ColumnDefinition def : selection.getColumns())
