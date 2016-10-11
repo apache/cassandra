@@ -57,6 +57,8 @@ import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.*;
 
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+
 public class QueryProcessor implements QueryHandler
 {
     public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.3");
@@ -437,13 +439,23 @@ public class QueryProcessor implements QueryHandler
         {
             Integer thriftStatementId = computeThriftId(queryString, keyspace);
             ParsedStatement.Prepared existing = thriftPreparedStatements.get(thriftStatementId);
-            return existing == null ? null : ResultMessage.Prepared.forThrift(thriftStatementId, existing.boundNames);
+            if (existing == null)
+                return null;
+
+            checkTrue(queryString.equals(existing.rawCQLStatement),
+                      String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.rawCQLStatement));
+            return ResultMessage.Prepared.forThrift(thriftStatementId, existing.boundNames);
         }
         else
         {
             MD5Digest statementId = computeId(queryString, keyspace);
             ParsedStatement.Prepared existing = preparedStatements.get(statementId);
-            return existing == null ? null : new ResultMessage.Prepared(statementId, existing);
+            if (existing == null)
+                return null;
+
+            checkTrue(queryString.equals(existing.rawCQLStatement),
+                      String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.rawCQLStatement));
+            return new ResultMessage.Prepared(statementId, existing);
         }
     }
 
