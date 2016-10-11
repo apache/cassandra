@@ -52,7 +52,7 @@ public class TraceState implements ProgressEventNotifier
 {
     private static final Logger logger = LoggerFactory.getLogger(TraceState.class);
     private static final int WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS =
-    Integer.valueOf(System.getProperty("cassandra.wait_for_tracing_events_timeout_secs", "1"));
+    Integer.valueOf(System.getProperty("cassandra.wait_for_tracing_events_timeout_secs", "0"));
 
     public final UUID sessionId;
     public final InetAddress coordinator;

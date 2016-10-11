@@ -1,4 +1,5 @@
 2.2.9
+ * Change cassandra.wait_for_tracing_events_timeout_secs default to 0 (CASSANDRA-12754)
  * Clean up permissions when a UDA is dropped (CASSANDRA-12720)
  * Limit colUpdateTimeDelta histogram updates to reasonable deltas (CASSANDRA-11117)
  * Fix leak errors and execution rejected exceptions when draining (CASSANDRA-12457)
