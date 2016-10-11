@@ -73,6 +73,23 @@ import Parser,Lexer;
     {
         gParser.addRecognitionError(msg);
     }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Recovery methods are overridden to avoid wasting work on recovering from errors when the result will be
+    // ignored anyway.
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    @Override
+    protected Object recoverFromMismatchedToken(IntStream input, int ttype, BitSet follow) throws RecognitionException
+    {
+        throw new MismatchedTokenException(ttype, input);
+    }
+
+    @Override
+    public void recover(IntStream input, RecognitionException re)
+    {
+        // Do nothing.
+    }
 }
 
 @lexer::header {

@@ -1381,14 +1381,14 @@ public class AggregationTest extends CQLTester
                              "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
                              "INITCOND 1");
 
-        assertInvalidMessage("missing EOF", // specifying a function using "keyspace.functionname" is a syntax error
+        assertInvalidMessage("expecting EOF", // specifying a function using "keyspace.functionname" is a syntax error
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE " + type + " " +
                              "FINALFUNC " + fFinalWrong + ' ' +
                              "INITCOND 1");
 
-        assertInvalidMessage("missing EOF", // specifying a function using "keyspace.functionname" is a syntax error
+        assertInvalidMessage("expecting EOF", // specifying a function using "keyspace.functionname" is a syntax error
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE " + type + ' ' +

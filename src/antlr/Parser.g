@@ -181,6 +181,22 @@ options {
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Recovery methods are overridden to avoid wasting work on recovering from errors when the result will be
+    // ignored anyway.
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    @Override
+    protected Object recoverFromMismatchedToken(IntStream input, int ttype, BitSet follow) throws RecognitionException
+    {
+        throw new MismatchedTokenException(ttype, input);
+    }
+
+    @Override
+    public void recover(IntStream input, RecognitionException re)
+    {
+        // Do nothing.
+    }
 }
 
 /** STATEMENTS **/
@@ -411,12 +427,12 @@ updateStatement returns [UpdateStatement.ParsedUpdate expr]
       K_WHERE wclause=whereClause
       ( K_IF ( K_EXISTS { ifExists = true; } | conditions=updateConditions ))?
       {
-          return new UpdateStatement.ParsedUpdate(cf,
-                                                  attrs,
-                                                  operations,
-                                                  wclause.build(),
-                                                  conditions == null ? Collections.<Pair<ColumnDefinition.Raw, ColumnCondition.Raw>>emptyList() : conditions,
-                                                  ifExists);
+          $expr = new UpdateStatement.ParsedUpdate(cf,
+                                                   attrs,
+                                                   operations,
+                                                   wclause.build(),
+                                                   conditions == null ? Collections.<Pair<ColumnDefinition.Raw, ColumnCondition.Raw>>emptyList() : conditions,
+                                                   ifExists);
      }
     ;
 
@@ -445,12 +461,12 @@ deleteStatement returns [DeleteStatement.Parsed expr]
       K_WHERE wclause=whereClause
       ( K_IF ( K_EXISTS { ifExists = true; } | conditions=updateConditions ))?
       {
-          return new DeleteStatement.Parsed(cf,
-                                            attrs,
-                                            columnDeletions,
-                                            wclause.build(),
-                                            conditions == null ? Collections.<Pair<ColumnDefinition.Raw, ColumnCondition.Raw>>emptyList() : conditions,
-                                            ifExists);
+          $expr = new DeleteStatement.Parsed(cf,
+                                             attrs,
+                                             columnDeletions,
+                                             wclause.build(),
+                                             conditions == null ? Collections.<Pair<ColumnDefinition.Raw, ColumnCondition.Raw>>emptyList() : conditions,
+                                             ifExists);
       }
     ;
 
@@ -506,7 +522,7 @@ batchStatement returns [BatchStatement.Parsed expr]
           ( s=batchStatementObjective ';'? { statements.add(s); } )*
       K_APPLY K_BATCH
       {
-          return new BatchStatement.Parsed(type, attrs, statements);
+          $expr = new BatchStatement.Parsed(type, attrs, statements);
       }
     ;
 
@@ -1197,12 +1213,12 @@ columnFamilyName returns [CFName name]
     ;
 
 userTypeName returns [UTName name]
-    : (ks=noncol_ident '.')? ut=non_type_ident { return new UTName(ks, ut); }
+    : (ks=noncol_ident '.')? ut=non_type_ident { $name = new UTName(ks, ut); }
     ;
 
 userOrRoleName returns [RoleName name]
-    @init { $name = new RoleName(); }
-    : roleName[name] {return $name;}
+    @init { RoleName role = new RoleName(); }
+    : roleName[role] {$name = role;}
     ;
 
 ksName[KeyspaceElementName name]
