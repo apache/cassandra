@@ -36,7 +36,7 @@ public class CqlParserTest
         SyntaxErrorCounter firstCounter = new SyntaxErrorCounter();
         SyntaxErrorCounter secondCounter = new SyntaxErrorCounter();
 
-        CharStream stream = new ANTLRStringStream("SELECT * FORM users");
+        CharStream stream = new ANTLRStringStream("SELECT * FORM FROM test");
         CqlLexer lexer = new CqlLexer(stream);
 
         TokenStream tokenStream = new CommonTokenStream(lexer);
@@ -44,11 +44,14 @@ public class CqlParserTest
         parser.addErrorListener(firstCounter);
         parser.addErrorListener(secondCounter);
 
-        parser.query();
+        // By default CqlParser should recover from the syntax error by removing FORM
+        // but as recoverFromMismatchedToken and recover have been overloaded, it will not
+        // and the returned ParsedStatement will be null.
+        assertNull(parser.query());
 
-        // ANTLR 3.5 reports 2 errors in the sentence above (missing FROM and missing EOF).
-        assertTrue(firstCounter.count > 0);
-        assertTrue(secondCounter.count > 0);
+        // Only one error must be reported (mismatched: FORM).
+        assertEquals(1, firstCounter.count);
+        assertEquals(1, secondCounter.count);
     }
 
     @Test
@@ -68,7 +71,7 @@ public class CqlParserTest
 
         parser.query();
 
-        assertTrue(firstCounter.count > 0);
+        assertEquals(1, firstCounter.count);
         assertEquals(0, secondCounter.count);
     }
 
