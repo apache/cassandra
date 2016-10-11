@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.dht.IPartitioner;
@@ -40,6 +41,7 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
@@ -354,6 +356,11 @@ public class CQLSSTableWriter implements Closeable
             {
                 synchronized (CQLSSTableWriter.class)
                 {
+                    if (Schema.instance.getKSMetaData(SchemaKeyspace.NAME) == null)
+                        Schema.instance.load(SchemaKeyspace.metadata());
+                    if (Schema.instance.getKSMetaData(SystemKeyspace.NAME) == null)
+                        Schema.instance.load(SystemKeyspace.metadata());
+
                     this.schema = getTableMetadata(schema);
 
                     // We need to register the keyspace/table metadata through Schema, otherwise we won't be able to properly

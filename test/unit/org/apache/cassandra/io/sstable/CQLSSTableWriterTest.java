@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
@@ -42,10 +43,13 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 
 public class CQLSSTableWriterTest
 {
@@ -94,24 +98,7 @@ public class CQLSSTableWriterTest
 
             writer.close();
 
-            SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
-            {
-                private String keyspace;
-
-                public void init(String keyspace)
-                {
-                    this.keyspace = keyspace;
-                    for (Range<Token> range : StorageService.instance.getLocalRanges("cql_keyspace"))
-                        addRangeForEndpoint(range, FBUtilities.getBroadcastAddress());
-                }
-
-                public CFMetaData getTableMetadata(String cfName)
-                {
-                    return Schema.instance.getCFMetaData(keyspace, cfName);
-                }
-            }, new OutputHandler.SystemOutput(false, false));
-
-            loader.stream().get();
+            loadSSTables(dataDir, KS);
 
             UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace.table1;");
             assertEquals(4, rs.size());
@@ -142,7 +129,7 @@ public class CQLSSTableWriterTest
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testForbidCounterUpdates() throws Exception
     {
         String KS = "cql_keyspace";
@@ -158,10 +145,18 @@ public class CQLSSTableWriterTest
                         "  PRIMARY KEY (my_id)" +
                         ")";
         String insert = String.format("UPDATE cql_keyspace.counter1 SET my_counter = my_counter - ? WHERE my_id = ?");
-        CQLSSTableWriter.builder().inDirectory(dataDir)
-                        .forTable(schema)
-                        .withPartitioner(Murmur3Partitioner.instance)
-                        .using(insert).build();
+        try
+        {
+            CQLSSTableWriter.builder().inDirectory(dataDir)
+                            .forTable(schema)
+                            .withPartitioner(Murmur3Partitioner.instance)
+                            .using(insert).build();
+            fail("Counter update statements should not be supported");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertEquals(e.getMessage(), "Counter update statements are not supported");
+        }
     }
 
     @Test
@@ -230,7 +225,102 @@ public class CQLSSTableWriterTest
 
     }
 
+    @Test
+    public void testUpdateStatement() throws Exception
+    {
+        final String KS = "cql_keyspace6";
+        final String TABLE = "table6";
 
+        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+                              + "  k int,"
+                              + "  c1 int,"
+                              + "  c2 int,"
+                              + "  v text,"
+                              + "  PRIMARY KEY (k, c1, c2)"
+                              + ")";
+
+        File tempdir = Files.createTempDir();
+        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
+        assert dataDir.mkdirs();
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("UPDATE " + KS + "." + TABLE + " SET v = ? " +
+                                                         "WHERE k = ? AND c1 = ? AND c2 = ?")
+                                                  .build();
+
+        writer.addRow("a", 1, 2, 3);
+        writer.addRow("b", 4, 5, 6);
+        writer.addRow(null, 7, 8, 9);
+        writer.close();
+        loadSSTables(dataDir, KS);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+        assertEquals(2, resultSet.size());
+
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        UntypedResultSet.Row r1 = iter.next();
+        assertEquals(1, r1.getInt("k"));
+        assertEquals(2, r1.getInt("c1"));
+        assertEquals(3, r1.getInt("c2"));
+        assertEquals("a", r1.getString("v"));
+        UntypedResultSet.Row r2 = iter.next();
+        assertEquals(4, r2.getInt("k"));
+        assertEquals(5, r2.getInt("c1"));
+        assertEquals(6, r2.getInt("c2"));
+        assertEquals("b", r2.getString("v"));
+        assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void testNativeFunctions() throws Exception
+    {
+        final String KS = "cql_keyspace7";
+        final String TABLE = "table7";
+
+        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+                              + "  k int,"
+                              + "  c1 int,"
+                              + "  c2 int,"
+                              + "  v blob,"
+                              + "  PRIMARY KEY (k, c1, c2)"
+                              + ")";
+
+        File tempdir = Files.createTempDir();
+        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
+        assert dataDir.mkdirs();
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + KS + "." + TABLE + " (k, c1, c2, v) VALUES (?, ?, ?, textAsBlob(?))")
+                                                  .build();
+
+        writer.addRow(1, 2, 3, "abc");
+        writer.addRow(4, 5, 6, "efg");
+
+        writer.close();
+        loadSSTables(dataDir, KS);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+        assertEquals(2, resultSet.size());
+
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        UntypedResultSet.Row r1 = iter.next();
+        assertEquals(1, r1.getInt("k"));
+        assertEquals(2, r1.getInt("c1"));
+        assertEquals(3, r1.getInt("c2"));
+        assertEquals(ByteBufferUtil.bytes("abc"), r1.getBytes("v"));
+
+        UntypedResultSet.Row r2 = iter.next();
+        assertEquals(4, r2.getInt("k"));
+        assertEquals(5, r2.getInt("c1"));
+        assertEquals(6, r2.getInt("c2"));
+        assertEquals(ByteBufferUtil.bytes("efg"), r2.getBytes("v"));
+
+        assertFalse(iter.hasNext());
+    }
 
     private static final int NUMBER_WRITES_IN_RUNNABLE = 10;
     private class WriterThread extends Thread
@@ -302,6 +392,14 @@ public class CQLSSTableWriterTest
             }
         }
 
+        loadSSTables(dataDir, KS);
+
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace2.table2;");
+        assertEquals(threads.length * NUMBER_WRITES_IN_RUNNABLE, rs.size());
+    }
+
+    private static void loadSSTables(File dataDir, String ks) throws ExecutionException, InterruptedException
+    {
         SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
         {
             private String keyspace;
@@ -309,7 +407,7 @@ public class CQLSSTableWriterTest
             public void init(String keyspace)
             {
                 this.keyspace = keyspace;
-                for (Range<Token> range : StorageService.instance.getLocalRanges(KS))
+                for (Range<Token> range : StorageService.instance.getLocalRanges(ks))
                     addRangeForEndpoint(range, FBUtilities.getBroadcastAddress());
             }
 
@@ -320,8 +418,5 @@ public class CQLSSTableWriterTest
         }, new OutputHandler.SystemOutput(false, false));
 
         loader.stream().get();
-
-        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace2.table2;");
-        assertEquals(threads.length * NUMBER_WRITES_IN_RUNNABLE, rs.size());
     }
 }
