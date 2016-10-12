@@ -82,11 +82,23 @@ public class CassandraRoleManager implements IRoleManager
     {
         public Role apply(UntypedResultSet.Row row)
         {
-            return new Role(row.getString("role"),
-                            row.getBoolean("is_superuser"),
-                            row.getBoolean("can_login"),
-                            row.has("member_of") ? row.getSet("member_of", UTF8Type.instance)
-                                                 : Collections.<String>emptySet());
+            try
+            {
+                return new Role(row.getString("role"),
+                         row.getBoolean("is_superuser"),
+                         row.getBoolean("can_login"),
+                         row.has("member_of") ? row.getSet("member_of", UTF8Type.instance)
+                                              : Collections.<String>emptySet());
+            }
+            // Failing to deserialize a boolean in is_superuser or can_login will throw an NPE
+            catch (NullPointerException e)
+            {
+                logger.warn("An invalid value has been detected in the {} table for role {}. If you are " +
+                            "unable to login, you may need to disable authentication and confirm " +
+                            "that values in that table are accurate", AuthKeyspace.ROLES, row.getString("role"));
+                throw new RuntimeException(String.format("Invalid metadata has been detected for role %s", row.getString("role")), e);
+            }
+
         }
     };
 
