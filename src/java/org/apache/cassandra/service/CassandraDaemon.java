@@ -164,6 +164,10 @@ public class CassandraDaemon
         if (FBUtilities.isWindows())
             WindowsFailedSnapshotTracker.deleteOldSnapshots();
 
+        maybeInitJmx();
+
+        Mx4jTool.maybeLoad();
+
         ThreadAwareSecurityManager.install();
 
         logSystemInfo();
@@ -194,8 +198,6 @@ public class CassandraDaemon
         // We need to persist this as soon as possible after startup checks.
         // This should be the first write to SystemKeyspace (CASSANDRA-11742)
         SystemKeyspace.persistLocalMetadata();
-
-        maybeInitJmx();
 
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
         {
@@ -348,8 +350,6 @@ public class CassandraDaemon
             System.err.println(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.");
             exitOrFail(1, "Fatal configuration error", e);
         }
-
-        Mx4jTool.maybeLoad();
 
         // Metrics
         String metricsReporterConfigFile = System.getProperty("cassandra.metricsReporterConfigFile");
