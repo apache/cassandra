@@ -18,7 +18,7 @@ Merged from 2.2:
  * Fix merkle tree depth calculation (CASSANDRA-12580)
  * Make Collections deserialization more robust (CASSANDRA-12618)
  * Fix exceptions when enabling gossip on nodes that haven't joined the ring (CASSANDRA-12253)
- * Fix authentication problem when invoking clqsh copy from a SOURCE command (CASSANDRA-12642)
+ * Fix authentication problem when invoking cqlsh copy from a SOURCE command (CASSANDRA-12642)
  * Decrement pending range calculator jobs counter in finally block
   (CASSANDRA-12554)
 Merged from 2.1:
