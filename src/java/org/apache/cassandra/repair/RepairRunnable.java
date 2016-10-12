@@ -289,9 +289,18 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                 // filter out null(=failed) results and get successful ranges
                 for (RepairSessionResult sessionResult : results)
                 {
+                    logger.debug("Repair result: {}", results);
                     if (sessionResult != null)
                     {
-                        successfulRanges.addAll(sessionResult.ranges);
+                        // don't promote sstables for sessions we skipped replicas for
+                        if (!sessionResult.skippedReplicas)
+                        {
+                            successfulRanges.addAll(sessionResult.ranges);
+                        }
+                        else
+                        {
+                            logger.debug("Skipping anticompaction for {}", results);
+                        }
                     }
                     else
                     {
@@ -424,6 +433,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                                                                                      p.left,
                                                                                      isConsistent,
                                                                                      options.isPullRepair(),
+                                                                                     options.isForcedRepair(),
                                                                                      options.getPreviewKind(),
                                                                                      executor,
                                                                                      cfnames);

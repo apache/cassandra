@@ -1,4 +1,6 @@
 4.0
+ * Run repair with down replicas (CASSANDRA-10446)
+ * Added started & completed repair metrics (CASSANDRA-13598)
  * Added started & completed repair metrics (CASSANDRA-13598)
  * Improve secondary index (re)build failure and concurrency handling (CASSANDRA-10130)
  * Improve calculation of available disk space for compaction (CASSANDRA-13068)

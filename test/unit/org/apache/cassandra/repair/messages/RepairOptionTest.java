@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
@@ -159,6 +160,27 @@ public class RepairOptionTest
         options.put(RepairOption.HOSTS_KEY, "127.0.0.1, 127.0.0.2");
         assertParseThrowsIllegalArgumentExceptionWithMessage(options, "Incremental repairs cannot be run against a subset of tokens or ranges");
 
+    }
+
+    @Test
+    public void testForceOption() throws Exception
+    {
+        RepairOption option;
+        Map<String, String> options = new HashMap<>();
+
+        // default value
+        option = RepairOption.parse(options, Murmur3Partitioner.instance);
+        Assert.assertFalse(option.isForcedRepair());
+
+        // explicit true
+        options.put(RepairOption.FORCE_REPAIR_KEY, "true");
+        option = RepairOption.parse(options, Murmur3Partitioner.instance);
+        Assert.assertTrue(option.isForcedRepair());
+
+        // explicit false
+        options.put(RepairOption.FORCE_REPAIR_KEY, "false");
+        option = RepairOption.parse(options, Murmur3Partitioner.instance);
+        Assert.assertFalse(option.isForcedRepair());
     }
 
     private void assertParseThrowsIllegalArgumentExceptionWithMessage(Map<String, String> optionsToParse, String expectedErrorMessage)
