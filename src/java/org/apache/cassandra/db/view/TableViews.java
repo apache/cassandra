@@ -46,7 +46,8 @@ public class TableViews extends AbstractCollection<View>
     private final CFMetaData baseTableMetadata;
 
     // We need this to be thread-safe, but the number of times this is changed (when a view is created in the keyspace)
-    // massively exceeds the number of time it's read (for every mutation on the keyspace), so a copy-on-write list is the best option.
+    // is massively exceeded by the number of times it's read (for every mutation on the keyspace), so a copy-on-write
+    // list is the best option.
     private final List<View> views = new CopyOnWriteArrayList();
 
     public TableViews(CFMetaData baseTableMetadata)
@@ -138,13 +139,14 @@ public class TableViews extends AbstractCollection<View>
              UnfilteredRowIterator existings = UnfilteredPartitionIterators.getOnlyElement(command.executeLocally(orderGroup), command);
              UnfilteredRowIterator updates = update.unfilteredIterator())
         {
-            mutations = generateViewUpdates(views, updates, existings, nowInSec);
+            mutations = Iterators.getOnlyElement(generateViewUpdates(views, updates, existings, nowInSec, false));
         }
         Keyspace.openAndGetStore(update.metadata()).metric.viewReadTime.update(System.nanoTime() - start, TimeUnit.NANOSECONDS);
 
         if (!mutations.isEmpty())
             StorageProxy.mutateMV(update.partitionKey().getKey(), mutations, writeCommitLog, baseComplete, queryStartNanoTime);
     }
+
 
     /**
      * Given some updates on the base table of this object and the existing values for the rows affected by that update, generates the
@@ -160,7 +162,11 @@ public class TableViews extends AbstractCollection<View>
      * @param nowInSec the current time in seconds.
      * @return the mutations to apply to the {@code views}. This can be empty.
      */
-    public Collection<Mutation> generateViewUpdates(Collection<View> views, UnfilteredRowIterator updates, UnfilteredRowIterator existings, int nowInSec)
+    public Iterator<Collection<Mutation>> generateViewUpdates(Collection<View> views,
+                                                              UnfilteredRowIterator updates,
+                                                              UnfilteredRowIterator existings,
+                                                              int nowInSec,
+                                                              boolean separateUpdates)
     {
         assert updates.metadata().cfId.equals(baseTableMetadata.cfId);
 
@@ -252,18 +258,75 @@ public class TableViews extends AbstractCollection<View>
                 addToViewUpdateGenerators(existingRow, emptyRow(existingRow.clustering(), updatesDeletion.currentDeletion()), generators, nowInSec);
             }
         }
-        while (updatesIter.hasNext())
+
+        if (separateUpdates)
         {
-            Unfiltered update = updatesIter.next();
-            // If it's a range tombstone, it removes nothing pre-exisiting, so we can ignore it for view updates
-            if (update.isRangeTombstoneMarker())
-                continue;
+            final Collection<Mutation> firstBuild = buildMutations(baseTableMetadata, generators);
 
-            Row updateRow = (Row)update;
-            addToViewUpdateGenerators(emptyRow(updateRow.clustering(), DeletionTime.LIVE), updateRow, generators, nowInSec);
+            return new Iterator<Collection<Mutation>>()
+            {
+                // If the previous values are already empty, this update must be either empty or exclusively appending.
+                // In the case we are exclusively appending, we need to drop the build that was passed in and try to build a
+                // new first update instead.
+                // If there are no other updates, next will be null and the iterator will be empty.
+                Collection<Mutation> next = firstBuild.isEmpty()
+                                            ? buildNext()
+                                            : firstBuild;
+
+                private Collection<Mutation> buildNext()
+                {
+                    while (updatesIter.hasNext())
+                    {
+                        Unfiltered update = updatesIter.next();
+                        // If it's a range tombstone, it removes nothing pre-exisiting, so we can ignore it for view updates
+                        if (update.isRangeTombstoneMarker())
+                            continue;
+
+                        Row updateRow = (Row) update;
+                        addToViewUpdateGenerators(emptyRow(updateRow.clustering(), DeletionTime.LIVE), updateRow, generators, nowInSec);
+
+                        // If the updates have been filtered, then we won't have any mutations; we need to make sure that we
+                        // only return if the mutations are empty. Otherwise, we continue to search for an update which is
+                        // not filtered
+                        Collection<Mutation> mutations = buildMutations(baseTableMetadata, generators);
+                        if (!mutations.isEmpty())
+                            return mutations;
+                    }
+
+                    return null;
+                }
+
+                public boolean hasNext()
+                {
+                    return next != null;
+                }
+
+                public Collection<Mutation> next()
+                {
+                    Collection<Mutation> mutations = next;
+
+                    next = buildNext();
+
+                    assert !mutations.isEmpty() : "Expected mutations to be non-empty";
+                    return mutations;
+                }
+            };
         }
+        else
+        {
+            while (updatesIter.hasNext())
+            {
+                Unfiltered update = updatesIter.next();
+                // If it's a range tombstone, it removes nothing pre-exisiting, so we can ignore it for view updates
+                if (update.isRangeTombstoneMarker())
+                    continue;
 
-        return buildMutations(baseTableMetadata, generators);
+                Row updateRow = (Row) update;
+                addToViewUpdateGenerators(emptyRow(updateRow.clustering(), DeletionTime.LIVE), updateRow, generators, nowInSec);
+            }
+
+            return Iterators.singletonIterator(buildMutations(baseTableMetadata, generators));
+        }
     }
 
     /**
@@ -426,10 +489,13 @@ public class TableViews extends AbstractCollection<View>
         // One view is probably common enough and we can optimize a bit easily
         if (generators.size() == 1)
         {
-            Collection<PartitionUpdate> updates = generators.get(0).generateViewUpdates();
+            ViewUpdateGenerator generator = generators.get(0);
+            Collection<PartitionUpdate> updates = generator.generateViewUpdates();
             List<Mutation> mutations = new ArrayList<>(updates.size());
             for (PartitionUpdate update : updates)
                 mutations.add(new Mutation(update));
+
+            generator.clear();
             return mutations;
         }
 
@@ -447,6 +513,7 @@ public class TableViews extends AbstractCollection<View>
                 }
                 mutation.add(update);
             }
+            generator.clear();
         }
         return mutations.values();
     }
