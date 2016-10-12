@@ -144,6 +144,14 @@ public class ViewUpdateGenerator
     }
 
     /**
+     * Clears the current state so that the generator may be reused.
+     */
+    public void clear()
+    {
+        updates.clear();
+    }
+
+    /**
      * Compute which type of action needs to be performed to the view for a base table row
      * before and after an update.
      */

@@ -20,6 +20,7 @@ package org.apache.cassandra.db.view;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -81,17 +82,15 @@ public class ViewBuilder extends CompactionInfo.Holder
         // and pretend that there is nothing pre-existing.
         UnfilteredRowIterator empty = UnfilteredRowIterators.noRowsIterator(baseCfs.metadata, key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, false);
 
-        Collection<Mutation> mutations;
         try (ReadExecutionController orderGroup = command.executionController();
              UnfilteredRowIterator data = UnfilteredPartitionIterators.getOnlyElement(command.executeLocally(orderGroup), command))
         {
-            mutations = baseCfs.keyspace.viewManager.forTable(baseCfs.metadata).generateViewUpdates(Collections.singleton(view), data, empty, nowInSec);
-        }
+            Iterator<Collection<Mutation>> mutations = baseCfs.keyspace.viewManager
+                                                      .forTable(baseCfs.metadata)
+                                                      .generateViewUpdates(Collections.singleton(view), data, empty, nowInSec, true);
 
-        if (!mutations.isEmpty())
-        {
             AtomicLong noBase = new AtomicLong(Long.MAX_VALUE);
-            StorageProxy.mutateMV(key.getKey(), mutations, true, noBase, System.nanoTime());
+            mutations.forEachRemaining(m -> StorageProxy.mutateMV(key.getKey(), m, true, noBase, System.nanoTime()));
         }
     }
 
