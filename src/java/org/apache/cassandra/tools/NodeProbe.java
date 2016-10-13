@@ -25,6 +25,7 @@ import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.rmi.ConnectException;
 import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMISocketFactory;
 import java.util.AbstractMap;
@@ -237,7 +238,15 @@ public class NodeProbe implements AutoCloseable
 
     public void close() throws IOException
     {
-        jmxc.close();
+        try
+        {
+            jmxc.close();
+        }
+        catch (ConnectException e)
+        {
+            // result of 'stopdaemon' command - i.e. if close() call fails, the daemon is shutdown
+            System.out.println("Cassandra has shutdown.");
+        }
     }
 
     public int forceKeyspaceCleanup(int jobs, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
