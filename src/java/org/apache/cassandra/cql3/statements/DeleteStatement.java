@@ -116,7 +116,7 @@ public class DeleteStatement extends ModificationStatement
     public static class Parsed extends ModificationStatement.Parsed
     {
         private final List<Operation.RawDeletion> deletions;
-        private final WhereClause whereClause;
+        private WhereClause whereClause;
 
         public Parsed(CFName name,
                       Attributes.Raw attrs,
@@ -139,17 +139,25 @@ public class DeleteStatement extends ModificationStatement
         {
             Operations operations = new Operations(type);
 
-            for (Operation.RawDeletion deletion : deletions)
+            if (cfm.isSuper() && cfm.isDense())
             {
-                ColumnDefinition def = getColumnDefinition(cfm, deletion.affectedColumn());
+                conditions = SuperColumnCompatibility.rebuildLWTColumnConditions(conditions, cfm, whereClause);
+                whereClause = SuperColumnCompatibility.prepareDeleteOperations(cfm, whereClause, boundNames, operations);
+            }
+            else
+            {
+                for (Operation.RawDeletion deletion : deletions)
+                {
+                    ColumnDefinition def = getColumnDefinition(cfm, deletion.affectedColumn());
 
-                // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
-                // list. However, we support having the value name for coherence with the static/sparse case
-                checkFalse(def.isPrimaryKeyColumn(), "Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", def.name);
+                    // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
+                    // list. However, we support having the value name for coherence with the static/sparse case
+                    checkFalse(def.isPrimaryKeyColumn(), "Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", def.name);
 
-                Operation op = deletion.prepare(cfm.ksName, def);
-                op.collectMarkerSpecification(boundNames);
-                operations.add(op);
+                    Operation op = deletion.prepare(cfm.ksName, def);
+                    op.collectMarkerSpecification(boundNames);
+                    operations.add(op);
+                }
             }
 
             StatementRestrictions restrictions = newRestrictions(cfm,

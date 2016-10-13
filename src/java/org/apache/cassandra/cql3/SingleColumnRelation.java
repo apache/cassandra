@@ -40,7 +40,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
  * a value (term). For example, <key> > "start" or "colname1" = "somevalue".
  *
  */
-public final class SingleColumnRelation extends Relation
+public class SingleColumnRelation extends Relation
 {
     private final ColumnIdentifier.Raw entity;
     private final Term.Raw mapKey;
@@ -302,5 +302,79 @@ public final class SingleColumnRelation extends Relation
     private boolean canHaveOnlyOneValue()
     {
         return isEQ() || (isIN() && inValues != null && inValues.size() == 1);
+    }
+
+    @Override
+    public Relation toSuperColumnAdapter()
+    {
+        return new SuperColumnSingleColumnRelation(entity, mapKey, relationType, value);
+    }
+
+    /**
+     * Required for SuperColumn compatibility, in order to map the SuperColumn key restrictions from the regular
+     * column to the collection key one.
+     */
+    private class SuperColumnSingleColumnRelation extends SingleColumnRelation
+    {
+        SuperColumnSingleColumnRelation(ColumnIdentifier.Raw entity, Raw mapKey, Operator type, Raw value)
+        {
+            super(entity, mapKey, type, value, inValues);
+        }
+
+        @Override
+        public Restriction newSliceRestriction(CFMetaData cfm,
+                                               VariableSpecifications boundNames,
+                                               Bound bound,
+                                               boolean inclusive) throws InvalidRequestException
+        {
+            ColumnDefinition columnDef = toColumnDefinition(cfm, entity);
+            if (cfm.isSuperColumnKeyColumn(columnDef))
+            {
+                Term term = toTerm(toReceivers(columnDef, cfm.isDense()), value, cfm.ksName, boundNames);
+                return new SingleColumnRestriction.SuperColumnKeySliceRestriction(cfm.superColumnKeyColumn(), bound, inclusive, term);
+            }
+            else
+            {
+                return super.newSliceRestriction(cfm, boundNames, bound, inclusive);
+            }
+        }
+
+        @Override
+        protected Restriction newEQRestriction(CFMetaData cfm,
+                                               VariableSpecifications boundNames) throws InvalidRequestException
+        {
+            ColumnDefinition columnDef = toColumnDefinition(cfm, entity);
+            if (cfm.isSuperColumnKeyColumn(columnDef))
+            {
+                Term term = toTerm(toReceivers(columnDef, cfm.isDense()), value, cfm.ksName, boundNames);
+                return new SingleColumnRestriction.SuperColumnKeyEQRestriction(cfm.superColumnKeyColumn(), term);
+            }
+            else
+            {
+                return super.newEQRestriction(cfm, boundNames);
+            }
+        }
+
+        @Override
+        protected Restriction newINRestriction(CFMetaData cfm,
+                                               VariableSpecifications boundNames) throws InvalidRequestException
+        {
+            ColumnDefinition columnDef = toColumnDefinition(cfm, entity);
+            if (cfm.isSuperColumnKeyColumn(columnDef))
+            {
+                List<? extends ColumnSpecification> receivers = Collections.singletonList(cfm.superColumnKeyColumn());
+                List<Term> terms = toTerms(receivers, inValues, cfm.ksName, boundNames);
+                if (terms == null)
+                {
+                    Term term = toTerm(receivers, value, cfm.ksName, boundNames);
+                    return new SingleColumnRestriction.SuperColumnKeyINRestrictionWithMarkers(cfm.superColumnKeyColumn(), (Lists.Marker) term);
+                }
+                return new SingleColumnRestriction.SuperColumnKeyINRestrictionWithValues(cfm.superColumnKeyColumn(), terms);
+            }
+            else
+            {
+                return super.newINRestriction(cfm, boundNames);
+            }
+        }
     }
 }

@@ -31,8 +31,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
-import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
-
 /**
  * A set of single column restrictions on a primary key part (partition key or clustering key).
  */

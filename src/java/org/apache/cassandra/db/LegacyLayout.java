@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
 
+import org.apache.cassandra.cql3.SuperColumnCompatibility;
 import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
@@ -298,7 +299,7 @@ public abstract class LegacyLayout
             // What it is depends if this a cell for a declared "static" column or a "dynamic" column part of the
             // super-column internal map.
             assert columnName != null; // This should never be null for supercolumns, see decodeForSuperColumn() above
-            values[clusteringSize] = columnName.equals(CompactTables.SUPER_COLUMN_MAP_COLUMN)
+            values[clusteringSize] = columnName.equals(SuperColumnCompatibility.SUPER_COLUMN_MAP_COLUMN)
                                    ? collectionElement
                                    : columnName;
         }

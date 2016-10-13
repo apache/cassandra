@@ -192,6 +192,11 @@ public abstract class Operation
             // it's stupid and 2) the result would seem random to the user.
             return false;
         }
+
+        public Term.Raw value()
+        {
+            return value;
+        }
     }
 
     public static class SetElement implements RawUpdate
@@ -241,6 +246,72 @@ public abstract class Operation
         }
     }
 
+    // Currently only used internally counters support in SuperColumn families.
+    // Addition on the element level inside the collections are otherwise not supported in the CQL.
+    public static class ElementAddition implements RawUpdate
+    {
+        private final Term.Raw selector;
+        private final Term.Raw value;
+
+        public ElementAddition(Term.Raw selector, Term.Raw value)
+        {
+            this.selector = selector;
+            this.value = value;
+        }
+
+        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
+        {
+            assert receiver.type instanceof MapType;
+            Term k = selector.prepare(keyspace, Maps.keySpecOf(receiver));
+            Term v = value.prepare(keyspace, Maps.valueSpecOf(receiver));
+
+            return new Maps.AdderByKey(receiver, v, k);
+        }
+
+        protected String toString(ColumnSpecification column)
+        {
+            return String.format("%s = %s + %s", column.name, column.name, value);
+        }
+
+        public boolean isCompatibleWith(RawUpdate other)
+        {
+            return !(other instanceof SetValue);
+        }
+    }
+
+    // Currently only used internally counters support in SuperColumn families.
+    // Addition on the element level inside the collections are otherwise not supported in the CQL.
+    public static class ElementSubtraction implements RawUpdate
+    {
+        private final Term.Raw selector;
+        private final Term.Raw value;
+
+        public  ElementSubtraction(Term.Raw selector, Term.Raw value)
+        {
+            this.selector = selector;
+            this.value = value;
+        }
+
+        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
+        {
+            assert receiver.type instanceof MapType;
+            Term k = selector.prepare(keyspace, Maps.keySpecOf(receiver));
+            Term v = value.prepare(keyspace, Maps.valueSpecOf(receiver));
+
+            return new Maps.SubtracterByKey(receiver, v, k);
+        }
+
+        protected String toString(ColumnSpecification column)
+        {
+            return String.format("%s = %s + %s", column.name, column.name, value);
+        }
+
+        public boolean isCompatibleWith(RawUpdate other)
+        {
+            return !(other instanceof SetValue);
+        }
+    }
+
     public static class Addition implements RawUpdate
     {
         private final Term.Raw value;
@@ -283,6 +354,11 @@ public abstract class Operation
         public boolean isCompatibleWith(RawUpdate other)
         {
             return !(other instanceof SetValue);
+        }
+
+        public Term.Raw value()
+        {
+            return value;
         }
     }
 
@@ -331,6 +407,11 @@ public abstract class Operation
         public boolean isCompatibleWith(RawUpdate other)
         {
             return !(other instanceof SetValue);
+        }
+
+        public Term.Raw value()
+        {
+            return value;
         }
     }
 

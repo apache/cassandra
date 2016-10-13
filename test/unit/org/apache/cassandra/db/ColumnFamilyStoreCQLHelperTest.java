@@ -650,9 +650,8 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         final String TABLE = "test_table_1";
 
         CFMetaData cfm = CFMetaData.Builder.createSuper(KEYSPACE, TABLE, false)
-                                           .addPartitionKey("pk", BytesType.instance)
-                                           .addClusteringColumn("c1", AsciiType.instance)
-                                           .addClusteringColumn("c2", AsciiType.instance)
+                                           .addPartitionKey("key", BytesType.instance)
+                                           .addClusteringColumn("column1", AsciiType.instance)
                                            .addRegularColumn("", MapType.getInstance(Int32Type.instance, AsciiType.instance, true))
                                            .build();
 
@@ -668,11 +667,10 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         "Approximate structure, for reference:\n" +
         "(this should not be used to reproduce this schema)\n\n" +
         "CREATE TABLE IF NOT EXISTS " + KEYSPACE + "." + TABLE + " (\n" +
-        "\tpk blob,\n" +
-        "\tc1 ascii,\n" +
-        "\tc2 ascii,\n" +
+        "\tkey blob,\n" +
+        "\tcolumn1 ascii,\n" +
         "\t\"\" map<int, ascii>,\n" +
-        "\tPRIMARY KEY (pk, c1, c2))\n" +
+        "\tPRIMARY KEY (key, column1))\n" +
         "\tWITH ID = " + cfs.metadata.cfId + "\n" +
         "\tAND COMPACT STORAGE"));
     }

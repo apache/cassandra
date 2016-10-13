@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.Term.MultiColumnRaw;
 import org.apache.cassandra.cql3.Term.Raw;
 import org.apache.cassandra.cql3.restrictions.MultiColumnRestriction;
 import org.apache.cassandra.cql3.restrictions.Restriction;
+import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
@@ -162,7 +163,7 @@ public class MultiColumnRelation extends Relation
                                               boolean inclusive) throws InvalidRequestException
     {
         List<ColumnDefinition> receivers = receivers(cfm);
-        Term term = toTerm(receivers(cfm), getValue(), cfm.ksName, boundNames);
+        Term term = toTerm(receivers, getValue(), cfm.ksName, boundNames);
         return new MultiColumnRestriction.SliceRestriction(receivers, bound, inclusive, term);
     }
 
@@ -237,5 +238,66 @@ public class MultiColumnRelation extends Relation
                       .append(" ")
                       .append(valuesOrMarker)
                       .toString();
+    }
+
+    @Override
+    public Relation toSuperColumnAdapter()
+    {
+        return new SuperColumnMultiColumnRelation(entities, relationType, valuesOrMarker, inValues, inMarker);
+    }
+
+    /**
+     * Required for SuperColumn compatibility, in order to map the SuperColumn key restrictions from the regular
+     * column to the collection key one.
+     */
+    private class SuperColumnMultiColumnRelation extends MultiColumnRelation
+    {
+        private SuperColumnMultiColumnRelation(List<ColumnIdentifier.Raw> entities, Operator relationType, MultiColumnRaw valuesOrMarker, List<? extends MultiColumnRaw> inValues, Tuples.INRaw inMarker)
+        {
+            super(entities, relationType, valuesOrMarker, inValues, inMarker);
+        }
+
+        @Override
+        protected Restriction newSliceRestriction(CFMetaData cfm,
+                                                  VariableSpecifications boundNames,
+                                                  Bound bound,
+                                                  boolean inclusive) throws InvalidRequestException
+        {
+            assert cfm.isSuper() && cfm.isDense();
+            List<ColumnDefinition> receivers = receivers(cfm);
+            Term term = toTerm(receivers, getValue(), cfm.ksName, boundNames);
+            return new SingleColumnRestriction.SuperColumnMultiSliceRestriction(receivers.get(0), bound, inclusive, term);
+        }
+
+        @Override
+        protected Restriction newEQRestriction(CFMetaData cfm,
+                                               VariableSpecifications boundNames) throws InvalidRequestException
+        {
+            assert cfm.isSuper() && cfm.isDense();
+            List<ColumnDefinition> receivers = receivers(cfm);
+            Term term = toTerm(receivers, getValue(), cfm.ksName, boundNames);
+            return new SingleColumnRestriction.SuperColumnMultiEQRestriction(receivers.get(0), term);
+        }
+
+        @Override
+        protected List<ColumnDefinition> receivers(CFMetaData cfm) throws InvalidRequestException
+        {
+            assert cfm.isSuper() && cfm.isDense();
+            List<ColumnDefinition> names = new ArrayList<>(getEntities().size());
+
+            for (ColumnIdentifier.Raw raw : getEntities())
+            {
+                ColumnDefinition def = toColumnDefinition(cfm, raw);
+
+                checkTrue(def.isClusteringColumn() ||
+                          cfm.isSuperColumnKeyColumn(def),
+                          "Multi-column relations can only be applied to clustering columns but was applied to: %s", def.name);
+
+                checkFalse(names.contains(def), "Column \"%s\" appeared twice in a relation: %s", def.name, this);
+
+                names.add(def);
+            }
+            return names;
+        }
     }
 }

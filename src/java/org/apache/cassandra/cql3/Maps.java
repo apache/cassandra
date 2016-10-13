@@ -325,6 +325,91 @@ public abstract class Maps
         }
     }
 
+    // Currently only used internally counters support in SuperColumn families.
+    // Addition on the element level inside the collections are otherwise not supported in the CQL.
+    public static class AdderByKey extends Operation
+    {
+        private final Term k;
+
+        public AdderByKey(ColumnDefinition column, Term t, Term k)
+        {
+            super(column, t);
+            this.k = k;
+        }
+
+        @Override
+        public void collectMarkerSpecification(VariableSpecifications boundNames)
+        {
+            super.collectMarkerSpecification(boundNames);
+            k.collectMarkerSpecification(boundNames);
+        }
+
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        {
+            assert column.type.isMultiCell() : "Attempted to set a value for a single key on a frozen map";
+
+            ByteBuffer key = k.bindAndGet(params.options);
+            ByteBuffer value = t.bindAndGet(params.options);
+
+            if (key == null)
+                throw new InvalidRequestException("Invalid null map key");
+            if (key == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                throw new InvalidRequestException("Invalid unset map key");
+
+            if (value == null)
+                throw new InvalidRequestException("Invalid null value for counter increment");
+            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                return;
+
+            long increment = ByteBufferUtil.toLong(value);
+            params.addCounter(column, increment, CellPath.create(key));
+        }
+    }
+
+    // Currently only used internally counters support in SuperColumn families.
+    // Addition on the element level inside the collections are otherwise not supported in the CQL.
+    public static class SubtracterByKey extends Operation
+    {
+        private final Term k;
+
+        public SubtracterByKey(ColumnDefinition column, Term t, Term k)
+        {
+            super(column, t);
+            this.k = k;
+        }
+
+        @Override
+        public void collectMarkerSpecification(VariableSpecifications boundNames)
+        {
+            super.collectMarkerSpecification(boundNames);
+            k.collectMarkerSpecification(boundNames);
+        }
+
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        {
+            assert column.type.isMultiCell() : "Attempted to set a value for a single key on a frozen map";
+
+            ByteBuffer key = k.bindAndGet(params.options);
+            ByteBuffer value = t.bindAndGet(params.options);
+
+            if (key == null)
+                throw new InvalidRequestException("Invalid null map key");
+            if (key == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                throw new InvalidRequestException("Invalid unset map key");
+
+            if (value == null)
+                throw new InvalidRequestException("Invalid null value for counter increment");
+            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                return;
+
+            long increment = ByteBufferUtil.toLong(value);
+            if (increment == Long.MIN_VALUE)
+                throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
+
+            params.addCounter(column, -increment, CellPath.create(key));
+        }
+    }
+
     public static class Putter extends Operation
     {
         public Putter(ColumnDefinition column, Term t)

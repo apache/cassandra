@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.SuperColumnCompatibility;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDAggregate;
@@ -271,10 +272,11 @@ public final class LegacySchemaMigrator
                                       SystemKeyspace.LEGACY_TRIGGERS);
         UntypedResultSet triggerRows = query(triggersQuery, keyspaceName, tableName);
 
-        return decodeTableMetadata(tableRow, columnRows, triggerRows);
+        return decodeTableMetadata(tableName, tableRow, columnRows, triggerRows);
     }
 
-    private static CFMetaData decodeTableMetadata(UntypedResultSet.Row tableRow,
+    private static CFMetaData decodeTableMetadata(String tableName,
+                                                  UntypedResultSet.Row tableRow,
                                                   UntypedResultSet columnRows,
                                                   UntypedResultSet triggerRows)
     {
@@ -297,7 +299,7 @@ public final class LegacySchemaMigrator
         if (rawIsDense != null && !rawIsDense)
             isDense = false;
         else
-            isDense = calculateIsDense(rawComparator, columnRows);
+            isDense = calculateIsDense(rawComparator, columnRows, isSuper);
 
         // now, if switched to sparse, remove redundant compact_value column and the last clustering column,
         // directly copying CASSANDRA-11502 logic. See CASSANDRA-11315.
@@ -389,7 +391,7 @@ public final class LegacySchemaMigrator
      * information for table just created through thrift, nor for table prior to CASSANDRA-7744, so this
      * method does its best to infer whether the table is dense or not based on other elements.
      */
-    private static boolean calculateIsDense(AbstractType<?> comparator, UntypedResultSet columnRows)
+    private static boolean calculateIsDense(AbstractType<?> comparator, UntypedResultSet columnRows, boolean isSuper)
     {
         /*
          * As said above, this method is only here because we need to deal with thrift upgrades.
@@ -411,8 +413,15 @@ public final class LegacySchemaMigrator
          * in the latter case only if the comparator is exactly CompositeType(UTF8Type).
          */
         for (UntypedResultSet.Row columnRow : columnRows)
+        {
             if ("regular".equals(columnRow.getString("type")))
                 return false;
+        }
+
+        // If we've checked the columns for supercf and found no regulars, it's dense. Relying on the emptiness
+        // of the value column is not enough due to index calculation.
+        if (isSuper)
+            return true;
 
         int maxClusteringIdx = -1;
         for (UntypedResultSet.Row columnRow : columnRows)
@@ -431,18 +440,11 @@ public final class LegacySchemaMigrator
         {
             String kind = columnRow.getString("type");
 
-            if ("compact_value".equals(kind))
+            if (!isSuper && "compact_value".equals(kind))
                 continue;
 
-            if ("clustering_key".equals(kind))
-            {
-                int position = columnRow.has("component_index") ? columnRow.getInt("component_index") : 0;
-                if (isSuper && position != 0)
-                    continue;
-
-                if (!isSuper && !isCompound)
-                    continue;
-            }
+            if ("clustering_key".equals(kind) && !isSuper && !isCompound)
+                continue;
 
             filteredRows.add(columnRow);
         }
@@ -569,14 +571,9 @@ public final class LegacySchemaMigrator
     // Should only be called on compact tables
     private static boolean checkNeedsUpgrade(Iterable<UntypedResultSet.Row> defs, boolean isSuper, boolean isStaticCompactTable)
     {
+        // For SuperColumn tables, re-create a compact value column
         if (isSuper)
-        {
-            // Check if we've added the "supercolumn map" column yet or not
-            for (UntypedResultSet.Row row : defs)
-                if (row.getString("column_name").isEmpty())
-                    return false;
             return true;
-        }
 
         // For static compact tables, we need to upgrade if the regular definitions haven't been converted to static yet,
         // i.e. if we don't have a static definition yet.
@@ -626,7 +623,7 @@ public final class LegacySchemaMigrator
 
         if (isSuper)
         {
-            defs.add(ColumnDefinition.regularDef(ksName, cfName, CompactTables.SUPER_COLUMN_MAP_COLUMN_STR, MapType.getInstance(subComparator, defaultValidator, true)));
+            defs.add(ColumnDefinition.regularDef(ksName, cfName, SuperColumnCompatibility.SUPER_COLUMN_MAP_COLUMN_STR, MapType.getInstance(subComparator, defaultValidator, true)));
         }
         else if (isStaticCompactTable)
         {

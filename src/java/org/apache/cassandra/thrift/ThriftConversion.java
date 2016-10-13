@@ -18,7 +18,6 @@
 package org.apache.cassandra.thrift;
 
 import java.util.*;
-import java.util.regex.Matcher;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
@@ -27,6 +26,7 @@ import com.google.common.collect.Maps;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.SuperColumnCompatibility;
 import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.LegacyLayout;
@@ -273,7 +273,8 @@ public class ThriftConversion
                                       hasKeyAlias ? null : keyValidator,
                                       rawComparator,
                                       subComparator,
-                                      defaultValidator);
+                                      defaultValidator,
+                                      isDense);
             }
 
             // We do not allow Thrift views, so we always set it to false
@@ -368,7 +369,8 @@ public class ThriftConversion
                                               AbstractType<?> keyValidator,
                                               AbstractType<?> comparator,
                                               AbstractType<?> subComparator,
-                                              AbstractType<?> defaultValidator)
+                                              AbstractType<?> defaultValidator,
+                                              boolean isDense)
     {
         CompactTables.DefaultNames names = CompactTables.defaultNameGenerator(defs);
         if (keyValidator != null)
@@ -389,7 +391,12 @@ public class ThriftConversion
         {
             // SuperColumn tables: we use a special map to hold dynamic values within a given super column
             defs.add(ColumnDefinition.clusteringDef(ks, cf, names.defaultClusteringName(), comparator, 0));
-            defs.add(ColumnDefinition.regularDef(ks, cf, CompactTables.SUPER_COLUMN_MAP_COLUMN_STR, MapType.getInstance(subComparator, defaultValidator, true)));
+            defs.add(ColumnDefinition.regularDef(ks, cf, SuperColumnCompatibility.SUPER_COLUMN_MAP_COLUMN_STR, MapType.getInstance(subComparator, defaultValidator, true)));
+            if (isDense)
+            {
+                defs.add(ColumnDefinition.clusteringDef(ks, cf, names.defaultClusteringName(), subComparator, 1));
+                defs.add(ColumnDefinition.regularDef(ks, cf, names.defaultCompactValueName(), defaultValidator));
+            }
         }
         else
         {

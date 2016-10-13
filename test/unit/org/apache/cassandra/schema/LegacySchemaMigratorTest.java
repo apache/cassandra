@@ -164,14 +164,8 @@ public class LegacySchemaMigratorTest
                                                                     .compaction(CompactionParams.scts(compactionOptions)),
                                                         SchemaLoader.standardCFMD(ks1, "StandardGCGS0").gcGraceSeconds(0),
                                                         SchemaLoader.standardCFMD(ks1, "StandardLong1"),
-                                                        SchemaLoader.superCFMD(ks1, "Super1", LongType.instance),
-                                                        SchemaLoader.superCFMD(ks1, "Super2", UTF8Type.instance),
-                                                        SchemaLoader.superCFMD(ks1, "Super5", BytesType.instance),
-                                                        SchemaLoader.superCFMD(ks1, "Super6", LexicalUUIDType.instance, UTF8Type.instance),
                                                         SchemaLoader.keysIndexCFMD(ks1, "Indexed1", true),
                                                         SchemaLoader.keysIndexCFMD(ks1, "Indexed2", false),
-                                                        SchemaLoader.superCFMD(ks1, "SuperDirectGC", BytesType.instance)
-                                                                    .gcGraceSeconds(0),
                                                         SchemaLoader.jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance)
                                                                     .addColumnDefinition(SchemaLoader.utf8Column(ks1, "JdbcUtf8")),
                                                         SchemaLoader.jdbcCFMD(ks1, "JdbcLong", LongType.instance),
@@ -190,8 +184,6 @@ public class LegacySchemaMigratorTest
         keyspaces.add(KeyspaceMetadata.create(ks2,
                                               KeyspaceParams.simple(1),
                                               Tables.of(SchemaLoader.standardCFMD(ks2, "Standard1"),
-                                                        SchemaLoader.superCFMD(ks2, "Super3", BytesType.instance),
-                                                        SchemaLoader.superCFMD(ks2, "Super4", TimeUUIDType.instance),
                                                         SchemaLoader.keysIndexCFMD(ks2, "Indexed1", true),
                                                         SchemaLoader.compositeIndexCFMD(ks2, "Indexed2", true),
                                                         SchemaLoader.compositeIndexCFMD(ks2, "Indexed3", true)
@@ -206,10 +198,7 @@ public class LegacySchemaMigratorTest
         // Keyspace 4
         keyspaces.add(KeyspaceMetadata.create(ks4,
                                               KeyspaceParams.simple(3),
-                                              Tables.of(SchemaLoader.standardCFMD(ks4, "Standard1"),
-                                                        SchemaLoader.superCFMD(ks4, "Super3", BytesType.instance),
-                                                        SchemaLoader.superCFMD(ks4, "Super4", TimeUUIDType.instance),
-                                                        SchemaLoader.superCFMD(ks4, "Super5", TimeUUIDType.instance, BytesType.instance))));
+                                              Tables.of(SchemaLoader.standardCFMD(ks4, "Standard1"))));
 
         // Keyspace 5
         keyspaces.add(KeyspaceMetadata.create(ks5,

@@ -387,25 +387,18 @@ public class SchemaLoader
             .compression(getCompressionParameters());
     }
 
-    // TODO: Fix superCFMD failing on legacy table creation. Seems to be applying composite comparator to partition key
     public static CFMetaData superCFMD(String ksName, String cfName, AbstractType subcc)
     {
         return superCFMD(ksName, cfName, BytesType.instance, subcc);
     }
+
     public static CFMetaData superCFMD(String ksName, String cfName, AbstractType cc, AbstractType subcc)
     {
-        return superCFMD(ksName, cfName, "cols", cc, subcc);
-    }
-    public static CFMetaData superCFMD(String ksName, String cfName, String ccName, AbstractType cc, AbstractType subcc)
-    {
-        //This is busted
-//        return CFMetaData.Builder.createSuper(ksName, cfName, false)
-//            .addPartitionKey("0", BytesType.instance)
-//            .addClusteringColumn("1", cc)
-//            .addClusteringColumn("2", subcc)
-//            .addRegularColumn("3", AsciiType.instance)
-//            .build();
-        return standardCFMD(ksName, cfName);
+        return CFMetaData.Builder.createSuper(ksName, cfName, false)
+                                 .addPartitionKey("key", BytesType.instance)
+                                 .addClusteringColumn("column1", cc)
+                                 .addRegularColumn("", MapType.getInstance(AsciiType.instance, subcc, true))
+                                 .build();
 
     }
     public static CFMetaData compositeIndexCFMD(String ksName, String cfName, boolean withIndex) throws ConfigurationException

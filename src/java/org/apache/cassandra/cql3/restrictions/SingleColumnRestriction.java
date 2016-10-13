@@ -118,9 +118,9 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
      */
     protected abstract boolean isSupportedBy(Index index);
 
-    public static final class EQRestriction extends SingleColumnRestriction
+    public static class EQRestriction extends SingleColumnRestriction
     {
-        private final Term value;
+        public final Term value;
 
         public EQRestriction(ColumnDefinition columnDef, Term value)
         {
@@ -308,7 +308,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
 
     public static class SliceRestriction extends SingleColumnRestriction
     {
-        private final TermSlice slice;
+        public final TermSlice slice;
 
         public SliceRestriction(ColumnDefinition columnDef, Bound bound, boolean inclusive, Term term)
         {
@@ -404,7 +404,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
             return String.format("SLICE%s", slice);
         }
 
-        private SliceRestriction(ColumnDefinition columnDef, TermSlice slice)
+        SliceRestriction(ColumnDefinition columnDef, TermSlice slice)
         {
             super(columnDef);
             this.slice = slice;
@@ -644,6 +644,204 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         protected boolean isSupportedBy(Index index)
         {
             return index.supportsExpression(columnDef, Operator.IS_NOT);
+        }
+    }
+
+    /**
+     * Super Column Compatibiltiy
+     */
+
+    public static class SuperColumnMultiEQRestriction extends EQRestriction
+    {
+        public ByteBuffer firstValue;
+        public ByteBuffer secondValue;
+
+        public SuperColumnMultiEQRestriction(ColumnDefinition columnDef, Term value)
+        {
+            super(columnDef, value);
+        }
+
+        @Override
+        public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
+        {
+            Term term = value.bind(options);
+
+            assert (term instanceof Tuples.Value);
+            firstValue = ((Tuples.Value)term).getElements().get(0);
+            secondValue = ((Tuples.Value)term).getElements().get(1);
+
+            builder.addElementToAll(firstValue);
+            checkFalse(builder.containsNull(), "Invalid null value in condition for column %s", columnDef.name);
+            checkFalse(builder.containsUnset(), "Invalid unset value for column %s", columnDef.name);
+            return builder;
+        }
+    }
+
+    public static class SuperColumnMultiSliceRestriction extends SliceRestriction
+    {
+        public ByteBuffer firstValue;
+        public ByteBuffer secondValue;
+
+        // These are here to avoid polluting SliceRestriction
+        public final Bound bound;
+        public final boolean trueInclusive;
+        public SuperColumnMultiSliceRestriction(ColumnDefinition columnDef, Bound bound, boolean inclusive, Term term)
+        {
+            super(columnDef, bound, true, term);
+            this.bound = bound;
+            this.trueInclusive = inclusive;
+
+        }
+
+        @Override
+        public MultiCBuilder appendBoundTo(MultiCBuilder builder, Bound bound, QueryOptions options)
+        {
+            Bound b = reverseBoundIfNeeded(getFirstColumn(), bound);
+
+            if (!hasBound(b))
+                return builder;
+
+            Term term = slice.bound(b);
+
+            assert (term instanceof Tuples.Value);
+            firstValue = ((Tuples.Value)term).getElements().get(0);
+            secondValue = ((Tuples.Value)term).getElements().get(1);
+
+            checkBindValueSet(firstValue, "Invalid unset value for column %s", columnDef.name);
+            checkBindValueSet(secondValue, "Invalid unset value for column %s", columnDef.name);
+            return builder.addElementToAll(firstValue);
+
+        }
+    }
+
+    public static final class SuperColumnKeyEQRestriction extends EQRestriction
+    {
+        public SuperColumnKeyEQRestriction(ColumnDefinition columnDef, Term value)
+        {
+            super(columnDef, value);
+        }
+
+        public ByteBuffer bindValue(QueryOptions options)
+        {
+            return value.bindAndGet(options);
+        }
+
+        @Override
+        public MultiCBuilder appendBoundTo(MultiCBuilder builder, Bound bound, QueryOptions options)
+        {
+            // no-op
+            return builder;
+        }
+
+        @Override
+        public void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexManager, QueryOptions options) throws InvalidRequestException
+        {
+            // no-op
+        }
+    }
+
+    public static abstract class SuperColumnKeyINRestriction extends INRestriction
+    {
+        public SuperColumnKeyINRestriction(ColumnDefinition columnDef)
+        {
+            super(columnDef);
+        }
+
+        @Override
+        public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
+        {
+            // no-op
+            return builder;
+        }
+
+        @Override
+        public void addRowFilterTo(RowFilter filter,
+                                   SecondaryIndexManager indexManager,
+                                   QueryOptions options) throws InvalidRequestException
+        {
+            // no-op
+        }
+
+        public void addFunctionsTo(List<Function> functions)
+        {
+            // no-op
+        }
+
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            // no-op
+            return null;
+        }
+
+        public abstract List<ByteBuffer> getValues(QueryOptions options) throws InvalidRequestException;
+    }
+
+    public static class SuperColumnKeyINRestrictionWithMarkers extends SuperColumnKeyINRestriction
+    {
+        protected final AbstractMarker marker;
+
+        public SuperColumnKeyINRestrictionWithMarkers(ColumnDefinition columnDef, AbstractMarker marker)
+        {
+            super(columnDef);
+            this.marker = marker;
+        }
+
+        public List<ByteBuffer> getValues(QueryOptions options) throws InvalidRequestException
+        {
+            Terminal term = marker.bind(options);
+            checkNotNull(term, "Invalid null value for column %s", columnDef.name);
+            checkFalse(term == Constants.UNSET_VALUE, "Invalid unset value for column %s", columnDef.name);
+            Term.MultiItemTerminal lval = (Term.MultiItemTerminal) term;
+            return lval.getElements();
+        }
+    }
+
+    public static class SuperColumnKeyINRestrictionWithValues extends SuperColumnKeyINRestriction
+    {
+        private final List<Term> values;
+
+        public SuperColumnKeyINRestrictionWithValues(ColumnDefinition columnDef, List<Term> values)
+        {
+            super(columnDef);
+            this.values = values;
+        }
+
+        public List<ByteBuffer> getValues(QueryOptions options) throws InvalidRequestException
+        {
+            List<ByteBuffer> buffers = new ArrayList<>(values.size());
+            for (Term value : values)
+                buffers.add(value.bindAndGet(options));
+            return buffers;
+        }
+    }
+
+    public static class SuperColumnKeySliceRestriction extends SliceRestriction
+    {
+        // These are here to avoid polluting SliceRestriction
+        private Term term;
+
+        public SuperColumnKeySliceRestriction(ColumnDefinition columnDef, Bound bound, boolean inclusive, Term term)
+        {
+            super(columnDef, bound, inclusive, term);
+            this.term = term;
+        }
+
+        public ByteBuffer bindValue(QueryOptions options)
+        {
+            return term.bindAndGet(options);
+        }
+
+        @Override
+        public MultiCBuilder appendBoundTo(MultiCBuilder builder, Bound bound, QueryOptions options)
+        {
+            // no-op
+            return builder;
+        }
+
+        @Override
+        public void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexManager, QueryOptions options) throws InvalidRequestException
+        {
+            // no-op
         }
     }
 }

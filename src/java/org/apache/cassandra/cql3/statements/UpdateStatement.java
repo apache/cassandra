@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -32,6 +31,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsNoDuplicates;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -81,7 +81,7 @@ public class UpdateStatement extends ModificationStatement
             // For a dense layout, when we translate it to thrift, we don't have a row marker. So we don't accept an insert/update
             // that only sets the PK unless the is no declared non-PK columns (which we recognize because in that case the compact
             // value is of type "EmptyType").
-            if (cfm.isCompactTable() && updates.isEmpty())
+            if ((cfm.isCompactTable() && !cfm.isSuper()) && updates.isEmpty())
             {
                 checkTrue(CompactTables.hasEmptyCompactValue(cfm),
                           "Column %s is mandatory for this COMPACT STORAGE table",
@@ -155,24 +155,33 @@ public class UpdateStatement extends ModificationStatement
             Operations operations = new Operations(type);
             boolean hasClusteringColumnsSet = false;
 
-            for (int i = 0; i < columnNames.size(); i++)
+            if (cfm.isSuper() && cfm.isDense())
             {
-                ColumnDefinition def = getColumnDefinition(cfm, columnNames.get(i));
-
-                if (def.isClusteringColumn())
-                    hasClusteringColumnsSet = true;
-
-                Term.Raw value = columnValues.get(i);
-
-                if (def.isPrimaryKeyColumn())
+                // SuperColumn familiy updates are always row-level
+                hasClusteringColumnsSet = true;
+                SuperColumnCompatibility.prepareInsertOperations(cfm, columnNames, whereClause, columnValues, boundNames, operations);
+            }
+            else
+            {
+                for (int i = 0; i < columnNames.size(); i++)
                 {
-                    whereClause.add(new SingleColumnRelation(columnNames.get(i), Operator.EQ, value));
-                }
-                else
-                {
-                    Operation operation = new Operation.SetValue(value).prepare(keyspace(), def);
-                    operation.collectMarkerSpecification(boundNames);
-                    operations.add(operation);
+                    ColumnDefinition def = getColumnDefinition(cfm, columnNames.get(i));
+
+                    if (def.isClusteringColumn())
+                        hasClusteringColumnsSet = true;
+
+                    Term.Raw value = columnValues.get(i);
+
+                    if (def.isPrimaryKeyColumn())
+                    {
+                        whereClause.add(new SingleColumnRelation(columnNames.get(i), Operator.EQ, value));
+                    }
+                    else
+                    {
+                        Operation operation = new Operation.SetValue(value).prepare(cfm.ksName, def);
+                        operation.collectMarkerSpecification(boundNames);
+                        operations.add(operation);
+                    }
                 }
             }
 
@@ -218,30 +227,36 @@ public class UpdateStatement extends ModificationStatement
         {
             checkFalse(cfm.isCounter(), "INSERT statements are not allowed on counter tables, use UPDATE instead");
 
-            Collection<ColumnDefinition> defs = cfm.allColumns();
+            List<ColumnDefinition> defs = newArrayList(cfm.allColumnsInSelectOrder());
             Json.Prepared prepared = jsonValue.prepareAndCollectMarkers(cfm, defs, boundNames);
 
             WhereClause.Builder whereClause = new WhereClause.Builder();
             Operations operations = new Operations(type);
             boolean hasClusteringColumnsSet = false;
 
-            for (ColumnDefinition def : defs)
+            if (cfm.isSuper() && cfm.isDense())
             {
-                if (def.isClusteringColumn())
-                    hasClusteringColumnsSet = true;
+                hasClusteringColumnsSet = true;
+                SuperColumnCompatibility.prepareInsertJSONOperations(cfm, defs, boundNames, prepared, whereClause, operations);
+            }
+            else
+            {
+                for (ColumnDefinition def : defs)
+                {
+                    if (def.isClusteringColumn())
+                        hasClusteringColumnsSet = true;
 
-                Term.Raw raw = prepared.getRawTermForColumn(def);
-                if (def.isPrimaryKeyColumn())
-                {
-                    whereClause.add(new SingleColumnRelation(new ColumnIdentifier.ColumnIdentifierValue(def.name),
-                                                             Operator.EQ,
-                                                             raw));
-                }
-                else
-                {
-                    Operation operation = new Operation.SetValue(raw).prepare(keyspace(), def);
-                    operation.collectMarkerSpecification(boundNames);
-                    operations.add(operation);
+                    Term.Raw raw = prepared.getRawTermForColumn(def);
+                    if (def.isPrimaryKeyColumn())
+                    {
+                        whereClause.add(new SingleColumnRelation(new ColumnIdentifier.ColumnIdentifierValue(def.name), Operator.EQ, raw));
+                    }
+                    else
+                    {
+                        Operation operation = new Operation.SetValue(raw).prepare(cfm.ksName, def);
+                        operation.collectMarkerSpecification(boundNames);
+                        operations.add(operation);
+                    }
                 }
             }
 
@@ -270,7 +285,7 @@ public class UpdateStatement extends ModificationStatement
     {
         // Provided for an UPDATE
         private final List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> updates;
-        private final WhereClause whereClause;
+        private WhereClause whereClause;
 
         /**
          * Creates a new UpdateStatement from a column family name, columns map, consistency
@@ -302,17 +317,25 @@ public class UpdateStatement extends ModificationStatement
         {
             Operations operations = new Operations(type);
 
-            for (Pair<ColumnIdentifier.Raw, Operation.RawUpdate> entry : updates)
+            if (cfm.isSuper() && cfm.isDense())
             {
-                ColumnDefinition def = getColumnDefinition(cfm, entry.left);
-
-                checkFalse(def.isPrimaryKeyColumn(), "PRIMARY KEY part %s found in SET part", def.name);
-
-                Operation operation = entry.right.prepare(keyspace(), def);
-                operation.collectMarkerSpecification(boundNames);
-                operations.add(operation);
+                conditions = SuperColumnCompatibility.rebuildLWTColumnConditions(conditions, cfm, whereClause);
+                whereClause = SuperColumnCompatibility.prepareUpdateOperations(cfm, whereClause, updates, boundNames, operations);
             }
+            else
+            {
+                for (Pair<ColumnIdentifier.Raw, Operation.RawUpdate> entry : updates)
+                {
+                    ColumnDefinition def = getColumnDefinition(cfm, entry.left);
 
+                    checkFalse(def.isPrimaryKeyColumn(), "PRIMARY KEY part %s found in SET part", def.name);
+
+                    Operation operation = entry.right.prepare(cfm.ksName, def);
+                    operation.collectMarkerSpecification(boundNames);
+                    operations.add(operation);
+                }
+            }
+            
             StatementRestrictions restrictions = newRestrictions(cfm,
                                                                  boundNames,
                                                                  operations,

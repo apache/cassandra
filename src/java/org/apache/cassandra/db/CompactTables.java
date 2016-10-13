@@ -17,13 +17,15 @@
  */
 package org.apache.cassandra.db;
 
-import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.cql3.SuperColumnCompatibility;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.EmptyType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 
 /**
  * Small utility methods pertaining to the encoding of COMPACT STORAGE tables.
@@ -54,39 +56,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * On variation is that if the table comparator is a CompositeType, then the underlying table will have one clustering column by
  * element of the CompositeType, but the rest of the layout is as above.
  *
- * As far as thrift is concerned, one exception to this is super column families, which have a different layout. Namely, a super
- * column families is encoded with:
- *   CREATE TABLE super (
- *      key [key_validation_class],
- *      super_column_name [comparator],
- *      [column_metadata_1] [type1],
- *      ...,
- *      [column_metadata_n] [type1],
- *      "" map<[sub_comparator], [default_validation_class]>
- *      PRIMARY KEY (key, super_column_name)
- *   )
- * In other words, every super column is encoded by a row. That row has one column for each defined "column_metadata", but it also
- * has a special map column (whose name is the empty string as this is guaranteed to never conflict with a user-defined
- * "column_metadata") which stores the super column "dynamic" sub-columns.
+ * SuperColumn families handling and detailed format description can be found in {@code SuperColumnCompatibility}.
  */
 public abstract class CompactTables
 {
-    // We use an empty value for the 1) this can't conflict with a user-defined column and 2) this actually
-    // validate with any comparator which makes it convenient for columnDefinitionComparator().
-    public static final ByteBuffer SUPER_COLUMN_MAP_COLUMN = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-    public static final String SUPER_COLUMN_MAP_COLUMN_STR = UTF8Type.instance.compose(SUPER_COLUMN_MAP_COLUMN);
-
     private CompactTables() {}
 
-    public static ColumnDefinition getCompactValueColumn(PartitionColumns columns, boolean isSuper)
+    public static ColumnDefinition getCompactValueColumn(PartitionColumns columns)
     {
-        if (isSuper)
-        {
-            for (ColumnDefinition column : columns.regulars)
-                if (column.name.bytes.equals(SUPER_COLUMN_MAP_COLUMN))
-                    return column;
-            throw new AssertionError("Invalid super column table definition, no 'dynamic' map column");
-        }
         assert columns.regulars.simpleColumnCount() == 1 && columns.regulars.complexColumnCount() == 0;
         return columns.regulars.getSimple(0);
     }
@@ -102,11 +79,6 @@ public abstract class CompactTables
     public static boolean hasEmptyCompactValue(CFMetaData metadata)
     {
         return metadata.compactValueColumn().type instanceof EmptyType;
-    }
-
-    public static boolean isSuperColumnMapColumn(ColumnDefinition column)
-    {
-        return column.kind == ColumnDefinition.Kind.REGULAR && column.name.bytes.equals(SUPER_COLUMN_MAP_COLUMN);
     }
 
     public static DefaultNames defaultNameGenerator(Set<String> usedNames)

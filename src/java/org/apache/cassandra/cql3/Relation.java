@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnrecognizedEntityException;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
@@ -145,6 +146,15 @@ public abstract class Relation {
             case IS_NOT: return newIsNotRestriction(cfm, boundNames);
             default: throw invalidRequest("Unsupported \"!=\" relation: %s", this);
         }
+    }
+
+    /**
+     * Required for SuperColumn compatibility, creates an adapter Relation that remaps all restrictions required for
+     * SuperColumn tables.
+     */
+    public Relation toSuperColumnAdapter()
+    {
+        throw invalidRequest("Unsupported operation (" + this + ") on super column family");
     }
 
     /**

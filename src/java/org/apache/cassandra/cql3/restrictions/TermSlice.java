@@ -26,7 +26,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.index.Index;
 
-final class TermSlice
+public final class TermSlice
 {
     /**
      * The slice boundaries.

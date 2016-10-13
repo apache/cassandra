@@ -60,6 +60,12 @@ public class ColumnCondition
             assert this.inValues == null;
     }
 
+    // Public for SuperColumn tables support only
+    public Term value()
+    {
+        return value;
+    }
+
     public static ColumnCondition condition(ColumnDefinition column, Term value, Operator op)
     {
         return new ColumnCondition(column, null, value, null, op);

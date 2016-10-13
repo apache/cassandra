@@ -332,6 +332,7 @@ public class SerializationHeader
             for (ByteBuffer name : typeMap.keySet())
             {
                 ColumnDefinition column = metadata.getColumnDefinition(name);
+
                 if (column == null)
                 {
                     // TODO: this imply we don't read data for a column we don't yet know about, which imply this is theoretically

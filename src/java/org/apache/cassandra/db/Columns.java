@@ -422,6 +422,7 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
             {
                 ByteBuffer name = ByteBufferUtil.readWithVIntLength(in);
                 ColumnDefinition column = metadata.getColumnDefinition(name);
+
                 if (column == null)
                 {
                     // If we don't find the definition, it could be we have data for a dropped column, and we shouldn't

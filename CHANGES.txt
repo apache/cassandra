@@ -1,4 +1,5 @@
 3.0.15
+ * Fix support for SuperColumn tables (CASSANDRA-12373)
  * Handle limit correctly on tables with strict liveness (CASSANDRA-13883)
  * Fix missing original update in TriggerExecutor (CASSANDRA-13894)
  * Remove non-rpc-ready nodes from counter leader candidates (CASSANDRA-13043)
