@@ -94,6 +94,42 @@ public class Murmur3Partitioner implements IPartitioner
         return new LongToken(midpoint.longValue());
     }
 
+    public Token split(Token lToken, Token rToken, double ratioToLeft)
+    {
+        BigDecimal l = BigDecimal.valueOf(((LongToken) lToken).token),
+                   r = BigDecimal.valueOf(((LongToken) rToken).token),
+                   ratio = BigDecimal.valueOf(ratioToLeft);
+        long newToken;
+
+        if (l.compareTo(r) < 0)
+        {
+            newToken = r.subtract(l).multiply(ratio).add(l).toBigInteger().longValue();
+        }
+        else
+        {
+            // wrapping case
+            // L + ((R - min) + (max - L)) * pct
+            BigDecimal max = BigDecimal.valueOf(MAXIMUM);
+            BigDecimal min = BigDecimal.valueOf(MINIMUM.token);
+
+            BigInteger token = max.subtract(min).add(r).subtract(l).multiply(ratio).add(l).toBigInteger();
+
+            BigInteger maxToken = BigInteger.valueOf(MAXIMUM);
+
+            if (token.compareTo(maxToken) <= 0)
+            {
+                newToken = token.longValue();
+            }
+            else
+            {
+                // if the value is above maximum
+                BigInteger minToken = BigInteger.valueOf(MINIMUM.token);
+                newToken = minToken.add(token.subtract(maxToken)).longValue();
+            }
+        }
+        return new LongToken(newToken);
+    }
+
     public LongToken getMinimumToken()
     {
         return MINIMUM;

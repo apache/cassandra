@@ -57,6 +57,11 @@ public class LengthPartitioner implements IPartitioner
         return new BigIntegerToken(midpair.left);
     }
 
+    public Token split(Token left, Token right, double ratioToLeft)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public BigIntegerToken getMinimumToken()
     {
         return MINIMUM;

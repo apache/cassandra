@@ -36,82 +36,8 @@ import org.apache.cassandra.dht.Token;
  * we need to separate classes to avoid timeous in case flaky tests need to be repeated, see CASSANDRA-12784.
  */
 @Ignore
-abstract class AbstractReplicationAwareTokenAllocatorTest
+abstract class AbstractReplicationAwareTokenAllocatorTest extends TokenAllocatorTestBase
 {
-    private static final int TARGET_CLUSTER_SIZE = 250;
-
-    interface TestReplicationStrategy extends ReplicationStrategy<Unit>
-    {
-        void addUnit(Unit n);
-
-        void removeUnit(Unit n);
-
-        /**
-         * Returns a list of all replica units for given token.
-         */
-        List<Unit> getReplicas(Token token, NavigableMap<Token, Unit> sortedTokens);
-
-        /**
-         * Returns the start of the token span that is replicated in this token.
-         * Note: Though this is not trivial to see, the replicated span is always contiguous. A token in the same
-         * group acts as a barrier; if one is not found the token replicates everything up to the replica'th distinct
-         * group seen in front of it.
-         */
-        Token replicationStart(Token token, Unit unit, NavigableMap<Token, Unit> sortedTokens);
-
-        /**
-         * Multiplier for the acceptable disbalance in the cluster. With some strategies it is harder to achieve good
-         * results.
-         */
-        public double spreadExpectation();
-    }
-
-    static class NoReplicationStrategy implements TestReplicationStrategy
-    {
-        public List<Unit> getReplicas(Token token, NavigableMap<Token, Unit> sortedTokens)
-        {
-            return Collections.singletonList(sortedTokens.ceilingEntry(token).getValue());
-        }
-
-        public Token replicationStart(Token token, Unit unit, NavigableMap<Token, Unit> sortedTokens)
-        {
-            return sortedTokens.lowerKey(token);
-        }
-
-        public String toString()
-        {
-            return "No replication";
-        }
-
-        public void addUnit(Unit n)
-        {
-        }
-
-        public void removeUnit(Unit n)
-        {
-        }
-
-        public int replicas()
-        {
-            return 1;
-        }
-
-        public boolean sameGroup(Unit n1, Unit n2)
-        {
-            return false;
-        }
-
-        public Object getGroup(Unit unit)
-        {
-            return unit;
-        }
-
-        public double spreadExpectation()
-        {
-            return 1;
-        }
-    }
-
     static class SimpleReplicationStrategy implements TestReplicationStrategy
     {
         int replicas;
@@ -455,60 +381,6 @@ abstract class AbstractReplicationAwareTokenAllocatorTest
         return ts.replicationStart(token, sortedTokens.get(token), sortedTokens).size(next);
     }
 
-    static interface TokenCount
-    {
-        int tokenCount(int perUnitCount, Random rand);
-
-        double spreadExpectation();
-    }
-
-    static TokenCount fixedTokenCount = new TokenCount()
-    {
-        public int tokenCount(int perUnitCount, Random rand)
-        {
-            return perUnitCount;
-        }
-
-        public double spreadExpectation()
-        {
-            return 4;  // High tolerance to avoid flakiness.
-        }
-    };
-
-    static TokenCount varyingTokenCount = new TokenCount()
-    {
-        public int tokenCount(int perUnitCount, Random rand)
-        {
-            if (perUnitCount == 1) return 1;
-            // 25 to 175%
-            return rand.nextInt(perUnitCount * 3 / 2) + (perUnitCount + 3) / 4;
-        }
-
-        public double spreadExpectation()
-        {
-            return 8;  // High tolerance to avoid flakiness.
-        }
-    };
-
-    Random seededRand = new Random(2);
-
-    private void random(Map<Token, Unit> map, TestReplicationStrategy rs,
-                        int unitCount, TokenCount tc, int perUnitCount, IPartitioner partitioner)
-    {
-        System.out.format("\nRandom generation of %d units with %d tokens each\n", unitCount, perUnitCount);
-        Random rand = seededRand;
-        for (int i = 0; i < unitCount; i++)
-        {
-            Unit unit = new Unit();
-            rs.addUnit(unit);
-            int tokens = tc.tokenCount(perUnitCount, rand);
-            for (int j = 0; j < tokens; j++)
-            {
-                map.put(partitioner.getRandomToken(rand), unit);
-            }
-        }
-    }
-
     protected void testExistingCluster(IPartitioner partitioner, int maxVNodeCount)
     {
         for (int rf = 1; rf <= 5; ++rf)
@@ -607,25 +479,6 @@ abstract class AbstractReplicationAwareTokenAllocatorTest
         grow(t, fullCount, tc, perUnitCount, true);
     }
 
-    static class Summary
-    {
-        double min = 1;
-        double max = 1;
-        double stddev = 0;
-
-        void update(SummaryStatistics stat)
-        {
-            min = Math.min(min, stat.getMin());
-            max = Math.max(max, stat.getMax());
-            stddev = Math.max(stddev, stat.getStandardDeviation());
-        }
-
-        public String toString()
-        {
-            return String.format("max %.2f min %.2f stddev %.4f", max, min, stddev);
-        }
-    }
-
     public void grow(ReplicationAwareTokenAllocator<Unit> t, int targetClusterSize, TokenCount tc, int perUnitCount, boolean verifyMetrics)
     {
         int size = t.unitCount();
@@ -661,7 +514,6 @@ abstract class AbstractReplicationAwareTokenAllocatorTest
         }
     }
 
-
     private void updateSummary(ReplicationAwareTokenAllocator<Unit> t, Summary su, Summary st, boolean print)
     {
         int size = t.sortedTokens.size();
@@ -686,31 +538,6 @@ abstract class AbstractReplicationAwareTokenAllocatorTest
                               mms(tokenStat),
                               t.strategy);
             System.out.format("Worst intermediate unit\t%s  token %s\n", su, st);
-        }
-    }
-
-
-    private static String mms(SummaryStatistics s)
-    {
-        return String.format("max %.2f min %.2f stddev %.4f", s.getMax(), s.getMin(), s.getStandardDeviation());
-    }
-
-
-    int nextUnitId = 0;
-
-    final class Unit implements Comparable<Unit>
-    {
-        int unitId = nextUnitId++;
-
-        public String toString()
-        {
-            return Integer.toString(unitId);
-        }
-
-        @Override
-        public int compareTo(Unit o)
-        {
-            return Integer.compare(unitId, o.unitId);
         }
     }
 }

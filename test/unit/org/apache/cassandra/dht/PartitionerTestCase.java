@@ -118,6 +118,38 @@ public abstract class PartitionerTestCase
         assertMidpoint(tok("bbb"), tok("a"), 16);
     }
 
+    /**
+     * Test split token ranges
+     */
+    public void assertSplit(Token left, Token right, int depth)
+    {
+        Random rand = new Random();
+        for (int i = 0; i < 1000; i++)
+        {
+            assertSplit(left, right ,rand, depth);
+        }
+    }
+
+    private void assertSplit(Token left, Token right, Random rand, int depth)
+    {
+        double ratio = rand.nextDouble();
+        Token newToken = partitioner.split(left, right, ratio);
+
+        assert new Range<Token>(left, right).contains(newToken)
+                : "For " + left + "," + right + ": range did not contain new token:" + newToken;
+
+        assertEquals("For " + left + "," + right + ", new token: " + newToken,
+                     ratio, left.size(newToken) / left.size(right), 0.1);
+
+        if (depth < 1)
+            return;
+
+        if (rand.nextBoolean())
+            assertSplit(left, newToken, rand, depth-1);
+        else
+            assertSplit(newToken, right, rand, depth-1);
+    }
+
     @Test
     public void testTokenFactoryBytes()
     {

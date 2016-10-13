@@ -50,6 +50,11 @@ public class LocalPartitioner implements IPartitioner
         throw new UnsupportedOperationException();
     }
 
+    public Token split(Token left, Token right, double ratioToLeft)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public LocalToken getMinimumToken()
     {
         return new LocalToken(ByteBufferUtil.EMPTY_BYTE_BUFFER);
