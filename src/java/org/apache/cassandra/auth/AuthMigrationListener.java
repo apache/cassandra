@@ -44,4 +44,10 @@ public class AuthMigrationListener extends MigrationListener
         DatabaseDescriptor.getAuthorizer()
                           .revokeAllOn(FunctionResource.function(ksName, functionName, argTypes));
     }
+
+    public void onDropAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
+    {
+        DatabaseDescriptor.getAuthorizer()
+                          .revokeAllOn(FunctionResource.function(ksName, aggregateName, argTypes));
+    }
 }
