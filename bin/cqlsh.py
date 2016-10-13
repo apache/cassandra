@@ -151,6 +151,7 @@ except ImportError, e:
 
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
+from cassandra.cqltypes import cql_typename
 from cassandra.marshal import int64_unpack
 from cassandra.metadata import (ColumnMetadata, KeyspaceMetadata,
                                 TableMetadata, protect_name, protect_names)
@@ -1289,7 +1290,7 @@ class Shell(cmd.Cmd):
         elif result:
             # CAS INSERT/UPDATE
             self.writeresult("")
-            self.print_static_result(result.column_names, list(result), self.parse_for_update_meta(statement.query_string))
+            self.print_static_result(result, self.parse_for_update_meta(statement.query_string))
         self.flush_output()
         return True, future
 
@@ -1300,19 +1301,17 @@ class Shell(cmd.Cmd):
         if result.has_more_pages and self.tty:
             num_rows = 0
             while True:
-                page = result.current_rows
-                if page:
-                    num_rows += len(page)
-                    self.print_static_result(result.column_names, page, table_meta)
+                if result.current_rows:
+                    num_rows += len(result.current_rows)
+                    self.print_static_result(result, table_meta)
                 if result.has_more_pages:
                     raw_input("---MORE---")
                     result.fetch_next_page()
                 else:
                     break
         else:
-            rows = list(result)
-            num_rows = len(rows)
-            self.print_static_result(result.column_names, rows, table_meta)
+            num_rows = len(result.current_rows)
+            self.print_static_result(result, table_meta)
         self.writeresult("(%d rows)" % num_rows)
 
         if self.decoding_errors:
@@ -1322,24 +1321,23 @@ class Shell(cmd.Cmd):
                 self.writeresult('%d more decoding errors suppressed.'
                                  % (len(self.decoding_errors) - 2), color=RED)
 
-    def print_static_result(self, column_names, rows, table_meta):
-        if not column_names and not table_meta:
+    def print_static_result(self, result, table_meta):
+        if not result.column_names and not table_meta:
             return
 
-        column_names = column_names or table_meta.columns.keys()
+        column_names = result.column_names or table_meta.columns.keys()
         formatted_names = [self.myformat_colname(name, table_meta) for name in column_names]
-        if not rows:
+        if not result.current_rows:
             # print header only
             self.print_formatted_result(formatted_names, None)
             return
 
         cql_types = []
-        if table_meta:
+        if result.column_types:
             ks_meta = self.conn.metadata.keyspaces[table_meta.keyspace_name]
-            cql_types = [CqlType(table_meta.columns[c].cql_type, ks_meta)
-                         if c in table_meta.columns else None for c in column_names]
+            cql_types = [CqlType(cql_typename(t), ks_meta) for t in result.column_types]
 
-        formatted_values = [map(self.myformat_value, row.values(), cql_types) for row in rows]
+        formatted_values = [map(self.myformat_value, row.values(), cql_types) for row in result.current_rows]
 
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values)
