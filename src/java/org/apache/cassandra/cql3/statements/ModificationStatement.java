@@ -275,6 +275,12 @@ public abstract class ModificationStatement implements CQLStatement
                 throw new InvalidRequestException(
                         String.format("Multi-column relations cannot be used in WHERE clauses for UPDATE and DELETE statements: %s", relation));
             }
+
+            if (relation.onToken())
+            {
+                throw new InvalidRequestException(String.format("Token relations cannot be used in WHERE clauses for UPDATE and DELETE statements: %s", relation));
+            }
+
             SingleColumnRelation rel = (SingleColumnRelation) relation;
 
             if (rel.onToken())
