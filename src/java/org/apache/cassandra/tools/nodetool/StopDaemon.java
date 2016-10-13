@@ -37,6 +37,5 @@ public class StopDaemon extends NodeToolCmd
             JVMStabilityInspector.inspectThrowable(e);
             // ignored
         }
-        System.out.println("Cassandra has shutdown.");
     }
 }
