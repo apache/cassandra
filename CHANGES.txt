@@ -1,4 +1,5 @@
 3.0.10
+ * Fix ViewTest.testCompaction (CASSANDRA-12789)
  * Improve avg aggregate functions (CASSANDRA-12417)
  * Preserve quoted reserved keyword column names in MV creation (CASSANDRA-11803)
  * nodetool stopdaemon errors out (CASSANDRA-12646)
