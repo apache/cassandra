@@ -423,13 +423,12 @@ public class Keyspace
         if (logger.isTraceEnabled())
             logger.trace("Indexing row {} ", cfs.metadata.getKeyValidator().getString(key.getKey()));
 
-        try (OpOrder.Group opGroup = cfs.keyspace.writeOrder.start())
-        {
-            Set<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
+        Set<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
 
-            Iterator<ColumnFamily> pager = QueryPagers.pageRowLocally(cfs, key.getKey(), DEFAULT_PAGE_SIZE);
-            while (pager.hasNext())
-            {
+        Iterator<ColumnFamily> pager = QueryPagers.pageRowLocally(cfs, key.getKey(), DEFAULT_PAGE_SIZE);
+        while (pager.hasNext())
+        {
+            try (OpOrder.Group opGroup = cfs.keyspace.writeOrder.start()) {
                 ColumnFamily cf = pager.next();
                 ColumnFamily cf2 = cf.cloneMeShallow();
                 for (Cell cell : cf)
