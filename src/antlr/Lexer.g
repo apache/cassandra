@@ -56,6 +56,8 @@ lexer grammar Lexer;
 }
 
 // Case-insensitive keywords
+// When adding a new reserved keyword, add entry to o.a.c.cql3.ReservedKeywords as well
+// When adding a new unreserved keyword, add entry to unreserved keywords in Parser.g
 K_SELECT:      S E L E C T;
 K_FROM:        F R O M;
 K_AS:          A S;

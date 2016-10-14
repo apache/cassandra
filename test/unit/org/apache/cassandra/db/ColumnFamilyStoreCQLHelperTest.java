@@ -649,10 +649,10 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
 
         assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
         "CREATE TABLE IF NOT EXISTS " + DYNAMIC_COMPOSITE + "." + DYNAMIC_COMPOSITE + " (\n" +
-        "\tkey ascii,\n" +
+        "\t\"key\" ascii,\n" +
         "\tcols 'org.apache.cassandra.db.marshal.DynamicCompositeType(a=>org.apache.cassandra.db.marshal.BytesType,b=>org.apache.cassandra.db.marshal.BytesType,c=>org.apache.cassandra.db.marshal.BytesType)',\n" +
         "\tval ascii,\n" +
-        "\tPRIMARY KEY (key, cols))\n" +
+        "\tPRIMARY KEY (\"key\", cols))\n" +
         "\tWITH ID = " + cfs.metadata.cfId + "\n" +
         "\tAND COMPACT STORAGE"));
     }
