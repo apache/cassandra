@@ -6,6 +6,7 @@
 
 
 3.10
+ * Make cassandra.yaml docs for batch_size_*_threshold_in_kb reflect changes in CASSANDRA-10876 (CASSANDRA-12761)
  * cqlsh fails to format collections when using aliases (CASSANDRA-11534)
  * Check for hash conflicts in prepared statements (CASSANDRA-12733)
  * Exit query parsing upon first error (CASSANDRA-12598)
