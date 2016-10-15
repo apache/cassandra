@@ -19,7 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.text.DecimalFormat;
 import java.util.concurrent.TimeUnit;
-import java.util.Locale.ENGLISH;
+import java.util.Locale;
 
 import com.google.common.base.Objects;
 

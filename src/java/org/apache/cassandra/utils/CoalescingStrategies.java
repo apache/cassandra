@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
-import java.util.Locale.ENGLISH;
+import java.util.Locale;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
