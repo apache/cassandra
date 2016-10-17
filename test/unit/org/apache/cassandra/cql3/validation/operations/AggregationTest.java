@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
@@ -39,8 +40,6 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.TurboFilterList;
 import ch.qos.logback.classic.turbo.ReconfigureOnChangeFilter;
 import ch.qos.logback.classic.turbo.TurboFilter;
-import com.datastax.driver.core.Session;
-import com.datastax.driver.core.TupleValue;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
@@ -1969,56 +1968,118 @@ public class AggregationTest extends CQLTester
     }
 
     @Test
-    public void testSameStateInstance() throws Throwable
+    public void testAggregatesWithoutOverflow() throws Throwable
     {
-        // CASSANDRA-9613 removes the neccessity to re-serialize the state variable for each
-        // UDA state function and final function call.
-        //
-        // To test that the same state object instance is used during each invocation of the
-        // state and final function, this test uses a trick:
-        // it puts the identity hash code of the state variable to a tuple. The test then
-        // just asserts that the identity hash code is the same for all invocations
-        // of the state function and the final function.
+        createTable("create table %s (bucket int primary key, v1 tinyint, v2 smallint, v3 int, v4 bigint, v5 varint)");
+        for (int i = 1; i <= 3; i++)
+            execute("insert into %s (bucket, v1, v2, v3, v4, v5) values (?, ?, ?, ?, ?, ?)", i,
+                    (byte) ((Byte.MAX_VALUE / 3) + i), (short) ((Short.MAX_VALUE / 3) + i), (Integer.MAX_VALUE / 3) + i, (Long.MAX_VALUE / 3) + i,
+                    BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(i)));
 
-        String sf = createFunction(KEYSPACE,
-                                  "tuple<int,int,int,int>, int",
-                                  "CREATE FUNCTION %s(s tuple<int,int,int,int>, i int) " +
-                                  "CALLED ON NULL INPUT " +
-                                  "RETURNS tuple<int,int,int,int> " +
-                                  "LANGUAGE java " +
-                                  "AS 's.setInt(i, System.identityHashCode(s)); return s;'");
+        assertRows(execute("select avg(v1), avg(v2), avg(v3), avg(v4), avg(v5) from %s where bucket in (1, 2, 3);"),
+                   row((byte) ((Byte.MAX_VALUE / 3) + 2), (short) ((Short.MAX_VALUE / 3) + 2), (Integer.MAX_VALUE / 3) + 2, (Long.MAX_VALUE / 3) + 2,
+                       BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(2))));
 
-        String ff = createFunction(KEYSPACE,
-                                  "tuple<int,int,int,int>",
-                                  "CREATE FUNCTION %s(s tuple<int,int,int,int>) " +
-                                  "CALLED ON NULL INPUT " +
-                                  "RETURNS tuple<int,int,int,int> " +
-                                  "LANGUAGE java " +
-                                  "AS 's.setInt(3, System.identityHashCode(s)); return s;'");
+        for (int i = 1; i <= 3; i++)
+            execute("insert into %s (bucket, v1, v2, v3, v4, v5) values (?, ?, ?, ?, ?, ?)", i + 3,
+                    (byte) (100 + i), (short) (100 + i), 100 + i, 100L + i, BigInteger.valueOf(100 + i));
 
-        String a = createAggregate(KEYSPACE,
-                                   "int",
-                                   "CREATE AGGREGATE %s(int) " +
-                                   "SFUNC " + shortFunctionName(sf) + ' ' +
-                                   "STYPE tuple<int,int,int,int> " +
-                                   "FINALFUNC " + shortFunctionName(ff) + ' ' +
-                                   "INITCOND (0,1,2)");
+        assertRows(execute("select avg(v1), avg(v2), avg(v3), avg(v4), avg(v5) from %s where bucket in (4, 5, 6);"),
+                   row((byte) 102, (short) 102, 102, 102L, BigInteger.valueOf(102)));
+    }
 
-        createTable("CREATE TABLE %s (a int primary key, b int)");
-        execute("INSERT INTO %s (a, b) VALUES (0, 0)");
-        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
-        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
-        try (Session s = sessionNet())
+    @Test
+    public void testAggregateOverflow() throws Throwable
+    {
+        createTable("create table %s (bucket int primary key, v1 tinyint, v2 smallint, v3 int, v4 bigint, v5 varint)");
+        for (int i = 1; i <= 3; i++)
+            execute("insert into %s (bucket, v1, v2, v3, v4, v5) values (?, ?, ?, ?, ?, ?)", i,
+                    Byte.MAX_VALUE, Short.MAX_VALUE, Integer.MAX_VALUE, Long.MAX_VALUE, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.valueOf(2)));
+
+        assertRows(execute("select avg(v1), avg(v2), avg(v3), avg(v4), avg(v5) from %s where bucket in (1, 2, 3);"),
+                   row(Byte.MAX_VALUE, Short.MAX_VALUE, Integer.MAX_VALUE, Long.MAX_VALUE, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.valueOf(2))));
+
+        execute("truncate %s");
+
+        for (int i = 1; i <= 3; i++)
+            execute("insert into %s (bucket, v1, v2, v3, v4, v5) values (?, ?, ?, ?, ?, ?)", i,
+                    Byte.MIN_VALUE, Short.MIN_VALUE, Integer.MIN_VALUE, Long.MIN_VALUE, BigInteger.valueOf(Long.MIN_VALUE).multiply(BigInteger.valueOf(2)));
+
+        assertRows(execute("select avg(v1), avg(v2), avg(v3), avg(v4), avg(v5) from %s where bucket in (1, 2, 3);"),
+                   row(Byte.MIN_VALUE, Short.MIN_VALUE, Integer.MIN_VALUE, Long.MIN_VALUE, BigInteger.valueOf(Long.MIN_VALUE).multiply(BigInteger.valueOf(2))));
+
+    }
+
+    @Test
+    public void testDoubleAggregatesPrecision() throws Throwable
+    {
+        createTable("create table %s (bucket int primary key, v1 float, v2 double, v3 decimal)");
+
+        for (int i = 1; i <= 3; i++)
+            execute("insert into %s (bucket, v1, v2, v3) values (?, ?, ?, ?)", i,
+                    Float.MAX_VALUE, Double.MAX_VALUE, BigDecimal.valueOf(Double.MAX_VALUE).add(BigDecimal.valueOf(2)));
+
+        assertRows(execute("select avg(v1), avg(v2), avg(v3) from %s where bucket in (1, 2, 3);"),
+                   row(Float.MAX_VALUE, Double.MAX_VALUE, BigDecimal.valueOf(Double.MAX_VALUE).add(BigDecimal.valueOf(2))));
+
+        execute("insert into %s (bucket, v1, v2, v3) values (?, ?, ?, ?)", 4, (float) 100.10, 100.10, BigDecimal.valueOf(100.10));
+        execute("insert into %s (bucket, v1, v2, v3) values (?, ?, ?, ?)", 5, (float) 110.11, 110.11, BigDecimal.valueOf(110.11));
+        execute("insert into %s (bucket, v1, v2, v3) values (?, ?, ?, ?)", 6, (float) 120.12, 120.12, BigDecimal.valueOf(120.12));
+
+        assertRows(execute("select avg(v1), avg(v2), avg(v3) from %s where bucket in (4, 5, 6);"),
+                   row((float) 110.11, 110.11, BigDecimal.valueOf(110.11)));
+    }
+
+    @Test
+    public void testNan() throws Throwable
+    {
+        createTable("create table %s (bucket int primary key, v1 float, v2 double)");
+
+        for (int i = 1; i <= 10; i++)
+            if (i != 5)
+                execute("insert into %s (bucket, v1, v2) values (?, ?, ?)", i, (float) i, (double) i);
+
+        execute("insert into %s (bucket, v1, v2) values (?, ?, ?)", 5, Float.NaN, Double.NaN);
+
+        assertRows(execute("select avg(v1), avg(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
+                   row(Float.NaN, Double.NaN));
+        assertRows(execute("select sum(v1), sum(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
+                   row(Float.NaN, Double.NaN));
+    }
+
+    @Test
+    public void testInfinity() throws Throwable
+    {
+        createTable("create table %s (bucket int primary key, v1 float, v2 double)");
+        for (boolean positive: new boolean[] { true, false})
         {
-            com.datastax.driver.core.Row row = s.execute("SELECT " + a + "(b) FROM " + KEYSPACE + '.' + currentTable()).one();
-            TupleValue tuple = row.getTupleValue(0);
-            int h0 = tuple.getInt(0);
-            int h1 = tuple.getInt(1);
-            int h2 = tuple.getInt(2);
-            int h3 = tuple.getInt(3);
-            assertEquals(h0, h1);
-            assertEquals(h0, h2);
-            assertEquals(h0, h3);
+            final float FLOAT_INFINITY = positive ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY;
+            final double DOUBLE_INFINITY = positive ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
+
+            for (int i = 1; i <= 10; i++)
+                if (i != 5)
+                    execute("insert into %s (bucket, v1, v2) values (?, ?, ?)", i, (float) i, (double) i);
+
+            execute("insert into %s (bucket, v1, v2) values (?, ?, ?)", 5, FLOAT_INFINITY, DOUBLE_INFINITY);
+
+            assertRows(execute("select avg(v1), avg(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
+                       row(FLOAT_INFINITY, DOUBLE_INFINITY));
+            assertRows(execute("select sum(v1), avg(v2) from %s where bucket in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);"),
+                       row(FLOAT_INFINITY, DOUBLE_INFINITY));
+
+            execute("truncate %s");
         }
+    }
+
+    @Test
+    public void testSumPrecision() throws Throwable
+    {
+        createTable("create table %s (bucket int primary key, v1 float, v2 double, v3 decimal)");
+
+        for (int i = 1; i <= 17; i++)
+            execute("insert into %s (bucket, v1, v2, v3) values (?, ?, ?, ?)", i, (float) (i / 10.0), i / 10.0, BigDecimal.valueOf(i / 10.0));
+
+        assertRows(execute("select sum(v1), sum(v2), sum(v3) from %s;"),
+                   row((float) 15.3, 15.3, BigDecimal.valueOf(15.3)));
     }
 }
