@@ -20,17 +20,18 @@ package org.apache.cassandra.cql3;
 
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 class ReservedKeywords
 {
-    private static final String[] reservedKeywords = new String[]
+    @VisibleForTesting
+    static final String[] reservedKeywords = new String[]
                                                      {
                                                      "SELECT",
                                                      "FROM",
                                                      "WHERE",
                                                      "AND",
-                                                     "KEY",
                                                      "ENTRIES",
                                                      "FULL",
                                                      "INSERT",
@@ -39,7 +40,6 @@ class ReservedKeywords
                                                      "LIMIT",
                                                      "USING",
                                                      "USE",
-                                                     "COUNT",
                                                      "SET",
                                                      "BEGIN",
                                                      "UNLOGGED",
@@ -61,8 +61,6 @@ class ReservedKeywords
                                                      "DROP",
                                                      "PRIMARY",
                                                      "INTO",
-                                                     "TIMESTAMP",
-                                                     "TTL",
                                                      "ALTER",
                                                      "RENAME",
                                                      "ADD",
@@ -81,27 +79,7 @@ class ReservedKeywords
                                                      "DESCRIBE",
                                                      "EXECUTE",
                                                      "NORECURSIVE",
-                                                     "ASCII",
-                                                     "BIGINT",
-                                                     "BLOB",
-                                                     "BOOLEAN",
-                                                     "COUNTER",
-                                                     "DECIMAL",
-                                                     "DOUBLE",
-                                                     "FLOAT",
-                                                     "INET",
-                                                     "INT",
-                                                     "SMALLINT",
-                                                     "TINYINT",
-                                                     "TEXT",
-                                                     "UUID",
-                                                     "VARCHAR",
-                                                     "VARINT",
-                                                     "TIMEUUID",
                                                      "TOKEN",
-                                                     "WRITETIME",
-                                                     "DATE",
-                                                     "TIME",
                                                      "NULL",
                                                      "NOT",
                                                      "NAN",
