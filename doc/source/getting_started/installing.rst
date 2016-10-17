@@ -65,6 +65,12 @@ Installation from Debian packages
 
     echo "deb http://www.apache.org/dist/cassandra/debian 36x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
 
+- Add the Apache Cassandra repository keys:
+
+::
+
+    curl https://www.apache.org/dist/cassandra/KEYS | sudo apt-key add -
+
 - Update the repositories:
 
 ::
@@ -75,14 +81,13 @@ Installation from Debian packages
 
 ::
 
-    GPG error: http://www.apache.org 36x InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 749D6EEC0353B12C
+    GPG error: http://www.apache.org 36x InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY A278B781FE4B2BDA
 
-Then add the public key 749D6EEC0353B12C as follows:
+Then add the public key A278B781FE4B2BDA as follows:
 
 ::
 
-    gpg --keyserver pgp.mit.edu --recv-keys 749D6EEC0353B12C
-    gpg --export --armor 749D6EEC0353B12C | sudo apt-key add -
+    sudo apt-key adv --keyserver pool.sks-keyservers.net --recv-key A278B781FE4B2BDA
 
 and repeat ``sudo apt-get update``. The actual key may be different, you get it from the error message itself. For a
 full list of Apache contributors public keys, you can refer to `this link <https://www.apache.org/dist/cassandra/KEYS>`__.
