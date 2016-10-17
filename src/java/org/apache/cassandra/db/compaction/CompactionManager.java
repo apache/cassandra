@@ -1084,7 +1084,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         int nowInSec = FBUtilities.nowInSeconds();
         try (SSTableRewriter writer = SSTableRewriter.construct(cfs, txn, false, sstable.maxDataAge);
-             ISSTableScanner scanner = cleanupStrategy.getScanner(sstable, null);
+             ISSTableScanner scanner = cleanupStrategy.getScanner(sstable);
              CompactionController controller = new CompactionController(cfs, txn.originals(), getDefaultGcBefore(cfs, nowInSec));
              CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, UUIDGen.getTimeUUID(), metrics))
         {
@@ -1167,7 +1167,7 @@ public class CompactionManager implements CompactionManagerMBean
                  : new Bounded(cfs, ranges, nowInSec);
         }
 
-        public abstract ISSTableScanner getScanner(SSTableReader sstable, RateLimiter limiter);
+        public abstract ISSTableScanner getScanner(SSTableReader sstable);
         public abstract UnfilteredRowIterator cleanup(UnfilteredRowIterator partition);
 
         private static final class Bounded extends CleanupStrategy
@@ -1186,9 +1186,9 @@ public class CompactionManager implements CompactionManagerMBean
             }
 
             @Override
-            public ISSTableScanner getScanner(SSTableReader sstable, RateLimiter limiter)
+            public ISSTableScanner getScanner(SSTableReader sstable)
             {
-                return sstable.getScanner(ranges, limiter);
+                return sstable.getScanner(ranges);
             }
 
             @Override
@@ -1209,9 +1209,9 @@ public class CompactionManager implements CompactionManagerMBean
             }
 
             @Override
-            public ISSTableScanner getScanner(SSTableReader sstable, RateLimiter limiter)
+            public ISSTableScanner getScanner(SSTableReader sstable)
             {
-                return sstable.getScanner(limiter);
+                return sstable.getScanner();
             }
 
             @Override

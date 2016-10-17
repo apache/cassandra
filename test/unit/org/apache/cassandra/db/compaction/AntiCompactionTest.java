@@ -105,7 +105,7 @@ public class AntiCompactionTest
         assertEquals(2, store.getLiveSSTables().size());
         for (SSTableReader sstable : store.getLiveSSTables())
         {
-            try (ISSTableScanner scanner = sstable.getScanner((RateLimiter) null))
+            try (ISSTableScanner scanner = sstable.getScanner())
             {
                 while (scanner.hasNext())
                 {
@@ -240,7 +240,7 @@ public class AntiCompactionTest
         int nonRepairedKeys = 0;
         for (SSTableReader sstable : store.getLiveSSTables())
         {
-            try (ISSTableScanner scanner = sstable.getScanner((RateLimiter) null))
+            try (ISSTableScanner scanner = sstable.getScanner())
             {
                 while (scanner.hasNext())
                 {

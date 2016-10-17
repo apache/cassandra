@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
-import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
@@ -34,7 +33,6 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
@@ -77,9 +75,9 @@ public class BigTableReader extends SSTableReader
      * @param dataRange filter to use when reading the columns
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, RateLimiter limiter, boolean isForThrift)
+    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, boolean isForThrift)
     {
-        return BigTableScanner.getScanner(this, columns, dataRange, limiter, isForThrift);
+        return BigTableScanner.getScanner(this, columns, dataRange, isForThrift);
     }
 
     /**
@@ -98,9 +96,9 @@ public class BigTableReader extends SSTableReader
      *
      * @return A Scanner for reading the full SSTable.
      */
-    public ISSTableScanner getScanner(RateLimiter limiter)
+    public ISSTableScanner getScanner()
     {
-        return BigTableScanner.getScanner(this, limiter);
+        return BigTableScanner.getScanner(this);
     }
 
     /**
@@ -109,12 +107,12 @@ public class BigTableReader extends SSTableReader
      * @param ranges the range of keys to cover
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public ISSTableScanner getScanner(Collection<Range<Token>> ranges, RateLimiter limiter)
+    public ISSTableScanner getScanner(Collection<Range<Token>> ranges)
     {
         if (ranges != null)
-            return BigTableScanner.getScanner(this, ranges, limiter);
+            return BigTableScanner.getScanner(this, ranges);
         else
-            return getScanner(limiter);
+            return getScanner();
     }
 
 

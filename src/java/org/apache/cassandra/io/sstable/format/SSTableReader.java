@@ -1664,37 +1664,17 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return isSuspect.get();
     }
 
-
-    /**
-     * I/O SSTableScanner
-     * @return A Scanner for seeking over the rows of the SSTable.
-     */
-    public ISSTableScanner getScanner()
-    {
-        return getScanner((RateLimiter) null);
-    }
-
-    /**
-     * @param columns the columns to return.
-     * @param dataRange filter to use when reading the columns
-     * @return A Scanner for seeking over the rows of the SSTable.
-     */
-    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, boolean isForThrift)
-    {
-        return getScanner(columns, dataRange, null, isForThrift);
-    }
-
     /**
      * Direct I/O SSTableScanner over a defined range of tokens.
      *
      * @param range the range of keys to cover
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public ISSTableScanner getScanner(Range<Token> range, RateLimiter limiter)
+    public ISSTableScanner getScanner(Range<Token> range)
     {
         if (range == null)
-            return getScanner(limiter);
-        return getScanner(Collections.singletonList(range), limiter);
+            return getScanner();
+        return getScanner(Collections.singletonList(range));
     }
 
     /**
@@ -1702,7 +1682,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      *
      * @return A Scanner over the full content of the SSTable.
      */
-    public abstract ISSTableScanner getScanner(RateLimiter limiter);
+    public abstract ISSTableScanner getScanner();
 
     /**
      * Direct I/O SSTableScanner over a defined collection of ranges of tokens.
@@ -1710,7 +1690,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @param ranges the range of keys to cover
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public abstract ISSTableScanner getScanner(Collection<Range<Token>> ranges, RateLimiter limiter);
+    public abstract ISSTableScanner getScanner(Collection<Range<Token>> ranges);
 
     /**
      * Direct I/O SSTableScanner over an iterator of bounds.
@@ -1725,7 +1705,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @param dataRange filter to use when reading the columns
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public abstract ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, RateLimiter limiter, boolean isForThrift);
+    public abstract ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, boolean isForThrift);
 
     public FileDataInput getFileDataInput(long position)
     {
