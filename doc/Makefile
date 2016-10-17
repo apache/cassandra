@@ -57,7 +57,7 @@ help:
 .PHONY: clean
 clean:
 	rm -rf $(BUILDDIR)/*
-	rm $(YAML_DOC_OUTPUT)
+	rm -f $(YAML_DOC_OUTPUT)
 
 .PHONY: html
 html:
