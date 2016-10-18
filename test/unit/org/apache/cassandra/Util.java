@@ -36,6 +36,9 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.StringUtils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -67,7 +70,9 @@ import static org.junit.Assert.assertTrue;
 
 public class Util
 {
-    private static List<UUID> hostIdPool = new ArrayList<UUID>();
+    private static final Logger logger = LoggerFactory.getLogger(Util.class);
+
+    private static List<UUID> hostIdPool = new ArrayList<>();
 
     public static IPartitioner testPartitioner()
     {
@@ -601,10 +606,9 @@ public class Util
         AssertionError e = runCatchingAssertionError(test);
         if (e == null)
             return;     // success
-        System.err.format("Test failed. %s%n"
-                        + "Re-running %d times to verify it isn't failing more often than it should.%n"
-                        + "Failure was: %s%n", message, rerunsOnFailure, e);
-        e.printStackTrace();
+
+        logger.info("Test failed. {}", message, e);
+        logger.info("Re-running {} times to verify it isn't failing more often than it should.", rerunsOnFailure);
 
         int rerunsFailed = 0;
         for (int i = 0; i < rerunsOnFailure; ++i)
@@ -614,15 +618,17 @@ public class Util
             {
                 ++rerunsFailed;
                 e.addSuppressed(t);
+
+                logger.debug("Test failed again, total num failures: {}", rerunsFailed, t);
             }
         }
         if (rerunsFailed > 0)
         {
-            System.err.format("Test failed in %d of the %d reruns.%n", rerunsFailed, rerunsOnFailure);
+            logger.error("Test failed in {} of the {} reruns.", rerunsFailed, rerunsOnFailure);
             throw e;
         }
 
-        System.err.println("All reruns succeeded. Failure treated as flake.");
+        logger.info("All reruns succeeded. Failure treated as flake.");
     }
 
     // for use with Optional in tests, can be used as an argument to orElseThrow
