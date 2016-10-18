@@ -6,6 +6,7 @@
  * Clean up the SSTableReader#getScanner API wrt removal of RateLimiter (CASSANDRA-12422)
 
 3.10
+ * Make the fanout size for LeveledCompactionStrategy to be configurable (CASSANDRA-11550)
  * Fix timeout in ReplicationAwareTokenAllocatorTest (CASSANDRA-12784)
  * Improve sum aggregate functions (CASSANDRA-12417)
  * Make cassandra.yaml docs for batch_size_*_threshold_in_kb reflect changes in CASSANDRA-10876 (CASSANDRA-12761)

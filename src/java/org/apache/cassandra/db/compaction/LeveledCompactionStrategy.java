@@ -47,15 +47,19 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
     private static final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
     private static final boolean tolerateSstableSize = Boolean.getBoolean(Config.PROPERTY_PREFIX + "tolerate_sstable_size");
+    private static final String LEVEL_FANOUT_SIZE_OPTION = "fanout_size";
+    public static final int DEFAULT_LEVEL_FANOUT_SIZE = 10;
 
     @VisibleForTesting
     final LeveledManifest manifest;
     private final int maxSSTableSizeInMB;
+    private final int levelFanoutSize;
 
     public LeveledCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
         super(cfs, options);
         int configuredMaxSSTableSize = 160;
+        int configuredLevelFanoutSize = DEFAULT_LEVEL_FANOUT_SIZE;
         SizeTieredCompactionStrategyOptions localOptions = new SizeTieredCompactionStrategyOptions(options);
         if (options != null)
         {             
@@ -72,10 +76,16 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                                 configuredMaxSSTableSize, cfs.name, cfs.getColumnFamilyName());
                 }
             }
+
+            if (options.containsKey(LEVEL_FANOUT_SIZE_OPTION))
+            {
+                configuredLevelFanoutSize = Integer.parseInt(options.get(LEVEL_FANOUT_SIZE_OPTION));
+            }
         }
         maxSSTableSizeInMB = configuredMaxSSTableSize;
+        levelFanoutSize = configuredLevelFanoutSize;
 
-        manifest = new LeveledManifest(cfs, this.maxSSTableSizeInMB, localOptions);
+        manifest = new LeveledManifest(cfs, this.maxSSTableSizeInMB, this.levelFanoutSize, localOptions);
         logger.trace("Created {}", manifest);
     }
 
@@ -241,6 +251,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     public long getMaxSSTableBytes()
     {
         return maxSSTableSizeInMB * 1024L * 1024L;
+    }
+
+    public int getLevelFanoutSize()
+    {
+        return levelFanoutSize;
     }
 
     public ScannerList getScanners(Collection<SSTableReader> sstables, Collection<Range<Token>> ranges)
@@ -530,6 +545,23 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         }
 
         uncheckedOptions.remove(SSTABLE_SIZE_OPTION);
+
+        // Validate the fanout_size option
+        String levelFanoutSize = options.containsKey(LEVEL_FANOUT_SIZE_OPTION) ? options.get(LEVEL_FANOUT_SIZE_OPTION) : String.valueOf(DEFAULT_LEVEL_FANOUT_SIZE);
+        try
+        {
+            int fanoutSize = Integer.parseInt(levelFanoutSize);
+            if (fanoutSize < 1)
+            {
+                throw new ConfigurationException(String.format("%s must be larger than 0, but was %s", LEVEL_FANOUT_SIZE_OPTION, fanoutSize));
+            }
+        }
+        catch (NumberFormatException ex)
+        {
+            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", size, LEVEL_FANOUT_SIZE_OPTION), ex);
+        }
+
+        uncheckedOptions.remove(LEVEL_FANOUT_SIZE_OPTION);
 
         uncheckedOptions = SizeTieredCompactionStrategyOptions.validateOptions(options, uncheckedOptions);
 

@@ -112,6 +112,7 @@ public class SchemaLoader
         compactionOptions.put("tombstone_compaction_interval", "1");
         Map<String, String> leveledOptions = new HashMap<String, String>();
         leveledOptions.put("sstable_size_in_mb", "1");
+        leveledOptions.put("fanout_size", "5");
 
         // Keyspace 1
         schema.add(KeyspaceMetadata.create(ks1,

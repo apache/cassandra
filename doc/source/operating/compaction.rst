@@ -262,7 +262,7 @@ and the attribute to change is ``CompactionParameters`` or ``CompactionParameter
 syntax for the json version is the same as you would use in an :ref:`ALTER TABLE <alter-table-statement>` statement -
 for example::
 
-    { 'class': 'LeveledCompactionStrategy', 'sstable_size_in_mb': 123 }
+    { 'class': 'LeveledCompactionStrategy', 'sstable_size_in_mb': 123, 'fanout_size': 10}
 
 The setting is kept until someone executes an :ref:`ALTER TABLE <alter-table-statement>` that touches the compaction
 settings or restarts the node.
@@ -378,6 +378,10 @@ LCS options
 ``sstable_size_in_mb`` (default: 160MB)
     The target compressed (if using compression) sstable size - the sstables can end up being larger if there are very
     large partitions on the node.
+
+``fanout_size`` (default: 10)
+    The target size of levels increases by this fanout_size multiplier. You can reduce the space amplification by tuning
+    this option.
 
 LCS also support the ``cassandra.disable_stcs_in_l0`` startup option (``-Dcassandra.disable_stcs_in_l0=true``) to avoid
 doing STCS in L0.

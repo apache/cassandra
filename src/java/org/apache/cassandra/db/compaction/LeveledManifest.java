@@ -70,12 +70,14 @@ public class LeveledManifest
     private final long maxSSTableSizeInBytes;
     private final SizeTieredCompactionStrategyOptions options;
     private final int [] compactionCounter;
+    private final int levelFanoutSize;
 
-    LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB, SizeTieredCompactionStrategyOptions options)
+    LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB, int fanoutSize, SizeTieredCompactionStrategyOptions options)
     {
         this.cfs = cfs;
         this.maxSSTableSizeInBytes = maxSSTableSizeInMB * 1024L * 1024L;
         this.options = options;
+        this.levelFanoutSize = fanoutSize;
 
         generations = new List[MAX_LEVEL_COUNT];
         lastCompactedKeys = new PartitionPosition[MAX_LEVEL_COUNT];
@@ -87,14 +89,14 @@ public class LeveledManifest
         compactionCounter = new int[MAX_LEVEL_COUNT];
     }
 
-    public static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize, List<SSTableReader> sstables)
+    public static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize, int fanoutSize, List<SSTableReader> sstables)
     {
-        return create(cfs, maxSSTableSize, sstables, new SizeTieredCompactionStrategyOptions());
+        return create(cfs, maxSSTableSize, fanoutSize, sstables, new SizeTieredCompactionStrategyOptions());
     }
 
-    public static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize, Iterable<SSTableReader> sstables, SizeTieredCompactionStrategyOptions options)
+    public static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize, int fanoutSize, Iterable<SSTableReader> sstables, SizeTieredCompactionStrategyOptions options)
     {
-        LeveledManifest manifest = new LeveledManifest(cfs, maxSSTableSize, options);
+        LeveledManifest manifest = new LeveledManifest(cfs, maxSSTableSize, fanoutSize, options);
 
         // ensure all SSTables are in the manifest
         for (SSTableReader ssTableReader : sstables)
@@ -282,11 +284,16 @@ public class LeveledManifest
         return builder.toString();
     }
 
-    public static long maxBytesForLevel(int level, long maxSSTableSizeInBytes)
+    public long maxBytesForLevel(int level, long maxSSTableSizeInBytes)
+    {
+        return maxBytesForLevel(level, levelFanoutSize, maxSSTableSizeInBytes);
+    }
+
+    public static long maxBytesForLevel(int level, int levelFanoutSize, long maxSSTableSizeInBytes)
     {
         if (level == 0)
             return 4L * maxSSTableSizeInBytes;
-        double bytes = Math.pow(10, level) * maxSSTableSizeInBytes;
+        double bytes = Math.pow(levelFanoutSize, level) * maxSSTableSizeInBytes;
         if (bytes > Long.MAX_VALUE)
             throw new RuntimeException("At most " + Long.MAX_VALUE + " bytes may be in a compaction level; your maxSSTableSize must be absurdly high to compute " + bytes);
         return (long) bytes;

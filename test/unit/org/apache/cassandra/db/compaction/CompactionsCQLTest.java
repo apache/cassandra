@@ -50,7 +50,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testTriggerMinorCompactionLCS() throws Throwable
     {
-        createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':1};");
+        createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':1, 'fanout_size':5};");
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         execute("insert into %s (id) values ('1')");
         flush();
