@@ -79,6 +79,12 @@ public class TupleType extends AbstractType<ByteBuffer>
         return allTypes().stream().anyMatch(f -> f.referencesUserType(name));
     }
 
+    @Override
+    public boolean referencesDuration()
+    {
+        return allTypes().stream().anyMatch(f -> f.referencesDuration());
+    }
+
     public AbstractType<?> type(int i)
     {
         return types.get(i);

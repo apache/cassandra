@@ -29,6 +29,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -44,6 +45,8 @@ import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
 import static junit.framework.Assert.fail;
+import static org.apache.cassandra.cql3.Duration.*;
+import static org.junit.Assert.assertEquals;
 
 public class CreateTest extends CQLTester
 {
@@ -87,6 +90,134 @@ public class CreateTest extends CQLTester
 
         assertInvalidMessage("Expected 1 byte for a tinyint (0)",
                              "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", "3", (byte) 1, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+    }
+
+    @Test
+    public void testCreateTableWithDurationColumns() throws Throwable
+    {
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part a",
+                             "CREATE TABLE test (a duration PRIMARY KEY, b int);");
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part b",
+                             "CREATE TABLE test (a text, b duration, c duration, primary key (a, b));");
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part b",
+                             "CREATE TABLE test (a text, b duration, c duration, primary key (a, b)) with clustering order by (b DESC);");
+
+        createTable("CREATE TABLE %s (a int, b int, c duration, primary key (a, b));");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 1, 1y2mo)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, -1y2mo)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 3, 1Y2MO)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 4, 2w)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 5, 2d10h)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 6, 30h20m)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 7, 20m)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 8, 567ms)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 9, 1950us)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 10, 1950µs)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 11, 1950000NS)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 12, -1950000ns)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 13, 1y3mo2h10m)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 14, -P1Y2M)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 15, P2D)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 16, PT20M)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 17, P2W)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 18, P1Y3MT2H10M)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 19, P0000-00-00T30:20:00)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 20, P0001-03-00T02:10:00)");
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, 1, Duration.newInstance(14, 0, 0)),
+                   row(1, 2, Duration.newInstance(-14, 0, 0)),
+                   row(1, 3, Duration.newInstance(14, 0, 0)),
+                   row(1, 4, Duration.newInstance(0, 14, 0)),
+                   row(1, 5, Duration.newInstance(0, 2, 10 * NANOS_PER_HOUR)),
+                   row(1, 6, Duration.newInstance(0, 0, 30 * NANOS_PER_HOUR + 20 * NANOS_PER_MINUTE)),
+                   row(1, 7, Duration.newInstance(0, 0, 20 * NANOS_PER_MINUTE)),
+                   row(1, 8, Duration.newInstance(0, 0, 567 * NANOS_PER_MILLI)),
+                   row(1, 9, Duration.newInstance(0, 0, 1950 * NANOS_PER_MICRO)),
+                   row(1, 10, Duration.newInstance(0, 0, 1950 * NANOS_PER_MICRO)),
+                   row(1, 11, Duration.newInstance(0, 0, 1950000)),
+                   row(1, 12, Duration.newInstance(0, 0, -1950000)),
+                   row(1, 13, Duration.newInstance(15, 0, 130 * NANOS_PER_MINUTE)),
+                   row(1, 14, Duration.newInstance(-14, 0, 0)),
+                   row(1, 15, Duration.newInstance(0, 2, 0)),
+                   row(1, 16, Duration.newInstance(0, 0, 20 * NANOS_PER_MINUTE)),
+                   row(1, 17, Duration.newInstance(0, 14, 0)),
+                   row(1, 18, Duration.newInstance(15, 0, 130 * NANOS_PER_MINUTE)),
+                   row(1, 19, Duration.newInstance(0, 0, 30 * NANOS_PER_HOUR + 20 * NANOS_PER_MINUTE)),
+                   row(1, 20, Duration.newInstance(15, 0, 130 * NANOS_PER_MINUTE)));
+
+        assertInvalidMessage("Slice restriction are not supported on duration columns",
+                             "SELECT * FROM %s WHERE c > 1y ALLOW FILTERING");
+
+        assertInvalidMessage("Slice restriction are not supported on duration columns",
+                             "SELECT * FROM %s WHERE c <= 1y ALLOW FILTERING");
+
+        assertInvalidMessage("Expected at least 3 bytes for a duration (1)",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, (byte) 1);
+        assertInvalidMessage("Expected at least 3 bytes for a duration (0)",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        assertInvalidMessage("Invalid duration. The total number of days must be less or equal to 2147483647",
+                             "INSERT INTO %s (a, b, c) VALUES (1, 2, " + Long.MAX_VALUE + "d)");
+
+        // Test with duration column name
+        createTable("CREATE TABLE %s (a text PRIMARY KEY, duration duration);");
+
+        // Test duration within Map
+        assertInvalidMessage("Durations are not allowed as map keys: map<duration, text>",
+                             "CREATE TABLE test(pk int PRIMARY KEY, m map<duration, text>)");
+
+        createTable("CREATE TABLE %s(pk int PRIMARY KEY, m map<text, duration>)");
+        execute("INSERT INTO %s (pk, m) VALUES (1, {'one month' : 1mo, '60 days' : 60d})");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, map("one month", Duration.from("1mo"), "60 days", Duration.from("60d"))));
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part m",
+                "CREATE TABLE %s(m frozen<map<text, duration>> PRIMARY KEY, v int)");
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part m",
+                             "CREATE TABLE %s(pk int, m frozen<map<text, duration>>, v int, PRIMARY KEY (pk, m))");
+
+        // Test duration within Set
+        assertInvalidMessage("Durations are not allowed inside sets: set<duration>",
+                             "CREATE TABLE %s(pk int PRIMARY KEY, s set<duration>)");
+
+        assertInvalidMessage("Durations are not allowed inside sets: frozen<set<duration>>",
+                             "CREATE TABLE %s(s frozen<set<duration>> PRIMARY KEY, v int)");
+
+        // Test duration within List
+        createTable("CREATE TABLE %s(pk int PRIMARY KEY, l list<duration>)");
+        execute("INSERT INTO %s (pk, l) VALUES (1, [1mo, 60d])");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, list(Duration.from("1mo"), Duration.from("60d"))));
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part l",
+                             "CREATE TABLE %s(l frozen<list<duration>> PRIMARY KEY, v int)");
+
+        // Test duration within Tuple
+        createTable("CREATE TABLE %s(pk int PRIMARY KEY, t tuple<int, duration>)");
+        execute("INSERT INTO %s (pk, t) VALUES (1, (1, 1mo))");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, tuple(1, Duration.from("1mo"))));
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part t",
+                             "CREATE TABLE %s(t frozen<tuple<int, duration>> PRIMARY KEY, v int)");
+
+        // Test duration within UDT
+        String typename = createType("CREATE TYPE %s (a duration)");
+        String myType = KEYSPACE + '.' + typename;
+        createTable("CREATE TABLE %s(pk int PRIMARY KEY, u " + myType + ")");
+        execute("INSERT INTO %s (pk, u) VALUES (1, {a : 1mo})");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, userType("a", Duration.from("1mo"))));
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part u",
+                             "CREATE TABLE %s(pk int, u frozen<" + myType + ">, v int, PRIMARY KEY(pk, u))");
+
+        // Test duration with several level of depth
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part m",
+                "CREATE TABLE %s(pk int, m frozen<map<text, list<tuple<int, duration>>>>, v int, PRIMARY KEY (pk, m))");
     }
 
     /**

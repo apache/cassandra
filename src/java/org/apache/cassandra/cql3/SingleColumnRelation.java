@@ -28,6 +28,7 @@ import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -197,6 +198,8 @@ public final class SingleColumnRelation extends Relation
                                               boolean inclusive) throws InvalidRequestException
     {
         ColumnDefinition columnDef = entity.prepare(cfm);
+        checkFalse(columnDef.type instanceof DurationType, "Slice restriction are not supported on duration columns");
+
         Term term = toTerm(toReceivers(columnDef), value, cfm.ksName, boundNames);
         return new SingleColumnRestriction.SliceRestriction(columnDef, bound, inclusive, term);
     }

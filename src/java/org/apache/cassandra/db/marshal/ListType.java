@@ -80,6 +80,12 @@ public class ListType<T> extends CollectionType<List<T>>
         return getElementsType().referencesUserType(userTypeName);
     }
 
+    @Override
+    public boolean referencesDuration()
+    {
+        return getElementsType().referencesDuration();
+    }
+
     public AbstractType<T> getElementsType()
     {
         return elements;

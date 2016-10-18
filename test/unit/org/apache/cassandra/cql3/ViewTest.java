@@ -348,6 +348,27 @@ public class ViewTest extends CQLTester
     }
 
     @Test
+    public void testDurationsTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "k int PRIMARY KEY, " +
+                    "result duration)");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        try
+        {
+            createView("mv_duration", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE result IS NOT NULL AND k IS NOT NULL PRIMARY KEY (result,k)");
+            Assert.fail("MV on duration should fail");
+        }
+        catch (InvalidQueryException e)
+        {
+            Assert.assertEquals("Cannot use Duration column 'result' in PRIMARY KEY of materialized view", e.getMessage());
+        }
+    }
+
+    @Test
     public void complexTimestampUpdateTestWithFlush() throws Throwable
     {
         complexTimestampUpdateTest(true);

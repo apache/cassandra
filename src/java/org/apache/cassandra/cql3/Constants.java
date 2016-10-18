@@ -37,7 +37,7 @@ public abstract class Constants
 
     public enum Type
     {
-        STRING, INTEGER, UUID, FLOAT, BOOLEAN, HEX;
+        STRING, INTEGER, UUID, FLOAT, BOOLEAN, HEX, DURATION;
     }
 
     private static class UnsetLiteral extends Term.Raw
@@ -156,6 +156,11 @@ public abstract class Constants
             return new Literal(Type.HEX, text);
         }
 
+        public static Literal duration(String text)
+        {
+            return new Literal(Type.DURATION, text);
+        }
+
         public Value prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             if (!testAssignment(keyspace, receiver).isAssignable())
@@ -221,6 +226,7 @@ public abstract class Constants
                         case DATE:
                         case DECIMAL:
                         case DOUBLE:
+                        case DURATION:
                         case FLOAT:
                         case INT:
                         case SMALLINT:
@@ -259,6 +265,13 @@ public abstract class Constants
                     switch (nt)
                     {
                         case BLOB:
+                            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+                    }
+                    break;
+                case DURATION:
+                    switch (nt)
+                    {
+                        case DURATION:
                             return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
                     }
                     break;

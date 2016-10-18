@@ -153,10 +153,10 @@ public class BatchTest extends CQLTester
         execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 6, 6)");
 
         execute("BEGIN BATCH " +
-                "UPDATE %1$s SET value = 7 WHERE partitionKey = 0 AND clustering_1 = 1" +
-                "UPDATE %1$s SET value = 8 WHERE partitionKey = 0 AND (clustering_1) = (2)" +
-                "UPDATE %1$s SET value = 10 WHERE partitionKey = 0 AND clustering_1 IN (3, 4)" +
-                "UPDATE %1$s SET value = 20 WHERE partitionKey = 0 AND (clustering_1) IN ((5), (6))" +
+                "UPDATE %1$s SET value = 7 WHERE partitionKey = 0 AND clustering_1 = 1;" +
+                "UPDATE %1$s SET value = 8 WHERE partitionKey = 0 AND (clustering_1) = (2);" +
+                "UPDATE %1$s SET value = 10 WHERE partitionKey = 0 AND clustering_1 IN (3, 4);" +
+                "UPDATE %1$s SET value = 20 WHERE partitionKey = 0 AND (clustering_1) IN ((5), (6));" +
                 "APPLY BATCH;");
 
         assertRows(execute("SELECT * FROM %s"),

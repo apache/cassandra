@@ -31,6 +31,7 @@ Upgrading
 
 New features
 ------------
+   - New `DurationType` (cql duration). See CASSANDRA-11873
    - Runtime modification of concurrent_compactors is now available via nodetool
    - Support for the assignment operators +=/-= has been added for update queries.
    - An Index implementation may now provide a task which runs prior to joining
@@ -111,6 +112,8 @@ Upgrading
     - Application layer keep-alives were added to the streaming protocol to prevent idle incoming connections from
       timing out and failing the stream session (CASSANDRA-11839). This effectively deprecates the streaming_socket_timeout_in_ms
       property in favor of streaming_keep_alive_period_in_secs. See cassandra.yaml for more details about this property.
+    - Duration litterals support the ISO 8601 format. By consequence, identifiers matching that format
+      (e.g P2Y or P1MT6H) will not be supported anymore (CASSANDRA-11873).
 
 3.8
 ===

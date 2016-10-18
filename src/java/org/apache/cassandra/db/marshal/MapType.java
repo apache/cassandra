@@ -81,6 +81,13 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
                getValuesType().referencesUserType(userTypeName);
     }
 
+    @Override
+    public boolean referencesDuration()
+    {
+        // Maps cannot be created with duration as keys
+        return getValuesType().referencesDuration();
+    }
+
     public AbstractType<K> getKeysType()
     {
         return keys;
