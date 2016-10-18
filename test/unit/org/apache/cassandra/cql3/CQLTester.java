@@ -1517,6 +1517,9 @@ public abstract class CQLTester
         if (value instanceof Float)
             return FloatType.instance;
 
+        if (value instanceof Duration)
+            return DurationType.instance;
+
         if (value instanceof Double)
             return DoubleType.instance;
 

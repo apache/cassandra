@@ -1,4 +1,3 @@
-<link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
 h1. Cassandra Query Language (CQL) v3.4.3
 

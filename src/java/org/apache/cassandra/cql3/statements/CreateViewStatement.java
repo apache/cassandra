@@ -19,7 +19,6 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -34,6 +33,7 @@ import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.RawSelector;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
@@ -184,6 +184,9 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
             if (cdef.isStatic())
                 throw new InvalidRequestException(String.format("Cannot use Static column '%s' in PRIMARY KEY of materialized view", identifier));
+
+            if (cdef.type instanceof DurationType)
+                throw new InvalidRequestException(String.format("Cannot use Duration column '%s' in PRIMARY KEY of materialized view", identifier));
         }
 
         // build the select statement

@@ -188,17 +188,17 @@ public class CFMetaDataTest
     }
 
     private static Set<String> primitiveTypes = new HashSet<String>(Arrays.asList(new String[] { "ascii", "bigint", "blob", "boolean", "date",
-                                                                                                 "decimal", "double", "float", "inet", "int",
-                                                                                                 "smallint", "text", "time", "timestamp",
-                                                                                                 "timeuuid", "tinyint", "uuid", "varchar",
-                                                                                                 "varint" }));
+                                                                                                 "duration", "decimal", "double", "float",
+                                                                                                 "inet", "int", "smallint", "text", "time",
+                                                                                                 "timestamp", "timeuuid", "tinyint", "uuid",
+                                                                                                 "varchar", "varint" }));
 
     @Test
     public void typeCompatibilityTest() throws Throwable
     {
         Map<String, Set<String>> compatibilityMap = new HashMap<>();
         compatibilityMap.put("bigint", new HashSet<>(Arrays.asList(new String[] {"timestamp"})));
-        compatibilityMap.put("blob", new HashSet<>(Arrays.asList(new String[] {"ascii", "bigint", "boolean", "date", "decimal", "double",
+        compatibilityMap.put("blob", new HashSet<>(Arrays.asList(new String[] {"ascii", "bigint", "boolean", "date", "decimal", "double", "duration",
                                                                                "float", "inet", "int", "smallint", "text", "time", "timestamp",
                                                                                "timeuuid", "tinyint", "uuid", "varchar", "varint"})));
         compatibilityMap.put("date", new HashSet<>(Arrays.asList(new String[] {"int"})));

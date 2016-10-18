@@ -259,6 +259,8 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 AbstractType<?> t = getTypeAndRemove(stmt.columns, alias);
                 if (t.asCQL3Type().getType() instanceof CounterColumnType)
                     throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", alias));
+                if (t.asCQL3Type().getType().referencesDuration())
+                    throw new InvalidRequestException(String.format("duration type is not supported for PRIMARY KEY part %s", alias));
                 if (staticColumns.contains(alias))
                     throw new InvalidRequestException(String.format("Static column %s cannot be part of the PRIMARY KEY", alias));
                 stmt.keyTypes.add(t);
@@ -273,6 +275,8 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 AbstractType<?> type = getTypeAndRemove(stmt.columns, t);
                 if (type.asCQL3Type().getType() instanceof CounterColumnType)
                     throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", t));
+                if (type.asCQL3Type().getType().referencesDuration())
+                    throw new InvalidRequestException(String.format("duration type is not supported for PRIMARY KEY part %s", t));
                 if (staticColumns.contains(t))
                     throw new InvalidRequestException(String.format("Static column %s cannot be part of the PRIMARY KEY", t));
                 stmt.clusteringTypes.add(type);

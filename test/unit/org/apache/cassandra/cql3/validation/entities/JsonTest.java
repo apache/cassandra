@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.validation.entities;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
@@ -81,8 +82,8 @@ public class JsonTest extends CQLTester
                 "mapval map<ascii, int>," +
                 "frozenmapval frozen<map<ascii, int>>," +
                 "tupleval frozen<tuple<int, ascii, uuid>>," +
-                "udtval frozen<" + typeName + ">)");
-
+                "udtval frozen<" + typeName + ">," +
+                "durationval duration)");
 
         // fromJson() can only be used when the receiver type is known
         assertInvalidMessage("fromJson() cannot be used in the selection clause", "SELECT fromJson(asciival) FROM %s", 0, 0);
@@ -508,6 +509,16 @@ public class JsonTest extends CQLTester
                 row(0, 1, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"), set("bar", "foo"))
         );
 
+        // ================ duration ================
+        execute("INSERT INTO %s (k, durationval) VALUES (?, fromJson(?))", 0, "\"53us\"");
+        assertRows(execute("SELECT k, durationval FROM %s WHERE k = ?", 0), row(0, Duration.newInstance(0, 0, 53000L)));
+
+        execute("INSERT INTO %s (k, durationval) VALUES (?, fromJson(?))", 0, "\"P2W\"");
+        assertRows(execute("SELECT k, durationval FROM %s WHERE k = ?", 0), row(0, Duration.newInstance(0, 14, 0)));
+
+        assertInvalidMessage("Unable to convert 'xyz' to a duration",
+                             "INSERT INTO %s (k, durationval) VALUES (?, fromJson(?))", 0, "\"xyz\"");
+
         // order of fields shouldn't matter
         execute("INSERT INTO %s (k, udtval) VALUES (?, fromJson(?))", 0, "{\"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\", \"a\": 1, \"c\": [\"foo\", \"bar\"]}");
         assertRows(execute("SELECT k, udtval.a, udtval.b, udtval.c FROM %s WHERE k = ?", 0),
@@ -563,7 +574,8 @@ public class JsonTest extends CQLTester
                 "mapval map<ascii, int>, " +
                 "frozenmapval frozen<map<ascii, int>>, " +
                 "tupleval frozen<tuple<int, ascii, uuid>>," +
-                "udtval frozen<" + typeName + ">)");
+                "udtval frozen<" + typeName + ">," +
+                "durationval duration)");
 
         // toJson() can only be used in selections
         assertInvalidMessage("toJson() may only be used within the selection clause",
@@ -761,6 +773,13 @@ public class JsonTest extends CQLTester
         assertRows(execute("SELECT k, toJson(udtval) FROM %s WHERE k = ?", 0),
                 row(0, "{\"a\": 1, \"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\", \"c\": null}")
         );
+
+        // ================ duration ================
+        execute("INSERT INTO %s (k, durationval) VALUES (?, 12µs)", 0);
+        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "12us"));
+
+        execute("INSERT INTO %s (k, durationval) VALUES (?, P1Y1M2DT10H5M)", 0);
+        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "1y1mo2d10h5m"));
     }
 
     @Test

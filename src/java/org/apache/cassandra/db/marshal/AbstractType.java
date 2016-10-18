@@ -446,6 +446,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
+    public boolean referencesDuration()
+    {
+        return false;
+    }
+
     /**
      * This must be overriden by subclasses if necessary so that for any
      * AbstractType, this == TypeParser.parse(toString()).

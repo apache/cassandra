@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.CollectionType.Kind;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -70,6 +71,7 @@ public interface CQL3Type
         DATE        (SimpleDateType.instance),
         DECIMAL     (DecimalType.instance),
         DOUBLE      (DoubleType.instance),
+        DURATION    (DurationType.instance),
         EMPTY       (EmptyType.instance),
         FLOAT       (FloatType.instance),
         INET        (InetAddressType.instance),
@@ -494,6 +496,11 @@ public interface CQL3Type
             return true;
         }
 
+        public boolean isDuration()
+        {
+            return false;
+        }
+
         public boolean isCounter()
         {
             return false;
@@ -595,6 +602,11 @@ public interface CQL3Type
                 return type == Native.COUNTER;
             }
 
+            public boolean isDuration()
+            {
+                return type == Native.DURATION;
+            }
+
             @Override
             public String toString()
             {
@@ -656,10 +668,15 @@ public interface CQL3Type
                 if (values.isCounter() && !isInternal)
                     throw new InvalidRequestException("Counters are not allowed inside collections: " + this);
 
+                if (values.isDuration() && kind == Kind.SET)
+                    throw new InvalidRequestException("Durations are not allowed inside sets: " + this);
+
                 if (keys != null)
                 {
                     if (keys.isCounter())
                         throw new InvalidRequestException("Counters are not allowed inside collections: " + this);
+                    if (keys.isDuration())
+                        throw new InvalidRequestException("Durations are not allowed as map keys: " + this);
                     if (!frozen && keys.supportsFreezing() && !keys.frozen)
                         throwNestedNonFrozenError(keys);
                 }

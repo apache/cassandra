@@ -379,6 +379,12 @@ public class UserType extends TupleType
     }
 
     @Override
+    public boolean referencesDuration()
+    {
+        return fieldTypes().stream().anyMatch(f -> f.referencesDuration());
+    }
+
+    @Override
     public String toString()
     {
         return this.toString(false);
