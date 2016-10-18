@@ -1,3 +1,7 @@
+2.1.17
+ * Don't skip sstables based on maxLocalDeletionTime (CASSANDRA-12765)
+
+
 2.1.16
  * Avoid infinitely looping result set when paging SELECT queries with
    an IN clause with duplicate keys by treating the IN values as a set instead
