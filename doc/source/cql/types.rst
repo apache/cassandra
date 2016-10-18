@@ -47,6 +47,7 @@ The native types supported by CQL are:
               : | DATE
               : | DECIMAL
               : | DOUBLE
+              : | DURATION
               : | FLOAT
               : | INET
               : | INT
@@ -77,6 +78,7 @@ The following table gives additional informations on the native data types, and 
                  :token:`float`
  ``double``      :token:`integer`      64-bit IEEE-754 floating point
                  :token:`float`
+ ``duration``    :token:`duration`,    A duration with nanosecond precision. See :ref:`durations` below for details
  ``float``       :token:`integer`,     32-bit IEEE-754 floating point
                  :token:`float`
  ``inet``        :token:`string`       An IP address, either IPv4 (4 bytes long) or IPv6 (16 bytes long). Note that
@@ -179,6 +181,46 @@ time:
 -  ``'08:12:54.123456'``
 -  ``'08:12:54.123456789'``
 
+.. _durations:
+
+Working with durations
+^^^^^^^^^^^^^^^^^^^^^^
+
+Values of the ``duration`` type are encoded as 3 signed integer of variable lengths. The first integer represents the
+number of months, the second the number of days and the third the number of nanoseconds. This is due to the fact that
+the number of days in a month can change, and a day can have 23 or 25 hours depending on the daylight saving.
+
+A duration can be input as:
+
+    #. ``(quantity unit)+`` like ``12h30m`` where the unit can be:
+
+         * ``y``: years (12 months)
+         * ``mo``: months (1 month)
+         * ``w``: weeks (7 days)
+         * ``d``: days (1 day)
+         * ``h``: hours (3,600,000,000,000 nanoseconds)
+         * ``m``: minutes (60,000,000,000 nanoseconds)
+         * ``s``: seconds (1,000,000,000 nanoseconds)
+         * ``ms``: milliseconds (1,000,000 nanoseconds)
+         * ``us`` or ``µs`` : microseconds (1000 nanoseconds)
+         * ``ns``: nanoseconds (1 nanosecond)
+    #. ISO 8601 format:  ``P[n]Y[n]M[n]DT[n]H[n]M[n]S or P[n]W``
+    #. ISO 8601 alternative format: ``P[YYYY]-[MM]-[DD]T[hh]:[mm]:[ss]``
+
+For example::
+
+    INSERT INTO RiderResults (rider, race, result) VALUES ('Christopher Froome', 'Tour de France', 89h4m48s);
+    INSERT INTO RiderResults (rider, race, result) VALUES ('BARDET Romain', 'Tour de France', PT89H8M53S);
+    INSERT INTO RiderResults (rider, race, result) VALUES ('QUINTANA Nairo', 'Tour de France', P0000-00-00T89:09:09);
+
+.. _duration-limitation:
+
+Duration columns cannot be used in a table's ``PRIMARY KEY``. This limitation is due to the fact that
+durations cannot be ordered. It is effectively not possible to know if ``1mo`` is greater than ``29d`` without a date
+context.
+
+A ``1d`` duration is not equals to a ``24h`` one as the duration type has been created to be able to support daylight
+saving.
 
 .. _collections:
 

@@ -207,6 +207,13 @@ public class CQL3TypeLiteralTest
         }
         addNativeValue("null", CQL3Type.Native.TIME, null);
 
+        for (int i = 0; i < 100; i++)
+        {
+            Duration duration = Duration.newInstance(Math.abs(randInt()), Math.abs(randInt()), Math.abs(randLong()));
+            addNativeValue(DurationSerializer.instance.toString(duration), CQL3Type.Native.DURATION, DurationSerializer.instance.serialize(duration));
+        }
+        addNativeValue("null", CQL3Type.Native.DURATION, null);
+
         // (mostly generates timestamp values with surreal values like in year 14273)
         for (int i = 0; i < 20; i++)
         {

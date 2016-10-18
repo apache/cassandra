@@ -21,6 +21,7 @@ import math
 import os
 import re
 import sys
+import six
 import platform
 import wcwidth
 
@@ -328,6 +329,7 @@ formatter_for('long')(format_integer_type)
 formatter_for('int')(format_integer_type)
 formatter_for('bigint')(format_integer_type)
 formatter_for('varint')(format_integer_type)
+formatter_for('duration')(format_integer_type)
 
 
 @formatter_for('datetime')
@@ -382,6 +384,79 @@ def format_value_date(val, colormap, **_):
 @formatter_for('Time')
 def format_value_time(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'time')
+
+
+@formatter_for('Duration')
+def format_value_duration(val, colormap, **_):
+    buf = six.iterbytes(val)
+    months = decode_vint(buf)
+    days = decode_vint(buf)
+    nanoseconds = decode_vint(buf)
+    return format_python_formatted_type(duration_as_str(months, days, nanoseconds), colormap, 'duration')
+
+
+def duration_as_str(months, days, nanoseconds):
+    builder = list()
+    if months < 0 or days < 0 or nanoseconds < 0:
+        builder.append('-')
+
+    remainder = append(builder, abs(months), MONTHS_PER_YEAR, "y")
+    append(builder, remainder, 1, "mo")
+    append(builder, abs(days), 1, "d")
+
+    if nanoseconds != 0:
+        remainder = append(builder, abs(nanoseconds), NANOS_PER_HOUR, "h")
+        remainder = append(builder, remainder, NANOS_PER_MINUTE, "m")
+        remainder = append(builder, remainder, NANOS_PER_SECOND, "s")
+        remainder = append(builder, remainder, NANOS_PER_MILLI, "ms")
+        remainder = append(builder, remainder, NANOS_PER_MICRO, "us")
+        append(builder, remainder, 1, "ns")
+
+    return ''.join(builder)
+
+
+def append(builder, dividend, divisor, unit):
+    if dividend == 0 or dividend < divisor:
+        return dividend
+
+    builder.append(str(dividend / divisor))
+    builder.append(unit)
+    return dividend % divisor
+
+
+def decode_vint(buf):
+    return decode_zig_zag_64(decode_unsigned_vint(buf))
+
+
+def decode_unsigned_vint(buf):
+    """
+    Cassandra vints are encoded differently than the varints used in protocol buffer.
+    The Cassandra vints are encoded with the most significant group first. The most significant byte will contains
+    the information about how many extra bytes need to be read as well as the most significant bits of the integer.
+    The number extra bytes to read is encoded as 1 bits on the left side.
+    For example, if we need to read 3 more bytes the first byte will start with 1110.
+    """
+
+    first_byte = buf.next()
+    if (first_byte >> 7) == 0:
+        return first_byte
+
+    size = number_of_extra_bytes_to_read(first_byte)
+    retval = first_byte & (0xff >> size)
+    for i in range(size):
+        b = buf.next()
+        retval <<= 8
+        retval |= b & 0xff
+
+    return retval
+
+
+def number_of_extra_bytes_to_read(b):
+    return 8 - (~b & 0xff).bit_length()
+
+
+def decode_zig_zag_64(n):
+    return (n >> 1) ^ -(n & 1)
 
 
 @formatter_for('str')
@@ -501,3 +576,10 @@ def format_value_utype(val, cqltype, encoding, colormap, date_time_format, float
         + rb
     displaywidth = 4 * len(subs) + sum(k.displaywidth + v.displaywidth for (k, v) in subs)
     return FormattedValue(bval, coloredval, displaywidth)
+
+NANOS_PER_MICRO = 1000
+NANOS_PER_MILLI = 1000 * NANOS_PER_MICRO
+NANOS_PER_SECOND = 1000 * NANOS_PER_MILLI
+NANOS_PER_MINUTE = 60 * NANOS_PER_SECOND
+NANOS_PER_HOUR = 60 * NANOS_PER_MINUTE
+MONTHS_PER_YEAR = 12
