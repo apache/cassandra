@@ -543,8 +543,13 @@ public abstract class CQLTester
 
     protected String createTable(String query)
     {
+        return createTable(KEYSPACE, query);
+    }
+
+    protected String createTable(String keyspace, String query)
+    {
         String currentTable = createTableName();
-        String fullQuery = formatQuery(query);
+        String fullQuery = formatQuery(keyspace, query);
         logger.info(fullQuery);
         schemaChange(fullQuery);
         return currentTable;
@@ -581,16 +586,24 @@ public abstract class CQLTester
 
     protected void dropTable(String query)
     {
-        String fullQuery = String.format(query, KEYSPACE + "." + currentTable());
-        logger.info(fullQuery);
-        schemaChange(fullQuery);
+        dropFormattedTable(String.format(query, KEYSPACE + "." + currentTable()));
+    }
+
+    protected void dropFormattedTable(String formattedQuery)
+    {
+        logger.info(formattedQuery);
+        schemaChange(formattedQuery);
     }
 
     protected void createIndex(String query)
     {
-        String fullQuery = formatQuery(query);
-        logger.info(fullQuery);
-        schemaChange(fullQuery);
+        createFormattedIndex(formatQuery(query));
+    }
+
+    protected void createFormattedIndex(String formattedQuery)
+    {
+        logger.info(formattedQuery);
+        schemaChange(formattedQuery);
     }
 
     /**
@@ -694,16 +707,24 @@ public abstract class CQLTester
         return sessions.get(protocolVersion);
     }
 
-    private String formatQuery(String query)
+    protected String formatQuery(String query)
+    {
+        return formatQuery(KEYSPACE, query);
+    }
+
+    protected final String formatQuery(String keyspace, String query)
     {
         String currentTable = currentTable();
-        return currentTable == null ? query : String.format(query, KEYSPACE + "." + currentTable);
+        return currentTable == null ? query : String.format(query, keyspace + "." + currentTable);
     }
 
     protected UntypedResultSet execute(String query, Object... values) throws Throwable
     {
-        query = formatQuery(query);
+        return executeFormattedQuery(formatQuery(query), values);
+    }
 
+    protected UntypedResultSet executeFormattedQuery(String query, Object... values) throws Throwable
+    {
         UntypedResultSet rs;
         if (usePrepared)
         {
