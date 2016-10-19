@@ -19,13 +19,13 @@ The source for the official documentation for Apache Cassandra can be found in
 the `source` subdirectory. The documentation uses [sphinx](http://www.sphinx-doc.org/)
 and is thus written in [reStructuredText](http://docutils.sourceforge.net/rst.html).
 
-To build the HTML documentation, you will need to first install sphinx and the
-[sphinx ReadTheDocs theme](the https://pypi.python.org/pypi/sphinx_rtd_theme), which
-on unix you can do with:
-```
-pip install sphinx sphinx_rtd_theme
-```
+To build the HTML documentation:
 
-The documentation can then be built from this directory by calling `make html`
-(or `make.bat html` on windows). Alternatively, the top-level `ant gen-doc`
-target can be used.
+* Run `pip install sphinx sphinx_rtd_theme` to install sphinx and the [sphinx ReadTheDocs theme](the https://pypi.python.org/pypi/sphinx_rtd_theme)
+  * Ensure sphinx is in your PATH with `sphinx-build --version`
+* Optionally, enable building with the website theme
+  * `touch .build_for_website` in the `doc` directory
+* Call `make html` (or `make.bat html` on windows) in the `doc` directory
+  * Alternatively, run the top-level `ant gen-doc` target
+
+Open `doc/build/html/index.html` in a browser to view the built documentation.

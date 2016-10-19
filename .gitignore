@@ -74,4 +74,7 @@ lib/jsr223/scala/*.jar
 /.ant-targets-build.xml
 
 # Generated files from the documentation
-doc/source/configuration/cassandra_config_file.rst
+/doc/source/configuration/cassandra_config_file.rst
+/doc/source/tools/nodetool
+/doc/build/
+/doc/.build_for_website
