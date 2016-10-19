@@ -194,7 +194,7 @@ public class ThriftConversion
     private static boolean isSuper(String thriftColumnType)
     throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        switch (thriftColumnType.toLowerCase())
+        switch (thriftColumnType.toLowerCase(Locale.ENGLISH))
         {
             case "standard": return false;
             case "super": return true;
@@ -676,7 +676,7 @@ public class ThriftConversion
 
     private static CachingParams cachingFromTrhfit(String caching)
     {
-        switch (caching.toUpperCase())
+        switch (caching.toUpperCase(Locale.ENGLISH))
         {
             case "ALL":
                 return CachingParams.CACHE_EVERYTHING;
