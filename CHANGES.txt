@@ -18,6 +18,7 @@
  * Extend ColumnIdentifier.internedInstances key to include the type that generated the byte buffer (CASSANDRA-12516)
  * Backport CASSANDRA-10756 (race condition in NativeTransportService shutdown) (CASSANDRA-12472)
  * If CF has no clustering columns, any row cache is full partition cache (CASSANDRA-12499)
+ * Correct log message for statistics of offheap memtable flush (CASSANDRA-12776)
 Merged from 2.2:
  * Clean up permissions when a UDA is dropped (CASSANDRA-12720)
  * Limit colUpdateTimeDelta histogram updates to reasonable deltas (CASSANDRA-11117)

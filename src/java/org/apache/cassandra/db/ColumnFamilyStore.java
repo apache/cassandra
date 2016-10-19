@@ -1149,7 +1149,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 float flushingOnHeap = Memtable.MEMORY_POOL.onHeap.reclaimingRatio();
                 float flushingOffHeap = Memtable.MEMORY_POOL.offHeap.reclaimingRatio();
                 float thisOnHeap = largest.getAllocator().onHeap().ownershipRatio();
-                float thisOffHeap = largest.getAllocator().onHeap().ownershipRatio();
+                float thisOffHeap = largest.getAllocator().offHeap().ownershipRatio();
                 logger.debug("Flushing largest {} to free up room. Used total: {}, live: {}, flushing: {}, this: {}",
                             largest.cfs, ratio(usedOnHeap, usedOffHeap), ratio(liveOnHeap, liveOffHeap),
                             ratio(flushingOnHeap, flushingOffHeap), ratio(thisOnHeap, thisOffHeap));
