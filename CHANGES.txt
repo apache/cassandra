@@ -126,6 +126,7 @@ Merged from 3.0:
  * Calculate last compacted key on startup (CASSANDRA-6216)
  * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
  * If CF has no clustering columns, any row cache is full partition cache (CASSANDRA-12499)
+ * Correct log message for statistics of offheap memtable flush (CASSANDRA-12776)
 Merged from 2.2:
  * Clean up permissions when a UDA is dropped (CASSANDRA-12720)
  * Limit colUpdateTimeDelta histogram updates to reasonable deltas (CASSANDRA-11117)
