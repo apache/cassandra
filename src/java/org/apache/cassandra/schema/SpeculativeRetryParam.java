@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.text.DecimalFormat;
 import java.util.concurrent.TimeUnit;
+import java.util.Locale;
 
 import com.google.common.base.Objects;
 
@@ -88,7 +89,7 @@ public final class SpeculativeRetryParam
 
     public static SpeculativeRetryParam fromString(String value)
     {
-        if (value.toLowerCase().endsWith("ms"))
+        if (value.toLowerCase(Locale.ENGLISH).endsWith("ms"))
         {
             try
             {
