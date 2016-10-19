@@ -74,15 +74,15 @@ except ImportError:
 CQL_LIB_PREFIX = 'cassandra-driver-internal-only-'
 
 CASSANDRA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
-CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/cql3/CQL-3.2.html'
+CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/latest/cql/index.html'
 
-# default location of local CQL.html
-if os.path.exists(CASSANDRA_PATH + '/doc/cql3/CQL.html'):
-    # default location of local CQL.html
-    CASSANDRA_CQL_HTML = 'file://' + CASSANDRA_PATH + '/doc/cql3/CQL.html'
-elif os.path.exists('/usr/share/doc/cassandra/CQL.html'):
+# default location of local html CQL docs
+if os.path.exists(CASSANDRA_PATH + '/doc/build/html/cql/index.html'):
+    # default location of local html CQL docs
+    CASSANDRA_CQL_HTML = 'file://' + CASSANDRA_PATH + '/doc/build/html/cql/index.html'
+elif os.path.exists('/usr/share/doc/build/html/cql/index.html'):
     # fallback to package file
-    CASSANDRA_CQL_HTML = 'file:///usr/share/doc/cassandra/CQL.html'
+    CASSANDRA_CQL_HTML = 'file:///usr/share/doc/build/html/cql/index.html'
 else:
     # fallback to online version
     CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
