@@ -86,7 +86,7 @@ public class ViewTest
     public void testCompaction()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
-        View initialView = fakeView(0, 5, cfs);
+        View initialView = fakeView(0, 5, cfs, true);
         View cur = initialView;
         List<SSTableReader> readers = ImmutableList.copyOf(initialView.sstables);
         Assert.assertTrue(View.permitCompacting(readers).apply(cur));
@@ -136,6 +136,9 @@ public class ViewTest
         Assert.assertTrue(nonCompacting.containsAll(readers.subList(2, 5)));
         Assert.assertTrue(nonCompacting.containsAll(readers.subList(0, 1)));
         Assert.assertEquals(4, nonCompacting.size());
+
+        for (SSTableReader sstable : initialView.sstables)
+            sstable.selfRef().release();
     }
 
     private static void testFailure(Function<View, ?> function, View view)
@@ -208,12 +211,17 @@ public class ViewTest
 
     static View fakeView(int memtableCount, int sstableCount, ColumnFamilyStore cfs)
     {
+        return fakeView(memtableCount, sstableCount, cfs, false);
+    }
+
+    static View fakeView(int memtableCount, int sstableCount, ColumnFamilyStore cfs, boolean keepRef)
+    {
         List<Memtable> memtables = new ArrayList<>();
         List<SSTableReader> sstables = new ArrayList<>();
         for (int i = 0 ; i < memtableCount ; i++)
             memtables.add(MockSchema.memtable(cfs));
         for (int i = 0 ; i < sstableCount ; i++)
-            sstables.add(MockSchema.sstable(i, cfs));
+            sstables.add(MockSchema.sstable(i, keepRef, cfs));
         return new View(ImmutableList.copyOf(memtables), Collections.<Memtable>emptyList(), Helpers.identityMap(sstables),
                         Collections.<SSTableReader, SSTableReader>emptyMap(), SSTableIntervalTree.build(sstables));
     }
