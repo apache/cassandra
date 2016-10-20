@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
+import java.util.Locale;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -511,7 +512,7 @@ public class CoalescingStrategies
                                                     String displayName)
     {
         String classname = null;
-        String strategyCleaned = strategy.trim().toUpperCase();
+        String strategyCleaned = strategy.trim().toUpperCase(Locale.ENGLISH);
         switch(strategyCleaned)
         {
         case "MOVINGAVERAGE":
