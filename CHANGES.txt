@@ -1,4 +1,5 @@
 3.10
+ * Upgrade commons-codec to 1.9 (CASSANDRA-12790)
  * Make the fanout size for LeveledCompactionStrategy to be configurable (CASSANDRA-11550)
  * Add duration data type (CASSANDRA-11873)
  * Fix timeout in ReplicationAwareTokenAllocatorTest (CASSANDRA-12784)
