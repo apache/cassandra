@@ -1334,7 +1334,8 @@ class Shell(cmd.Cmd):
 
         cql_types = []
         if result.column_types:
-            ks_meta = self.conn.metadata.keyspaces[table_meta.keyspace_name]
+            ks_name = table_meta.keyspace_name if table_meta else self.current_keyspace
+            ks_meta = self.conn.metadata.keyspaces.get(ks_name, None)
             cql_types = [CqlType(cql_typename(t), ks_meta) for t in result.column_types]
 
         formatted_values = [map(self.myformat_value, row.values(), cql_types) for row in result.current_rows]
