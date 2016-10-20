@@ -125,7 +125,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
             partitionKeyColumns = tableMetadata.getPartitionKey();
 
             String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
-            if (cqlQuery.toLowerCase().startsWith("insert"))
+            if (cqlQuery.toLowerCase(Locale.ENGLISH).startsWith("insert"))
                 throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
             cql = appendKeyWhereClauses(cqlQuery);
         }
