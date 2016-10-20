@@ -1,4 +1,5 @@
 3.10
+ * Fix RandomReplicationAwareTokenAllocatorTest.testExistingCluster (CASSANDRA-12812)
  * Upgrade commons-codec to 1.9 (CASSANDRA-12790)
  * Make the fanout size for LeveledCompactionStrategy to be configurable (CASSANDRA-11550)
  * Add duration data type (CASSANDRA-11873)
