@@ -60,11 +60,18 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLServerSocket serverSocket = (SSLServerSocket)ctx.getServerSocketFactory().createServerSocket();
-        serverSocket.setReuseAddress(true);
-        prepareSocket(serverSocket, options);
-        serverSocket.bind(new InetSocketAddress(address, port), 500);
-
-        return serverSocket;
+        try
+        {
+            serverSocket.setReuseAddress(true);
+            prepareSocket(serverSocket, options);
+            serverSocket.bind(new InetSocketAddress(address, port), 500);
+            return serverSocket;
+        }
+        catch (IllegalArgumentException | SecurityException | IOException e)
+        {
+            serverSocket.close();
+            throw e;
+        }
     }
 
     /** Create a socket and connect */
@@ -72,8 +79,16 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port, localAddress, localPort);
-        prepareSocket(socket, options);
-        return socket;
+        try
+        {
+            prepareSocket(socket, options);
+            return socket;
+        }
+        catch (IllegalArgumentException e)
+        {
+            socket.close();
+            throw e;
+        }
     }
 
     /** Create a socket and connect, using any local address */
@@ -81,8 +96,16 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port);
-        prepareSocket(socket, options);
-        return socket;
+        try
+        {
+            prepareSocket(socket, options);
+            return socket;
+        }
+        catch (IllegalArgumentException e)
+        {
+            socket.close();
+            throw e;
+        }
     }
 
     /** Just create a socket */
@@ -90,8 +113,16 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket();
-        prepareSocket(socket, options);
-        return socket;
+        try
+        {
+            prepareSocket(socket, options);
+            return socket;
+        }
+        catch (IllegalArgumentException e)
+        {
+            socket.close();
+            throw e;
+        }
     }
 
     /** Sets relevant socket options specified in encryption settings */
