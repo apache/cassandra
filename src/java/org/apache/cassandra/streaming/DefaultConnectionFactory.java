@@ -59,11 +59,7 @@ public class DefaultConnectionFactory implements StreamConnectionFactory
             {
                 if (socket != null)
                 {
-                    try
-                    {
-                        socket.close();
-                    }
-                    catch (IOException ignore) {}
+                    socket.close();
                 }
                 if (++attempts >= MAX_CONNECT_ATTEMPTS)
                     throw e;
