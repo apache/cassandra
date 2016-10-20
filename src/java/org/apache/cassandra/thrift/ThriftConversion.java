@@ -193,7 +193,7 @@ public class ThriftConversion
     private static boolean isSuper(String thriftColumnType)
     throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        switch (thriftColumnType.toLowerCase())
+        switch (thriftColumnType.toLowerCase(Locale.ENGLISH))
         {
             case "standard": return false;
             case "super": return true;
