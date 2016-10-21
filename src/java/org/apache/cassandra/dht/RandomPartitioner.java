@@ -93,7 +93,7 @@ public class RandomPartitioner implements IPartitioner
 
     public BigIntegerToken getRandomToken(Random random)
     {
-        BigInteger token = FBUtilities.hashToBigInteger(GuidGenerator.guidAsBytes(random, 0));
+        BigInteger token = FBUtilities.hashToBigInteger(GuidGenerator.guidAsBytes(random, "host/127.0.0.1", 0));
         if ( token.signum() == -1 )
             token = token.multiply(BigInteger.valueOf(-1L));
         return new BigIntegerToken(token);
