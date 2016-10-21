@@ -258,13 +258,9 @@ public class CollationController
                 if (!filter.shouldInclude(sstable))
                 {
                     nonIntersectingSSTables++;
-                    // sstable contains no tombstone if maxLocalDeletionTime == Integer.MAX_VALUE, so we can safely skip those entirely
-                    if (sstable.getSSTableMetadata().maxLocalDeletionTime != Integer.MAX_VALUE)
-                    {
-                        if (skippedSSTables == null)
-                            skippedSSTables = new ArrayList<>();
-                        skippedSSTables.add(sstable);
-                    }
+                    if (skippedSSTables == null)
+                        skippedSSTables = new ArrayList<>();
+                    skippedSSTables.add(sstable);
                     continue;
                 }
 

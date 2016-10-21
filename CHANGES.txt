@@ -5,8 +5,12 @@
  * Fix merkle tree depth calculation (CASSANDRA-12580)
  * Make Collections deserialization more robust (CASSANDRA-12618)
  * Better handle invalid system roles table (CASSANDRA-12700)
- 
- 
+Merged from 2.1:
+=======
+2.1.17
+ * Don't skip sstables based on maxLocalDeletionTime (CASSANDRA-12765)
+
+
 2.2.8
  * Fix exceptions when enabling gossip on nodes that haven't joined the ring (CASSANDRA-12253)
  * Fix authentication problem when invoking cqlsh copy from a SOURCE command (CASSANDRA-12642)
