@@ -588,6 +588,7 @@ public class SinglePartitionReadCommand extends ReadCommand
                         if (skippedSSTablesWithTombstones == null)
                             skippedSSTablesWithTombstones = new ArrayList<>();
                         skippedSSTablesWithTombstones.add(sstable);
+
                     }
                     continue;
                 }
@@ -778,7 +779,7 @@ public class SinglePartitionReadCommand extends ReadCommand
                 sstable.incrementReadCount();
                 try (UnfilteredRowIterator iter = StorageHook.instance.makeRowIterator(cfs, sstable, partitionKey(), Slices.ALL, columnFilter(), filter.isReversed(), isForThrift()))
                 {
-                    if (iter.partitionLevelDeletion().isLive())
+                    if (!iter.partitionLevelDeletion().isLive())
                     {
                         sstablesIterated++;
                         result = add(UnfilteredRowIterators.noRowsIterator(iter.metadata(), iter.partitionKey(), Rows.EMPTY_STATIC_ROW, iter.partitionLevelDeletion(), filter.isReversed()), result, filter, sstable.isRepaired());
