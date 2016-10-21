@@ -1840,6 +1840,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.maxLocalDeletionTime;
     }
 
+    /** sstable contains no tombstones if minLocalDeletionTime == Integer.MAX_VALUE */
+    public boolean hasTombstones()
+    {
+        // sstable contains no tombstone if minLocalDeletionTime is still set to  the default value Integer.MAX_VALUE
+        // which is bigger than any valid deletion times
+        return getMinLocalDeletionTime() != Integer.MAX_VALUE;
+    }
+
     public int getMinTTL()
     {
         return sstableMetadata.minTTL;

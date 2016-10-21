@@ -36,6 +36,7 @@ Merged from 2.2:
   (CASSANDRA-12554)
 Merged from 2.1:
  * Add system property to set the max number of native transport requests in queue (CASSANDRA-11363)
+ * Don't skip sstables based on maxLocalDeletionTime (CASSANDRA-12765)
 
 
 3.0.9
