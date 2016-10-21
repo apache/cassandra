@@ -1890,7 +1890,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.maxLocalDeletionTime;
     }
 
-    /** sstable contains no tombstones if maxLocalDeletionTime == Integer.MAX_VALUE */
+    /** sstable contains no tombstones if minLocalDeletionTime == Integer.MAX_VALUE */
     public boolean hasTombstones()
     {
         // sstable contains no tombstone if minLocalDeletionTime is still set to  the default value Integer.MAX_VALUE
