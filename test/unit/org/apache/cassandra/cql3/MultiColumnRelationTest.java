@@ -738,6 +738,7 @@ public class MultiColumnRelationTest
             execute("INSERT INTO %s.multiple_clustering_reversed" + tableSuffix + " (a, b, c, d) VALUES (0, 0, 1, 0)");
 
 
+            Thread.sleep(5000); // There is a race here: if the SELECT is read before all of the first 3 INSERTS propagate, the test fails.
             UntypedResultSet results = execute("SELECT * FROM %s.multiple_clustering_reversed" + tableSuffix + " WHERE a=0 AND (b) > (0)");
             assertEquals(3, results.size());
             checkRow(0, results, 0, 1, 0, 0);
