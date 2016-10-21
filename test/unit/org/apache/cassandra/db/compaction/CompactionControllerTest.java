@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.Sets;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -41,6 +42,8 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.cellname;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
 
 public class CompactionControllerTest extends SchemaLoader
@@ -80,10 +83,10 @@ public class CompactionControllerTest extends SchemaLoader
         // check max purgeable timestamp without any sstables
         try(CompactionController controller = new CompactionController(cfs, null, 0))
         {
-            assertEquals(timestamp1, controller.maxPurgeableTimestamp(key)); //memtable only
+            assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp1); //memtable only
 
             cfs.forceBlockingFlush();
-            assertEquals(Long.MAX_VALUE, controller.maxPurgeableTimestamp(key)); //no memtables and no sstables
+            assertTrue(controller.getPurgeEvaluator(key).apply(Long.MAX_VALUE)); //no memtables and no sstables
         }
 
         Set<SSTableReader> compacting = Sets.newHashSet(cfs.getSSTables()); // first sstable is compacting
@@ -95,11 +98,11 @@ public class CompactionControllerTest extends SchemaLoader
         // check max purgeable timestamp when compacting the first sstable with and without a memtable
         try (CompactionController controller = new CompactionController(cfs, compacting, 0))
         {
-            assertEquals(timestamp2, controller.maxPurgeableTimestamp(key)); //second sstable only
+            assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp2);
 
             applyMutation(CF1, rowKey, timestamp3);
 
-            assertEquals(timestamp3, controller.maxPurgeableTimestamp(key)); //second sstable and second memtable
+            assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp3); //second sstable and second memtable
         }
 
         // check max purgeable timestamp again without any sstables but with different insertion orders on the memtable
@@ -112,7 +115,7 @@ public class CompactionControllerTest extends SchemaLoader
             applyMutation(CF1, rowKey, timestamp2);
             applyMutation(CF1, rowKey, timestamp3);
 
-            assertEquals(timestamp3, controller.maxPurgeableTimestamp(key)); //memtable only
+            assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp3); //memtable only
         }
 
         cfs.forceBlockingFlush();
@@ -124,7 +127,7 @@ public class CompactionControllerTest extends SchemaLoader
             applyMutation(CF1, rowKey, timestamp2);
             applyMutation(CF1, rowKey, timestamp1);
 
-            assertEquals(timestamp3, controller.maxPurgeableTimestamp(key)); //memtable only
+            assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp3);
         }
     }
 
@@ -186,6 +189,9 @@ public class CompactionControllerTest extends SchemaLoader
         rm.applyUnsafe();
     }
 
-
-
+    private void assertPurgeBoundary(Predicate<Long> evaluator, long boundary)
+    {
+        assertFalse(evaluator.apply(boundary));
+        assertTrue(evaluator.apply(boundary - 1));
+    }
 }

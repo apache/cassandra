@@ -134,6 +134,137 @@ public class CompactionsPurgeTest
     }
 
     @Test
+    public void testMajorCompactionPurgeTombstonesWithMaxTimestamp()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        String cfName = "Standard1";
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+
+        DecoratedKey key = Util.dk("key1");
+        Mutation rm;
+
+        // inserts
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        for (int i = 0; i < 10; i++)
+        {
+            rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        }
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        // deletes
+        for (int i = 0; i < 10; i++)
+        {
+            rm = new Mutation(KEYSPACE1, key.getKey());
+            rm.delete(cfName, cellname(String.valueOf(i)), Long.MAX_VALUE);
+            rm.apply();
+        }
+        cfs.forceBlockingFlush();
+
+        // major compact - tombstones should be purged
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+
+        // resurrect one column
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        rm.add(cfName, cellname(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        cfs.invalidateCachedRow(key);
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
+        assertColumns(cf, "5");
+        assert cf.getColumn(cellname(String.valueOf(5))) != null;
+    }
+
+    @Test
+    public void testMajorCompactionPurgeTopLevelTombstoneWithMaxTimestamp()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        String cfName = "Standard1";
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+
+        DecoratedKey key = Util.dk("key1");
+        Mutation rm;
+
+        // inserts
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        for (int i = 0; i < 10; i++)
+        {
+            rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        }
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        // delete
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        rm.delete(cfName, Long.MAX_VALUE);
+        rm.apply();
+
+        cfs.forceBlockingFlush();
+
+        // major compact - tombstone should be purged
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+
+        // resurrect one column
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        rm.add(cfName, cellname(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        cfs.invalidateCachedRow(key);
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
+        assertColumns(cf, "5");
+        assert cf.getColumn(cellname(String.valueOf(5))) != null;
+    }
+
+    @Test
+    public void testMajorCompactionPurgeRangeTombstoneWithMaxTimestamp()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        String cfName = "Standard1";
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+
+        DecoratedKey key = Util.dk("key1");
+        Mutation rm;
+
+        // inserts
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        for (int i = 0; i < 10; i++)
+        {
+            rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        }
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        // delete
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        rm.deleteRange(cfName, cellname(String.valueOf(0)), cellname(String.valueOf(9)), Long.MAX_VALUE);
+        rm.apply();
+
+        cfs.forceBlockingFlush();
+
+        // major compact - tombstone should be purged
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+
+        // resurrect one column
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        rm.add(cfName, cellname(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        cfs.invalidateCachedRow(key);
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
+        assertColumns(cf, "5");
+        assert cf.getColumn(cellname(String.valueOf(5))) != null;
+    }
+
+    @Test
     public void testMinorCompactionPurge()
     {
         CompactionManager.instance.disableAutoCompaction();

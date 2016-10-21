@@ -19,6 +19,9 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
+
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -186,36 +189,59 @@ public class CompactionController implements AutoCloseable
     }
 
     /**
-     * @return the largest timestamp before which it's okay to drop tombstones for the given partition;
-     * i.e., after the maxPurgeableTimestamp there may exist newer data that still needs to be suppressed
-     * in other sstables.  This returns the minimum timestamp for any SSTable that contains this partition and is not
-     * participating in this compaction, or memtable that contains this partition,
-     * or LONG.MAX_VALUE if no SSTable or memtable exist.
+     * @param key
+     * @return a predicate for whether tombstones marked for deletion at the given time for the given partition are
+     * purgeable; we calculate this by checking whether the deletion time is less than the min timestamp of all SSTables
+     * containing his partition and not participating in the compaction. This means there isn't any data in those
+     * sstables that might still need to be suppressed by a tombstone at this timestamp.
      */
-    public long maxPurgeableTimestamp(DecoratedKey key)
+    public Predicate<Long> getPurgeEvaluator(DecoratedKey key)
     {
         if (NEVER_PURGE_TOMBSTONES)
-            return Long.MIN_VALUE;
+            return Predicates.alwaysFalse();
 
-        long min = Long.MAX_VALUE;
         overlapIterator.update(key);
-        for (SSTableReader sstable : overlapIterator.overlaps())
+        Set<SSTableReader> filteredSSTables = overlapIterator.overlaps();
+        Iterable<Memtable> memtables = cfs.getTracker().getView().getAllMemtables();
+        long minTimestampSeen = Long.MAX_VALUE;
+        boolean hasTimestamp = false;
+
+        for (SSTableReader sstable: filteredSSTables)
         {
             // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
             // we check index file instead.
-            if (sstable.getBloomFilter() instanceof AlwaysPresentFilter && sstable.getPosition(key, SSTableReader.Operator.EQ, false) != null)
-                min = Math.min(min, sstable.getMinTimestamp());
-            else if (sstable.getBloomFilter().isPresent(key))
-                min = Math.min(min, sstable.getMinTimestamp());
+            if (sstable.getBloomFilter() instanceof AlwaysPresentFilter && sstable.getPosition(key, SSTableReader.Operator.EQ, false) != null
+                || sstable.getBloomFilter().isPresent(key))
+            {
+                minTimestampSeen = Math.min(minTimestampSeen, sstable.getMinTimestamp());
+                hasTimestamp = true;
+            }
+
         }
 
-        for (Memtable memtable : cfs.getTracker().getView().getAllMemtables())
+        for (Memtable memtable : memtables)
         {
             ColumnFamily cf = memtable.getColumnFamily(key);
             if (cf != null)
-                min = Math.min(min, memtable.getMinTimestamp());
+            {
+                minTimestampSeen = Math.min(minTimestampSeen, memtable.getMinTimestamp());
+                hasTimestamp = true;
+            }
         }
-        return min;
+
+        if (!hasTimestamp)
+            return Predicates.alwaysTrue();
+        else
+        {
+            final long finalTimestamp = minTimestampSeen;
+            return new Predicate<Long>()
+            {
+                public boolean apply(Long time)
+                {
+                    return time < finalTimestamp;
+                }
+            };
+        }
     }
 
     public void close()

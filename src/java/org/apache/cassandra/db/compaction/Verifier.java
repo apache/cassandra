@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.db.*;
@@ -276,9 +278,9 @@ public class Verifier implements Closeable
         }
 
         @Override
-        public long maxPurgeableTimestamp(DecoratedKey key)
+        public Predicate<Long> getPurgeEvaluator(DecoratedKey key)
         {
-            return Long.MIN_VALUE;
+            return Predicates.alwaysFalse();
         }
     }
 }
