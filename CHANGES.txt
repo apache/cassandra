@@ -38,6 +38,7 @@ Merged from 2.2:
  * Release sstables of failed stream sessions only when outgoing transfers are finished (CASSANDRA-11345)
  * StorageService shutdown hook should use a volatile variable (CASSANDRA-11984)
 Merged from 2.1:
+ * Don't skip sstables based on maxLocalDeletionTime (CASSANDRA-12765)
  * Run CommitLog tests with different compression settings (CASSANDRA-9039)
  * cqlsh: apply current keyspace to source command (CASSANDRA-11152)
  * Clear out parent repair session if repair coordinator dies (CASSANDRA-11824)
