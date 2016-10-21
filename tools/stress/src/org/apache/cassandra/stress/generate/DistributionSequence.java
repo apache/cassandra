@@ -63,7 +63,10 @@ public class DistributionSequence extends Distribution
     }
 
     @Override
-    public void setSeed(long seed){}
+    public void setSeed(long seed)
+    {
+        next.set(seed);
+    }
 
 }
 

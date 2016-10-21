@@ -124,7 +124,7 @@ public class OptionDistribution extends Option
                 GroupedOptions.formatMultiLine("GAUSSIAN(min..max,mean,stdev)", "A gaussian/normal distribution, with explicitly defined mean and stdev"),
                 GroupedOptions.formatMultiLine("UNIFORM(min..max)", "A uniform distribution over the range [min, max]"),
                 GroupedOptions.formatMultiLine("FIXED(val)", "A fixed distribution, always returning the same value"),
-                GroupedOptions.formatMultiLine("SEQ(min..max)", "A fixed sequence, returning values from min to max sequentially, wrapping if necessary."),
+                GroupedOptions.formatMultiLine("SEQ(min..max)", "A fixed sequence, returning values in the range min to max sequentially (starting based on seed), wrapping if necessary."),
                 "Preceding the name with ~ will invert the distribution, e.g. ~exp(1..10) will yield 10 most, instead of least, often",
                 "Aliases: extr, qextr, gauss, normal, norm, weibull"
         );
