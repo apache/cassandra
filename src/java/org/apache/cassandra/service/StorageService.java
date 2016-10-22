@@ -798,7 +798,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             logger.debug("... got ring + schema info");
 
-            if (useStrictConsistency &&
+            if (useStrictConsistency && !allowSimultaneousMoves() &&
                     (
                         tokenMetadata.getBootstrapTokens().valueSet().size() > 0 ||
                         tokenMetadata.getLeavingEndpoints().size() > 0 ||
