@@ -149,6 +149,7 @@ Merged from 2.2:
  * Fail repair on non-existing table (CASSANDRA-12279)
  * Enable repair -pr and -local together (fix regression of CASSANDRA-7450) (CASSANDRA-12522)
  * Better handle invalid system roles table (CASSANDRA-12700)
+ * Split consistent range movement flag correction (CASSANDRA-12786)
 Merged from 2.1:
  * Don't skip sstables based on maxLocalDeletionTime (CASSANDRA-12765)
 
