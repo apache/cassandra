@@ -41,18 +41,21 @@ import static org.apache.cassandra.cql3.statements.Bound.START;
 
 /**
  * <code>Restriction</code> decorator used to merge non-token restriction and token restriction on partition keys.
+ *
+ * <p>If all partition key columns have non-token restrictions and do not need filtering, they take precedence
+ * when calculating bounds, incusiveness etc (see CASSANDRA-12149).</p>
  */
 final class TokenFilter implements PartitionKeyRestrictions
 {
     /**
      * The decorated restriction
      */
-    private PartitionKeyRestrictions restrictions;
+    private final PartitionKeyRestrictions restrictions;
 
     /**
      * The restriction on the token
      */
-    private TokenRestriction tokenRestriction;
+    private final TokenRestriction tokenRestriction;
 
     /**
      * Partitioner to manage tokens, extracted from tokenRestriction metadata.
@@ -81,9 +84,9 @@ final class TokenFilter implements PartitionKeyRestrictions
     @Override
     public boolean isOnToken()
     {
-        // if all partition key columns have non-token restrictions, we can simply use the token range to filter
-        // those restrictions and then ignore the token range
-        return restrictions.size() < tokenRestriction.size();
+        // if all partition key columns have non-token restrictions and do not need filtering,
+        // we can simply use the token range to filter those restrictions and then ignore the token range
+        return needFiltering(tokenRestriction.metadata) || restrictions.size() < tokenRestriction.size();
     }
 
     public TokenFilter(PartitionKeyRestrictions restrictions, TokenRestriction tokenRestriction)
@@ -111,19 +114,19 @@ final class TokenFilter implements PartitionKeyRestrictions
     @Override
     public boolean isInclusive(Bound bound)
     {
-        return tokenRestriction.isInclusive(bound);
+        return isOnToken() ? tokenRestriction.isInclusive(bound) : restrictions.isInclusive(bound);
     }
 
     @Override
-    public boolean hasBound(Bound b)
+    public boolean hasBound(Bound bound)
     {
-        return tokenRestriction.hasBound(b);
+        return isOnToken() ? tokenRestriction.hasBound(bound) : restrictions.hasBound(bound);
     }
 
     @Override
     public List<ByteBuffer> bounds(Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        return tokenRestriction.bounds(bound, options);
+        return isOnToken() ? tokenRestriction.bounds(bound, options) : restrictions.bounds(bound, options);
     }
 
     /**

@@ -8,6 +8,7 @@ Merged from 3.0:
  * Include SSTable filename in compacting large row message (CASSANDRA-12384)
 
 3.10
+ * Use non-token restrictions for bounds when token restrictions are overridden (CASSANDRA-12419)
  * Fix CQLSH auto completion for PER PARTITION LIMIT (CASSANDRA-12803)
  * Use different build directories for Eclipse and Ant (CASSANDRA-12466)
  * Avoid potential AttributeError in cqlsh due to no table metadata (CASSANDRA-12815)
