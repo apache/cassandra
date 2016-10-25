@@ -46,9 +46,50 @@ public class SelectOrderedPartitionerTest extends CQLTester
     }
 
     @Test
+    public void testTokenAndIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
+        createIndex("CREATE INDEX ON %s(c)");
+
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (a,b,c,d) VALUES (?, ?, ?, ?)", i, i, i, i);
+            execute("INSERT INTO %s (a,b,c,d) VALUES (?, ?, ?, ?)", i, i + 10, i + 10, i + 10);
+        }
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT * FROM %s WHERE token(a) > token(8) AND a = 9 AND c = 9 ALLOW FILTERING"),
+                       row(9, 9, 9, 9));
+
+            assertRows(execute("SELECT * FROM %s WHERE token(a) > token(8) AND a > 8 AND c = 9 ALLOW FILTERING"),
+                       row(9, 9, 9, 9));
+        });
+    }
+
+
+    @Test
+    public void testFilteringOnAllPartitionKeysWithTokenRestriction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c))");
+
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (a,b,c,d) VALUES (?, ?, ?, ?)", i, i, i, i);
+            execute("INSERT INTO %s (a,b,c,d) VALUES (?, ?, ?, ?)", i, i + 10, i + 10, i + 10);
+        }
+
+        assertEmpty(execute("SELECT * FROM %s WHERE token(a, b) > token(10, 10)"));
+        assertEmpty(execute("SELECT * FROM %s WHERE token(a, b) > token(10, 10) AND a < 8 AND b < 8 ALLOW FILTERING"));
+        assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(5, 5) AND a < 8 AND b < 8 ALLOW FILTERING"),
+                   row(6, 6, 6, 6),
+                   row(7, 7, 7, 7));
+    }
+
+    @Test
     public void testFilteringOnPartitionKeyWithToken() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c))");
+        createIndex("CREATE INDEX ON %s(d)");
 
         for (int i = 0; i < 10; i++)
         {
@@ -64,6 +105,15 @@ public class SelectOrderedPartitionerTest extends CQLTester
             assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(8, 10) AND a = 9 ALLOW FILTERING"),
                        row(9, 9, 9, 9),
                        row(9, 19, 19, 19));
+
+            assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(8, 10) AND a = 9 AND d = 9 ALLOW FILTERING"),
+                       row(9, 9, 9, 9));
+
+            assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(8, 10) AND a > 8 AND b > 8 AND d = 9 ALLOW FILTERING"),
+                       row(9, 9, 9, 9));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 9 AND b = 9  AND token(a, b) > token(8, 10) AND d = 9 ALLOW FILTERING"),
+                       row(9, 9, 9, 9));
 
             assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(8, 10) AND a = 9 AND c = 19 ALLOW FILTERING"),
                        row(9, 19, 19, 19));
