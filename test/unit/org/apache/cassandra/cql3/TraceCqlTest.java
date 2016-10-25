@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.cql3;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.CodecRegistry;
@@ -28,11 +30,28 @@ import com.datastax.driver.core.QueryTrace;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.TupleType;
 import com.datastax.driver.core.TupleValue;
+import org.apache.cassandra.tracing.TraceStateImpl;
 
 import static org.junit.Assert.assertEquals;
 
 public class TraceCqlTest extends CQLTester
 {
+    static int DEFAULT_WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS;
+
+    @BeforeClass
+    public static void setUp()
+    {
+        // make sure we wait for trace events to complete, see CASSANDRA-12754
+        DEFAULT_WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS = TraceStateImpl.WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS;
+        TraceStateImpl.WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS = 5;
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        TraceStateImpl.WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS = DEFAULT_WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS;
+    }
+
     @Test
     public void testCqlStatementTracing() throws Throwable
     {

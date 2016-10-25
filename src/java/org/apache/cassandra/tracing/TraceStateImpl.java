@@ -27,6 +27,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,8 +47,10 @@ import org.apache.cassandra.utils.WrappedRunnable;
 public class TraceStateImpl extends TraceState
 {
     private static final Logger logger = LoggerFactory.getLogger(TraceStateImpl.class);
-    private static final int WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS =
-      Integer.parseInt(System.getProperty("cassandra.wait_for_tracing_events_timeout_secs", "1"));
+
+    @VisibleForTesting
+    public static int WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS =
+      Integer.parseInt(System.getProperty("cassandra.wait_for_tracing_events_timeout_secs", "0"));
 
     private final Set<Future<?>> pendingFutures = ConcurrentHashMap.newKeySet();
 
