@@ -25,6 +25,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.CBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public class TokenFct extends NativeScalarFunction
 {
@@ -45,7 +46,7 @@ public class TokenFct extends NativeScalarFunction
         return types;
     }
 
-    public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
+    public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
     {
         CBuilder builder = CBuilder.create(cfm.getKeyValidatorAsClusteringComparator());
         for (int i = 0; i < parameters.size(); i++)

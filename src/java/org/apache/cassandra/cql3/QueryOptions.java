@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.ImmutableList;
+
 import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.config.ColumnDefinition;
@@ -32,7 +33,7 @@ import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.CBCodec;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.ProtocolException;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -44,7 +45,7 @@ public abstract class QueryOptions
                                                                        Collections.<ByteBuffer>emptyList(),
                                                                        false,
                                                                        SpecificOptions.DEFAULT,
-                                                                       Server.CURRENT_VERSION);
+                                                                       ProtocolVersion.CURRENT);
 
     public static final CBCodec<QueryOptions> codec = new Codec();
 
@@ -53,27 +54,27 @@ public abstract class QueryOptions
 
     public static QueryOptions fromThrift(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, Server.VERSION_3);
+        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
     }
 
     public static QueryOptions forInternalCalls(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, Server.VERSION_3);
+        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
     }
 
     public static QueryOptions forInternalCalls(List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(ConsistencyLevel.ONE, values, false, SpecificOptions.DEFAULT, Server.VERSION_3);
+        return new DefaultQueryOptions(ConsistencyLevel.ONE, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
     }
 
-    public static QueryOptions forProtocolVersion(int protocolVersion)
+    public static QueryOptions forProtocolVersion(ProtocolVersion protocolVersion)
     {
         return new DefaultQueryOptions(null, null, true, null, protocolVersion);
     }
 
-    public static QueryOptions create(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, int pageSize, PagingState pagingState, ConsistencyLevel serialConsistency)
+    public static QueryOptions create(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, int pageSize, PagingState pagingState, ConsistencyLevel serialConsistency, ProtocolVersion version)
     {
-        return new DefaultQueryOptions(consistency, values, skipMetadata, new SpecificOptions(pageSize, pagingState, serialConsistency, -1L), 0);
+        return new DefaultQueryOptions(consistency, values, skipMetadata, new SpecificOptions(pageSize, pagingState, serialConsistency, -1L), version);
     }
 
     public static QueryOptions addColumnSpecifications(QueryOptions options, List<ColumnSpecification> columnSpecs)
@@ -180,7 +181,7 @@ public abstract class QueryOptions
      * The protocol version for the query. Will be 3 if the object don't come from
      * a native protocol request (i.e. it's been allocated locally or by CQL-over-thrift).
      */
-    public abstract int getProtocolVersion();
+    public abstract ProtocolVersion getProtocolVersion();
 
     // Mainly for the sake of BatchQueryOptions
     abstract SpecificOptions getSpecificOptions();
@@ -198,9 +199,9 @@ public abstract class QueryOptions
 
         private final SpecificOptions options;
 
-        private final transient int protocolVersion;
+        private final transient ProtocolVersion protocolVersion;
 
-        DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, SpecificOptions options, int protocolVersion)
+        DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, SpecificOptions options, ProtocolVersion protocolVersion)
         {
             this.consistency = consistency;
             this.values = values;
@@ -224,7 +225,7 @@ public abstract class QueryOptions
             return skipMetadata;
         }
 
-        public int getProtocolVersion()
+        public ProtocolVersion getProtocolVersion()
         {
             return protocolVersion;
         }
@@ -259,7 +260,7 @@ public abstract class QueryOptions
             return wrapped.skipMetadata();
         }
 
-        public int getProtocolVersion()
+        public ProtocolVersion getProtocolVersion()
         {
             return wrapped.getProtocolVersion();
         }
@@ -364,7 +365,7 @@ public abstract class QueryOptions
 
     private static class Codec implements CBCodec<QueryOptions>
     {
-        private static enum Flag
+        private enum Flag
         {
             // The order of that enum matters!!
             VALUES,
@@ -397,10 +398,12 @@ public abstract class QueryOptions
             }
         }
 
-        public QueryOptions decode(ByteBuf body, int version)
+        public QueryOptions decode(ByteBuf body, ProtocolVersion version)
         {
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-            EnumSet<Flag> flags = Flag.deserialize((int)body.readByte());
+            EnumSet<Flag> flags = Flag.deserialize(version.isGreaterOrEqualTo(ProtocolVersion.V5)
+                                                   ? (int)body.readUnsignedInt()
+                                                   : (int)body.readByte());
 
             List<ByteBuffer> values = Collections.<ByteBuffer>emptyList();
             List<String> names = null;
@@ -443,12 +446,15 @@ public abstract class QueryOptions
             return names == null ? opts : new OptionsWithNames(opts, names);
         }
 
-        public void encode(QueryOptions options, ByteBuf dest, int version)
+        public void encode(QueryOptions options, ByteBuf dest, ProtocolVersion version)
         {
             CBUtil.writeConsistencyLevel(options.getConsistency(), dest);
 
             EnumSet<Flag> flags = gatherFlags(options);
-            dest.writeByte((byte)Flag.serialize(flags));
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                dest.writeInt(Flag.serialize(flags));
+            else
+                dest.writeByte((byte)Flag.serialize(flags));
 
             if (flags.contains(Flag.VALUES))
                 CBUtil.writeValueList(options.getValues(), dest);
@@ -466,14 +472,14 @@ public abstract class QueryOptions
             // don't bother.
         }
 
-        public int encodedSize(QueryOptions options, int version)
+        public int encodedSize(QueryOptions options, ProtocolVersion version)
         {
             int size = 0;
 
             size += CBUtil.sizeOfConsistencyLevel(options.getConsistency());
 
             EnumSet<Flag> flags = gatherFlags(options);
-            size += 1;
+            size += (version.isGreaterOrEqualTo(ProtocolVersion.V5) ? 4 : 1);
 
             if (flags.contains(Flag.VALUES))
                 size += CBUtil.sizeOfValueList(options.getValues());

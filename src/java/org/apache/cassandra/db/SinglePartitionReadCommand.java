@@ -54,6 +54,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.thrift.ThriftResultsMerger;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -351,12 +352,12 @@ public class SinglePartitionReadCommand extends ReadCommand
         return StorageProxy.read(Group.one(this), consistency, clientState, queryStartNanoTime);
     }
 
-    public SinglePartitionPager getPager(PagingState pagingState, int protocolVersion)
+    public SinglePartitionPager getPager(PagingState pagingState, ProtocolVersion protocolVersion)
     {
         return getPager(this, pagingState, protocolVersion);
     }
 
-    private static SinglePartitionPager getPager(SinglePartitionReadCommand command, PagingState pagingState, int protocolVersion)
+    private static SinglePartitionPager getPager(SinglePartitionReadCommand command, PagingState pagingState, ProtocolVersion protocolVersion)
     {
         return new SinglePartitionPager(command, pagingState, protocolVersion);
     }
@@ -1051,7 +1052,7 @@ public class SinglePartitionReadCommand extends ReadCommand
             return UnfilteredPartitionIterators.concat(partitions.stream().map(p -> p.getRight()).collect(Collectors.toList()));
         }
 
-        public QueryPager getPager(PagingState pagingState, int protocolVersion)
+        public QueryPager getPager(PagingState pagingState, ProtocolVersion protocolVersion)
         {
             if (commands.size() == 1)
                 return SinglePartitionReadCommand.getPager(commands.get(0), pagingState, protocolVersion);

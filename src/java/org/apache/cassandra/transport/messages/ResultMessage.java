@@ -36,19 +36,19 @@ public abstract class ResultMessage extends Message.Response
 {
     public static final Message.Codec<ResultMessage> codec = new Message.Codec<ResultMessage>()
     {
-        public ResultMessage decode(ByteBuf body, int version)
+        public ResultMessage decode(ByteBuf body, ProtocolVersion version)
         {
             Kind kind = Kind.fromId(body.readInt());
             return kind.subcodec.decode(body, version);
         }
 
-        public void encode(ResultMessage msg, ByteBuf dest, int version)
+        public void encode(ResultMessage msg, ByteBuf dest, ProtocolVersion version)
         {
             dest.writeInt(msg.kind.id);
             msg.kind.subcodec.encode(msg, dest, version);
         }
 
-        public int encodedSize(ResultMessage msg, int version)
+        public int encodedSize(ResultMessage msg, ProtocolVersion version)
         {
             return 4 + msg.kind.subcodec.encodedSize(msg, version);
         }
@@ -116,17 +116,17 @@ public abstract class ResultMessage extends Message.Response
 
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ByteBuf body, int version)
+            public ResultMessage decode(ByteBuf body, ProtocolVersion version)
             {
                 return new Void();
             }
 
-            public void encode(ResultMessage msg, ByteBuf dest, int version)
+            public void encode(ResultMessage msg, ByteBuf dest, ProtocolVersion version)
             {
                 assert msg instanceof Void;
             }
 
-            public int encodedSize(ResultMessage msg, int version)
+            public int encodedSize(ResultMessage msg, ProtocolVersion version)
             {
                 return 0;
             }
@@ -156,19 +156,19 @@ public abstract class ResultMessage extends Message.Response
 
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ByteBuf body, int version)
+            public ResultMessage decode(ByteBuf body, ProtocolVersion version)
             {
                 String keyspace = CBUtil.readString(body);
                 return new SetKeyspace(keyspace);
             }
 
-            public void encode(ResultMessage msg, ByteBuf dest, int version)
+            public void encode(ResultMessage msg, ByteBuf dest, ProtocolVersion version)
             {
                 assert msg instanceof SetKeyspace;
                 CBUtil.writeString(((SetKeyspace)msg).keyspace, dest);
             }
 
-            public int encodedSize(ResultMessage msg, int version)
+            public int encodedSize(ResultMessage msg, ProtocolVersion version)
             {
                 assert msg instanceof SetKeyspace;
                 return CBUtil.sizeOfString(((SetKeyspace)msg).keyspace);
@@ -191,19 +191,19 @@ public abstract class ResultMessage extends Message.Response
     {
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ByteBuf body, int version)
+            public ResultMessage decode(ByteBuf body, ProtocolVersion version)
             {
                 return new Rows(ResultSet.codec.decode(body, version));
             }
 
-            public void encode(ResultMessage msg, ByteBuf dest, int version)
+            public void encode(ResultMessage msg, ByteBuf dest, ProtocolVersion version)
             {
                 assert msg instanceof Rows;
                 Rows rowMsg = (Rows)msg;
                 ResultSet.codec.encode(rowMsg.result, dest, version);
             }
 
-            public int encodedSize(ResultMessage msg, int version)
+            public int encodedSize(ResultMessage msg, ProtocolVersion version)
             {
                 assert msg instanceof Rows;
                 Rows rowMsg = (Rows)msg;
@@ -235,19 +235,19 @@ public abstract class ResultMessage extends Message.Response
     {
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ByteBuf body, int version)
+            public ResultMessage decode(ByteBuf body, ProtocolVersion version)
             {
                 MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
                 ResultSet.PreparedMetadata metadata = ResultSet.PreparedMetadata.codec.decode(body, version);
 
                 ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.EMPTY;
-                if (version > 1)
+                if (version.isGreaterThan(ProtocolVersion.V1))
                     resultMetadata = ResultSet.ResultMetadata.codec.decode(body, version);
 
                 return new Prepared(id, -1, metadata, resultMetadata);
             }
 
-            public void encode(ResultMessage msg, ByteBuf dest, int version)
+            public void encode(ResultMessage msg, ByteBuf dest, ProtocolVersion version)
             {
                 assert msg instanceof Prepared;
                 Prepared prepared = (Prepared)msg;
@@ -255,11 +255,11 @@ public abstract class ResultMessage extends Message.Response
 
                 CBUtil.writeBytes(prepared.statementId.bytes, dest);
                 ResultSet.PreparedMetadata.codec.encode(prepared.metadata, dest, version);
-                if (version > 1)
+                if (version.isGreaterThan(ProtocolVersion.V1))
                     ResultSet.ResultMetadata.codec.encode(prepared.resultMetadata, dest, version);
             }
 
-            public int encodedSize(ResultMessage msg, int version)
+            public int encodedSize(ResultMessage msg, ProtocolVersion version)
             {
                 assert msg instanceof Prepared;
                 Prepared prepared = (Prepared)msg;
@@ -268,7 +268,7 @@ public abstract class ResultMessage extends Message.Response
                 int size = 0;
                 size += CBUtil.sizeOfBytes(prepared.statementId.bytes);
                 size += ResultSet.PreparedMetadata.codec.encodedSize(prepared.metadata, version);
-                if (version > 1)
+                if (version.isGreaterThan(ProtocolVersion.V1))
                     size += ResultSet.ResultMetadata.codec.encodedSize(prepared.resultMetadata, version);
                 return size;
             }
@@ -348,19 +348,19 @@ public abstract class ResultMessage extends Message.Response
 
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ByteBuf body, int version)
+            public ResultMessage decode(ByteBuf body, ProtocolVersion version)
             {
                 return new SchemaChange(Event.SchemaChange.deserializeEvent(body, version));
             }
 
-            public void encode(ResultMessage msg, ByteBuf dest, int version)
+            public void encode(ResultMessage msg, ByteBuf dest, ProtocolVersion version)
             {
                 assert msg instanceof SchemaChange;
                 SchemaChange scm = (SchemaChange)msg;
                 scm.change.serializeEvent(dest, version);
             }
 
-            public int encodedSize(ResultMessage msg, int version)
+            public int encodedSize(ResultMessage msg, ProtocolVersion version)
             {
                 assert msg instanceof SchemaChange;
                 SchemaChange scm = (SchemaChange)msg;

@@ -32,13 +32,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.datastax.driver.core.*;
+import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -61,8 +61,8 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.transport.Event;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.*;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -87,31 +87,41 @@ public abstract class CQLTester
     private static org.apache.cassandra.transport.Server server;
     protected static final int nativePort;
     protected static final InetAddress nativeAddr;
-    private static final Map<Integer, Cluster> clusters = new HashMap<>();
-    private static final Map<Integer, Session> sessions = new HashMap<>();
+    private static final Map<ProtocolVersion, Cluster> clusters = new HashMap<>();
+    private static final Map<ProtocolVersion, Session> sessions = new HashMap<>();
 
     private static boolean isServerPrepared = false;
 
-    public static final List<Integer> PROTOCOL_VERSIONS;
+    public static final List<ProtocolVersion> PROTOCOL_VERSIONS = new ArrayList<>(ProtocolVersion.SUPPORTED.size());
+
+    /** Return the current server version if supported by the driver, else
+     * the latest that is supported.
+     *
+     * @return - the preferred versions that is also supported by the driver
+     */
+    public static final ProtocolVersion getDefaultVersion()
+    {
+        return PROTOCOL_VERSIONS.contains(ProtocolVersion.CURRENT)
+               ? ProtocolVersion.CURRENT
+               : PROTOCOL_VERSIONS.get(PROTOCOL_VERSIONS.size() - 1);
+    }
     static
     {
         DatabaseDescriptor.daemonInitialization();
 
         // The latest versions might not be supported yet by the java driver
-        ImmutableList.Builder<Integer> builder = ImmutableList.builder();
-        for (int version = Server.MIN_SUPPORTED_VERSION; version <= Server.CURRENT_VERSION; version++)
+        for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
         {
             try
             {
-                ProtocolVersion.fromInt(version);
-                builder.add(version);
+                com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt());
+                PROTOCOL_VERSIONS.add(version);
             }
             catch (IllegalArgumentException e)
             {
-                break;
+                logger.warn("Protocol Version {} not supported by java driver", version);
             }
         }
-        PROTOCOL_VERSIONS = builder.build();
 
         nativeAddr = InetAddress.getLoopbackAddress();
 
@@ -348,7 +358,7 @@ public abstract class CQLTester
         server = new Server.Builder().withHost(nativeAddr).withPort(nativePort).build();
         server.start();
 
-        for (int version : PROTOCOL_VERSIONS)
+        for (ProtocolVersion version : PROTOCOL_VERSIONS)
         {
             if (clusters.containsKey(version))
                 continue;
@@ -357,7 +367,7 @@ public abstract class CQLTester
                                      .addContactPoints(nativeAddr)
                                      .withClusterName("Test Cluster")
                                      .withPort(nativePort)
-                                     .withProtocolVersion(ProtocolVersion.fromInt(version))
+                                     .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt()))
                                      .build();
             clusters.put(version, cluster);
             sessions.put(version, cluster.connect());
@@ -708,17 +718,17 @@ public abstract class CQLTester
         return Schema.instance.getCFMetaData(KEYSPACE, currentTable());
     }
 
-    protected com.datastax.driver.core.ResultSet executeNet(int protocolVersion, String query, Object... values) throws Throwable
+    protected com.datastax.driver.core.ResultSet executeNet(ProtocolVersion protocolVersion, String query, Object... values) throws Throwable
     {
         return sessionNet(protocolVersion).execute(formatQuery(query), values);
     }
 
     protected Session sessionNet()
     {
-        return sessionNet(PROTOCOL_VERSIONS.get(PROTOCOL_VERSIONS.size() - 1));
+        return sessionNet(getDefaultVersion());
     }
 
-    protected Session sessionNet(int protocolVersion)
+    protected Session sessionNet(ProtocolVersion protocolVersion)
     {
         requireNetwork();
 
@@ -786,10 +796,10 @@ public abstract class CQLTester
 
     protected void assertRowsNet(ResultSet result, Object[]... rows)
     {
-        assertRowsNet(PROTOCOL_VERSIONS.get(PROTOCOL_VERSIONS.size() - 1), result, rows);
+        assertRowsNet(getDefaultVersion(), result, rows);
     }
 
-    protected void assertRowsNet(int protocolVersion, ResultSet result, Object[]... rows)
+    protected void assertRowsNet(ProtocolVersion protocolVersion, ResultSet result, Object[]... rows)
     {
         // necessary as we need cluster objects to supply CodecRegistry.
         // It's reasonably certain that the network setup has already been done
@@ -811,7 +821,7 @@ public abstract class CQLTester
             Object[] expected = rows[i];
             Row actual = iter.next();
 
-            Assert.assertEquals(String.format("Invalid number of (expected) values provided for row %d (using protocol version %d)",
+            Assert.assertEquals(String.format("Invalid number of (expected) values provided for row %d (using protocol version %s)",
                                               i, protocolVersion),
                                 meta.size(), expected.length);
 
@@ -821,18 +831,18 @@ public abstract class CQLTester
                 com.datastax.driver.core.TypeCodec<Object> codec = clusters.get(protocolVersion).getConfiguration()
                                                                                                 .getCodecRegistry()
                                                                                                 .codecFor(type);
-                ByteBuffer expectedByteValue = codec.serialize(expected[j], ProtocolVersion.fromInt(protocolVersion));
+                ByteBuffer expectedByteValue = codec.serialize(expected[j], com.datastax.driver.core.ProtocolVersion.fromInt(protocolVersion.asInt()));
                 int expectedBytes = expectedByteValue == null ? -1 : expectedByteValue.remaining();
                 ByteBuffer actualValue = actual.getBytesUnsafe(meta.getName(j));
                 int actualBytes = actualValue == null ? -1 : actualValue.remaining();
                 if (!Objects.equal(expectedByteValue, actualValue))
                     Assert.fail(String.format("Invalid value for row %d column %d (%s of type %s), " +
                                               "expected <%s> (%d bytes) but got <%s> (%d bytes) " +
-                                              "(using protocol version %d)",
+                                              "(using protocol version %s)",
                                               i, j, meta.getName(j), type,
                                               codec.format(expected[j]),
                                               expectedBytes,
-                                              codec.format(codec.deserialize(actualValue, ProtocolVersion.fromInt(protocolVersion))),
+                                              codec.format(codec.deserialize(actualValue, com.datastax.driver.core.ProtocolVersion.fromInt(protocolVersion.asInt()))),
                                               actualBytes,
                                               protocolVersion));
             }
@@ -846,11 +856,11 @@ public abstract class CQLTester
                 iter.next();
                 i++;
             }
-            Assert.fail(String.format("Got less rows than expected. Expected %d but got %d (using protocol version %d).",
+            Assert.fail(String.format("Got less rows than expected. Expected %d but got %d (using protocol version %s).",
                                       rows.length, i, protocolVersion));
         }
 
-        Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d (using protocol version %d)",
+        Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d (using protocol version %s)",
                                         rows.length>i ? "less" : "more", rows.length, i, protocolVersion), i == rows.length);
     }
 
@@ -1114,12 +1124,12 @@ public abstract class CQLTester
 
     protected void assertInvalidThrowMessage(String errorMessage, Class<? extends Throwable> exception, String query, Object... values) throws Throwable
     {
-        assertInvalidThrowMessage(Integer.MIN_VALUE, errorMessage, exception, query, values);
+        assertInvalidThrowMessage(Optional.empty(), errorMessage, exception, query, values);
     }
 
     // if a protocol version > Integer.MIN_VALUE is supplied, executes
     // the query via the java driver, mimicking a real client.
-    protected void assertInvalidThrowMessage(int protocolVersion,
+    protected void assertInvalidThrowMessage(Optional<ProtocolVersion> protocolVersion,
                                              String errorMessage,
                                              Class<? extends Throwable> exception,
                                              String query,
@@ -1127,10 +1137,10 @@ public abstract class CQLTester
     {
         try
         {
-            if (protocolVersion == Integer.MIN_VALUE)
+            if (!protocolVersion.isPresent())
                 execute(query, values);
             else
-                executeNet(protocolVersion, query, values);
+                executeNet(protocolVersion.get(), query, values);
 
             String q = USE_PREPARED_VALUES
                        ? query + " (values: " + formatAllValues(values) + ")"
@@ -1497,7 +1507,7 @@ public abstract class CQLTester
         return m;
     }
 
-    protected com.datastax.driver.core.TupleType tupleTypeOf(int protocolVersion, DataType...types)
+    protected com.datastax.driver.core.TupleType tupleTypeOf(ProtocolVersion protocolVersion, DataType...types)
     {
         requireNetwork();
         return clusters.get(protocolVersion).getMetadata().newTupleType(types);

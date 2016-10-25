@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Common interface to single partition queries (by slice and by name).
@@ -34,7 +35,7 @@ public class SinglePartitionPager extends AbstractQueryPager
 
     private volatile PagingState.RowMark lastReturned;
 
-    public SinglePartitionPager(SinglePartitionReadCommand command, PagingState state, int protocolVersion)
+    public SinglePartitionPager(SinglePartitionReadCommand command, PagingState state, ProtocolVersion protocolVersion)
     {
         super(command, protocolVersion);
         this.command = command;
@@ -47,7 +48,7 @@ public class SinglePartitionPager extends AbstractQueryPager
     }
 
     private SinglePartitionPager(SinglePartitionReadCommand command,
-                                 int protocolVersion,
+                                 ProtocolVersion protocolVersion,
                                  PagingState.RowMark rowMark,
                                  int remaining,
                                  int remainingInPartition)

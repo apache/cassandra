@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -52,7 +53,7 @@ public abstract class TimeFcts
 
     public static final Function nowFct = new NativeScalarFunction("now", TimeUUIDType.instance)
     {
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             return ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
         }
@@ -60,7 +61,7 @@ public abstract class TimeFcts
 
     public static final Function minTimeuuidFct = new NativeScalarFunction("mintimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = parameters.get(0);
             if (bb == null)
@@ -72,7 +73,7 @@ public abstract class TimeFcts
 
     public static final Function maxTimeuuidFct = new NativeScalarFunction("maxtimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = parameters.get(0);
             if (bb == null)
@@ -90,7 +91,7 @@ public abstract class TimeFcts
     {
         private volatile boolean hasLoggedDeprecationWarning;
 
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             if (!hasLoggedDeprecationWarning)
             {
@@ -116,7 +117,7 @@ public abstract class TimeFcts
     {
         private volatile boolean hasLoggedDeprecationWarning;
 
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             if (!hasLoggedDeprecationWarning)
             {
@@ -138,7 +139,7 @@ public abstract class TimeFcts
      */
     public static final NativeScalarFunction timeUuidtoDate = new NativeScalarFunction("todate", SimpleDateType.instance, TimeUUIDType.instance)
     {
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = parameters.get(0);
             if (bb == null)
@@ -154,7 +155,7 @@ public abstract class TimeFcts
      */
     public static final NativeScalarFunction timeUuidToTimestamp = new NativeScalarFunction("totimestamp", TimestampType.instance, TimeUUIDType.instance)
     {
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = parameters.get(0);
             if (bb == null)
@@ -170,7 +171,7 @@ public abstract class TimeFcts
      */
     public static final NativeScalarFunction timeUuidToUnixTimestamp = new NativeScalarFunction("tounixtimestamp", LongType.instance, TimeUUIDType.instance)
     {
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = parameters.get(0);
             if (bb == null)
@@ -185,7 +186,7 @@ public abstract class TimeFcts
      */
     public static final NativeScalarFunction timestampToUnixTimestamp = new NativeScalarFunction("tounixtimestamp", LongType.instance, TimestampType.instance)
     {
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = parameters.get(0);
             if (bb == null)
@@ -201,7 +202,7 @@ public abstract class TimeFcts
     */
    public static final NativeScalarFunction timestampToDate = new NativeScalarFunction("todate", SimpleDateType.instance, TimestampType.instance)
    {
-       public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+       public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
        {
            ByteBuffer bb = parameters.get(0);
            if (bb == null)
@@ -217,7 +218,7 @@ public abstract class TimeFcts
     */
    public static final NativeScalarFunction dateToTimestamp = new NativeScalarFunction("totimestamp", TimestampType.instance, SimpleDateType.instance)
    {
-       public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+       public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
        {
            ByteBuffer bb = parameters.get(0);
            if (bb == null)
@@ -233,7 +234,7 @@ public abstract class TimeFcts
     */
    public static final NativeScalarFunction dateToUnixTimestamp = new NativeScalarFunction("tounixtimestamp", LongType.instance, SimpleDateType.instance)
    {
-       public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+       public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
        {
            ByteBuffer bb = parameters.get(0);
            if (bb == null)

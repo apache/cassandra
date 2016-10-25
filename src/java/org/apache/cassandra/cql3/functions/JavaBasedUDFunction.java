@@ -48,6 +48,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.eclipse.jdt.core.compiler.IProblem;
 import org.eclipse.jdt.internal.compiler.*;
@@ -362,12 +363,12 @@ public final class JavaBasedUDFunction extends UDFunction
         return executor;
     }
 
-    protected ByteBuffer executeUserDefined(int protocolVersion, List<ByteBuffer> params)
+    protected ByteBuffer executeUserDefined(ProtocolVersion protocolVersion, List<ByteBuffer> params)
     {
         return javaUDF.executeImpl(protocolVersion, params);
     }
 
-    protected Object executeAggregateUserDefined(int protocolVersion, Object firstParam, List<ByteBuffer> params)
+    protected Object executeAggregateUserDefined(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> params)
     {
         return javaUDF.executeAggregateImpl(protocolVersion, firstParam, params);
     }

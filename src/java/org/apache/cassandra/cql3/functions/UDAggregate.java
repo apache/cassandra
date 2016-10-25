@@ -29,6 +29,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Base class for user-defined-aggregates.
@@ -158,7 +159,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
             private Object state;
             private boolean needsInit = true;
 
-            public void addInput(int protocolVersion, List<ByteBuffer> values) throws InvalidRequestException
+            public void addInput(ProtocolVersion protocolVersion, List<ByteBuffer> values) throws InvalidRequestException
             {
                 if (needsInit)
                 {
@@ -183,7 +184,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
                 stateFunctionDuration += (System.nanoTime() - startTime) / 1000;
             }
 
-            public ByteBuffer compute(int protocolVersion) throws InvalidRequestException
+            public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException
             {
                 assert !needsInit;
 

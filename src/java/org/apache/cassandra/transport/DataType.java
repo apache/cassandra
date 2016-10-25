@@ -35,37 +35,37 @@ import org.apache.cassandra.utils.Pair;
 
 public enum DataType implements OptionCodec.Codecable<DataType>
 {
-    CUSTOM   (0,  null, 1),
-    ASCII    (1,  AsciiType.instance, 1),
-    BIGINT   (2,  LongType.instance, 1),
-    BLOB     (3,  BytesType.instance, 1),
-    BOOLEAN  (4,  BooleanType.instance, 1),
-    COUNTER  (5,  CounterColumnType.instance, 1),
-    DECIMAL  (6,  DecimalType.instance, 1),
-    DOUBLE   (7,  DoubleType.instance, 1),
-    FLOAT    (8,  FloatType.instance, 1),
-    INT      (9,  Int32Type.instance, 1),
-    TEXT     (10, UTF8Type.instance, 1),
-    TIMESTAMP(11, TimestampType.instance, 1),
-    UUID     (12, UUIDType.instance, 1),
-    VARCHAR  (13, UTF8Type.instance, 1),
-    VARINT   (14, IntegerType.instance, 1),
-    TIMEUUID (15, TimeUUIDType.instance, 1),
-    INET     (16, InetAddressType.instance, 1),
-    DATE     (17, SimpleDateType.instance, 4),
-    TIME     (18, TimeType.instance, 4),
-    SMALLINT (19, ShortType.instance, 4),
-    BYTE     (20, ByteType.instance, 4),
-    LIST     (32, null, 1),
-    MAP      (33, null, 1),
-    SET      (34, null, 1),
-    UDT      (48, null, 3),
-    TUPLE    (49, null, 3);
+    CUSTOM   (0,  null, ProtocolVersion.V1),
+    ASCII    (1,  AsciiType.instance, ProtocolVersion.V1),
+    BIGINT   (2,  LongType.instance, ProtocolVersion.V1),
+    BLOB     (3,  BytesType.instance, ProtocolVersion.V1),
+    BOOLEAN  (4,  BooleanType.instance, ProtocolVersion.V1),
+    COUNTER  (5,  CounterColumnType.instance, ProtocolVersion.V1),
+    DECIMAL  (6,  DecimalType.instance, ProtocolVersion.V1),
+    DOUBLE   (7,  DoubleType.instance, ProtocolVersion.V1),
+    FLOAT    (8,  FloatType.instance, ProtocolVersion.V1),
+    INT      (9,  Int32Type.instance, ProtocolVersion.V1),
+    TEXT     (10, UTF8Type.instance, ProtocolVersion.V1),
+    TIMESTAMP(11, TimestampType.instance, ProtocolVersion.V1),
+    UUID     (12, UUIDType.instance, ProtocolVersion.V1),
+    VARCHAR  (13, UTF8Type.instance, ProtocolVersion.V1),
+    VARINT   (14, IntegerType.instance, ProtocolVersion.V1),
+    TIMEUUID (15, TimeUUIDType.instance, ProtocolVersion.V1),
+    INET     (16, InetAddressType.instance, ProtocolVersion.V1),
+    DATE     (17, SimpleDateType.instance, ProtocolVersion.V4),
+    TIME     (18, TimeType.instance, ProtocolVersion.V4),
+    SMALLINT (19, ShortType.instance, ProtocolVersion.V4),
+    BYTE     (20, ByteType.instance, ProtocolVersion.V4),
+    LIST     (32, null, ProtocolVersion.V1),
+    MAP      (33, null, ProtocolVersion.V1),
+    SET      (34, null, ProtocolVersion.V1),
+    UDT      (48, null, ProtocolVersion.V3),
+    TUPLE    (49, null, ProtocolVersion.V3);
 
     public static final OptionCodec<DataType> codec = new OptionCodec<DataType>(DataType.class);
 
     private final int id;
-    private final int protocolVersion;
+    private final ProtocolVersion protocolVersion;
     private final AbstractType type;
     private final Pair<DataType, Object> pair;
     private static final Map<AbstractType, DataType> dataTypeMap = new HashMap<AbstractType, DataType>();
@@ -78,7 +78,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         }
     }
 
-    DataType(int id, AbstractType type, int protocolVersion)
+    DataType(int id, AbstractType type, ProtocolVersion protocolVersion)
     {
         this.id = id;
         this.type = type;
@@ -86,14 +86,14 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         pair = Pair.create(this, null);
     }
 
-    public int getId(int version)
+    public int getId(ProtocolVersion version)
     {
-        if (version < protocolVersion)
+        if (version.isSmallerThan(protocolVersion))
             return DataType.CUSTOM.getId(version);
         return id;
     }
 
-    public Object readValue(ByteBuf cb, int version)
+    public Object readValue(ByteBuf cb, ProtocolVersion version)
     {
         switch (this)
         {
@@ -131,10 +131,10 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         }
     }
 
-    public void writeValue(Object value, ByteBuf cb, int version)
+    public void writeValue(Object value, ByteBuf cb, ProtocolVersion version)
     {
         // Serialize as CUSTOM if client on the other side's version is < required for type
-        if (version < protocolVersion)
+        if (version.isSmallerThan(protocolVersion))
         {
             CBUtil.writeString(value.toString(), cb);
             return;
@@ -177,10 +177,10 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         }
     }
 
-    public int serializedValueSize(Object value, int version)
+    public int serializedValueSize(Object value, ProtocolVersion version)
     {
         // Serialize as CUSTOM if client on the other side's version is < required for type
-        if (version < protocolVersion)
+        if (version.isSmallerThan(protocolVersion))
             return CBUtil.sizeOfString(value.toString());
 
         switch (this)
@@ -219,7 +219,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         }
     }
 
-    public static Pair<DataType, Object> fromType(AbstractType type, int version)
+    public static Pair<DataType, Object> fromType(AbstractType type, ProtocolVersion version)
     {
         // For CQL3 clients, ReversedType is an implementation detail and they
         // shouldn't have to care about it.
@@ -251,10 +251,10 @@ public enum DataType implements OptionCodec.Codecable<DataType>
                 throw new AssertionError();
             }
 
-            if (type instanceof UserType && version >= UDT.protocolVersion)
+            if (type instanceof UserType && version.isGreaterOrEqualTo(UDT.protocolVersion))
                 return Pair.<DataType, Object>create(UDT, type);
 
-            if (type instanceof TupleType && version >= TUPLE.protocolVersion)
+            if (type instanceof TupleType && version.isGreaterOrEqualTo(TUPLE.protocolVersion))
                 return Pair.<DataType, Object>create(TUPLE, type);
 
             return Pair.<DataType, Object>create(CUSTOM, type.toString());
@@ -262,7 +262,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         else
         {
             // Fall back to CUSTOM if target doesn't know this data type
-            if (version < dt.protocolVersion)
+            if (version.isSmallerThan(dt.protocolVersion))
                 return Pair.<DataType, Object>create(CUSTOM, type.toString());
             return dt.pair;
         }
@@ -298,7 +298,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
     }
 
     @VisibleForTesting
-    public int getProtocolVersion()
+    public ProtocolVersion getProtocolVersion()
     {
         return protocolVersion;
     }

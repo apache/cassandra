@@ -23,6 +23,7 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.service.pager.PagingState;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Generic abstraction for read queries.
@@ -63,7 +64,7 @@ public interface ReadQuery
             return DataLimits.cqlLimits(0);
         }
 
-        public QueryPager getPager(PagingState state, int protocolVersion)
+        public QueryPager getPager(PagingState state, ProtocolVersion protocolVersion)
         {
             return QueryPager.EMPTY;
         }
@@ -127,7 +128,7 @@ public interface ReadQuery
      *
      * @return a pager for the query.
      */
-    public QueryPager getPager(PagingState pagingState, int protocolVersion);
+    public QueryPager getPager(PagingState pagingState, ProtocolVersion protocolVersion);
 
     /**
      * The limits for the query.

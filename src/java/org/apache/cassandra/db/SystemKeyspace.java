@@ -61,7 +61,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.thrift.cassandraConstants;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
 
 import static java.util.Collections.emptyMap;
@@ -518,7 +518,7 @@ public final class SystemKeyspace
                             FBUtilities.getReleaseVersionString(),
                             QueryProcessor.CQL_VERSION.toString(),
                             cassandraConstants.VERSION,
-                            String.valueOf(Server.CURRENT_VERSION),
+                            String.valueOf(ProtocolVersion.CURRENT.asInt()),
                             snitch.getDatacenter(FBUtilities.getBroadcastAddress()),
                             snitch.getRack(FBUtilities.getBroadcastAddress()),
                             DatabaseDescriptor.getPartitioner().getClass().getName(),

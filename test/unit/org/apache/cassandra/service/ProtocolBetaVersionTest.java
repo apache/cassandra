@@ -26,6 +26,7 @@ import org.apache.cassandra.transport.*;
 import org.apache.cassandra.transport.messages.*;
 
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertTrue;
 import static junit.framework.Assert.fail;
 
 public class ProtocolBetaVersionTest extends CQLTester
@@ -37,12 +38,37 @@ public class ProtocolBetaVersionTest extends CQLTester
         DatabaseDescriptor.setBatchSizeWarnThresholdInKB(1);
     }
 
+    private ProtocolVersion getBetaVersion()
+    {
+        ProtocolVersion betaVersion = ProtocolVersion.BETA.orElse(null);
+        if (betaVersion == null)
+        {
+            for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
+            {
+                if (version.isBeta())
+                {
+                    betaVersion = version;
+                    break;
+                }
+            }
+        }
+        return betaVersion;
+    }
+
     @Test
     public void testProtocolBetaVersion() throws Exception
     {
-        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
+        ProtocolVersion betaVersion = getBetaVersion();
+        if (betaVersion == null)
+        {
+            logger.info("No beta version found for testing");
+            return;
+        }
 
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.BETA_VERSION, true, new EncryptionOptions.ClientEncryptionOptions()))
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
+        assertTrue(betaVersion.isBeta()); // change to another beta version or remove test if no beta version
+
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, betaVersion, true, new EncryptionOptions.ClientEncryptionOptions()))
         {
             client.connect(false);
             for (int i = 0; i < 10; i++)
@@ -69,14 +95,22 @@ public class ProtocolBetaVersionTest extends CQLTester
     @Test
     public void unforcedProtocolVersionTest() throws Exception
     {
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.BETA_VERSION, false, new EncryptionOptions.ClientEncryptionOptions()))
+        ProtocolVersion betaVersion = getBetaVersion();
+        if (betaVersion == null)
+        {
+            logger.info("No beta version found for testing");
+            return;
+        }
+
+        assertTrue(betaVersion.isBeta()); // change to another beta version or remove test if no beta version
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, betaVersion, false, new EncryptionOptions.ClientEncryptionOptions()))
         {
             client.connect(false);
             fail("Exception should have been thrown");
         }
         catch (Exception e)
         {
-            assertEquals("Beta version of server used (5), but USE_BETA flag is not set",
+            assertEquals("Beta version of server used (5/v5-beta), but USE_BETA flag is not set",
                          e.getMessage());
         }
     }

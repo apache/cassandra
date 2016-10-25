@@ -25,6 +25,7 @@ import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 final class FieldSelector extends Selector
 {
@@ -63,12 +64,12 @@ final class FieldSelector extends Selector
         };
     }
 
-    public void addInput(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
         selected.addInput(protocolVersion, rs);
     }
 
-    public ByteBuffer getOutput(int protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
     {
         ByteBuffer value = selected.getOutput(protocolVersion);
         if (value == null)

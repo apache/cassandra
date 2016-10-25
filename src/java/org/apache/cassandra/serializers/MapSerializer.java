@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.Pair;
 
 public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
@@ -74,7 +74,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         return value.size();
     }
 
-    public void validateForNativeProtocol(ByteBuffer bytes, int version)
+    public void validateForNativeProtocol(ByteBuffer bytes, ProtocolVersion version)
     {
         try
         {
@@ -94,7 +94,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         }
     }
 
-    public Map<K, V> deserializeForNativeProtocol(ByteBuffer bytes, int version)
+    public Map<K, V> deserializeForNativeProtocol(ByteBuffer bytes, ProtocolVersion version)
     {
         try
         {
@@ -141,11 +141,11 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         try
         {
             ByteBuffer input = serializedMap.duplicate();
-            int n = readCollectionSize(input, Server.VERSION_3);
+            int n = readCollectionSize(input, ProtocolVersion.V3);
             for (int i = 0; i < n; i++)
             {
-                ByteBuffer kbb = readValue(input, Server.VERSION_3);
-                ByteBuffer vbb = readValue(input, Server.VERSION_3);
+                ByteBuffer kbb = readValue(input, ProtocolVersion.V3);
+                ByteBuffer vbb = readValue(input, ProtocolVersion.V3);
                 int comparison = keyType.compare(kbb, serializedKey);
                 if (comparison == 0)
                     return vbb;

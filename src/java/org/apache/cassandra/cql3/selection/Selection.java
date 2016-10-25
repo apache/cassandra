@@ -37,6 +37,7 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class Selection
@@ -267,7 +268,7 @@ public abstract class Selection
                           .toString();
     }
 
-    public static List<ByteBuffer> rowToJson(List<ByteBuffer> row, int protocolVersion, ResultSet.ResultMetadata metadata)
+    public static List<ByteBuffer> rowToJson(List<ByteBuffer> row, ProtocolVersion protocolVersion, ResultSet.ResultMetadata metadata)
     {
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < metadata.names.size(); i++)
@@ -296,7 +297,7 @@ public abstract class Selection
     public class ResultSetBuilder
     {
         private final ResultSet resultSet;
-        private final int protocolVersion;
+        private final ProtocolVersion protocolVersion;
 
         /**
          * As multiple thread can access a <code>Selection</code> instance each <code>ResultSetBuilder</code> will use
@@ -439,12 +440,13 @@ public abstract class Selection
         /**
          * Adds the current row of the specified <code>ResultSetBuilder</code>.
          *
+         * @param protocolVersion
          * @param rs the <code>ResultSetBuilder</code>
          * @throws InvalidRequestException
          */
-        public void addInputRow(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException;
+        public void addInputRow(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException;
 
-        public List<ByteBuffer> getOutputRow(int protocolVersion) throws InvalidRequestException;
+        public List<ByteBuffer> getOutputRow(ProtocolVersion protocolVersion) throws InvalidRequestException;
 
         public void reset();
     }
@@ -495,12 +497,12 @@ public abstract class Selection
                     current = null;
                 }
 
-                public List<ByteBuffer> getOutputRow(int protocolVersion)
+                public List<ByteBuffer> getOutputRow(ProtocolVersion protocolVersion)
                 {
                     return current;
                 }
 
-                public void addInputRow(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+                public void addInputRow(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
                 {
                     current = rs.current;
                 }
@@ -582,7 +584,7 @@ public abstract class Selection
                     return factories.doesAggregation();
                 }
 
-                public List<ByteBuffer> getOutputRow(int protocolVersion) throws InvalidRequestException
+                public List<ByteBuffer> getOutputRow(ProtocolVersion protocolVersion) throws InvalidRequestException
                 {
                     List<ByteBuffer> outputRow = new ArrayList<>(selectors.size());
 
@@ -592,7 +594,7 @@ public abstract class Selection
                     return outputRow;
                 }
 
-                public void addInputRow(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+                public void addInputRow(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
                 {
                     for (Selector selector : selectors)
                         selector.addInput(protocolVersion, rs);

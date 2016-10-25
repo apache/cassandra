@@ -34,6 +34,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public interface CQL3Type
@@ -54,12 +55,11 @@ public interface CQL3Type
 
     /**
      * Generates CQL literal from a binary value of this type.
-     *
-     * @param buffer the value to convert to a CQL literal. This value must be
+     *  @param buffer the value to convert to a CQL literal. This value must be
      * serialized with {@code version} of the native protocol.
      * @param version the native protocol version in which {@code buffer} is encoded.
      */
-    public String toCQLLiteral(ByteBuffer buffer, int version);
+    public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version);
 
     public enum Native implements CQL3Type
     {
@@ -105,7 +105,7 @@ public interface CQL3Type
          * {@link org.apache.cassandra.serializers.TypeSerializer#toString(Object)}
          * {@link org.apache.cassandra.serializers.TypeSerializer#deserialize(ByteBuffer)} implementations.
          */
-        public String toCQLLiteral(ByteBuffer buffer, int version)
+        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
             return type.getSerializer().toCQLLiteral(buffer);
         }
@@ -136,7 +136,7 @@ public interface CQL3Type
             return type;
         }
 
-        public String toCQLLiteral(ByteBuffer buffer, int version)
+        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
             // *always* use the 'blob' syntax to express custom types in CQL
             return Native.BLOB.toCQLLiteral(buffer, version);
@@ -184,7 +184,7 @@ public interface CQL3Type
             return true;
         }
 
-        public String toCQLLiteral(ByteBuffer buffer, int version)
+        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
             if (buffer == null)
                 return "null";
@@ -216,7 +216,7 @@ public interface CQL3Type
             return target.toString();
         }
 
-        private void generateMapCQLLiteral(ByteBuffer buffer, int version, StringBuilder target, int size)
+        private void generateMapCQLLiteral(ByteBuffer buffer, ProtocolVersion version, StringBuilder target, int size)
         {
             CQL3Type keys = ((MapType) type).getKeysType().asCQL3Type();
             CQL3Type values = ((MapType) type).getValuesType().asCQL3Type();
@@ -232,7 +232,7 @@ public interface CQL3Type
             }
         }
 
-        private static void generateSetOrListCQLLiteral(ByteBuffer buffer, int version, StringBuilder target, int size, CQL3Type elements)
+        private static void generateSetOrListCQLLiteral(ByteBuffer buffer, ProtocolVersion version, StringBuilder target, int size, CQL3Type elements)
         {
             for (int i = 0; i < size; i++)
             {
@@ -316,7 +316,7 @@ public interface CQL3Type
             return type;
         }
 
-        public String toCQLLiteral(ByteBuffer buffer, int version)
+        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
             if (buffer == null)
                 return "null";
@@ -404,7 +404,7 @@ public interface CQL3Type
             return type;
         }
 
-        public String toCQLLiteral(ByteBuffer buffer, int version)
+        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
             if (buffer == null)
                 return "null";

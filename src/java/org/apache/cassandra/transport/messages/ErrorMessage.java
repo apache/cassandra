@@ -45,7 +45,7 @@ public class ErrorMessage extends Message.Response
 
     public static final Message.Codec<ErrorMessage> codec = new Message.Codec<ErrorMessage>()
     {
-        public ErrorMessage decode(ByteBuf body, int version)
+        public ErrorMessage decode(ByteBuf body, ProtocolVersion version)
         {
             ExceptionCode code = ExceptionCode.fromValue(body.readInt());
             String msg = CBUtil.readString(body);
@@ -89,7 +89,7 @@ public class ErrorMessage extends Message.Response
                         int failure = body.readInt();
 
                         Map<InetAddress, RequestFailureReason> failureReasonByEndpoint = new ConcurrentHashMap<>();
-                        if (version >= Server.VERSION_5)
+                        if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
                             for (int i = 0; i < failure; i++)
                             {
@@ -163,7 +163,7 @@ public class ErrorMessage extends Message.Response
             return new ErrorMessage(te);
         }
 
-        public void encode(ErrorMessage msg, ByteBuf dest, int version)
+        public void encode(ErrorMessage msg, ByteBuf dest, ProtocolVersion version)
         {
             final TransportException err = getBackwardsCompatibleException(msg, version);
             dest.writeInt(err.code().value);
@@ -190,7 +190,7 @@ public class ErrorMessage extends Message.Response
                         // The number of failures is also present in protocol v5, but used instead to specify the size of the failure map
                         dest.writeInt(rfe.failureReasonByEndpoint.size());
 
-                        if (version >= Server.VERSION_5)
+                        if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
                             for (Map.Entry<InetAddress, RequestFailureReason> entry : rfe.failureReasonByEndpoint.entrySet())
                             {
@@ -236,7 +236,7 @@ public class ErrorMessage extends Message.Response
             }
         }
 
-        public int encodedSize(ErrorMessage msg, int version)
+        public int encodedSize(ErrorMessage msg, ProtocolVersion version)
         {
             final TransportException err = getBackwardsCompatibleException(msg, version);
             String errorString = err.getMessage() == null ? "" : err.getMessage();
@@ -255,7 +255,7 @@ public class ErrorMessage extends Message.Response
                         size += CBUtil.sizeOfConsistencyLevel(rfe.consistency) + 4 + 4 + 4;
                         size += isWrite ? CBUtil.sizeOfString(((WriteFailureException)rfe).writeType.toString()) : 1;
 
-                        if (version >= Server.VERSION_5)
+                        if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
                             for (Map.Entry<InetAddress, RequestFailureReason> entry : rfe.failureReasonByEndpoint.entrySet())
                             {
@@ -292,9 +292,9 @@ public class ErrorMessage extends Message.Response
         }
     };
 
-    private static TransportException getBackwardsCompatibleException(ErrorMessage msg, int version)
+    private static TransportException getBackwardsCompatibleException(ErrorMessage msg, ProtocolVersion version)
     {
-        if (version < Server.VERSION_4)
+        if (version.isSmallerThan(ProtocolVersion.V4))
         {
             switch (msg.error.code())
             {
@@ -370,11 +370,11 @@ public class ErrorMessage extends Message.Response
             ErrorMessage message = new ErrorMessage((TransportException) e, streamId);
             if (e instanceof ProtocolException)
             {
-                // if the driver attempted to connect with a protocol version lower than the minimum supported
-                // version, respond with a protocol error message with the correct frame header for that version
-                Integer attemptedLowProtocolVersion = ((ProtocolException) e).getAttemptedLowProtocolVersion();
-                if (attemptedLowProtocolVersion != null)
-                    message.forcedProtocolVersion = attemptedLowProtocolVersion;
+                // if the driver attempted to connect with a protocol version not supported then
+                // reply with the appropiate version, see ProtocolVersion.decode()
+                ProtocolVersion forcedProtocolVersion = ((ProtocolException) e).getForcedProtocolVersion();
+                if (forcedProtocolVersion != null)
+                    message.forcedProtocolVersion = forcedProtocolVersion;
             }
             return message;
         }

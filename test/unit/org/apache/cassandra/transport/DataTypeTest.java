@@ -44,7 +44,7 @@ public class DataTypeTest
                 continue;
 
             Map<DataType, Object> options = Collections.singletonMap(type, (Object)type.toString());
-            for (int version = 1; version < 5; version++)
+            for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
                 testEncodeDecode(type, options, version);
         }
     }
@@ -54,7 +54,7 @@ public class DataTypeTest
     {
         DataType type = DataType.LIST;
         Map<DataType, Object> options =  Collections.singletonMap(type, (Object)LongType.instance);
-        for (int version = 1; version < 5; version++)
+        for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             testEncodeDecode(type, options, version);
     }
 
@@ -66,11 +66,11 @@ public class DataTypeTest
         value.add(LongType.instance);
         value.add(AsciiType.instance);
         Map<DataType, Object> options = Collections.singletonMap(type, (Object)value);
-        for (int version = 1; version < 5; version++)
+        for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             testEncodeDecode(type, options, version);
     }
 
-    private void testEncodeDecode(DataType type, Map<DataType, Object> options, int version)
+    private void testEncodeDecode(DataType type, Map<DataType, Object> options, ProtocolVersion version)
     {
         ByteBuf dest = type.codec.encode(options, version);
         Map<DataType, Object> results = type.codec.decode(dest, version);
@@ -78,7 +78,7 @@ public class DataTypeTest
         for (DataType key : results.keySet())
         {
             int ssize = type.serializedValueSize(results.get(key), version);
-            int esize = version < type.getProtocolVersion() ? 2 + TypeSizes.encodedUTF8Length(results.get(key).toString()) : 0;
+            int esize = version.isSmallerThan(type.getProtocolVersion()) ? 2 + TypeSizes.encodedUTF8Length(results.get(key).toString()) : 0;
             switch (type)
             {
                 case LIST:
@@ -94,7 +94,7 @@ public class DataTypeTest
             }
             assertEquals(esize, ssize);
 
-            DataType expected = version < type.getProtocolVersion()
+            DataType expected = version.isSmallerThan(type.getProtocolVersion())
                 ? DataType.CUSTOM
                 : type;
             assertEquals(expected, key);
@@ -103,6 +103,6 @@ public class DataTypeTest
 
     private boolean isComplexType(DataType type)
     {
-        return type.getId(Server.CURRENT_VERSION) >= 32;
+        return type.getId(ProtocolVersion.CURRENT) >= 32;
     }
 }

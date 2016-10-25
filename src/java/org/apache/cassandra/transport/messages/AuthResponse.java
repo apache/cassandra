@@ -36,9 +36,9 @@ public class AuthResponse extends Message.Request
 {
     public static final Message.Codec<AuthResponse> codec = new Message.Codec<AuthResponse>()
     {
-        public AuthResponse decode(ByteBuf body, int version)
+        public AuthResponse decode(ByteBuf body, ProtocolVersion version)
         {
-            if (version == 1)
+            if (version == ProtocolVersion.V1)
                 throw new ProtocolException("SASL Authentication is not supported in version 1 of the protocol");
 
             ByteBuffer b = CBUtil.readValue(body);
@@ -47,12 +47,12 @@ public class AuthResponse extends Message.Request
             return new AuthResponse(token);
         }
 
-        public void encode(AuthResponse response, ByteBuf dest, int version)
+        public void encode(AuthResponse response, ByteBuf dest, ProtocolVersion version)
         {
             CBUtil.writeValue(response.token, dest);
         }
 
-        public int encodedSize(AuthResponse response, int version)
+        public int encodedSize(AuthResponse response, ProtocolVersion version)
         {
             return CBUtil.sizeOfValue(response.token);
         }

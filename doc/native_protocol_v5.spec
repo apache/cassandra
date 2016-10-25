@@ -317,7 +317,7 @@ Table of Contents
     <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
   where:
     - <consistency> is the [consistency] level for the operation.
-    - <flags> is a [byte] whose bits define the options for this query and
+    - <flags> is a [int] whose bits define the options for this query and
       in particular influence what the remainder of the message contains.
       A flag is set if the bit corresponding to its `mask` is set. Supported
       flags are, given their mask:
@@ -398,7 +398,7 @@ Table of Contents
         - If <type> == 1, the batch will be "unlogged".
         - If <type> == 2, the batch will be a "counter" batch (and non-counter
           statements will be rejected).
-    - <flags> is a [byte] whose bits define the options for this query and
+    - <flags> is a [int] whose bits define the options for this query and
       in particular influence what the remainder of the message contains. It is similar
       to the <flags> from QUERY and EXECUTE methods, except that the 4 rightmost
       bits must always be 0 as their corresponding options do not make sense for
@@ -514,7 +514,12 @@ Table of Contents
   comes as a response to an OPTIONS message.
 
   The body of a SUPPORTED message is a [string multimap]. This multimap gives
-  for each of the supported STARTUP options, the list of supported values.
+  for each of the supported STARTUP options, the list of supported values. It
+  also includes:
+      - "PROTOCOL_VERSIONS": the list of native protocol versions that are
+      supported, encoded as the version number followed by a slash and the
+      version description. For example: 3/v3, 4/v4, 5/v5-beta. If a version is
+      in beta, it will have the word "beta" in its description.
 
 
 4.2.5. RESULT
@@ -1175,3 +1180,5 @@ Table of Contents
   * <numfailures> in Read_failure and Write_failure error message bodies (Section 9)
     has been replaced with <reasonmap>. The <reasonmap> maps node IP addresses to
     a failure reason code which indicates why the request failed on that node.
+  * Enlarged flag's bitmaps for QUERY, EXECUTE and BATCH messages from [byte] to [int]
+    (Sections 4.1.4, 4.1.6 and 4.1.7).

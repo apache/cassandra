@@ -29,7 +29,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.MapSerializer;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.Pair;
 
 public class MapType<K, V> extends CollectionType<Map<K, V>>
@@ -170,7 +170,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         ByteBuffer bb1 = o1.duplicate();
         ByteBuffer bb2 = o2.duplicate();
 
-        int protocolVersion = Server.VERSION_3;
+        ProtocolVersion protocolVersion = ProtocolVersion.V3;
         int size1 = CollectionSerializer.readCollectionSize(bb1, protocolVersion);
         int size2 = CollectionSerializer.readCollectionSize(bb2, protocolVersion);
 
@@ -256,7 +256,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     }
 
     @Override
-    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         StringBuilder sb = new StringBuilder("{");
         int size = CollectionSerializer.readCollectionSize(buffer, protocolVersion);

@@ -391,12 +391,12 @@ public abstract class CBUtil
         return ByteBuffer.wrap(readRawBytes(slice));
     }
 
-    public static ByteBuffer readBoundValue(ByteBuf cb, int protocolVersion)
+    public static ByteBuffer readBoundValue(ByteBuf cb, ProtocolVersion protocolVersion)
     {
         int length = cb.readInt();
         if (length < 0)
         {
-            if (protocolVersion < Server.VERSION_4) // backward compatibility for pre-version 4
+            if (protocolVersion.isSmallerThan(ProtocolVersion.V4)) // backward compatibility for pre-version 4
                 return null;
             if (length == -1)
                 return null;
@@ -454,7 +454,7 @@ public abstract class CBUtil
         return 4 + (valueSize < 0 ? 0 : valueSize);
     }
 
-    public static List<ByteBuffer> readValueList(ByteBuf cb, int protocolVersion)
+    public static List<ByteBuffer> readValueList(ByteBuf cb, ProtocolVersion protocolVersion)
     {
         int size = cb.readUnsignedShort();
         if (size == 0)
@@ -481,7 +481,7 @@ public abstract class CBUtil
         return size;
     }
 
-    public static Pair<List<String>, List<ByteBuffer>> readNameAndValueList(ByteBuf cb, int protocolVersion)
+    public static Pair<List<String>, List<ByteBuffer>> readNameAndValueList(ByteBuf cb, ProtocolVersion protocolVersion)
     {
         int size = cb.readUnsignedShort();
         if (size == 0)

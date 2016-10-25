@@ -30,11 +30,11 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
 {
     public interface Codecable<T extends Enum<T>>
     {
-        public int getId(int version);
+        public int getId(ProtocolVersion version);
 
-        public Object readValue(ByteBuf cb, int version);
-        public void writeValue(Object value, ByteBuf cb, int version);
-        public int serializedValueSize(Object obj, int version);
+        public Object readValue(ByteBuf cb, ProtocolVersion version);
+        public void writeValue(Object value, ByteBuf cb, ProtocolVersion version);
+        public int serializedValueSize(Object obj, ProtocolVersion version);
     }
 
     private final Class<T> klass;
@@ -48,13 +48,13 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         T[] values = klass.getEnumConstants();
         int maxId = -1;
         for (T opt : values)
-            maxId = Math.max(maxId, opt.getId(Server.CURRENT_VERSION));
+            maxId = Math.max(maxId, opt.getId(ProtocolVersion.CURRENT));
         ids = (T[])Array.newInstance(klass, maxId + 1);
         for (T opt : values)
         {
-            if (ids[opt.getId(Server.CURRENT_VERSION)] != null)
-                throw new IllegalStateException(String.format("Duplicate option id %d", opt.getId(Server.CURRENT_VERSION)));
-            ids[opt.getId(Server.CURRENT_VERSION)] = opt;
+            if (ids[opt.getId(ProtocolVersion.CURRENT)] != null)
+                throw new IllegalStateException(String.format("Duplicate option id %d", opt.getId(ProtocolVersion.CURRENT)));
+            ids[opt.getId(ProtocolVersion.CURRENT)] = opt;
         }
     }
 
@@ -66,7 +66,7 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return opt;
     }
 
-    public Map<T, Object> decode(ByteBuf body, int version)
+    public Map<T, Object> decode(ByteBuf body, ProtocolVersion version)
     {
         EnumMap<T, Object> options = new EnumMap<T, Object>(klass);
         int n = body.readUnsignedShort();
@@ -81,7 +81,7 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return options;
     }
 
-    public ByteBuf encode(Map<T, Object> options, int version)
+    public ByteBuf encode(Map<T, Object> options, ProtocolVersion version)
     {
         int optLength = 2;
         for (Map.Entry<T, Object> entry : options.entrySet())
@@ -97,14 +97,14 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return cb;
     }
 
-    public Pair<T, Object> decodeOne(ByteBuf body, int version)
+    public Pair<T, Object> decodeOne(ByteBuf body, ProtocolVersion version)
     {
         T opt = fromId(body.readUnsignedShort());
         Object value = opt.readValue(body, version);
         return Pair.create(opt, value);
     }
 
-    public void writeOne(Pair<T, Object> option, ByteBuf dest, int version)
+    public void writeOne(Pair<T, Object> option, ByteBuf dest, ProtocolVersion version)
     {
         T opt = option.left;
         Object obj = option.right;
@@ -112,7 +112,7 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         opt.writeValue(obj, dest, version);
     }
 
-    public int oneSerializedSize(Pair<T, Object> option, int version)
+    public int oneSerializedSize(Pair<T, Object> option, ProtocolVersion version)
     {
         T opt = option.left;
         Object obj = option.right;

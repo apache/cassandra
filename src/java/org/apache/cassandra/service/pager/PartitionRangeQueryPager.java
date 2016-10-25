@@ -26,6 +26,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Pages a PartitionRangeReadCommand.
@@ -38,7 +39,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager
     private volatile DecoratedKey lastReturnedKey;
     private volatile PagingState.RowMark lastReturnedRow;
 
-    public PartitionRangeQueryPager(PartitionRangeReadCommand command, PagingState state, int protocolVersion)
+    public PartitionRangeQueryPager(PartitionRangeReadCommand command, PagingState state, ProtocolVersion protocolVersion)
     {
         super(command, protocolVersion);
 
@@ -51,7 +52,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager
     }
 
     public PartitionRangeQueryPager(ReadCommand command,
-                                    int protocolVersion,
+                                    ProtocolVersion protocolVersion,
                                     DecoratedKey lastReturnedKey,
                                     PagingState.RowMark lastReturnedRow,
                                     int remaining,
