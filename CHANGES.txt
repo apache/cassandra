@@ -8,6 +8,8 @@ Merged from 3.0:
  * Include SSTable filename in compacting large row message (CASSANDRA-12384)
 
 3.10
+ * Fix CQLSH auto completion for PER PARTITION LIMIT (CASSANDRA-12803)
+ * Use different build directories for Eclipse and Ant (CASSANDRA-12466)
  * Avoid potential AttributeError in cqlsh due to no table metadata (CASSANDRA-12815)
  * Fix RandomReplicationAwareTokenAllocatorTest.testExistingCluster (CASSANDRA-12812)
  * Upgrade commons-codec to 1.9 (CASSANDRA-12790)
