@@ -63,6 +63,11 @@ public class OrderPreservingPartitioner implements IPartitioner
         return new StringToken(stringForBig(midpair.left, sigchars, midpair.right));
     }
 
+    public Token split(Token left, Token right, double ratioToLeft)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * Copies the characters of the given string into a BigInteger.
      *

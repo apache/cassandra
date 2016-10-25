@@ -18,10 +18,36 @@
 
 package org.apache.cassandra.dht;
 
+import java.math.BigInteger;
+
+import org.junit.Test;
+
 public class RandomPartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
     {
         partitioner = RandomPartitioner.instance;
+    }
+
+    @Test
+    public void testSplit()
+    {
+        assertSplit(tok("a"), tok("b"), 16);
+        assertSplit(tok("a"), tok("bbb"), 16);
+    }
+
+    @Test
+    public void testSplitWrapping()
+    {
+        assertSplit(tok("b"), tok("a"), 16);
+        assertSplit(tok("bbb"), tok("a"), 16);
+    }
+
+    @Test
+    public void testSplitExceedMaximumCase()
+    {
+        RandomPartitioner.BigIntegerToken left = new RandomPartitioner.BigIntegerToken(RandomPartitioner.MAXIMUM.subtract(BigInteger.valueOf(10)));
+
+        assertSplit(left, tok("a"), 16);
     }
 }

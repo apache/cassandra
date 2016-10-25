@@ -4,10 +4,10 @@
  * Update bundled cqlsh python driver to 3.7.0 (CASSANDRA-12736)
  * Reject invalid replication settings when creating or altering a keyspace (CASSANDRA-12681)
  * Clean up the SSTableReader#getScanner API wrt removal of RateLimiter (CASSANDRA-12422)
-Merged from 3.0:
- * Include SSTable filename in compacting large row message (CASSANDRA-12384)
+
 
 3.10
+ * Optimize the vnode allocation for single replica per DC (CASSANDRA-12777)
  * Use non-token restrictions for bounds when token restrictions are overridden (CASSANDRA-12419)
  * Fix CQLSH auto completion for PER PARTITION LIMIT (CASSANDRA-12803)
  * Use different build directories for Eclipse and Ant (CASSANDRA-12466)

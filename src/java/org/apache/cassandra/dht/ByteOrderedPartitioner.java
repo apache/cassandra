@@ -158,6 +158,11 @@ public class ByteOrderedPartitioner implements IPartitioner
         return new BytesToken(bytesForBig(midpair.left, sigbytes, midpair.right));
     }
 
+    public Token split(Token left, Token right, double ratioToLeft)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * Convert a byte array containing the most significant of 'sigbytes' bytes
      * representing a big-endian magnitude into a BigInteger.

@@ -45,6 +45,11 @@ public interface IPartitioner
     public Token midpoint(Token left, Token right);
 
     /**
+     * Calculate a Token which take approximate 0 <= ratioToLeft <= 1 ownership of the given range.
+     */
+    public Token split(Token left, Token right, double ratioToLeft);
+
+    /**
      * @return A Token smaller than all others in the range that is being partitioned.
      * Not legal to assign to a node or key.  (But legal to use in range scans.)
      */

@@ -15,13 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.dht.tokenallocator;
 
-import java.util.Collection;
+import java.net.InetAddress;
+import java.util.NavigableMap;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 
-public interface TokenAllocator<Unit>
+public class TokenAllocatorFactory
 {
-    Collection<Token> addUnit(Unit newUnit, int numTokens);
+    public static TokenAllocator<InetAddress> createTokenAllocator(NavigableMap<Token, InetAddress> sortedTokens,
+                                                     ReplicationStrategy<InetAddress> strategy,
+                                                     IPartitioner partitioner)
+    {
+        if(strategy.replicas() == 1)
+            return new NoReplicationTokenAllocator<>(sortedTokens, strategy, partitioner);
+        return new ReplicationAwareTokenAllocator<>(sortedTokens, strategy, partitioner);
+    }
 }

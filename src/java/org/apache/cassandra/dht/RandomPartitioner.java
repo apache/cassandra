@@ -78,6 +78,32 @@ public class RandomPartitioner implements IPartitioner
         return new BigIntegerToken(midpair.left);
     }
 
+    public Token split(Token ltoken, Token rtoken, double ratioToLeft)
+    {
+        BigDecimal left = ltoken.equals(MINIMUM) ? BigDecimal.ZERO : new BigDecimal(((BigIntegerToken)ltoken).token),
+                   right = rtoken.equals(MINIMUM) ? BigDecimal.ZERO : new BigDecimal(((BigIntegerToken)rtoken).token),
+                   ratio = BigDecimal.valueOf(ratioToLeft);
+
+        BigInteger newToken;
+
+        if (left.compareTo(right) < 0)
+        {
+            newToken = right.subtract(left).multiply(ratio).add(left).toBigInteger();
+        }
+        else
+        {
+            // wrapping case
+            // L + ((R - min) + (max - L)) * ratio
+            BigDecimal max = new BigDecimal(MAXIMUM);
+
+            newToken = max.add(right).subtract(left).multiply(ratio).add(left).toBigInteger().mod(MAXIMUM);
+        }
+
+        assert isValidToken(newToken) : "Invalid tokens from split";
+
+        return new BigIntegerToken(newToken);
+    }
+
     public BigIntegerToken getMinimumToken()
     {
         return MINIMUM;
@@ -97,6 +123,10 @@ public class RandomPartitioner implements IPartitioner
         if ( token.signum() == -1 )
             token = token.multiply(BigInteger.valueOf(-1L));
         return new BigIntegerToken(token);
+    }
+
+    private boolean isValidToken(BigInteger token) {
+        return token.compareTo(ZERO) >= 0 && token.compareTo(MAXIMUM) <= 0;
     }
 
     private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
@@ -122,11 +152,8 @@ public class RandomPartitioner implements IPartitioner
         {
             try
             {
-                BigInteger i = new BigInteger(token);
-                if (i.compareTo(ZERO) < 0)
-                    throw new ConfigurationException("Token must be >= 0");
-                if (i.compareTo(MAXIMUM) > 0)
-                    throw new ConfigurationException("Token must be <= 2**127");
+                if(!isValidToken(new BigInteger(token)))
+                    throw new ConfigurationException("Token must be >= 0 and <= 2**127");
             }
             catch (NumberFormatException e)
             {
