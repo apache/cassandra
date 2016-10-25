@@ -2525,7 +2525,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (state().getQueryState().traceNextQuery())
         {
-            state().getQueryState().createTracingSession();
+            state().getQueryState().createTracingSession(Collections.EMPTY_MAP);
             return true;
         }
         return false;
