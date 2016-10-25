@@ -615,16 +615,24 @@ public abstract class CQLTester
 
     protected void dropTable(String query)
     {
-        String fullQuery = String.format(query, KEYSPACE + "." + currentTable());
-        logger.info(fullQuery);
-        schemaChange(fullQuery);
+        dropFormattedTable(String.format(query, KEYSPACE + "." + currentTable()));
+    }
+
+    protected void dropFormattedTable(String formattedQuery)
+    {
+        logger.info(formattedQuery);
+        schemaChange(formattedQuery);
     }
 
     protected void createIndex(String query)
     {
-        String fullQuery = formatQuery(query);
-        logger.info(fullQuery);
-        schemaChange(fullQuery);
+        createFormattedIndex(formatQuery(query));
+    }
+
+    protected void createFormattedIndex(String formattedQuery)
+    {
+        logger.info(formattedQuery);
+        schemaChange(formattedQuery);
     }
 
     /**
