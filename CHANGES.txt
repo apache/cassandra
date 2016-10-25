@@ -1,4 +1,5 @@
 3.10
+ * Fix CQLSH auto completion for PER PARTITION LIMIT (CASSANDRA-12803)
  * Use different build directories for Eclipse and Ant (CASSANDRA-12466)
  * Avoid potential AttributeError in cqlsh due to no table metadata (CASSANDRA-12815)
  * Fix RandomReplicationAwareTokenAllocatorTest.testExistingCluster (CASSANDRA-12812)
