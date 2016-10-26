@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.rmi.*;
 import java.rmi.server.RMIClientSocketFactory;
@@ -45,7 +46,6 @@ import org.slf4j.LoggerFactory;
 import com.sun.jmx.remote.internal.RMIExporter;
 import com.sun.jmx.remote.security.JMXPluggableAuthenticator;
 import org.apache.cassandra.auth.jmx.AuthenticationProxy;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import sun.rmi.registry.RegistryImpl;
 import sun.rmi.server.UnicastServerRef2;
 
@@ -64,7 +64,6 @@ public class JMXServerUtils
     {
         Map<String, Object> env = new HashMap<>();
 
-        String urlTemplate = "service:jmx:rmi://%1$s/jndi/rmi://%1$s:%2$d/jmxrmi";
         InetAddress serverAddress = null;
         if (local)
         {
@@ -91,7 +90,6 @@ public class JMXServerUtils
         // sun.rmi.dgc.server.gcInterval millis (default is 3600000ms/1 hour)
         env.put(RMIExporter.EXPORTER_ATTRIBUTE, new Exporter());
 
-        String url = String.format(urlTemplate, (serverAddress != null ? serverAddress.getHostAddress() : "0.0.0.0"), port);
 
         int rmiPort = Integer.getInteger("com.sun.management.jmxremote.rmi.port", 0);
         JMXConnectorServer jmxServer =
@@ -108,7 +106,7 @@ public class JMXServerUtils
         // use a custom Registry to avoid having to interact with it internally using the remoting interface
         configureRMIRegistry(port, env);
 
-        logger.info("Configured JMX server at: {}", url);
+        logJmxServiceUrl(serverAddress, port);
         return jmxServer;
     }
 
@@ -230,6 +228,25 @@ public class JMXServerUtils
         }
 
         return env;
+    }
+
+    private static void logJmxServiceUrl(InetAddress serverAddress, int port)
+    {
+        String urlTemplate = "service:jmx:rmi://%1$s/jndi/rmi://%1$s:%2$d/jmxrmi";
+        String hostName;
+        if (serverAddress == null)
+        {
+            hostName = FBUtilities.getBroadcastAddress() instanceof Inet6Address ? "[::]" : "0.0.0.0";
+        }
+        else
+        {
+            // hostnames based on IPv6 addresses must be wrapped in [ ]
+            hostName = serverAddress instanceof Inet6Address
+                       ? '[' + serverAddress.getHostAddress() + ']'
+                       : serverAddress.getHostAddress();
+        }
+        String url = String.format(urlTemplate, hostName, port);
+        logger.info("Configured JMX server at: {}", url);
     }
 
     private static void logJmxSslConfig(SslRMIServerSocketFactory serverFactory)
