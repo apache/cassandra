@@ -448,7 +448,6 @@
           <dependency groupId="joda-time" artifactId="joda-time" version="2.4" />
           <dependency groupId="com.carrotsearch" artifactId="hppc" version="0.5.4" />
           <dependency groupId="de.jflex" artifactId="jflex" version="1.6.0" />
-          <dependency groupId="net.mintern" artifactId="primitive" version="1.0" />
           <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" version="1.3.0.581.1" />
           <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
 	  <dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" version="2.2.6" />
@@ -636,7 +635,6 @@
         <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
         <dependency groupId="com.carrotsearch" artifactId="hppc" version="0.5.4" />
         <dependency groupId="de.jflex" artifactId="jflex" version="1.6.0" />
-        <dependency groupId="net.mintern" artifactId="primitive" version="1.0" />
         <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" version="1.3.0.581.1" />
         <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
 
