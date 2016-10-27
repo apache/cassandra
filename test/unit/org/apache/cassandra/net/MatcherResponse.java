@@ -106,7 +106,7 @@ public class MatcherResponse
                     if (payload == null)
                         return null;
                     else
-                        return MessageIn.create(to, payload, Collections.emptyMap(), verb, MessagingService.current_version, MessageIn.createTimestamp());
+                        return MessageIn.create(to, payload, Collections.emptyMap(), verb, MessagingService.current_version);
                 },
                 limit);
     }

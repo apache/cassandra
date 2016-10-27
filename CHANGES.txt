@@ -1,4 +1,5 @@
 3.10
+ * Fix crossNode value when receiving messages (CASSANDRA-12791)
  * Don't load MX4J beans twice (CASSANDRA-12869)
  * Extend native protocol request flags, add versions to SUPPORTED, and introduce ProtocolVersion enum (CASSANDRA-12838)
  * Set JOINING mode when running pre-join tasks (CASSANDRA-12836)

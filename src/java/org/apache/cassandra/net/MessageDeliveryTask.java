@@ -46,7 +46,7 @@ public class MessageDeliveryTask implements Runnable
     public void run()
     {
         MessagingService.Verb verb = message.verb;
-        long timeTaken = System.currentTimeMillis() - message.constructionTime.timestamp;
+        long timeTaken = message.getLifetimeInMS();
         if (MessagingService.DROPPABLE_VERBS.contains(verb)
             && timeTaken > message.getTimeout())
         {
@@ -82,7 +82,7 @@ public class MessageDeliveryTask implements Runnable
         }
 
         if (GOSSIP_VERBS.contains(message.verb))
-            Gossiper.instance.setLastProcessedMessageAt(message.constructionTime.timestamp);
+            Gossiper.instance.setLastProcessedMessageAt(message.constructionTime);
     }
 
     private void handleFailure(Throwable t)

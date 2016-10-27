@@ -426,14 +426,14 @@ public final class MessagingService implements MessagingServiceMBean
     private static final class DroppedMessages
     {
         final DroppedMessageMetrics metrics;
-        final AtomicInteger droppedInternalTimeout;
-        final AtomicInteger droppedCrossNodeTimeout;
+        final AtomicInteger droppedInternal;
+        final AtomicInteger droppedCrossNode;
 
         DroppedMessages(Verb verb)
         {
             this.metrics = new DroppedMessageMetrics(verb);
-            this.droppedInternalTimeout = new AtomicInteger(0);
-            this.droppedCrossNodeTimeout = new AtomicInteger(0);
+            this.droppedInternal = new AtomicInteger(0);
+            this.droppedCrossNode = new AtomicInteger(0);
         }
 
     }
@@ -1160,19 +1160,19 @@ public final class MessagingService implements MessagingServiceMBean
         {
             updateDroppedMutationCount((IMutation) message.payload);
         }
-        incrementDroppedMessages(message.verb, timeTaken, message.constructionTime.isCrossNode);
+        incrementDroppedMessages(message.verb, timeTaken, message.isCrossNode());
     }
 
-    public void incrementDroppedMessages(Verb verb, long timeTaken, boolean isCrossNodeTimeout)
+    public void incrementDroppedMessages(Verb verb, long timeTaken, boolean isCrossNode)
     {
         assert DROPPABLE_VERBS.contains(verb) : "Verb " + verb + " should not legally be dropped";
-        incrementDroppedMessages(droppedMessagesMap.get(verb), timeTaken, isCrossNodeTimeout);
+        incrementDroppedMessages(droppedMessagesMap.get(verb), timeTaken, isCrossNode);
     }
 
-    public void incrementDroppedMessages(Verb verb, boolean isCrossNodeTimeout)
+    public void incrementDroppedMessages(Verb verb, boolean isCrossNode)
     {
         assert DROPPABLE_VERBS.contains(verb) : "Verb " + verb + " should not legally be dropped";
-        incrementDroppedMessages(droppedMessagesMap.get(verb), isCrossNodeTimeout);
+        incrementDroppedMessages(droppedMessagesMap.get(verb), isCrossNode);
     }
 
     private void updateDroppedMutationCount(IMutation mutation)
@@ -1189,22 +1189,22 @@ public final class MessagingService implements MessagingServiceMBean
         }
     }
 
-    private void incrementDroppedMessages(DroppedMessages droppedMessages, long timeTaken, boolean isCrossNodeTimeout)
+    private void incrementDroppedMessages(DroppedMessages droppedMessages, long timeTaken, boolean isCrossNode)
     {
-        if (isCrossNodeTimeout)
+        if (isCrossNode)
             droppedMessages.metrics.crossNodeDroppedLatency.update(timeTaken, TimeUnit.MILLISECONDS);
         else
             droppedMessages.metrics.internalDroppedLatency.update(timeTaken, TimeUnit.MILLISECONDS);
-        incrementDroppedMessages(droppedMessages, isCrossNodeTimeout);
+        incrementDroppedMessages(droppedMessages, isCrossNode);
     }
 
-    private void incrementDroppedMessages(DroppedMessages droppedMessages, boolean isCrossNodeTimeout)
+    private void incrementDroppedMessages(DroppedMessages droppedMessages, boolean isCrossNode)
     {
         droppedMessages.metrics.dropped.mark();
-        if (isCrossNodeTimeout)
-            droppedMessages.droppedCrossNodeTimeout.incrementAndGet();
+        if (isCrossNode)
+            droppedMessages.droppedCrossNode.incrementAndGet();
         else
-            droppedMessages.droppedInternalTimeout.incrementAndGet();
+            droppedMessages.droppedInternal.incrementAndGet();
     }
 
     private void logDroppedMessages()
@@ -1226,16 +1226,16 @@ public final class MessagingService implements MessagingServiceMBean
             Verb verb = entry.getKey();
             DroppedMessages droppedMessages = entry.getValue();
 
-            int droppedInternalTimeout = droppedMessages.droppedInternalTimeout.getAndSet(0);
-            int droppedCrossNodeTimeout = droppedMessages.droppedCrossNodeTimeout.getAndSet(0);
-            if (droppedInternalTimeout > 0 || droppedCrossNodeTimeout > 0)
+            int droppedInternal = droppedMessages.droppedInternal.getAndSet(0);
+            int droppedCrossNode = droppedMessages.droppedCrossNode.getAndSet(0);
+            if (droppedInternal > 0 || droppedCrossNode > 0)
             {
-                ret.add(String.format("%s messages were dropped in last %d ms: %d for internal timeout and %d for cross node timeout."
+                ret.add(String.format("%s messages were dropped in last %d ms: %d internal and %d cross node."
                                      + " Mean internal dropped latency: %d ms and Mean cross-node dropped latency: %d ms",
                                      verb,
                                      LOG_DROPPED_INTERVAL_IN_MS,
-                                     droppedInternalTimeout,
-                                     droppedCrossNodeTimeout,
+                                     droppedInternal,
+                                     droppedCrossNode,
                                      TimeUnit.NANOSECONDS.toMillis((long)droppedMessages.metrics.internalDroppedLatency.getSnapshot().getMean()),
                                      TimeUnit.NANOSECONDS.toMillis((long)droppedMessages.metrics.crossNodeDroppedLatency.getSnapshot().getMean())));
             }

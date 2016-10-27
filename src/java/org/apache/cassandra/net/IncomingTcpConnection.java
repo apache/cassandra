@@ -188,7 +188,7 @@ public class IncomingTcpConnection extends FastThreadLocalThread implements Clos
         else
             id = input.readInt();
 
-        MessageIn message = MessageIn.read(input, version, id, MessageIn.readTimestamp(from, input, System.currentTimeMillis()));
+        MessageIn message = MessageIn.read(input, version, id, MessageIn.readConstructionTime(from, input));
         if (message == null)
         {
             // callback expired; nothing to do

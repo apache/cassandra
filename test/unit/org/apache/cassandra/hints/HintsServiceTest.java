@@ -184,8 +184,7 @@ public class HintsServiceTest
                 HintResponse.instance,
                 Collections.emptyMap(),
                 MessagingService.Verb.REQUEST_RESPONSE,
-                MessagingService.current_version,
-                MessageIn.createTimestamp());
+                MessagingService.current_version);
 
         MockMessagingSpy spy;
         if (noOfResponses != -1)

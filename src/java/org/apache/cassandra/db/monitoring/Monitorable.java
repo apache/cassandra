@@ -21,7 +21,7 @@ package org.apache.cassandra.db.monitoring;
 public interface Monitorable
 {
     String name();
-    ConstructionTime constructionTime();
+    long constructionTime();
     long timeout();
     long slowTimeout();
 
@@ -29,6 +29,7 @@ public interface Monitorable
     boolean isAborted();
     boolean isCompleted();
     boolean isSlow();
+    boolean isCrossNode();
 
     boolean abort();
     boolean complete();
