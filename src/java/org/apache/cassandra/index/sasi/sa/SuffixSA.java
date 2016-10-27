@@ -24,10 +24,10 @@ import org.apache.cassandra.index.sasi.disk.DynamicTokenTreeBuilder;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.LongTimSort;
 import org.apache.cassandra.utils.Pair;
 
 import com.google.common.base.Charsets;
-import net.mintern.primitive.Primitive;
 
 public class SuffixSA extends SA<CharBuffer>
 {
@@ -81,7 +81,7 @@ public class SuffixSA extends SA<CharBuffer>
                 isComplete = false;
             }
 
-            Primitive.sort(suffixes, (a, b) -> {
+            LongTimSort.sort(suffixes, (a, b) -> {
                 Term aTerm = terms.get((int) (a >>> 32));
                 Term bTerm = terms.get((int) (b >>> 32));
                 return comparator.compare(aTerm.getSuffix(clearCompleteBit(a) - aTerm.getPosition()),
