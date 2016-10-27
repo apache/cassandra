@@ -1054,6 +1054,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void finishJoiningRing(boolean didBootstrap)
     {
         // start participating in the ring.
+        setMode(Mode.JOINING, "Finish joining ring", true);
         SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
         executePreJoinTasks(didBootstrap);
         setTokens(bootstrapTokens);
