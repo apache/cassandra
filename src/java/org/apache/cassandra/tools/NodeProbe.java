@@ -640,9 +640,9 @@ public class NodeProbe implements AutoCloseable
         ssProxy.joinRing();
     }
 
-    public void decommission() throws InterruptedException
+    public void decommission(boolean force) throws InterruptedException
     {
-        ssProxy.decommission();
+        ssProxy.decommission(force);
     }
 
     public void move(String newToken) throws IOException

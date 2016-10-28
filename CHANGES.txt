@@ -1,4 +1,5 @@
 3.12
+ * Require forceful decommission if number of nodes is less than replication factor (CASSANDRA-12510)
  * Allow IN restrictions on column families with collections (CASSANDRA-12654)
  * Move to FastThreadLocalThread and FastThreadLocal (CASSANDRA-13034)
  * nodetool stopdaemon errors out (CASSANDRA-13030)

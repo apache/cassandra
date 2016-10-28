@@ -3864,14 +3864,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         PendingRangeCalculatorService.instance.update();
     }
 
-    public void decommission() throws InterruptedException
+    public void decommission(boolean force) throws InterruptedException
     {
-        if (!tokenMetadata.isMember(FBUtilities.getBroadcastAddress()))
-            throw new UnsupportedOperationException("local node is not a member of the token ring yet");
-        if (tokenMetadata.cloneAfterAllLeft().sortedTokens().size() < 2)
-            throw new UnsupportedOperationException("no other normal nodes in the ring; decommission would be pointless");
-        if (operationMode != Mode.LEAVING && operationMode != Mode.NORMAL)
-            throw new UnsupportedOperationException("Node in " + operationMode + " state; wait for status to become normal or restart");
+        TokenMetadata metadata = tokenMetadata.cloneAfterAllLeft();
+        if (operationMode != Mode.LEAVING)
+        {
+            if (!tokenMetadata.isMember(FBUtilities.getBroadcastAddress()))
+                throw new UnsupportedOperationException("local node is not a member of the token ring yet");
+            if (metadata.getAllEndpoints().size() < 2)
+                    throw new UnsupportedOperationException("no other normal nodes in the ring; decommission would be pointless");
+            if (operationMode != Mode.NORMAL)
+                throw new UnsupportedOperationException("Node in " + operationMode + " state; wait for status to become normal or restart");
+        }
         if (isDecommissioning.compareAndSet(true, true))
             throw new IllegalStateException("Node is still decommissioning. Check nodetool netstats.");
 
@@ -3881,10 +3885,37 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         try
         {
             PendingRangeCalculatorService.instance.blockUntilFinished();
-            for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
+
+            String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
+
+            if (operationMode != Mode.LEAVING) // If we're already decommissioning there is no point checking RF/pending ranges
             {
-                if (tokenMetadata.getPendingRanges(keyspaceName, FBUtilities.getBroadcastAddress()).size() > 0)
-                    throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
+                int rf, numNodes;
+                for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
+                {
+                    if (!force)
+                    {
+                        Keyspace keyspace = Keyspace.open(keyspaceName);
+                        if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+                        {
+                            NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
+                            rf = strategy.getReplicationFactor(dc);
+                            numNodes = metadata.getTopology().getDatacenterEndpoints().get(dc).size();
+                        }
+                        else
+                        {
+                            numNodes = metadata.getAllEndpoints().size();
+                            rf = keyspace.getReplicationStrategy().getReplicationFactor();
+                        }
+
+                        if (numNodes <= rf)
+                            throw new UnsupportedOperationException("Not enough live nodes to maintain replication factor in keyspace "
+                                                                    + keyspaceName + " (RF = " + rf + ", N = " + numNodes + ")."
+                                                                    + " Perform a forceful decommission to ignore.");
+                    }
+                    if (tokenMetadata.getPendingRanges(keyspaceName, FBUtilities.getBroadcastAddress()).size() > 0)
+                        throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
+                }
             }
 
             startLeaving();
