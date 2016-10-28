@@ -97,6 +97,11 @@ public class CommitLogTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        // Disable durable writes for system keyspaces to prevent system mutations, e.g. sstable_activity,
+        // to end up in CL segments and cause unexpected results in this test wrt counting CL segments,
+        // see CASSANDRA-12854
+        KeyspaceParams.DEFAULT_LOCAL_DURABLE_WRITES = false;
+
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
