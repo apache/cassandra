@@ -215,11 +215,18 @@ public class CassandraAuthorizer implements IAuthorizer
                                                              Lists.newArrayList(ByteBufferUtil.bytes(role.getRoleName()),
                                                                                 ByteBufferUtil.bytes(resource.getName())));
 
+        SelectStatement statement;
         // If it exists, read from the legacy user permissions table to handle the case where the cluster
         // is being upgraded and so is running with mixed versions of the authz schema
-        SelectStatement statement = Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, USER_PERMISSIONS) == null
-                                    ? authorizeRoleStatement
-                                    : legacyAuthorizeRoleStatement;
+        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, USER_PERMISSIONS) == null)
+            statement = authorizeRoleStatement;
+        else
+        {
+            // If the permissions table was initialised only after the statement got prepared, re-prepare (CASSANDRA-12813)
+            if (legacyAuthorizeRoleStatement == null)
+                legacyAuthorizeRoleStatement = prepare(USERNAME, USER_PERMISSIONS);
+            statement = legacyAuthorizeRoleStatement;
+        }
         ResultMessage.Rows rows = statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
         UntypedResultSet result = UntypedResultSet.create(rows.result);
 

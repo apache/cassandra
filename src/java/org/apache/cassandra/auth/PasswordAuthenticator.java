@@ -113,11 +113,7 @@ public class PasswordAuthenticator implements IAuthenticator
     {
         try
         {
-            // If the legacy users table exists try to verify credentials there. This is to handle the case
-            // where the cluster is being upgraded and so is running with mixed versions of the authn tables
-            SelectStatement authenticationStatement = Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, LEGACY_CREDENTIALS_TABLE) == null
-                                                    ? authenticateStatement
-                                                    : legacyAuthenticateStatement;
+            SelectStatement authenticationStatement = authenticationStatement();
 
             ResultMessage.Rows rows =
                 authenticationStatement.execute(QueryState.forInternalCalls(),
@@ -144,6 +140,25 @@ public class PasswordAuthenticator implements IAuthenticator
         }
     }
 
+    /**
+     * If the legacy users table exists try to verify credentials there. This is to handle the case
+     * where the cluster is being upgraded and so is running with mixed versions of the authn tables
+     */
+    private SelectStatement authenticationStatement()
+    {
+        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, LEGACY_CREDENTIALS_TABLE) == null)
+            return authenticateStatement;
+        else
+        {
+            // the statement got prepared, we to try preparing it again.
+            // If the credentials was initialised only after statement got prepared, re-prepare (CASSANDRA-12813).
+            if (legacyAuthenticateStatement == null)
+                prepareLegacyAuthenticateStatement();
+            return legacyAuthenticateStatement;
+        }
+    }
+
+
     public Set<DataResource> protectedResources()
     {
         // Also protected by CassandraRoleManager, but the duplication doesn't hurt and is more explicit
@@ -163,15 +178,18 @@ public class PasswordAuthenticator implements IAuthenticator
         authenticateStatement = prepare(query);
 
         if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, LEGACY_CREDENTIALS_TABLE) != null)
-        {
-            query = String.format("SELECT %s from %s.%s WHERE username = ?",
-                                  SALTED_HASH,
-                                  SchemaConstants.AUTH_KEYSPACE_NAME,
-                                  LEGACY_CREDENTIALS_TABLE);
-            legacyAuthenticateStatement = prepare(query);
-        }
+            prepareLegacyAuthenticateStatement();
 
         cache = new CredentialsCache(this);
+    }
+
+    private void prepareLegacyAuthenticateStatement()
+    {
+        String query = String.format("SELECT %s from %s.%s WHERE username = ?",
+                                     SALTED_HASH,
+                                     SchemaConstants.AUTH_KEYSPACE_NAME,
+                                     LEGACY_CREDENTIALS_TABLE);
+        legacyAuthenticateStatement = prepare(query);
     }
 
     public AuthenticatedUser legacyAuthenticate(Map<String, String> credentials) throws AuthenticationException
