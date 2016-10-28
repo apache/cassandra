@@ -209,22 +209,18 @@ public class Mutation implements IMutation
         return new Mutation(ks, key, modifications);
     }
 
-    private CompletableFuture<?> applyFuture(boolean durableWrites)
-    {
-        Keyspace ks = Keyspace.open(keyspaceName);
-        return ks.apply(this, durableWrites);
-    }
-
     public CompletableFuture<?> applyFuture()
     {
-        return applyFuture(Keyspace.open(keyspaceName).getMetadata().params.durableWrites);
+        Keyspace ks = Keyspace.open(keyspaceName);
+        return ks.apply(this, Keyspace.open(keyspaceName).getMetadata().params.durableWrites);
     }
 
     public void apply(boolean durableWrites)
     {
         try
         {
-            Uninterruptibles.getUninterruptibly(applyFuture(durableWrites));
+            Keyspace ks = Keyspace.open(keyspaceName);
+            Uninterruptibles.getUninterruptibly(ks.applyNotDeferrable(this, durableWrites));
         }
         catch (ExecutionException e)
         {

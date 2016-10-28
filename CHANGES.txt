@@ -96,6 +96,7 @@
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Properly report LWT contention (CASSANDRA-12626)
 Merged from 3.0:
+ * Avoid deadlock due to MV lock contention (CASSANDRA-12689)
  * Fix for KeyCacheCqlTest flakiness (CASSANDRA-12801)
  * Include SSTable filename in compacting large row message (CASSANDRA-12384)
  * Fix potential socket leak (CASSANDRA-12329, CASSANDRA-12330)
