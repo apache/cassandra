@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -60,7 +60,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         return value.size();
     }
 
-    public void validateForNativeProtocol(ByteBuffer bytes, int version)
+    public void validateForNativeProtocol(ByteBuffer bytes, ProtocolVersion version)
     {
         try
         {
@@ -78,7 +78,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         }
     }
 
-    public List<T> deserializeForNativeProtocol(ByteBuffer bytes, int version)
+    public List<T> deserializeForNativeProtocol(ByteBuffer bytes, ProtocolVersion version)
     {
         try
         {
@@ -130,7 +130,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         try
         {
             ByteBuffer input = serializedList.duplicate();
-            int n = readCollectionSize(input, Server.VERSION_3);
+            int n = readCollectionSize(input, ProtocolVersion.V3);
             if (n <= index)
                 return null;
 
@@ -139,7 +139,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
                 int length = input.getInt();
                 input.position(input.position() + length);
             }
-            return readValue(input, Server.VERSION_3);
+            return readValue(input, ProtocolVersion.V3);
         }
         catch (BufferUnderflowException e)
         {

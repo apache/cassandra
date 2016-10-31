@@ -46,6 +46,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.thrift.ThriftResultsMerger;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -184,7 +185,7 @@ public class PartitionRangeReadCommand extends ReadCommand
         return StorageProxy.getRangeSlice(this, consistency, queryStartNanoTime);
     }
 
-    public QueryPager getPager(PagingState pagingState, int protocolVersion)
+    public QueryPager getPager(PagingState pagingState, ProtocolVersion protocolVersion)
     {
             return new PartitionRangeQueryPager(this, pagingState, protocolVersion);
     }

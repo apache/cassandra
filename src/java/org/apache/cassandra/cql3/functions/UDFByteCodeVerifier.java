@@ -101,18 +101,18 @@ public final class UDFByteCodeVerifier
                     // allowed constructor - JavaUDF(TypeCodec returnCodec, TypeCodec[] argCodecs)
                     return new ConstructorVisitor(errors);
                 }
-                if ("executeImpl".equals(name) && "(ILjava/util/List;)Ljava/nio/ByteBuffer;".equals(desc))
+                if ("executeImpl".equals(name) && "(Lorg/apache/cassandra/transport/ProtocolVersion;Ljava/util/List;)Ljava/nio/ByteBuffer;".equals(desc))
                 {
                     if (Opcodes.ACC_PROTECTED != access)
                         errors.add("executeImpl not protected");
-                    // the executeImpl method - ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params)
+                    // the executeImpl method - ByteBuffer executeImpl(ProtocolVersion protocolVersion, List<ByteBuffer> params)
                     return new ExecuteImplVisitor(errors);
                 }
-                if ("executeAggregateImpl".equals(name) && "(ILjava/lang/Object;Ljava/util/List;)Ljava/lang/Object;".equals(desc))
+                if ("executeAggregateImpl".equals(name) && "(Lorg/apache/cassandra/transport/ProtocolVersion;Ljava/lang/Object;Ljava/util/List;)Ljava/lang/Object;".equals(desc))
                 {
                     if (Opcodes.ACC_PROTECTED != access)
                         errors.add("executeAggregateImpl not protected");
-                    // the executeImpl method - ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params)
+                    // the executeImpl method - ByteBuffer executeImpl(ProtocolVersion protocolVersion, List<ByteBuffer> params)
                     return new ExecuteImplVisitor(errors);
                 }
                 if ("<clinit>".equals(name))

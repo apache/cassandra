@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class FunctionCall extends Term.NonTerminal
@@ -69,7 +70,7 @@ public class FunctionCall extends Term.NonTerminal
         return executeInternal(options.getProtocolVersion(), fun, buffers);
     }
 
-    private static ByteBuffer executeInternal(int protocolVersion, ScalarFunction fun, List<ByteBuffer> params) throws InvalidRequestException
+    private static ByteBuffer executeInternal(ProtocolVersion protocolVersion, ScalarFunction fun, List<ByteBuffer> params) throws InvalidRequestException
     {
         ByteBuffer result = fun.execute(protocolVersion, params);
         try
@@ -96,7 +97,7 @@ public class FunctionCall extends Term.NonTerminal
         return false;
     }
 
-    private static Term.Terminal makeTerminal(Function fun, ByteBuffer result, int version) throws InvalidRequestException
+    private static Term.Terminal makeTerminal(Function fun, ByteBuffer result, ProtocolVersion version) throws InvalidRequestException
     {
         if (fun.returnType().isCollection())
         {

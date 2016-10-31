@@ -38,9 +38,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.service.pager.PagingState;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.transport.Server;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -207,7 +207,7 @@ public class QueryPagerTest
         }
     }
 
-    private QueryPager maybeRecreate(QueryPager pager, ReadQuery command, boolean testPagingState, int protocolVersion)
+    private QueryPager maybeRecreate(QueryPager pager, ReadQuery command, boolean testPagingState, ProtocolVersion protocolVersion)
     {
         if (!testPagingState)
             return pager;
@@ -219,7 +219,7 @@ public class QueryPagerTest
     @Test
     public void namesQueryTest() throws Exception
     {
-        QueryPager pager = namesQuery("k0", "c1", "c5", "c7", "c8").getPager(null, Server.CURRENT_VERSION);
+        QueryPager pager = namesQuery("k0", "c1", "c5", "c7", "c8").getPager(null, ProtocolVersion.CURRENT);
 
         assertFalse(pager.isExhausted());
         List<FilteredPartition> partition = query(pager, 5, 4);
@@ -231,13 +231,13 @@ public class QueryPagerTest
     @Test
     public void sliceQueryTest() throws Exception
     {
-        sliceQueryTest(false, Server.VERSION_3);
-        sliceQueryTest(true, Server.VERSION_4);
-        sliceQueryTest(false, Server.VERSION_3);
-        sliceQueryTest(true, Server.VERSION_4);
+        sliceQueryTest(false, ProtocolVersion.V3);
+        sliceQueryTest(true, ProtocolVersion.V4);
+        sliceQueryTest(false, ProtocolVersion.V3);
+        sliceQueryTest(true, ProtocolVersion.V4);
     }
 
-    public void sliceQueryTest(boolean testPagingState, int protocolVersion) throws Exception
+    public void sliceQueryTest(boolean testPagingState, ProtocolVersion protocolVersion) throws Exception
     {
         ReadCommand command = sliceQuery("k0", "c1", "c8", 10);
         QueryPager pager = command.getPager(null, protocolVersion);
@@ -264,13 +264,13 @@ public class QueryPagerTest
     @Test
     public void reversedSliceQueryTest() throws Exception
     {
-        reversedSliceQueryTest(false, Server.VERSION_3);
-        reversedSliceQueryTest(true, Server.VERSION_4);
-        reversedSliceQueryTest(false, Server.VERSION_3);
-        reversedSliceQueryTest(true, Server.VERSION_4);
+        reversedSliceQueryTest(false, ProtocolVersion.V3);
+        reversedSliceQueryTest(true, ProtocolVersion.V4);
+        reversedSliceQueryTest(false, ProtocolVersion.V3);
+        reversedSliceQueryTest(true, ProtocolVersion.V4);
     }
 
-    public void reversedSliceQueryTest(boolean testPagingState, int protocolVersion) throws Exception
+    public void reversedSliceQueryTest(boolean testPagingState, ProtocolVersion protocolVersion) throws Exception
     {
         ReadCommand command = sliceQuery("k0", "c1", "c8", true, 10);
         QueryPager pager = command.getPager(null, protocolVersion);
@@ -297,13 +297,13 @@ public class QueryPagerTest
     @Test
     public void multiQueryTest() throws Exception
     {
-        multiQueryTest(false, Server.VERSION_3);
-        multiQueryTest(true, Server.VERSION_4);
-        multiQueryTest(false, Server.VERSION_3);
-        multiQueryTest(true, Server.VERSION_4);
+        multiQueryTest(false, ProtocolVersion.V3);
+        multiQueryTest(true, ProtocolVersion.V4);
+        multiQueryTest(false, ProtocolVersion.V3);
+        multiQueryTest(true, ProtocolVersion.V4);
     }
 
-    public void multiQueryTest(boolean testPagingState, int protocolVersion) throws Exception
+    public void multiQueryTest(boolean testPagingState, ProtocolVersion protocolVersion) throws Exception
     {
         ReadQuery command = new SinglePartitionReadCommand.Group(new ArrayList<SinglePartitionReadCommand>()
         {{
@@ -335,13 +335,13 @@ public class QueryPagerTest
     @Test
     public void rangeNamesQueryTest() throws Exception
     {
-        rangeNamesQueryTest(false, Server.VERSION_3);
-        rangeNamesQueryTest(true, Server.VERSION_4);
-        rangeNamesQueryTest(false, Server.VERSION_3);
-        rangeNamesQueryTest(true, Server.VERSION_4);
+        rangeNamesQueryTest(false, ProtocolVersion.V3);
+        rangeNamesQueryTest(true, ProtocolVersion.V4);
+        rangeNamesQueryTest(false, ProtocolVersion.V3);
+        rangeNamesQueryTest(true, ProtocolVersion.V4);
     }
 
-    public void rangeNamesQueryTest(boolean testPagingState, int protocolVersion) throws Exception
+    public void rangeNamesQueryTest(boolean testPagingState, ProtocolVersion protocolVersion) throws Exception
     {
         ReadCommand command = rangeNamesQuery("k0", "k5", 100, "c1", "c4", "c8");
         QueryPager pager = command.getPager(null, protocolVersion);
@@ -364,13 +364,13 @@ public class QueryPagerTest
     @Test
     public void rangeSliceQueryTest() throws Exception
     {
-        rangeSliceQueryTest(false, Server.VERSION_3);
-        rangeSliceQueryTest(true, Server.VERSION_4);
-        rangeSliceQueryTest(false, Server.VERSION_3);
-        rangeSliceQueryTest(true, Server.VERSION_4);
+        rangeSliceQueryTest(false, ProtocolVersion.V3);
+        rangeSliceQueryTest(true, ProtocolVersion.V4);
+        rangeSliceQueryTest(false, ProtocolVersion.V3);
+        rangeSliceQueryTest(true, ProtocolVersion.V4);
     }
 
-    public void rangeSliceQueryTest(boolean testPagingState, int protocolVersion) throws Exception
+    public void rangeSliceQueryTest(boolean testPagingState, ProtocolVersion protocolVersion) throws Exception
     {
         ReadCommand command = rangeSliceQuery("k1", "k5", 100, "c1", "c7");
         QueryPager pager = command.getPager(null, protocolVersion);
@@ -429,7 +429,7 @@ public class QueryPagerTest
 
         ReadCommand command = SinglePartitionReadCommand.create(cfs.metadata, nowInSec, Util.dk("k0"), Slice.ALL);
 
-        QueryPager pager = command.getPager(null, Server.CURRENT_VERSION);
+        QueryPager pager = command.getPager(null, ProtocolVersion.CURRENT);
 
         for (int i = 0; i < 5; i++)
         {

@@ -25,6 +25,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Selector representing a simple term (literals or bound variables).
@@ -69,11 +70,11 @@ public class TermSelector extends Selector
         this.type = type;
     }
 
-    public void addInput(int protocolVersion, Selection.ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, Selection.ResultSetBuilder rs) throws InvalidRequestException
     {
     }
 
-    public ByteBuffer getOutput(int protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
     {
         return value;
     }

@@ -39,6 +39,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.github.jamm.Unmetered;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -141,7 +142,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public abstract Term fromJSONObject(Object parsed) throws MarshalException;
 
     /** Converts a value to a JSON string. */
-    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         return '"' + getSerializer().deserialize(buffer).toString() + '"';
     }

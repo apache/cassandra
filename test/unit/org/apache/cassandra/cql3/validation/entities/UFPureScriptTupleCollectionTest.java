@@ -31,7 +31,7 @@ import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.TupleType;
 import com.datastax.driver.core.TupleValue;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public class UFPureScriptTupleCollectionTest extends CQLTester
 {
@@ -109,14 +109,14 @@ public class UFPureScriptTupleCollectionTest extends CQLTester
         // we use protocol V3 here to encode the expected version because the server
         // always serializes Collections using V3 - see CollectionSerializer's
         // serialize and deserialize methods.
-        TupleType tType = tupleTypeOf(Server.VERSION_3,
+        TupleType tType = tupleTypeOf(ProtocolVersion.V3,
                                       DataType.cdouble(),
                                       DataType.list(DataType.cdouble()),
                                       DataType.set(DataType.text()),
                                       DataType.map(DataType.cint(),
                                                    DataType.cboolean()));
         TupleValue tup = tType.newValue(1d, list, set, map);
-        for (int version : PROTOCOL_VERSIONS)
+        for (ProtocolVersion version : PROTOCOL_VERSIONS)
         {
             assertRowsNet(version,
                           executeNet(version, "SELECT " + fTup1 + "(tup) FROM %s WHERE key = 1"),

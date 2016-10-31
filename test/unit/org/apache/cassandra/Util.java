@@ -48,6 +48,8 @@ import org.apache.cassandra.db.Directories.DataDirectory;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.IPartitioner;
@@ -60,6 +62,8 @@ import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.pager.PagingState;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
@@ -707,4 +711,23 @@ public class Util
         }
         return () -> BlacklistedDirectories.clearUnwritableUnsafe();
     }
+
+    public static PagingState makeSomePagingState(ProtocolVersion protocolVersion)
+    {
+        CFMetaData metadata = CFMetaData.Builder.create("ks", "tbl")
+                                                .addPartitionKey("k", AsciiType.instance)
+                                                .addClusteringColumn("c1", AsciiType.instance)
+                                                .addClusteringColumn("c1", Int32Type.instance)
+                                                .addRegularColumn("myCol", AsciiType.instance)
+                                                .build();
+
+        ByteBuffer pk = ByteBufferUtil.bytes("someKey");
+
+        ColumnDefinition def = metadata.getColumnDefinition(new ColumnIdentifier("myCol", false));
+        Clustering c = Clustering.make(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes(42));
+        Row row = BTreeRow.singleCellRow(c, BufferCell.live(def, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        PagingState.RowMark mark = PagingState.RowMark.create(metadata, row, protocolVersion);
+        return new PagingState(pk, mark, 10, 0);
+    }
+
 }

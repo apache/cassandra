@@ -26,6 +26,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
@@ -172,7 +173,7 @@ public abstract class UserTypes
             return new Value(type, type.split(bytes));
         }
 
-        public ByteBuffer get(int protocolVersion)
+        public ByteBuffer get(ProtocolVersion protocolVersion)
         {
             return TupleType.buildValue(elements);
         }

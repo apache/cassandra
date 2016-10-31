@@ -25,7 +25,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.junit.Assert;
@@ -527,9 +527,9 @@ public class AlterTest extends CQLTester
 
         execute("INSERT INTO %s (a, b) VALUES (1, 1)");
 
-        executeNet(Server.CURRENT_VERSION, "ALTER TABLE %s ALTER b TYPE BLOB");
+        executeNet(ProtocolVersion.CURRENT, "ALTER TABLE %s ALTER b TYPE BLOB");
 
-        assertRowsNet(Server.CURRENT_VERSION, executeNet(Server.CURRENT_VERSION, "SELECT * FROM %s WHERE a = 1"),
+        assertRowsNet(ProtocolVersion.CURRENT, executeNet(ProtocolVersion.CURRENT, "SELECT * FROM %s WHERE a = 1"),
             row(1, ByteBufferUtil.bytes(1))
         );
     }

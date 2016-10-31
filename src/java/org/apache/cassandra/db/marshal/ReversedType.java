@@ -28,6 +28,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public class ReversedType<T> extends AbstractType<T>
 {
@@ -94,7 +95,7 @@ public class ReversedType<T> extends AbstractType<T>
     }
 
     @Override
-    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         return baseType.toJSONString(buffer, protocolVersion);
     }

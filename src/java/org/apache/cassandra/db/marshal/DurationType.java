@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.DurationSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -70,7 +71,7 @@ public class DurationType extends AbstractType<Duration>
     }
 
     @Override
-    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         return getSerializer().deserialize(buffer).toString();
     }

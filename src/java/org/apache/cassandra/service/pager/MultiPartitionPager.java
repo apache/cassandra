@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.pager;
 
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractIterator;
 
 import java.util.Arrays;
@@ -53,7 +54,7 @@ public class MultiPartitionPager implements QueryPager
     private int remaining;
     private int current;
 
-    public MultiPartitionPager(SinglePartitionReadCommand.Group group, PagingState state, int protocolVersion)
+    public MultiPartitionPager(SinglePartitionReadCommand.Group group, PagingState state, ProtocolVersion protocolVersion)
     {
         this.limit = group.limits();
         this.nowInSec = group.nowInSec();

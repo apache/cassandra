@@ -191,7 +191,7 @@ public class MessagePayloadTest extends CQLTester
 
             Assert.assertSame(TestQueryHandler.class, ClientState.getCQLQueryHandler().getClass());
 
-            SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.VERSION_3);
+            SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V3);
             try
             {
                 client.connect(false);

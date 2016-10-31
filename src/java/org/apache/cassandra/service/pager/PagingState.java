@@ -33,7 +33,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -52,7 +52,7 @@ public class PagingState
         this.remainingInPartition = remainingInPartition;
     }
 
-    public static PagingState deserialize(ByteBuffer bytes, int protocolVersion)
+    public static PagingState deserialize(ByteBuffer bytes, ProtocolVersion protocolVersion)
     {
         if (bytes == null)
             return null;
@@ -62,7 +62,7 @@ public class PagingState
             ByteBuffer pk;
             RowMark mark;
             int remaining, remainingInPartition;
-            if (protocolVersion <= Server.VERSION_3)
+            if (protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3))
             {
                 pk = ByteBufferUtil.readWithShortLength(in);
                 mark = new RowMark(ByteBufferUtil.readWithShortLength(in), protocolVersion);
@@ -91,14 +91,14 @@ public class PagingState
         }
     }
 
-    public ByteBuffer serialize(int protocolVersion)
+    public ByteBuffer serialize(ProtocolVersion protocolVersion)
     {
         assert rowMark == null || protocolVersion == rowMark.protocolVersion;
         try (DataOutputBuffer out = new DataOutputBufferFixed(serializedSize(protocolVersion)))
         {
             ByteBuffer pk = partitionKey == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : partitionKey;
             ByteBuffer mark = rowMark == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : rowMark.mark;
-            if (protocolVersion <= Server.VERSION_3)
+            if (protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3))
             {
                 ByteBufferUtil.writeWithShortLength(pk, out);
                 ByteBufferUtil.writeWithShortLength(mark, out);
@@ -120,12 +120,12 @@ public class PagingState
         }
     }
 
-    public int serializedSize(int protocolVersion)
+    public int serializedSize(ProtocolVersion protocolVersion)
     {
         assert rowMark == null || protocolVersion == rowMark.protocolVersion;
         ByteBuffer pk = partitionKey == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : partitionKey;
         ByteBuffer mark = rowMark == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : rowMark.mark;
-        if (protocolVersion <= Server.VERSION_3)
+        if (protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3))
         {
             return ByteBufferUtil.serializedSizeWithShortLength(pk)
                  + ByteBufferUtil.serializedSizeWithShortLength(mark)
@@ -180,9 +180,9 @@ public class PagingState
     {
         // This can be null for convenience if no row is marked.
         private final ByteBuffer mark;
-        private final int protocolVersion;
+        private final ProtocolVersion protocolVersion;
 
-        private RowMark(ByteBuffer mark, int protocolVersion)
+        private RowMark(ByteBuffer mark, ProtocolVersion protocolVersion)
         {
             this.mark = mark;
             this.protocolVersion = protocolVersion;
@@ -202,10 +202,10 @@ public class PagingState
             return l;
         }
 
-        public static RowMark create(CFMetaData metadata, Row row, int protocolVersion)
+        public static RowMark create(CFMetaData metadata, Row row, ProtocolVersion protocolVersion)
         {
             ByteBuffer mark;
-            if (protocolVersion <= Server.VERSION_3)
+            if (protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3))
             {
                 // We need to be backward compatible with 2.1/2.2 nodes paging states. Which means we have to send
                 // the full cellname of the "last" cell in the row we get (since that's how 2.1/2.2 nodes will start after
@@ -238,7 +238,7 @@ public class PagingState
             if (mark == null)
                 return null;
 
-            return protocolVersion <= Server.VERSION_3
+            return protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3)
                  ? LegacyLayout.decodeClustering(metadata, mark)
                  : Clustering.serializer.deserialize(mark, MessagingService.VERSION_30, makeClusteringTypes(metadata));
         }

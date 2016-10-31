@@ -5,6 +5,7 @@ import java.util.*;
 
 import org.apache.cassandra.cql3.functions.JavaUDF;
 import org.apache.cassandra.cql3.functions.UDFContext;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 import com.datastax.driver.core.TypeCodec;
 import com.datastax.driver.core.TupleValue;
@@ -17,7 +18,7 @@ public final class #class_name# extends JavaUDF
         super(returnCodec, argCodecs, udfContext);
     }
 
-    protected ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params)
+    protected ByteBuffer executeImpl(ProtocolVersion protocolVersion, List<ByteBuffer> params)
     {
         #return_type# result = #execute_internal_name#(
 #arguments#
@@ -25,7 +26,7 @@ public final class #class_name# extends JavaUDF
         return super.decompose(protocolVersion, result);
     }
 
-    protected Object executeAggregateImpl(int protocolVersion, Object firstParam, List<ByteBuffer> params)
+    protected Object executeAggregateImpl(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> params)
     {
         #return_type# result = #execute_internal_name#(
 #arguments_aggregate#

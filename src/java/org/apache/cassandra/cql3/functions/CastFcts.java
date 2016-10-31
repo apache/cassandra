@@ -44,6 +44,8 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.transport.ProtocolVersion;
+
 import org.apache.commons.lang3.text.WordUtils;
 
 /**
@@ -224,7 +226,7 @@ public final class CastFcts
             this.converter = converter;
         }
 
-        public final ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = parameters.get(0);
             if (bb == null)
@@ -297,7 +299,7 @@ public final class CastFcts
             this.delegate = delegate;
         }
 
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             return delegate.execute(protocolVersion, parameters);
         }
@@ -323,7 +325,7 @@ public final class CastFcts
             super(inputType, outputType);
         }
 
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = parameters.get(0);
             if (bb == null)

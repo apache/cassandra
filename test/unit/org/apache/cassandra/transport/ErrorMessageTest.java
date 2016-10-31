@@ -63,7 +63,7 @@ public class ErrorMessageTest
         boolean dataPresent = false;
         ReadFailureException rfe = new ReadFailureException(consistencyLevel, receivedBlockFor, receivedBlockFor, dataPresent, failureReasonMap1);
 
-        ErrorMessage deserialized = serializeAndGetDeserializedErrorMessage(ErrorMessage.fromException(rfe), 5);
+        ErrorMessage deserialized = serializeAndGetDeserializedErrorMessage(ErrorMessage.fromException(rfe), ProtocolVersion.V5);
         ReadFailureException deserializedRfe = (ReadFailureException) deserialized.error;
 
         assertEquals(failureReasonMap1, deserializedRfe.failureReasonByEndpoint);
@@ -81,7 +81,7 @@ public class ErrorMessageTest
         WriteType writeType = WriteType.SIMPLE;
         WriteFailureException wfe = new WriteFailureException(consistencyLevel, receivedBlockFor, receivedBlockFor, writeType, failureReasonMap2);
 
-        ErrorMessage deserialized = serializeAndGetDeserializedErrorMessage(ErrorMessage.fromException(wfe), 5);
+        ErrorMessage deserialized = serializeAndGetDeserializedErrorMessage(ErrorMessage.fromException(wfe), ProtocolVersion.V5);
         WriteFailureException deserializedWfe = (WriteFailureException) deserialized.error;
 
         assertEquals(failureReasonMap2, deserializedWfe.failureReasonByEndpoint);
@@ -112,7 +112,7 @@ public class ErrorMessageTest
         assertEquals(failureReasonMap1, wfe.failureReasonByEndpoint);
     }
 
-    private ErrorMessage serializeAndGetDeserializedErrorMessage(ErrorMessage message, int version)
+    private ErrorMessage serializeAndGetDeserializedErrorMessage(ErrorMessage message, ProtocolVersion version)
     {
         ByteBuf buffer = Unpooled.buffer(ErrorMessage.codec.encodedSize(message, version));
         ErrorMessage.codec.encode(message, buffer, version);

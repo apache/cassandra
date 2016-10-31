@@ -32,6 +32,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 final class ScriptBasedUDFunction extends UDFunction
 {
@@ -171,7 +172,7 @@ final class ScriptBasedUDFunction extends UDFunction
         return executor;
     }
 
-    public ByteBuffer executeUserDefined(int protocolVersion, List<ByteBuffer> parameters)
+    public ByteBuffer executeUserDefined(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
     {
         Object[] params = new Object[argTypes.size()];
         for (int i = 0; i < params.length; i++)
@@ -183,12 +184,12 @@ final class ScriptBasedUDFunction extends UDFunction
     }
 
     /**
-     * Like {@link #executeUserDefined(int, List)} but the first parameter is already in non-serialized form.
+     * Like {@link UDFunction#executeUserDefined(ProtocolVersion, List)} but the first parameter is already in non-serialized form.
      * Remaining parameters (2nd paramters and all others) are in {@code parameters}.
      * This is used to prevent superfluous (de)serialization of the state of aggregates.
      * Means: scalar functions of aggregates are called using this variant.
      */
-    protected Object executeAggregateUserDefined(int protocolVersion, Object firstParam, List<ByteBuffer> parameters)
+    protected Object executeAggregateUserDefined(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> parameters)
     {
         Object[] params = new Object[argTypes.size()];
         params[0] = firstParam;

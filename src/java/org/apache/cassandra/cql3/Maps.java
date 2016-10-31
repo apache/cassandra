@@ -31,7 +31,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -161,7 +161,7 @@ public abstract class Maps
             this.map = map;
         }
 
-        public static Value fromSerialized(ByteBuffer value, MapType type, int version) throws InvalidRequestException
+        public static Value fromSerialized(ByteBuffer value, MapType type, ProtocolVersion version) throws InvalidRequestException
         {
             try
             {
@@ -179,7 +179,7 @@ public abstract class Maps
             }
         }
 
-        public ByteBuffer get(int protocolVersion)
+        public ByteBuffer get(ProtocolVersion protocolVersion)
         {
             List<ByteBuffer> buffers = new ArrayList<>(2 * map.size());
             for (Map.Entry<ByteBuffer, ByteBuffer> entry : map.entrySet())
@@ -374,7 +374,7 @@ public abstract class Maps
                 if (value == null)
                     params.addTombstone(column);
                 else
-                    params.addCell(column, value.get(Server.CURRENT_VERSION));
+                    params.addCell(column, value.get(ProtocolVersion.CURRENT));
             }
         }
     }

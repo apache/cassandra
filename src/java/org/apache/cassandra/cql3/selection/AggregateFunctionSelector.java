@@ -24,6 +24,7 @@ import org.apache.cassandra.cql3.functions.AggregateFunction;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 final class AggregateFunctionSelector extends AbstractFunctionSelector<AggregateFunction>
 {
@@ -34,7 +35,7 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
         return true;
     }
 
-    public void addInput(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
         // Aggregation of aggregation is not supported
         for (int i = 0, m = argSelectors.size(); i < m; i++)
@@ -47,7 +48,7 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
         this.aggregate.addInput(protocolVersion, args());
     }
 
-    public ByteBuffer getOutput(int protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
     {
         return aggregate.compute(protocolVersion);
     }

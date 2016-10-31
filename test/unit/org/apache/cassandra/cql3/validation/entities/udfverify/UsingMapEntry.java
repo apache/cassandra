@@ -26,6 +26,7 @@ import java.util.Map;
 import com.datastax.driver.core.TypeCodec;
 import org.apache.cassandra.cql3.functions.JavaUDF;
 import org.apache.cassandra.cql3.functions.UDFContext;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Used by {@link org.apache.cassandra.cql3.validation.entities.UFVerifierTest}.
@@ -37,12 +38,12 @@ public final class UsingMapEntry extends JavaUDF
         super(returnDataType, argDataTypes, udfContext);
     }
 
-    protected Object executeAggregateImpl(int protocolVersion, Object firstParam, List<ByteBuffer> params)
+    protected Object executeAggregateImpl(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> params)
     {
         throw new UnsupportedOperationException();
     }
 
-    protected ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params)
+    protected ByteBuffer executeImpl(ProtocolVersion protocolVersion, List<ByteBuffer> params)
     {
         Map<String, String> map = new HashMap<>();
         // Map.Entry is passed in as an "inner class usage"

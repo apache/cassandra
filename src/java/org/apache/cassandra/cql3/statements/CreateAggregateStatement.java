@@ -36,7 +36,7 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * A {@code CREATE AGGREGATE} statement parsed from a CQL query.
@@ -129,7 +129,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
             }
 
             // Sanity check that converts the initcond to a CQL literal and parse it back to avoid getting in CASSANDRA-11064.
-            String initcondAsCql = stateType.asCQL3Type().toCQLLiteral(initcond, Server.CURRENT_VERSION);
+            String initcondAsCql = stateType.asCQL3Type().toCQLLiteral(initcond, ProtocolVersion.CURRENT);
             assert Objects.equals(initcond, Terms.asBytes(functionName.keyspace, initcondAsCql, stateType));
 
             if (Constants.NULL_LITERAL != ival && UDHelper.isNullOrEmpty(stateType, initcond))

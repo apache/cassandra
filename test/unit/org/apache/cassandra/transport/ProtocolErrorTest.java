@@ -43,9 +43,10 @@ public class ProtocolErrorTest {
     public void testInvalidProtocolVersion() throws Exception
     {
         // test using a protocol 2 version higher than the current version (1 version higher is current beta)
-        testInvalidProtocolVersion(Server.CURRENT_VERSION + 2); //
+        testInvalidProtocolVersion(ProtocolVersion.CURRENT.asInt() + 2); //
         // test using a protocol version lower than the lowest version
-        testInvalidProtocolVersion(Server.MIN_SUPPORTED_VERSION - 1);
+        for (ProtocolVersion version : ProtocolVersion.UNSUPPORTED)
+            testInvalidProtocolVersion(version.asInt());
 
     }
 
@@ -107,7 +108,7 @@ public class ProtocolErrorTest {
         // should generate a protocol exception for using a response frame with
         // a prepare op, ensure that it comes back with stream ID 1
         byte[] frame = new byte[] {
-                (byte) RESPONSE.addToVersion(Server.CURRENT_VERSION),  // direction & version
+                (byte) RESPONSE.addToVersion(ProtocolVersion.CURRENT.asInt()),  // direction & version
                 0x00,  // flags
                 0x00, 0x01,  // stream ID
                 0x09,  // opcode
@@ -136,7 +137,7 @@ public class ProtocolErrorTest {
 
         List<Object> results = new ArrayList<>();
         byte[] frame = new byte[] {
-                (byte) REQUEST.addToVersion(Server.CURRENT_VERSION),  // direction & version
+                (byte) REQUEST.addToVersion(ProtocolVersion.CURRENT.asInt()),  // direction & version
                 0x00,  // flags
                 0x00, 0x01,  // stream ID
                 0x09,  // opcode
@@ -160,9 +161,9 @@ public class ProtocolErrorTest {
         // test for CASSANDRA-11167
         ErrorMessage msg = ErrorMessage.fromException(new ServerError((String) null));
         assert msg.toString().endsWith("null") : msg.toString();
-        int size = ErrorMessage.codec.encodedSize(msg, Server.CURRENT_VERSION);
+        int size = ErrorMessage.codec.encodedSize(msg, ProtocolVersion.CURRENT);
         ByteBuf buf = Unpooled.buffer(size);
-        ErrorMessage.codec.encode(msg, buf, Server.CURRENT_VERSION);
+        ErrorMessage.codec.encode(msg, buf, ProtocolVersion.CURRENT);
 
         ByteBuf expected = Unpooled.wrappedBuffer(new byte[]{
                 0x00, 0x00, 0x00, 0x00,  // int error code

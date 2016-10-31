@@ -23,12 +23,13 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 abstract class AbstractQueryPager implements QueryPager
 {
     protected final ReadCommand command;
     protected final DataLimits limits;
-    protected final int protocolVersion;
+    protected final ProtocolVersion protocolVersion;
 
     private int remaining;
 
@@ -40,7 +41,7 @@ abstract class AbstractQueryPager implements QueryPager
 
     private boolean exhausted;
 
-    protected AbstractQueryPager(ReadCommand command, int protocolVersion)
+    protected AbstractQueryPager(ReadCommand command, ProtocolVersion protocolVersion)
     {
         this.command = command;
         this.protocolVersion = protocolVersion;

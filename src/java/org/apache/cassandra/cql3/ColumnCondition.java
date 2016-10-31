@@ -28,7 +28,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -508,11 +508,11 @@ public class ColumnCondition
             // make sure we use v3 serialization format for comparison
             ByteBuffer conditionValue;
             if (type.kind == CollectionType.Kind.LIST)
-                conditionValue = ((Lists.Value) value).get(Server.VERSION_3);
+                conditionValue = ((Lists.Value) value).get(ProtocolVersion.V3);
             else if (type.kind == CollectionType.Kind.SET)
-                conditionValue = ((Sets.Value) value).get(Server.VERSION_3);
+                conditionValue = ((Sets.Value) value).get(ProtocolVersion.V3);
             else
-                conditionValue = ((Maps.Value) value).get(Server.VERSION_3);
+                conditionValue = ((Maps.Value) value).get(ProtocolVersion.V3);
 
             return compareWithOperator(operator, type, conditionValue, cell.value());
         }
@@ -680,7 +680,7 @@ public class ColumnCondition
                         if (cell == null)
                             return true;
                     }
-                    else if (type.compare(value.get(Server.VERSION_3), cell.value()) == 0)
+                    else if (type.compare(value.get(ProtocolVersion.V3), cell.value()) == 0)
                     {
                         return true;
                     }
@@ -782,7 +782,7 @@ public class ColumnCondition
     static class UDTBound extends Bound
     {
         private final ByteBuffer value;
-        private final int protocolVersion;
+        private final ProtocolVersion protocolVersion;
 
         private UDTBound(ColumnCondition condition, QueryOptions options) throws InvalidRequestException
         {
@@ -826,7 +826,7 @@ public class ColumnCondition
     public static class UDTInBound extends Bound
     {
         private final List<ByteBuffer> inValues;
-        private final int protocolVersion;
+        private final ProtocolVersion protocolVersion;
 
         private UDTInBound(ColumnCondition condition, QueryOptions options) throws InvalidRequestException
         {

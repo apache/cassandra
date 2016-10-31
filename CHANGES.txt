@@ -7,6 +7,7 @@
 
 
 3.10
+ * Extend native protocol request flags, add versions to SUPPORTED, and introduce ProtocolVersion enum (CASSANDRA-12838)
  * Set JOINING mode when running pre-join tasks (CASSANDRA-12836)
  * remove net.mintern.primitive library due to license issue (CASSANDRA-12845)
  * Properly format IPv6 addresses when logging JMX service URL (CASSANDRA-12454)

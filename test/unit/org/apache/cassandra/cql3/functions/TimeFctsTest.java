@@ -27,7 +27,7 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.SimpleDateType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 import org.joda.time.DateTime;
@@ -201,6 +201,6 @@ public class TimeFctsTest
     private static ByteBuffer executeFunction(Function function, ByteBuffer input)
     {
         List<ByteBuffer> params = Arrays.asList(input);
-        return ((ScalarFunction) function).execute(Server.CURRENT_VERSION, params);
+        return ((ScalarFunction) function).execute(ProtocolVersion.CURRENT, params);
     }
 }
