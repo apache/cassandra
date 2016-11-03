@@ -1,5 +1,6 @@
 3.0.10
  * Fix CommitLogTest.testDeleteIfNotDirty (CASSANDRA-12854)
+ * Don't tell users to turn off consistent rangemovements during rebuild. (CASSANDRA-12296)
  * Avoid deadlock due to materialized view lock contention (CASSANDRA-12689)
  * Fix for KeyCacheCqlTest flakiness (CASSANDRA-12801)
  * Include SSTable filename in compacting large row message (CASSANDRA-12384)
