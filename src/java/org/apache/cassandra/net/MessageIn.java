@@ -26,7 +26,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.monitoring.ConstructionTime;
+import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -39,14 +39,14 @@ public class MessageIn<T>
     public final Map<String, byte[]> parameters;
     public final MessagingService.Verb verb;
     public final int version;
-    public final ConstructionTime constructionTime;
+    public final long constructionTime;
 
     private MessageIn(InetAddress from,
                       T payload,
                       Map<String, byte[]> parameters,
                       MessagingService.Verb verb,
                       int version,
-                      ConstructionTime constructionTime)
+                      long constructionTime)
     {
         this.from = from;
         this.payload = payload;
@@ -61,17 +61,26 @@ public class MessageIn<T>
                                           Map<String, byte[]> parameters,
                                           MessagingService.Verb verb,
                                           int version,
-                                          ConstructionTime constructionTime)
+                                          long constructionTime)
     {
         return new MessageIn<>(from, payload, parameters, verb, version, constructionTime);
     }
 
-    public static <T2> MessageIn<T2> read(DataInputPlus in, int version, int id) throws IOException
+    public static <T> MessageIn<T> create(InetAddress from,
+                                          T payload,
+                                          Map<String, byte[]> parameters,
+                                          MessagingService.Verb verb,
+                                          int version)
     {
-        return read(in, version, id, new ConstructionTime());
+        return new MessageIn<>(from, payload, parameters, verb, version, ApproximateTime.currentTimeMillis());
     }
 
-    public static <T2> MessageIn<T2> read(DataInputPlus in, int version, int id, ConstructionTime constructionTime) throws IOException
+    public static <T2> MessageIn<T2> read(DataInputPlus in, int version, int id) throws IOException
+    {
+        return read(in, version, id, ApproximateTime.currentTimeMillis());
+    }
+
+    public static <T2> MessageIn<T2> read(DataInputPlus in, int version, int id, long constructionTime) throws IOException
     {
         InetAddress from = CompactEndpointSerializationHelper.deserialize(in);
 
@@ -115,28 +124,42 @@ public class MessageIn<T>
         return MessageIn.create(from, payload, parameters, verb, version, constructionTime);
     }
 
-    public static ConstructionTime createTimestamp()
+    public static long readConstructionTime(InetAddress from, DataInputPlus input) throws IOException
     {
-        return new ConstructionTime();
+        long currentTime = ApproximateTime.currentTimeMillis();
+
+        // Reconstruct the message construction time sent by the remote host (we sent only the lower 4 bytes, assuming the
+        // higher 4 bytes wouldn't change between the sender and receiver)
+        int partial = input.readInt(); // make sure to readInt, even if cross_node_to is not enabled
+        long sentConstructionTime = (currentTime & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
+
+        // Because nodes may not have their clock perfectly in sync, it's actually possible the sentConstructionTime is
+        // later than the currentTime (the received time). If that's the case, as we definitively know there is a lack
+        // of proper synchronziation of the clock, we ignore sentConstructionTime. We also ignore that
+        // sentConstructionTime if we're told to.
+        long elapsed = currentTime - sentConstructionTime;
+        if (elapsed > 0)
+            MessagingService.instance().metrics.addTimeTaken(from, elapsed);
+
+        boolean useSentTime = DatabaseDescriptor.hasCrossNodeTimeout() && elapsed > 0;
+        return useSentTime ? sentConstructionTime : currentTime;
     }
 
-    public static ConstructionTime readTimestamp(InetAddress from, DataInputPlus input, long timestamp) throws IOException
+    /**
+     * Since how long (in milliseconds) the message has lived.
+     */
+    public long getLifetimeInMS()
     {
-        // make sure to readInt, even if cross_node_to is not enabled
-        int partial = input.readInt();
-        long crossNodeTimestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
-        if (timestamp > crossNodeTimestamp)
-        {
-            MessagingService.instance().metrics.addTimeTaken(from, timestamp - crossNodeTimestamp);
-        }
-        if(DatabaseDescriptor.hasCrossNodeTimeout())
-        {
-            return new ConstructionTime(crossNodeTimestamp, timestamp != crossNodeTimestamp);
-        }
-        else
-        {
-            return new ConstructionTime();
-        }
+        return ApproximateTime.currentTimeMillis() - constructionTime;
+    }
+
+    /**
+     * Whether the message has crossed the node boundary, that is whether it originated from another node.
+     *
+     */
+    public boolean isCrossNode()
+    {
+        return !from.equals(DatabaseDescriptor.getBroadcastAddress());
     }
 
     public Stage getMessageType()

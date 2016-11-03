@@ -828,8 +828,7 @@ public class DataResolverTest
                                 ReadResponse.createRemoteDataResponse(partitionIterator, cmd),
                                 Collections.EMPTY_MAP,
                                 MessagingService.Verb.REQUEST_RESPONSE,
-                                MessagingService.current_version,
-                                MessageIn.createTimestamp());
+                                MessagingService.current_version);
     }
 
     private RangeTombstone tombstone(Object start, Object end, long markedForDeleteAt, int localDeletionTime)

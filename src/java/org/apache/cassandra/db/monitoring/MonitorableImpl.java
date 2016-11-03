@@ -22,9 +22,10 @@ public abstract class MonitorableImpl implements Monitorable
 {
     private MonitoringState state;
     private boolean isSlow;
-    private ConstructionTime constructionTime;
+    private long constructionTime = -1;
     private long timeout;
     private long slowTimeout;
+    private boolean isCrossNode;
 
     protected MonitorableImpl()
     {
@@ -37,14 +38,16 @@ public abstract class MonitorableImpl implements Monitorable
      * is too complex, it would require passing new parameters to all serializers
      * or specializing the serializers to accept these message properties.
      */
-    public void setMonitoringTime(ConstructionTime constructionTime, long timeout, long slowTimeout)
+    public void setMonitoringTime(long constructionTime, boolean isCrossNode, long timeout, long slowTimeout)
     {
+        assert constructionTime >= 0;
         this.constructionTime = constructionTime;
+        this.isCrossNode = isCrossNode;
         this.timeout = timeout;
         this.slowTimeout = slowTimeout;
     }
 
-    public ConstructionTime constructionTime()
+    public long constructionTime()
     {
         return constructionTime;
     }
@@ -52,6 +55,11 @@ public abstract class MonitorableImpl implements Monitorable
     public long timeout()
     {
         return timeout;
+    }
+
+    public boolean isCrossNode()
+    {
+        return isCrossNode;
     }
 
     public long slowTimeout()
@@ -87,7 +95,7 @@ public abstract class MonitorableImpl implements Monitorable
     {
         if (state == MonitoringState.IN_PROGRESS)
         {
-            if (constructionTime != null)
+            if (constructionTime >= 0)
                 MonitoringTask.addFailedOperation(this, ApproximateTime.currentTimeMillis());
 
             state = MonitoringState.ABORTED;
@@ -101,7 +109,7 @@ public abstract class MonitorableImpl implements Monitorable
     {
         if (state == MonitoringState.IN_PROGRESS)
         {
-            if (isSlow && slowTimeout > 0 && constructionTime != null)
+            if (isSlow && slowTimeout > 0 && constructionTime >= 0)
                 MonitoringTask.addSlowOperation(this, ApproximateTime.currentTimeMillis());
 
             state = MonitoringState.COMPLETED;
@@ -113,10 +121,10 @@ public abstract class MonitorableImpl implements Monitorable
 
     private void check()
     {
-        if (constructionTime == null || state != MonitoringState.IN_PROGRESS)
+        if (constructionTime < 0 || state != MonitoringState.IN_PROGRESS)
             return;
 
-        long elapsed = ApproximateTime.currentTimeMillis() - constructionTime.timestamp;
+        long elapsed = ApproximateTime.currentTimeMillis() - constructionTime;
 
         if (elapsed >= slowTimeout && !isSlow)
             isSlow = true;

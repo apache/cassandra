@@ -330,7 +330,7 @@ class MonitoringTask
         {
             this.operation = operation;
             numTimesReported = 1;
-            totalTime = failedAt - operation.constructionTime().timestamp;
+            totalTime = failedAt - operation.constructionTime();
             minTime = totalTime;
             maxTime = totalTime;
         }
@@ -370,7 +370,7 @@ class MonitoringTask
                                      name(),
                                      totalTime,
                                      operation.timeout(),
-                                     operation.constructionTime().isCrossNode ? "msec/cross-node" : "msec");
+                                     operation.isCrossNode() ? "msec/cross-node" : "msec");
             else
                 return String.format("<%s> timed out %d times, avg/min/max %d/%d/%d msec, timeout %d %s",
                                      name(),
@@ -379,7 +379,7 @@ class MonitoringTask
                                      minTime,
                                      maxTime,
                                      operation.timeout(),
-                                     operation.constructionTime().isCrossNode ? "msec/cross-node" : "msec");
+                                     operation.isCrossNode() ? "msec/cross-node" : "msec");
         }
     }
 
@@ -400,7 +400,7 @@ class MonitoringTask
                                      name(),
                                      totalTime,
                                      operation.slowTimeout(),
-                                     operation.constructionTime().isCrossNode ? "msec/cross-node" : "msec");
+                                     operation.isCrossNode() ? "msec/cross-node" : "msec");
             else
                 return String.format("<%s>, was slow %d times: avg/min/max %d/%d/%d msec - slow timeout %d %s",
                                      name(),
@@ -409,7 +409,7 @@ class MonitoringTask
                                      minTime,
                                      maxTime,
                                      operation.slowTimeout(),
-                                     operation.constructionTime().isCrossNode ? "msec/cross-node" : "msec");
+                                     operation.isCrossNode() ? "msec/cross-node" : "msec");
         }
     }
 }

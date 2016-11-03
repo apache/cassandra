@@ -59,9 +59,7 @@ public class MockMessagingServiceTest
                 EchoMessage.instance,
                 Collections.emptyMap(),
                 MessagingService.Verb.ECHO,
-                MessagingService.current_version,
-                MessageIn.createTimestamp()
-        );
+                MessagingService.current_version);
         MockMessagingSpy spy = MockMessagingService
                 .when(
                         all(

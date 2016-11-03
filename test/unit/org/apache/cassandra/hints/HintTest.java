@@ -232,7 +232,7 @@ public class HintTest
         // Process hint message.
         HintMessage message = new HintMessage(localId, hint);
         MessagingService.instance().getVerbHandler(MessagingService.Verb.HINT).doVerb(
-                MessageIn.create(local, message, Collections.emptyMap(), MessagingService.Verb.HINT, MessagingService.current_version, MessageIn.createTimestamp()),
+                MessageIn.create(local, message, Collections.emptyMap(), MessagingService.Verb.HINT, MessagingService.current_version),
                 -1);
 
         // hint should not be applied as we no longer are a replica
@@ -277,7 +277,7 @@ public class HintTest
             // Process hint message.
             HintMessage message = new HintMessage(localId, hint);
             MessagingService.instance().getVerbHandler(MessagingService.Verb.HINT).doVerb(
-                    MessageIn.create(local, message, Collections.emptyMap(), MessagingService.Verb.HINT, MessagingService.current_version, MessageIn.createTimestamp()),
+                    MessageIn.create(local, message, Collections.emptyMap(), MessagingService.Verb.HINT, MessagingService.current_version),
                     -1);
 
             // hint should not be applied as we no longer are a replica
