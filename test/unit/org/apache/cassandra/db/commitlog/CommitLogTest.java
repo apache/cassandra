@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -99,6 +100,11 @@ public class CommitLogTest
     @BeforeClass
     public static void beforeClass() throws ConfigurationException
     {
+        // Disable durable writes for system keyspaces to prevent system mutations, e.g. sstable_activity,
+        // to end up in CL segments and cause unexpected results in this test wrt counting CL segments,
+        // see CASSANDRA-12854
+        KeyspaceParams.DEFAULT_LOCAL_DURABLE_WRITES = false;
+
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -293,7 +299,11 @@ public class CommitLogTest
         CommitLog.instance.add(rm2);
         CommitLog.instance.add(rm2);
 
-        assertEquals(3, CommitLog.instance.segmentManager.getActiveSegments().size());
+        Collection<CommitLogSegment> segments = CommitLog.instance.segmentManager.getActiveSegments();
+
+        assertEquals(String.format("Expected 3 segments but got %d (%s)", segments.size(), getDirtyCFIds(segments)),
+                     3,
+                     segments.size());
 
         // "Flush" second cf: The first segment should be deleted since we
         // didn't write anything on cf1 since last flush (and we flush cf2)
@@ -301,8 +311,23 @@ public class CommitLogTest
         UUID cfid2 = rm2.getColumnFamilyIds().iterator().next();
         CommitLog.instance.discardCompletedSegments(cfid2, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
 
+        segments = CommitLog.instance.segmentManager.getActiveSegments();
+
         // Assert we still have both our segment
-        assertEquals(1, CommitLog.instance.segmentManager.getActiveSegments().size());
+        assertEquals(String.format("Expected 1 segment but got %d (%s)", segments.size(), getDirtyCFIds(segments)),
+                     1,
+                     segments.size());
+    }
+
+    private String getDirtyCFIds(Collection<CommitLogSegment> segments)
+    {
+        return "Dirty cfIds: <"
+               + String.join(", ", segments.stream()
+                                           .map(CommitLogSegment::getDirtyCFIDs)
+                                           .flatMap(uuids -> uuids.stream())
+                                           .distinct()
+                                           .map(uuid -> uuid.toString()).collect(Collectors.toList()))
+               + ">";
     }
 
     private static int getMaxRecordDataSize(String keyspace, ByteBuffer key, String cfName, String colName)
