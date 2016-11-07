@@ -107,6 +107,7 @@
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Properly record CAS contention (CASSANDRA-12626)
 Merged from 3.0:
+ * Don't tell users to turn off consistent rangemovements during rebuild. (CASSANDRA-12296)
  * Fix CommitLogTest.testDeleteIfNotDirty (CASSANDRA-12854)
  * Avoid deadlock due to MV lock contention (CASSANDRA-12689)
  * Fix for KeyCacheCqlTest flakiness (CASSANDRA-12801)
