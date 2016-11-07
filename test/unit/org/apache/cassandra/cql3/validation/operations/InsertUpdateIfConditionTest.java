@@ -1792,4 +1792,108 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE a = 7"),
                    row(7, 7, null, null, 7));
     }
+
+    /**
+     * Test for CASSANDRA-12060, using a table without clustering.
+     */
+    @Test
+    public void testMultiExistConditionOnSameRowNoClustering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 text, v2 text)");
+
+        // Multiple inserts on the same row with not exist conditions
+        assertRows(execute("BEGIN BATCH "
+                           + "INSERT INTO %1$s (k, v1) values (0, 'foo') IF NOT EXISTS; "
+                           + "INSERT INTO %1$s (k, v2) values (0, 'bar') IF NOT EXISTS; "
+                           + "APPLY BATCH"),
+                   row(true));
+
+        assertRows(execute("SELECT * FROM %s WHERE k = 0"), row(0, "foo", "bar"));
+
+        // Same, but both insert on the same column: doing so would almost surely be a user error, but that's the
+        // original case reported in #12867, so being thorough.
+        assertRows(execute("BEGIN BATCH "
+                           + "INSERT INTO %1$s (k, v1) values (1, 'foo') IF NOT EXISTS; "
+                           + "INSERT INTO %1$s (k, v1) values (1, 'bar') IF NOT EXISTS; "
+                           + "APPLY BATCH"),
+                   row(true));
+
+        // As all statement gets the same timestamp, the biggest value ends up winning, so that's "foo"
+        assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, "foo", null));
+
+        // Multiple deletes on the same row with exists conditions (note that this is somewhat non-sensical, one of the
+        // delete is redundant, we're just checking it doesn't break something)
+        assertRows(execute("BEGIN BATCH "
+                           + "DELETE FROM %1$s WHERE k = 0 IF EXISTS; "
+                           + "DELETE FROM %1$s WHERE k = 0 IF EXISTS; "
+                           + "APPLY BATCH"),
+                   row(true));
+
+        assertEmpty(execute("SELECT * FROM %s WHERE k = 0"));
+
+        // Validate we can't mix different type of conditions however
+        assertInvalidMessage("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row",
+                             "BEGIN BATCH "
+                           + "INSERT INTO %1$s (k, v1) values (1, 'foo') IF NOT EXISTS; "
+                           + "DELETE FROM %1$s WHERE k = 1 IF EXISTS; "
+                           + "APPLY BATCH");
+
+        assertInvalidMessage("Cannot mix IF conditions and IF NOT EXISTS for the same row",
+                             "BEGIN BATCH "
+                             + "INSERT INTO %1$s (k, v1) values (1, 'foo') IF NOT EXISTS; "
+                             + "UPDATE %1$s SET v2 = 'bar' WHERE k = 1 IF v1 = 'foo'; "
+                             + "APPLY BATCH");
+    }
+
+    /**
+     * Test for CASSANDRA-12060, using a table with clustering.
+     */
+    @Test
+    public void testMultiExistConditionOnSameRowClustering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, t int, v1 text, v2 text, PRIMARY KEY (k, t))");
+
+        // Multiple inserts on the same row with not exist conditions
+        assertRows(execute("BEGIN BATCH "
+                           + "INSERT INTO %1$s (k, t, v1) values (0, 0, 'foo') IF NOT EXISTS; "
+                           + "INSERT INTO %1$s (k, t, v2) values (0, 0, 'bar') IF NOT EXISTS; "
+                           + "APPLY BATCH"),
+                   row(true));
+
+        assertRows(execute("SELECT * FROM %s WHERE k = 0"), row(0, 0, "foo", "bar"));
+
+        // Same, but both insert on the same column: doing so would almost surely be a user error, but that's the
+        // original case reported in #12867, so being thorough.
+        assertRows(execute("BEGIN BATCH "
+                           + "INSERT INTO %1$s (k, t, v1) values (1, 0, 'foo') IF NOT EXISTS; "
+                           + "INSERT INTO %1$s (k, t, v1) values (1, 0, 'bar') IF NOT EXISTS; "
+                           + "APPLY BATCH"),
+                   row(true));
+
+        // As all statement gets the same timestamp, the biggest value ends up winning, so that's "foo"
+        assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, 0, "foo", null));
+
+        // Multiple deletes on the same row with exists conditions (note that this is somewhat non-sensical, one of the
+        // delete is redundant, we're just checking it doesn't break something)
+        assertRows(execute("BEGIN BATCH "
+                           + "DELETE FROM %1$s WHERE k = 0 AND t = 0 IF EXISTS; "
+                           + "DELETE FROM %1$s WHERE k = 0 AND t = 0 IF EXISTS; "
+                           + "APPLY BATCH"),
+                   row(true));
+
+        assertEmpty(execute("SELECT * FROM %s WHERE k = 0"));
+
+        // Validate we can't mix different type of conditions however
+        assertInvalidMessage("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row",
+                             "BEGIN BATCH "
+                             + "INSERT INTO %1$s (k, t, v1) values (1, 0, 'foo') IF NOT EXISTS; "
+                             + "DELETE FROM %1$s WHERE k = 1 AND t = 0 IF EXISTS; "
+                             + "APPLY BATCH");
+
+        assertInvalidMessage("Cannot mix IF conditions and IF NOT EXISTS for the same row",
+                             "BEGIN BATCH "
+                             + "INSERT INTO %1$s (k, t, v1) values (1, 0, 'foo') IF NOT EXISTS; "
+                             + "UPDATE %1$s SET v2 = 'bar' WHERE k = 1 AND t = 0 IF v1 = 'foo'; "
+                             + "APPLY BATCH");
+    }
 }
