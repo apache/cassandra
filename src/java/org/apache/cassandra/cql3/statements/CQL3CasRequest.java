@@ -93,12 +93,29 @@ public class CQL3CasRequest implements CASRequest
     {
         assert condition instanceof ExistCondition || condition instanceof NotExistCondition;
         RowCondition previous = getConditionsForRow(clustering);
-        if (previous != null && !(previous.getClass().equals(condition.getClass())))
+        if (previous != null)
         {
-            // these should be prevented by the parser, but it doesn't hurt to check
-            throw (previous instanceof NotExistCondition || previous instanceof ExistCondition)
-                ? new InvalidRequestException("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row")
-                : new InvalidRequestException("Cannot mix IF conditions and IF " + (isNotExist ? "NOT " : "") + "EXISTS for the same row");
+            if (previous.getClass().equals(condition.getClass()))
+            {
+                // We can get here if a BATCH has 2 different statements on the same row with the same "exist" condition.
+                // For instance (assuming 'k' is the full PK):
+                //   BEGIN BATCH
+                //      INSERT INTO t(k, v1) VALUES (0, 'foo') IF NOT EXISTS;
+                //      INSERT INTO t(k, v2) VALUES (0, 'bar') IF NOT EXISTS;
+                //   APPLY BATCH;
+                // Of course, those can be trivially rewritten by the user as a single INSERT statement, but we still don't
+                // want this to be a problem (see #12867 in particular), so we simply return (the condition itself has
+                // already be set).
+                assert hasExists; // We shouldn't have a previous condition unless hasExists has been set already.
+                return;
+            }
+            else
+            {
+                // these should be prevented by the parser, but it doesn't hurt to check
+                throw (previous instanceof NotExistCondition || previous instanceof ExistCondition)
+                    ? new InvalidRequestException("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row")
+                    : new InvalidRequestException("Cannot mix IF conditions and IF " + (isNotExist ? "NOT " : "") + "EXISTS for the same row");
+            }
         }
 
         setConditionsForRow(clustering, condition);
