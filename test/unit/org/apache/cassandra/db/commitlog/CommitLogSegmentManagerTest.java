@@ -24,11 +24,9 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.Semaphore;
-import javax.naming.ConfigurationException;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -46,23 +44,36 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 @RunWith(BMUnitRunner.class)
 public class CommitLogSegmentManagerTest
 {
     //Block commit log service from syncing
-    @SuppressWarnings("unused")
-    private static final Semaphore allowSync = new Semaphore(0);
+    private static final Semaphore allowSync = new Semaphore(1);
 
     private static final String KEYSPACE1 = "CommitLogTest";
     private static final String STANDARD1 = "Standard1";
     private static final String STANDARD2 = "Standard2";
 
     private final static byte[] entropy = new byte[1024 * 256];
-    @BeforeClass
-    public static void defineSchema()
+
+    @Test
+    @BMRules(rules = {@BMRule(name = "Acquire Semaphore before sync",
+                              targetClass = "AbstractCommitLogService$1",
+                              targetMethod = "run",
+                              targetLocation = "AT INVOKE org.apache.cassandra.db.commitlog.CommitLog.sync",
+                              action = "org.apache.cassandra.db.commitlog.CommitLogSegmentManagerTest.allowSync.acquire()"),
+                      @BMRule(name = "Release Semaphore after sync",
+                              targetClass = "AbstractCommitLogService$1",
+                              targetMethod = "run",
+                              targetLocation = "AFTER INVOKE org.apache.cassandra.db.commitlog.CommitLog.sync",
+                              action = "org.apache.cassandra.db.commitlog.CommitLogSegmentManagerTest.allowSync.release()")})
+    public void testCompressedCommitLogBackpressure() throws Throwable
     {
+        // Perform all initialization before making CommitLog.Sync blocking
+        // Doing the initialization within the method guarantee that Byteman has performed its injections when we start
         new Random().nextBytes(entropy);
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", ImmutableMap.of()));
@@ -77,50 +88,54 @@ public class CommitLogSegmentManagerTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance));
 
         CompactionManager.instance.disableAutoCompaction();
-    }
 
-    @Test
-    @BMRule(name = "Block AbstractCommitLogSegment segment flushing",
-            targetClass = "AbstractCommitLogService$1",
-            targetMethod = "run",
-            targetLocation = "AT INVOKE org.apache.cassandra.db.commitlog.CommitLog.sync",
-            action = "org.apache.cassandra.db.commitlog.CommitLogSegmentManagerTest.allowSync.acquire()")
-    public void testCompressedCommitLogBackpressure() throws Throwable
-    {
-        CommitLog.instance.resetUnsafe(true);
         ColumnFamilyStore cfs1 = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
 
-        final Mutation m = new RowUpdateBuilder(cfs1.metadata, 0, "k")
-                     .clustering("bytes")
-                     .add("val", ByteBuffer.wrap(entropy))
-                     .build();
+        final Mutation m = new RowUpdateBuilder(cfs1.metadata, 0, "k").clustering("bytes")
+                                                                      .add("val", ByteBuffer.wrap(entropy))
+                                                                      .build();
 
-        Thread dummyThread = new Thread( () ->
-        {
+        Thread dummyThread = new Thread(() -> {
             for (int i = 0; i < 20; i++)
                 CommitLog.instance.add(m);
         });
-        dummyThread.start();
 
-        AbstractCommitLogSegmentManager clsm = CommitLog.instance.segmentManager;
-
-        // Protect against delay, but still break out as fast as possible
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() - start < 5000)
+        try
         {
-            if (clsm.getActiveSegments().size() >= 3)
-                break;
+            // Makes sure any call to CommitLog.sync is blocking
+            allowSync.acquire();
+
+            dummyThread.start();
+
+            AbstractCommitLogSegmentManager clsm = CommitLog.instance.segmentManager;
+
+            Util.spinAssertEquals(3, () -> clsm.getActiveSegments().size(), 5);
+
+            Thread.sleep(1000);
+
+            // Should only be able to create 3 segments not 7 because it blocks waiting for truncation that never comes
+            Assert.assertEquals(3, clsm.getActiveSegments().size());
+
+            // Discard the currently active segments so allocation can continue.
+            // Take snapshot of the list, otherwise this will also discard newly allocated segments.
+            new ArrayList<>(clsm.getActiveSegments()).forEach( clsm::archiveAndDiscard );
+
+            // The allocated count should reach the limit again.
+            Util.spinAssertEquals(3, () -> clsm.getActiveSegments().size(), 5);
         }
-        Thread.sleep(1000);
-
-        // Should only be able to create 3 segments not 7 because it blocks waiting for truncation that never comes
-        Assert.assertEquals(3, clsm.getActiveSegments().size());
-
-        // Discard the currently active segments so allocation can continue.
-        // Take snapshot of the list, otherwise this will also discard newly allocated segments.
-        new ArrayList<>(clsm.getActiveSegments()).forEach( clsm::archiveAndDiscard );
-
-        // The allocated count should reach the limit again.
-        Util.spinAssertEquals(3, () -> clsm.getActiveSegments().size(), 5);
+        finally
+        {
+            // Allow the CommitLog.sync to perform normally.
+            allowSync.release();
+        }
+        try
+        {
+            // Wait for the dummy thread to die
+            dummyThread.join();
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+        }
     }
 }
