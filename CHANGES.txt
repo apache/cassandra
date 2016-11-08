@@ -1,4 +1,5 @@
 4.0
+ * Bring back maxHintTTL propery (CASSANDRA-12982)
  * Add testing guidelines (CASSANDRA-13497)
  * Add more repair metrics (CASSANDRA-13531)
  * RangeStreamer should be smarter when picking endpoints for streaming (CASSANDRA-4650)
