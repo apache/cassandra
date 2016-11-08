@@ -145,6 +145,7 @@ Merged from 3.0:
  * Correct log message for statistics of offheap memtable flush (CASSANDRA-12776)
  * Explicitly set locale for string validation (CASSANDRA-12541,CASSANDRA-12542,CASSANDRA-12543,CASSANDRA-12545)
 Merged from 2.2:
+ * Fix potential NPE for compactionstats (CASSANDRA-12462)
  * Prepare legacy authenticate statement if credentials table initialised after node startup (CASSANDRA-12813)
  * Change cassandra.wait_for_tracing_events_timeout_secs default to 0 (CASSANDRA-12754)
  * Clean up permissions when a UDA is dropped (CASSANDRA-12720)
