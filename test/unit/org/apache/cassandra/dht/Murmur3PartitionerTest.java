@@ -37,6 +37,11 @@ public class Murmur3PartitionerTest extends PartitionerTestCase
         assertMidpoint(tok("a"), mintoken, 16);
     }
 
+    protected boolean shouldStopRecursion(Token left, Token right)
+    {
+        return left.size(right) < Math.scalb(1, -48);
+    }
+
     @Test
     public void testSplit()
     {

@@ -1,10 +1,6 @@
-3.11
- * Move cqlsh syntax rules into separate module and allow easier customization (CASSANDRA-12897)
-Merged from 3.0:
- * Prevent reloading of logback.xml from UDF sandbox (CASSANDRA-12535)
-
-
 3.10
+ * Fix Murmur3PartitionerTest (CASSANDRA-12858)
+ * Move cqlsh syntax rules into separate module and allow easier customization (CASSANDRA-12897)
  * Fix CommitLogSegmentManagerTest (CASSANDRA-12283)
  * Fix cassandra-stress truncate option (CASSANDRA-12695)
  * Fix crossNode value when receiving messages (CASSANDRA-12791)
@@ -107,6 +103,7 @@ Merged from 3.0:
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Properly report LWT contention (CASSANDRA-12626)
 Merged from 3.0:
+ * Prevent reloading of logback.xml from UDF sandbox (CASSANDRA-12535)
  * Pass root cause to CorruptBlockException when uncompression failed (CASSANDRA-12889)
  * Batch with multiple conditional updates for the same partition causes AssertionError (CASSANDRA-12867)
  * Make AbstractReplicationStrategy extendable from outside its package (CASSANDRA-12788)

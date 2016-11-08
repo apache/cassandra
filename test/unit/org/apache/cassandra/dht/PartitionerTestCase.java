@@ -36,6 +36,9 @@ import static org.junit.Assert.fail;
 
 public abstract class PartitionerTestCase
 {
+    private static final double SPLIT_RATIO_MIN = 0.10;
+    private static final double SPLIT_RATIO_MAX = 1 - SPLIT_RATIO_MIN;
+
     protected IPartitioner partitioner;
 
     public abstract void initPartitioner();
@@ -130,16 +133,24 @@ public abstract class PartitionerTestCase
         }
     }
 
+    protected abstract boolean shouldStopRecursion(Token left, Token right);
+
     private void assertSplit(Token left, Token right, Random rand, int depth)
     {
-        double ratio = rand.nextDouble();
-        Token newToken = partitioner.split(left, right, ratio);
+        if (shouldStopRecursion(left, right))
+        {
+            System.out.println("Stop assertSplit at depth: " + depth);
+            return;
+        }
 
-        assert new Range<Token>(left, right).contains(newToken)
-                : "For " + left + "," + right + ": range did not contain new token:" + newToken;
+        double ratio = SPLIT_RATIO_MIN + (SPLIT_RATIO_MAX - SPLIT_RATIO_MIN) * rand.nextDouble();
+        Token newToken = partitioner.split(left, right, ratio);
 
         assertEquals("For " + left + "," + right + ", new token: " + newToken,
                      ratio, left.size(newToken) / left.size(right), 0.1);
+
+        assert new Range<Token>(left, right).contains(newToken)
+            : "For " + left + "," + right + ": range did not contain new token:" + newToken;
 
         if (depth < 1)
             return;
