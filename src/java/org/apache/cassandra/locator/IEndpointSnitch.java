@@ -22,15 +22,15 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * This interface helps determine location of node in the data center relative to another node.
+ * This interface helps determine location of node in the datacenter relative to another node.
  * Give a node A and another node B it can tell if A and B are on the same rack or in the same
- * data center.
+ * datacenter.
  */
 
 public interface IEndpointSnitch
 {
     /**
-     * returns a String repesenting the rack this endpoint belongs to
+     * returns a String representing the rack this endpoint belongs to
      */
     public String getRack(InetAddress endpoint);
 
