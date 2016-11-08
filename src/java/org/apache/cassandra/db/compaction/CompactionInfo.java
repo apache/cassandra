@@ -23,8 +23,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.service.StorageService;
 
 /** Implements serializable to allow structured info to be returned via JMX. */
 public final class CompactionInfo implements Serializable
@@ -65,17 +63,17 @@ public final class CompactionInfo implements Serializable
 
     public UUID getId()
     {
-        return cfm.cfId;
+        return cfm != null ? cfm.cfId : null;
     }
 
     public String getKeyspace()
     {
-        return cfm.ksName;
+        return cfm != null ? cfm.ksName : null;
     }
 
     public String getColumnFamily()
     {
-        return cfm.cfName;
+        return cfm != null ? cfm.cfName : null;
     }
 
     public CFMetaData getCFMetaData()
