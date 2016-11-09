@@ -1,4 +1,6 @@
 3.10
+ * Remove timing window in test case (CASSANDRA-12875)
+ * Resolve unit testing without JCE security libraries installed (CASSANDRA-12945)
  * Fix inconsistencies in cassandra-stress load balancing policy (CASSANDRA-12919)
  * Fix validation of non-frozen UDT cells (CASSANDRA-12916)
  * Don't shut down socket input/output on StreamSession (CASSANDRA-12903)
