@@ -39,6 +39,7 @@ import org.apache.cassandra.config.Config;
 import org.xerial.snappy.SnappyInputStream;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.UnknownColumnFamilyException;
+import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.NIODataInputStream;
@@ -187,8 +188,8 @@ public class IncomingTcpConnection extends FastThreadLocalThread implements Clos
             id = Integer.parseInt(input.readUTF());
         else
             id = input.readInt();
-
-        MessageIn message = MessageIn.read(input, version, id, MessageIn.readConstructionTime(from, input));
+        long currentTime = ApproximateTime.currentTimeMillis();
+        MessageIn message = MessageIn.read(input, version, id, MessageIn.readConstructionTime(from, input, currentTime));
         if (message == null)
         {
             // callback expired; nothing to do

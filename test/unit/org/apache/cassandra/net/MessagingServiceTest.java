@@ -34,19 +34,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
-
 import com.codahale.metrics.Timer;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
 import org.caffinitas.ohc.histo.EstimatedHistogram;
-
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.junit.Assert.*;
 
@@ -100,15 +98,13 @@ public class MessagingServiceTest
     public void testDCLatency() throws Exception
     {
         int latency = 100;
-
         ConcurrentHashMap<String, Timer> dcLatency = MessagingService.instance().metrics.dcLatency;
         dcLatency.clear();
 
-        long now = System.currentTimeMillis();
+        long now = ApproximateTime.currentTimeMillis();
         long sentAt = now - latency;
-
         assertNull(dcLatency.get("datacenter1"));
-        addDCLatency(sentAt);
+        addDCLatency(sentAt, now);
         assertNotNull(dcLatency.get("datacenter1"));
         assertEquals(1, dcLatency.get("datacenter1").getCount());
         long expectedBucket = bucketOffsets[Math.abs(Arrays.binarySearch(bucketOffsets, TimeUnit.MILLISECONDS.toNanos(latency))) - 1];
@@ -124,11 +120,11 @@ public class MessagingServiceTest
         ConcurrentHashMap<String, Timer> dcLatency = MessagingService.instance().metrics.dcLatency;
         dcLatency.clear();
 
-        long now = System.currentTimeMillis();
+        long now = ApproximateTime.currentTimeMillis();
         long sentAt = now - latency;
 
         assertNull(dcLatency.get("datacenter1"));
-        addDCLatency(sentAt);
+        addDCLatency(sentAt, now);
         assertNull(dcLatency.get("datacenter1"));
     }
 
@@ -221,7 +217,7 @@ public class MessagingServiceTest
         assertFalse(MockBackPressureStrategy.applied);
     }
 
-    private static void addDCLatency(long sentAt) throws IOException
+    private static void addDCLatency(long sentAt, long nowTime) throws IOException
     {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (DataOutputStreamPlus out = new WrappedDataOutputStreamPlus(baos))
@@ -229,7 +225,7 @@ public class MessagingServiceTest
             out.writeInt((int) sentAt);
         }
         DataInputStreamPlus in = new DataInputStreamPlus(new ByteArrayInputStream(baos.toByteArray()));
-        MessageIn.readConstructionTime(InetAddress.getLocalHost(), in);
+        MessageIn.readConstructionTime(InetAddress.getLocalHost(), in, nowTime);
     }
 
     public static class MockBackPressureStrategy implements BackPressureStrategy<MockBackPressureStrategy.MockBackPressureState>
