@@ -22,10 +22,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Properties;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -39,15 +40,15 @@ public class AuditTrigger implements ITrigger
         String auditKeyspace = properties.getProperty("keyspace");
         String auditTable = properties.getProperty("table");
 
-        RowUpdateBuilder audit = new RowUpdateBuilder(Schema.instance.getCFMetaData(auditKeyspace, auditTable),
-                                                      FBUtilities.timestampMicros(),
-                                                      UUIDGen.getTimeUUID());
+        CFMetaData metadata = Schema.instance.getCFMetaData(auditKeyspace, auditTable);
+        PartitionUpdate.SimpleBuilder audit = PartitionUpdate.simpleBuilder(metadata, UUIDGen.getTimeUUID());
 
-        audit.add("keyspace_name", update.metadata().ksName);
-        audit.add("table_name", update.metadata().cfName);
-        audit.add("primary_key", update.metadata().getKeyValidator().getString(update.partitionKey().getKey()));
+        audit.row()
+             .add("keyspace_name", update.metadata().ksName)
+             .add("table_name", update.metadata().cfName)
+             .add("primary_key", update.metadata().getKeyValidator().getString(update.partitionKey().getKey()));
 
-        return Collections.singletonList(audit.build());
+        return Collections.singletonList(audit.buildAsMutation());
     }
 
     private static Properties loadProperties()
