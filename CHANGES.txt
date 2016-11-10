@@ -109,6 +109,7 @@
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Properly record CAS contention (CASSANDRA-12626)
 Merged from 3.0:
+ * Pass root cause to CorruptBlockException when uncompression failed (CASSANDRA-12889)
  * Batch with multiple conditional updates for the same partition causes AssertionError (CASSANDRA-12867)
  * Make AbstractReplicationStrategy extendable from outside its package (CASSANDRA-12788)
  * Don't tell users to turn off consistent rangemovements during rebuild. (CASSANDRA-12296)

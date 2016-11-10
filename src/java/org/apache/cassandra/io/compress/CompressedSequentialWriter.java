@@ -232,7 +232,7 @@ public class CompressedSequentialWriter extends SequentialWriter
             }
             catch (IOException e)
             {
-                throw new CorruptBlockException(getPath(), chunkOffset, chunkSize);
+                throw new CorruptBlockException(getPath(), chunkOffset, chunkSize, e);
             }
 
             CRC32 checksum = new CRC32();
