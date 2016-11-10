@@ -132,7 +132,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 }
                 catch (IOException e)
                 {
-                    throw new CorruptBlockException(channel.filePath(), chunk);
+                    throw new CorruptBlockException(channel.filePath(), chunk, e);
                 }
                 finally
                 {
@@ -193,7 +193,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 }
                 catch (IOException e)
                 {
-                    throw new CorruptBlockException(channel.filePath(), chunk);
+                    throw new CorruptBlockException(channel.filePath(), chunk, e);
                 }
                 finally
                 {
