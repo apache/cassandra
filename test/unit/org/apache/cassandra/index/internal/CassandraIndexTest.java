@@ -396,7 +396,7 @@ public class CassandraIndexTest extends CQLTester
         int indexedVal = 2;
         int initialTtl = 3600;
         createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k,c))");
-        createIndex("CREATE INDEX c_index on %s(c)");
+        createIndex("CREATE INDEX ON %s(c)");
         execute("INSERT INTO %s (k, c, v) VALUES (?, ?, 0) USING TTL ?", basePk, indexedVal, initialTtl);
         ColumnFamilyStore baseCfs = getCurrentColumnFamilyStore();
         ColumnFamilyStore indexCfs = baseCfs.indexManager.listIndexes()
