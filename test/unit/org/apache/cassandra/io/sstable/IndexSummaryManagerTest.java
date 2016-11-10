@@ -19,16 +19,8 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Joiner;
@@ -66,7 +58,6 @@ import static java.util.Arrays.asList;
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.apache.cassandra.io.sstable.IndexSummaryRedistribution.DOWNSAMPLE_THESHOLD;
 import static org.apache.cassandra.io.sstable.IndexSummaryRedistribution.UPSAMPLE_THRESHOLD;
-import static org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -118,7 +109,7 @@ public class IndexSummaryManagerTest
     @After
     public void afterTest()
     {
-        for (CompactionInfo.Holder holder: CompactionMetrics.getCompactions())
+        for (CompactionInfo.Holder holder : CompactionMetrics.getCompactions())
         {
             holder.stop();
         }
@@ -203,7 +194,8 @@ public class IndexSummaryManagerTest
             try
             {
                 future.get();
-            } catch (InterruptedException | ExecutionException e)
+            }
+            catch (InterruptedException | ExecutionException e)
             {
                 throw new RuntimeException(e);
             }
@@ -624,6 +616,8 @@ public class IndexSummaryManagerTest
 
         // everything should get cut in half
         final AtomicReference<CompactionInterruptedException> exception = new AtomicReference<>();
+        // barrier to control when redistribution runs
+        final CountDownLatch barrier = new CountDownLatch(1);
 
         Thread t = new Thread(new Runnable()
         {
@@ -634,7 +628,10 @@ public class IndexSummaryManagerTest
                     // Don't leave enough space for even the minimal index summaries
                     try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
                     {
-                        redistributeSummaries(Collections.EMPTY_LIST, of(cfs.metadata.cfId, txn), singleSummaryOffHeapSpace);
+                        IndexSummaryManager.redistributeSummaries(new ObservableRedistribution(Collections.EMPTY_LIST,
+                                                                                               of(cfs.metadata.cfId, txn),
+                                                                                               singleSummaryOffHeapSpace,
+                                                                                               barrier));
                     }
                 }
                 catch (CompactionInterruptedException ex)
@@ -649,7 +646,12 @@ public class IndexSummaryManagerTest
         t.start();
         while (CompactionManager.instance.getActiveCompactions() == 0 && t.isAlive())
             Thread.sleep(1);
+        // to ensure that the stop condition check in IndexSummaryRedistribution::redistributeSummaries
+        // is made *after* the halt request is made to the CompactionManager, don't allow the redistribution
+        // to proceed until stopCompaction has been called.
         CompactionManager.instance.stopCompaction("INDEX_SUMMARY");
+        // allows the redistribution to proceed
+        barrier.countDown();
         t.join();
 
         assertNotNull("Expected compaction interrupted exception", exception.get());
@@ -663,5 +665,42 @@ public class IndexSummaryManagerTest
                    disjoint.isEmpty());
 
         validateData(cfs, numRows);
+    }
+
+    private static List<SSTableReader> redistributeSummaries(List<SSTableReader> compacting,
+                                                             Map<UUID, LifecycleTransaction> transactions,
+                                                             long memoryPoolBytes)
+    throws IOException
+    {
+        return IndexSummaryManager.redistributeSummaries(new IndexSummaryRedistribution(compacting,
+                                                                                        transactions,
+                                                                                        memoryPoolBytes));
+    }
+
+    private static class ObservableRedistribution extends IndexSummaryRedistribution
+    {
+        CountDownLatch barrier;
+
+        ObservableRedistribution(List<SSTableReader> compacting,
+                                 Map<UUID, LifecycleTransaction> transactions,
+                                 long memoryPoolBytes,
+                                 CountDownLatch barrier)
+        {
+            super(compacting, transactions, memoryPoolBytes);
+            this.barrier = barrier;
+        }
+
+        public List<SSTableReader> redistributeSummaries() throws IOException
+        {
+            try
+            {
+                barrier.await();
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException("Interrupted waiting on test barrier");
+            }
+            return super.redistributeSummaries();
+        }
     }
 }
