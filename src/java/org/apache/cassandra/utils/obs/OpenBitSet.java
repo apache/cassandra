@@ -25,25 +25,30 @@ import java.io.IOException;
 import org.apache.cassandra.db.TypeSizes;
 
 /**
+ * <p>
  * An "open" BitSet implementation that allows direct access to the arrays of words
  * storing the bits.  Derived from Lucene's OpenBitSet, but with a paged backing array
  * (see bits delaration, below).
- * <p/>
+ * </p>
+ * <p>
  * Unlike java.util.bitset, the fact that bits are packed into an array of longs
  * is part of the interface.  This allows efficient implementation of other algorithms
  * by someone other than the author.  It also allows one to efficiently implement
  * alternate serialization or interchange formats.
- * <p/>
+ * </p>
+ * <p>
  * <code>OpenBitSet</code> is faster than <code>java.util.BitSet</code> in most operations
  * and *much* faster at calculating cardinality of sets and results of set operations.
  * It can also handle sets of larger cardinality (up to 64 * 2**32-1)
- * <p/>
+ * </p>
+ * <p>
  * The goals of <code>OpenBitSet</code> are the fastest implementation possible, and
  * maximum code reuse.  Extra safety and encapsulation
  * may always be built on top, but if that's built in, the cost can never be removed (and
  * hence people re-implement their own version in order to get better performance).
  * If you want a "safe", totally encapsulated (and slower and limited) BitSet
  * class, use <code>java.util.BitSet</code>.
+ * </p>
  */
 
 public class OpenBitSet implements IBitSet
@@ -313,7 +318,7 @@ public class OpenBitSet implements IBitSet
     long[][] thisArr = this.bits;
     long[][] otherArr = other.bits;
     int thisPageSize = PAGE_SIZE;
-    int otherPageSize = other.PAGE_SIZE;
+    int otherPageSize = OpenBitSet.PAGE_SIZE;
     // testing against zero can be more efficient
     int pos=newLen;
     while(--pos>=0) {
@@ -363,8 +368,8 @@ public class OpenBitSet implements IBitSet
       a=this;
     }
 
-    int aPageSize = this.PAGE_SIZE;
-    int bPageSize = b.PAGE_SIZE;
+    int aPageSize = OpenBitSet.PAGE_SIZE;
+    int bPageSize = OpenBitSet.PAGE_SIZE;
 
     // check for any set bits out of the range of b
     for (int i=a.wlen-1; i>=b.wlen; i--) {

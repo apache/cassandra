@@ -40,12 +40,14 @@ public class ThriftServer implements CassandraDaemon.Server
 
     protected final InetAddress address;
     protected final int port;
+    protected final int backlog;
     private volatile ThriftServerThread server;
 
-    public ThriftServer(InetAddress address, int port)
+    public ThriftServer(InetAddress address, int port, int backlog)
     {
         this.address = address;
         this.port = port;
+        this.backlog = backlog;
     }
 
     public void start()
@@ -53,12 +55,12 @@ public class ThriftServer implements CassandraDaemon.Server
         if (server == null)
         {
             CassandraServer iface = getCassandraServer();
-            server = new ThriftServerThread(address, port, iface, getProcessor(iface), getTransportFactory());
+            server = new ThriftServerThread(address, port, backlog, getProcessor(iface), getTransportFactory());
             server.start();
         }
     }
 
-    public void stop()
+    public synchronized void stop()
     {
         if (server != null)
         {
@@ -96,7 +98,6 @@ public class ThriftServer implements CassandraDaemon.Server
     protected TTransportFactory getTransportFactory()
     {
         int tFramedTransportSize = DatabaseDescriptor.getThriftFramedTransportSize();
-        logger.info("Using TFramedTransport with a max frame size of {} bytes.", tFramedTransportSize);
         return new TFramedTransport.Factory(tFramedTransportSize);
     }
 
@@ -110,7 +111,7 @@ public class ThriftServer implements CassandraDaemon.Server
 
         public ThriftServerThread(InetAddress listenAddr,
                                   int listenPort,
-                                  CassandraServer server,
+                                  int listenBacklog,
                                   TProcessor processor,
                                   TTransportFactory transportFactory)
         {
@@ -120,7 +121,7 @@ public class ThriftServer implements CassandraDaemon.Server
             TServerFactory.Args args = new TServerFactory.Args();
             args.tProtocolFactory = new TBinaryProtocol.Factory(true, true);
             args.addr = new InetSocketAddress(listenAddr, listenPort);
-            args.cassandraServer = server;
+            args.listenBacklog = listenBacklog;
             args.processor = processor;
             args.keepAlive = DatabaseDescriptor.getRpcKeepAlive();
             args.sendBufferSize = DatabaseDescriptor.getRpcSendBufferSize();

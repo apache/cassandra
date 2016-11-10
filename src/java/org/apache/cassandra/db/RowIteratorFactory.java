@@ -19,12 +19,15 @@ package org.apache.cassandra.db;
 
 import java.util.*;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.db.columniterator.IColumnIteratorFactory;
 import org.apache.cassandra.db.columniterator.LazyColumnIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableScanner;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
+import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
@@ -56,32 +59,26 @@ public class RowIteratorFactory
                                                      final long now)
     {
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
-        final List<CloseableIterator<OnDiskAtomIterator>> iterators = new ArrayList<CloseableIterator<OnDiskAtomIterator>>();
+        final List<CloseableIterator<OnDiskAtomIterator>> iterators = new ArrayList<>(Iterables.size(memtables) + sstables.size());
 
-        // memtables
         for (Memtable memtable : memtables)
-        {
-            iterators.add(new ConvertToColumnIterator<AtomicSortedColumns>(range, memtable.getEntryIterator(range.startKey(), range.stopKey())));
-        }
+            iterators.add(new ConvertToColumnIterator(range, memtable.getEntryIterator(range.startKey(), range.stopKey())));
 
         for (SSTableReader sstable : sstables)
-        {
-            final SSTableScanner scanner = sstable.getScanner(range);
-            iterators.add(scanner);
-        }
+            iterators.add(sstable.getScanner(range));
 
         // reduce rows from all sources into a single row
         return MergeIterator.get(iterators, COMPARE_BY_KEY, new MergeIterator.Reducer<OnDiskAtomIterator, Row>()
         {
             private final int gcBefore = cfs.gcBefore(now);
-            private final List<OnDiskAtomIterator> colIters = new ArrayList<OnDiskAtomIterator>();
+            private final List<OnDiskAtomIterator> colIters = new ArrayList<>();
             private DecoratedKey key;
             private ColumnFamily returnCF;
 
             @Override
             protected void onKeyChange()
             {
-                this.returnCF = TreeMapBackedSortedColumns.factory.create(cfs.metadata);
+                this.returnCF = ArrayBackedSortedColumns.factory.create(cfs.metadata, range.columnFilter.isReversed());
             }
 
             public void reduce(OnDiskAtomIterator current)
@@ -93,16 +90,18 @@ public class RowIteratorFactory
 
             protected Row getReduced()
             {
-                // First check if this row is in the rowCache. If it is we can skip the rest
+                // First check if this row is in the rowCache. If it is and it covers our filter, we can skip the rest
                 ColumnFamily cached = cfs.getRawCachedRow(key);
-                if (cached == null)
+                IDiskAtomFilter filter = range.columnFilter(key.getKey());
+
+                if (cached == null || !cfs.isFilterFullyCoveredBy(filter, cached, now))
                 {
                     // not cached: collate
-                    QueryFilter.collateOnDiskAtom(returnCF, colIters, range.columnFilter(key.key), gcBefore, now);
+                    QueryFilter.collateOnDiskAtom(returnCF, colIters, filter, key, gcBefore, now);
                 }
                 else
                 {
-                    QueryFilter keyFilter = new QueryFilter(key, cfs.name, range.columnFilter(key.key), now);
+                    QueryFilter keyFilter = new QueryFilter(key, cfs.name, filter, now);
                     returnCF = cfs.filterColumnFamily(cached, keyFilter);
                 }
 
@@ -117,12 +116,12 @@ public class RowIteratorFactory
     /**
      * Get a ColumnIterator for a specific key in the memtable.
      */
-    private static class ConvertToColumnIterator<T extends ColumnFamily> implements CloseableIterator<OnDiskAtomIterator>
+    private static class ConvertToColumnIterator implements CloseableIterator<OnDiskAtomIterator>
     {
         private final DataRange range;
-        private final Iterator<Map.Entry<DecoratedKey, T>> iter;
+        private final Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter;
 
-        public ConvertToColumnIterator(DataRange range, Iterator<Map.Entry<DecoratedKey, T>> iter)
+        public ConvertToColumnIterator(DataRange range, Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter)
         {
             this.range = range;
             this.iter = iter;
@@ -142,12 +141,12 @@ public class RowIteratorFactory
          */
         public OnDiskAtomIterator next()
         {
-            final Map.Entry<DecoratedKey, T> entry = iter.next();
+            final Map.Entry<DecoratedKey, ColumnFamily> entry = iter.next();
             return new LazyColumnIterator(entry.getKey(), new IColumnIteratorFactory()
             {
                 public OnDiskAtomIterator create()
                 {
-                    return range.columnFilter(entry.getKey().key).getColumnFamilyIterator(entry.getKey(), entry.getValue());
+                    return range.columnFilter(entry.getKey().getKey()).getColumnIterator(entry.getKey(), entry.getValue());
                 }
             });
         }

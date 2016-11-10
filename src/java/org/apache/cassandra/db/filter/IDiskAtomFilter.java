@@ -18,17 +18,18 @@
 package org.apache.cassandra.db.filter;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 
 /**
@@ -44,7 +45,9 @@ public interface IDiskAtomFilter
      * returns an iterator that returns columns from the given columnFamily
      * matching the Filter criteria in sorted order.
      */
-    public OnDiskAtomIterator getColumnFamilyIterator(DecoratedKey key, ColumnFamily cf);
+    public Iterator<Cell> getColumnIterator(ColumnFamily cf);
+
+    public OnDiskAtomIterator getColumnIterator(DecoratedKey key, ColumnFamily cf);
 
     /**
      * Get an iterator that returns columns from the given SSTable using the opened file
@@ -66,55 +69,65 @@ public interface IDiskAtomFilter
      * by the filter code, which should have some limit on the number of columns
      * to avoid running out of memory on large rows.
      */
-    public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore, long now);
+    public void collectReducedColumns(ColumnFamily container, Iterator<Cell> reducedColumns, DecoratedKey key, int gcBefore, long now);
 
-    public Comparator<Column> getColumnComparator(AbstractType<?> comparator);
+    public Comparator<Cell> getColumnComparator(CellNameType comparator);
 
     public boolean isReversed();
     public void updateColumnsLimit(int newLimit);
 
     public int getLiveCount(ColumnFamily cf, long now);
-    public ColumnCounter columnCounter(AbstractType<?> comparator, long now);
+    public ColumnCounter columnCounter(CellNameType comparator, long now);
 
     public IDiskAtomFilter cloneShallow();
-    public boolean maySelectPrefix(Comparator<ByteBuffer> cmp, ByteBuffer prefix);
+    public boolean maySelectPrefix(CType type, Composite prefix);
 
-    boolean shouldInclude(SSTableReader sstable);
+    public boolean shouldInclude(SSTableReader sstable);
+
+    public boolean countCQL3Rows(CellNameType comparator);
+
+    public boolean isHeadFilter();
+
+    /**
+     * Whether the provided cf, that is assumed to contain the head of the
+     * partition, contains enough data to cover this filter.
+     */
+    public boolean isFullyCoveredBy(ColumnFamily cf, long now);
 
     public static class Serializer implements IVersionedSerializer<IDiskAtomFilter>
     {
-        public static Serializer instance = new Serializer();
+        private final CellNameType type;
 
-        public void serialize(IDiskAtomFilter filter, DataOutput out, int version) throws IOException
+        public Serializer(CellNameType type)
+        {
+            this.type = type;
+        }
+
+        public void serialize(IDiskAtomFilter filter, DataOutputPlus out, int version) throws IOException
         {
             if (filter instanceof SliceQueryFilter)
             {
                 out.writeByte(0);
-                SliceQueryFilter.serializer.serialize((SliceQueryFilter)filter, out, version);
+                type.sliceQueryFilterSerializer().serialize((SliceQueryFilter)filter, out, version);
             }
             else
             {
                 out.writeByte(1);
-                NamesQueryFilter.serializer.serialize((NamesQueryFilter)filter, out, version);
+                type.namesQueryFilterSerializer().serialize((NamesQueryFilter)filter, out, version);
             }
         }
 
         public IDiskAtomFilter deserialize(DataInput in, int version) throws IOException
         {
-            throw new UnsupportedOperationException();
-        }
-
-        public IDiskAtomFilter deserialize(DataInput in, int version, AbstractType<?> comparator) throws IOException
-        {
-            int type = in.readByte();
-            if (type == 0)
+            int b = in.readByte();
+            if (b == 0)
             {
-                return SliceQueryFilter.serializer.deserialize(in, version);
+                return type.sliceQueryFilterSerializer().deserialize(in, version);
             }
             else
             {
-                assert type == 1;
-                return NamesQueryFilter.serializer.deserialize(in, version, comparator);
+                assert b == 1;
+                return type.namesQueryFilterSerializer().deserialize(in, version);
             }
         }
 
@@ -122,10 +135,12 @@ public interface IDiskAtomFilter
         {
             int size = 1;
             if (filter instanceof SliceQueryFilter)
-                size += SliceQueryFilter.serializer.serializedSize((SliceQueryFilter)filter, version);
+                size += type.sliceQueryFilterSerializer().serializedSize((SliceQueryFilter)filter, version);
             else
-                size += NamesQueryFilter.serializer.serializedSize((NamesQueryFilter)filter, version);
+                size += type.namesQueryFilterSerializer().serializedSize((NamesQueryFilter)filter, version);
             return size;
         }
     }
+
+    public Iterator<RangeTombstone> getRangeTombstoneIterator(ColumnFamily source);
 }

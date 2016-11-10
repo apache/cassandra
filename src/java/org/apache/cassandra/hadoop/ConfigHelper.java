@@ -26,7 +26,6 @@ import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.thrift.*;
@@ -55,6 +54,7 @@ public class ConfigHelper
     private static final String INPUT_PREDICATE_CONFIG = "cassandra.input.predicate";
     private static final String INPUT_KEYRANGE_CONFIG = "cassandra.input.keyRange";
     private static final String INPUT_SPLIT_SIZE_CONFIG = "cassandra.input.split.size";
+    private static final String INPUT_SPLIT_SIZE_IN_MB_CONFIG = "cassandra.input.split.size_mb";
     private static final String INPUT_WIDEROWS_CONFIG = "cassandra.input.widerows";
     private static final int DEFAULT_SPLIT_SIZE = 64 * 1024;
     private static final String RANGE_BATCH_SIZE_CONFIG = "cassandra.range.batch.size";
@@ -86,7 +86,7 @@ public class ConfigHelper
             throw new UnsupportedOperationException("keyspace may not be null");
 
         if (columnFamily == null)
-            throw new UnsupportedOperationException("columnfamily may not be null");
+            throw new UnsupportedOperationException("table may not be null");
 
         conf.set(INPUT_KEYSPACE_CONFIG, keyspace);
         conf.set(INPUT_COLUMNFAMILY_CONFIG, columnFamily);
@@ -177,7 +177,7 @@ public class ConfigHelper
      * the overhead of each map will take up the bulk of the job time.
      *
      * @param conf      Job configuration you are about to run
-     * @param splitsize Size of the input split
+     * @param splitsize Number of partitions in the input split
      */
     public static void setInputSplitSize(Configuration conf, int splitsize)
     {
@@ -187,6 +187,29 @@ public class ConfigHelper
     public static int getInputSplitSize(Configuration conf)
     {
         return conf.getInt(INPUT_SPLIT_SIZE_CONFIG, DEFAULT_SPLIT_SIZE);
+    }
+
+    /**
+     * Set the size of the input split. getInputSplitSize value is used if this is not set.
+     * This affects the number of maps created, if the number is too small
+     * the overhead of each map will take up the bulk of the job time.
+     *
+     * @param conf        Job configuration you are about to run
+     * @param splitSizeMb Input split size in MB
+     */
+    public static void setInputSplitSizeInMb(Configuration conf, int splitSizeMb)
+    {
+        conf.setInt(INPUT_SPLIT_SIZE_IN_MB_CONFIG, splitSizeMb);
+    }
+
+    /**
+     * cassandra.input.split.size will be used if the value is undefined or negative.
+     * @param conf  Job configuration you are about to run
+     * @return      split size in MB or -1 if it is undefined.
+     */
+    public static int getInputSplitSizeInMb(Configuration conf)
+    {
+        return conf.getInt(INPUT_SPLIT_SIZE_IN_MB_CONFIG, -1);
     }
 
     /**
@@ -417,14 +440,7 @@ public class ConfigHelper
 
     public static IPartitioner getInputPartitioner(Configuration conf)
     {
-        try
-        {
-            return FBUtilities.newPartitioner(conf.get(INPUT_PARTITIONER_CONFIG));
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return FBUtilities.newPartitioner(conf.get(INPUT_PARTITIONER_CONFIG));
     }
 
     public static int getOutputRpcPort(Configuration conf)
@@ -454,14 +470,7 @@ public class ConfigHelper
 
     public static IPartitioner getOutputPartitioner(Configuration conf)
     {
-        try
-        {
-            return FBUtilities.newPartitioner(conf.get(OUTPUT_PARTITIONER_CONFIG));
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return FBUtilities.newPartitioner(conf.get(OUTPUT_PARTITIONER_CONFIG));
     }
 
     public static String getOutputCompressionClass(Configuration conf)
@@ -503,15 +512,11 @@ public class ConfigHelper
         if (getOutputCompressionClass(conf) == null)
             return new CompressionParameters(null);
 
-        Map<String, String> options = new HashMap<String, String>();
+        Map<String, String> options = new HashMap<String, String>(2);
         options.put(CompressionParameters.SSTABLE_COMPRESSION, getOutputCompressionClass(conf));
         options.put(CompressionParameters.CHUNK_LENGTH_KB, getOutputCompressionChunkLength(conf));
 
-        try {
-            return CompressionParameters.create(options);
-        } catch (ConfigurationException e) {
-            throw new RuntimeException(e);
-        }
+        return CompressionParameters.create(options);
     }
 
     public static boolean getOutputLocalDCOnly(Configuration conf)
@@ -562,6 +567,7 @@ public class ConfigHelper
         return client;
     }
 
+    @SuppressWarnings("resource")
     public static Cassandra.Client createConnection(Configuration conf, String host, Integer port) throws IOException
     {
         try

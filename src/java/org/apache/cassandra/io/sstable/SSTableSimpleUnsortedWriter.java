@@ -28,16 +28,16 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.ArrayBackedSortedColumns;
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.compress.CompressionParameters;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * A SSTable writer that doesn't assume rows are in sorted order.
@@ -47,7 +47,10 @@ import org.apache.cassandra.net.MessagingService;
  * created (and the buffer be reseted).
  *
  * @see AbstractSSTableSimpleWriter
+ *
+ * @deprecated this class is depracted in favor of {@link CQLSSTableWriter}.
  */
+@Deprecated
 public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 {
     private static final Buffer SENTINEL = new Buffer();
@@ -80,7 +83,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                                        int bufferSizeInMB,
                                        CompressionParameters compressParameters)
     {
-        this(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator).compressionParameters(compressParameters), partitioner, bufferSizeInMB);
+        this(directory, CFMetaData.denseCFMetaData(keyspace, columnFamily, comparator, subComparator).compressionParameters(compressParameters), partitioner, bufferSizeInMB);
     }
 
     public SSTableSimpleUnsortedWriter(File directory,
@@ -97,8 +100,8 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     public SSTableSimpleUnsortedWriter(File directory, CFMetaData metadata, IPartitioner partitioner, long bufferSizeInMB)
     {
         super(directory, metadata, partitioner);
-        this.bufferSize = bufferSizeInMB * 1024L * 1024L;
-        this.diskWriter.start();
+        bufferSize = bufferSizeInMB * 1024L * 1024L;
+        diskWriter.start();
     }
 
     protected void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException
@@ -107,22 +110,22 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     }
 
     @Override
-    protected void addColumn(Column column) throws IOException
+    protected void addColumn(Cell cell) throws IOException
     {
-        super.addColumn(column);
-        countColumn(column);
+        super.addColumn(cell);
+        countColumn(cell);
     }
 
-    protected void countColumn(Column column) throws IOException
+    protected void countColumn(Cell cell) throws IOException
     {
-        currentSize += column.serializedSize(TypeSizes.NATIVE);
+        currentSize += cell.serializedSize(metadata.comparator, TypeSizes.NATIVE);
 
         // We don't want to sync in writeRow() only as this might blow up the bufferSize for wide rows.
         if (currentSize > bufferSize)
             replaceColumnFamily();
     }
 
-    protected ColumnFamily getColumnFamily() throws IOException
+    protected ColumnFamily getColumnFamily()
     {
         ColumnFamily previous = buffer.get(currentKey);
         // If the CF already exist in memory, we'll just continue adding to it
@@ -135,14 +138,20 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
             // on disk is:
             //   - the row key: 2 bytes size + key size bytes
             //   - the row level deletion infos: 4 + 8 bytes
-            currentSize += 14 + currentKey.key.remaining();
+            currentSize += 14 + currentKey.getKey().remaining();
         }
         return previous;
     }
 
-    protected ColumnFamily createColumnFamily() throws IOException
+    public Descriptor getCurrentDescriptor()
     {
-        return TreeMapBackedSortedColumns.factory.create(metadata);
+        // can be implemented, but isn't necessary
+        throw new UnsupportedOperationException();
+    }
+
+    protected ColumnFamily createColumnFamily()
+    {
+        return ArrayBackedSortedColumns.factory.create(metadata);
     }
 
     public void close() throws IOException
@@ -157,6 +166,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         {
             throw new RuntimeException(e);
         }
+        checkForWriterException();
     }
 
     // This is overridden by CQLSSTableWriter to hold off replacing column family until the next iteration through
@@ -175,6 +185,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         buffer = new Buffer();
         currentSize = 0;
         columnFamily = getColumnFamily();
+        buffer.setFirstInsertedKey(currentKey);
     }
 
     private void put(Buffer buffer) throws IOException
@@ -207,7 +218,17 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     }
 
     // typedef
-    private static class Buffer extends TreeMap<DecoratedKey, ColumnFamily> {}
+    private static class Buffer extends TreeMap<DecoratedKey, ColumnFamily> {
+        private DecoratedKey firstInsertedKey;
+
+        public void setFirstInsertedKey(DecoratedKey firstInsertedKey) {
+            this.firstInsertedKey = firstInsertedKey;
+        }
+
+        public DecoratedKey getFirstInsertedKey() {
+            return firstInsertedKey;
+        }
+    }
 
     private class DiskWriter extends Thread
     {
@@ -215,33 +236,37 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
         public void run()
         {
-            SSTableWriter writer = null;
-            try
             {
                 while (true)
                 {
-                    Buffer b = writeQueue.take();
-                    if (b == SENTINEL)
-                        return;
-
-                    writer = getWriter();
-                    boolean first = true;
-                    for (Map.Entry<DecoratedKey, ColumnFamily> entry : b.entrySet())
+                    try
                     {
-                        if (entry.getValue().getColumnCount() > 0)
-                            writer.append(entry.getKey(), entry.getValue());
-                        else if (!first)
-                            throw new AssertionError("Empty partition");
-                        first = false;
+                        Buffer b = writeQueue.take();
+                        if (b == SENTINEL)
+                            return;
+
+                        try (SSTableWriter writer = getWriter();)
+                        {
+                            for (Map.Entry<DecoratedKey, ColumnFamily> entry : b.entrySet())
+                            {
+                                if (entry.getValue().getColumnCount() > 0)
+                                    writer.append(entry.getKey(), entry.getValue());
+                                else if (!entry.getKey().equals(b.getFirstInsertedKey()))
+                                    throw new AssertionError("Empty partition");
+                            }
+                            
+                            writer.finish(false);
+                        }
                     }
-                    writer.close(true);
+                    catch (Throwable e)
+                    {
+                        JVMStabilityInspector.inspectThrowable(e);
+                        // Keep only the first exception
+                        if (exception == null)
+                            exception = e;
+                    }
                 }
-            }
-            catch (Throwable e)
-            {
-                if (writer != null)
-                    writer.abort();
-                exception = e;
+
             }
         }
     }

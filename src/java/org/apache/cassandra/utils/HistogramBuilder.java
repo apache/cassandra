@@ -88,7 +88,7 @@ public class HistogramBuilder
                 max = value;
         }
 
-        final long mean = (long)Math.round(sum / count);
+        final long mean = Math.round(sum / count);
         final double stdev =
                 Math.sqrt((sumsq / count) - (mean * (double) mean));
 

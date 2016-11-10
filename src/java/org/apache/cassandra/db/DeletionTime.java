@@ -18,21 +18,25 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.codehaus.jackson.annotate.JsonIgnore;
 
 /**
  * A top-level (row) tombstone.
  */
-public class DeletionTime implements Comparable<DeletionTime>
+public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 {
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionTime(0, 0));
+
     /**
      * A special DeletionTime that signifies that there is no top-level (row) tombstone.
      */
@@ -51,7 +55,7 @@ public class DeletionTime implements Comparable<DeletionTime>
      */
     public final int localDeletionTime;
 
-    public static final ISerializer<DeletionTime> serializer = new Serializer();
+    public static final Serializer serializer = new Serializer();
 
     @VisibleForTesting
     public DeletionTime(long markedForDeleteAt, int localDeletionTime)
@@ -99,7 +103,7 @@ public class DeletionTime implements Comparable<DeletionTime>
         else if (localDeletionTime < dt.localDeletionTime)
             return -1;
         else if (localDeletionTime > dt.localDeletionTime)
-            return -1;
+            return 1;
         else
             return 0;
     }
@@ -109,9 +113,9 @@ public class DeletionTime implements Comparable<DeletionTime>
         return localDeletionTime < gcBefore;
     }
 
-    public boolean isDeleted(Column column)
+    public boolean isDeleted(OnDiskAtom atom)
     {
-        return column.timestamp() <= markedForDeleteAt;
+        return atom.timestamp() <= markedForDeleteAt;
     }
 
     public boolean supersedes(DeletionTime dt)
@@ -119,15 +123,14 @@ public class DeletionTime implements Comparable<DeletionTime>
         return this.markedForDeleteAt > dt.markedForDeleteAt;
     }
 
-    public long memorySize()
+    public long unsharedHeapSize()
     {
-        long fields = TypeSizes.NATIVE.sizeof(markedForDeleteAt) + TypeSizes.NATIVE.sizeof(localDeletionTime);
-        return ObjectSizes.getFieldSize(fields);
+        return EMPTY_SIZE;
     }
 
-    private static class Serializer implements ISerializer<DeletionTime>
+    public static class Serializer implements ISerializer<DeletionTime>
     {
-        public void serialize(DeletionTime delTime, DataOutput out) throws IOException
+        public void serialize(DeletionTime delTime, DataOutputPlus out) throws IOException
         {
             out.writeInt(delTime.localDeletionTime);
             out.writeLong(delTime.markedForDeleteAt);
@@ -140,6 +143,11 @@ public class DeletionTime implements Comparable<DeletionTime>
             return mfda == Long.MIN_VALUE && ldt == Integer.MAX_VALUE
                  ? LIVE
                  : new DeletionTime(mfda, ldt);
+        }
+
+        public void skip(DataInput in) throws IOException
+        {
+            FileUtils.skipBytesFully(in, 4 + 8);
         }
 
         public long serializedSize(DeletionTime delTime, TypeSizes typeSizes)

@@ -18,8 +18,13 @@
 package org.apache.cassandra.hadoop;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -27,22 +32,22 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.IAuthenticator;
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.Host;
+import com.datastax.driver.core.Metadata;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.TokenRange;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.thrift.AuthenticationRequest;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.CfSplit;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.hadoop.cql3.CqlConfigHelper;
 import org.apache.cassandra.thrift.KeyRange;
-import org.apache.cassandra.thrift.TokenRange;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -50,13 +55,6 @@ import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
-import org.apache.thrift.TApplicationException;
-import org.apache.thrift.TException;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
-
 
 public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<K, Y> implements org.apache.hadoop.mapred.InputFormat<K, Y>
 {
@@ -65,7 +63,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
     public static final String MAPRED_TASK_ID = "mapred.task.id";
     // The simple fact that we need this is because the old Hadoop API wants us to "write"
     // to the key and value whereas the new asks for it.
-    // I choose 8kb as the default max key size (instanciated only once), but you can
+    // I choose 8kb as the default max key size (instantiated only once), but you can
     // override it in your jobConf with this setting.
     public static final String CASSANDRA_HADOOP_MAX_KEY_SIZE = "cassandra.hadoop.max_key_size";
     public static final int    CASSANDRA_HADOOP_MAX_KEY_SIZE_DEFAULT = 8192;
@@ -78,7 +76,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
     {
         if (ConfigHelper.getInputKeyspace(conf) == null || ConfigHelper.getInputColumnFamily(conf) == null)
         {
-            throw new UnsupportedOperationException("you must set the keyspace and columnfamily with setInputColumnFamily()");
+            throw new UnsupportedOperationException("you must set the keyspace and table with setInputColumnFamily()");
         }
         if (ConfigHelper.getInputInitialAddress(conf) == null)
             throw new UnsupportedOperationException("You must set the initial output address to a Cassandra node with setInputInitialAddress");
@@ -86,106 +84,72 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
             throw new UnsupportedOperationException("You must set the Cassandra partitioner class with setInputPartitioner");
     }
 
-    public static Cassandra.Client createAuthenticatedClient(String location, int port, Configuration conf) throws Exception
-    {
-        logger.debug("Creating authenticated client for CF input format");
-        TTransport transport;
-        try
-        {
-            transport = ConfigHelper.getClientTransportFactory(conf).openTransport(location, port);
-        }
-        catch (Exception e)
-        {
-            throw new TTransportException("Failed to open a transport to " + location + ":" + port + ".", e);
-        }
-        TProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
-        Cassandra.Client client = new Cassandra.Client(binaryProtocol);
-
-        // log in
-        client.set_keyspace(ConfigHelper.getInputKeyspace(conf));
-        if ((ConfigHelper.getInputKeyspaceUserName(conf) != null) && (ConfigHelper.getInputKeyspacePassword(conf) != null))
-        {
-            Map<String, String> creds = new HashMap<String, String>();
-            creds.put(IAuthenticator.USERNAME_KEY, ConfigHelper.getInputKeyspaceUserName(conf));
-            creds.put(IAuthenticator.PASSWORD_KEY, ConfigHelper.getInputKeyspacePassword(conf));
-            AuthenticationRequest authRequest = new AuthenticationRequest(creds);
-            client.login(authRequest);
-        }
-        logger.debug("Authenticated client for CF input format created successfully");
-        return client;
-    }
-
     public List<InputSplit> getSplits(JobContext context) throws IOException
     {
-        Configuration conf = HadoopCompat.getConfiguration(context);;
+        Configuration conf = HadoopCompat.getConfiguration(context);
 
         validateConfiguration(conf);
-
-        // cannonical ranges and nodes holding replicas
-        List<TokenRange> masterRangeNodes = getRangeMap(conf);
 
         keyspace = ConfigHelper.getInputKeyspace(conf);
         cfName = ConfigHelper.getInputColumnFamily(conf);
         partitioner = ConfigHelper.getInputPartitioner(conf);
-        logger.debug("partitioner is " + partitioner);
+        logger.trace("partitioner is {}", partitioner);
 
+        // canonical ranges and nodes holding replicas
+        Map<TokenRange, Set<Host>> masterRangeNodes = getRangeMap(conf, keyspace);
 
-        // cannonical ranges, split into pieces, fetching the splits in parallel
+        // canonical ranges, split into pieces, fetching the splits in parallel
         ExecutorService executor = new ThreadPoolExecutor(0, 128, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
-        List<InputSplit> splits = new ArrayList<InputSplit>();
+        List<InputSplit> splits = new ArrayList<>();
 
-        try
+        List<Future<List<InputSplit>>> splitfutures = new ArrayList<>();
+        KeyRange jobKeyRange = ConfigHelper.getInputKeyRange(conf);
+        Range<Token> jobRange = null;
+        if (jobKeyRange != null)
         {
-            List<Future<List<InputSplit>>> splitfutures = new ArrayList<Future<List<InputSplit>>>();
-            KeyRange jobKeyRange = ConfigHelper.getInputKeyRange(conf);
-            Range<Token> jobRange = null;
-            if (jobKeyRange != null)
+            if (jobKeyRange.start_key != null)
             {
-                if (jobKeyRange.start_key != null)
-                {
-                    if (!partitioner.preservesOrder())
-                        throw new UnsupportedOperationException("KeyRange based on keys can only be used with a order preserving paritioner");
-                    if (jobKeyRange.start_token != null)
-                        throw new IllegalArgumentException("only start_key supported");
-                    if (jobKeyRange.end_token != null)
-                        throw new IllegalArgumentException("only start_key supported");
-                    jobRange = new Range<>(partitioner.getToken(jobKeyRange.start_key),
-                                           partitioner.getToken(jobKeyRange.end_key),
-                                           partitioner);
-                }
-                else if (jobKeyRange.start_token != null)
-                {
-                    jobRange = new Range<>(partitioner.getTokenFactory().fromString(jobKeyRange.start_token),
-                                           partitioner.getTokenFactory().fromString(jobKeyRange.end_token),
-                                           partitioner);
-                }
-                else
-                {
-                    logger.warn("ignoring jobKeyRange specified without start_key or start_token");
-                }
+                if (!partitioner.preservesOrder())
+                    throw new UnsupportedOperationException("KeyRange based on keys can only be used with a order preserving partitioner");
+                if (jobKeyRange.start_token != null)
+                    throw new IllegalArgumentException("only start_key supported");
+                if (jobKeyRange.end_token != null)
+                    throw new IllegalArgumentException("only start_key supported");
+                jobRange = new Range<>(partitioner.getToken(jobKeyRange.start_key),
+                                       partitioner.getToken(jobKeyRange.end_key));
             }
+            else if (jobKeyRange.start_token != null)
+            {
+                jobRange = new Range<>(partitioner.getTokenFactory().fromString(jobKeyRange.start_token),
+                                       partitioner.getTokenFactory().fromString(jobKeyRange.end_token));
+            }
+            else
+            {
+                logger.warn("ignoring jobKeyRange specified without start_key or start_token");
+            }
+        }
 
-            for (TokenRange range : masterRangeNodes)
+        try (Cluster cluster = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf).split(","), conf);
+             Session session = cluster.connect())
+        {
+            Metadata metadata = session.getCluster().getMetadata();
+
+            for (TokenRange range : masterRangeNodes.keySet())
             {
                 if (jobRange == null)
                 {
-                    // for each range, pick a live owner and ask it to compute bite-sized splits
-                    splitfutures.add(executor.submit(new SplitCallable(range, conf)));
+                    // for each tokenRange, pick a live owner and ask it to compute bite-sized splits
+                    splitfutures.add(executor.submit(new SplitCallable(range, masterRangeNodes.get(range), conf, session)));
                 }
                 else
                 {
-                    Range<Token> dhtRange = new Range<Token>(partitioner.getTokenFactory().fromString(range.start_token),
-                                                             partitioner.getTokenFactory().fromString(range.end_token),
-                                                             partitioner);
-
-                    if (dhtRange.intersects(jobRange))
+                    TokenRange jobTokenRange = rangeToTokenRange(metadata, jobRange);
+                    if (range.intersects(jobTokenRange))
                     {
-                        for (Range<Token> intersection: dhtRange.intersectionWith(jobRange))
+                        for (TokenRange intersection: range.intersectWith(jobTokenRange))
                         {
-                            range.start_token = partitioner.getTokenFactory().toString(intersection.left);
-                            range.end_token = partitioner.getTokenFactory().toString(intersection.right);
-                            // for each range, pick a live owner and ask it to compute bite-sized splits
-                            splitfutures.add(executor.submit(new SplitCallable(range, conf)));
+                            // for each tokenRange, pick a live owner and ask it to compute bite-sized splits
+                            splitfutures.add(executor.submit(new SplitCallable(intersection,  masterRangeNodes.get(range), conf, session)));
                         }
                     }
                 }
@@ -214,56 +178,60 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         return splits;
     }
 
+    private TokenRange rangeToTokenRange(Metadata metadata, Range<Token> range)
+    {
+        return metadata.newTokenRange(metadata.newToken(partitioner.getTokenFactory().toString(range.left)),
+                metadata.newToken(partitioner.getTokenFactory().toString(range.right)));
+    }
+
     /**
-     * Gets a token range and splits it up according to the suggested
+     * Gets a token tokenRange and splits it up according to the suggested
      * size into input splits that Hadoop can use.
      */
     class SplitCallable implements Callable<List<InputSplit>>
     {
 
-        private final TokenRange range;
+        private final TokenRange tokenRange;
+        private final Set<Host> hosts;
         private final Configuration conf;
+        private final Session session;
 
-        public SplitCallable(TokenRange tr, Configuration conf)
+        public SplitCallable(TokenRange tr, Set<Host> hosts, Configuration conf, Session session)
         {
-            this.range = tr;
+            this.tokenRange = tr;
+            this.hosts = hosts;
             this.conf = conf;
+            this.session = session;
         }
 
         public List<InputSplit> call() throws Exception
         {
-            ArrayList<InputSplit> splits = new ArrayList<InputSplit>();
-            List<CfSplit> subSplits = getSubSplits(keyspace, cfName, range, conf);
-            assert range.rpc_endpoints.size() == range.endpoints.size() : "rpc_endpoints size must match endpoints size";
+            ArrayList<InputSplit> splits = new ArrayList<>();
+            Map<TokenRange, Long> subSplits;
+            subSplits = getSubSplits(keyspace, cfName, tokenRange, conf, session);
             // turn the sub-ranges into InputSplits
-            String[] endpoints = range.endpoints.toArray(new String[range.endpoints.size()]);
+            String[] endpoints = new String[hosts.size()];
+
             // hadoop needs hostname, not ip
             int endpointIndex = 0;
-            for (String endpoint: range.rpc_endpoints)
-            {
-                String endpoint_address = endpoint;
-                if (endpoint_address == null || endpoint_address.equals("0.0.0.0"))
-                    endpoint_address = range.endpoints.get(endpointIndex);
-                endpoints[endpointIndex++] = InetAddress.getByName(endpoint_address).getHostName();
-            }
+            for (Host endpoint : hosts)
+                endpoints[endpointIndex++] = endpoint.getAddress().getHostName();
 
-            Token.TokenFactory factory = partitioner.getTokenFactory();
-            for (CfSplit subSplit : subSplits)
+            for (TokenRange subSplit : subSplits.keySet())
             {
-                Token left = factory.fromString(subSplit.getStart_token());
-                Token right = factory.fromString(subSplit.getEnd_token());
-                Range<Token> range = new Range<Token>(left, right, partitioner);
-                List<Range<Token>> ranges = range.isWrapAround() ? range.unwrap() : ImmutableList.of(range);
-                for (Range<Token> subrange : ranges)
+                List<TokenRange> ranges = subSplit.unwrap();
+                for (TokenRange subrange : ranges)
                 {
                     ColumnFamilySplit split =
                             new ColumnFamilySplit(
-                                    factory.toString(subrange.left),
-                                    factory.toString(subrange.right),
-                                    subSplit.getRow_count(),
+                                    partitioner.preservesOrder() ?
+                                            subrange.getStart().toString().substring(2) : subrange.getStart().toString(),
+                                    partitioner.preservesOrder() ?
+                                            subrange.getEnd().toString().substring(2) : subrange.getEnd().toString(),
+                                    subSplits.get(subSplit),
                                     endpoints);
 
-                    logger.debug("adding " + split);
+                    logger.trace("adding {}", split);
                     splits.add(split);
                 }
             }
@@ -271,83 +239,69 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         }
     }
 
-    private List<CfSplit> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
+    private Map<TokenRange, Long> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf, Session session) throws IOException
     {
-        int splitsize = ConfigHelper.getInputSplitSize(conf);
-        for (int i = 0; i < range.rpc_endpoints.size(); i++)
-        {
-            String host = range.rpc_endpoints.get(i);
-
-            if (host == null || host.equals("0.0.0.0"))
-                host = range.endpoints.get(i);
-
-            try
-            {
-                Cassandra.Client client = ConfigHelper.createConnection(conf, host, ConfigHelper.getInputRpcPort(conf));
-                client.set_keyspace(keyspace);
-
-                try
-                {
-                    return client.describe_splits_ex(cfName, range.start_token, range.end_token, splitsize);
-                }
-                catch (TApplicationException e)
-                {
-                    // fallback to guessing split size if talking to a server without describe_splits_ex method
-                    if (e.getType() == TApplicationException.UNKNOWN_METHOD)
-                    {
-                        List<String> splitPoints = client.describe_splits(cfName, range.start_token, range.end_token, splitsize);
-                        return tokenListToSplits(splitPoints, splitsize);
-                    }
-                    throw e;
-                }
-            }
-            catch (IOException e)
-            {
-                logger.debug("failed connect to endpoint " + host, e);
-            }
-            catch (InvalidRequestException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (TException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-        throw new IOException("failed connecting to all endpoints " + StringUtils.join(range.endpoints, ","));
-    }
-
-    private List<CfSplit> tokenListToSplits(List<String> splitTokens, int splitsize)
-    {
-        List<CfSplit> splits = Lists.newArrayListWithExpectedSize(splitTokens.size() - 1);
-        for (int j = 0; j < splitTokens.size() - 1; j++)
-            splits.add(new CfSplit(splitTokens.get(j), splitTokens.get(j + 1), splitsize));
-        return splits;
-    }
-
-    private List<TokenRange> getRangeMap(Configuration conf) throws IOException
-    {
-        Cassandra.Client client = ConfigHelper.getClientFromInputAddressList(conf);
-
-        List<TokenRange> map;
+        int splitSize = ConfigHelper.getInputSplitSize(conf);
+        int splitSizeMb = ConfigHelper.getInputSplitSizeInMb(conf);
         try
         {
-            map = client.describe_local_ring(ConfigHelper.getInputKeyspace(conf));
+            return describeSplits(keyspace, cfName, range, splitSize, splitSizeMb, session);
         }
-        catch (InvalidRequestException e)
+        catch (Exception e)
         {
             throw new RuntimeException(e);
         }
-        catch (TException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return map;
     }
 
-    //
+    private Map<TokenRange, Set<Host>> getRangeMap(Configuration conf, String keyspace)
+    {
+        try (Cluster cluster = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf).split(","), conf))
+        {
+            Map<TokenRange, Set<Host>> map = new HashMap<>();
+            Metadata metadata = cluster.connect().getCluster().getMetadata();
+            for (TokenRange tokenRange : metadata.getTokenRanges())
+                map.put(tokenRange, metadata.getReplicas('"' + keyspace + '"', tokenRange));
+            return map;
+        }
+    }
+
+    private Map<TokenRange, Long> describeSplits(String keyspace, String table, TokenRange tokenRange, int splitSize, int splitSizeMb, Session session)
+    {
+        String query = String.format("SELECT mean_partition_size, partitions_count " +
+                                     "FROM %s.%s " +
+                                     "WHERE keyspace_name = ? AND table_name = ? AND range_start = ? AND range_end = ?",
+                                     SystemKeyspace.NAME,
+                                     SystemKeyspace.SIZE_ESTIMATES);
+
+        ResultSet resultSet = session.execute(query, keyspace, table, tokenRange.getStart().toString(), tokenRange.getEnd().toString());
+
+        Row row = resultSet.one();
+        // If we have no data on this split, return the full split i.e., do not sub-split
+        // Assume smallest granularity of partition count available from CASSANDRA-7688
+        if (row == null)
+        {
+            Map<TokenRange, Long> wrappedTokenRange = new HashMap<>();
+            wrappedTokenRange.put(tokenRange, (long) 128);
+            return wrappedTokenRange;
+        }
+
+        long meanPartitionSize = row.getLong("mean_partition_size");
+        long partitionCount = row.getLong("partitions_count");
+
+        int splitCount = splitSizeMb > 0
+            ? (int)(meanPartitionSize * partitionCount / splitSizeMb / 1024 / 1024)
+            : (int)(partitionCount / splitSize);
+
+        if (splitCount <= 0) splitCount = 1;
+        List<TokenRange> splitRanges = tokenRange.splitEvenly(splitCount);
+        Map<TokenRange, Long> rangesWithLength = new HashMap<>();
+        for (TokenRange range : splitRanges)
+            rangesWithLength.put(range, partitionCount/splitCount);
+
+        return rangesWithLength;
+    }
+
     // Old Hadoop API
-    //
     public org.apache.hadoop.mapred.InputSplit[] getSplits(JobConf jobConf, int numSplits) throws IOException
     {
         TaskAttemptContext tac = HadoopCompat.newTaskAttemptContext(jobConf, new TaskAttemptID());

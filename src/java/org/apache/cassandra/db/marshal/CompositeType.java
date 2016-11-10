@@ -19,21 +19,20 @@ package org.apache.cassandra.db.marshal;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.cql3.ColumnNameBuilder;
-import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -69,7 +68,7 @@ public class CompositeType extends AbstractCompositeType
     public final List<AbstractType<?>> types;
 
     // interning instances
-    private static final Map<List<AbstractType<?>>, CompositeType> instances = new HashMap<List<AbstractType<?>>, CompositeType>();
+    private static final ConcurrentMap<List<AbstractType<?>>, CompositeType> instances = new ConcurrentHashMap<List<AbstractType<?>>, CompositeType>();
 
     public static CompositeType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
@@ -99,7 +98,7 @@ public class CompositeType extends AbstractCompositeType
         return true;
     }
 
-    public static synchronized CompositeType getInstance(List<AbstractType<?>> types)
+    public static CompositeType getInstance(List<AbstractType<?>> types)
     {
         assert types != null && !types.isEmpty();
 
@@ -107,14 +106,29 @@ public class CompositeType extends AbstractCompositeType
         if (ct == null)
         {
             ct = new CompositeType(types);
-            instances.put(types, ct);
+            CompositeType previous = instances.putIfAbsent(types, ct);
+            if (previous != null)
+            {
+                ct = previous;
+            }
         }
         return ct;
     }
 
-    private CompositeType(List<AbstractType<?>> types)
+    protected CompositeType(List<AbstractType<?>> types)
     {
         this.types = ImmutableList.copyOf(types);
+    }
+
+    @Override
+    public boolean references(AbstractType<?> check)
+    {
+        if (super.references(check))
+            return true;
+        for (AbstractType<?> type : types)
+            if (type.references(check))
+                return true;
+        return false;
     }
 
     protected AbstractType<?> getComparator(int i, ByteBuffer bb)
@@ -168,6 +182,23 @@ public class CompositeType extends AbstractCompositeType
             serialized[i] = buffer;
         }
         return build(serialized);
+    }
+
+    // Overriding the one of AbstractCompositeType because we can do a tad better
+    @Override
+    public ByteBuffer[] split(ByteBuffer name)
+    {
+        // Assume all components, we'll trunk the array afterwards if need be, but
+        // most names will be complete.
+        ByteBuffer[] l = new ByteBuffer[types.size()];
+        ByteBuffer bb = name.duplicate();
+        int i = 0;
+        while (bb.remaining() > 0)
+        {
+            l[i++] = ByteBufferUtil.readBytesWithShortLength(bb);
+            bb.get(); // skip end-of-component
+        }
+        return i == l.length ? l : Arrays.copyOfRange(l, 0, i);
     }
 
     // Extract component idx from bb. Return null if there is not enough component.
@@ -260,60 +291,6 @@ public class CompositeType extends AbstractCompositeType
         return true;
     }
 
-    @Override
-    public boolean intersects(List<ByteBuffer> minColumnNames, List<ByteBuffer> maxColumnNames, SliceQueryFilter filter)
-    {
-        assert minColumnNames.size() == maxColumnNames.size();
-
-        // If any of the slices in the filter intersect, return true
-        outer:
-        for (ColumnSlice slice : filter.slices)
-        {
-            ByteBuffer[] start = split(filter.isReversed() ? slice.finish : slice.start);
-            ByteBuffer[] finish = split(filter.isReversed() ? slice.start : slice.finish);
-
-            if (compare(start, maxColumnNames, true) > 0 || compare(finish, minColumnNames, false) < 0)
-                continue;  // slice does not intersect
-
-            // We could safely return true here, but there's a minor optimization: if the first component is restricted
-            // to a single value, we can check that the second component falls within the min/max for that component
-            // (and repeat for all components).
-            for (int i = 0; i < minColumnNames.size(); i++)
-            {
-                AbstractType<?> t = types.get(i);
-                ByteBuffer s = i < start.length ? start[i] : ByteBufferUtil.EMPTY_BYTE_BUFFER;
-                ByteBuffer f = i < finish.length ? finish[i] : ByteBufferUtil.EMPTY_BYTE_BUFFER;
-
-                // we already know the first component falls within its min/max range (otherwise we wouldn't get here)
-                if (i > 0 && !t.intersects(minColumnNames.get(i), maxColumnNames.get(i), s, f))
-                    continue outer;
-
-                // if this component isn't equal in the start and finish, we don't need to check any more
-                if (i >= start.length || i >= finish.length || t.compare(s, f) != 0)
-                    break;
-            }
-            return true;
-        }
-
-        // none of the slices intersected
-        return false;
-    }
-
-    /** Helper method for intersects() */
-    private int compare(ByteBuffer[] sliceBounds, List<ByteBuffer> sstableBounds, boolean isSliceStart)
-    {
-        for (int i = 0; i < sstableBounds.size(); i++)
-        {
-            if (i >= sliceBounds.length)
-                return isSliceStart ? -1 : 1;
-
-            int comparison = types.get(i).compare(sliceBounds[i], sstableBounds.get(i));
-            if (comparison != 0)
-                return comparison;
-        }
-        return 0;
-    }
-
     private static class StaticParsedComparator implements ParsedComparator
     {
         final AbstractType<?> type;
@@ -371,7 +348,7 @@ public class CompositeType extends AbstractCompositeType
         return out;
     }
 
-    public static class Builder implements ColumnNameBuilder
+    public static class Builder
     {
         private final CompositeType composite;
 
@@ -418,6 +395,11 @@ public class CompositeType extends AbstractCompositeType
             return this;
         }
 
+        public Builder add(ColumnIdentifier name)
+        {
+            return add(name.bytes);
+        }
+
         public int componentCount()
         {
             return components.size();
@@ -435,9 +417,8 @@ public class CompositeType extends AbstractCompositeType
 
         public ByteBuffer build()
         {
-            try
+            try (DataOutputBuffer out = new DataOutputBufferFixed(serializedSize))
             {
-                DataOutputBuffer out = new DataOutputBuffer(serializedSize);
                 if (isStatic)
                     out.writeShort(STATIC_MARKER);
 
@@ -464,7 +445,7 @@ public class CompositeType extends AbstractCompositeType
             return bb;
         }
 
-        public ByteBuffer buildForRelation(Relation.Type op)
+        public ByteBuffer buildForRelation(Operator op)
         {
             /*
              * Given the rules for eoc (end-of-component, see AbstractCompositeType.compare()),
@@ -503,15 +484,6 @@ public class CompositeType extends AbstractCompositeType
                 throw new IllegalArgumentException();
 
             return components.get(i);
-        }
-
-        public int getLength()
-        {
-            int length = 0;
-            for (ByteBuffer component : components)
-                length += component.remaining() + 3; // length + 2 bytes for length + EOC
-
-            return length;
         }
     }
 }

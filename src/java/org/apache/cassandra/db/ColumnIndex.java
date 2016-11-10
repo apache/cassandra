@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -25,7 +24,9 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnIndex
@@ -53,8 +54,6 @@ public class ColumnIndex
      */
     public static class Builder
     {
-        private static final OnDiskAtom.Serializer atomSerializer = Column.onDiskSerializer();
-
         private final ColumnIndex result;
         private final long indexOffset;
         private long startPosition = -1;
@@ -63,15 +62,25 @@ public class ColumnIndex
         private OnDiskAtom firstColumn;
         private OnDiskAtom lastColumn;
         private OnDiskAtom lastBlockClosing;
-        private final DataOutput output;
+        private final DataOutputPlus output;
         private final RangeTombstone.Tracker tombstoneTracker;
         private int atomCount;
         private final ByteBuffer key;
         private final DeletionInfo deletionInfo; // only used for serializing and calculating row header size
 
+        private final OnDiskAtom.SerializerForWriting atomSerializer;
+
         public Builder(ColumnFamily cf,
                        ByteBuffer key,
-                       DataOutput output)
+                       DataOutputPlus output)
+        {
+            this(cf, key, output, cf.getComparator().onDiskAtomSerializer());
+        }
+
+        public Builder(ColumnFamily cf,
+                ByteBuffer key,
+                DataOutputPlus output,
+                OnDiskAtom.SerializerForWriting serializer)
         {
             assert cf != null;
             assert key != null;
@@ -83,6 +92,7 @@ public class ColumnIndex
             this.result = new ColumnIndex(new ArrayList<IndexHelper.IndexInfo>());
             this.output = output;
             this.tombstoneTracker = new RangeTombstone.Tracker(cf.getComparator());
+            this.atomSerializer = serializer;
         }
 
         /**
@@ -119,18 +129,25 @@ public class ColumnIndex
         public ColumnIndex build(ColumnFamily cf) throws IOException
         {
             // cf has disentangled the columns and range tombstones, we need to re-interleave them in comparator order
+            Comparator<Composite> comparator = cf.getComparator();
+            DeletionInfo.InOrderTester tester = cf.deletionInfo().inOrderTester();
             Iterator<RangeTombstone> rangeIter = cf.deletionInfo().rangeIterator();
             RangeTombstone tombstone = rangeIter.hasNext() ? rangeIter.next() : null;
-            Comparator<ByteBuffer> comparator = cf.getComparator();
 
-            for (Column c : cf)
+            for (Cell c : cf)
             {
                 while (tombstone != null && comparator.compare(c.name(), tombstone.min) >= 0)
                 {
-                    add(tombstone);
+                    // skip range tombstones that are shadowed by partition tombstones
+                    if (!cf.deletionInfo().getTopLevelDeletion().isDeleted(tombstone))
+                        add(tombstone);
                     tombstone = rangeIter.hasNext() ? rangeIter.next() : null;
                 }
-                add(c);
+
+                // We can skip any cell if it's shadowed by a tombstone already. This is a more
+                // general case than was handled by CASSANDRA-2589.
+                if (!tester.isDeleted(c))
+                    add(c);
             }
 
             while (tombstone != null)
@@ -138,6 +155,7 @@ public class ColumnIndex
                 add(tombstone);
                 tombstone = rangeIter.hasNext() ? rangeIter.next() : null;
             }
+            finishAddingAtoms();
             ColumnIndex index = build();
 
             maybeWriteEmptyRowHeader();
@@ -154,7 +172,12 @@ public class ColumnIndex
         public ColumnIndex buildForCompaction(Iterator<OnDiskAtom> columns) throws IOException
         {
             while (columns.hasNext())
-                add(columns.next());
+            {
+                OnDiskAtom c =  columns.next();
+                add(c);
+            }
+            finishAddingAtoms();
+
             return build();
         }
 
@@ -167,14 +190,24 @@ public class ColumnIndex
                 firstColumn = column;
                 startPosition = endPosition;
                 // TODO: have that use the firstColumn as min + make sure we optimize that on read
-                endPosition += tombstoneTracker.writeOpenedMarker(firstColumn, output, atomSerializer);
+                endPosition += tombstoneTracker.writeOpenedMarkers(firstColumn.name(), output, atomSerializer);
                 blockSize = 0; // We don't count repeated tombstone marker in the block size, to avoid a situation
                                // where we wouldn't make any progress because a block is filled by said marker
+
+                maybeWriteRowHeader();
             }
 
-            long size = column.serializedSizeForSSTable();
-            endPosition += size;
-            blockSize += size;
+            if (tombstoneTracker.update(column, false))
+            {
+                long size = tombstoneTracker.writeUnwrittenTombstones(output, atomSerializer);
+                size += atomSerializer.serializedSizeForSSTable(column);
+                endPosition += size;
+                blockSize += size;
+
+                atomSerializer.serializeForSSTable(column, output);
+            }
+
+            lastColumn = column;
 
             // if we hit the column index size that we have to index after, go ahead and index it.
             if (blockSize >= DatabaseDescriptor.getColumnIndexSize())
@@ -184,14 +217,6 @@ public class ColumnIndex
                 firstColumn = null;
                 lastBlockClosing = column;
             }
-
-            maybeWriteRowHeader();
-            atomSerializer.serializeForSSTable(column, output);
-
-            // TODO: Should deal with removing unneeded tombstones
-            tombstoneTracker.update(column, false);
-
-            lastColumn = column;
         }
 
         private void maybeWriteRowHeader() throws IOException
@@ -203,8 +228,16 @@ public class ColumnIndex
             }
         }
 
+        public void finishAddingAtoms() throws IOException
+        {
+            long size = tombstoneTracker.writeUnwrittenTombstones(output, atomSerializer);
+            endPosition += size;
+            blockSize += size;
+        }
+
         public ColumnIndex build()
         {
+            assert !tombstoneTracker.hasUnwrittenTombstones();  // finishAddingAtoms must be called before building.
             // all columns were GC'd after all
             if (lastColumn == null)
                 return ColumnIndex.EMPTY;

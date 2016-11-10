@@ -37,10 +37,6 @@ Streaming compression support provided by ning-compress
 (https://github.com/ning/compress)
 Copyright 2009-2010 Ning, Inc.
 
-Alternative map implementation provided by SnapTree
-(https://github.com/nbronson/snaptree)
-Written by Nathan G. Bronson et al.
-
 CQL Native transport uses Netty
 (https://netty.io/)
 Copyright (C) 2011 The Netty Project
@@ -56,3 +52,25 @@ Written by Pavel Yaskevich.
 LMAX Disruptor
 (http://lmax-exchange.github.io/disruptor/)
 Copyright 2011 LMAX Ltd.
+
+Airline
+(https://github.com/airlift/airline)
+Copyright 2011, Dain Sundstrom dain@iq80.com
+Copyright 2010, Cedric Beust cedric@beust.com
+
+HLL++ support provided by stream-lib
+(https://github.com/addthis/stream-lib)
+
+Eclipse JDT
+Java compilation software for user-defined-functions is provided by Eclipse,
+which is open source software.  The original software and
+related information is available at http://www.eclipse.org/
+(http://www.eclipse.org/jdt/)
+
+SIGAR
+http://sigar.hyperic.com/
+
+OHC
+(https://github.com/snazy/ohc)
+Java Off-Heap-Cache, licensed under APLv2
+Copyright 2014-2015 Robert Stupp, Germany.

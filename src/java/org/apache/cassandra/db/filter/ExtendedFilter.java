@@ -19,23 +19,28 @@ package org.apache.cassandra.db.filter;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
 import com.google.common.base.Objects;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnNameBuilder;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IndexExpression;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.marshal.*;
 
 /**
  * Extends a column filter (IFilter) to include a number of IndexExpression.
@@ -138,9 +143,9 @@ public abstract class ExtendedFilter
      * @return true if the provided data satisfies all the expressions from
      * the clause of this filter.
      */
-    public abstract boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder);
+    public abstract boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, Composite prefix, ByteBuffer collectionElement);
 
-    public static boolean satisfies(int comparison, IndexOperator op)
+    public static boolean satisfies(int comparison, Operator op)
     {
         switch (op)
         {
@@ -163,11 +168,11 @@ public abstract class ExtendedFilter
     public String toString()
     {
         return Objects.toStringHelper(this)
-                      .add("cfs", cfs)
                       .add("dataRange", dataRange)
                       .add("maxResults", maxResults)
-                      .add("countCQL3Rows", countCQL3Rows)
                       .add("currentLimit", currentLimit)
+                      .add("timestamp", timestamp)
+                      .add("countCQL3Rows", countCQL3Rows)
                       .toString();
     }
 
@@ -201,7 +206,7 @@ public abstract class ExtendedFilter
              * We also don't want to do for paging ranges as the actual filter depends on the row key (it would
              * probably be possible to make it work but we won't really use it so we don't bother).
              */
-            if (cfs.getComparator() instanceof CompositeType || dataRange instanceof DataRange.Paging)
+            if (cfs.getComparator().isCompound() || dataRange instanceof DataRange.Paging)
                 return null;
 
             IDiskAtomFilter filter = dataRange.columnFilter(null); // ok since not a paging range
@@ -209,7 +214,7 @@ public abstract class ExtendedFilter
             {
                 // if we have a high chance of getting all the columns in a single index slice (and it's not too costly), do that.
                 // otherwise, the extraFilter (lazily created) will fetch by name the columns referenced by the additional expressions.
-                if (cfs.getMaxRowSize() < DatabaseDescriptor.getColumnIndexSize())
+                if (cfs.metric.maxRowSize.getValue() < DatabaseDescriptor.getColumnIndexSize())
                 {
                     logger.trace("Expanding slice filter to entire row to cover additional expressions");
                     return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, ((SliceQueryFilter)filter).reversed, Integer.MAX_VALUE);
@@ -221,11 +226,9 @@ public abstract class ExtendedFilter
                 assert filter instanceof NamesQueryFilter;
                 if (!clause.isEmpty())
                 {
-                    SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfs.getComparator());
+                    SortedSet<CellName> columns = new TreeSet<CellName>(cfs.getComparator());
                     for (IndexExpression expr : clause)
-                    {
-                        columns.add(expr.column_name);
-                    }
+                        columns.add(cfs.getComparator().cellFromByteBuffer(expr.column));
                     columns.addAll(((NamesQueryFilter) filter).columns);
                     return ((NamesQueryFilter) filter).withUpdatedColumns(columns);
                 }
@@ -256,9 +259,9 @@ public abstract class ExtendedFilter
 
             for (IndexExpression expr : clause)
             {
-                if (data.getColumn(expr.column_name) == null)
+                if (data.getColumn(data.getComparator().cellFromByteBuffer(expr.column)) == null)
                 {
-                    logger.debug("adding extraFilter to cover additional expressions");
+                    logger.trace("adding extraFilter to cover additional expressions");
                     return true;
                 }
             }
@@ -274,19 +277,20 @@ public abstract class ExtendedFilter
              * 2) We don't yet allow non-indexed range slice with filters in CQL3 (i.e. this will never be
              * called by CFS.filter() for composites).
              */
-            assert !(cfs.getComparator() instanceof CompositeType) : "Sequential scan with filters is not supported (if you just created an index, you "
-                                                                     + "need to wait for the creation to be propagated to all nodes before querying it)";
+            assert !(cfs.getComparator().isCompound()) : "Sequential scan with filters is not supported (if you just created an index, you "
+                                                         + "need to wait for the creation to be propagated to all nodes before querying it)";
 
-            if (!needsExtraQuery(rowKey.key, data))
+            if (!needsExtraQuery(rowKey.getKey(), data))
                 return null;
 
             // Note: for counters we must be careful to not add a column that was already there (to avoid overcount). That is
             // why we do the dance of avoiding to query any column we already have (it's also more efficient anyway)
-            SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfs.getComparator());
+            SortedSet<CellName> columns = new TreeSet<CellName>(cfs.getComparator());
             for (IndexExpression expr : clause)
             {
-                if (data.getColumn(expr.column_name) == null)
-                    columns.add(expr.column_name);
+                CellName name = data.getComparator().cellFromByteBuffer(expr.column);
+                if (data.getColumn(name) == null)
+                    columns.add(name);
             }
             assert !columns.isEmpty();
             return new NamesQueryFilter(columns);
@@ -298,67 +302,162 @@ public abstract class ExtendedFilter
                 return data;
 
             ColumnFamily pruned = data.cloneMeShallow();
-            IDiskAtomFilter filter = dataRange.columnFilter(rowKey.key);
-            OnDiskAtomIterator iter = filter.getColumnFamilyIterator(rowKey, data);
-            filter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), cfs.gcBefore(timestamp), timestamp);
+            IDiskAtomFilter filter = dataRange.columnFilter(rowKey.getKey());
+            Iterator<Cell> iter = filter.getColumnIterator(data);
+            filter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), rowKey, cfs.gcBefore(timestamp), timestamp);
             return pruned;
         }
 
-        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder)
+        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, Composite prefix, ByteBuffer collectionElement)
         {
-            // We enforces even the primary clause because reads are not synchronized with writes and it is thus possible to have a race
-            // where the index returned a row which doesn't have the primary column when we actually read it
             for (IndexExpression expression : clause)
             {
-                ColumnDefinition def = data.metadata().getColumnDefinition(expression.column_name);
+                ColumnDefinition def = data.metadata().getColumnDefinition(expression.column);
                 ByteBuffer dataValue = null;
                 AbstractType<?> validator = null;
                 if (def == null)
                 {
                     // This can't happen with CQL3 as this should be rejected upfront. For thrift however,
-                    // column name are not predefined. But that means the column name correspond to an internal one.
-                    Column column = data.getColumn(expression.column_name);
-                    if (column != null)
+                    // cell name are not predefined. But that means the cell name correspond to an internal one.
+                    Cell cell = data.getColumn(data.getComparator().cellFromByteBuffer(expression.column));
+                    if (cell != null)
                     {
-                        dataValue = column.value();
+                        dataValue = cell.value();
                         validator = data.metadata().getDefaultValidator();
                     }
                 }
                 else
                 {
-                    dataValue = extractDataValue(def, rowKey.key, data, builder);
-                    validator = def.getValidator();
+                    if (def.type.isCollection() && def.type.isMultiCell())
+                    {
+                        if (!collectionSatisfies(def, data, prefix, expression))
+                            return false;
+                        continue;
+                    }
+
+                    dataValue = extractDataValue(def, rowKey.getKey(), data, prefix);
+                    validator = def.type;
                 }
 
                 if (dataValue == null)
                     return false;
 
-                int v = validator.compare(dataValue, expression.value);
-                if (!satisfies(v, expression.op))
-                    return false;
+                if (expression.operator == Operator.CONTAINS)
+                {
+                    assert def != null && def.type.isCollection() && !def.type.isMultiCell();
+                    CollectionType type = (CollectionType)def.type;
+                    switch (type.kind)
+                    {
+                        case LIST:
+                            ListType<?> listType = (ListType)def.type;
+                            if (!listType.getSerializer().deserialize(dataValue).contains(listType.getElementsType().getSerializer().deserialize(expression.value)))
+                                return false;
+                            break;
+                        case SET:
+                            SetType<?> setType = (SetType)def.type;
+                            if (!setType.getSerializer().deserialize(dataValue).contains(setType.getElementsType().getSerializer().deserialize(expression.value)))
+                                return false;
+                            break;
+                        case MAP:
+                            MapType<?,?> mapType = (MapType)def.type;
+                            if (!mapType.getSerializer().deserialize(dataValue).containsValue(mapType.getValuesType().getSerializer().deserialize(expression.value)))
+                                return false;
+                            break;
+                    }
+                }
+                else if (expression.operator == Operator.CONTAINS_KEY)
+                {
+                    assert def != null && def.type.isCollection() && !def.type.isMultiCell() && def.type instanceof MapType;
+                    MapType<?,?> mapType = (MapType)def.type;
+                    if (mapType.getSerializer().getSerializedValue(dataValue, expression.value, mapType.getKeysType()) == null)
+                        return false;
+                }
+                else
+                {
+                    int v = validator.compare(dataValue, expression.value);
+                    if (!satisfies(v, expression.operator))
+                        return false;
+                }
             }
             return true;
         }
 
-        private ByteBuffer extractDataValue(ColumnDefinition def, ByteBuffer rowKey, ColumnFamily data, ColumnNameBuilder builder)
+        private static boolean collectionSatisfies(ColumnDefinition def, ColumnFamily data, Composite prefix, IndexExpression expr)
         {
-            switch (def.type)
+            assert def.type.isCollection() && def.type.isMultiCell();
+            CollectionType type = (CollectionType)def.type;
+
+            if (expr.isContains())
+            {
+                // get a slice of the collection cells
+                Iterator<Cell> iter = data.iterator(new ColumnSlice[]{ data.getComparator().create(prefix, def).slice() });
+                while (iter.hasNext())
+                {
+                    Cell cell = iter.next();
+                    if (type.kind == CollectionType.Kind.SET)
+                    {
+                        if (type.nameComparator().compare(cell.name().collectionElement(), expr.value) == 0)
+                            return true;
+                    }
+                    else
+                    {
+                        if (type.valueComparator().compare(cell.value(), expr.value) == 0)
+                            return true;
+                    }
+                }
+
+                return false;
+            }
+
+            assert type.kind == CollectionType.Kind.MAP;
+            if (expr.isContainsKey())
+                return data.getColumn(data.getComparator().create(prefix, def, expr.value)) != null;
+
+            Iterator<Cell> iter = data.iterator(new ColumnSlice[]{ data.getComparator().create(prefix, def).slice() });
+            ByteBuffer key = CompositeType.extractComponent(expr.value, 0);
+            ByteBuffer value = CompositeType.extractComponent(expr.value, 1);
+            while (iter.hasNext())
+            {
+                Cell next = iter.next();
+                if (type.nameComparator().compare(next.name().collectionElement(), key) == 0 &&
+                    type.valueComparator().compare(next.value(), value) == 0)
+                    return true;
+            }
+            return false;
+        }
+
+        private ByteBuffer extractDataValue(ColumnDefinition def, ByteBuffer rowKey, ColumnFamily data, Composite prefix)
+        {
+            switch (def.kind)
             {
                 case PARTITION_KEY:
-                    return def.componentIndex == null
+                    return def.isOnAllComponents()
                          ? rowKey
-                         : ((CompositeType)data.metadata().getKeyValidator()).split(rowKey)[def.componentIndex];
-                case CLUSTERING_KEY:
-                    return builder.get(def.componentIndex);
+                         : ((CompositeType)data.metadata().getKeyValidator()).split(rowKey)[def.position()];
+                case CLUSTERING_COLUMN:
+                    return prefix.get(def.position());
                 case REGULAR:
-                    ByteBuffer colName = builder == null ? def.name : builder.copy().add(def.name).build();
-                    Column column = data.getColumn(colName);
-                    return column == null ? null : column.value();
+                    CellName cname = prefix == null
+                                   ? data.getComparator().cellFromByteBuffer(def.name.bytes)
+                                   : data.getComparator().create(prefix, def);
+
+                    Cell cell = data.getColumn(cname);
+                    return cell == null ? null : cell.value();
                 case COMPACT_VALUE:
                     assert data.getColumnCount() == 1;
                     return data.getSortedColumns().iterator().next().value();
             }
             throw new AssertionError();
+        }
+
+        @Override
+        public String toString()
+        {
+            return Objects.toStringHelper(this)
+                          .add("dataRange", dataRange)
+                          .add("timestamp", timestamp)
+                          .add("clause", clause)
+                          .toString();
         }
     }
 
@@ -384,7 +483,7 @@ public abstract class ExtendedFilter
             return data;
         }
 
-        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder)
+        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, Composite prefix, ByteBuffer collectionElement)
         {
             return true;
         }

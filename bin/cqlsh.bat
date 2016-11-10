@@ -22,7 +22,7 @@ if "%OS%" == "Windows_NT" setlocal
 python -V >nul 2>&1
 if ERRORLEVEL 1 goto err
 
-python "%~dp0\cqlsh" %*
+python "%~dp0\cqlsh.py" %*
 goto finally
 
 :err

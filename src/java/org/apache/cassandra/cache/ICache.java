@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.cache;
 
-import java.util.Set;
+import java.util.Iterator;
 
 /**
  * This is similar to the Map interface, but requires maintaining a given capacity
@@ -46,9 +46,9 @@ public interface ICache<K, V>
 
     public void clear();
 
-    public Set<K> keySet();
+    public Iterator<K> keyIterator();
 
-    public Set<K> hotKeySet(int n);
+    public Iterator<K> hotKeyIterator(int n);
 
     public boolean containsKey(K key);
 }

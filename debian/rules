@@ -3,6 +3,8 @@
 # Uncomment to enable verbose mode.
 #export DH_VERBOSE=1
 
+include /usr/share/dpatch/dpatch.make
+
 ANT = /usr/bin/ant
 VERSION = $(shell dpkg-parsechangelog | sed -ne 's/^Version: \([^-|~|+]*\).*/\1/p')
 
@@ -10,7 +12,7 @@ test:
 	dh_testdir
 	$(ANT) test
 
-clean:
+clean: unpatch
 	dh_testdir
 	dh_testroot
 	$(ANT) realclean
@@ -22,10 +24,11 @@ clean:
 	dh_clean
 
 build: build-stamp
-build-stamp:
+build-stamp: patch-stamp
 	dh_testdir
 	printf "version=%s" $(VERSION) > build.properties
 
+	$(ANT) generate-cql-html
 	$(ANT) jar
 	cd pylib && python setup.py install --no-compile --install-layout deb \
 		--root $(CURDIR)/debian/cassandra
@@ -37,7 +40,7 @@ install: build
 	dh_testroot
 	dh_installdirs
 	dh_install
-	dh_pysupport
+	dh_python2
 
 	# Copy in the jar and symlink to something stable
 	dh_install build/apache-cassandra-$(VERSION).jar \
@@ -45,7 +48,7 @@ install: build
 	dh_install build/apache-cassandra-thrift-$(VERSION).jar \
 		usr/share/cassandra
 
-	# Copy stress jar
+	# Copy stress jars
 	dh_install build/tools/lib/stress.jar \
 		usr/share/cassandra
 
@@ -60,7 +63,9 @@ binary-indep: build install
 	dh_testroot
 	dh_installchangelogs
 	dh_installinit -u'start 50 2 3 4 5 . stop 50 0 1 6 .'
-	dh_installdocs README.asc CHANGES.txt NEWS.txt
+	dh_installdocs README.asc CHANGES.txt NEWS.txt doc/cql3/CQL.css doc/cql3/CQL.html
+	dh_installexamples tools/*.yaml
+	dh_bash-completion
 	dh_compress
 	dh_fixperms
 	dh_installdeb

@@ -22,8 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
+import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.service.QueryState;
@@ -37,12 +36,12 @@ public class OptionsMessage extends Message.Request
 {
     public static final Message.Codec<OptionsMessage> codec = new Message.Codec<OptionsMessage>()
     {
-        public OptionsMessage decode(ChannelBuffer body, int version)
+        public OptionsMessage decode(ByteBuf body, int version)
         {
             return new OptionsMessage();
         }
 
-        public void encode(OptionsMessage msg, ChannelBuffer dest, int version)
+        public void encode(OptionsMessage msg, ByteBuf dest, int version)
         {
         }
 

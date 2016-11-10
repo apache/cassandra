@@ -20,6 +20,8 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.UUIDSerializer;
@@ -34,16 +36,15 @@ public class LexicalUUIDType extends AbstractType<UUID>
     {
     } // singleton
 
+    public boolean isEmptyValueMeaningless()
+    {
+        return true;
+    }
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        if (o1.remaining() == 0)
-        {
-            return o2.remaining() == 0 ? 0 : -1;
-        }
-        if (o2.remaining() == 0)
-        {
-            return 1;
-        }
+        if (!o1.hasRemaining() || !o2.hasRemaining())
+            return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
         return UUIDGen.getUUID(o1).compareTo(UUIDGen.getUUID(o2));
     }
@@ -61,6 +62,20 @@ public class LexicalUUIDType extends AbstractType<UUID>
         catch (IllegalArgumentException e)
         {
             throw new MarshalException(String.format("unable to make UUID from '%s'", source), e);
+        }
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        try
+        {
+            return new Constants.Value(fromString((String) parsed));
+        }
+        catch (ClassCastException exc)
+        {
+            throw new MarshalException(String.format(
+                    "Expected a string representation of a uuid, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
         }
     }
 

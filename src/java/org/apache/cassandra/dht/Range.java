@@ -22,8 +22,8 @@ import java.util.*;
 
 import org.apache.commons.lang3.ObjectUtils;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -32,22 +32,19 @@ import org.apache.cassandra.utils.Pair;
  * A Range is responsible for the tokens between (left, right].
  *
  * Used by the partitioner and by map/reduce by-token range scans.
+ *
+ * Note: this class has a natural ordering that is inconsistent with equals
  */
-public class Range<T extends RingPosition> extends AbstractBounds<T> implements Comparable<Range<T>>, Serializable
+public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implements Comparable<Range<T>>, Serializable
 {
     public static final long serialVersionUID = 1L;
 
     public Range(T left, T right)
     {
-        this(left, right, StorageService.getPartitioner());
+        super(left, right);
     }
 
-    public Range(T left, T right, IPartitioner partitioner)
-    {
-        super(left, right, partitioner);
-    }
-
-    public static <T extends RingPosition> boolean contains(T left, T right, T point)
+    public static <T extends RingPosition<T>> boolean contains(T left, T right, T point)
     {
         if (isWrapAround(left, right))
         {
@@ -124,9 +121,9 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     {
         // implemented for cleanup compaction membership test, so only Range + Bounds are supported for now
         if (that instanceof Range)
-            return intersects((Range) that);
+            return intersects((Range<T>) that);
         if (that instanceof Bounds)
-            return intersects((Bounds) that);
+            return intersects((Bounds<T>) that);
         throw new UnsupportedOperationException("Intersection is only supported for Bounds and Range objects; found " + that.getClass());
     }
 
@@ -142,12 +139,13 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         return contains(that.left) || (!that.left.equals(that.right) && intersects(new Range<T>(that.left, that.right)));
     }
 
-    public static <T extends RingPosition> Set<Range<T>> rangeSet(Range<T> ... ranges)
+    @SafeVarargs
+    public static <T extends RingPosition<T>> Set<Range<T>> rangeSet(Range<T> ... ranges)
     {
         return Collections.unmodifiableSet(new HashSet<Range<T>>(Arrays.asList(ranges)));
     }
 
-    public static <T extends RingPosition> Set<Range<T>> rangeSet(Range<T> range)
+    public static <T extends RingPosition<T>> Set<Range<T>> rangeSet(Range<T> range)
     {
         return Collections.singleton(range);
     }
@@ -172,9 +170,8 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
             // neither wraps.  the straightforward case.
             if (!(left.compareTo(that.right) < 0 && that.left.compareTo(right) < 0))
                 return Collections.emptySet();
-            return rangeSet(new Range<T>((T)ObjectUtils.max(this.left, that.left),
-                                         (T)ObjectUtils.min(this.right, that.right),
-                                         partitioner));
+            return rangeSet(new Range<T>(ObjectUtils.max(this.left, that.left),
+                                         ObjectUtils.min(this.right, that.right)));
         }
         if (thiswraps && thatwraps)
         {
@@ -198,23 +195,23 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         return intersectionOneWrapping(that, this);
     }
 
-    private static <T extends RingPosition> Set<Range<T>> intersectionBothWrapping(Range<T> first, Range<T> that)
+    private static <T extends RingPosition<T>> Set<Range<T>> intersectionBothWrapping(Range<T> first, Range<T> that)
     {
         Set<Range<T>> intersection = new HashSet<Range<T>>(2);
         if (that.right.compareTo(first.left) > 0)
-            intersection.add(new Range<T>(first.left, that.right, first.partitioner));
-        intersection.add(new Range<T>(that.left, first.right, first.partitioner));
+            intersection.add(new Range<T>(first.left, that.right));
+        intersection.add(new Range<T>(that.left, first.right));
         return Collections.unmodifiableSet(intersection);
     }
 
-    private static <T extends RingPosition> Set<Range<T>> intersectionOneWrapping(Range<T> wrapping, Range<T> other)
+    private static <T extends RingPosition<T>> Set<Range<T>> intersectionOneWrapping(Range<T> wrapping, Range<T> other)
     {
         Set<Range<T>> intersection = new HashSet<Range<T>>(2);
         if (other.contains(wrapping.right))
-            intersection.add(new Range<T>(other.left, wrapping.right, wrapping.partitioner));
+            intersection.add(new Range<T>(other.left, wrapping.right));
         // need the extra compareto here because ranges are asymmetrical; wrapping.left _is not_ contained by the wrapping range
         if (other.contains(wrapping.left) && wrapping.left.compareTo(other.right) < 0)
-            intersection.add(new Range<T>(wrapping.left, other.right, wrapping.partitioner));
+            intersection.add(new Range<T>(wrapping.left, other.right));
         return Collections.unmodifiableSet(intersection);
     }
 
@@ -225,42 +222,52 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         if (position.equals(left) || position.equals(right))
             return null;
 
-        AbstractBounds<T> lb = new Range<T>(left, position, partitioner);
-        AbstractBounds<T> rb = new Range<T>(position, right, partitioner);
+        AbstractBounds<T> lb = new Range<T>(left, position);
+        AbstractBounds<T> rb = new Range<T>(position, right);
         return Pair.create(lb, rb);
+    }
+
+    public boolean inclusiveLeft()
+    {
+        return false;
+    }
+
+    public boolean inclusiveRight()
+    {
+        return true;
     }
 
     public List<Range<T>> unwrap()
     {
-        T minValue = (T) partitioner.minValue(right.getClass());
+        T minValue = right.minValue();
         if (!isWrapAround() || right.equals(minValue))
             return Arrays.asList(this);
         List<Range<T>> unwrapped = new ArrayList<Range<T>>(2);
-        unwrapped.add(new Range<T>(left, minValue, partitioner));
-        unwrapped.add(new Range<T>(minValue, right, partitioner));
+        unwrapped.add(new Range<T>(left, minValue));
+        unwrapped.add(new Range<T>(minValue, right));
         return unwrapped;
     }
 
     /**
      * Tells if the given range is a wrap around.
      */
-    public static <T extends RingPosition> boolean isWrapAround(T left, T right)
+    public static <T extends RingPosition<T>> boolean isWrapAround(T left, T right)
     {
        return left.compareTo(right) >= 0;
     }
 
+    /**
+     * Note: this class has a natural ordering that is inconsistent with equals
+     */
     public int compareTo(Range<T> rhs)
     {
-        /*
-         * If the range represented by the "this" pointer
-         * is a wrap around then it is the smaller one.
-         */
-        if ( isWrapAround(left, right) )
-            return -1;
+        boolean lhsWrap = isWrapAround(left, right);
+        boolean rhsWrap = isWrapAround(rhs.left, rhs.right);
 
-        if ( isWrapAround(rhs.left, rhs.right) )
-            return 1;
-
+        // if one of the two wraps, that's the smaller one.
+        if (lhsWrap != rhsWrap)
+            return Boolean.compare(!lhsWrap, !rhsWrap);
+        // otherwise compare by right.
         return right.compareTo(rhs.right);
     }
 
@@ -276,9 +283,9 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         ArrayList<Range<T>> difference = new ArrayList<Range<T>>(2);
 
         if (!left.equals(contained.left))
-            difference.add(new Range<T>(left, contained.left, partitioner));
+            difference.add(new Range<T>(left, contained.left));
         if (!right.equals(contained.right))
-            difference.add(new Range<T>(contained.right, right, partitioner));
+            difference.add(new Range<T>(contained.right, right));
         return difference;
     }
 
@@ -287,7 +294,28 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         return rhs.differenceToFetch(this);
     }
 
+    public Set<Range<T>> subtractAll(Collection<Range<T>> ranges)
+    {
+        Set<Range<T>> result = new HashSet<>();
+        result.add(this);
+        for(Range<T> range : ranges)
+        {
+            result = substractAllFromToken(result, range);
+        }
 
+        return result;
+    }
+
+    private static <T extends RingPosition<T>> Set<Range<T>> substractAllFromToken(Set<Range<T>> ranges, Range<T> subtract)
+    {
+        Set<Range<T>> result = new HashSet<>();
+        for(Range<T> range : ranges)
+        {
+            result.addAll(range.subtract(subtract));
+        }
+
+        return result;
+    }
     /**
      * Calculate set of the difference ranges of given two ranges
      * (as current (A, B] and rhs is (C, D])
@@ -307,7 +335,8 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         }
         else
         {
-            Range[] intersections = new Range[intersectionSet.size()];
+            @SuppressWarnings("unchecked")
+            Range<T>[] intersections = new Range[intersectionSet.size()];
             intersectionSet.toArray(intersections);
             if (intersections.length == 1)
             {
@@ -329,7 +358,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         return result;
     }
 
-    public static <T extends RingPosition> boolean isInRanges(T token, Iterable<Range<T>> ranges)
+    public static <T extends RingPosition<T>> boolean isInRanges(T token, Iterable<Range<T>> ranges)
     {
         assert ranges != null;
 
@@ -348,7 +377,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     {
         if (!(o instanceof Range))
             return false;
-        Range<T> rhs = (Range<T>)o;
+        Range<?> rhs = (Range<?>)o;
         return left.equals(rhs.left) && right.equals(rhs.right);
     }
 
@@ -384,7 +413,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     /**
      * @return A copy of the given list of with all ranges unwrapped, sorted by left bound and with overlapping bounds merged.
      */
-    public static <T extends RingPosition> List<Range<T>> normalize(Collection<Range<T>> ranges)
+    public static <T extends RingPosition<T>> List<Range<T>> normalize(Collection<Range<T>> ranges)
     {
         // unwrap all
         List<Range<T>> output = new ArrayList<Range<T>>(ranges.size());
@@ -408,7 +437,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
      * Given a list of unwrapped ranges sorted by left position, return an
      * equivalent list of ranges but with no overlapping ranges.
      */
-    private static <T extends RingPosition> List<Range<T>> deoverlap(List<Range<T>> ranges)
+    private static <T extends RingPosition<T>> List<Range<T>> deoverlap(List<Range<T>> ranges)
     {
         if (ranges.isEmpty())
             return ranges;
@@ -418,7 +447,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         Iterator<Range<T>> iter = ranges.iterator();
         Range<T> current = iter.next();
 
-        T min = (T) current.partitioner.minValue(current.left.getClass());
+        T min = current.left.minValue();
         while (iter.hasNext())
         {
             // If current goes to the end of the ring, we're done
@@ -453,27 +482,63 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         return output;
     }
 
+    public AbstractBounds<T> withNewRight(T newRight)
+    {
+        return new Range<T>(left, newRight);
+    }
 
     /**
      * Compute a range of keys corresponding to a given range of token.
      */
-    public static Range<RowPosition> makeRowRange(Token left, Token right, IPartitioner partitioner)
+    public static Range<RowPosition> makeRowRange(Token left, Token right)
     {
-        return new Range<RowPosition>(left.maxKeyBound(partitioner), right.maxKeyBound(partitioner), partitioner);
+        return new Range<RowPosition>(left.maxKeyBound(), right.maxKeyBound());
     }
 
-    public AbstractBounds<RowPosition> toRowBounds()
+    public static Range<RowPosition> makeRowRange(Range<Token> tokenBounds)
     {
-        return (left instanceof Token) ? makeRowRange((Token)left, (Token)right, partitioner) : (Range<RowPosition>)this;
+        return makeRowRange(tokenBounds.left, tokenBounds.right);
     }
 
-    public AbstractBounds<Token> toTokenBounds()
+    /**
+     * Helper class to check if a token is contained within a given collection of ranges
+     */
+    public static class OrderedRangeContainmentChecker
     {
-        return (left instanceof RowPosition) ? new Range<Token>(((RowPosition)left).getToken(), ((RowPosition)right).getToken(), partitioner) : (Range<Token>)this;
-    }
+        private final Iterator<Range<Token>> normalizedRangesIterator;
+        private Token lastToken = null;
+        private Range<Token> currentRange;
 
-    public AbstractBounds<T> withNewRight(T newRight)
-    {
-        return new Range<T>(left, newRight);
+        public OrderedRangeContainmentChecker(Collection<Range<Token>> ranges)
+        {
+            normalizedRangesIterator = normalize(ranges).iterator();
+            assert normalizedRangesIterator.hasNext();
+            currentRange = normalizedRangesIterator.next();
+        }
+
+        /**
+         * Returns true if the ranges given in the constructor contains the token, false otherwise.
+         *
+         * The tokens passed to this method must be in increasing order
+         *
+         * @param t token to check, must be larger than or equal to the last token passed
+         * @return true if the token is contained within the ranges given to the constructor.
+         */
+        public boolean contains(Token t)
+        {
+            assert lastToken == null || lastToken.compareTo(t) <= 0;
+            lastToken = t;
+            while (true)
+            {
+                if (t.compareTo(currentRange.left) <= 0)
+                    return false;
+                else if (t.compareTo(currentRange.right) <= 0 || currentRange.right.compareTo(currentRange.left) <= 0)
+                    return true;
+
+                if (!normalizedRangesIterator.hasNext())
+                    return false;
+                currentRange = normalizedRangesIterator.next();
+            }
+        }
     }
 }

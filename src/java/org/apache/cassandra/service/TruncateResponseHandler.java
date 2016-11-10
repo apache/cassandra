@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.utils.SimpleCondition;
+import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 public class TruncateResponseHandler implements IAsyncCallback
 {

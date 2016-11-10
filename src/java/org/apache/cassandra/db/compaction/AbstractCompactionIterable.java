@@ -18,8 +18,10 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.utils.CloseableIterator;
 
 public abstract class AbstractCompactionIterable extends CompactionInfo.Holder implements Iterable<AbstractCompactedRow>
@@ -28,7 +30,8 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
     protected final CompactionController controller;
     protected final long totalBytes;
     protected volatile long bytesRead;
-    protected final List<ICompactionScanner> scanners;
+    protected final List<ISSTableScanner> scanners;
+    protected final UUID compactionId;
     /*
      * counters for merged rows.
      * array index represents (number of merged rows - 1), so index 0 is counter for no merge (1 row),
@@ -36,15 +39,16 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
      */
     protected final AtomicLong[] mergeCounters;
 
-    public AbstractCompactionIterable(CompactionController controller, OperationType type, List<ICompactionScanner> scanners)
+    public AbstractCompactionIterable(CompactionController controller, OperationType type, List<ISSTableScanner> scanners, UUID compactionId)
     {
         this.controller = controller;
         this.type = type;
         this.scanners = scanners;
         this.bytesRead = 0;
+        this.compactionId = compactionId;
 
         long bytes = 0;
-        for (ICompactionScanner scanner : scanners)
+        for (ISSTableScanner scanner : scanners)
             bytes += scanner.getLengthInBytes();
         this.totalBytes = bytes;
         mergeCounters = new AtomicLong[scanners.size()];
@@ -57,7 +61,8 @@ public abstract class AbstractCompactionIterable extends CompactionInfo.Holder i
         return new CompactionInfo(controller.cfs.metadata,
                                   type,
                                   bytesRead,
-                                  totalBytes);
+                                  totalBytes,
+                                  compactionId);
     }
 
     protected void updateCounterFor(int rows)

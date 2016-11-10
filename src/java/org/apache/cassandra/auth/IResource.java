@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Set;
+
 /**
  * The interface at the core of Cassandra authorization.
  *
@@ -50,4 +52,17 @@ public interface IResource
      * @return Whether or not this resource exists in Cassandra.
      */
     boolean exists();
+
+    /**
+     * Returns the set of Permissions that may be applied to this resource
+     *
+     * Certain permissions are not applicable to particular types of resources.
+     * For instance, it makes no sense to talk about CREATE permission on table, or SELECT on a Role.
+     * Here we filter a set of permissions depending on the specific resource they're being applied to.
+     * This is necessary because the CQL syntax supports ALL as wildcard, but the set of permissions that
+     * should resolve to varies by IResource.
+     *
+     * @return the permissions that may be granted on the specific resource
+     */
+    Set<Permission> applicablePermissions();
 }

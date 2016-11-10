@@ -19,31 +19,31 @@ package org.apache.cassandra.utils;
 
 import java.io.*;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.math.BigInteger;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.URL;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
+import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.AbstractIterator;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
@@ -51,13 +51,12 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.IAllocator;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.AsyncOneResponse;
-import org.apache.thrift.TBase;
-import org.apache.thrift.TDeserializer;
-import org.apache.thrift.TException;
-import org.apache.thrift.TSerializer;
+
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.map.ObjectMapper;
 
@@ -65,15 +64,18 @@ public class FBUtilities
 {
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
 
-    private static ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
+    private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
 
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
     private static final String OPERATING_SYSTEM = System.getProperty("os.name").toLowerCase();
+    private static final boolean IS_WINDOWS = OPERATING_SYSTEM.contains("windows");
+    private static final boolean HAS_PROCFS = !IS_WINDOWS && (new File(File.separator + "proc")).exists();
 
     private static volatile InetAddress localInetAddress;
     private static volatile InetAddress broadcastInetAddress;
+    private static volatile InetAddress broadcastRpcAddress;
 
     public static int getAvailableProcessors()
     {
@@ -100,15 +102,6 @@ public class FBUtilities
         }
     };
 
-    private static final ThreadLocal<Random> localRandom = new ThreadLocal<Random>()
-    {
-        @Override
-        protected Random initialValue()
-        {
-            return new Random();
-        }
-    };
-
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
 
     public static MessageDigest threadLocalMD5Digest()
@@ -126,11 +119,6 @@ public class FBUtilities
         {
             throw new RuntimeException("the requested digest algorithm (" + algorithm + ") is not available", nsae);
         }
-    }
-
-    public static Random threadLocalRandom()
-    {
-        return localRandom.get();
     }
 
     /**
@@ -161,6 +149,16 @@ public class FBUtilities
         return broadcastInetAddress;
     }
 
+
+    public static InetAddress getBroadcastRpcAddress()
+    {
+        if (broadcastRpcAddress == null)
+            broadcastRpcAddress = DatabaseDescriptor.getBroadcastRpcAddress() == null
+                                   ? DatabaseDescriptor.getRpcAddress()
+                                   : DatabaseDescriptor.getBroadcastRpcAddress();
+        return broadcastRpcAddress;
+    }
+
     public static Collection<InetAddress> getAllLocalAddresses()
     {
         Set<InetAddress> localAddresses = new HashSet<InetAddress>();
@@ -178,6 +176,22 @@ public class FBUtilities
             throw new AssertionError(e);
         }
         return localAddresses;
+    }
+
+    public static String getNetworkInterface(InetAddress localAddress)
+    {
+        try {
+            for(NetworkInterface ifc : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                if(ifc.isUp()) {
+                    for(InetAddress addr : Collections.list(ifc.getInetAddresses())) {
+                        if (addr.equals(localAddress))
+                            return ifc.getDisplayName();
+                    }
+                }
+            }
+        }
+        catch (SocketException e) {}
+        return null;
     }
 
     /**
@@ -213,7 +227,7 @@ public class FBUtilities
 
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)
     {
-        return FastByteComparisons.compareTo(bytes1, offset1, len1, bytes2, offset2, len2);
+        return FastByteOperations.compareUnsigned(bytes1, offset1, len1, bytes2, offset2, len2);
     }
 
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2)
@@ -245,13 +259,6 @@ public class FBUtilities
         return out;
     }
 
-    public static BigInteger hashToBigInteger(ByteBuffer data)
-    {
-        byte[] result = hash(data);
-        BigInteger hash = new BigInteger(result);
-        return hash.abs();
-    }
-
     public static byte[] hash(ByteBuffer... data)
     {
         MessageDigest messageDigest = localMD5Digest.get();
@@ -266,43 +273,9 @@ public class FBUtilities
         return messageDigest.digest();
     }
 
-    @Deprecated
-    public static void serialize(TSerializer serializer, TBase struct, DataOutput out)
-    throws IOException
+    public static BigInteger hashToBigInteger(ByteBuffer data)
     {
-        assert serializer != null;
-        assert struct != null;
-        assert out != null;
-        byte[] bytes;
-        try
-        {
-            bytes = serializer.serialize(struct);
-        }
-        catch (TException e)
-        {
-            throw new RuntimeException(e);
-        }
-        out.writeInt(bytes.length);
-        out.write(bytes);
-    }
-
-    @Deprecated
-    public static void deserialize(TDeserializer deserializer, TBase struct, DataInput in)
-    throws IOException
-    {
-        assert deserializer != null;
-        assert struct != null;
-        assert in != null;
-        byte[] bytes = new byte[in.readInt()];
-        in.readFully(bytes);
-        try
-        {
-            deserializer.deserialize(struct, bytes);
-        }
-        catch (TException ex)
-        {
-            throw new IOException(ex);
-        }
+        return new BigInteger(hash(data)).abs();
     }
 
     public static void sortSampledKeys(List<DecoratedKey> keys, Range<Token> range)
@@ -315,8 +288,8 @@ public class FBUtilities
             {
                 public int compare(DecoratedKey o1, DecoratedKey o2)
                 {
-                    if ((right.compareTo(o1.token) < 0 && right.compareTo(o2.token) < 0)
-                        || (right.compareTo(o1.token) > 0 && right.compareTo(o2.token) > 0))
+                    if ((right.compareTo(o1.getToken()) < 0 && right.compareTo(o2.getToken()) < 0)
+                        || (right.compareTo(o1.getToken()) > 0 && right.compareTo(o2.getToken()) > 0))
                     {
                         // both tokens are on the same side of the wrap point
                         return o1.compareTo(o2);
@@ -366,13 +339,11 @@ public class FBUtilities
 
     public static String getReleaseVersionString()
     {
-        InputStream in = null;
-        try
+        try (InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties"))
         {
-            in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties");
             if (in == null)
             {
-                return "Unknown";
+                return System.getProperty("cassandra.releaseVersion", "Unknown");
             }
             Properties props = new Properties();
             props.load(in);
@@ -380,12 +351,9 @@ public class FBUtilities
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             logger.warn("Unable to load version.properties", e);
             return "debug version";
-        }
-        finally
-        {
-            FileUtils.closeQuietly(in);
         }
     }
 
@@ -396,10 +364,23 @@ public class FBUtilities
         return System.currentTimeMillis() * 1000;
     }
 
-    public static void waitOnFutures(Iterable<Future<?>> futures)
+    public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures)
     {
-        for (Future f : futures)
-            waitOnFuture(f);
+        List<T> results = new ArrayList<>();
+        Throwable fail = null;
+        for (Future<? extends T> f : futures)
+        {
+            try
+            {
+                results.add(f.get());
+            }
+            catch (InterruptedException | ExecutionException e)
+            {
+                fail = Throwables.merge(fail, e);
+            }
+        }
+        Throwables.maybeFail(fail);
+        return results;
     }
 
     public static <T> T waitOnFuture(Future<T> future)
@@ -428,14 +409,7 @@ public class FBUtilities
     {
         if (!partitionerClassName.contains("."))
             partitionerClassName = "org.apache.cassandra.dht." + partitionerClassName;
-        return FBUtilities.construct(partitionerClassName, "partitioner");
-    }
-
-    public static IAllocator newOffHeapAllocator(String offheap_allocator) throws ConfigurationException
-    {
-        if (!offheap_allocator.contains("."))
-            offheap_allocator = "org.apache.cassandra.io.util." + offheap_allocator;
-        return FBUtilities.construct(offheap_allocator, "off-heap allocator");
+        return FBUtilities.instanceOrConstruct(partitionerClassName, "partitioner");
     }
 
     public static IAuthorizer newAuthorizer(String className) throws ConfigurationException
@@ -452,6 +426,13 @@ public class FBUtilities
         return FBUtilities.construct(className, "authenticator");
     }
 
+    public static IRoleManager newRoleManager(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.auth." + className;
+        return FBUtilities.construct(className, "role manager");
+    }
+
     /**
      * @return The Class for the given name.
      * @param classname Fully qualified classname.
@@ -464,13 +445,30 @@ public class FBUtilities
         {
             return (Class<T>)Class.forName(classname);
         }
-        catch (ClassNotFoundException e)
+        catch (ClassNotFoundException | NoClassDefFoundError e)
         {
             throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname), e);
         }
-        catch (NoClassDefFoundError e)
+    }
+
+    /**
+     * Constructs an instance of the given class, which must have a no-arg or default constructor.
+     * @param classname Fully qualified classname.
+     * @param readable Descriptive noun for the role the class plays.
+     * @throws ConfigurationException If the class cannot be found.
+     */
+    public static <T> T instanceOrConstruct(String classname, String readable) throws ConfigurationException
+    {
+        Class<T> cls = FBUtilities.classForName(classname, readable);
+        try
         {
-            throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname), e);
+            Field instance = cls.getField("instance");
+            return cls.cast(instance.get(null));
+        }
+        catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e)
+        {
+            // Could not get instance field. Try instantiating.
+            return construct(cls, classname, readable);
         }
     }
 
@@ -483,6 +481,11 @@ public class FBUtilities
     public static <T> T construct(String classname, String readable) throws ConfigurationException
     {
         Class<T> cls = FBUtilities.classForName(classname, readable);
+        return construct(cls, classname, readable);
+    }
+
+    private static <T> T construct(Class<T> cls, String classname, String readable) throws ConfigurationException
+    {
         try
         {
             return cls.newInstance();
@@ -504,15 +507,25 @@ public class FBUtilities
         }
     }
 
-    public static <T> SortedSet<T> singleton(T column, Comparator<T> comparator)
+    public static <T> SortedSet<T> singleton(T column, Comparator<? super T> comparator)
     {
-        TreeSet<T> s = new TreeSet<>(comparator);
+        SortedSet<T> s = new TreeSet<T>(comparator);
         s.add(column);
         return s;
     }
 
-    public static String toString(Map<?,?> map)
+    /**
+     * Make straing out of the given {@code Map}.
+     *
+     * @param map Map to make string.
+     * @return String representation of all entries in the map,
+     *         where key and value pair is concatenated with ':'.
+     */
+    @Nonnull
+    public static String toString(@Nullable Map<?, ?> map)
     {
+        if (map == null)
+            return "";
         Joiner.MapJoiner joiner = Joiner.on(", ").withKeyValueSeparator(":");
         return joiner.join(map);
     }
@@ -525,19 +538,16 @@ public class FBUtilities
      */
     public static Field getProtectedField(Class klass, String fieldName)
     {
-        Field field;
-
         try
         {
-            field = klass.getDeclaredField(fieldName);
+            Field field = klass.getDeclaredField(fieldName);
             field.setAccessible(true);
+            return field;
         }
         catch (Exception e)
         {
             throw new AssertionError(e);
         }
-
-        return field;
     }
 
     public static <T> CloseableIterator<T> closeableIterator(Iterator<T> iterator)
@@ -581,6 +591,15 @@ public class FBUtilities
         }
     }
 
+    public static String prettyPrintMemory(long size)
+    {
+        if (size >= 1 << 30)
+            return String.format("%.3fGiB", size / (double) (1 << 30));
+        if (size >= 1 << 20)
+            return String.format("%.3fMiB", size / (double) (1 << 20));
+        return String.format("%.3fKiB", size / (double) (1 << 10));
+    }
+
     /**
      * Starts and waits for the given @param pb to finish.
      * @throws java.io.IOException on non-zero exit code
@@ -593,17 +612,20 @@ public class FBUtilities
             int errCode = p.waitFor();
             if (errCode != 0)
             {
-                BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
-                BufferedReader err = new BufferedReader(new InputStreamReader(p.getErrorStream()));
-                StringBuilder sb = new StringBuilder();
-                String str;
-                while ((str = in.readLine()) != null)
-                    sb.append(str).append(System.getProperty("line.separator"));
-                while ((str = err.readLine()) != null)
-                    sb.append(str).append(System.getProperty("line.separator"));
-                throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
-                                      ", command error Code: " + errCode +
-                                      ", command output: "+ sb.toString());
+            	try (BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                     BufferedReader err = new BufferedReader(new InputStreamReader(p.getErrorStream())))
+                {
+            		String lineSep = System.getProperty("line.separator");
+	                StringBuilder sb = new StringBuilder();
+	                String str;
+	                while ((str = in.readLine()) != null)
+	                    sb.append(str).append(lineSep);
+	                while ((str = err.readLine()) != null)
+	                    sb.append(str).append(lineSep);
+	                throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
+	                                      ", command error Code: " + errCode +
+	                                      ", command output: "+ sb.toString());
+                }
             }
         }
         catch (InterruptedException e)
@@ -618,6 +640,73 @@ public class FBUtilities
         checksum.update((v >>> 16) & 0xFF);
         checksum.update((v >>> 8) & 0xFF);
         checksum.update((v >>> 0) & 0xFF);
+    }
+
+    private static Method directUpdate;
+    static
+    {
+        try
+        {
+            directUpdate = Adler32.class.getDeclaredMethod("update", new Class[]{ByteBuffer.class});
+            directUpdate.setAccessible(true);
+        } catch (NoSuchMethodException e)
+        {
+            logger.warn("JVM doesn't support Adler32 byte buffer access");
+            directUpdate = null;
+        }
+    }
+
+    private static final ThreadLocal<byte[]> threadLocalScratchBuffer = new ThreadLocal<byte[]>()
+    {
+        @Override
+        protected byte[] initialValue()
+        {
+            return new byte[CompressionParameters.DEFAULT_CHUNK_LENGTH];
+        }
+    };
+
+    public static byte[] getThreadLocalScratchBuffer()
+    {
+        return threadLocalScratchBuffer.get();
+    }
+
+    //Java 7 has this method but it's private till Java 8. Thanks JDK!
+    public static boolean supportsDirectChecksum()
+    {
+        return directUpdate != null;
+    }
+
+    public static void directCheckSum(Adler32 checksum, ByteBuffer bb)
+    {
+        if (directUpdate != null)
+        {
+            try
+            {
+                directUpdate.invoke(checksum, bb);
+                return;
+            }
+            catch (IllegalAccessException e)
+            {
+                directUpdate = null;
+                logger.warn("JVM doesn't support Adler32 byte buffer access");
+            }
+            catch (InvocationTargetException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        //Fallback
+        byte[] buffer = getThreadLocalScratchBuffer();
+
+        int remaining;
+        while ((remaining = bb.remaining()) > 0)
+        {
+            remaining = Math.min(remaining, buffer.length);
+            ByteBufferUtil.arrayCopy(bb, bb.position(), buffer, 0, remaining);
+            bb.position(bb.position() + remaining);
+            checksum.update(buffer, 0, remaining);
+        }
     }
 
     public static long abs(long index)
@@ -647,10 +736,10 @@ public class FBUtilities
 
     public static <T> byte[] serialize(T object, IVersionedSerializer<T> serializer, int version)
     {
-        try
+        int size = (int) serializer.serializedSize(object, version);
+
+        try (DataOutputBuffer buffer = new DataOutputBufferFixed(size))
         {
-            int size = (int) serializer.serializedSize(object, version);
-            DataOutputBuffer buffer = new DataOutputBuffer(size);
             serializer.serialize(object, buffer, version);
             assert buffer.getLength() == size && buffer.getData().length == size
                 : String.format("Final buffer length %s to accommodate data size of %s (predicted %s) for %s",
@@ -691,8 +780,68 @@ public class FBUtilities
         return historyDir;
     }
 
-    public static boolean isUnix()
+    public static boolean isWindows()
     {
-        return OPERATING_SYSTEM.contains("nix") || OPERATING_SYSTEM.contains("nux") || OPERATING_SYSTEM.contains("aix");
+        return IS_WINDOWS;
+    }
+
+    public static boolean hasProcFS()
+    {
+        return HAS_PROCFS;
+    }
+
+    public static void updateWithShort(MessageDigest digest, int val)
+    {
+        digest.update((byte) ((val >> 8) & 0xFF));
+        digest.update((byte) (val & 0xFF));
+    }
+
+    public static void updateWithByte(MessageDigest digest, int val)
+    {
+        digest.update((byte) (val & 0xFF));
+    }
+
+    public static void updateWithInt(MessageDigest digest, int val)
+    {
+        digest.update((byte) ((val >>> 24) & 0xFF));
+        digest.update((byte) ((val >>> 16) & 0xFF));
+        digest.update((byte) ((val >>>  8) & 0xFF));
+        digest.update((byte) ((val >>> 0) & 0xFF));
+    }
+
+    public static void updateWithLong(MessageDigest digest, long val)
+    {
+        digest.update((byte) ((val >>> 56) & 0xFF));
+        digest.update((byte) ((val >>> 48) & 0xFF));
+        digest.update((byte) ((val >>> 40) & 0xFF));
+        digest.update((byte) ((val >>> 32) & 0xFF));
+        digest.update((byte) ((val >>> 24) & 0xFF));
+        digest.update((byte) ((val >>> 16) & 0xFF));
+        digest.update((byte) ((val >>>  8) & 0xFF));
+        digest.update((byte)  ((val >>> 0) & 0xFF));
+    }
+
+    public static byte[] toWriteUTFBytes(String s)
+    {
+        try
+        {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            DataOutputStream dos = new DataOutputStream(baos);
+            dos.writeUTF(s);
+            dos.flush();
+            return baos.toByteArray();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @VisibleForTesting
+    protected static void reset()
+    {
+        localInetAddress = null;
+        broadcastInetAddress = null;
+        broadcastRpcAddress = null;
     }
 }

@@ -24,18 +24,18 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.base.Throwables;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 /**
  * During compaction we can drop entire sstables if they only contain expired tombstones and if it is guaranteed
@@ -55,9 +55,12 @@ public class SSTableExpiredBlockers
             out.println("Usage: sstableexpiredblockers <keyspace> <table>");
             System.exit(1);
         }
+
+        Util.initDatabaseDescriptor();
+
         String keyspace = args[args.length - 2];
         String columnfamily = args[args.length - 1];
-        DatabaseDescriptor.loadSchemas();
+        Schema.instance.loadFromDisk(false);
 
         CFMetaData metadata = Schema.instance.getCFMetaData(keyspace, columnfamily);
         if (metadata == null)
@@ -65,11 +68,11 @@ public class SSTableExpiredBlockers
                     keyspace,
                     columnfamily));
 
-        Keyspace.openWithoutSSTables(keyspace);
-        Directories directories = Directories.create(keyspace, columnfamily);
+        Keyspace ks = Keyspace.openWithoutSSTables(keyspace);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnfamily);
+        Directories.SSTableLister lister = cfs.directories.sstableLister().skipTemporary(true);
         Set<SSTableReader> sstables = new HashSet<>();
-
-        for (Map.Entry<Descriptor, Set<Component>> sstable : directories.sstableLister().skipTemporary(true).list().entrySet())
+        for (Map.Entry<Descriptor, Set<Component>> sstable : lister.list().entrySet())
         {
             if (sstable.getKey() != null)
             {

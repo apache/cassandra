@@ -21,7 +21,6 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-import org.apache.cassandra.cache.RefCountedMemory;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.Memory;
 
@@ -42,7 +41,7 @@ public class OffHeapBitSet implements IBitSet
         try
         {
             long byteCount = wordCount * 8L;
-            bytes = RefCountedMemory.allocate(byteCount);
+            bytes = Memory.allocate(byteCount);
         }
         catch (OutOfMemoryError e)
         {
@@ -126,10 +125,11 @@ public class OffHeapBitSet implements IBitSet
         return type.sizeof((int) bytes.size()) + bytes.size();
     }
 
+    @SuppressWarnings("resource")
     public static OffHeapBitSet deserialize(DataInput in) throws IOException
     {
         long byteCount = in.readInt() * 8L;
-        Memory memory = RefCountedMemory.allocate(byteCount);
+        Memory memory = Memory.allocate(byteCount);
         for (long i = 0; i < byteCount;)
         {
             long v = in.readLong();
@@ -172,5 +172,10 @@ public class OffHeapBitSet implements IBitSet
             h = (h << 1) | (h >>> 63); // rotate left
         }
         return (int) ((h >> 32) ^ h) + 0x98761234;
+    }
+
+    public String toString()
+    {
+        return "[OffHeapBitSet]";
     }
 }

@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "19.38.0"
+const string VERSION = "20.1.0"
 
 
 #
@@ -459,7 +459,6 @@ struct CfDef {
     16: optional i32 id,
     17: optional i32 min_compaction_threshold,
     18: optional i32 max_compaction_threshold,
-    24: optional bool replicate_on_write,
     26: optional string key_validation_class,
     28: optional binary key_alias,
     29: optional string compaction_strategy,
@@ -468,12 +467,13 @@ struct CfDef {
     33: optional double bloom_filter_fp_chance,
     34: optional string caching="keys_only",
     37: optional double dclocal_read_repair_chance = 0.0,
-    38: optional bool populate_io_cache_on_flush,
     39: optional i32 memtable_flush_period_in_ms,
     40: optional i32 default_time_to_live,
-    41: optional i32 index_interval,
     42: optional string speculative_retry="NONE",
     43: optional list<TriggerDef> triggers,
+    44: optional string cells_per_row_to_cache = "100",
+    45: optional i32 min_index_interval,
+    46: optional i32 max_index_interval,
 
     /* All of the following are now ignored and unsupplied. */
 
@@ -492,11 +492,17 @@ struct CfDef {
     /** @deprecated */
     23: optional double memtable_operations_in_millions,
     /** @deprecated */
+    24: optional bool replicate_on_write,
+    /** @deprecated */
     25: optional double merge_shards_chance,
     /** @deprecated */
     27: optional string row_cache_provider,
     /** @deprecated */
     31: optional i32 row_cache_keys_to_save,
+    /** @deprecated */
+    38: optional bool populate_io_cache_on_flush,
+    /** @deprecated */
+    41: optional i32 index_interval,
 }
 
 /* describes a keyspace. */
@@ -563,6 +569,35 @@ struct CfSplit {
     1: required string start_token,
     2: required string end_token,
     3: required i64 row_count
+}
+
+/** The ColumnSlice is used to select a set of columns from inside a row. 
+ * If start or finish are unspecified they will default to the start-of
+ * end-of value.
+ * @param start. The start of the ColumnSlice inclusive
+ * @param finish. The end of the ColumnSlice inclusive
+ */
+struct ColumnSlice {
+    1: optional binary start,
+    2: optional binary finish
+}
+
+/**
+ * Used to perform multiple slices on a single row key in one rpc operation
+ * @param key. The row key to be multi sliced
+ * @param column_parent. The column family (super columns are unsupported)
+ * @param column_slices. 0 to many ColumnSlice objects each will be used to select columns
+ * @param reversed. Direction of slice
+ * @param count. Maximum number of columns
+ * @param consistency_level. Level to perform the operation at
+ */
+struct MultiSliceRequest {
+    1: optional binary key,
+    2: optional ColumnParent column_parent,
+    3: optional list<ColumnSlice> column_slices,
+    4: optional bool reversed=false,
+    5: optional i32 count=1000,
+    6: optional ConsistencyLevel consistency_level=ConsistencyLevel.ONE
 }
 
 service Cassandra {
@@ -743,7 +778,11 @@ service Cassandra {
   void truncate(1:required string cfname)
        throws (1: InvalidRequestException ire, 2: UnavailableException ue, 3: TimedOutException te),
 
-
+  /**
+  * Select multiple slices of a key in a single RPC operation
+  */
+  list<ColumnOrSuperColumn> get_multi_slice(1:required MultiSliceRequest request)
+       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
     
   // Meta-APIs -- APIs to get information about the node or cluster,
   // rather than user data.  The nodeprobe program provides usage examples.
@@ -845,7 +884,7 @@ service Cassandra {
 
 
   /**
-   * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
+   * @deprecated Throws InvalidRequestException since 2.2. Please use the CQL3 version instead.
    */
   CqlResult execute_cql_query(1:required binary query, 2:required Compression compression)
     throws (1:InvalidRequestException ire,
@@ -865,7 +904,7 @@ service Cassandra {
 
 
   /**
-   * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
+   * @deprecated Throws InvalidRequestException since 2.2. Please use the CQL3 version instead.
    */
   CqlPreparedResult prepare_cql_query(1:required binary query, 2:required Compression compression)
     throws (1:InvalidRequestException ire)
@@ -881,7 +920,7 @@ service Cassandra {
 
 
   /**
-   * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
+   * @deprecated Throws InvalidRequestException since 2.2. Please use the CQL3 version instead.
    */
   CqlResult execute_prepared_cql_query(1:required i32 itemId, 2:required list<binary> values)
     throws (1:InvalidRequestException ire,

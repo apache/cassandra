@@ -63,17 +63,17 @@ public class StreamManager implements StreamManagerMBean
 
     public static class StreamRateLimiter
     {
-        private static final double BYTES_PER_MEGABIT = 1024 * 1024 / 8;
+        private static final double BYTES_PER_MEGABIT = (1024 * 1024) / 8; // from bits
         private static final RateLimiter limiter = RateLimiter.create(Double.MAX_VALUE);
         private static final RateLimiter interDCLimiter = RateLimiter.create(Double.MAX_VALUE);
         private final boolean isLocalDC;
 
         public StreamRateLimiter(InetAddress peer)
         {
-            double throughput = ((double) DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec()) * BYTES_PER_MEGABIT;
+            double throughput = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec() * BYTES_PER_MEGABIT;
             mayUpdateThroughput(throughput, limiter);
 
-            double interDCThroughput = ((double) DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec()) * BYTES_PER_MEGABIT;
+            double interDCThroughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec() * BYTES_PER_MEGABIT;
             mayUpdateThroughput(interDCThroughput, interDCLimiter);
 
             if (DatabaseDescriptor.getLocalDataCenter() != null && DatabaseDescriptor.getEndpointSnitch() != null)

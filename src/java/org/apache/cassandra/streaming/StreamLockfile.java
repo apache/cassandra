@@ -21,15 +21,21 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 
 import com.google.common.base.Charsets;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableWriter;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * Encapsulates the behavior for 'locking' any streamed sttables to a node.
@@ -52,7 +58,7 @@ public class StreamLockfile
 
     public StreamLockfile(File directory, UUID uuid)
     {
-        lockfile = new File(directory, uuid.toString() + FILE_EXT);
+        lockfile = new File(directory, uuid + FILE_EXT);
     }
 
     public StreamLockfile(File lockfile)
@@ -69,7 +75,7 @@ public class StreamLockfile
             /* write out the file names *without* the 'tmp-file' flag in the file name.
                this class will not need to clean up tmp files (on restart), CassandraDaemon does that already,
                just make sure we delete the fully-formed SSTRs. */
-            sstablePaths.add(writer.descriptor.asTemporary(false).baseFilename());
+            sstablePaths.add(writer.descriptor.asType(Descriptor.Type.FINAL).baseFilename());
         }
 
         try
@@ -100,6 +106,7 @@ public class StreamLockfile
             }
             catch (Exception e)
             {
+                JVMStabilityInspector.inspectThrowable(e);
                 logger.warn("failed to delete a potentially stale sstable {}", file);
             }
         }

@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +27,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xerial.snappy.Snappy;
 import org.xerial.snappy.SnappyError;
+
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public class SnappyCompressor implements ICompressor
 {
@@ -57,17 +60,10 @@ public class SnappyCompressor implements ICompressor
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             return false;
         }
-        catch (NoClassDefFoundError e)
-        {
-            return false;
-        }
-        catch (SnappyError e)
-        {
-            return false;
-        }
-        catch (UnsatisfiedLinkError e)
+        catch (NoClassDefFoundError | SnappyError | UnsatisfiedLinkError e)
         {
             return false;
         }
@@ -83,13 +79,43 @@ public class SnappyCompressor implements ICompressor
         return Snappy.maxCompressedLength(chunkLength);
     }
 
-    public int compress(byte[] input, int inputOffset, int inputLength, ICompressor.WrappedArray output, int outputOffset) throws IOException
+    public void compress(ByteBuffer input, ByteBuffer output) throws IOException
     {
-        return Snappy.rawCompress(input, inputOffset, inputLength, output.buffer, outputOffset);
+        int dlimit = output.limit();
+        Snappy.compress(input, output);
+
+        // Snappy doesn't match the ICompressor contract w/regards to state it leaves dest ByteBuffer's counters in
+        output.position(output.limit());
+        output.limit(dlimit);
+        input.position(input.limit());
     }
 
     public int uncompress(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset) throws IOException
     {
         return Snappy.rawUncompress(input, inputOffset, inputLength, output, outputOffset);
+    }
+
+    public void uncompress(ByteBuffer input, ByteBuffer output)
+            throws IOException
+    {
+        int dlimit = output.limit();
+        Snappy.uncompress(input, output);
+
+        // Snappy doesn't match the ICompressor contract w/regards to state it leaves dest ByteBuffer's counters in
+        output.position(output.limit());
+        output.limit(dlimit);
+        input.position(input.limit());
+    }
+
+    public BufferType preferredBufferType()
+    {
+        return BufferType.OFF_HEAP;
+    }
+
+    public boolean supports(BufferType bufferType)
+    {
+        // Snappy can't deal with different input and output buffer types.
+        // To avoid possible problems, pretend it can't support array-backed at all.
+        return bufferType == BufferType.OFF_HEAP;
     }
 }

@@ -18,10 +18,10 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 
@@ -54,7 +54,7 @@ public class Truncation
 
 class TruncationSerializer implements IVersionedSerializer<Truncation>
 {
-    public void serialize(Truncation t, DataOutput out, int version) throws IOException
+    public void serialize(Truncation t, DataOutputPlus out, int version) throws IOException
     {
         out.writeUTF(t.keyspace);
         out.writeUTF(t.columnFamily);

@@ -17,12 +17,15 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 /**
@@ -62,7 +65,18 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         return new Prepared(this);
     }
 
-    public abstract ResultMessage.SchemaChange.Change changeType();
+    public abstract Event.SchemaChange changeEvent();
+
+    /**
+     * Schema alteration may result in a new database object (keyspace, table, role, function) being created capable of
+     * having permissions GRANTed on it. The creator of the object (the primary role assigned to the AuthenticatedUser
+     * performing the operation) is automatically granted ALL applicable permissions on the object. This is a hook for
+     * subclasses to override in order to perform that grant when the statement is executed.
+     */
+    protected void grantPermissionsToCreator(QueryState state)
+    {
+        // no-op by default
+    }
 
     /**
      * Announces the migration to other nodes in the cluster.
@@ -70,23 +84,46 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
      * is used, for example)
      * @throws RequestValidationException
      */
-    public abstract boolean announceMigration() throws RequestValidationException;
+    public abstract boolean announceMigration(boolean isLocalOnly) throws RequestValidationException;
 
     public ResultMessage execute(QueryState state, QueryOptions options) throws RequestValidationException
     {
         // If an IF [NOT] EXISTS clause was used, this may not result in an actual schema change.  To avoid doing
         // extra work in the drivers to handle schema changes, we return an empty message in this case. (CASSANDRA-7600)
-        boolean didChangeSchema = announceMigration();
+        boolean didChangeSchema = announceMigration(false);
         if (!didChangeSchema)
             return new ResultMessage.Void();
 
-        String tableName = cfName == null || columnFamily() == null ? "" : columnFamily();
-        return new ResultMessage.SchemaChange(changeType(), keyspace(), tableName);
+        Event.SchemaChange ce = changeEvent();
+
+        // when a schema alteration results in a new db object being created, we grant permissions on the new
+        // object to the user performing the request if:
+        // * the user is not anonymous
+        // * the configured IAuthorizer supports granting of permissions (not all do, AllowAllAuthorizer doesn't and
+        //   custom external implementations may not)
+        AuthenticatedUser user = state.getClientState().getUser();
+        if (user != null && !user.isAnonymous() && ce != null && ce.change == Event.SchemaChange.Change.CREATED)
+        {
+            try
+            {
+                grantPermissionsToCreator(state);
+            }
+            catch (UnsupportedOperationException e)
+            {
+                // not a problem, grant is an optional method on IAuthorizer
+            }
+        }
+
+        return ce == null ? new ResultMessage.Void() : new ResultMessage.SchemaChange(ce);
     }
 
     public ResultMessage executeInternal(QueryState state, QueryOptions options)
     {
-        // executeInternal is for local query only, thus altering schema is not supported
-        throw new UnsupportedOperationException();
+        boolean didChangeSchema = announceMigration(true);
+        if (!didChangeSchema)
+            return new ResultMessage.Void();
+
+        Event.SchemaChange ce = changeEvent();
+        return ce == null ? new ResultMessage.Void() : new ResultMessage.SchemaChange(ce);
     }
 }

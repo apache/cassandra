@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.service.pager;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -37,7 +40,7 @@ public class RangeSliceQueryPager extends AbstractQueryPager
 {
     private final RangeSliceCommand command;
     private volatile DecoratedKey lastReturnedKey;
-    private volatile ByteBuffer lastReturnedName;
+    private volatile CellName lastReturnedName;
 
     // Don't use directly, use QueryPagers method instead
     RangeSliceQueryPager(RangeSliceCommand command, ConsistencyLevel consistencyLevel, boolean localQuery)
@@ -54,7 +57,7 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         if (state != null)
         {
             lastReturnedKey = StorageService.getPartitioner().decorateKey(state.partitionKey);
-            lastReturnedName = state.cellName;
+            lastReturnedName = cfm.comparator.cellFromByteBuffer(state.cellName);
             restoreState(state.remaining, true);
         }
     }
@@ -63,15 +66,16 @@ public class RangeSliceQueryPager extends AbstractQueryPager
     {
         return lastReturnedKey == null
              ? null
-             : new PagingState(lastReturnedKey.key, lastReturnedName, maxRemaining());
+             : new PagingState(lastReturnedKey.getKey(), lastReturnedName.toByteBuffer(), maxRemaining());
     }
 
     protected List<Row> queryNextPage(int pageSize, ConsistencyLevel consistencyLevel, boolean localQuery)
     throws RequestExecutionException
     {
-        SliceQueryFilter sf = (SliceQueryFilter)columnFilter;
+        SliceQueryFilter rawFilter = (SliceQueryFilter)columnFilter;
+        SliceQueryFilter sf = rawFilter.withUpdatedCount(Math.min(rawFilter.count, pageSize));
         AbstractBounds<RowPosition> keyRange = lastReturnedKey == null ? command.keyRange : makeIncludingKeyBounds(lastReturnedKey);
-        ByteBuffer start = lastReturnedName == null ? sf.start() : lastReturnedName;
+        Composite start = lastReturnedName == null ? sf.start() : lastReturnedName;
         PagedRangeCommand pageCmd = new PagedRangeCommand(command.keyspace,
                                                           command.columnFamily,
                                                           command.timestamp,
@@ -80,7 +84,8 @@ public class RangeSliceQueryPager extends AbstractQueryPager
                                                           start,
                                                           sf.finish(),
                                                           command.rowFilter,
-                                                          pageSize);
+                                                          pageSize,
+                                                          command.countCQL3Rows);
 
         return localQuery
              ? pageCmd.executeLocally()
@@ -92,17 +97,32 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         if (lastReturnedKey == null || !lastReturnedKey.equals(first.key))
             return false;
 
+        // If the query is a DISTINCT one we can stop there
+        if (isDistinct())
+            return true;
+
         // Same as SliceQueryPager, we ignore a deleted column
-        Column firstColumn = isReversed() ? lastColumn(first.cf) : firstNonStaticColumn(first.cf);
-        return !first.cf.deletionInfo().isDeleted(firstColumn)
-            && firstColumn.isLive(timestamp())
-            && lastReturnedName.equals(firstColumn.name());
+        Cell firstCell = isReversed() ? lastCell(first.cf) : firstNonStaticCell(first.cf);
+        // If the row was containing only static columns it has already been returned and we can skip it.
+        if (firstCell == null)
+            return true;
+
+        CFMetaData metadata = Schema.instance.getCFMetaData(command.keyspace, command.columnFamily);
+        return !first.cf.deletionInfo().isDeleted(firstCell)
+                && firstCell.isLive(timestamp())
+                && firstCell.name().isSameCQL3RowAs(metadata.comparator, lastReturnedName);
+    }
+
+    private boolean isDistinct()
+    {
+        // As this pager is never used for Thrift queries, checking the countCQL3Rows is enough.
+        return !command.countCQL3Rows;
     }
 
     protected boolean recordLast(Row last)
     {
         lastReturnedKey = last.key;
-        lastReturnedName = (isReversed() ? firstNonStaticColumn(last.cf) : lastColumn(last.cf)).name();
+        lastReturnedName = (isReversed() ? firstNonStaticCell(last.cf) : lastCell(last.cf)).name();
         return true;
     }
 

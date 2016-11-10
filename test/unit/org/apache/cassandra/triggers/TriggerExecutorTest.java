@@ -25,6 +25,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -63,7 +64,7 @@ public class TriggerExecutorTest
     public void noTriggerMutations() throws ConfigurationException, InvalidRequestException
     {
         CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", NoOpTrigger.class.getName()));
-        RowMutation rm = new RowMutation(bytes("k1"), makeCf(metadata, "v1", null));
+        Mutation rm = new Mutation(bytes("k1"), makeCf(metadata, "v1", null));
         assertNull(TriggerExecutor.instance.execute(Collections.singletonList(rm)));
     }
 
@@ -73,8 +74,8 @@ public class TriggerExecutorTest
         CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", SameKeySameCfTrigger.class.getName()));
         ColumnFamily cf1 = makeCf(metadata, "k1v1", null);
         ColumnFamily cf2 = makeCf(metadata, "k2v1", null);
-        RowMutation rm1 = new RowMutation(bytes("k1"), cf1);
-        RowMutation rm2 = new RowMutation(bytes("k2"), cf2);
+        Mutation rm1 = new Mutation(bytes("k1"), cf1);
+        Mutation rm2 = new Mutation(bytes("k2"), cf2);
 
         List<? extends IMutation> tmutations = new ArrayList<>(TriggerExecutor.instance.execute(Arrays.asList(rm1, rm2)));
         assertEquals(2, tmutations.size());
@@ -97,8 +98,8 @@ public class TriggerExecutorTest
         CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", SameKeySameCfPartialTrigger.class.getName()));
         ColumnFamily cf1 = makeCf(metadata, "k1v1", null);
         ColumnFamily cf2 = makeCf(metadata, "k2v1", null);
-        RowMutation rm1 = new RowMutation(bytes("k1"), cf1);
-        RowMutation rm2 = new RowMutation(bytes("k2"), cf2);
+        Mutation rm1 = new Mutation(bytes("k1"), cf1);
+        Mutation rm2 = new Mutation(bytes("k2"), cf2);
 
         List<? extends IMutation> tmutations = new ArrayList<>(TriggerExecutor.instance.execute(Arrays.asList(rm1, rm2)));
         assertEquals(2, tmutations.size());
@@ -121,8 +122,8 @@ public class TriggerExecutorTest
         CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", SameKeyDifferentCfTrigger.class.getName()));
         ColumnFamily cf1 = makeCf(metadata, "k1v1", null);
         ColumnFamily cf2 = makeCf(metadata, "k2v1", null);
-        RowMutation rm1 = new RowMutation(bytes("k1"), cf1);
-        RowMutation rm2 = new RowMutation(bytes("k2"), cf2);
+        Mutation rm1 = new Mutation(bytes("k1"), cf1);
+        Mutation rm2 = new Mutation(bytes("k2"), cf2);
 
         List<? extends IMutation> tmutations = new ArrayList<>(TriggerExecutor.instance.execute(Arrays.asList(rm1, rm2)));
         assertEquals(2, tmutations.size());
@@ -153,8 +154,8 @@ public class TriggerExecutorTest
         CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", SameKeyDifferentKsTrigger.class.getName()));
         ColumnFamily cf1 = makeCf(metadata, "k1v1", null);
         ColumnFamily cf2 = makeCf(metadata, "k2v1", null);
-        RowMutation rm1 = new RowMutation(bytes("k1"), cf1);
-        RowMutation rm2 = new RowMutation(bytes("k2"), cf2);
+        Mutation rm1 = new Mutation(bytes("k1"), cf1);
+        Mutation rm2 = new Mutation(bytes("k2"), cf2);
 
         List<? extends IMutation> tmutations = new ArrayList<>(TriggerExecutor.instance.execute(Arrays.asList(rm1, rm2)));
         assertEquals(4, tmutations.size());
@@ -186,7 +187,7 @@ public class TriggerExecutorTest
     {
         CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", DifferentKeyTrigger.class.getName()));
         ColumnFamily cf = makeCf(metadata, "v1", null);
-        RowMutation rm = new RowMutation(UTF8Type.instance.fromString("k1"), cf);
+        Mutation rm = new Mutation(UTF8Type.instance.fromString("k1"), cf);
 
         List<? extends IMutation> tmutations = new ArrayList<>(TriggerExecutor.instance.execute(Arrays.asList(rm)));
         assertEquals(2, tmutations.size());
@@ -209,16 +210,19 @@ public class TriggerExecutorTest
     private static CFMetaData makeCfMetaData(String ks, String cf, TriggerDefinition trigger)
     {
 
-        CFMetaData metadata = new CFMetaData(ks, cf, ColumnFamilyType.Standard, CompositeType.getInstance(UTF8Type.instance));
+        CFMetaData metadata = CFMetaData.sparseCFMetaData(ks, cf, CompositeType.getInstance(UTF8Type.instance));
 
         metadata.keyValidator(UTF8Type.instance);
-        metadata.addOrReplaceColumnDefinition(ColumnDefinition.partitionKeyDef(UTF8Type.instance.fromString("pkey"),
+        metadata.addOrReplaceColumnDefinition(ColumnDefinition.partitionKeyDef(metadata,
+                                                                               UTF8Type.instance.fromString("pkey"),
                                                                                UTF8Type.instance,
                                                                                null));
-        metadata.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(UTF8Type.instance.fromString("c1"),
+        metadata.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(metadata,
+                                                                          UTF8Type.instance.fromString("c1"),
                                                                           UTF8Type.instance,
                                                                           0));
-        metadata.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(UTF8Type.instance.fromString("c2"),
+        metadata.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(metadata,
+                                                                          UTF8Type.instance.fromString("c2"),
                                                                           UTF8Type.instance,
                                                                           0));
         try
@@ -226,7 +230,7 @@ public class TriggerExecutorTest
             if (trigger != null)
                 metadata.addTriggerDefinition(trigger);
         }
-        catch (ConfigurationException e)
+        catch (InvalidRequestException e)
         {
             throw new AssertionError(e);
         }
@@ -239,22 +243,22 @@ public class TriggerExecutorTest
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(metadata);
 
         if (columnValue1 != null)
-            cf.addColumn(new Column(getColumnName(metadata, "c1"), bytes(columnValue1)));
+            cf.addColumn(new BufferCell(getColumnName(metadata, "c1"), bytes(columnValue1)));
 
         if (columnValue2 != null)
-            cf.addColumn(new Column(getColumnName(metadata, "c2"), bytes(columnValue2)));
+            cf.addColumn(new BufferCell(getColumnName(metadata, "c2"), bytes(columnValue2)));
 
         return cf;
     }
 
-    private static ByteBuffer getColumnName(CFMetaData metadata, String stringName)
+    private static CellName getColumnName(CFMetaData metadata, String stringName)
     {
-        return ((CompositeType) metadata.comparator).builder().add(bytes(stringName)).build();
+        return metadata.comparator.makeCellName(stringName);
     }
 
     public static class NoOpTrigger implements ITrigger
     {
-        public Collection<RowMutation> augment(ByteBuffer key, ColumnFamily update)
+        public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             return null;
         }
@@ -262,54 +266,54 @@ public class TriggerExecutorTest
 
     public static class SameKeySameCfTrigger implements ITrigger
     {
-        public Collection<RowMutation> augment(ByteBuffer key, ColumnFamily update)
+        public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(update.metadata());
-            cf.addColumn(new Column(getColumnName(update.metadata(), "c2"), bytes("trigger")));
-            return Collections.singletonList(new RowMutation(update.metadata().ksName, key, cf));
+            cf.addColumn(new BufferCell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
+            return Collections.singletonList(new Mutation(update.metadata().ksName, key, cf));
         }
     }
 
     public static class SameKeySameCfPartialTrigger implements ITrigger
     {
-        public Collection<RowMutation> augment(ByteBuffer key, ColumnFamily update)
+        public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             if (!key.equals(bytes("k2")))
                 return null;
 
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(update.metadata());
-            cf.addColumn(new Column(getColumnName(update.metadata(), "c2"), bytes("trigger")));
-            return Collections.singletonList(new RowMutation(update.metadata().ksName, key, cf));
+            cf.addColumn(new BufferCell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
+            return Collections.singletonList(new Mutation(update.metadata().ksName, key, cf));
         }
     }
 
     public static class SameKeyDifferentCfTrigger implements ITrigger
     {
-        public Collection<RowMutation> augment(ByteBuffer key, ColumnFamily update)
+        public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(makeCfMetaData(update.metadata().ksName, "otherCf", null));
-            cf.addColumn(new Column(getColumnName(update.metadata(), "c2"), bytes("trigger")));
-            return Collections.singletonList(new RowMutation(cf.metadata().ksName, key, cf));
+            cf.addColumn(new BufferCell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
+            return Collections.singletonList(new Mutation(cf.metadata().ksName, key, cf));
         }
     }
 
     public static class SameKeyDifferentKsTrigger implements ITrigger
     {
-        public Collection<RowMutation> augment(ByteBuffer key, ColumnFamily update)
+        public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(makeCfMetaData("otherKs", "otherCf", null));
-            cf.addColumn(new Column(getColumnName(update.metadata(), "c2"), bytes("trigger")));
-            return Collections.singletonList(new RowMutation(cf.metadata().ksName, key, cf));
+            cf.addColumn(new BufferCell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
+            return Collections.singletonList(new Mutation(cf.metadata().ksName, key, cf));
         }
     }
 
     public static class DifferentKeyTrigger implements ITrigger
     {
-        public Collection<RowMutation> augment(ByteBuffer key, ColumnFamily update)
+        public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(update.metadata());
-            cf.addColumn(new Column(getColumnName(update.metadata(), "c2"), bytes("trigger")));
-            return Collections.singletonList(new RowMutation(cf.metadata().ksName, bytes("otherKey"), cf));
+            cf.addColumn(new BufferCell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
+            return Collections.singletonList(new Mutation(cf.metadata().ksName, bytes("otherKey"), cf));
         }
     }
 

@@ -19,11 +19,15 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 
+import com.google.common.base.Throwables;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 
 /**
  * A SSTable writer that assumes rows are in (partitioner) sorted order.
@@ -35,7 +39,10 @@ import org.apache.cassandra.io.FSError;
  * prefered.
  *
  * @see AbstractSSTableSimpleWriter
+ *
+ * @deprecated this class is depracted in favor of {@link CQLSSTableWriter}.
  */
+@Deprecated
 public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
 {
     private final SSTableWriter writer;
@@ -56,8 +63,7 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
                                AbstractType<?> comparator,
                                AbstractType<?> subComparator)
     {
-        this(directory,
-             new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator), partitioner);
+        this(directory, CFMetaData.denseCFMetaData(keyspace, columnFamily, comparator, subComparator), partitioner);
     }
 
     public SSTableSimpleWriter(File directory, CFMetaData metadata, IPartitioner partitioner)
@@ -66,18 +72,24 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         writer = getWriter();
     }
 
+    SSTableReader closeAndOpenReader()
+    {
+        if (currentKey != null)
+            writeRow(currentKey, columnFamily);
+        return writer.finish(true);
+    }
+
     public void close()
     {
         try
         {
             if (currentKey != null)
                 writeRow(currentKey, columnFamily);
-            writer.close(true);
+            writer.finish(false);
         }
-        catch (FSError e)
+        catch (Throwable t)
         {
-            writer.abort();
-            throw e;
+            throw Throwables.propagate(writer.abort(t));
         }
     }
 
@@ -88,6 +100,11 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
 
     protected ColumnFamily getColumnFamily()
     {
-        return TreeMapBackedSortedColumns.factory.create(metadata);
+        return ArrayBackedSortedColumns.factory.create(metadata);
+    }
+
+    public Descriptor getCurrentDescriptor()
+    {
+        return writer.descriptor;
     }
 }

@@ -14,7 +14,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+import cProfile
+import codecs
+import pstats
+
 from itertools import izip
+from datetime import timedelta, tzinfo
+from StringIO import StringIO
+
+try:
+    from line_profiler import LineProfiler
+    HAS_LINE_PROFILER = True
+except ImportError:
+    HAS_LINE_PROFILER = False
+
+ZERO = timedelta(0)
+
+
+class UTC(tzinfo):
+    """UTC"""
+
+    def utcoffset(self, dt):
+        return ZERO
+
+    def tzname(self, dt):
+        return "UTC"
+
+    def dst(self, dt):
+        return ZERO
+
 
 def split_list(items, pred):
     """
@@ -36,6 +65,7 @@ def split_list(items, pred):
             results.append(thisresult)
     return results
 
+
 def find_common_prefix(strs):
     """
     Given a list (iterable) of strings, return the longest common prefix.
@@ -54,6 +84,7 @@ def find_common_prefix(strs):
             break
     return ''.join(common)
 
+
 def list_bifilter(pred, iterable):
     """
     Filter an iterable into two output lists: the first containing all
@@ -70,10 +101,66 @@ def list_bifilter(pred, iterable):
         (yes_s if pred(i) else no_s).append(i)
     return yes_s, no_s
 
+
 def identity(x):
     return x
+
 
 def trim_if_present(s, prefix):
     if s.startswith(prefix):
         return s[len(prefix):]
     return s
+
+
+def get_file_encoding_bomsize(filename):
+    """
+    Checks the beginning of a file for a Unicode BOM.  Based on this check,
+    the encoding that should be used to open the file and the number of
+    bytes that should be skipped (to skip the BOM) are returned.
+    """
+    bom_encodings = ((codecs.BOM_UTF8, 'utf-8-sig'),
+                     (codecs.BOM_UTF16_LE, 'utf-16le'),
+                     (codecs.BOM_UTF16_BE, 'utf-16be'),
+                     (codecs.BOM_UTF32_LE, 'utf-32be'),
+                     (codecs.BOM_UTF32_BE, 'utf-32be'))
+
+    firstbytes = open(filename, 'rb').read(4)
+    for bom, encoding in bom_encodings:
+        if firstbytes.startswith(bom):
+            file_encoding, size = encoding, len(bom)
+            break
+    else:
+        file_encoding, size = "utf-8", 0
+
+    return file_encoding, size
+
+
+def profile_on(fcn_names=None):
+    if fcn_names and HAS_LINE_PROFILER:
+        pr = LineProfiler()
+        for fcn_name in fcn_names:
+            pr.add_function(fcn_name)
+        pr.enable()
+        return pr
+
+    pr = cProfile.Profile()
+    pr.enable()
+    return pr
+
+
+def profile_off(pr, file_name):
+    pr.disable()
+    s = StringIO()
+
+    if HAS_LINE_PROFILER and isinstance(pr, LineProfiler):
+        pr.print_stats(s)
+    else:
+        ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
+        ps.print_stats()
+
+    ret = s.getvalue()
+    if file_name:
+        with open(file_name, 'w') as f:
+            print "Writing to %s\n" % (f.name, )
+            f.write(ret)
+    return ret

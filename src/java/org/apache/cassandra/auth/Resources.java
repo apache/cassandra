@@ -43,6 +43,25 @@ public final class Resources
         return chain;
     }
 
+    /**
+     * Creates an IResource instance from its external name.
+     * Resource implementation class is inferred by matching against the known IResource
+     * impls' root level resources.
+     * @param name
+     * @return an IResource instance created from the name
+     */
+    public static IResource fromName(String name)
+    {
+        if (name.startsWith(RoleResource.root().getName()))
+            return RoleResource.fromName(name);
+        else if (name.startsWith(DataResource.root().getName()))
+            return DataResource.fromName(name);
+        else if (name.startsWith(FunctionResource.root().getName()))
+            return FunctionResource.fromName(name);
+        else
+            throw new IllegalArgumentException(String.format("Name %s is not valid for any resource type", name));
+    }
+
     @Deprecated
     public final static String ROOT = "cassandra";
     @Deprecated
@@ -58,7 +77,7 @@ public final class Resources
             if (component instanceof byte[])
                 buff.append(Hex.bytesToHex((byte[])component));
             else
-                buff.append(component.toString());
+                buff.append(component);
         }
         return buff.toString();
     }

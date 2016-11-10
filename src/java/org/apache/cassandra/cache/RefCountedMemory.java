@@ -17,13 +17,14 @@
  */
 package org.apache.cassandra.cache;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import org.apache.cassandra.io.util.Memory;
 
 public class RefCountedMemory extends Memory implements AutoCloseable
 {
-    private final AtomicInteger references = new AtomicInteger(1);
+    private volatile int references = 1;
+    private static final AtomicIntegerFieldUpdater<RefCountedMemory> UPDATER = AtomicIntegerFieldUpdater.newUpdater(RefCountedMemory.class, "references");
 
     public RefCountedMemory(long size)
     {
@@ -38,10 +39,10 @@ public class RefCountedMemory extends Memory implements AutoCloseable
     {
         while (true)
         {
-            int n = references.get();
+            int n = UPDATER.get(this);
             if (n <= 0)
                 return false;
-            if (references.compareAndSet(n, n + 1))
+            if (UPDATER.compareAndSet(this, n, n + 1))
                 return true;
         }
     }
@@ -49,8 +50,20 @@ public class RefCountedMemory extends Memory implements AutoCloseable
     /** decrement reference count.  if count reaches zero, the object is freed. */
     public void unreference()
     {
-        if (references.decrementAndGet() == 0)
-            free();
+        if (UPDATER.decrementAndGet(this) == 0)
+            super.free();
+    }
+
+    public RefCountedMemory copy(long newSize)
+    {
+        RefCountedMemory copy = new RefCountedMemory(newSize);
+        copy.put(0, this, 0, Math.min(size(), newSize));
+        return copy;
+    }
+
+    public void free()
+    {
+        throw new AssertionError();
     }
 
     public void close()

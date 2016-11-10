@@ -18,14 +18,14 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.UUID;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.io.ISSTableSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -48,7 +48,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
      * <column count>
      * <columns, serialized individually>
     */
-    public void serialize(ColumnFamily cf, DataOutput out, int version)
+    public void serialize(ColumnFamily cf, DataOutputPlus out, int version)
     {
         try
         {
@@ -60,24 +60,17 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
 
             out.writeBoolean(true);
             serializeCfId(cf.id(), out, version);
-
-            if (cf.metadata().isSuper() && version < MessagingService.VERSION_20)
-            {
-                SuperColumns.serializeSuperColumnFamily(cf, out, version);
-                return;
-            }
-
-            DeletionInfo.serializer().serialize(cf.deletionInfo(), out, version);
-            ColumnSerializer columnSerializer = Column.serializer;
+            cf.getComparator().deletionInfoSerializer().serialize(cf.deletionInfo(), out, version);
+            ColumnSerializer columnSerializer = cf.getComparator().columnSerializer();
             int count = cf.getColumnCount();
             out.writeInt(count);
             int written = 0;
-            for (Column column : cf)
+            for (Cell cell : cf)
             {
-                columnSerializer.serialize(column, out);
+                columnSerializer.serialize(cell, out);
                 written++;
             }
-            assert count == written: "Column family had " + count + " columns, but " + written + " written";
+            assert count == written: "Table had " + count + " columns, but " + written + " written";
         }
         catch (IOException e)
         {
@@ -108,9 +101,9 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
         }
         else
         {
-            cf.delete(DeletionInfo.serializer().deserialize(in, version, cf.getComparator()));
+            cf.delete(cf.getComparator().deletionInfoSerializer().deserialize(in, version));
 
-            ColumnSerializer columnSerializer = Column.serializer;
+            ColumnSerializer columnSerializer = cf.getComparator().columnSerializer();
             int size = in.readInt();
             for (int i = 0; i < size; ++i)
                 cf.addColumn(columnSerializer.deserialize(in, flag));
@@ -120,19 +113,11 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
 
     public long contentSerializedSize(ColumnFamily cf, TypeSizes typeSizes, int version)
     {
-        long size = 0L;
-
-        if (cf.metadata().isSuper() && version < MessagingService.VERSION_20)
-        {
-            size += SuperColumns.serializedSize(cf, typeSizes, version);
-        }
-        else
-        {
-            size += DeletionInfo.serializer().serializedSize(cf.deletionInfo(), typeSizes, version);
-            size += typeSizes.sizeof(cf.getColumnCount());
-            for (Column column : cf)
-                size += column.serializedSize(typeSizes);
-        }
+        long size = cf.getComparator().deletionInfoSerializer().serializedSize(cf.deletionInfo(), typeSizes, version);
+        size += typeSizes.sizeof(cf.getColumnCount());
+        ColumnSerializer columnSerializer = cf.getComparator().columnSerializer();
+        for (Cell cell : cf)
+            size += columnSerializer.serializedSize(cell, typeSizes);
         return size;
     }
 
@@ -155,18 +140,18 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
         return serializedSize(cf, TypeSizes.NATIVE, version);
     }
 
-    public void serializeForSSTable(ColumnFamily cf, DataOutput out)
+    public void serializeForSSTable(ColumnFamily cf, DataOutputPlus out)
     {
         // Column families shouldn't be written directly to disk, use ColumnIndex.Builder instead
         throw new UnsupportedOperationException();
     }
 
-    public ColumnFamily deserializeFromSSTable(DataInput in, Descriptor.Version version)
+    public ColumnFamily deserializeFromSSTable(DataInput in, Version version)
     {
         throw new UnsupportedOperationException();
     }
 
-    public void serializeCfId(UUID cfId, DataOutput out, int version) throws IOException
+    public void serializeCfId(UUID cfId, DataOutputPlus out, int version) throws IOException
     {
         UUIDSerializer.serializer.serialize(cfId, out, version);
     }

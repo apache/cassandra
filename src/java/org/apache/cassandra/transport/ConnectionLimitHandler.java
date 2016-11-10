@@ -18,36 +18,33 @@
 package org.apache.cassandra.transport;
 
 
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.jboss.netty.channel.ChannelHandler;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 
 /**
- * {@link SimpleChannelUpstreamHandler} implementation which allows to limit the number of concurrent
+ * {@link ChannelInboundHandlerAdapter} implementation which allows to limit the number of concurrent
  * connections to the Server. Be aware this <strong>MUST</strong> be shared between all child channels.
  */
 @ChannelHandler.Sharable
-final class ConnectionLimitHandler extends SimpleChannelUpstreamHandler
+final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter
 {
     private static final Logger logger = LoggerFactory.getLogger(ConnectionLimitHandler.class);
     private final ConcurrentMap<InetAddress, AtomicLong> connectionsPerClient = new ConcurrentHashMap<>();
     private final AtomicLong counter = new AtomicLong(0);
 
     @Override
-    public void channelOpen(ChannelHandlerContext ctx, ChannelStateEvent event) throws Exception
+    public void channelActive(ChannelHandlerContext ctx) throws Exception
     {
         final long count = counter.incrementAndGet();
         long limit = DatabaseDescriptor.getNativeTransportMaxConcurrentConnections();
@@ -60,14 +57,14 @@ final class ConnectionLimitHandler extends SimpleChannelUpstreamHandler
         {
             // The decrement will be done in channelClosed(...)
             logger.warn("Exceeded maximum native connection limit of {} by using {} connections", limit, count);
-            ctx.getChannel().close();
+            ctx.close();
         }
         else
         {
             long perIpLimit = DatabaseDescriptor.getNativeTransportMaxConcurrentConnectionsPerIp();
             if (perIpLimit > 0)
             {
-                InetAddress address = ((InetSocketAddress) ctx.getChannel().getRemoteAddress()).getAddress();
+                InetAddress address = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
 
                 AtomicLong perIpCount = connectionsPerClient.get(address);
                 if (perIpCount == null)
@@ -84,19 +81,19 @@ final class ConnectionLimitHandler extends SimpleChannelUpstreamHandler
                 {
                     // The decrement will be done in channelClosed(...)
                     logger.warn("Exceeded maximum native connection limit per ip of {} by using {} connections", perIpLimit, perIpCount);
-                    ctx.getChannel().close();
+                    ctx.close();
                     return;
                 }
             }
-            super.channelOpen(ctx, event);
+            ctx.fireChannelActive();
         }
     }
 
     @Override
-    public void channelClosed(ChannelHandlerContext ctx, ChannelStateEvent event) throws Exception
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception
     {
         counter.decrementAndGet();
-        InetAddress address = ((InetSocketAddress) ctx.getChannel().getRemoteAddress()).getAddress();
+        InetAddress address = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
 
         AtomicLong count = connectionsPerClient.get(address);
         if (count != null)
@@ -106,6 +103,6 @@ final class ConnectionLimitHandler extends SimpleChannelUpstreamHandler
                 connectionsPerClient.remove(address);
             }
         }
-        super.channelClosed(ctx, event);
+        ctx.fireChannelInactive();
     }
 }

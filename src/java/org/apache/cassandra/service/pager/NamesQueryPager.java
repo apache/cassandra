@@ -25,6 +25,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnCounter;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 
 /**
@@ -34,6 +35,7 @@ public class NamesQueryPager implements SinglePartitionPager
 {
     private final SliceByNamesReadCommand command;
     private final ConsistencyLevel consistencyLevel;
+    private final ClientState state;
     private final boolean localQuery;
 
     private volatile boolean queried;
@@ -49,10 +51,11 @@ public class NamesQueryPager implements SinglePartitionPager
      * count every cell individually) and the names filter asks for more than pageSize columns.
      */
     // Don't use directly, use QueryPagers method instead
-    NamesQueryPager(SliceByNamesReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery)
+    NamesQueryPager(SliceByNamesReadCommand command, ConsistencyLevel consistencyLevel, ClientState state, boolean localQuery)
     {
         this.command = command;
         this.consistencyLevel = consistencyLevel;
+        this.state = state;
         this.localQuery = localQuery;
     }
 
@@ -87,7 +90,7 @@ public class NamesQueryPager implements SinglePartitionPager
         queried = true;
         return localQuery
              ? Collections.singletonList(command.getRow(Keyspace.open(command.ksName)))
-             : StorageProxy.read(Collections.<ReadCommand>singletonList(command), consistencyLevel);
+             : StorageProxy.read(Collections.<ReadCommand>singletonList(command), consistencyLevel, state);
     }
 
     public int maxRemaining()

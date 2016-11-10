@@ -33,17 +33,13 @@ public class CallbackInfo
     protected final IVersionedSerializer<?> serializer;
     private final boolean failureCallback;
 
-    public CallbackInfo(InetAddress target, IAsyncCallback callback, IVersionedSerializer<?> serializer)
-    {
-        this(target, callback, serializer, false);
-    }
-
     /**
      * Create CallbackInfo without sent message
      *
      * @param target target to send message
      * @param callback
      * @param serializer serializer to deserialize response message
+     * @param failureCallback True when we have a callback to handle failures
      */
     public CallbackInfo(InetAddress target, IAsyncCallback callback, IVersionedSerializer<?> serializer, boolean failureCallback)
     {

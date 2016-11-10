@@ -57,7 +57,7 @@ public class TCustomServerSocket extends TServerTransport
      * @throws TTransportException
      */
     public TCustomServerSocket(InetSocketAddress bindAddr, boolean keepAlive, Integer sendBufferSize,
-            Integer recvBufferSize)
+            Integer recvBufferSize, Integer listenBacklog)
             throws TTransportException
     {
         try
@@ -67,12 +67,12 @@ public class TCustomServerSocket extends TServerTransport
             // Prevent 2MSL delay problem on server restarts
             serverSocket.setReuseAddress(true);
             // Bind to listening port
-            serverSocket.bind(bindAddr);
+            serverSocket.bind(bindAddr, listenBacklog);
         }
         catch (IOException ioe)
         {
             serverSocket = null;
-            throw new TTransportException("Could not create ServerSocket on address " + bindAddr.toString() + ".");
+            throw new TTransportException("Could not create ServerSocket on address " + bindAddr + ".");
         }
 
         this.keepAlive = keepAlive;
@@ -89,6 +89,7 @@ public class TCustomServerSocket extends TServerTransport
     }
 
     @Override
+    @SuppressWarnings("resource")
     protected TCustomSocket acceptImpl() throws TTransportException
     {
 

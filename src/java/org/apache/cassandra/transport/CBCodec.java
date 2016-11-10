@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.transport;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 public interface CBCodec<T>
 {
-    public T decode(ChannelBuffer body, int version);
-    public void encode(T t, ChannelBuffer dest, int version);
+    public T decode(ByteBuf body, int version);
+    public void encode(T t, ByteBuf dest, int version);
     public int encodedSize(T t, int version);
 }

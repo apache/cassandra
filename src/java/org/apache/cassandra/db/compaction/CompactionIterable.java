@@ -20,14 +20,19 @@ package org.apache.cassandra.db.compaction;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
 public class CompactionIterable extends AbstractCompactionIterable
 {
+    final SSTableFormat format;
 
     private static final Comparator<OnDiskAtomIterator> comparator = new Comparator<OnDiskAtomIterator>()
     {
@@ -37,9 +42,14 @@ public class CompactionIterable extends AbstractCompactionIterable
         }
     };
 
-    public CompactionIterable(OperationType type, List<ICompactionScanner> scanners, CompactionController controller)
+    public CompactionIterable(OperationType type,
+                              List<ISSTableScanner> scanners,
+                              CompactionController controller,
+                              SSTableFormat.Type formatType,
+                              UUID compactionId)
     {
-        super(controller, type, scanners);
+        super(controller, type, scanners, compactionId);
+        this.format = formatType.info;
     }
 
     public CloseableIterator<AbstractCompactedRow> iterator()
@@ -54,11 +64,11 @@ public class CompactionIterable extends AbstractCompactionIterable
 
     protected class Reducer extends MergeIterator.Reducer<OnDiskAtomIterator, AbstractCompactedRow>
     {
-        protected final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
+        protected final List<OnDiskAtomIterator> rows = new ArrayList<>();
 
         public void reduce(OnDiskAtomIterator current)
         {
-            rows.add((SSTableIdentityIterator) current);
+            rows.add(current);
         }
 
         protected AbstractCompactedRow getReduced()
@@ -71,13 +81,13 @@ public class CompactionIterable extends AbstractCompactionIterable
                 // create a new container for rows, since we're going to clear ours for the next one,
                 // and the AbstractCompactionRow code should be able to assume that the collection it receives
                 // won't be pulled out from under it.
-                return controller.getCompactedRow(new ArrayList<SSTableIdentityIterator>(rows));
+                return format.getCompactedRowWriter(controller, ImmutableList.copyOf(rows));
             }
             finally
             {
                 rows.clear();
                 long n = 0;
-                for (ICompactionScanner scanner : scanners)
+                for (ISSTableScanner scanner : scanners)
                     n += scanner.getCurrentPosition();
                 bytesRead = n;
             }

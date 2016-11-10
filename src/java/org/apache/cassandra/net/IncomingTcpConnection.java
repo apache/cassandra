@@ -21,19 +21,31 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.util.zip.Checksum;
 import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.xerial.snappy.SnappyInputStream;
 
+import net.jpountz.lz4.LZ4BlockInputStream;
+import net.jpountz.lz4.LZ4FastDecompressor;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.xxhash.XXHashFactory;
+
+import org.apache.cassandra.config.Config;
+import org.xerial.snappy.SnappyInputStream;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.UnknownColumnFamilyException;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.io.util.NIODataInputStream;
 
 public class IncomingTcpConnection extends Thread implements Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(IncomingTcpConnection.class);
+
+    private static final int BUFFER_SIZE = Integer.getInteger(Config.PROPERTY_PREFIX + ".itc_buffer_size", 1024 * 4);
 
     private final int version;
     private final boolean compressed;
@@ -71,8 +83,10 @@ public class IncomingTcpConnection extends Thread implements Closeable
     {
         try
         {
-            if (version < MessagingService.VERSION_12)
-                throw new UnsupportedOperationException("Unable to read obsolete message version " + version + "; the earliest version supported is 1.2.0");
+            if (version < MessagingService.VERSION_20)
+                throw new UnsupportedOperationException(String.format("Unable to read obsolete message version %s; "
+                                                                      + "The earliest version supported is 2.0.0",
+                                                                      version));
 
             receiveMessages();
         }
@@ -87,19 +101,21 @@ public class IncomingTcpConnection extends Thread implements Closeable
         }
         catch (IOException e)
         {
-            logger.debug("IOException reading from socket; closing", e);
+            logger.trace("IOException reading from socket; closing", e);
         }
         finally
         {
             close();
         }
     }
-    
+
     @Override
     public void close()
     {
         try
         {
+            if (logger.isTraceEnabled())
+                logger.trace("Closing socket {} - isclosed: {}", socket, socket.isClosed());
             if (!socket.isClosed())
             {
                 socket.close();
@@ -107,7 +123,7 @@ public class IncomingTcpConnection extends Thread implements Closeable
         }
         catch (IOException e)
         {
-            logger.debug("Error closing socket", e);
+            logger.trace("Error closing socket", e);
         }
         finally
         {
@@ -123,23 +139,36 @@ public class IncomingTcpConnection extends Thread implements Closeable
         // to connect with, the other node will disconnect
         out.writeInt(MessagingService.current_version);
         out.flush();
-        DataInputStream in = new DataInputStream(socket.getInputStream());
+        DataInput in = new DataInputStream(socket.getInputStream());
         int maxVersion = in.readInt();
         // outbound side will reconnect if necessary to upgrade version
         assert version <= MessagingService.current_version;
         from = CompactEndpointSerializationHelper.deserialize(in);
         // record the (true) version of the endpoint
         MessagingService.instance().setVersion(from, maxVersion);
-        logger.debug("Set version for {} to {} (will use {})", from, maxVersion, MessagingService.instance().getVersion(from));
+        logger.trace("Set version for {} to {} (will use {})", from, maxVersion, MessagingService.instance().getVersion(from));
 
         if (compressed)
         {
-            logger.debug("Upgrading incoming connection to be compressed");
-            in = new DataInputStream(new SnappyInputStream(socket.getInputStream()));
+            logger.trace("Upgrading incoming connection to be compressed");
+            if (version < MessagingService.VERSION_21)
+            {
+                in = new DataInputStream(new SnappyInputStream(socket.getInputStream()));
+            }
+            else
+            {
+                LZ4FastDecompressor decompressor = LZ4Factory.fastestInstance().fastDecompressor();
+                Checksum checksum = XXHashFactory.fastestInstance().newStreamingHash32(OutboundTcpConnection.LZ4_HASH_SEED).asChecksum();
+                in = new DataInputStream(new LZ4BlockInputStream(socket.getInputStream(),
+                                                                 decompressor,
+                                                                 checksum));
+            }
         }
         else
         {
-            in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
+            @SuppressWarnings("resource")
+            ReadableByteChannel channel = socket.getChannel();
+            in = new NIODataInputStream(channel != null ? channel : Channels.newChannel(socket.getInputStream()), BUFFER_SIZE);
         }
 
         while (true)
@@ -149,7 +178,7 @@ public class IncomingTcpConnection extends Thread implements Closeable
         }
     }
 
-    private InetAddress receiveMessage(DataInputStream input, int version) throws IOException
+    private InetAddress receiveMessage(DataInput input, int version) throws IOException
     {
         int id;
         if (version < MessagingService.VERSION_20)
@@ -180,7 +209,7 @@ public class IncomingTcpConnection extends Thread implements Closeable
         }
         else
         {
-            logger.debug("Received connection from newer protocol version {}. Ignoring message", version);
+            logger.trace("Received connection from newer protocol version {}. Ignoring message", version);
         }
         return message.from;
     }

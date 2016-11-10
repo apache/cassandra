@@ -23,13 +23,14 @@ import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
- * Index on a CLUSTERING_KEY column definition.
+ * Index on a CLUSTERING_COLUMN column definition.
  *
  * A cell indexed by this index will have the general form:
  *   ck_0 ... ck_n c_name : v
@@ -47,62 +48,55 @@ import org.apache.cassandra.db.marshal.*;
  */
 public class CompositesIndexOnClusteringKey extends CompositesIndex
 {
-    public static CompositeType buildIndexComparator(CFMetaData baseMetadata, ColumnDefinition columnDef)
+    public static CellNameType buildIndexComparator(CFMetaData baseMetadata, ColumnDefinition columnDef)
     {
         // Index cell names are rk ck_0 ... ck_{i-1} ck_{i+1} ck_n, so n
         // components total (where n is the number of clustering keys)
-        int ckCount = baseMetadata.clusteringKeyColumns().size();
+        int ckCount = baseMetadata.clusteringColumns().size();
         List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(ckCount);
-        List<AbstractType<?>> ckTypes = baseMetadata.comparator.getComponents();
         types.add(SecondaryIndex.keyComparator);
-        for (int i = 0; i < columnDef.componentIndex; i++)
-            types.add(ckTypes.get(i));
-        for (int i = columnDef.componentIndex + 1; i < ckCount; i++)
-            types.add(ckTypes.get(i));
-        return CompositeType.getInstance(types);
+        for (int i = 0; i < columnDef.position(); i++)
+            types.add(baseMetadata.clusteringColumns().get(i).type);
+        for (int i = columnDef.position() + 1; i < ckCount; i++)
+            types.add(baseMetadata.clusteringColumns().get(i).type);
+        return new CompoundDenseCellNameType(types);
     }
 
-    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Column column)
+    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Cell cell)
     {
-        CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
-        ByteBuffer[] components = baseComparator.split(column.name());
-        return components[columnDef.componentIndex];
+        return cell.name().get(columnDef.position());
     }
 
-    protected ColumnNameBuilder makeIndexColumnNameBuilder(ByteBuffer rowKey, ByteBuffer columnName)
+    protected Composite makeIndexColumnPrefix(ByteBuffer rowKey, Composite columnName)
     {
-        int ckCount = baseCfs.metadata.clusteringKeyColumns().size();
-        CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
-        ByteBuffer[] components = baseComparator.split(columnName);
-        CompositeType.Builder builder = getIndexComparator().builder();
+        int count = Math.min(baseCfs.metadata.clusteringColumns().size(), columnName.size());
+        CBuilder builder = getIndexComparator().prefixBuilder();
         builder.add(rowKey);
-
-        for (int i = 0; i < Math.min(components.length, columnDef.componentIndex); i++)
-            builder.add(components[i]);
-        for (int i = columnDef.componentIndex + 1; i < Math.min(components.length, ckCount); i++)
-            builder.add(components[i]);
-        return builder;
+        for (int i = 0; i < Math.min(columnDef.position(), count); i++)
+            builder.add(columnName.get(i));
+        for (int i = columnDef.position() + 1; i < count; i++)
+            builder.add(columnName.get(i));
+        return builder.build();
     }
 
-    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry)
+    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Cell indexEntry)
     {
-        int ckCount = baseCfs.metadata.clusteringKeyColumns().size();
-        ByteBuffer[] components = getIndexComparator().split(indexEntry.name());
+        int ckCount = baseCfs.metadata.clusteringColumns().size();
 
-        ColumnNameBuilder builder = getBaseComparator().builder();
-        for (int i = 0; i < columnDef.componentIndex; i++)
-            builder.add(components[i + 1]);
+        CBuilder builder = baseCfs.getComparator().builder();
+        for (int i = 0; i < columnDef.position(); i++)
+            builder.add(indexEntry.name().get(i + 1));
 
-        builder.add(indexedValue.key);
+        builder.add(indexedValue.getKey());
 
-        for (int i = columnDef.componentIndex + 1; i < ckCount; i++)
-            builder.add(components[i]);
+        for (int i = columnDef.position() + 1; i < ckCount; i++)
+            builder.add(indexEntry.name().get(i));
 
-        return new IndexedEntry(indexedValue, indexEntry.name(), indexEntry.timestamp(), components[0], builder);
+        return new IndexedEntry(indexedValue, indexEntry.name(), indexEntry.timestamp(), indexEntry.name().get(0), builder.build());
     }
 
     @Override
-    public boolean indexes(ByteBuffer name)
+    public boolean indexes(CellName name)
     {
         // For now, assume this is only used in CQL3 when we know name has enough component.
         return true;
@@ -114,7 +108,7 @@ public class CompositesIndexOnClusteringKey extends CompositesIndex
     }
 
     @Override
-    public void delete(ByteBuffer rowKey, Column column)
+    public void delete(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
     {
         // We only know that one column of the CQL row has been updated/deleted, but we don't know if the
         // full row has been deleted so we should not do anything. If it ends up that the whole row has

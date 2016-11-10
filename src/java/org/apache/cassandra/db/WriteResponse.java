@@ -18,10 +18,10 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 
@@ -39,7 +39,7 @@ public class WriteResponse
 
     public static class WriteResponseSerializer implements IVersionedSerializer<WriteResponse>
     {
-        public void serialize(WriteResponse wm, DataOutput out, int version) throws IOException
+        public void serialize(WriteResponse wm, DataOutputPlus out, int version) throws IOException
         {
         }
 

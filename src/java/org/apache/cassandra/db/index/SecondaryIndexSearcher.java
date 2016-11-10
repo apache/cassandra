@@ -22,8 +22,7 @@ import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -40,17 +39,43 @@ public abstract class SecondaryIndexSearcher
         this.baseCfs = indexManager.baseCfs;
     }
 
+    public SecondaryIndex highestSelectivityIndex(List<IndexExpression> clause)
+    {
+        IndexExpression expr = highestSelectivityPredicate(clause, false);
+        return expr == null ? null : indexManager.getIndexForColumn(expr.column);
+    }
+
     public abstract List<Row> search(ExtendedFilter filter);
 
     /**
-     * @return true this index is able to handle given clauses.
+     * @return true this index is able to handle the given index expressions.
      */
-    public boolean isIndexing(List<IndexExpression> clause)
+    public boolean canHandleIndexClause(List<IndexExpression> clause)
     {
-        return highestSelectivityPredicate(clause) != null;
+        for (IndexExpression expression : clause)
+        {
+            if (!columns.contains(expression.column))
+                continue;
+
+            SecondaryIndex index = indexManager.getIndexForColumn(expression.column);
+            if (index != null && index.getIndexCfs() != null && index.supportsOperator(expression.operator))
+                return true;
+        }
+        return false;
+    }
+    
+    /**
+     * Validates the specified {@link IndexExpression}. It will throw an {@link org.apache.cassandra.exceptions.InvalidRequestException}
+     * if the provided clause is not valid for the index implementation.
+     *
+     * @param indexExpression An {@link IndexExpression} to be validated
+     * @throws org.apache.cassandra.exceptions.InvalidRequestException in case of validation errors
+     */
+    public void validate(IndexExpression indexExpression) throws InvalidRequestException
+    {
     }
 
-    protected IndexExpression highestSelectivityPredicate(List<IndexExpression> clause)
+    protected IndexExpression highestSelectivityPredicate(List<IndexExpression> clause, boolean includeInTrace)
     {
         IndexExpression best = null;
         int bestMeanCount = Integer.MAX_VALUE;
@@ -59,12 +84,13 @@ public abstract class SecondaryIndexSearcher
         for (IndexExpression expression : clause)
         {
             // skip columns belonging to a different index type
-            if (!columns.contains(expression.column_name))
+            if (!columns.contains(expression.column))
                 continue;
 
-            SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
-            if (index == null || index.getIndexCfs() == null || expression.op != IndexOperator.EQ)
+            SecondaryIndex index = indexManager.getIndexForColumn(expression.column);
+            if (index == null || index.getIndexCfs() == null || !index.supportsOperator(expression.operator))
                 continue;
+
             int columns = index.getIndexCfs().getMeanColumns();
             candidates.put(index, columns);
             if (columns < bestMeanCount)
@@ -74,12 +100,40 @@ public abstract class SecondaryIndexSearcher
             }
         }
 
-        if (best == null)
-            Tracing.trace("No applicable indexes found");
-        else
-            Tracing.trace("Candidate index mean cardinalities are {}. Scanning with {}.",
-                          FBUtilities.toString(candidates), indexManager.getIndexForColumn(best.column_name).getIndexName());
-
+        if (includeInTrace)
+        {
+            if (best == null)
+                Tracing.trace("No applicable indexes found");
+            else if (Tracing.isTracing())
+                // pay for an additional threadlocal get() rather than build the strings unnecessarily
+                Tracing.trace("Candidate index mean cardinalities are {}. Scanning with {}.",
+                              FBUtilities.toString(candidates),
+                              indexManager.getIndexForColumn(best.column).getIndexName());
+        }
         return best;
+    }
+
+    /**
+     * Returns {@code true} if the specified list of {@link IndexExpression}s require a full scan of all the nodes.
+     *
+     * @param clause A list of {@link IndexExpression}s
+     * @return {@code true} if the {@code IndexExpression}s require a full scan, {@code false} otherwise
+     */
+    public boolean requiresScanningAllRanges(List<IndexExpression> clause)
+    {
+        return false;
+    }
+
+    /**
+     * Combines index query results from multiple nodes. This is done by the coordinator node after it has reconciled
+     * the replica responses.
+     *
+     * @param clause A list of {@link IndexExpression}s
+     * @param rows The index query results to be combined
+     * @return The combination of the index query results
+     */
+    public List<Row> postReconciliationProcessing(List<IndexExpression> clause, List<Row> rows)
+    {
+        return rows;
     }
 }

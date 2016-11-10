@@ -28,7 +28,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.TokenRange;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.thrift.TException;
@@ -47,7 +46,7 @@ public class RingCache
 {
     final private static Logger logger = LoggerFactory.getLogger(RingCache.class);
 
-    private final IPartitioner<?> partitioner;
+    private final IPartitioner partitioner;
     private final Configuration conf;
 
     private Multimap<Range<Token>, InetAddress> rangeMap;
@@ -73,25 +72,20 @@ public class RingCache
 
             for (TokenRange range : ring)
             {
-                Token<?> left = partitioner.getTokenFactory().fromString(range.start_token);
-                Token<?> right = partitioner.getTokenFactory().fromString(range.end_token);
-                Range<Token> r = new Range<Token>(left, right, partitioner);
+                Token left = partitioner.getTokenFactory().fromString(range.start_token);
+                Token right = partitioner.getTokenFactory().fromString(range.end_token);
+                Range<Token> r = new Range<Token>(left, right);
                 for (String host : range.endpoints)
                 {
                     try
                     {
                         rangeMap.put(r, InetAddress.getByName(host));
-                    }
-                    catch (UnknownHostException e)
+                    } catch (UnknownHostException e)
                     {
                         throw new AssertionError(e); // host strings are IPs
                     }
                 }
             }
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e);
         }
         catch (IOException e)
         {
@@ -99,7 +93,7 @@ public class RingCache
         }
         catch (TException e)
         {
-            logger.debug("Error contacting seed list" + ConfigHelper.getOutputInitialAddress(conf) + " " + e.getMessage());
+            logger.trace("Error contacting seed list {} {}", ConfigHelper.getOutputInitialAddress(conf), e.getMessage());
         }
     }
 
@@ -117,7 +111,7 @@ public class RingCache
     public Range<Token> getRange(ByteBuffer key)
     {
         // TODO: naive linear search of the token map
-        Token<?> t = partitioner.getToken(key);
+        Token t = partitioner.getToken(key);
         for (Range<Token> range : rangeMap.keySet())
             if (range.contains(t))
                 return range;

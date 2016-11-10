@@ -36,7 +36,7 @@ import org.apache.cassandra.metrics.ThreadPoolMetrics;
 public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor implements JMXEnabledThreadPoolExecutorMBean
 {
     private final String mbeanName;
-    private final ThreadPoolMetrics metrics;
+    public final ThreadPoolMetrics metrics;
 
     public JMXEnabledThreadPoolExecutor(String threadPoolName)
     {
@@ -73,7 +73,6 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
     {
         super(corePoolSize, maxPoolSize, keepAliveTime, unit, workQueue, threadFactory);
         super.prestartAllCoreThreads();
-
         metrics = new ThreadPoolMetrics(this, jmxPath, threadFactory.id);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
@@ -133,30 +132,17 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
         return super.shutdownNow();
     }
 
-    /**
-     * Get the number of completed tasks
-     */
-    public long getCompletedTasks()
-    {
-        return getCompletedTaskCount();
-    }
 
-    /**
-     * Get the number of tasks waiting to be executed
-     */
-    public long getPendingTasks()
-    {
-        return getTaskCount() - getCompletedTaskCount();
-    }
+
 
     public int getTotalBlockedTasks()
     {
-        return (int) metrics.totalBlocked.count();
+        return (int) metrics.totalBlocked.getCount();
     }
 
     public int getCurrentlyBlockedTasks()
     {
-        return (int) metrics.currentBlocked.count();
+        return (int) metrics.currentBlocked.getCount();
     }
 
     public int getCoreThreads()

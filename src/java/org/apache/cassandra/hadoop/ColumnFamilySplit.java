@@ -22,6 +22,7 @@ import org.apache.hadoop.mapreduce.InputSplit;
 
 import java.io.DataInput;
 import java.io.DataOutput;
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -84,6 +85,7 @@ public class ColumnFamilySplit extends InputSplit implements Writable, org.apach
         {
             out.writeUTF(endpoint);
         }
+        out.writeLong(length);
     }
 
     public void readFields(DataInput in) throws IOException
@@ -95,6 +97,14 @@ public class ColumnFamilySplit extends InputSplit implements Writable, org.apach
         for(int i = 0; i < numOfEndpoints; i++)
         {
             dataNodes[i] = in.readUTF();
+        }
+        try
+        {
+            length = in.readLong();
+        }
+        catch (EOFException e)
+        {
+            //We must be deserializing in a mixed-version cluster.
         }
     }
 

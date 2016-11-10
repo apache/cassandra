@@ -31,19 +31,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.dht.BigIntegerToken;
+import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
+
 import org.junit.Before;
 import org.junit.Test;
 
-public class OldNetworkTopologyStrategyTest extends SchemaLoader
+public class OldNetworkTopologyStrategyTest
 {
-    private List<Token> endpointTokens;
     private List<Token> keyTokens;
     private TokenMetadata tmd;
     private Map<String, ArrayList<InetAddress>> expectedResults;
@@ -51,7 +50,6 @@ public class OldNetworkTopologyStrategyTest extends SchemaLoader
     @Before
     public void init()
     {
-        endpointTokens = new ArrayList<Token>();
         keyTokens = new ArrayList<Token>();
         tmd = new TokenMetadata();
         expectedResults = new HashMap<String, ArrayList<InetAddress>>();
@@ -145,7 +143,6 @@ public class OldNetworkTopologyStrategyTest extends SchemaLoader
     private void addEndpoint(String endpointTokenID, String keyTokenID, String endpointAddress) throws UnknownHostException
     {
         BigIntegerToken endpointToken = new BigIntegerToken(endpointTokenID);
-        endpointTokens.add(endpointToken);
 
         BigIntegerToken keyToken = new BigIntegerToken(keyTokenID);
         keyTokens.add(keyToken);
@@ -154,7 +151,7 @@ public class OldNetworkTopologyStrategyTest extends SchemaLoader
         tmd.updateNormalToken(endpointToken, ep);
     }
 
-    private void testGetEndpoints(AbstractReplicationStrategy strategy, Token[] keyTokens) throws UnknownHostException
+    private void testGetEndpoints(AbstractReplicationStrategy strategy, Token[] keyTokens)
     {
         for (Token keyToken : keyTokens)
         {
@@ -181,7 +178,7 @@ public class OldNetworkTopologyStrategyTest extends SchemaLoader
         BigIntegerToken newToken = new BigIntegerToken("21267647932558653966460912964485513216");
         BigIntegerToken[] tokens = initTokens();
         BigIntegerToken[] tokensAfterMove = initTokensAfterMove(tokens, movingNodeIdx, newToken);
-        Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx, newToken);
+        Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx);
 
         assertEquals(ranges.left.iterator().next().left, tokensAfterMove[movingNodeIdx]);
         assertEquals(ranges.left.iterator().next().right, tokens[movingNodeIdx]);
@@ -198,7 +195,7 @@ public class OldNetworkTopologyStrategyTest extends SchemaLoader
         BigIntegerToken newToken = new BigIntegerToken("35267647932558653966460912964485513216");
         BigIntegerToken[] tokens = initTokens();
         BigIntegerToken[] tokensAfterMove = initTokensAfterMove(tokens, movingNodeIdx, newToken);
-        Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx, newToken);
+        Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx);
 
         assertEquals("No data should be streamed", ranges.left.size(), 0);
         assertEquals(ranges.right.iterator().next().left, tokens[movingNodeIdx]);
@@ -206,6 +203,7 @@ public class OldNetworkTopologyStrategyTest extends SchemaLoader
 
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     public void testMoveMiddleOfRing() throws UnknownHostException
     {
@@ -216,28 +214,29 @@ public class OldNetworkTopologyStrategyTest extends SchemaLoader
         BigIntegerToken newToken = new BigIntegerToken("90070591730234615865843651857942052864");
         BigIntegerToken[] tokens = initTokens();
         BigIntegerToken[] tokensAfterMove = initTokensAfterMove(tokens, movingNodeIdx, newToken);
-        Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx, newToken);
+        Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx);
 
         // sort the results, so they can be compared
-        Range[] toStream = ranges.left.toArray(new Range[0]);
-        Range[] toFetch = ranges.right.toArray(new Range[0]);
+        Range<Token>[] toStream = ranges.left.toArray(new Range[0]);
+        Range<Token>[] toFetch = ranges.right.toArray(new Range[0]);
         Arrays.sort(toStream);
         Arrays.sort(toFetch);
 
         // build expected ranges
-        Range[] toStreamExpected = new Range[2];
-        toStreamExpected[0] = new Range(getToken(movingNodeIdx - 2, tokens), getToken(movingNodeIdx - 1, tokens));
-        toStreamExpected[1] = new Range(getToken(movingNodeIdx - 1, tokens), getToken(movingNodeIdx, tokens));
+        Range<Token>[] toStreamExpected = new Range[2];
+        toStreamExpected[0] = new Range<Token>(getToken(movingNodeIdx - 2, tokens), getToken(movingNodeIdx - 1, tokens));
+        toStreamExpected[1] = new Range<Token>(getToken(movingNodeIdx - 1, tokens), getToken(movingNodeIdx, tokens));
         Arrays.sort(toStreamExpected);
-        Range[] toFetchExpected = new Range[2];
-        toFetchExpected[0] = new Range(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
-        toFetchExpected[1] = new Range(getToken(movingNodeIdxAfterMove, tokensAfterMove), getToken(movingNodeIdx, tokensAfterMove));
+        Range<Token>[] toFetchExpected = new Range[2];
+        toFetchExpected[0] = new Range<Token>(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
+        toFetchExpected[1] = new Range<Token>(getToken(movingNodeIdxAfterMove, tokensAfterMove), getToken(movingNodeIdx, tokensAfterMove));
         Arrays.sort(toFetchExpected);
 
         assertEquals(Arrays.equals(toStream, toStreamExpected), true);
         assertEquals(Arrays.equals(toFetch, toFetchExpected), true);
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     public void testMoveAfterNextNeighbors() throws UnknownHostException
     {
@@ -248,28 +247,29 @@ public class OldNetworkTopologyStrategyTest extends SchemaLoader
         BigIntegerToken newToken = new BigIntegerToken("52535295865117307932921825928971026432");
         BigIntegerToken[] tokens = initTokens();
         BigIntegerToken[] tokensAfterMove = initTokensAfterMove(tokens, movingNodeIdx, newToken);
-        Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx, newToken);
+        Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx);
 
 
         // sort the results, so they can be compared
-        Range[] toStream = ranges.left.toArray(new Range[0]);
-        Range[] toFetch = ranges.right.toArray(new Range[0]);
+        Range<Token>[] toStream = ranges.left.toArray(new Range[0]);
+        Range<Token>[] toFetch = ranges.right.toArray(new Range[0]);
         Arrays.sort(toStream);
         Arrays.sort(toFetch);
 
         // build expected ranges
-        Range[] toStreamExpected = new Range[1];
-        toStreamExpected[0] = new Range(getToken(movingNodeIdx - 2, tokens), getToken(movingNodeIdx - 1, tokens));
+        Range<Token>[] toStreamExpected = new Range[1];
+        toStreamExpected[0] = new Range<Token>(getToken(movingNodeIdx - 2, tokens), getToken(movingNodeIdx - 1, tokens));
         Arrays.sort(toStreamExpected);
-        Range[] toFetchExpected = new Range[2];
-        toFetchExpected[0] = new Range(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
-        toFetchExpected[1] = new Range(getToken(movingNodeIdxAfterMove, tokensAfterMove), getToken(movingNodeIdx, tokensAfterMove));
+        Range<Token>[] toFetchExpected = new Range[2];
+        toFetchExpected[0] = new Range<Token>(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
+        toFetchExpected[1] = new Range<Token>(getToken(movingNodeIdxAfterMove, tokensAfterMove), getToken(movingNodeIdx, tokensAfterMove));
         Arrays.sort(toFetchExpected);
 
         assertEquals(Arrays.equals(toStream, toStreamExpected), true);
         assertEquals(Arrays.equals(toFetch, toFetchExpected), true);
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     public void testMoveBeforePreviousNeighbor() throws UnknownHostException
     {
@@ -280,19 +280,19 @@ public class OldNetworkTopologyStrategyTest extends SchemaLoader
         BigIntegerToken newToken = new BigIntegerToken("158873535527910577765226390751398592512");
         BigIntegerToken[] tokens = initTokens();
         BigIntegerToken[] tokensAfterMove = initTokensAfterMove(tokens, movingNodeIdx, newToken);
-        Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx, newToken);
+        Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx);
 
-        Range[] toStream = ranges.left.toArray(new Range[0]);
-        Range[] toFetch = ranges.right.toArray(new Range[0]);
+        Range<Token>[] toStream = ranges.left.toArray(new Range[0]);
+        Range<Token>[] toFetch = ranges.right.toArray(new Range[0]);
         Arrays.sort(toStream);
         Arrays.sort(toFetch);
 
-        Range[] toStreamExpected = new Range[2];
-        toStreamExpected[0] = new Range(getToken(movingNodeIdx, tokensAfterMove), getToken(movingNodeIdx - 1, tokensAfterMove));
-        toStreamExpected[1] = new Range(getToken(movingNodeIdx - 1, tokens), getToken(movingNodeIdx, tokens));
+        Range<Token>[] toStreamExpected = new Range[2];
+        toStreamExpected[0] = new Range<Token>(getToken(movingNodeIdx, tokensAfterMove), getToken(movingNodeIdx - 1, tokensAfterMove));
+        toStreamExpected[1] = new Range<Token>(getToken(movingNodeIdx - 1, tokens), getToken(movingNodeIdx, tokens));
         Arrays.sort(toStreamExpected);
-        Range[] toFetchExpected = new Range[1];
-        toFetchExpected[0] = new Range(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
+        Range<Token>[] toFetchExpected = new Range[1];
+        toFetchExpected[0] = new Range<Token>(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
         Arrays.sort(toFetchExpected);
 
         System.out.println("toStream : " + Arrays.toString(toStream));
@@ -350,7 +350,7 @@ public class OldNetworkTopologyStrategyTest extends SchemaLoader
 
     }
 
-    private Pair<Set<Range<Token>>, Set<Range<Token>>> calculateStreamAndFetchRanges(BigIntegerToken[] tokens, BigIntegerToken[] tokensAfterMove, int movingNodeIdx, BigIntegerToken newToken) throws UnknownHostException
+    private Pair<Set<Range<Token>>, Set<Range<Token>>> calculateStreamAndFetchRanges(BigIntegerToken[] tokens, BigIntegerToken[] tokensAfterMove, int movingNodeIdx) throws UnknownHostException
     {
         RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 

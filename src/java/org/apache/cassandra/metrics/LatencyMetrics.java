@@ -20,13 +20,14 @@ package org.apache.cassandra.metrics;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.utils.EstimatedHistogram;
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Timer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.Timer;
+
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+
 
 /**
  * Metrics about latencies
@@ -43,11 +44,6 @@ public class LatencyMetrics
     
     protected final MetricNameFactory factory;
     protected final String namePrefix;
-
-    @Deprecated public final EstimatedHistogram totalLatencyHistogram = new EstimatedHistogram();
-    @Deprecated public final EstimatedHistogram recentLatencyHistogram = new EstimatedHistogram();
-    protected long lastLatency;
-    protected long lastOpCount;
 
     /**
      * Create LatencyMetrics with given group, type, and scope. Name prefix for each metric will be empty.
@@ -83,8 +79,8 @@ public class LatencyMetrics
         this.factory = factory;
         this.namePrefix = namePrefix;
 
-        latency = Metrics.newTimer(factory.createMetricName(namePrefix + "Latency"), TimeUnit.MICROSECONDS, TimeUnit.SECONDS);
-        totalLatency = Metrics.newCounter(factory.createMetricName(namePrefix + "TotalLatency"));
+        latency = Metrics.timer(factory.createMetricName(namePrefix + "Latency"));
+        totalLatency = Metrics.counter(factory.createMetricName(namePrefix + "TotalLatency"));
     }
     
     /**
@@ -93,7 +89,7 @@ public class LatencyMetrics
      *
      * @param factory MetricName factory to use
      * @param namePrefix Prefix to append to each metric name
-     * @param parents... any amount of parents to replicate updates to
+     * @param parents any amount of parents to replicate updates to
      */
     public LatencyMetrics(MetricNameFactory factory, String namePrefix, LatencyMetrics ... parents)
     {
@@ -107,8 +103,6 @@ public class LatencyMetrics
         // convert to microseconds. 1 millionth
         latency.update(nanos, TimeUnit.NANOSECONDS);
         totalLatency.inc(nanos / 1000);
-        totalLatencyHistogram.add(nanos / 1000);
-        recentLatencyHistogram.add(nanos / 1000);
         for(LatencyMetrics parent : parents)
         {
             parent.addNano(nanos);
@@ -117,25 +111,7 @@ public class LatencyMetrics
 
     public void release()
     {
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName(namePrefix + "Latency"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName(namePrefix + "TotalLatency"));
-    }
-
-    @Deprecated
-    public synchronized double getRecentLatency()
-    {
-        long ops = latency.count();
-        long n = totalLatency.count();
-        if (ops == lastOpCount)
-            return 0;
-        try
-        {
-            return ((double) n - lastLatency) / (ops - lastOpCount);
-        }
-        finally
-        {
-            lastLatency = n;
-            lastOpCount = ops;
-        }
+        Metrics.remove(factory.createMetricName(namePrefix + "Latency"));
+        Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"));
     }
 }

@@ -26,24 +26,41 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.ArrayBackedSortedColumns;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.vint.EncodedDataInputStream;
 import org.apache.cassandra.utils.vint.EncodedDataOutputStream;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class EncodedStreamsTest extends SchemaLoader
+public class EncodedStreamsTest
 {
-    private String keyspaceName = "Keyspace1";
-    private String standardCFName = "Standard1";
-    private String counterCFName = "Counter1";
-    private String superCFName = "Super1";
-
+    private static final String KEYSPACE1 = "Keyspace1";
+    private static final String CF_STANDARD = "Standard1";
+    private static final String CF_COUNTER = "Counter1";
     private int version = MessagingService.current_version;
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+    SchemaLoader.prepareServer();
+    SchemaLoader.createKeyspace(KEYSPACE1,
+                                SimpleStrategy.class,
+                                KSMetaData.optsWithRF(1),
+                                SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
+                                SchemaLoader.standardCFMD(KEYSPACE1, CF_COUNTER)
+                                            .defaultValidator(CounterColumnType.instance));
+    }
 
     @Test
     public void testStreams() throws IOException
@@ -97,7 +114,7 @@ public class EncodedStreamsTest extends SchemaLoader
 
     private ColumnFamily createCF()
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(keyspaceName, standardCFName);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, CF_STANDARD);
         cf.addColumn(column("vijay", "try", 1));
         cf.addColumn(column("to", "be_nice", 1));
         return cf;
@@ -105,9 +122,9 @@ public class EncodedStreamsTest extends SchemaLoader
 
     private ColumnFamily createCounterCF()
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(keyspaceName, counterCFName);
-        cf.addColumn(counterColumn("vijay", 1L, 1));
-        cf.addColumn(counterColumn("wants", 1000000, 1));
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, CF_COUNTER);
+        cf.addCounter(cellname("vijay"), 1);
+        cf.addCounter(cellname("wants"), 1000000);
         return cf;
     }
 
@@ -128,14 +145,16 @@ public class EncodedStreamsTest extends SchemaLoader
     @Test
     public void testCounterCFSerialization() throws IOException
     {
+        ColumnFamily counterCF = createCounterCF();
+
         ByteArrayOutputStream byteArrayOStream1 = new ByteArrayOutputStream();
         EncodedDataOutputStream odos = new EncodedDataOutputStream(byteArrayOStream1);
-        ColumnFamily.serializer.serialize(createCounterCF(), odos, version);
+        ColumnFamily.serializer.serialize(counterCF, odos, version);
 
         ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.toByteArray());
         EncodedDataInputStream odis = new EncodedDataInputStream(new DataInputStream(byteArrayIStream1));
         ColumnFamily cf = ColumnFamily.serializer.deserialize(odis, version);
-        Assert.assertEquals(cf, createCounterCF());
+        Assert.assertEquals(cf, counterCF);
         Assert.assertEquals(byteArrayOStream1.size(), (int) ColumnFamily.serializer.serializedSize(cf, TypeSizes.VINT, version));
     }
 }

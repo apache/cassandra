@@ -15,10 +15,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 from distutils.core import setup
+
+
+def get_extensions():
+    if "--no-compile" in sys.argv:
+        return []
+
+    from Cython.Build import cythonize
+    return cythonize("cqlshlib/copyutil.py")
 
 setup(
     name="cassandra-pylib",
     description="Cassandra Python Libraries",
     packages=["cqlshlib"],
+    ext_modules=get_extensions(),
 )

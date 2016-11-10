@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * This is the first message that gets sent out as a start of the Gossip protocol in a
@@ -51,7 +52,7 @@ public class GossipDigestSyn
 
 class GossipDigestSerializationHelper
 {
-    static void serialize(List<GossipDigest> gDigestList, DataOutput out, int version) throws IOException
+    static void serialize(List<GossipDigest> gDigestList, DataOutputPlus out, int version) throws IOException
     {
         out.writeInt(gDigestList.size());
         for (GossipDigest gDigest : gDigestList)
@@ -78,7 +79,7 @@ class GossipDigestSerializationHelper
 
 class GossipDigestSynSerializer implements IVersionedSerializer<GossipDigestSyn>
 {
-    public void serialize(GossipDigestSyn gDigestSynMessage, DataOutput out, int version) throws IOException
+    public void serialize(GossipDigestSyn gDigestSynMessage, DataOutputPlus out, int version) throws IOException
     {
         out.writeUTF(gDigestSynMessage.clusterId);
         out.writeUTF(gDigestSynMessage.partioner);

@@ -22,15 +22,19 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.*;
 
+import org.apache.cassandra.client.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.utils.*;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.*;
 import org.apache.thrift.TException;
 import org.apache.hadoop.util.Progressable;
+import org.apache.thrift.transport.*;
 
 
 /**
@@ -47,10 +51,30 @@ import org.apache.hadoop.util.Progressable;
  *
  * @see ColumnFamilyOutputFormat
  */
-final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<ByteBuffer, List<Mutation>>
+@Deprecated
+final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer, List<Mutation>> implements
+        org.apache.hadoop.mapred.RecordWriter<ByteBuffer, List<Mutation>>
 {
+    // The configuration this writer is associated with.
+    protected final Configuration conf;
+
+    // The number of mutations to buffer per endpoint
+    protected final int queueSize;
+
+    protected final long batchThreshold;
+
+    protected final ConsistencyLevel consistencyLevel;
+    protected Progressable progressable;
+    protected TaskAttemptContext context;
     // handles for clients for each range running in the threadpool
     private final Map<Range, RangeClient> clients;
+
+    // The ring cache that describes the token ranges each node in the ring is
+    // responsible for. This is what allows us to group the mutations by
+    // the endpoints they should be targeted at. The targeted endpoint
+    // essentially
+    // acts as the primary replica for the rows being affected by the mutations.
+    private final RingCache ringCache;
     
     /**
      * Upon construction, obtain the map that this writer will use to collect
@@ -73,11 +97,33 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
 
     ColumnFamilyRecordWriter(Configuration conf)
     {
-        super(conf);
+        this.conf = conf;
+        this.queueSize = conf.getInt(ColumnFamilyOutputFormat.QUEUE_SIZE, 32 * FBUtilities.getAvailableProcessors());
+        batchThreshold = conf.getLong(ColumnFamilyOutputFormat.BATCH_THRESHOLD, 32);
+        consistencyLevel = ConsistencyLevel.valueOf(ConfigHelper.getWriteConsistencyLevel(conf));
+        this.ringCache = new RingCache(conf);
         this.clients = new HashMap<Range, RangeClient>();
     }
-    
-    @Override
+
+    /**
+     * Close this <code>RecordWriter</code> to future operations, but not before
+     * flushing out the batched mutations.
+     *
+     * @param context the context of the task
+     * @throws IOException
+     */
+    public void close(TaskAttemptContext context) throws IOException, InterruptedException
+    {
+        close();
+    }
+
+    /** Fills the deprecated RecordWriter interface for streaming. */
+    @Deprecated
+    public void close(org.apache.hadoop.mapred.Reporter reporter) throws IOException
+    {
+        close();
+    }
+
     public void close() throws IOException
     {
         // close all the clients before throwing anything
@@ -138,8 +184,20 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
      * A client that runs in a threadpool and connects to the list of endpoints for a particular
      * range. Mutations for keys in that range are sent to this client via a queue.
      */
-    public class RangeClient extends AbstractRangeClient<Pair<ByteBuffer, Mutation>>
+    public class RangeClient extends Thread
     {
+        // The list of endpoints for this range
+        protected final List<InetAddress> endpoints;
+        // A bounded queue of incoming mutations for this range
+        protected final BlockingQueue<Pair<ByteBuffer, Mutation>> queue = new ArrayBlockingQueue<>(queueSize);
+
+        protected volatile boolean run = true;
+        // we want the caller to know if something went wrong, so we record any unrecoverable exception while writing
+        // so we can throw it on the caller's stack when he calls put() again, or if there are no more put calls,
+        // when the client is closed.
+        protected volatile IOException lastException;
+
+        protected Cassandra.Client client;
         public final String columnFamily = ConfigHelper.getOutputColumnFamily(conf);
         
         /**
@@ -148,8 +206,59 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
         */
         public RangeClient(List<InetAddress> endpoints)
         {
-            super(endpoints);
+            super("client-" + endpoints);
+            this.endpoints = endpoints;
          }
+
+        /**
+         * enqueues the given value to Cassandra
+         */
+        public void put(Pair<ByteBuffer, Mutation> value) throws IOException
+        {
+            while (true)
+            {
+                if (lastException != null)
+                    throw lastException;
+                try
+                {
+                    if (queue.offer(value, 100, TimeUnit.MILLISECONDS))
+                        break;
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+            }
+        }
+
+        public void close() throws IOException
+        {
+            // stop the run loop.  this will result in closeInternal being called by the time join() finishes.
+            run = false;
+            interrupt();
+            try
+            {
+                this.join();
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+
+            if (lastException != null)
+                throw lastException;
+        }
+
+        @SuppressWarnings("resource")
+        protected void closeInternal()
+        {
+            if (client != null)
+            {
+                TTransport transport = client.getOutputProtocol().getTransport();
+                if (transport.isOpen())
+                    transport.close();
+            }
+        }
         
         /**
          * Loops collecting mutations from the queue and sending to Cassandra

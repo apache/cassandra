@@ -20,10 +20,11 @@ package org.apache.cassandra.tools;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.EnumSet;
 import java.util.Map;
 
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableMetadata;
+import org.apache.cassandra.io.sstable.metadata.*;
 
 /**
  * Shows the contents of sstable metadata
@@ -42,27 +43,47 @@ public class SSTableMetadataViewer
             System.exit(1);
         }
 
+        Util.initDatabaseDescriptor();
+
         for (String fname : args)
         {
             if (new File(fname).exists())
             {
                 Descriptor descriptor = Descriptor.fromFilename(fname);
-                SSTableMetadata metadata = SSTableMetadata.serializer.deserialize(descriptor).left;
+                Map<MetadataType, MetadataComponent> metadata = descriptor.getMetadataSerializer().deserialize(descriptor, EnumSet.allOf(MetadataType.class));
+                ValidationMetadata validation = (ValidationMetadata) metadata.get(MetadataType.VALIDATION);
+                StatsMetadata stats = (StatsMetadata) metadata.get(MetadataType.STATS);
+                CompactionMetadata compaction = (CompactionMetadata) metadata.get(MetadataType.COMPACTION);
 
                 out.printf("SSTable: %s%n", descriptor);
-                out.printf("Partitioner: %s%n", metadata.partitioner);
-                out.printf("Minimum timestamp: %s%n", metadata.minTimestamp);
-                out.printf("Maximum timestamp: %s%n", metadata.maxTimestamp);
-                out.printf("SSTable max local deletion time: %s%n", metadata.maxLocalDeletionTime);
-                out.printf("Compression ratio: %s%n", metadata.compressionRatio);
-                out.printf("Estimated droppable tombstones: %s%n", metadata.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
-                out.printf("SSTable Level: %d%n", metadata.sstableLevel);
-                out.println(metadata.replayPosition);
-                printHistograms(metadata, out);
-                out.println("Estimated tombstone drop times:");
-                for (Map.Entry<Double, Long> entry : metadata.estimatedTombstoneDropTime.getAsMap().entrySet())
+                if (validation != null)
                 {
-                    out.printf("%-10s:%10s%n",entry.getKey().intValue(), entry.getValue());
+                    out.printf("Partitioner: %s%n", validation.partitioner);
+                    out.printf("Bloom Filter FP chance: %f%n", validation.bloomFilterFPChance);
+                }
+                if (stats != null)
+                {
+                    out.printf("Minimum timestamp: %s%n", stats.minTimestamp);
+                    out.printf("Maximum timestamp: %s%n", stats.maxTimestamp);
+                    out.printf("SSTable max local deletion time: %s%n", stats.maxLocalDeletionTime);
+                    out.printf("Compression ratio: %s%n", stats.compressionRatio);
+                    out.printf("Estimated droppable tombstones: %s%n", stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
+                    out.printf("SSTable Level: %d%n", stats.sstableLevel);
+                    out.printf("Repaired at: %d%n", stats.repairedAt);
+                    out.printf("Minimum replay position: %s\n", stats.commitLogLowerBound);
+                    out.printf("Maximum replay position: %s\n", stats.commitLogUpperBound);
+                    out.println("Estimated tombstone drop times:");
+                    for (Map.Entry<Double, Long> entry : stats.estimatedTombstoneDropTime.getAsMap().entrySet())
+                    {
+                        out.printf("%-10s:%10s%n",entry.getKey().intValue(), entry.getValue());
+                    }
+                    printHistograms(stats, out);
+                }
+                if (compaction != null)
+                {
+                    out.printf("Ancestors: %s%n", compaction.ancestors.toString());
+                    out.printf("Estimated cardinality: %s%n", compaction.cardinalityEstimator.cardinality());
+
                 }
             }
             else
@@ -72,14 +93,14 @@ public class SSTableMetadataViewer
         }
     }
 
-    private static void printHistograms(SSTableMetadata metadata, PrintStream out)
+    private static void printHistograms(StatsMetadata metadata, PrintStream out)
     {
         long[] offsets = metadata.estimatedRowSize.getBucketOffsets();
         long[] ersh = metadata.estimatedRowSize.getBuckets(false);
         long[] ecch = metadata.estimatedColumnCount.getBuckets(false);
 
         out.println(String.format("%-10s%18s%18s",
-                                  "Count", "Row Size", "Column Count"));
+                                  "Count", "Row Size", "Cell Count"));
 
         for (int i = 0; i < offsets.length; i++)
         {

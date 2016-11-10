@@ -17,15 +17,14 @@
  */
 package org.apache.cassandra.metrics;
 
-import com.yammer.metrics.core.MetricName;
 
 public interface MetricNameFactory
 {
     /**
-     * Create {@link MetricName} from given metric name.
+     * Create a qualified name from given metric name.
      *
-     * @param metricName Name part of {@link MetricName}.
-     * @return new MetricName with given metric name.
+     * @param metricName part of qualified name.
+     * @return new String with given metric name.
      */
-    MetricName createMetricName(String metricName);
+    CassandraMetricsRegistry.MetricName createMetricName(String metricName);
 }

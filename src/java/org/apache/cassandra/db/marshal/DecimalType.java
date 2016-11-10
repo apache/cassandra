@@ -21,6 +21,8 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.DecimalSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -32,18 +34,17 @@ public class DecimalType extends AbstractType<BigDecimal>
 
     DecimalType() {} // singleton
 
-    public int compare(ByteBuffer bb0, ByteBuffer bb1)
+    public boolean isEmptyValueMeaningless()
     {
-        if (bb0.remaining() == 0)
-        {
-            return bb1.remaining() == 0 ? 0 : -1;
-        }
-        if (bb1.remaining() == 0)
-        {
-            return 1;
-        }
+        return true;
+    }
 
-        return compose(bb0).compareTo(compose(bb1));
+    public int compare(ByteBuffer o1, ByteBuffer o2)
+    {
+        if (!o1.hasRemaining() || !o2.hasRemaining())
+            return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
+
+        return compose(o1).compareTo(compose(o2));
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -63,6 +64,25 @@ public class DecimalType extends AbstractType<BigDecimal>
         }
 
         return decompose(decimal);
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        try
+        {
+            return new Constants.Value(getSerializer().serialize(new BigDecimal(parsed.toString())));
+        }
+        catch (NumberFormatException exc)
+        {
+            throw new MarshalException(String.format("Value '%s' is not a valid representation of a decimal value", parsed));
+        }
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        return getSerializer().deserialize(buffer).toString();
     }
 
     public CQL3Type asCQL3Type()

@@ -21,47 +21,38 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.CFDefinition;
-import org.apache.cassandra.cql3.ColumnNameBuilder;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.composites.CBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.StorageService;
 
-public class TokenFct extends AbstractFunction
+public class TokenFct extends NativeScalarFunction
 {
     // The actual token function depends on the partitioner used
     private static final IPartitioner partitioner = StorageService.getPartitioner();
 
-    public static final Function.Factory factory = new Function.Factory()
-    {
-        public Function create(String ksName, String cfName)
-        {
-            return new TokenFct(Schema.instance.getCFMetaData(ksName, cfName));
-        }
-    };
-
-    private final CFDefinition cfDef;
+    private final CFMetaData cfm;
 
     public TokenFct(CFMetaData cfm)
     {
         super("token", partitioner.getTokenValidator(), getKeyTypes(cfm));
-        this.cfDef = cfm.getCfDef();
+        this.cfm = cfm;
     }
 
     private static AbstractType[] getKeyTypes(CFMetaData cfm)
     {
-        AbstractType[] types = new AbstractType[cfm.getCfDef().partitionKeyCount()];
+        AbstractType[] types = new AbstractType[cfm.partitionKeyColumns().size()];
         int i = 0;
-        for (CFDefinition.Name name : cfm.getCfDef().partitionKeys())
-            types[i++] = name.type;
+        for (ColumnDefinition def : cfm.partitionKeyColumns())
+            types[i++] = def.type;
         return types;
     }
 
-    public ByteBuffer execute(List<ByteBuffer> parameters) throws InvalidRequestException
+    public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
     {
-        ColumnNameBuilder builder = cfDef.getKeyNameBuilder();
+        CBuilder builder = cfm.getKeyValidatorAsCType().builder();
         for (int i = 0; i < parameters.size(); i++)
         {
             ByteBuffer bb = parameters.get(i);
@@ -69,6 +60,6 @@ public class TokenFct extends AbstractFunction
                 return null;
             builder.add(bb);
         }
-        return partitioner.getTokenFactory().toByteArray(partitioner.getToken(builder.build()));
+        return partitioner.getTokenFactory().toByteArray(partitioner.getToken(builder.build().toByteBuffer()));
     }
 }

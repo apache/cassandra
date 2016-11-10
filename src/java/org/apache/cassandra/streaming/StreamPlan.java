@@ -22,6 +22,7 @@ import java.util.*;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
@@ -34,11 +35,8 @@ public class StreamPlan
     private final UUID planId = UUIDGen.getTimeUUID();
     private final String description;
     private final List<StreamEventHandler> handlers = new ArrayList<>();
-
-    // sessions per InetAddress of the other end.
-    private final Map<InetAddress, StreamSession> sessions = new HashMap<>();
-
-    private StreamConnectionFactory connectionFactory = new DefaultConnectionFactory();
+    private final long repairedAt;
+    private final StreamCoordinator coordinator;
 
     private boolean flushBeforeTransfer = true;
 
@@ -49,7 +47,19 @@ public class StreamPlan
      */
     public StreamPlan(String description)
     {
+        this(description, ActiveRepairService.UNREPAIRED_SSTABLE, 1, false, false);
+    }
+
+    public StreamPlan(String description, boolean keepSSTableLevels)
+    {
+        this(description, ActiveRepairService.UNREPAIRED_SSTABLE, 1, keepSSTableLevels, false);
+    }
+
+    public StreamPlan(String description, long repairedAt, int connectionsPerHost, boolean keepSSTableLevels, boolean isIncremental)
+    {
         this.description = description;
+        this.repairedAt = repairedAt;
+        this.coordinator = new StreamCoordinator(connectionsPerHost, keepSSTableLevels, isIncremental, new DefaultConnectionFactory());
     }
 
     /**
@@ -78,8 +88,8 @@ public class StreamPlan
      */
     public StreamPlan requestRanges(InetAddress from, InetAddress connecting, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
     {
-        StreamSession session = getOrCreateSession(from, connecting);
-        session.addStreamRequest(keyspace, ranges, Arrays.asList(columnFamilies));
+        StreamSession session = coordinator.getOrCreateNextSession(from, connecting);
+        session.addStreamRequest(keyspace, ranges, Arrays.asList(columnFamilies), repairedAt);
         return this;
     }
 
@@ -119,8 +129,8 @@ public class StreamPlan
      */
     public StreamPlan transferRanges(InetAddress to, InetAddress connecting, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
     {
-        StreamSession session = getOrCreateSession(to, connecting);
-        session.addTransferRanges(keyspace, ranges, Arrays.asList(columnFamilies), flushBeforeTransfer);
+        StreamSession session = coordinator.getOrCreateNextSession(to, connecting);
+        session.addTransferRanges(keyspace, ranges, Arrays.asList(columnFamilies), flushBeforeTransfer, repairedAt);
         return this;
     }
 
@@ -134,9 +144,9 @@ public class StreamPlan
      */
     public StreamPlan transferFiles(InetAddress to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
     {
-        StreamSession session = getOrCreateSession(to, to);
-        session.addTransferFiles(sstableDetails);
+        coordinator.transferFiles(to, sstableDetails);
         return this;
+
     }
 
     public StreamPlan listeners(StreamEventHandler handler, StreamEventHandler... handlers)
@@ -155,7 +165,7 @@ public class StreamPlan
      */
     public StreamPlan connectionFactory(StreamConnectionFactory factory)
     {
-        this.connectionFactory = factory;
+        this.coordinator.setConnectionFactory(factory);
         return this;
     }
 
@@ -164,7 +174,7 @@ public class StreamPlan
      */
     public boolean isEmpty()
     {
-        return sessions.isEmpty();
+        return !coordinator.hasActiveSessions();
     }
 
     /**
@@ -174,7 +184,7 @@ public class StreamPlan
      */
     public StreamResultFuture execute()
     {
-        return StreamResultFuture.init(planId, description, sessions.values(), handlers);
+        return StreamResultFuture.init(planId, description, handlers, coordinator);
     }
 
     /**
@@ -189,16 +199,4 @@ public class StreamPlan
         this.flushBeforeTransfer = flushBeforeTransfer;
         return this;
     }
-
-    private StreamSession getOrCreateSession(InetAddress peer, InetAddress preferred)
-    {
-        StreamSession session = sessions.get(peer);
-        if (session == null)
-        {
-            session = new StreamSession(peer, preferred, connectionFactory);
-            sessions.put(peer, session);
-        }
-        return session;
-    }
-
 }

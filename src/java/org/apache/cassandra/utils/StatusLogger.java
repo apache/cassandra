@@ -18,27 +18,23 @@
 package org.apache.cassandra.utils;
 
 import java.lang.management.ManagementFactory;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import javax.management.JMX;
-import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
-import javax.management.ObjectName;
+import javax.management.*;
 
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cache.*;
 
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.CacheService;
@@ -47,51 +43,40 @@ public class StatusLogger
 {
     private static final Logger logger = LoggerFactory.getLogger(StatusLogger.class);
 
+
     public static void log()
     {
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
 
         // everything from o.a.c.concurrent
         logger.info(String.format("%-25s%10s%10s%15s%10s%18s", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All Time Blocked"));
-        Set<ObjectName> request, internal;
-        try
+
+        for (Map.Entry<String, String> tpool : ThreadPoolMetrics.getJmxThreadPools(server).entries())
         {
-            request = server.queryNames(new ObjectName("org.apache.cassandra.request:type=*"), null);
-            internal = server.queryNames(new ObjectName("org.apache.cassandra.internal:type=*"), null);
+            logger.info(String.format("%-25s%10s%10s%15s%10s%18s%n",
+                                      tpool.getValue(),
+                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "ActiveTasks"),
+                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "PendingTasks"),
+                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "CompletedTasks"),
+                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "CurrentlyBlockedTasks"),
+                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "TotalBlockedTasks")));
         }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
-        for (ObjectName objectName : Iterables.concat(request, internal))
-        {
-            String poolName = objectName.getKeyProperty("type");
-            JMXEnabledThreadPoolExecutorMBean threadPoolProxy = JMX.newMBeanProxy(server, objectName, JMXEnabledThreadPoolExecutorMBean.class);
-            logger.info(String.format("%-25s%10s%10s%15s%10s%18s",
-                                      poolName,
-                                      threadPoolProxy.getActiveCount(),
-                                      threadPoolProxy.getPendingTasks(),
-                                      threadPoolProxy.getCompletedTasks(),
-                                      threadPoolProxy.getCurrentlyBlockedTasks(),
-                                      threadPoolProxy.getTotalBlockedTasks()));
-        }
+
         // one offs
         logger.info(String.format("%-25s%10s%10s",
                                   "CompactionManager", CompactionManager.instance.getActiveCompactions(), CompactionManager.instance.getPendingTasks()));
-        logger.info(String.format("%-25s%10s%10s",
-                                  "Commitlog", "n/a", CommitLog.instance.getPendingTasks()));
-        int pendingCommands = 0;
-        for (int n : MessagingService.instance().getCommandPendingTasks().values())
+        int pendingLargeMessages = 0;
+        for (int n : MessagingService.instance().getLargeMessagePendingTasks().values())
         {
-            pendingCommands += n;
+            pendingLargeMessages += n;
         }
-        int pendingResponses = 0;
-        for (int n : MessagingService.instance().getResponsePendingTasks().values())
+        int pendingSmallMessages = 0;
+        for (int n : MessagingService.instance().getSmallMessagePendingTasks().values())
         {
-            pendingResponses += n;
+            pendingSmallMessages += n;
         }
         logger.info(String.format("%-25s%10s%10s",
-                                  "MessagingService", "n/a", pendingCommands + "/" + pendingResponses));
+                                  "MessagingService", "n/a", pendingLargeMessages + "/" + pendingSmallMessages));
 
         // Global key/row cache information
         AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;
@@ -115,12 +100,12 @@ public class StatusLogger
                                   rowCacheKeysToSave == Integer.MAX_VALUE ? "all" : rowCacheKeysToSave));
 
         // per-CF stats
-        logger.info(String.format("%-25s%20s", "ColumnFamily", "Memtable ops,data"));
+        logger.info(String.format("%-25s%20s", "Table", "Memtable ops,data"));
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
             logger.info(String.format("%-25s%20s",
                                       cfs.keyspace.getName() + "." + cfs.name,
-                                      cfs.getMemtableColumnsCount() + "," + cfs.getMemtableDataSize()));
+                                      cfs.metric.memtableColumnsCount.getValue() + "," + cfs.metric.memtableLiveDataSize.getValue()));
         }
     }
 }

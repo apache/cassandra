@@ -2,7 +2,8 @@ Cassandra for Debian
 ====================
 
 This package is not a part of Debian, (and there are no immediate plans
-to have it added). Bugs should be sent to eevans@apache.org, *not* filed
-in the Debian BTS.
+to have it added). Bugs should be sent to the Apache Cassandra JIRA, *not*
+filed in the Debian BTS.
 
- -- Eric Evans <eevans@apache.org>  Sun, 26 Jul 2009 14:35:11 -0500
+  https://issues.apache.org/jira/browse/CASSANDRA
+

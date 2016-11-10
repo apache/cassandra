@@ -43,16 +43,12 @@ public class Component
         PRIMARY_INDEX("Index.db"),
         // serialized bloom filter for the row keys in the sstable
         FILTER("Filter.db"),
-        // 0-length file that is created when an sstable is ready to be deleted
-        // @deprecated: deletion of compacted file is based on the lineag information stored in the compacted sstabl
-        // metadata. This ensure we can guarantee never using a sstable and some of its parents, even in case of failure.
-        COMPACTED_MARKER("Compacted"),
         // file to hold information about uncompressed data length, chunk offsets etc.
         COMPRESSION_INFO("CompressionInfo.db"),
         // statistical metadata about the content of the sstable
         STATS("Statistics.db"),
-        // holds sha1 sum of the data file (to be checked by sha1sum)
-        DIGEST("Digest.sha1"),
+        // holds adler32 checksum of the data file
+        DIGEST("Digest.adler32"),
         // holds the CRC32 for chunks in an a uncompressed file.
         CRC("CRC.db"),
         // holds SSTable Index Summary (sampling of Index component)
@@ -81,7 +77,6 @@ public class Component
     public final static Component DATA = new Component(Type.DATA);
     public final static Component PRIMARY_INDEX = new Component(Type.PRIMARY_INDEX);
     public final static Component FILTER = new Component(Type.FILTER);
-    public final static Component COMPACTED_MARKER = new Component(Type.COMPACTED_MARKER);
     public final static Component COMPRESSION_INFO = new Component(Type.COMPRESSION_INFO);
     public final static Component STATS = new Component(Type.STATS);
     public final static Component DIGEST = new Component(Type.DIGEST);
@@ -116,7 +111,9 @@ public class Component
     }
 
     /**
+     * {@code
      * Filename of the form "<ksname>/<cfname>-[tmp-][<version>-]<gen>-<component>",
+     * }
      * @return A Descriptor for the SSTable, and a Component for this particular file.
      * TODO move descriptor into Component field
      */
@@ -133,7 +130,6 @@ public class Component
             case DATA:              component = Component.DATA;                         break;
             case PRIMARY_INDEX:     component = Component.PRIMARY_INDEX;                break;
             case FILTER:            component = Component.FILTER;                       break;
-            case COMPACTED_MARKER:  component = Component.COMPACTED_MARKER;             break;
             case COMPRESSION_INFO:  component = Component.COMPRESSION_INFO;             break;
             case STATS:             component = Component.STATS;                        break;
             case DIGEST:            component = Component.DIGEST;                       break;

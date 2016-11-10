@@ -22,7 +22,8 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.Pair;
 
 public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
@@ -51,19 +52,63 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         this.values = values;
     }
 
-    public Map<K, V> deserialize(ByteBuffer bytes)
+    public List<ByteBuffer> serializeValues(Map<K, V> map)
+    {
+        List<ByteBuffer> buffers = new ArrayList<>(map.size() * 2);
+        for (Map.Entry<K, V> entry : map.entrySet())
+        {
+            buffers.add(keys.serialize(entry.getKey()));
+            buffers.add(values.serialize(entry.getValue()));
+        }
+        return buffers;
+    }
+
+    public int getElementCount(Map<K, V> value)
+    {
+        return value.size();
+    }
+
+    public void validateForNativeProtocol(ByteBuffer bytes, int version)
     {
         try
         {
             ByteBuffer input = bytes.duplicate();
-            int n = ByteBufferUtil.readShortLength(input);
-            Map<K, V> m = new LinkedHashMap<K, V>(n);
+            int n = readCollectionSize(input, version);
             for (int i = 0; i < n; i++)
             {
-                ByteBuffer kbb = ByteBufferUtil.readBytesWithShortLength(input);
+                keys.validate(readValue(input, version));
+                values.validate(readValue(input, version));
+            }
+            if (input.hasRemaining())
+                throw new MarshalException("Unexpected extraneous bytes after map value");
+        }
+        catch (BufferUnderflowException e)
+        {
+            throw new MarshalException("Not enough bytes to read a set");
+        }
+    }
+
+    public Map<K, V> deserializeForNativeProtocol(ByteBuffer bytes, int version)
+    {
+        try
+        {
+            ByteBuffer input = bytes.duplicate();
+            int n = readCollectionSize(input, version);
+
+            if (n < 0)
+                throw new MarshalException("The data cannot be deserialized as a map");
+
+            // If the received bytes are not corresponding to a map, n might be a huge number.
+            // In such a case we do not want to initialize the map with that initialCapacity as it can result
+            // in an OOM when put is called (see CASSANDRA-12618). On the other hand we do not want to have to resize
+            // the map if we can avoid it, so we put a reasonable limit on the initialCapacity.
+            Map<K, V> m = new LinkedHashMap<K, V>(Math.min(n, 256));
+            for (int i = 0; i < n; i++)
+            {
+                ByteBuffer kbb = readValue(input, version);
                 keys.validate(kbb);
 
-                ByteBuffer vbb = ByteBufferUtil.readBytesWithShortLength(input);
+                ByteBuffer vbb = readValue(input, version);
                 values.validate(vbb);
 
                 m.put(keys.deserialize(kbb), values.deserialize(vbb));
@@ -79,27 +124,35 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
     }
 
     /**
-     * Layout is: {@code <n><sk_1><k_1><sv_1><v_1>...<sk_n><k_n><sv_n><v_n> }
-     * where:
-     *   n is the number of elements
-     *   sk_i is the number of bytes composing the ith key k_i
-     *   k_i is the sk_i bytes composing the ith key
-     *   sv_i is the number of bytes composing the ith value v_i
-     *   v_i is the sv_i bytes composing the ith value
+     * Given a serialized map, gets the value associated with a given key.
+     * @param serializedMap a serialized map
+     * @param serializedKey a serialized key
+     * @param keyType the key type for the map
+     * @return the value associated with the key if one exists, null otherwise
      */
-    public ByteBuffer serialize(Map<K, V> value)
+    public ByteBuffer getSerializedValue(ByteBuffer serializedMap, ByteBuffer serializedKey, AbstractType keyType)
     {
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * value.size());
-        int size = 0;
-        for (Map.Entry<K, V> entry : value.entrySet())
+        try
         {
-            ByteBuffer bbk = keys.serialize(entry.getKey());
-            ByteBuffer bbv = values.serialize(entry.getValue());
-            bbs.add(bbk);
-            bbs.add(bbv);
-            size += 4 + bbk.remaining() + bbv.remaining();
+            ByteBuffer input = serializedMap.duplicate();
+            int n = readCollectionSize(input, Server.VERSION_3);
+            for (int i = 0; i < n; i++)
+            {
+                ByteBuffer kbb = readValue(input, Server.VERSION_3);
+                ByteBuffer vbb = readValue(input, Server.VERSION_3);
+                int comparison = keyType.compare(kbb, serializedKey);
+                if (comparison == 0)
+                    return vbb;
+                else if (comparison > 0)
+                    // since the map is in sorted order, we know we've gone too far and the element doesn't exist
+                    return null;
+            }
+            return null;
         }
-        return pack(bbs, value.size(), size);
+        catch (BufferUnderflowException e)
+        {
+            throw new MarshalException("Not enough bytes to read a map");
+        }
     }
 
     public String toString(Map<K, V> value)
@@ -109,13 +162,9 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         for (Map.Entry<K, V> element : value.entrySet())
         {
             if (isFirst)
-            {
                 isFirst = false;
-            }
             else
-            {
                 sb.append("; ");
-            }
             sb.append('(');
             sb.append(keys.toString(element.getKey()));
             sb.append(", ");

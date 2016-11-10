@@ -31,6 +31,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -42,11 +43,15 @@ import org.apache.commons.lang3.StringUtils;
  * application wants to make available to the rest of the nodes in the cluster.
  * Whenever a piece of state needs to be disseminated to the rest of cluster wrap
  * the state in an instance of <i>ApplicationState</i> and add it to the Gossiper.
- * <p/>
+ * <p>
  * e.g. if we want to disseminate load information for node A do the following:
- * <p/>
+ * </p>
+ * <pre>
+ * {@code
  * ApplicationState loadState = new ApplicationState(<string representation of load>);
  * Gossiper.instance.addApplicationState("LOAD STATE", loadState);
+ * }
+ * </pre>
  */
 
 public class VersionedValue implements Comparable<VersionedValue>
@@ -60,6 +65,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
     // values for ApplicationState.STATUS
     public final static String STATUS_BOOTSTRAPPING = "BOOT";
+    public final static String STATUS_BOOTSTRAPPING_REPLACE = "BOOT_REPLACE";
     public final static String STATUS_NORMAL = "NORMAL";
     public final static String STATUS_LEAVING = "LEAVING";
     public final static String STATUS_LEFT = "LEFT";
@@ -104,6 +110,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         return "Value(" + value + "," + version + ")";
     }
 
+    public byte[] toBytes()
+    {
+        return value.getBytes(ISO_8859_1);
+    }
+
     private static String versionString(String... args)
     {
         return StringUtils.join(args, VersionedValue.DELIMITER);
@@ -121,6 +132,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         public VersionedValue cloneWithHigherVersion(VersionedValue value)
         {
             return new VersionedValue(value.value);
+        }
+
+        public VersionedValue bootReplacing(InetAddress oldNode)
+        {
+            return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.getHostAddress()));
         }
 
         public VersionedValue bootstrapping(Collection<Token> tokens)
@@ -208,6 +224,11 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(VersionedValue.HIBERNATE + VersionedValue.DELIMITER + value);
         }
 
+        public VersionedValue rpcReady(boolean value)
+        {
+            return new VersionedValue(String.valueOf(value));
+        }
+
         public VersionedValue shutdown(boolean value)
         {
             return new VersionedValue(VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + value);
@@ -251,7 +272,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
     private static class VersionedValueSerializer implements IVersionedSerializer<VersionedValue>
     {
-        public void serialize(VersionedValue value, DataOutput out, int version) throws IOException
+        public void serialize(VersionedValue value, DataOutputPlus out, int version) throws IOException
         {
             out.writeUTF(outValue(value, version));
             out.writeInt(value.version);

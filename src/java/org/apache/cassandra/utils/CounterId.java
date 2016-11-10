@@ -18,65 +18,31 @@
 package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.CopyOnWriteArrayList;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import com.google.common.base.Objects;
-
-import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.SystemKeyspace;
 
 public class CounterId implements Comparable<CounterId>
 {
-    private static final Logger logger = LoggerFactory.getLogger(CounterId.class);
-
     public static final int LENGTH = 16; // we assume a fixed length size for all CounterIds
 
     // Lazy holder because this opens the system keyspace and we want to avoid
     // having this triggered during class initialization
-    private static class LocalIds
+    private static class LocalId
     {
-        static final LocalCounterIdHistory instance = new LocalCounterIdHistory();
+        static final LocalCounterIdHolder instance = new LocalCounterIdHolder();
     }
 
     private final ByteBuffer id;
 
-    private static LocalCounterIdHistory localIds()
+    private static LocalCounterIdHolder localId()
     {
-        return LocalIds.instance;
+        return LocalId.instance;
     }
 
     public static CounterId getLocalId()
     {
-        return localIds().current.get();
-    }
-
-    /**
-     * Renew the local counter id.
-     * To use only when this strictly necessary, as using this will make all
-     * counter context grow with time.
-     */
-    public static void renewLocalId()
-    {
-        renewLocalId(FBUtilities.timestampMicros());
-    }
-
-    public static synchronized void renewLocalId(long now)
-    {
-        localIds().renewCurrent(now);
-    }
-
-    /**
-     * Return the list of old local counter id of this node.
-     * It is guaranteed that the returned list is sorted by growing counter id
-     * (and hence the first item will be the oldest counter id for this host)
-     */
-    public static List<CounterIdRecord> getOldLocalCounterIds()
-    {
-        return localIds().olds;
+        return localId().get();
     }
 
     /**
@@ -163,94 +129,18 @@ public class CounterId implements Comparable<CounterId>
         return id.hashCode();
     }
 
-    public static class OneShotRenewer
-    {
-        private boolean renewed;
-        private final CounterId initialId;
-
-        public OneShotRenewer()
-        {
-            renewed = false;
-            initialId = getLocalId();
-        }
-
-        public void maybeRenew(CounterColumn column)
-        {
-            if (!renewed && column.hasCounterId(initialId))
-            {
-                renewLocalId();
-                renewed = true;
-            }
-        }
-    }
-
-    private static class LocalCounterIdHistory
+    private static class LocalCounterIdHolder
     {
         private final AtomicReference<CounterId> current;
-        private final List<CounterIdRecord> olds;
 
-        LocalCounterIdHistory()
+        LocalCounterIdHolder()
         {
-            CounterId id = SystemKeyspace.getCurrentLocalCounterId();
-            if (id == null)
-            {
-                // no recorded local counter id, generating a new one and saving it
-                id = generate();
-                logger.info("No saved local counter id, using newly generated: {}", id);
-                SystemKeyspace.writeCurrentLocalCounterId(id, FBUtilities.timestampMicros());
-                current = new AtomicReference<>(id);
-                olds = new CopyOnWriteArrayList<>();
-            }
-            else
-            {
-                logger.info("Saved local counter id: {}", id);
-                current = new AtomicReference<>(id);
-                olds = new CopyOnWriteArrayList<>(SystemKeyspace.getOldLocalCounterIds());
-            }
+            current = new AtomicReference<>(wrap(ByteBufferUtil.bytes(SystemKeyspace.getLocalHostId())));
         }
 
-        synchronized void renewCurrent(long now)
+        CounterId get()
         {
-            CounterId newCounterId = generate();
-            CounterId old = current.get();
-            SystemKeyspace.writeCurrentLocalCounterId(newCounterId, now);
-            current.set(newCounterId);
-            olds.add(new CounterIdRecord(old, now));
-        }
-    }
-
-    public static class CounterIdRecord
-    {
-        public final CounterId id;
-        public final long timestamp;
-
-        public CounterIdRecord(CounterId id, long timestamp)
-        {
-            this.id = id;
-            this.timestamp = timestamp;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
-
-            CounterIdRecord otherRecord = (CounterIdRecord)o;
-            return id.equals(otherRecord.id) && timestamp == otherRecord.timestamp;
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hashCode(id, timestamp);
-        }
-
-        public String toString()
-        {
-            return String.format("(%s, %d)", id.toString(), timestamp);
+            return current.get();
         }
     }
 }

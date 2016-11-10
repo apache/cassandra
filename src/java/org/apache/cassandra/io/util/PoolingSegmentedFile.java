@@ -21,36 +21,58 @@ import org.apache.cassandra.service.FileCacheService;
 
 public abstract class PoolingSegmentedFile extends SegmentedFile
 {
-    protected PoolingSegmentedFile(String path, long length)
+    final FileCacheService.CacheKey cacheKey;
+    protected PoolingSegmentedFile(Cleanup cleanup, ChannelProxy channel, long length)
     {
-        super(path, length);
+        this(cleanup, channel, length, length);
     }
 
-    protected PoolingSegmentedFile(String path, long length, long onDiskLength)
+    protected PoolingSegmentedFile(Cleanup cleanup, ChannelProxy channel, long length, long onDiskLength)
     {
-        super(path, length, onDiskLength);
+        super(cleanup, channel, length, onDiskLength);
+        cacheKey = cleanup.cacheKey;
     }
 
+    public PoolingSegmentedFile(PoolingSegmentedFile copy)
+    {
+        super(copy);
+        cacheKey = copy.cacheKey;
+    }
+
+    protected static class Cleanup extends SegmentedFile.Cleanup
+    {
+        final FileCacheService.CacheKey cacheKey = new FileCacheService.CacheKey();
+        protected Cleanup(ChannelProxy channel)
+        {
+            super(channel);
+        }
+        public void tidy()
+        {
+            super.tidy();
+
+            FileCacheService.instance.invalidate(cacheKey, channel.filePath());
+        }
+    }
+
+    @SuppressWarnings("resource")
     public FileDataInput getSegment(long position)
     {
-        RandomAccessReader reader = FileCacheService.instance.get(path);
+        RandomAccessReader reader = FileCacheService.instance.get(cacheKey);
 
         if (reader == null)
-            reader = createReader(path);
+            reader = createPooledReader();
 
         reader.seek(position);
         return reader;
     }
 
-    protected abstract RandomAccessReader createReader(String path);
+    protected RandomAccessReader createPooledReader()
+    {
+        return RandomAccessReader.open(channel, length, this);
+    }
 
     public void recycle(RandomAccessReader reader)
     {
-        FileCacheService.instance.put(reader);
-    }
-
-    public void cleanup()
-    {
-        FileCacheService.instance.invalidate(path);
+        FileCacheService.instance.put(cacheKey, reader);
     }
 }

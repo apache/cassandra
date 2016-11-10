@@ -19,52 +19,52 @@ from __future__ import with_statement
 import contextlib
 import tempfile
 import os.path
-from .basecase import cql, cqlsh, cqlshlog, TEST_HOST, TEST_PORT, rundir
+from .basecase import cql, cqlsh, cqlshlog, TEST_HOST, TEST_PORT, rundir, policy, quote_name
 from .run_cqlsh import run_cqlsh, call_cqlsh
 
 test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
 
-def get_cassandra_connection(cql_version=None):
+def get_cassandra_connection(cql_version=cqlsh.DEFAULT_CQLVER):
     if cql_version is None:
-        cql_version = '3.1.0'
-    conn = cql.connect(TEST_HOST, TEST_PORT, cql_version=cql_version)
+        cql_version = cqlsh.DEFAULT_CQLVER
+    conn = cql((TEST_HOST,), TEST_PORT, cql_version=cql_version, load_balancing_policy=policy)
     # until the cql lib does this for us
     conn.cql_version = cql_version
     return conn
 
-def get_cassandra_cursor(cql_version=None):
+def get_cassandra_cursor(cql_version=cqlsh.DEFAULT_CQLVER):
     return get_cassandra_connection(cql_version=cql_version).cursor()
 
 TEST_KEYSPACES_CREATED = []
 
-def get_test_keyspace():
-    return TEST_KEYSPACES_CREATED[-1]
+def get_keyspace():
+    return None if len(TEST_KEYSPACES_CREATED) == 0 else TEST_KEYSPACES_CREATED[-1]
 
-def make_test_ks_name():
+def make_ks_name():
     # abuse mktemp to get a quick random-ish name
     return os.path.basename(tempfile.mktemp(prefix='CqlshTests_'))
 
-def create_test_keyspace(cursor):
-    ksname = make_test_ks_name()
-    qksname = quote_name(cursor, ksname)
+def create_keyspace(cursor):
+    ksname = make_ks_name()
+    qksname = quote_name(ksname)
     cursor.execute('''
         CREATE KEYSPACE %s WITH replication =
             {'class': 'SimpleStrategy', 'replication_factor': 1};
-    ''' % quote_name(cursor, ksname))
+    ''' % quote_name(ksname))
     cursor.execute('USE %s;' % qksname)
     TEST_KEYSPACES_CREATED.append(ksname)
     return ksname
 
-def split_cql_commands(source, cqlver='3.1.0'):
-    ruleset = cql_rule_set(cqlver)
-    statements, in_batch = ruleset.cql_split_statements(source)
-    if in_batch:
+def split_cql_commands(source):
+    ruleset = cql_rule_set()
+    statements, endtoken_escaped = ruleset.cql_split_statements(source)
+    if endtoken_escaped:
         raise ValueError("CQL source ends unexpectedly")
 
     return [ruleset.cql_extract_orig(toks, source) for toks in statements if toks]
 
 def execute_cql_commands(cursor, source, logprefix='INIT: '):
-    for cql in split_cql_commands(source, cqlver=cursor._connection.cql_version):
+    for cql in split_cql_commands(source):
         cqlshlog.debug(logprefix + cql)
         cursor.execute(cql)
 
@@ -72,18 +72,18 @@ def execute_cql_file(cursor, fname):
     with open(fname) as f:
         return execute_cql_commands(cursor, f.read())
 
-def create_test_db():
-    with cassandra_cursor(ks=None, cql_version='3.1.0') as c:
-        k = create_test_keyspace(c)
+def create_db():
+    with cassandra_cursor(ks=None) as c:
+        k = create_keyspace(c)
         execute_cql_file(c, test_keyspace_init)
     return k
 
-def remove_test_db():
+def remove_db():
     with cassandra_cursor(ks=None) as c:
-        c.execute('DROP KEYSPACE %s' % quote_name(c, TEST_KEYSPACES_CREATED.pop(-1)))
+        c.execute('DROP KEYSPACE %s' % quote_name(TEST_KEYSPACES_CREATED.pop(-1)))
 
 @contextlib.contextmanager
-def cassandra_connection(cql_version=None):
+def cassandra_connection(cql_version=cqlsh.DEFAULT_CQLVER):
     """
     Make a Cassandra CQL connection with the given CQL version and get a cursor
     for it, and optionally connect to a given keyspace.
@@ -112,25 +112,20 @@ def cassandra_cursor(cql_version=None, ks=''):
     """
 
     if ks == '':
-        ks = get_test_keyspace()
+        ks = get_keyspace()
     conn = get_cassandra_connection(cql_version=cql_version)
     try:
-        c = conn.cursor()
-        if ks is not None:
-            c.execute('USE %s;' % quote_name(c, ks))
+        c = conn.connect(ks)
+        # increase default timeout to fix flacky tests, see CASSANDRA-12481
+        c.default_timeout = 60.0
+        # if ks is not None:
+        #     c.execute('USE %s;' % quote_name(c, ks))
         yield c
     finally:
-        conn.close()
+        conn.shutdown()
 
-def cql_rule_set(cqlver):
+def cql_rule_set():
     return cqlsh.cql3handling.CqlRuleSet
-
-def quote_name(cqlver, name):
-    if isinstance(cqlver, cql.cursor.Cursor):
-        cqlver = cqlver._connection
-    if isinstance(cqlver, cql.connection.Connection):
-        cqlver = cqlver.cql_version
-    return cql_rule_set(cqlver).maybe_escape_name(name)
 
 class DEFAULTVAL: pass
 
@@ -138,10 +133,10 @@ def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
     # use a positive default sentinel so that keyspace=None can be used
     # to override the default behavior
     if keyspace is DEFAULTVAL:
-        keyspace = get_test_keyspace()
+        keyspace = get_keyspace()
     return run_cqlsh(keyspace=keyspace, **kwargs)
 
 def testcall_cqlsh(keyspace=None, **kwargs):
     if keyspace is None:
-        keyspace = get_test_keyspace()
+        keyspace = get_keyspace()
     return call_cqlsh(keyspace=keyspace, **kwargs)

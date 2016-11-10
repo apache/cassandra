@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
@@ -29,13 +27,22 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.AuthKeyspace;
+import org.apache.cassandra.cql3.functions.Functions;
+import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.ConcurrentBiMap;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -54,10 +61,10 @@ public class Schema
     public static final int NAME_LENGTH = 48;
 
     /* metadata map for faster keyspace lookup */
-    private final Map<String, KSMetaData> keyspaces = new NonBlockingHashMap<String, KSMetaData>();
+    private final Map<String, KSMetaData> keyspaces = new NonBlockingHashMap<>();
 
     /* Keyspace objects, one per keyspace. Only one instance should ever exist for any given keyspace. */
-    private final Map<String, Keyspace> keyspaceInstances = new NonBlockingHashMap<String, Keyspace>();
+    private final Map<String, Keyspace> keyspaceInstances = new NonBlockingHashMap<>();
 
     /* metadata map for faster ColumnFamily lookup */
     private final ConcurrentBiMap<Pair<String, String>, UUID> cfIdMap = new ConcurrentBiMap<>();
@@ -66,7 +73,10 @@ public class Schema
 
     // 59adb24e-f3cd-3e02-97f0-5b395827453f
     public static final UUID emptyVersion;
-    public static final ImmutableSet<String> systemKeyspaceNames = ImmutableSet.of(Keyspace.SYSTEM_KS);
+
+    private static final ImmutableSet<String> replicatedSystemKeyspaceNames = ImmutableSet.of(TraceKeyspace.NAME,
+                                                                                              AuthKeyspace.NAME,
+                                                                                              SystemDistributedKeyspace.NAME);
 
     static
     {
@@ -81,10 +91,34 @@ public class Schema
     }
 
     /**
-     * Initialize empty schema object
+     * Initialize empty schema object and load the hardcoded system tables
      */
     public Schema()
-    {}
+    {
+        load(SystemKeyspace.definition());
+    }
+
+    /**
+     * load keyspace (keyspace) definitions, but do not initialize the keyspace instances.
+     * Schema version may be updated as the result.
+     */
+    public Schema loadFromDisk()
+    {
+        return loadFromDisk(true);
+    }
+
+    /**
+     * Load schema definitions from disk.
+     *
+     * @param updateVersion true if schema version needs to be updated
+     */
+    public Schema loadFromDisk(boolean updateVersion)
+    {
+        load(LegacySchemaTables.readSchemaFromSystemTables());
+        if (updateVersion)
+            updateVersion();
+        return this;
+    }
 
     /**
      * Load up non-system keyspaces
@@ -131,6 +165,64 @@ public class Schema
     }
 
     /**
+     * Retrieve a CFS by name even if that CFS is an index
+     *
+     * An index is identified by looking for '.' in the CF name and separating to find the base table
+     * containing the index
+     * @param ksNameAndCFName
+     * @return The named CFS or null if the keyspace, base table, or index don't exist
+     */
+    public ColumnFamilyStore getColumnFamilyStoreIncludingIndexes(Pair<String, String> ksNameAndCFName) {
+        String ksName = ksNameAndCFName.left;
+        String cfName = ksNameAndCFName.right;
+        Pair<String, String> baseTable;
+
+        /*
+         * Split does special case a one character regex, and it looks like it can detect
+         * if you use two characters to escape '.', but it still allocates a useless array.
+         */
+        int indexOfSeparator = cfName.indexOf('.');
+        if (indexOfSeparator > -1)
+            baseTable = Pair.create(ksName, cfName.substring(0, indexOfSeparator));
+        else
+            baseTable = ksNameAndCFName;
+
+        UUID cfId = cfIdMap.get(baseTable);
+        if (cfId == null)
+            return null;
+
+        Keyspace ks = keyspaceInstances.get(ksName);
+        if (ks == null)
+            return null;
+
+        ColumnFamilyStore baseCFS = ks.getColumnFamilyStore(cfId);
+
+        //Not an index
+        if (indexOfSeparator == -1)
+            return baseCFS;
+
+        if (baseCFS == null)
+            return null;
+
+        SecondaryIndex index = baseCFS.indexManager.getIndexByName(cfName);
+        if (index == null)
+            return null;
+
+        return index.getIndexCfs();
+    }
+
+    public ColumnFamilyStore getColumnFamilyStoreInstance(UUID cfId)
+    {
+        Pair<String, String> pair = cfIdMap.inverse().get(cfId);
+        if (pair == null)
+            return null;
+        Keyspace instance = getKeyspaceInstance(pair.left);
+        if (instance == null)
+            return null;
+        return instance.getColumnFamilyStore(cfId);
+    }
+
+    /**
      * Store given Keyspace instance to the schema
      *
      * @param keyspace The Keyspace instance to store
@@ -168,7 +260,7 @@ public class Schema
     }
 
     /**
-     * Given a keyspace name & column family name, get the column family
+     * Given a keyspace name and column family name, get the column family
      * meta data. If the keyspace name or column family name is not valid
      * this function returns null.
      *
@@ -203,38 +295,6 @@ public class Schema
     }
 
     /**
-     * Get type of the ColumnFamily but it's keyspace/name
-     *
-     * @param ksName The keyspace name
-     * @param cfName The ColumnFamily name
-     *
-     * @return The type of the ColumnFamily
-     */
-    public ColumnFamilyType getColumnFamilyType(String ksName, String cfName)
-    {
-        assert ksName != null && cfName != null;
-        CFMetaData cfMetaData = getCFMetaData(ksName, cfName);
-        return (cfMetaData == null) ? null : cfMetaData.cfType;
-    }
-
-    /**
-     * Get column comparator for ColumnFamily but it's keyspace/name
-     *
-     * @param ksName The keyspace name
-     * @param cfName The ColumnFamily name
-     *
-     * @return The comparator of the ColumnFamily
-     */
-    public AbstractType<?> getComparator(String ksName, String cfName)
-    {
-        assert ksName != null;
-        CFMetaData cfmd = getCFMetaData(ksName, cfName);
-        if (cfmd == null)
-            throw new IllegalArgumentException("Unknown ColumnFamily " + cfName + " in keyspace " + ksName);
-        return cfmd.comparator;
-    }
-
-    /**
      * Get metadata about keyspace by its name
      *
      * @param keyspaceName The name of the keyspace
@@ -247,12 +307,27 @@ public class Schema
         return keyspaces.get(keyspaceName);
     }
 
+    private Set<String> getNonSystemKeyspacesSet()
+    {
+        return Sets.difference(keyspaces.keySet(), Collections.singleton(SystemKeyspace.NAME));
+    }
+
     /**
-     * @return collection of the non-system keyspaces
+     * @return collection of the non-system keyspaces (note that this count as system only the
+     * non replicated keyspaces, so keyspace like system_traces which are replicated are actually
+     * returned. See getUserKeyspace() below if you don't want those)
      */
     public List<String> getNonSystemKeyspaces()
     {
-        return ImmutableList.copyOf(Sets.difference(keyspaces.keySet(), systemKeyspaceNames));
+        return ImmutableList.copyOf(getNonSystemKeyspacesSet());
+    }
+
+    /**
+     * @return collection of the user defined keyspaces
+     */
+    public List<String> getUserKeyspaces()
+    {
+        return ImmutableList.copyOf(Sets.difference(getNonSystemKeyspacesSet(), replicatedSystemKeyspaceNames));
     }
 
     /**
@@ -309,6 +384,15 @@ public class Schema
     }
 
     /**
+     * @param ksAndCFName The identifier of the ColumnFamily to lookup
+     * @return true if the KS and CF pair is a known one, false otherwise.
+     */
+    public boolean hasCF(Pair<String, String> ksAndCFName)
+    {
+        return cfIdMap.containsKey(ksAndCFName);
+    }
+
+    /**
      * Lookup keyspace/ColumnFamily identifier
      *
      * @param ksName The keyspace name
@@ -332,7 +416,7 @@ public class Schema
         Pair<String, String> key = Pair.create(cfm.ksName, cfm.cfName);
 
         if (cfIdMap.containsKey(key))
-            throw new RuntimeException(String.format("Attempting to load already loaded column family %s.%s", cfm.ksName, cfm.cfName));
+            throw new RuntimeException(String.format("Attempting to load already loaded table %s.%s", cfm.ksName, cfm.cfName));
 
         logger.debug("Adding {} to cfIdMap", cfm);
         cfIdMap.put(key, cfm.cfId);
@@ -346,6 +430,7 @@ public class Schema
     public void purge(CFMetaData cfm)
     {
         cfIdMap.remove(Pair.create(cfm.ksName, cfm.cfName));
+        cfm.markPurged();
     }
 
     /* Version control */
@@ -364,29 +449,8 @@ public class Schema
      */
     public void updateVersion()
     {
-        try
-        {
-            MessageDigest versionDigest = MessageDigest.getInstance("MD5");
-
-            for (Row row : SystemKeyspace.serializedSchema())
-            {
-                if (invalidSchemaRow(row) || ignoredSchemaRow(row))
-                    continue;
-
-                // we want to digest only live columns
-                ColumnFamilyStore.removeDeletedColumnsOnly(row.cf, Integer.MAX_VALUE);
-                row.cf.purgeTombstones(Integer.MAX_VALUE);
-                
-                row.cf.updateDigest(versionDigest);
-            }
-
-            version = UUID.nameUUIDFromBytes(versionDigest.digest());
-            SystemKeyspace.updateSchemaVersion(version);
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        version = LegacySchemaTables.calculateSchemaDigest();
+        SystemKeyspace.updateSchemaVersion(version);
     }
 
     /*
@@ -414,20 +478,204 @@ public class Schema
         updateVersionAndAnnounce();
     }
 
-    public static boolean invalidSchemaRow(Row row)
+    public void addKeyspace(KSMetaData ksm)
     {
-        return row.cf == null || (row.cf.isMarkedForDelete() && row.cf.getColumnCount() == 0);
+        assert getKSMetaData(ksm.name) == null;
+        load(ksm);
+
+        Keyspace.open(ksm.name);
+        MigrationManager.instance.notifyCreateKeyspace(ksm);
     }
 
-    public static boolean ignoredSchemaRow(Row row)
+    public void updateKeyspace(String ksName)
     {
-        try
+        KSMetaData oldKsm = getKSMetaData(ksName);
+        assert oldKsm != null;
+        KSMetaData newKsm = LegacySchemaTables.createKeyspaceFromName(ksName).cloneWith(oldKsm.cfMetaData().values(), oldKsm.userTypes);
+
+        setKeyspaceDefinition(newKsm);
+        Keyspace.open(ksName).setMetadata(newKsm);
+
+        MigrationManager.instance.notifyUpdateKeyspace(newKsm);
+    }
+
+    public void dropKeyspace(String ksName)
+    {
+        KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
+        String snapshotName = Keyspace.getTimestampedSnapshotName(ksName);
+
+        CompactionManager.instance.interruptCompactionFor(ksm.cfMetaData().values(), true);
+
+        Keyspace keyspace = Keyspace.open(ksm.name);
+
+        // remove all cfs from the keyspace instance.
+        List<UUID> droppedCfs = new ArrayList<>();
+        for (CFMetaData cfm : ksm.cfMetaData().values())
         {
-            return systemKeyspaceNames.contains(ByteBufferUtil.string(row.key.key));
+            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfm.cfName);
+
+            purge(cfm);
+
+            if (DatabaseDescriptor.isAutoSnapshot())
+                cfs.snapshot(snapshotName);
+            Keyspace.open(ksm.name).dropCf(cfm.cfId);
+
+            droppedCfs.add(cfm.cfId);
         }
-        catch (CharacterCodingException e)
-        {
-            throw new RuntimeException(e);
-        }
+
+        // remove the keyspace from the static instances.
+        Keyspace.clear(ksm.name);
+        clearKeyspaceDefinition(ksm);
+
+        keyspace.writeOrder.awaitNewBarrier();
+
+        // force a new segment in the CL
+        CommitLog.instance.forceRecycleAllSegments(droppedCfs);
+
+        MigrationManager.instance.notifyDropKeyspace(ksm);
+    }
+
+    public void addTable(CFMetaData cfm)
+    {
+        assert getCFMetaData(cfm.ksName, cfm.cfName) == null;
+        KSMetaData ksm = getKSMetaData(cfm.ksName).cloneWithTableAdded(cfm);
+
+        logger.info("Loading {}", cfm);
+
+        load(cfm);
+
+        // make sure it's init-ed w/ the old definitions first,
+        // since we're going to call initCf on the new one manually
+        Keyspace.open(cfm.ksName);
+
+        // init the new CF before switching the KSM to the new one
+        // to avoid races as in CASSANDRA-10761
+        Keyspace.open(cfm.ksName).initCf(cfm, true);
+        setKeyspaceDefinition(ksm);
+        MigrationManager.instance.notifyCreateColumnFamily(cfm);
+    }
+
+    public void updateTable(String ksName, String tableName)
+    {
+        CFMetaData cfm = getCFMetaData(ksName, tableName);
+        assert cfm != null;
+        boolean columnsDidChange = cfm.reload();
+
+        Keyspace keyspace = Keyspace.open(cfm.ksName);
+        keyspace.getColumnFamilyStore(cfm.cfName).reload();
+        MigrationManager.instance.notifyUpdateColumnFamily(cfm, columnsDidChange);
+    }
+
+    public void dropTable(String ksName, String tableName)
+    {
+        KSMetaData ksm = getKSMetaData(ksName);
+        assert ksm != null;
+        ColumnFamilyStore cfs = Keyspace.open(ksName).getColumnFamilyStore(tableName);
+        assert cfs != null;
+
+        // reinitialize the keyspace.
+        CFMetaData cfm = ksm.cfMetaData().get(tableName);
+
+        purge(cfm);
+        setKeyspaceDefinition(ksm.cloneWithTableRemoved(cfm));
+
+        CompactionManager.instance.interruptCompactionFor(Arrays.asList(cfm), true);
+
+        if (DatabaseDescriptor.isAutoSnapshot())
+            cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
+        Keyspace.open(ksm.name).dropCf(cfm.cfId);
+        MigrationManager.instance.notifyDropColumnFamily(cfm);
+
+        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(cfm.cfId));
+    }
+
+    public void addType(UserType ut)
+    {
+        KSMetaData ksm = getKSMetaData(ut.keyspace);
+        assert ksm != null;
+
+        logger.info("Loading {}", ut);
+
+        ksm.userTypes.addType(ut);
+
+        MigrationManager.instance.notifyCreateUserType(ut);
+    }
+
+    public void updateType(UserType ut)
+    {
+        KSMetaData ksm = getKSMetaData(ut.keyspace);
+        assert ksm != null;
+
+        logger.info("Updating {}", ut);
+
+        ksm.userTypes.addType(ut);
+
+        MigrationManager.instance.notifyUpdateUserType(ut);
+    }
+
+    public void dropType(UserType ut)
+    {
+        KSMetaData ksm = getKSMetaData(ut.keyspace);
+        assert ksm != null;
+
+        ksm.userTypes.removeType(ut);
+
+        MigrationManager.instance.notifyDropUserType(ut);
+    }
+
+    public void addFunction(UDFunction udf)
+    {
+        logger.info("Loading {}", udf);
+
+        Functions.addOrReplaceFunction(udf);
+
+        MigrationManager.instance.notifyCreateFunction(udf);
+    }
+
+    public void updateFunction(UDFunction udf)
+    {
+        logger.info("Updating {}", udf);
+
+        Functions.addOrReplaceFunction(udf);
+
+        MigrationManager.instance.notifyUpdateFunction(udf);
+    }
+
+    public void dropFunction(UDFunction udf)
+    {
+        logger.info("Drop {}", udf);
+
+        // TODO: this is kind of broken as this remove all overloads of the function name
+        Functions.removeFunction(udf.name(), udf.argTypes());
+
+        MigrationManager.instance.notifyDropFunction(udf);
+    }
+
+    public void addAggregate(UDAggregate udf)
+    {
+        logger.info("Loading {}", udf);
+
+        Functions.addOrReplaceFunction(udf);
+
+        MigrationManager.instance.notifyCreateAggregate(udf);
+    }
+
+    public void updateAggregate(UDAggregate udf)
+    {
+        logger.info("Updating {}", udf);
+
+        Functions.addOrReplaceFunction(udf);
+
+        MigrationManager.instance.notifyUpdateAggregate(udf);
+    }
+
+    public void dropAggregate(UDAggregate udf)
+    {
+        logger.info("Drop {}", udf);
+
+        // TODO: this is kind of broken as this remove all overloads of the function name
+        Functions.removeFunction(udf.name(), udf.argTypes());
+
+        MigrationManager.instance.notifyDropAggregate(udf);
     }
 }

@@ -18,45 +18,125 @@
 */
 package org.apache.cassandra.io.sstable;
 
-import java.util.ArrayList;
-import java.util.Collection;
+import java.io.IOException;
+import java.util.*;
 
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.junit.BeforeClass;
+import com.google.common.collect.Iterables;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
-import org.apache.cassandra.db.compaction.ICompactionScanner;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.BytesToken;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.*;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.dht.AbstractBounds.isEmpty;
 import static org.junit.Assert.*;
 
-public class SSTableScannerTest extends SchemaLoader
+public class SSTableScannerTest
 {
-    public static final String KEYSPACE = "Keyspace1";
+    public static final String KEYSPACE = "SSTableScannerTest";
     public static final String TABLE = "Standard1";
+
+    @BeforeClass
+    public static void defineSchema() throws Exception
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE, TABLE));
+    }
 
     private static String toKey(int key)
     {
         return String.format("%03d", key);
     }
 
-    private static Bounds<RowPosition> boundsFor(int start, int end)
+    // we produce all DataRange variations that produce an inclusive start and exclusive end range
+    private static Iterable<DataRange> dataRanges(int start, int end)
     {
-        return new Bounds<RowPosition>(new BytesToken(toKey(start).getBytes()).minKeyBound(),
-                                       new BytesToken(toKey(end).getBytes()).maxKeyBound());
+        if (end < start)
+            return dataRanges(start, end, false, true);
+        return Iterables.concat(dataRanges(start, end, false, false),
+                                dataRanges(start, end, false, true),
+                                dataRanges(start, end, true, false),
+                                dataRanges(start, end, true, true)
+        );
     }
 
+    private static Iterable<DataRange> dataRanges(int start, int end, boolean inclusiveStart, boolean inclusiveEnd)
+    {
+        List<DataRange> ranges = new ArrayList<>();
+        if (start == end + 1)
+        {
+            assert !inclusiveStart && inclusiveEnd;
+            ranges.add(dataRange(min(start), false, max(end), true));
+            ranges.add(dataRange(min(start), false, min(end + 1), true));
+            ranges.add(dataRange(max(start - 1), false, max(end), true));
+            ranges.add(dataRange(dk(start - 1), false, dk(start - 1), true));
+        }
+        else
+        {
+            for (RowPosition s : starts(start, inclusiveStart))
+            {
+                for (RowPosition e : ends(end, inclusiveEnd))
+                {
+                    if (end < start && e.compareTo(s) > 0)
+                        continue;
+                    if (!isEmpty(new AbstractBounds.Boundary<>(s, inclusiveStart), new AbstractBounds.Boundary<>(e, inclusiveEnd)))
+                        continue;
+                    ranges.add(dataRange(s, inclusiveStart, e, inclusiveEnd));
+                }
+            }
+        }
+        return ranges;
+    }
+
+    private static Iterable<RowPosition> starts(int key, boolean inclusive)
+    {
+        return Arrays.asList(min(key), max(key - 1), dk(inclusive ? key : key - 1));
+    }
+
+    private static Iterable<RowPosition> ends(int key, boolean inclusive)
+    {
+        return Arrays.asList(max(key), min(key + 1), dk(inclusive ? key : key + 1));
+    }
+
+    private static DecoratedKey dk(int key)
+    {
+        return Util.dk(toKey(key));
+    }
+
+    private static Token token(int key)
+    {
+        return key == Integer.MIN_VALUE ? ByteOrderedPartitioner.MINIMUM : new ByteOrderedPartitioner.BytesToken(toKey(key).getBytes());
+    }
+
+    private static RowPosition min(int key)
+    {
+        return token(key).minKeyBound();
+    }
+
+    private static RowPosition max(int key)
+    {
+        return token(key).maxKeyBound();
+    }
+
+    private static DataRange dataRange(RowPosition start, boolean startInclusive, RowPosition end, boolean endInclusive)
+    {
+        return new DataRange(AbstractBounds.bounds(start, startInclusive, end, endInclusive), new IdentityQueryFilter());
+    }
 
     private static Range<Token> rangeFor(int start, int end)
     {
-        return new Range<Token>(new BytesToken(toKey(start).getBytes()),
-                                new BytesToken(toKey(end).getBytes()));
+        return new Range<Token>(new ByteOrderedPartitioner.BytesToken(toKey(start).getBytes()),
+                                end == Integer.MIN_VALUE ? ByteOrderedPartitioner.MINIMUM : new ByteOrderedPartitioner.BytesToken(toKey(end).getBytes()));
     }
 
     private static Collection<Range<Token>> makeRanges(int ... keys)
@@ -71,27 +151,37 @@ public class SSTableScannerTest extends SchemaLoader
     {
         long timestamp = System.currentTimeMillis();
         DecoratedKey decoratedKey = Util.dk(toKey(key));
-        RowMutation rm = new RowMutation(KEYSPACE, decoratedKey.key);
-        rm.add(TABLE, ByteBufferUtil.bytes("col"), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp, 1000);
-        rm.apply();
+        Mutation rm = new Mutation(KEYSPACE, decoratedKey.getKey());
+        rm.add(TABLE, Util.cellname("col"), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp, 1000);
+        rm.applyUnsafe();
     }
 
-    private static void assertScanMatches(SSTableReader sstable, int scanStart, int scanEnd, int expectedStart, int expectedEnd)
+    private static void assertScanMatches(SSTableReader sstable, int scanStart, int scanEnd, int ... boundaries)
     {
-        SSTableScanner scanner = sstable.getScanner(new DataRange(boundsFor(scanStart, scanEnd), new IdentityQueryFilter()));
-        for (int i = expectedStart; i <= expectedEnd; i++)
-            assertEquals(toKey(i), new String(scanner.next().getKey().key.array()));
-        assertFalse(scanner.hasNext());
+        assert boundaries.length % 2 == 0;
+        for (DataRange range : dataRanges(scanStart, scanEnd))
+        {
+            try(ISSTableScanner scanner = sstable.getScanner(range))
+            {
+                for (int b = 0; b < boundaries.length; b += 2)
+                    for (int i = boundaries[b]; i <= boundaries[b + 1]; i++)
+                        assertEquals(toKey(i), new String(scanner.next().getKey().getKey().array()));
+                assertFalse(scanner.hasNext());
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     private static void assertScanEmpty(SSTableReader sstable, int scanStart, int scanEnd)
     {
-        SSTableScanner scanner = sstable.getScanner(new DataRange(boundsFor(scanStart, scanEnd), new IdentityQueryFilter()));
-        assertFalse(String.format("scan of (%03d, %03d] should be empty", scanStart, scanEnd), scanner.hasNext());
+        assertScanMatches(sstable, scanStart, scanEnd);
     }
 
     @Test
-    public void testSingleDataRange()
+    public void testSingleDataRange() throws IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(TABLE);
@@ -108,9 +198,11 @@ public class SSTableScannerTest extends SchemaLoader
         SSTableReader sstable = store.getSSTables().iterator().next();
 
         // full range scan
-        SSTableScanner scanner = sstable.getScanner();
+        ISSTableScanner scanner = sstable.getScanner();
         for (int i = 2; i < 10; i++)
-            assertEquals(toKey(i), new String(scanner.next().getKey().key.array()));
+            assertEquals(toKey(i), new String(scanner.next().getKey().getKey().array()));
+
+        scanner.close();
 
         // a simple read of a chunk in the middle
         assertScanMatches(sstable, 3, 6, 3, 6);
@@ -133,9 +225,48 @@ public class SSTableScannerTest extends SchemaLoader
         // empty ranges
         assertScanEmpty(sstable, 0, 1);
         assertScanEmpty(sstable, 10, 11);
+
+        // wrapping, starts in middle
+        assertScanMatches(sstable, 5, 3, 2, 3, 5, 9);
+        assertScanMatches(sstable, 5, 2, 2, 2, 5, 9);
+        assertScanMatches(sstable, 5, 1, 5, 9);
+        assertScanMatches(sstable, 5, Integer.MIN_VALUE, 5, 9);
+        // wrapping, starts at end
+        assertScanMatches(sstable, 9, 8, 2, 8, 9, 9);
+        assertScanMatches(sstable, 9, 3, 2, 3, 9, 9);
+        assertScanMatches(sstable, 9, 2, 2, 2, 9, 9);
+        assertScanMatches(sstable, 9, 1, 9, 9);
+        assertScanMatches(sstable, 9, Integer.MIN_VALUE, 9, 9);
+        assertScanMatches(sstable, 8, 3, 2, 3, 8, 9);
+        assertScanMatches(sstable, 8, 2, 2, 2, 8, 9);
+        assertScanMatches(sstable, 8, 1, 8, 9);
+        assertScanMatches(sstable, 8, Integer.MIN_VALUE, 8, 9);
+        // wrapping, starts past end
+        assertScanMatches(sstable, 10, 9, 2, 9);
+        assertScanMatches(sstable, 10, 5, 2, 5);
+        assertScanMatches(sstable, 10, 2, 2, 2);
+        assertScanEmpty(sstable, 10, 1);
+        assertScanEmpty(sstable, 10, Integer.MIN_VALUE);
+        assertScanMatches(sstable, 11, 10, 2, 9);
+        assertScanMatches(sstable, 11, 9, 2, 9);
+        assertScanMatches(sstable, 11, 5, 2, 5);
+        assertScanMatches(sstable, 11, 2, 2, 2);
+        assertScanEmpty(sstable, 11, 1);
+        assertScanEmpty(sstable, 11, Integer.MIN_VALUE);
+        // wrapping, starts at start
+        assertScanMatches(sstable, 3, 1, 3, 9);
+        assertScanMatches(sstable, 3, Integer.MIN_VALUE, 3, 9);
+        assertScanMatches(sstable, 2, 1, 2, 9);
+        assertScanMatches(sstable, 2, Integer.MIN_VALUE, 2, 9);
+        assertScanMatches(sstable, 1, 0, 2, 9);
+        assertScanMatches(sstable, 1, Integer.MIN_VALUE, 2, 9);
+        // wrapping, starts before
+        assertScanMatches(sstable, 1, -1, 2, 9);
+        assertScanMatches(sstable, 1, Integer.MIN_VALUE, 2, 9);
+        assertScanMatches(sstable, 1, 0, 2, 9);
     }
 
-    private static void assertScanContainsRanges(ICompactionScanner scanner, int ... rangePairs)
+    private static void assertScanContainsRanges(ISSTableScanner scanner, int ... rangePairs) throws IOException
     {
         assert rangePairs.length % 2 == 0;
 
@@ -147,14 +278,15 @@ public class SSTableScannerTest extends SchemaLoader
             for (int expected = rangeStart; expected <= rangeEnd; expected++)
             {
                 assertTrue(String.format("Expected to see key %03d", expected), scanner.hasNext());
-                assertEquals(toKey(expected), new String(scanner.next().getKey().key.array()));
+                assertEquals(toKey(expected), new String(scanner.next().getKey().getKey().array()));
             }
         }
         assertFalse(scanner.hasNext());
+        scanner.close();
     }
 
     @Test
-    public void testMultipleRanges()
+    public void testMultipleRanges() throws IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(TABLE);
@@ -172,7 +304,7 @@ public class SSTableScannerTest extends SchemaLoader
         SSTableReader sstable = store.getSSTables().iterator().next();
 
         // full range scan
-        SSTableScanner fullScanner = sstable.getScanner();
+        ISSTableScanner fullScanner = sstable.getScanner();
         assertScanContainsRanges(fullScanner,
                                  2, 9,
                                  102, 109,
@@ -180,7 +312,7 @@ public class SSTableScannerTest extends SchemaLoader
 
 
         // scan all three ranges separately
-        ICompactionScanner scanner = sstable.getScanner(makeRanges(1, 9,
+        ISSTableScanner scanner = sstable.getScanner(makeRanges(1, 9,
                                                                    101, 109,
                                                                    201, 209),
                                                         null);
@@ -286,7 +418,7 @@ public class SSTableScannerTest extends SchemaLoader
     }
 
     @Test
-    public void testSingleKeyMultipleRanges()
+    public void testSingleKeyMultipleRanges() throws IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(TABLE);
@@ -302,11 +434,11 @@ public class SSTableScannerTest extends SchemaLoader
         SSTableReader sstable = store.getSSTables().iterator().next();
 
         // full range scan
-        SSTableScanner fullScanner = sstable.getScanner();
+        ISSTableScanner fullScanner = sstable.getScanner();
         assertScanContainsRanges(fullScanner, 205, 205);
 
         // scan three ranges separately
-        ICompactionScanner scanner = sstable.getScanner(makeRanges(101, 109,
+        ISSTableScanner scanner = sstable.getScanner(makeRanges(101, 109,
                                                                    201, 209), null);
 
         // this will currently fail

@@ -71,7 +71,7 @@ public class BackgroundActivityMonitor
         }
         catch (IOException ex)
         {
-            if (FBUtilities.isUnix())
+            if (FBUtilities.hasProcFS())
                 logger.warn("Couldn't open /proc/stats");
             statsFile = null;
         }
@@ -155,7 +155,7 @@ public class BackgroundActivityMonitor
             catch (IOException e)
             {
                 // ignore;
-                if (FBUtilities.isUnix())
+                if (FBUtilities.hasProcFS())
                     logger.warn("Couldn't read /proc/stats");
             }
             if (report == -1d)

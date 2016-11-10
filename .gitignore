@@ -6,13 +6,16 @@ src/gen-java/
 src/resources/org/apache/cassandra/config/
 logs/
 data/
+conf/hotspot_compiler
+doc/cql3/CQL.html
 
 # C* debs
 build-stamp
 build.properties
 debian/cassandra*debhelper*
-debian/cassandra.substvars
+debian/cassandra*.substvars
 debian/cassandra/
+debian/cassandra-tools/
 debian/files
 
 # gitignore doesn't help with modified files - you may wish to:
@@ -22,6 +25,7 @@ debian/files
 
 # IntelliJ
 .idea/
+*.eml
 *.iml
 *.ipr
 *.iws
@@ -55,3 +59,15 @@ target/
 *.tmp
 .DS_Store
 Thumbs.db
+
+# JSR223
+lib/jsr223/clojure/*.jar
+lib/jsr223/groovy/*.jar
+lib/jsr223/jaskell/*.jar
+lib/jsr223/jruby/*.jar
+lib/jsr223/jruby/jni
+lib/jsr223/jruby/ruby
+lib/jsr223/jython/*.jar
+lib/jsr223/jython/cachedir
+lib/jsr223/scala/*.jar
+

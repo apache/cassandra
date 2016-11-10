@@ -18,13 +18,17 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.util.List;
+import java.util.Collections;
 
-import org.apache.cassandra.db.ExpiringColumn;
+import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.ExpiringCell;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Utility class for the Parser to gather attributes for modification
@@ -46,6 +50,18 @@ public class Attributes
         this.timeToLive = timeToLive;
     }
 
+    public Iterable<Function> getFunctions()
+    {
+        if (timestamp != null && timeToLive != null)
+            return Iterables.concat(timestamp.getFunctions(), timeToLive.getFunctions());
+        else if (timestamp != null)
+            return timestamp.getFunctions();
+        else if (timeToLive != null)
+            return timeToLive.getFunctions();
+        else
+            return Collections.emptySet();
+    }
+
     public boolean isTimestampSet()
     {
         return timestamp != null;
@@ -56,14 +72,17 @@ public class Attributes
         return timeToLive != null;
     }
 
-    public long getTimestamp(long now, List<ByteBuffer> variables) throws InvalidRequestException
+    public long getTimestamp(long now, QueryOptions options) throws InvalidRequestException
     {
         if (timestamp == null)
             return now;
 
-        ByteBuffer tval = timestamp.bindAndGet(variables);
+        ByteBuffer tval = timestamp.bindAndGet(options);
         if (tval == null)
             throw new InvalidRequestException("Invalid null value of timestamp");
+
+        if (tval == ByteBufferUtil.UNSET_BYTE_BUFFER)
+            return now;
 
         try
         {
@@ -71,20 +90,23 @@ public class Attributes
         }
         catch (MarshalException e)
         {
-            throw new InvalidRequestException("Invalid timestamp value");
+            throw new InvalidRequestException("Invalid timestamp value: " + tval);
         }
 
         return LongType.instance.compose(tval);
     }
 
-    public int getTimeToLive(List<ByteBuffer> variables) throws InvalidRequestException
+    public int getTimeToLive(QueryOptions options) throws InvalidRequestException
     {
         if (timeToLive == null)
             return 0;
 
-        ByteBuffer tval = timeToLive.bindAndGet(variables);
+        ByteBuffer tval = timeToLive.bindAndGet(options);
         if (tval == null)
             throw new InvalidRequestException("Invalid null value of TTL");
+
+        if (tval == ByteBufferUtil.UNSET_BYTE_BUFFER) // treat as unlimited
+            return 0;
 
         try
         {
@@ -92,15 +114,15 @@ public class Attributes
         }
         catch (MarshalException e)
         {
-            throw new InvalidRequestException("Invalid timestamp value");
+            throw new InvalidRequestException("Invalid timestamp value: " + tval);
         }
 
         int ttl = Int32Type.instance.compose(tval);
         if (ttl < 0)
-            throw new InvalidRequestException("A TTL must be greater or equal to 0");
+            throw new InvalidRequestException("A TTL must be greater or equal to 0, but was " + ttl);
 
-        if (ttl > ExpiringColumn.MAX_TTL)
-            throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", ttl, ExpiringColumn.MAX_TTL));
+        if (ttl > ExpiringCell.MAX_TTL)
+            throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", ttl, ExpiringCell.MAX_TTL));
 
         return ttl;
     }
@@ -120,8 +142,8 @@ public class Attributes
 
         public Attributes prepare(String ksName, String cfName) throws InvalidRequestException
         {
-            Term ts = timestamp == null ? null : timestamp.prepare(timestampReceiver(ksName, cfName));
-            Term ttl = timeToLive == null ? null : timeToLive.prepare(timeToLiveReceiver(ksName, cfName));
+            Term ts = timestamp == null ? null : timestamp.prepare(ksName, timestampReceiver(ksName, cfName));
+            Term ttl = timeToLive == null ? null : timeToLive.prepare(ksName, timeToLiveReceiver(ksName, cfName));
             return new Attributes(ts, ttl);
         }
 

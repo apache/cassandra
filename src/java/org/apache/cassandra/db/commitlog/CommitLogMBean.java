@@ -20,30 +20,10 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public interface CommitLogMBean
 {
-    /**
-     * Get the number of completed tasks
-     * @see org.apache.cassandra.metrics.CommitLogMetrics#completedTasks
-     */
-    @Deprecated
-    public long getCompletedTasks();
-
-    /**
-     * Get the number of tasks waiting to be executed
-     * @see org.apache.cassandra.metrics.CommitLogMetrics#pendingTasks
-     */
-    @Deprecated
-    public long getPendingTasks();
-
-    /**
-     * Get the current size used by all the commitlog segments.
-     * @see org.apache.cassandra.metrics.CommitLogMetrics#totalCommitLogSize
-     */
-    @Deprecated
-    public long getTotalCommitlogSize();
-
     /**
      *  Command to execute to archive a commitlog segment.  Blank to disabled.
      */
@@ -84,9 +64,24 @@ public interface CommitLogMBean
      * @return file names (not full paths) of active commit log segments (segments containing unflushed data)
      */
     public List<String> getActiveSegmentNames();
-    
+
     /**
      * @return Files which are pending for archival attempt.  Does NOT include failed archive attempts.
      */
     public List<String> getArchivingSegmentNames();
+
+    /**
+     * @return The size of the mutations in all active commit log segments (uncompressed).
+     */
+    public long getActiveContentSize();
+
+    /**
+     * @return The space taken on disk by the commit log (compressed).
+     */
+    public long getActiveOnDiskSize();
+
+    /**
+     * @return A map between active log segments and the compression ratio achieved for each.
+     */
+    public Map<String, Double> getActiveSegmentCompressionRatios();
 }

@@ -17,38 +17,18 @@
 @echo off
 if "%OS%" == "Windows_NT" setlocal
 
-if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%~dp0..
-if NOT DEFINED CASSANDRA_CONF set CASSANDRA_CONF="%CASSANDRA_HOME%\conf"
+pushd "%~dp0"
+call cassandra.in.bat
+
 if NOT DEFINED CASSANDRA_MAIN set CASSANDRA_MAIN=org.apache.cassandra.tools.SSTableExport
 if NOT DEFINED JAVA_HOME goto :err
 
 REM ***** JAVA options *****
 set JAVA_OPTS=^
- -Dlog4j.configuration=log4j-tools.properties
+ -Dlogback.configurationFile=logback-tools.xml
 
-REM ***** CLASSPATH library setting *****
-
-REM Ensure that any user defined CLASSPATH variables are not used on startup
-set CLASSPATH="%CASSANDRA_HOME%\conf"
-
-REM For each jar in the CASSANDRA_HOME lib directory call append to build the CLASSPATH variable.
-for %%i in ("%CASSANDRA_HOME%\lib\*.jar") do call :append "%%i"
-goto okClasspath
-
-:append
-set CLASSPATH=%CLASSPATH%;%1
-goto :eof
-
-:okClasspath
-REM Include the build\classes\main directory so it works in development
-set CASSANDRA_CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes\main";%CASSANDRA_CONF%;"%CASSANDRA_HOME%\build\classes\thrift"
-
-set CASSANDRA_PARAMS=
 set TOOLS_PARAMS=
 
-goto runTool
-
-:runTool
 "%JAVA_HOME%\bin\java" %JAVA_OPTS% %CASSANDRA_PARAMS% -cp %CASSANDRA_CLASSPATH% "%CASSANDRA_MAIN%" %1 -e
 goto finally
 

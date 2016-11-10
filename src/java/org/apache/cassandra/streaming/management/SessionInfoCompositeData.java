@@ -41,7 +41,8 @@ public class SessionInfoCompositeData
                                                             "sendingSummaries",
                                                             "state",
                                                             "receivingFiles",
-                                                            "sendingFiles"};
+                                                            "sendingFiles",
+                                                            "sessionIndex"};
     private static final String[] ITEM_DESCS = new String[]{"Plan ID",
                                                             "Session peer",
                                                             "Connecting address",
@@ -49,7 +50,8 @@ public class SessionInfoCompositeData
                                                             "Summaries of sending data",
                                                             "Current session state",
                                                             "Receiving files",
-                                                            "Sending files"};
+                                                            "Sending files",
+                                                            "Session index"};
     private static final OpenType<?>[] ITEM_TYPES;
 
     public static final CompositeType COMPOSITE_TYPE;
@@ -63,7 +65,8 @@ public class SessionInfoCompositeData
                                         ArrayType.getArrayType(StreamSummaryCompositeData.COMPOSITE_TYPE),
                                         SimpleType.STRING,
                                         ArrayType.getArrayType(ProgressInfoCompositeData.COMPOSITE_TYPE),
-                                        ArrayType.getArrayType(ProgressInfoCompositeData.COMPOSITE_TYPE)};
+                                        ArrayType.getArrayType(ProgressInfoCompositeData.COMPOSITE_TYPE),
+                                        SimpleType.INTEGER};
             COMPOSITE_TYPE = new CompositeType(SessionInfo.class.getName(),
                                                "SessionInfo",
                                                ITEM_NAMES,
@@ -101,6 +104,7 @@ public class SessionInfoCompositeData
         };
         valueMap.put(ITEM_NAMES[6], toArrayOfCompositeData(sessionInfo.getReceivingFiles(), fromProgressInfo));
         valueMap.put(ITEM_NAMES[7], toArrayOfCompositeData(sessionInfo.getSendingFiles(), fromProgressInfo));
+        valueMap.put(ITEM_NAMES[8], sessionInfo.sessionIndex);
         try
         {
             return new CompositeDataSupport(COMPOSITE_TYPE, valueMap);
@@ -134,6 +138,7 @@ public class SessionInfoCompositeData
             }
         };
         SessionInfo info = new SessionInfo(peer,
+                                           (int)values[8],
                                            connecting,
                                            fromArrayOfCompositeData((CompositeData[]) values[3], toStreamSummary),
                                            fromArrayOfCompositeData((CompositeData[]) values[4], toStreamSummary),

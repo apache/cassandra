@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.StringToken;
+import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.dht.Token;
 
 import com.google.common.collect.HashMultimap;
@@ -121,7 +121,7 @@ public class NetworkTopologyStrategyTest
                     byte[] ipBytes = new byte[]{10, (byte)dc, (byte)rack, (byte)ep};
                     InetAddress address = InetAddress.getByAddress(ipBytes);
                     StringToken token = new StringToken(String.format("%02x%02x%02x", ep, rack, dc));
-                    logger.debug("adding node " + address + " at " + token);
+                    logger.debug("adding node {} at {}", address, token);
                     tokens.put(address, token);
                 }
             }
@@ -137,7 +137,7 @@ public class NetworkTopologyStrategyTest
 
             Assert.assertEquals(totalRF, endpoints.size());
             Assert.assertEquals(totalRF, epSet.size());
-            logger.debug(testToken + ": " + endpoints.toString());
+            logger.debug("{}: {}", testToken, endpoints);
         }
     }
 

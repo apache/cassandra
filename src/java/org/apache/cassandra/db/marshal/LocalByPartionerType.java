@@ -19,21 +19,21 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /** for sorting columns representing row keys in the row ordering as determined by a partitioner.
  * Not intended for user-defined CFs, and will in fact error out if used with such. */
-public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuffer>
+public class LocalByPartionerType extends AbstractType<ByteBuffer>
 {
-    private final IPartitioner<T> partitioner;
+    private final IPartitioner partitioner;
 
-    public LocalByPartionerType(IPartitioner<T> partitioner)
+    public LocalByPartionerType(IPartitioner partitioner)
     {
         this.partitioner = partitioner;
     }
@@ -60,10 +60,22 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public Term fromJSONObject(Object parsed)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         // o1 and o2 can be empty so we need to use RowPosition, not DecoratedKey
-        return RowPosition.forKey(o1, partitioner).compareTo(RowPosition.forKey(o2, partitioner));
+        return RowPosition.ForKey.get(o1, partitioner).compareTo(RowPosition.ForKey.get(o2, partitioner));
     }
 
     @Override

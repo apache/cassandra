@@ -34,9 +34,9 @@ public abstract class BytesConversionFcts
     public static Function makeToBlobFunction(AbstractType<?> fromType)
     {
         String name = fromType.asCQL3Type() + "asblob";
-        return new AbstractFunction(name, BytesType.instance, fromType)
+        return new NativeScalarFunction(name, BytesType.instance, fromType)
         {
-            public ByteBuffer execute(List<ByteBuffer> parameters)
+            public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
             {
                 return parameters.get(0);
             }
@@ -46,9 +46,9 @@ public abstract class BytesConversionFcts
     public static Function makeFromBlobFunction(final AbstractType<?> toType)
     {
         final String name = "blobas" + toType.asCQL3Type();
-        return new AbstractFunction(name, toType, BytesType.instance)
+        return new NativeScalarFunction(name, toType, BytesType.instance)
         {
-            public ByteBuffer execute(List<ByteBuffer> parameters) throws InvalidRequestException
+            public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
             {
                 ByteBuffer val = parameters.get(0);
                 try
@@ -66,17 +66,17 @@ public abstract class BytesConversionFcts
         };
     }
 
-    public static final Function VarcharAsBlobFct = new AbstractFunction("varcharasblob", BytesType.instance, UTF8Type.instance)
+    public static final Function VarcharAsBlobFct = new NativeScalarFunction("varcharasblob", BytesType.instance, UTF8Type.instance)
     {
-        public ByteBuffer execute(List<ByteBuffer> parameters)
+        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
         {
             return parameters.get(0);
         }
     };
 
-    public static final Function BlobAsVarcharFact = new AbstractFunction("blobasvarchar", UTF8Type.instance, BytesType.instance)
+    public static final Function BlobAsVarcharFact = new NativeScalarFunction("blobasvarchar", UTF8Type.instance, BytesType.instance)
     {
-        public ByteBuffer execute(List<ByteBuffer> parameters)
+        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
         {
             return parameters.get(0);
         }

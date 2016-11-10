@@ -32,10 +32,11 @@ import java.util.concurrent.*;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,36 +53,45 @@ public class CommitLogArchiver
     }
 
     public final Map<String, Future<?>> archivePending = new ConcurrentHashMap<String, Future<?>>();
-    public final ExecutorService executor = new JMXEnabledThreadPoolExecutor("commitlog_archiver");
+    private final ExecutorService executor;
     final String archiveCommand;
     final String restoreCommand;
     final String restoreDirectories;
-    public final long restorePointInTime;
+    public long restorePointInTime;
     public final TimeUnit precision;
 
-    public CommitLogArchiver()
+    public CommitLogArchiver(String archiveCommand, String restoreCommand, String restoreDirectories,
+            long restorePointInTime, TimeUnit precision)
+    {
+        this.archiveCommand = archiveCommand;
+        this.restoreCommand = restoreCommand;
+        this.restoreDirectories = restoreDirectories;
+        this.restorePointInTime = restorePointInTime;
+        this.precision = precision;
+        executor = !Strings.isNullOrEmpty(archiveCommand) ? new JMXEnabledThreadPoolExecutor("CommitLogArchiver") : null;
+    }
+
+    public static CommitLogArchiver disabled()
+    {
+        return new CommitLogArchiver(null, null, null, Long.MAX_VALUE, TimeUnit.MICROSECONDS);
+    }
+
+    public static CommitLogArchiver construct()
     {
         Properties commitlog_commands = new Properties();
-        InputStream stream = null;
-        try
+        try (InputStream stream = CommitLogArchiver.class.getClassLoader().getResourceAsStream("commitlog_archiving.properties"))
         {
-            stream = getClass().getClassLoader().getResourceAsStream("commitlog_archiving.properties");
-
             if (stream == null)
             {
-                logger.debug("No commitlog_archiving properties found; archive + pitr will be disabled");
-                archiveCommand = null;
-                restoreCommand = null;
-                restoreDirectories = null;
-                restorePointInTime = Long.MAX_VALUE;
-                precision = TimeUnit.MICROSECONDS;
+                logger.trace("No commitlog_archiving properties found; archive + pitr will be disabled");
+                return disabled();
             }
             else
             {
                 commitlog_commands.load(stream);
-                archiveCommand = commitlog_commands.getProperty("archive_command");
-                restoreCommand = commitlog_commands.getProperty("restore_command");
-                restoreDirectories = commitlog_commands.getProperty("restore_directories");
+                String archiveCommand = commitlog_commands.getProperty("archive_command");
+                String restoreCommand = commitlog_commands.getProperty("restore_command");
+                String restoreDirectories = commitlog_commands.getProperty("restore_directories");
                 if (restoreDirectories != null && !restoreDirectories.isEmpty())
                 {
                     for (String dir : restoreDirectories.split(DELIMITER))
@@ -97,7 +107,8 @@ public class CommitLogArchiver
                     }
                 }
                 String targetTime = commitlog_commands.getProperty("restore_point_in_time");
-                precision = TimeUnit.valueOf(commitlog_commands.getProperty("precision", "MICROSECONDS"));
+                TimeUnit precision = TimeUnit.valueOf(commitlog_commands.getProperty("precision", "MICROSECONDS"));
+                long restorePointInTime;
                 try
                 {
                     restorePointInTime = Strings.isNullOrEmpty(targetTime) ? Long.MAX_VALUE : format.parse(targetTime).getTime();
@@ -106,18 +117,39 @@ public class CommitLogArchiver
                 {
                     throw new RuntimeException("Unable to parse restore target time", e);
                 }
+                return new CommitLogArchiver(archiveCommand, restoreCommand, restoreDirectories, restorePointInTime, precision);
             }
         }
         catch (IOException e)
         {
             throw new RuntimeException("Unable to load commitlog_archiving.properties", e);
         }
-        finally
-        {
-            FileUtils.closeQuietly(stream);
-        }
+
     }
 
+    public void maybeArchive(final CommitLogSegment segment)
+    {
+        if (Strings.isNullOrEmpty(archiveCommand))
+            return;
+
+        archivePending.put(segment.getName(), executor.submit(new WrappedRunnable()
+        {
+            protected void runMayThrow() throws IOException
+            {
+                segment.waitForFinalSync();
+                String command = archiveCommand.replace("%name", segment.getName());
+                command = command.replace("%path", segment.getPath());
+                exec(command);
+            }
+        }));
+    }
+
+    /**
+     * Differs from the above because it can be used on any file, rather than only
+     * managed commit log segments (and thus cannot call waitForFinalSync).
+     *
+     * Used to archive files present in the commit log directory at startup (CASSANDRA-6904)
+     */
     public void maybeArchive(final String path, final String name)
     {
         if (Strings.isNullOrEmpty(archiveCommand))
@@ -150,10 +182,13 @@ public class CommitLogArchiver
         }
         catch (ExecutionException e)
         {
-            if (e.getCause() instanceof IOException)
+            if (e.getCause() instanceof RuntimeException)
             {
-                logger.info("Looks like the archiving of file {} failed earlier, cassandra is going to ignore this segment for now.", name);
-                return false;
+                if (e.getCause().getCause() instanceof IOException)
+                {
+                    logger.error("Looks like the archiving of file {} failed earlier, cassandra is going to ignore this segment for now.", name, e.getCause().getCause());
+                    return false;
+                }
             }
             throw new RuntimeException(e);
         }
@@ -175,7 +210,41 @@ public class CommitLogArchiver
             }
             for (File fromFile : files)
             {
-                File toFile = new File(DatabaseDescriptor.getCommitLogLocation(), new CommitLogDescriptor(CommitLogSegment.getNextId()).fileName());
+                CommitLogDescriptor fromHeader = CommitLogDescriptor.fromHeader(fromFile);
+                CommitLogDescriptor fromName = CommitLogDescriptor.isValid(fromFile.getName()) ? CommitLogDescriptor.fromFileName(fromFile.getName()) : null;
+                CommitLogDescriptor descriptor;
+                if (fromHeader == null && fromName == null)
+                    throw new IllegalStateException("Cannot safely construct descriptor for segment, either from its name or its header: " + fromFile.getPath());
+                else if (fromHeader != null && fromName != null && !fromHeader.equalsIgnoringCompression(fromName))
+                    throw new IllegalStateException(String.format("Cannot safely construct descriptor for segment, as name and header descriptors do not match (%s vs %s): %s", fromHeader, fromName, fromFile.getPath()));
+                else if (fromName != null && fromHeader == null && fromName.version >= CommitLogDescriptor.VERSION_21)
+                    throw new IllegalStateException("Cannot safely construct descriptor for segment, as name descriptor implies a version that should contain a header descriptor, but that descriptor could not be read: " + fromFile.getPath());
+                else if (fromHeader != null)
+                    descriptor = fromHeader;
+                else descriptor = fromName;
+
+                if (descriptor.version > CommitLogDescriptor.VERSION_22)
+                    throw new IllegalStateException("Unsupported commit log version: " + descriptor.version);
+
+                if (descriptor.compression != null) {
+                    try
+                    {
+                        CompressionParameters.createCompressor(descriptor.compression);
+                    }
+                    catch (ConfigurationException e)
+                    {
+                        throw new IllegalStateException("Unknown compression", e);
+                    }
+                }
+
+                File toFile = new File(DatabaseDescriptor.getCommitLogLocation(), descriptor.fileName());
+                if (toFile.exists())
+                {
+                    logger.trace("Skipping restore of archive {} as the segment already exists in the restore location {}",
+                                 fromFile.getPath(), toFile.getPath());
+                    continue;
+                }
+
                 String command = restoreCommand.replace("%from", fromFile.getPath());
                 command = command.replace("%to", toFile.getPath());
                 try

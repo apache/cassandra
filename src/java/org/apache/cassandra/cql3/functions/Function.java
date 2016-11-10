@@ -17,29 +17,34 @@
  */
 package org.apache.cassandra.cql3.functions;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.github.jamm.Unmetered;
 
-public interface Function
+@Unmetered
+public interface Function extends AssignmentTestable
 {
-    public String name();
-    public List<AbstractType<?>> argsType();
+    public FunctionName name();
+    public List<AbstractType<?>> argTypes();
     public AbstractType<?> returnType();
 
-    public ByteBuffer execute(List<ByteBuffer> parameters) throws InvalidRequestException;
+    /**
+     * Checks whether the function is a native/hard coded one or not.
+     *
+     * @return <code>true</code> if the function is a native/hard coded one, <code>false</code> otherwise.
+     */
+    public boolean isNative();
 
-    // Whether the function is a pure function (as in doesn't depend on, nor produce side effects).
-    public boolean isPure();
+    /**
+     * Checks whether the function is an aggregate function or not.
+     *
+     * @return <code>true</code> if the function is an aggregate function, <code>false</code> otherwise.
+     */
+    public boolean isAggregate();
 
-    public interface Factory
-    {
-        // We allow the function to be parametered by the keyspace it is part of because the
-        // "token" function needs it (the argument depends on the keyValidator). However,
-        // for most function, the factory will just always the same function object (see
-        // AbstractFunction).
-        public Function create(String ksName, String cfName);
-    }
+    public Iterable<Function> getFunctions();
+
+    public boolean hasReferenceTo(Function function);
 }

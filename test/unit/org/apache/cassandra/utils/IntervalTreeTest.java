@@ -23,6 +23,7 @@ package org.apache.cassandra.utils;
 
 import org.junit.Test;
 
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -33,6 +34,8 @@ import static org.junit.Assert.*;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class IntervalTreeTest
 {
@@ -112,7 +115,7 @@ public class IntervalTreeTest
 
         IntervalTree<Integer, Void, Interval<Integer, Void>> it = IntervalTree.build(intervals);
 
-        Collections.sort(intervals, it.minOrdering);
+        Collections.sort(intervals, Interval.<Integer, Void>minOrdering());
 
         List<Interval<Integer, Void>> l = new ArrayList<Interval<Integer, Void>>();
         for (Interval<Integer, Void> i : it)
@@ -144,25 +147,24 @@ public class IntervalTreeTest
         IVersionedSerializer<IntervalTree<Integer, String, Interval<Integer, String>>> serializer = IntervalTree.serializer(
             new ISerializer<Integer>()
             {
-                public void serialize(Integer i, DataOutput out) throws IOException { out.writeInt(i); }
+                public void serialize(Integer i, DataOutputPlus out) throws IOException { out.writeInt(i); }
                 public Integer deserialize(DataInput in) throws IOException { return in.readInt(); }
-                public long serializedSize(Integer i, TypeSizes ts) { return 4; }
+                public long serializedSize(Integer i, TypeSizes s) { return 4; }
             },
             new ISerializer<String>()
             {
-                public void serialize(String v, DataOutput out) throws IOException { out.writeUTF(v); }
+                public void serialize(String v, DataOutputPlus out) throws IOException { out.writeUTF(v); }
                 public String deserialize(DataInput in) throws IOException { return in.readUTF(); }
-                public long serializedSize(String v, TypeSizes ts) { return v.length(); }
+                public long serializedSize(String v, TypeSizes s) { return v.length(); }
             },
-            Interval.class.getConstructor(Object.class, Object.class, Object.class)
+            (Constructor<Interval<Integer, String>>) (Constructor<?>) Interval.class.getConstructor(Object.class, Object.class, Object.class)
         );
 
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DataOutputStream out = new DataOutputStream(baos);
+        DataOutputBuffer out = new DataOutputBuffer();
 
         serializer.serialize(it, out, 0);
 
-        DataInputStream in = new DataInputStream(new ByteArrayInputStream(baos.toByteArray()));
+        DataInputStream in = new DataInputStream(new ByteArrayInputStream(out.toByteArray()));
 
         IntervalTree<Integer, String, Interval<Integer, String>> it2 = serializer.deserialize(in, 0);
         List<Interval<Integer, String>> intervals2 = new ArrayList<Interval<Integer, String>>();

@@ -25,7 +25,7 @@ import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.ThriftValidation;
-import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.Event;
 
 public class DropKeyspaceStatement extends SchemaAlteringStatement
 {
@@ -55,11 +55,11 @@ public class DropKeyspaceStatement extends SchemaAlteringStatement
         return keyspace;
     }
 
-    public boolean announceMigration() throws ConfigurationException
+    public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException
     {
         try
         {
-            MigrationManager.announceKeyspaceDrop(keyspace);
+            MigrationManager.announceKeyspaceDrop(keyspace, isLocalOnly);
             return true;
         }
         catch(ConfigurationException e)
@@ -70,8 +70,8 @@ public class DropKeyspaceStatement extends SchemaAlteringStatement
         }
     }
 
-    public ResultMessage.SchemaChange.Change changeType()
+    public Event.SchemaChange changeEvent()
     {
-        return ResultMessage.SchemaChange.Change.DROPPED;
+        return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, keyspace());
     }
 }

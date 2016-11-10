@@ -18,16 +18,16 @@
 package org.apache.cassandra.utils;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class BooleanSerializer implements IVersionedSerializer<Boolean>
 {
     public static BooleanSerializer serializer = new BooleanSerializer();
 
-    public void serialize(Boolean b, DataOutput out, int version) throws IOException
+    public void serialize(Boolean b, DataOutputPlus out, int version) throws IOException
     {
         out.writeBoolean(b);
     }

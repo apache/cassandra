@@ -24,12 +24,13 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.ThriftValidation;
-import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.Event;
 
 public class DropTriggerStatement extends SchemaAlteringStatement
 {
@@ -37,10 +38,13 @@ public class DropTriggerStatement extends SchemaAlteringStatement
 
     private final String triggerName;
 
-    public DropTriggerStatement(CFName name, String triggerName)
+    private final boolean ifExists;
+
+    public DropTriggerStatement(CFName name, String triggerName, boolean ifExists)
     {
         super(name);
         this.triggerName = triggerName;
+        this.ifExists = ifExists;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException
@@ -53,18 +57,22 @@ public class DropTriggerStatement extends SchemaAlteringStatement
         ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
     }
 
-    public boolean announceMigration() throws ConfigurationException
+    public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
-        if (!cfm.removeTrigger(triggerName))
-            throw new ConfigurationException(String.format("Trigger %s was not found", triggerName));
-        logger.info("Dropping trigger with name {}", triggerName);
-        MigrationManager.announceColumnFamilyUpdate(cfm, false);
-        return true;
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
+        if (cfm.removeTrigger(triggerName))
+        {
+            logger.info("Dropping trigger with name {}", triggerName);
+            MigrationManager.announceColumnFamilyUpdate(cfm, isLocalOnly);
+            return true;
+        }
+        if (!ifExists)
+            throw new InvalidRequestException(String.format("Trigger %s was not found", triggerName));
+        return false;
     }
 
-    public ResultMessage.SchemaChange.Change changeType()
+    public Event.SchemaChange changeEvent()
     {
-        return ResultMessage.SchemaChange.Change.UPDATED;
+        return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 }

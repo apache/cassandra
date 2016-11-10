@@ -27,9 +27,9 @@ import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class InvertedIndex implements ITrigger
@@ -37,17 +37,19 @@ public class InvertedIndex implements ITrigger
     private static final Logger logger = LoggerFactory.getLogger(InvertedIndex.class);
     private Properties properties = loadProperties();
 
-    public Collection<RowMutation> augment(ByteBuffer key, ColumnFamily update)
+    public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
     {
-        List<RowMutation> mutations = new ArrayList<>();
+        List<Mutation> mutations = new ArrayList<>(update.getColumnCount());
 
-        for (Column cell : update)
+        String indexKeySpace = properties.getProperty("keyspace");
+        String indexColumnFamily = properties.getProperty("table");
+        for (Cell cell : update)
         {
             // Skip the row marker and other empty values, since they lead to an empty key.
             if (cell.value().remaining() > 0)
             {
-                RowMutation mutation = new RowMutation(properties.getProperty("keyspace"), cell.value());
-                mutation.add(properties.getProperty("columnfamily"), cell.name(), key, System.currentTimeMillis());
+                Mutation mutation = new Mutation(indexKeySpace, cell.value());
+                mutation.add(indexColumnFamily, cell.name(), key, System.currentTimeMillis());
                 mutations.add(mutation);
             }
         }

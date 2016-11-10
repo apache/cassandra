@@ -17,28 +17,17 @@
 @echo off
 if "%OS%" == "Windows_NT" setlocal
 
+pushd "%~dp0"
+call cassandra.in.bat
+
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%~dp0..
 if NOT DEFINED JAVA_HOME goto :err
 
-REM Ensure that any user defined CLASSPATH variables are not used on startup
-set CLASSPATH="%CASSANDRA_HOME%\conf"
+set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% -Dcassandra.logdir="%CASSANDRA_HOME%\logs"
+set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% -Dcassandra.storagedir="%CASSANDRA_HOME%\data"
 
-REM For each jar in the CASSANDRA_HOME lib directory call append to build the CLASSPATH variable.
-for %%i in ("%CASSANDRA_HOME%\lib\*.jar") do call :append "%%i"
-goto okClasspath
-
-:append
-set CLASSPATH=%CLASSPATH%;%1
-goto :eof
-
-:okClasspath
-REM Include the build\classes\main directory so it works in development
-set CASSANDRA_CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes\main";"%CASSANDRA_HOME%\build\classes\thrift"
-goto runNodeTool
-
-:runNodeTool
 echo Starting NodeTool
-"%JAVA_HOME%\bin\java" -cp %CASSANDRA_CLASSPATH% -Dlog4j.configuration=log4j-tools.properties org.apache.cassandra.tools.NodeCmd %*
+"%JAVA_HOME%\bin\java" -cp %CASSANDRA_CLASSPATH% %CASSANDRA_PARAMS% -Dlogback.configurationFile=logback-tools.xml org.apache.cassandra.tools.NodeTool %*
 goto finally
 
 :err
@@ -46,5 +35,5 @@ echo The JAVA_HOME environment variable must be set to run this program!
 pause
 
 :finally
-
-ENDLOCAL
+ENDLOCAL & set RC=%ERRORLEVEL%
+exit /B %RC%

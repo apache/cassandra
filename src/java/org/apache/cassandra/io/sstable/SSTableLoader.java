@@ -27,16 +27,19 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
+
+import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * Cassandra SSTable bulk loader.
@@ -47,6 +50,7 @@ public class SSTableLoader implements StreamEventHandler
     private final File directory;
     private final String keyspace;
     private final Client client;
+    private final int connectionsPerHost;
     private final OutputHandler outputHandler;
     private final Set<InetAddress> failedHosts = new HashSet<>();
 
@@ -55,12 +59,19 @@ public class SSTableLoader implements StreamEventHandler
 
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler)
     {
+        this(directory, client, outputHandler, 1);
+    }
+
+    public SSTableLoader(File directory, Client client, OutputHandler outputHandler, int connectionsPerHost)
+    {
         this.directory = directory;
         this.keyspace = directory.getParentFile().getName();
         this.client = client;
         this.outputHandler = outputHandler;
+        this.connectionsPerHost = connectionsPerHost;
     }
 
+    @SuppressWarnings("resource")
     protected Collection<SSTableReader> openSSTables(final Map<InetAddress, Collection<Range<Token>>> ranges)
     {
         outputHandler.output("Opening sstables and calculating sections to stream");
@@ -73,7 +84,7 @@ public class SSTableLoader implements StreamEventHandler
                     return false;
                 Pair<Descriptor, Component> p = SSTable.tryComponentFromFilename(dir, name);
                 Descriptor desc = p == null ? null : p.left;
-                if (p == null || !p.right.equals(Component.DATA) || desc.temporary)
+                if (p == null || !p.right.equals(Component.DATA) || desc.type.isTemporary)
                     return false;
 
                 if (!new File(desc.filenameFor(Component.PRIMARY_INDEX)).exists())
@@ -82,10 +93,10 @@ public class SSTableLoader implements StreamEventHandler
                     return false;
                 }
 
-                CFMetaData metadata = client.getCFMetaData(keyspace, desc.cfname);
+                CFMetaData metadata = client.getTableMetadata(desc.cfname);
                 if (metadata == null)
                 {
-                    outputHandler.output(String.format("Skipping file %s: column family %s.%s doesn't exist", name, keyspace, desc.cfname));
+                    outputHandler.output(String.format("Skipping file %s: table %s.%s doesn't exist", name, keyspace, desc.cfname));
                     return false;
                 }
 
@@ -116,8 +127,8 @@ public class SSTableLoader implements StreamEventHandler
 
                         List<Pair<Long, Long>> sstableSections = sstable.getPositionsForRanges(tokenRanges);
                         long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
-
-                        StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(sstable, sstableSections, estimatedKeys);
+                        Ref<SSTableReader> ref = sstable.ref();
+                        StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(ref, sstableSections, estimatedKeys, ActiveRepairService.UNREPAIRED_SSTABLE);
                         streamingDetails.put(endpoint, details);
                     }
 
@@ -144,7 +155,7 @@ public class SSTableLoader implements StreamEventHandler
         client.init(keyspace);
         outputHandler.output("Established connection to initial hosts");
 
-        StreamPlan plan = new StreamPlan("Bulk Load").connectionFactory(client.getConnectionFactory());
+        StreamPlan plan = new StreamPlan("Bulk Load", 0, connectionsPerHost, false, false).connectionFactory(client.getConnectionFactory());
 
         Map<InetAddress, Collection<Range<Token>>> endpointToRanges = client.getEndpointToRangesMap();
         openSSTables(endpointToRanges);
@@ -164,31 +175,38 @@ public class SSTableLoader implements StreamEventHandler
 
             List<StreamSession.SSTableStreamingSections> endpointDetails = new LinkedList<>();
 
-            try
+            // references are acquired when constructing the SSTableStreamingSections above
+            for (StreamSession.SSTableStreamingSections details : streamingDetails.get(remote))
             {
-                // transferSSTables assumes references have been acquired
-                for (StreamSession.SSTableStreamingSections details : streamingDetails.get(remote))
-                {
-                    if (!details.sstable.acquireReference())
-                        throw new IllegalStateException();
-
-                    endpointDetails.add(details);
-                }
-
-                plan.transferFiles(remote, endpointDetails);
+                endpointDetails.add(details);
             }
-            finally
-            {
-                for (StreamSession.SSTableStreamingSections details : endpointDetails)
-                    details.sstable.releaseReference();
-            }
+
+            plan.transferFiles(remote, endpointDetails);
         }
         plan.listeners(this, listeners);
         return plan.execute();
     }
 
-    public void onSuccess(StreamState finalState) {}
-    public void onFailure(Throwable t) {}
+    public void onSuccess(StreamState finalState)
+    {
+        releaseReferences();
+    }
+    public void onFailure(Throwable t)
+    {
+        releaseReferences();
+    }
+
+    /**
+     * releases the shared reference for all sstables, we acquire this when opening the sstable
+     */
+    private void releaseReferences()
+    {
+        for (SSTableReader sstable : sstables)
+        {
+            sstable.selfRef().release();
+            assert sstable.selfRef().globalCount() == 0;
+        }
+    }
 
     public void handleStreamEvent(StreamEvent event)
     {
@@ -232,7 +250,9 @@ public class SSTableLoader implements StreamEventHandler
         /**
          * Stop the client.
          */
-        public void stop() {}
+        public void stop()
+        {
+        }
 
         /**
          * Provides connection factory.
@@ -249,7 +269,12 @@ public class SSTableLoader implements StreamEventHandler
          * Validate that {@code keyspace} is an existing keyspace and {@code
          * cfName} one of its existing column family.
          */
-        public abstract CFMetaData getCFMetaData(String keyspace, String cfName);
+        public abstract CFMetaData getTableMetadata(String tableName);
+
+        public void setTableMetadata(CFMetaData cfm)
+        {
+            throw new RuntimeException();
+        }
 
         public Map<InetAddress, Collection<Range<Token>>> getEndpointToRangesMap()
         {

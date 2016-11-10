@@ -18,10 +18,9 @@
 package org.apache.cassandra.utils;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
-import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
 import org.apache.cassandra.utils.obs.OpenBitSet;
@@ -36,14 +35,14 @@ public class FilterFactory
     private static final Logger logger = LoggerFactory.getLogger(FilterFactory.class);
     private static final long BITSET_EXCESS = 20;
 
-    public static void serialize(IFilter bf, DataOutput output) throws IOException
+    public static void serialize(IFilter bf, DataOutputPlus output) throws IOException
     {
-        Murmur3BloomFilter.serializer.serialize((Murmur3BloomFilter) bf, output);
+        BloomFilter.serializer.serialize((BloomFilter) bf, output);
     }
 
     public static IFilter deserialize(DataInput input, boolean offheap) throws IOException
     {
-        return Murmur3BloomFilter.serializer.deserialize(input, offheap);
+        return BloomFilter.serializer.deserialize(input, offheap);
     }
 
     /**
@@ -79,10 +78,11 @@ public class FilterFactory
         return createFilter(spec.K, numElements, spec.bucketsPerElement, offheap);
     }
 
+    @SuppressWarnings("resource")
     private static IFilter createFilter(int hash, long numElements, int bucketsPer, boolean offheap)
     {
         long numBits = (numElements * bucketsPer) + BITSET_EXCESS;
         IBitSet bitset = offheap ? new OffHeapBitSet(numBits) : new OpenBitSet(numBits);
-        return new Murmur3BloomFilter(hash, bitset);
+        return new BloomFilter(hash, bitset);
     }
 }

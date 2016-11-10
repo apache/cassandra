@@ -20,4 +20,41 @@ package org.apache.cassandra.db.filter;
 
 public class TombstoneOverwhelmingException extends RuntimeException
 {
+    private final int numTombstones;
+    private final int numRequested;
+    private final String ksName;
+    private final String cfName;
+    private final String lastCellName;
+    private final String slicesInfo;
+    private final String partitionKey;
+
+    public TombstoneOverwhelmingException(int numTombstones,
+                                          int numRequested,
+                                          String ksName,
+                                          String cfName,
+                                          String lastCellName,
+                                          String slicesInfo,
+                                          String partitionKey)
+    {
+        this.numTombstones = numTombstones;
+        this.numRequested = numRequested;
+        this.ksName = ksName;
+        this.cfName = cfName;
+        this.lastCellName = lastCellName;
+        this.slicesInfo = slicesInfo;
+        this.partitionKey = partitionKey;
+    }
+
+    public String getLocalizedMessage()
+    {
+        return getMessage();
+    }
+
+    public String getMessage()
+    {
+        return String.format(
+                "Scanned over %d tombstones in %s.%s; %d columns were requested; query aborted " +
+                "(see tombstone_failure_threshold); partitionKey=%s; lastCell=%s; slices=%s",
+                numTombstones, ksName, cfName, numRequested, partitionKey, lastCellName, slicesInfo);
+    }
 }

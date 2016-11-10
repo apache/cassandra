@@ -20,17 +20,17 @@
  */
 package org.apache.cassandra.dht;
 
-public class Murmur3PartitionerTest extends PartitionerTestCase<LongToken>
+public class Murmur3PartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
     {
-        partitioner = new Murmur3Partitioner();
+        partitioner = Murmur3Partitioner.instance;
     }
 
     @Override
     protected void midpointMinimumTestCase()
     {
-        LongToken mintoken = partitioner.getMinimumToken();
+        Token mintoken = partitioner.getMinimumToken();
         assert mintoken.compareTo(partitioner.midpoint(mintoken, mintoken)) != 0;
         assertMidpoint(mintoken, tok("a"), 16);
         assertMidpoint(mintoken, tok("aaa"), 16);

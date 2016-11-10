@@ -18,13 +18,13 @@
 package org.apache.cassandra.repair;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
 
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 /**
@@ -63,7 +63,7 @@ public class NodePair
 
     public static class NodePairSerializer implements IVersionedSerializer<NodePair>
     {
-        public void serialize(NodePair nodePair, DataOutput out, int version) throws IOException
+        public void serialize(NodePair nodePair, DataOutputPlus out, int version) throws IOException
         {
             CompactEndpointSerializationHelper.serialize(nodePair.endpoint1, out);
             CompactEndpointSerializationHelper.serialize(nodePair.endpoint2, out);

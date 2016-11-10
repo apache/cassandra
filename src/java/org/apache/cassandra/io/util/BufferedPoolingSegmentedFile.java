@@ -17,13 +17,21 @@
 */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
-
 public class BufferedPoolingSegmentedFile extends PoolingSegmentedFile
 {
-    public BufferedPoolingSegmentedFile(String path, long length)
+    public BufferedPoolingSegmentedFile(ChannelProxy channel, long length)
     {
-        super(path, length);
+        super(new Cleanup(channel), channel, length);
+    }
+
+    private BufferedPoolingSegmentedFile(BufferedPoolingSegmentedFile copy)
+    {
+        super(copy);
+    }
+
+    public BufferedPoolingSegmentedFile sharedCopy()
+    {
+        return new BufferedPoolingSegmentedFile(this);
     }
 
     public static class Builder extends SegmentedFile.Builder
@@ -33,15 +41,10 @@ public class BufferedPoolingSegmentedFile extends PoolingSegmentedFile
             // only one segment in a standard-io file
         }
 
-        public SegmentedFile complete(String path)
+        public SegmentedFile complete(ChannelProxy channel, long overrideLength)
         {
-            long length = new File(path).length();
-            return new BufferedPoolingSegmentedFile(path, length);
+            long length = overrideLength > 0 ? overrideLength : channel.size();
+            return new BufferedPoolingSegmentedFile(channel, length);
         }
-    }
-
-    protected RandomAccessReader createReader(String path)
-    {
-        return RandomAccessReader.open(new File(path), this);
     }
 }

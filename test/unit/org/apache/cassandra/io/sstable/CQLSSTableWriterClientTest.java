@@ -86,17 +86,6 @@ public class CQLSSTableWriterClientTest
         writer.close();
         writer2.close();
 
-        assertContainsDataFiles(this.testDirectory, "client_test-table1", "client_test-table2");
-    }
-
-    /**
-     * Checks that the specified directory contains the files with the specified prefixes.
-     *
-     * @param directory the directory containing the data files
-     * @param prefixes the file prefixes
-     */
-    private static void assertContainsDataFiles(File directory, String... prefixes)
-    {
         FilenameFilter filter = new FilenameFilter()
         {
             @Override
@@ -106,11 +95,8 @@ public class CQLSSTableWriterClientTest
             }
         };
 
-        File[] dataFiles = directory.listFiles(filter);
-        Arrays.sort(dataFiles);
+        File[] dataFiles = this.testDirectory.listFiles(filter);
+        assertEquals(2, dataFiles.length);
 
-        assertEquals(dataFiles.length, prefixes.length);
-        for (int i = 0; i < dataFiles.length; i++)
-            assertTrue(dataFiles[i].toString().contains(prefixes[i]));
     }
 }

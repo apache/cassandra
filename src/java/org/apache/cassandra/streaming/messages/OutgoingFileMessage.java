@@ -17,21 +17,21 @@
  */
 package org.apache.cassandra.streaming.messages;
 
-import java.io.DataOutput;
-import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 import java.util.List;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamWriter;
 import org.apache.cassandra.streaming.compress.CompressedStreamWriter;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * OutgoingFileMessage is used to transfer the part(or whole) of a SSTable data file.
@@ -45,48 +45,99 @@ public class OutgoingFileMessage extends StreamMessage
             throw new UnsupportedOperationException("Not allowed to call deserialize on an outgoing file");
         }
 
-        public void serialize(OutgoingFileMessage message, WritableByteChannel out, int version, StreamSession session) throws IOException
+        public void serialize(OutgoingFileMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
         {
-            DataOutput output = new DataOutputStream(Channels.newOutputStream(out));
-            FileMessageHeader.serializer.serialize(message.header, output, version);
-
-            final SSTableReader reader = message.sstable;
-            StreamWriter writer = message.header.compressionInfo == null ?
-                    new StreamWriter(reader, message.header.sections, session) :
-                    new CompressedStreamWriter(reader,
-                            message.header.sections,
-                            message.header.compressionInfo, session);
-            writer.write(out);
-            session.fileSent(message.header);
+            message.startTransfer();
+            try
+            {
+                message.serialize(out, version, session);
+                session.fileSent(message.header);
+            }
+            finally
+            {
+                message.finishTransfer();
+            }
         }
     };
 
-    public FileMessageHeader header;
-    public SSTableReader sstable;
+    public final FileMessageHeader header;
+    private final Ref<SSTableReader> ref;
+    private final String filename;
+    private boolean completed = false;
+    private boolean transferring = false;
 
-    public OutgoingFileMessage(SSTableReader sstable, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections)
+    public OutgoingFileMessage(Ref<SSTableReader> ref, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt, boolean keepSSTableLevel)
     {
         super(Type.FILE);
-        this.sstable = sstable;
+        this.ref = ref;
 
-        CompressionInfo compressionInfo = null;
-        if (sstable.compression)
-        {
-            CompressionMetadata meta = sstable.getCompressionMetadata();
-            compressionInfo = new CompressionInfo(meta.getChunksForSections(sections), meta.parameters);
-        }
+        SSTableReader sstable = ref.get();
+        filename = sstable.getFilename();
         this.header = new FileMessageHeader(sstable.metadata.cfId,
-                sequenceNumber,
-                sstable.descriptor.version.toString(),
-                estimatedKeys,
-                sections,
-                compressionInfo);
+                                            sequenceNumber,
+                                            sstable.descriptor.version.toString(),
+                                            sstable.descriptor.formatType,
+                                            estimatedKeys,
+                                            sections,
+                                            sstable.compression ? sstable.getCompressionMetadata() : null,
+                                            repairedAt,
+                                            keepSSTableLevel ? sstable.getSSTableLevel() : 0);
+    }
+
+    public synchronized void serialize(DataOutputStreamPlus out, int version, StreamSession session) throws IOException
+    {
+        if (completed)
+        {
+            return;
+        }
+
+        CompressionInfo compressionInfo = FileMessageHeader.serializer.serialize(header, out, version);
+
+        final SSTableReader reader = ref.get();
+        StreamWriter writer = compressionInfo == null ?
+                                      new StreamWriter(reader, header.sections, session) :
+                                      new CompressedStreamWriter(reader, header.sections,
+                                                                 compressionInfo, session);
+        writer.write(out);
+    }
+
+    @VisibleForTesting
+    public synchronized void finishTransfer()
+    {
+        transferring = false;
+        //session was aborted mid-transfer, now it's safe to release
+        if (completed)
+        {
+            ref.release();
+        }
+    }
+
+    @VisibleForTesting
+    public synchronized void startTransfer()
+    {
+        if (completed)
+            throw new RuntimeException(String.format("Transfer of file %s already completed or aborted (perhaps session failed?).",
+                                                     filename));
+        transferring = true;
+    }
+
+    public synchronized void complete()
+    {
+        if (!completed)
+        {
+            completed = true;
+            //release only if not transferring
+            if (!transferring)
+            {
+                ref.release();
+            }
+        }
     }
 
     @Override
     public String toString()
     {
-        return "File (" + header + ", file: " + sstable.getFilename() + ")";
+        return "File (" + header + ", file: " + filename + ")";
     }
 }
 

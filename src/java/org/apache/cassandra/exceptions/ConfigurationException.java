@@ -19,18 +19,34 @@ package org.apache.cassandra.exceptions;
 
 public class ConfigurationException extends RequestValidationException
 {
+    /*
+     * If the error is logged should a stack trace be included.
+     * For expected errors with an informative message no stack trace needs to be logged.
+     * This is just a suggestion to exception handlers as to how they should format the exception.
+     */
+    public final boolean logStackTrace;
+
     public ConfigurationException(String msg)
     {
         super(ExceptionCode.CONFIG_ERROR, msg);
+        logStackTrace = true;
+    }
+
+    public ConfigurationException(String msg, boolean logStackTrace)
+    {
+        super(ExceptionCode.CONFIG_ERROR, msg);
+        this.logStackTrace = logStackTrace;
     }
 
     public ConfigurationException(String msg, Throwable e)
     {
         super(ExceptionCode.CONFIG_ERROR, msg, e);
+        logStackTrace = true;
     }
 
     protected ConfigurationException(ExceptionCode code, String msg)
     {
         super(code, msg);
+        logStackTrace = true;
     }
 }

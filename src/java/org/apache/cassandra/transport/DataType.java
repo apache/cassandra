@@ -17,14 +17,16 @@
  */
 package org.apache.cassandra.transport;
 
-import java.nio.charset.StandardCharsets;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import com.google.common.annotations.VisibleForTesting;
+
+import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.db.marshal.*;
@@ -32,30 +34,37 @@ import org.apache.cassandra.utils.Pair;
 
 public enum DataType implements OptionCodec.Codecable<DataType>
 {
-    CUSTOM   (0,  null),
-    ASCII    (1,  AsciiType.instance),
-    BIGINT   (2,  LongType.instance),
-    BLOB     (3,  BytesType.instance),
-    BOOLEAN  (4,  BooleanType.instance),
-    COUNTER  (5,  CounterColumnType.instance),
-    DECIMAL  (6,  DecimalType.instance),
-    DOUBLE   (7,  DoubleType.instance),
-    FLOAT    (8,  FloatType.instance),
-    INT      (9,  Int32Type.instance),
-    TEXT     (10, UTF8Type.instance),
-    TIMESTAMP(11, TimestampType.instance),
-    UUID     (12, UUIDType.instance),
-    VARCHAR  (13, UTF8Type.instance),
-    VARINT   (14, IntegerType.instance),
-    TIMEUUID (15, TimeUUIDType.instance),
-    INET     (16, InetAddressType.instance),
-    LIST     (32, null),
-    MAP      (33, null),
-    SET      (34, null);
+    CUSTOM   (0,  null, 1),
+    ASCII    (1,  AsciiType.instance, 1),
+    BIGINT   (2,  LongType.instance, 1),
+    BLOB     (3,  BytesType.instance, 1),
+    BOOLEAN  (4,  BooleanType.instance, 1),
+    COUNTER  (5,  CounterColumnType.instance, 1),
+    DECIMAL  (6,  DecimalType.instance, 1),
+    DOUBLE   (7,  DoubleType.instance, 1),
+    FLOAT    (8,  FloatType.instance, 1),
+    INT      (9,  Int32Type.instance, 1),
+    TEXT     (10, UTF8Type.instance, 1),
+    TIMESTAMP(11, TimestampType.instance, 1),
+    UUID     (12, UUIDType.instance, 1),
+    VARCHAR  (13, UTF8Type.instance, 1),
+    VARINT   (14, IntegerType.instance, 1),
+    TIMEUUID (15, TimeUUIDType.instance, 1),
+    INET     (16, InetAddressType.instance, 1),
+    DATE     (17, SimpleDateType.instance, 4),
+    TIME     (18, TimeType.instance, 4),
+    SMALLINT (19, ShortType.instance, 4),
+    BYTE     (20, ByteType.instance, 4),
+    LIST     (32, null, 1),
+    MAP      (33, null, 1),
+    SET      (34, null, 1),
+    UDT      (48, null, 3),
+    TUPLE    (49, null, 3);
 
     public static final OptionCodec<DataType> codec = new OptionCodec<DataType>(DataType.class);
 
     private final int id;
+    private final int protocolVersion;
     private final AbstractType type;
     private static final Map<AbstractType, DataType> dataTypeMap = new HashMap<AbstractType, DataType>();
     static
@@ -67,39 +76,67 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         }
     }
 
-    private DataType(int id, AbstractType type)
+    DataType(int id, AbstractType type, int protocolVersion)
     {
         this.id = id;
         this.type = type;
+        this.protocolVersion = protocolVersion;
     }
 
-    public int getId()
+    public int getId(int version)
     {
+        if (version < protocolVersion)
+            return DataType.CUSTOM.getId(version);
         return id;
     }
 
-    public Object readValue(ChannelBuffer cb)
+    public Object readValue(ByteBuf cb, int version)
     {
         switch (this)
         {
             case CUSTOM:
                 return CBUtil.readString(cb);
             case LIST:
-                return DataType.toType(codec.decodeOne(cb));
+                return DataType.toType(codec.decodeOne(cb, version));
             case SET:
-                return DataType.toType(codec.decodeOne(cb));
+                return DataType.toType(codec.decodeOne(cb, version));
             case MAP:
                 List<AbstractType> l = new ArrayList<AbstractType>(2);
-                l.add(DataType.toType(codec.decodeOne(cb)));
-                l.add(DataType.toType(codec.decodeOne(cb)));
+                l.add(DataType.toType(codec.decodeOne(cb, version)));
+                l.add(DataType.toType(codec.decodeOne(cb, version)));
                 return l;
+            case UDT:
+                String ks = CBUtil.readString(cb);
+                ByteBuffer name = UTF8Type.instance.decompose(CBUtil.readString(cb));
+                int n = cb.readUnsignedShort();
+                List<ByteBuffer> fieldNames = new ArrayList<>(n);
+                List<AbstractType<?>> fieldTypes = new ArrayList<>(n);
+                for (int i = 0; i < n; i++)
+                {
+                    fieldNames.add(UTF8Type.instance.decompose(CBUtil.readString(cb)));
+                    fieldTypes.add(DataType.toType(codec.decodeOne(cb, version)));
+                }
+                return new UserType(ks, name, fieldNames, fieldTypes);
+            case TUPLE:
+                n = cb.readUnsignedShort();
+                List<AbstractType<?>> types = new ArrayList<>(n);
+                for (int i = 0; i < n; i++)
+                    types.add(DataType.toType(codec.decodeOne(cb, version)));
+                return new TupleType(types);
             default:
                 return null;
         }
     }
 
-    public void writeValue(Object value, ChannelBuffer cb)
+    public void writeValue(Object value, ByteBuf cb, int version)
     {
+        // Serialize as CUSTOM if client on the other side's version is < required for type
+        if (version < protocolVersion)
+        {
+            CBUtil.writeString(value.toString(), cb);
+            return;
+        }
+
         switch (this)
         {
             case CUSTOM:
@@ -107,40 +144,79 @@ public enum DataType implements OptionCodec.Codecable<DataType>
                 CBUtil.writeString((String)value, cb);
                 break;
             case LIST:
-                codec.writeOne(DataType.fromType((AbstractType)value), cb);
+                codec.writeOne(DataType.fromType((AbstractType)value, version), cb, version);
                 break;
             case SET:
-                codec.writeOne(DataType.fromType((AbstractType)value), cb);
+                codec.writeOne(DataType.fromType((AbstractType)value, version), cb, version);
                 break;
             case MAP:
                 List<AbstractType> l = (List<AbstractType>)value;
-                codec.writeOne(DataType.fromType(l.get(0)), cb);
-                codec.writeOne(DataType.fromType(l.get(1)), cb);
+                codec.writeOne(DataType.fromType(l.get(0), version), cb, version);
+                codec.writeOne(DataType.fromType(l.get(1), version), cb, version);
+                break;
+            case UDT:
+                UserType udt = (UserType)value;
+                CBUtil.writeString(udt.keyspace, cb);
+                CBUtil.writeString(UTF8Type.instance.compose(udt.name), cb);
+                cb.writeShort(udt.size());
+                for (int i = 0; i < udt.size(); i++)
+                {
+                    CBUtil.writeString(UTF8Type.instance.compose(udt.fieldName(i)), cb);
+                    codec.writeOne(DataType.fromType(udt.fieldType(i), version), cb, version);
+                }
+                break;
+            case TUPLE:
+                TupleType tt = (TupleType)value;
+                cb.writeShort(tt.size());
+                for (int i = 0; i < tt.size(); i++)
+                    codec.writeOne(DataType.fromType(tt.type(i), version), cb, version);
                 break;
         }
     }
 
-    public int serializedValueSize(Object value)
+    public int serializedValueSize(Object value, int version)
     {
+        // Serialize as CUSTOM if client on the other side's version is < required for type
+        if (version < protocolVersion)
+            return CBUtil.sizeOfString(value.toString());
+
         switch (this)
         {
             case CUSTOM:
-                return 2 + ((String)value).getBytes(StandardCharsets.UTF_8).length;
+                return CBUtil.sizeOfString((String)value);
             case LIST:
             case SET:
-                return codec.oneSerializedSize(DataType.fromType((AbstractType)value));
+                return codec.oneSerializedSize(DataType.fromType((AbstractType)value, version), version);
             case MAP:
                 List<AbstractType> l = (List<AbstractType>)value;
                 int s = 0;
-                s += codec.oneSerializedSize(DataType.fromType(l.get(0)));
-                s += codec.oneSerializedSize(DataType.fromType(l.get(1)));
+                s += codec.oneSerializedSize(DataType.fromType(l.get(0), version), version);
+                s += codec.oneSerializedSize(DataType.fromType(l.get(1), version), version);
                 return s;
+            case UDT:
+                UserType udt = (UserType)value;
+                int size = 0;
+                size += CBUtil.sizeOfString(udt.keyspace);
+                size += CBUtil.sizeOfString(UTF8Type.instance.compose(udt.name));
+                size += 2;
+                for (int i = 0; i < udt.size(); i++)
+                {
+                    size += CBUtil.sizeOfString(UTF8Type.instance.compose(udt.fieldName(i)));
+                    size += codec.oneSerializedSize(DataType.fromType(udt.fieldType(i), version), version);
+                }
+                return size;
+            case TUPLE:
+                TupleType tt = (TupleType)value;
+                size = 2;
+                for (int i = 0; i < tt.size(); i++)
+                    size += codec.oneSerializedSize(DataType.fromType(tt.type(i), version), version);
+                return size;
             default:
                 return 0;
         }
     }
 
-    public static Pair<DataType, Object> fromType(AbstractType type)
+    public static Pair<DataType, Object> fromType(AbstractType type, int version)
     {
         // For CQL3 clients, ReversedType is an implementation detail and they
         // shouldn't have to care about it.
@@ -158,23 +234,33 @@ public enum DataType implements OptionCodec.Codecable<DataType>
             {
                 if (type instanceof ListType)
                 {
-                    return Pair.<DataType, Object>create(LIST, ((ListType)type).elements);
+                    return Pair.<DataType, Object>create(LIST, ((ListType)type).getElementsType());
                 }
                 else if (type instanceof MapType)
                 {
                     MapType mt = (MapType)type;
-                    return Pair.<DataType, Object>create(MAP, Arrays.asList(mt.keys, mt.values));
+                    return Pair.<DataType, Object>create(MAP, Arrays.asList(mt.getKeysType(), mt.getValuesType()));
                 }
-                else
+                else if (type instanceof SetType)
                 {
-                    assert type instanceof SetType;
-                    return Pair.<DataType, Object>create(SET, ((SetType)type).elements);
+                    return Pair.<DataType, Object>create(SET, ((SetType)type).getElementsType());
                 }
+                throw new AssertionError();
             }
+
+            if (type instanceof UserType && version >= UDT.protocolVersion)
+                return Pair.<DataType, Object>create(UDT, type);
+
+            if (type instanceof TupleType && version >= TUPLE.protocolVersion)
+                return Pair.<DataType, Object>create(TUPLE, type);
+
             return Pair.<DataType, Object>create(CUSTOM, type.toString());
         }
         else
         {
+            // Fall back to CUSTOM if target doesn't know this data type
+            if (version < dt.protocolVersion)
+                return Pair.<DataType, Object>create(CUSTOM, type.toString());
             return Pair.create(dt, null);
         }
     }
@@ -188,12 +274,16 @@ public enum DataType implements OptionCodec.Codecable<DataType>
                 case CUSTOM:
                     return TypeParser.parse((String)entry.right);
                 case LIST:
-                    return ListType.getInstance((AbstractType)entry.right);
+                    return ListType.getInstance((AbstractType)entry.right, true);
                 case SET:
-                    return SetType.getInstance((AbstractType)entry.right);
+                    return SetType.getInstance((AbstractType)entry.right, true);
                 case MAP:
                     List<AbstractType> l = (List<AbstractType>)entry.right;
-                    return MapType.getInstance(l.get(0), l.get(1));
+                    return MapType.getInstance(l.get(0), l.get(1), true);
+                case UDT:
+                    return (AbstractType)entry.right;
+                case TUPLE:
+                    return (AbstractType)entry.right;
                 default:
                     return entry.left.type;
             }
@@ -202,5 +292,11 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         {
             throw new ProtocolException(e.getMessage());
         }
+    }
+
+    @VisibleForTesting
+    public int getProtocolVersion()
+    {
+        return protocolVersion;
     }
 }

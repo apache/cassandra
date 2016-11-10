@@ -18,10 +18,10 @@
 package org.apache.cassandra.repair.messages;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.utils.MerkleTree;
 
@@ -56,7 +56,7 @@ public class ValidationComplete extends RepairMessage
 
     private static class ValidationCompleteSerializer implements MessageSerializer<ValidationComplete>
     {
-        public void serialize(ValidationComplete message, DataOutput out, int version) throws IOException
+        public void serialize(ValidationComplete message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
             out.writeBoolean(message.success);

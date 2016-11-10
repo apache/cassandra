@@ -17,62 +17,105 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.Locale;
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Locale;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.statements.Selectable;
+import org.apache.cassandra.cql3.selection.Selectable;
+import org.apache.cassandra.cql3.selection.Selector;
+import org.apache.cassandra.cql3.selection.SimpleSelector;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * Represents an identifer for a CQL column definition.
+ * TODO : should support light-weight mode without text representation for when not interned
  */
-public class ColumnIdentifier implements Selectable
+public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Selectable implements IMeasurableMemory
 {
-    public final ByteBuffer key;
+    public final ByteBuffer bytes;
     private final String text;
+
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new ColumnIdentifier("", true));
 
     public ColumnIdentifier(String rawText, boolean keepCase)
     {
         this.text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
-        this.key = ByteBufferUtil.bytes(this.text);
+        this.bytes = ByteBufferUtil.bytes(this.text);
     }
 
-    public ColumnIdentifier(ByteBuffer key, AbstractType<?> type)
+    public ColumnIdentifier(ByteBuffer bytes, AbstractType<?> type)
     {
-        this.key = key;
-        this.text = type.getString(key);
+        this.bytes = bytes;
+        this.text = type.getString(bytes);
     }
 
-    private ColumnIdentifier(ByteBuffer key, String text)
+    public ColumnIdentifier(ByteBuffer bytes, String text)
     {
-        this.key = key;
+        this.bytes = bytes;
         this.text = text;
     }
 
     @Override
     public final int hashCode()
     {
-        return key.hashCode();
+        return bytes.hashCode();
     }
 
     @Override
     public final boolean equals(Object o)
     {
+        // Note: it's worth checking for reference equality since we intern those
+        // in SparseCellNameType
+        if (this == o)
+            return true;
+
         if(!(o instanceof ColumnIdentifier))
             return false;
         ColumnIdentifier that = (ColumnIdentifier)o;
-        return key.equals(that.key);
+        return bytes.equals(that.bytes);
     }
 
     @Override
     public String toString()
     {
         return text;
+    }
+
+    public long unsharedHeapSize()
+    {
+        return EMPTY_SIZE
+             + ObjectSizes.sizeOnHeapOf(bytes)
+             + ObjectSizes.sizeOf(text);
+    }
+
+    public long unsharedHeapSizeExcludingData()
+    {
+        return EMPTY_SIZE
+             + ObjectSizes.sizeOnHeapExcludingData(bytes)
+             + ObjectSizes.sizeOf(text);
+    }
+
+    public ColumnIdentifier clone(AbstractAllocator allocator)
+    {
+        return new ColumnIdentifier(allocator.clone(bytes), text);
+    }
+
+    public Selector.Factory newSelectorFactory(CFMetaData cfm, List<ColumnDefinition> defs) throws InvalidRequestException
+    {
+        ColumnDefinition def = cfm.getColumnDefinition(this);
+        if (def == null)
+            throw new InvalidRequestException(String.format("Undefined name %s in selection clause", this));
+
+        return SimpleSelector.newFactory(def, addAndGetIndex(def, defs));
     }
 
     /**
@@ -89,12 +132,13 @@ public class ColumnIdentifier implements Selectable
         public Raw(String rawText, boolean keepCase)
         {
             this.rawText = rawText;
-            this.text =  keepCase ? rawText : rawText.toLowerCase();
+            this.text =  keepCase ? rawText : rawText.toLowerCase(Locale.US);
         }
 
         public ColumnIdentifier prepare(CFMetaData cfm)
         {
-            if (cfm.getIsDense() || cfm.comparator instanceof CompositeType || cfm.comparator instanceof UTF8Type)
+            AbstractType<?> comparator = cfm.comparator.asAbstractType();
+            if (cfm.getIsDense() || comparator instanceof CompositeType || comparator instanceof UTF8Type)
                 return new ColumnIdentifier(text, true);
 
             // We have a Thrift-created table with a non-text comparator.  We need to parse column names with the comparator
@@ -103,10 +147,10 @@ public class ColumnIdentifier implements Selectable
             ByteBuffer bufferName = ByteBufferUtil.bytes(text);
             for (ColumnDefinition def : cfm.partitionKeyColumns())
             {
-                if (def.name.equals(bufferName))
+                if (def.name.bytes.equals(bufferName))
                     return new ColumnIdentifier(text, true);
             }
-            return new ColumnIdentifier(cfm.comparator.fromString(rawText), text);
+            return new ColumnIdentifier(comparator.fromString(rawText), text);
         }
 
         public boolean processesSelection()

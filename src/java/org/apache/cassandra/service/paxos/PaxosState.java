@@ -1,4 +1,3 @@
-package org.apache.cassandra.service.paxos;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,35 +18,22 @@ package org.apache.cassandra.service.paxos;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.service.paxos;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.locks.Lock;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.google.common.util.concurrent.Striped;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class PaxosState
 {
-    private static final Logger logger = LoggerFactory.getLogger(PaxosState.class);
-
-    private static final Object[] locks;
-    static
-    {
-        locks = new Object[1024];
-        for (int i = 0; i < locks.length; i++)
-            locks[i] = new Object();
-    }
-    private static Object lockFor(ByteBuffer key)
-    {
-        return locks[(0x7FFFFFFF & key.hashCode()) % locks.length];
-    }
+    private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentWriters() * 1024);
 
     private final Commit promised;
     private final Commit accepted;
@@ -73,9 +59,17 @@ public class PaxosState
         long start = System.nanoTime();
         try
         {
-            synchronized (lockFor(toPrepare.key))
+            Lock lock = LOCKS.get(toPrepare.key);
+            lock.lock();
+            try
             {
-                PaxosState state = SystemKeyspace.loadPaxosState(toPrepare.key, toPrepare.update.metadata());
+                // When preparing, we need to use the same time as "now" (that's the time we use to decide if something
+                // is expired or not) accross nodes otherwise we may have a window where a Most Recent Commit shows up
+                // on some replica and not others during a new proposal (in StorageProxy.beginAndRepairPaxos()), and no
+                // amount of re-submit will fix this (because the node on which the commit has expired will have a
+                // tombstone that hides any re-submit). See CASSANDRA-12043 for details.
+                long now = UUIDGen.unixTimestamp(toPrepare.ballot);
+                PaxosState state = SystemKeyspace.loadPaxosState(toPrepare.key, toPrepare.update.metadata(), now);
                 if (toPrepare.isAfter(state.promised))
                 {
                     Tracing.trace("Promising ballot {}", toPrepare.ballot);
@@ -89,11 +83,16 @@ public class PaxosState
                     return new PrepareResponse(false, state.promised, state.mostRecentCommit);
                 }
             }
+            finally
+            {
+                lock.unlock();
+            }
         }
         finally
         {
             Keyspace.open(toPrepare.update.metadata().ksName).getColumnFamilyStore(toPrepare.update.metadata().cfId).metric.casPrepare.addNano(System.nanoTime() - start);
         }
+
     }
 
     public static Boolean propose(Commit proposal)
@@ -101,9 +100,12 @@ public class PaxosState
         long start = System.nanoTime();
         try
         {
-            synchronized (lockFor(proposal.key))
+            Lock lock = LOCKS.get(proposal.key);
+            lock.lock();
+            try
             {
-                PaxosState state = SystemKeyspace.loadPaxosState(proposal.key, proposal.update.metadata());
+                long now = UUIDGen.unixTimestamp(proposal.ballot);
+                PaxosState state = SystemKeyspace.loadPaxosState(proposal.key, proposal.update.metadata(), now);
                 if (proposal.hasBallot(state.promised.ballot) || proposal.isAfter(state.promised))
                 {
                     Tracing.trace("Accepting proposal {}", proposal);
@@ -115,6 +117,10 @@ public class PaxosState
                     Tracing.trace("Rejecting proposal for {} because inProgress is now {}", proposal, state.promised);
                     return false;
                 }
+            }
+            finally
+            {
+                lock.unlock();
             }
         }
         finally
@@ -138,8 +144,8 @@ public class PaxosState
             if (UUIDGen.unixTimestamp(proposal.ballot) >= SystemKeyspace.getTruncatedAt(proposal.update.metadata().cfId))
             {
                 Tracing.trace("Committing proposal {}", proposal);
-                RowMutation rm = proposal.makeMutation();
-                Keyspace.open(rm.getKeyspaceName()).apply(rm, true);
+                Mutation mutation = proposal.makeMutation();
+                Keyspace.open(mutation.getKeyspaceName()).apply(mutation, true);
             }
             else
             {

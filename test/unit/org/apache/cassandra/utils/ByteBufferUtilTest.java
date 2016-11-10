@@ -23,14 +23,14 @@ import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 
 import org.junit.Test;
+
+import org.apache.cassandra.io.util.DataOutputBuffer;
 
 public class ByteBufferUtilTest
 {
@@ -171,12 +171,11 @@ public class ByteBufferUtilTest
 
     private void checkReadWrite(ByteBuffer bb) throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream out = new DataOutputStream(bos);
+        DataOutputBuffer out = new DataOutputBuffer();
         ByteBufferUtil.writeWithLength(bb, out);
         ByteBufferUtil.writeWithShortLength(bb, out);
 
-        DataInputStream in = new DataInputStream(new ByteArrayInputStream(bos.toByteArray()));
+        DataInputStream in = new DataInputStream(new ByteArrayInputStream(out.toByteArray()));
         assert bb.equals(ByteBufferUtil.readWithLength(in));
         assert bb.equals(ByteBufferUtil.readWithShortLength(in));
     }

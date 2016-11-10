@@ -21,13 +21,13 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.Event;
 
 public class AlterKeyspaceStatement extends SchemaAlteringStatement
 {
@@ -57,7 +57,7 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
         KSMetaData ksm = Schema.instance.getKSMetaData(name);
         if (ksm == null)
             throw new InvalidRequestException("Unknown keyspace " + name);
-        if (ksm.name.equalsIgnoreCase(Keyspace.SYSTEM_KS))
+        if (ksm.name.equalsIgnoreCase(SystemKeyspace.NAME))
             throw new InvalidRequestException("Cannot alter system keyspace");
 
         attrs.validate();
@@ -79,19 +79,19 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
         }
     }
 
-    public boolean announceMigration() throws RequestValidationException
+    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(name);
         // In the (very) unlikely case the keyspace was dropped since validate()
         if (ksm == null)
             throw new InvalidRequestException("Unknown keyspace " + name);
 
-        MigrationManager.announceKeyspaceUpdate(attrs.asKSMetadataUpdate(ksm));
+        MigrationManager.announceKeyspaceUpdate(attrs.asKSMetadataUpdate(ksm), isLocalOnly);
         return true;
     }
 
-    public ResultMessage.SchemaChange.Change changeType()
+    public Event.SchemaChange changeEvent()
     {
-        return ResultMessage.SchemaChange.Change.UPDATED;
+        return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, keyspace());
     }
 }

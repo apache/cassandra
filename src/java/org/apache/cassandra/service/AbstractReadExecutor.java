@@ -37,6 +37,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
@@ -69,58 +70,53 @@ public abstract class AbstractReadExecutor
     {
         this.command = command;
         this.targetReplicas = targetReplicas;
-        resolver = new RowDigestResolver(command.ksName, command.key);
+        resolver = new RowDigestResolver(command.ksName, command.key, targetReplicas.size());
         traceState = Tracing.instance.get();
         handler = new ReadCallback<>(resolver, consistencyLevel, command, targetReplicas);
     }
 
     private static boolean isLocalRequest(InetAddress replica)
     {
-        return replica.equals(FBUtilities.getBroadcastAddress()) && StorageProxy.OPTIMIZE_LOCAL_REQUESTS;
+        return replica.equals(FBUtilities.getBroadcastAddress());
     }
 
     protected void makeDataRequests(Iterable<InetAddress> endpoints)
     {
-        for (InetAddress endpoint : endpoints)
-        {
-            if (isLocalRequest(endpoint))
-            {
-                if (traceState != null)
-                    traceState.trace("reading data locally");
-                logger.trace("reading data locally");
-                StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(command, handler));
-            }
-            else
-            {
-                if (traceState != null)
-                    traceState.trace("reading data from {}", endpoint);
-                logger.trace("reading data from {}", endpoint);
-                MessagingService.instance().sendRR(command.createMessage(), endpoint, handler);
-            }
-        }
+        makeRequests(command, endpoints);
+
     }
 
     protected void makeDigestRequests(Iterable<InetAddress> endpoints)
     {
-        ReadCommand digestCommand = command.copy();
-        digestCommand.setDigestQuery(true);
-        MessageOut<?> message = digestCommand.createMessage();
+        makeRequests(command.copy().setIsDigestQuery(true), endpoints);
+    }
+
+    private void makeRequests(ReadCommand readCommand, Iterable<InetAddress> endpoints)
+    {
+        MessageOut<ReadCommand> message = null;
+        boolean hasLocalEndpoint = false;
+
         for (InetAddress endpoint : endpoints)
         {
             if (isLocalRequest(endpoint))
             {
-                if (traceState != null)
-                    traceState.trace("reading digest locally");
-                logger.trace("reading digest locally");
-                StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(digestCommand, handler));
+                hasLocalEndpoint = true;
+                continue;
             }
-            else
-            {
-                if (traceState != null)
-                    traceState.trace("reading digest from {}", endpoint);
-                logger.trace("reading digest from {}", endpoint);
-                MessagingService.instance().sendRR(message, endpoint, handler);
-            }
+
+            if (traceState != null)
+                traceState.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
+            logger.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
+            if (message == null)
+                message = readCommand.createMessage();
+            MessagingService.instance().sendRRWithFailure(message, endpoint, handler);
+        }
+
+        // We delay the local (potentially blocking) read till the end to avoid stalling remote requests.
+        if (hasLocalEndpoint)
+        {
+            logger.trace("reading {} locally", readCommand.isDigestQuery() ? "digest" : "data");
+            StageManager.getStage(Stage.READ).maybeExecuteImmediately(new LocalReadRunnable(command, handler));
         }
     }
 
@@ -146,7 +142,7 @@ public abstract class AbstractReadExecutor
      * wait for an answer.  Blocks until success or timeout, so it is caller's
      * responsibility to call maybeTryAdditionalReplicas first.
      */
-    public Row get() throws ReadTimeoutException, DigestMismatchException
+    public Row get() throws ReadFailureException, ReadTimeoutException, DigestMismatchException
     {
         return handler.get();
     }
@@ -163,11 +159,6 @@ public abstract class AbstractReadExecutor
 
         // Throw UAE early if we don't have enough replicas.
         consistencyLevel.assureSufficientLiveNodes(keyspace, targetReplicas);
-
-        // Fat client. Speculating read executors need access to cfs metrics and sampled latency, and fat clients
-        // can't provide that. So, for now, fat clients will always use NeverSpeculatingReadExecutor.
-        if (StorageService.instance.isClientMode())
-            return new NeverSpeculatingReadExecutor(command, consistencyLevel, targetReplicas);
 
         if (repairDecision != ReadRepairDecision.NONE)
         {
@@ -288,16 +279,13 @@ public abstract class AbstractReadExecutor
                 // Could be waiting on the data, or on enough digests.
                 ReadCommand retryCommand = command;
                 if (resolver.getData() != null)
-                {
-                    retryCommand = command.copy();
-                    retryCommand.setDigestQuery(true);
-                }
+                    retryCommand = command.copy().setIsDigestQuery(true);
 
                 InetAddress extraReplica = Iterables.getLast(targetReplicas);
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);
                 logger.trace("speculating read retry on {}", extraReplica);
-                MessagingService.instance().sendRR(retryCommand.createMessage(), extraReplica, handler);
+                MessagingService.instance().sendRRWithFailure(retryCommand.createMessage(), extraReplica, handler);
                 speculated = true;
 
                 cfs.metric.speculativeRetries.inc();

@@ -27,9 +27,9 @@ import org.apache.cassandra.net.MessageIn;
 
 public class RowDigestResolver extends AbstractRowResolver
 {
-    public RowDigestResolver(String keyspaceName, ByteBuffer key)
+    public RowDigestResolver(String keyspaceName, ByteBuffer key, int maxResponseCount)
     {
-        super(key, keyspaceName);
+        super(key, keyspaceName, maxResponseCount);
     }
 
     /**
@@ -41,7 +41,12 @@ public class RowDigestResolver extends AbstractRowResolver
         {
             ReadResponse result = message.payload;
             if (!result.isDigestQuery())
+            {
+                if (result.digest() == null)
+                    result.setDigest(ColumnFamily.digest(result.row().cf));
+
                 return result.row();
+            }
         }
         return null;
     }
@@ -58,8 +63,8 @@ public class RowDigestResolver extends AbstractRowResolver
      */
     public Row resolve() throws DigestMismatchException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("resolving " + replies.size() + " responses");
+        if (logger.isTraceEnabled())
+            logger.trace("resolving {} responses", replies.size());
 
         long start = System.nanoTime();
 
@@ -81,7 +86,10 @@ public class RowDigestResolver extends AbstractRowResolver
             {
                 // note that this allows for multiple data replies, post-CASSANDRA-5932
                 data = response.row().cf;
-                newDigest = ColumnFamily.digest(data);
+                if (response.digest() == null)
+                    message.payload.setDigest(ColumnFamily.digest(data));
+
+                newDigest = response.digest();
             }
 
             if (digest == null)
@@ -90,8 +98,8 @@ public class RowDigestResolver extends AbstractRowResolver
                 throw new DigestMismatchException(key, digest, newDigest);
         }
 
-        if (logger.isDebugEnabled())
-            logger.debug("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+        if (logger.isTraceEnabled())
+            logger.trace("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
         return new Row(key, data);
     }
 

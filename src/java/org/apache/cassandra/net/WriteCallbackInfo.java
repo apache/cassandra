@@ -21,12 +21,15 @@ package org.apache.cassandra.net;
 import java.net.InetAddress;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class WriteCallbackInfo extends CallbackInfo
 {
-    public final MessageOut sentMessage;
+    private final MessageOut sentMessage;
     private final ConsistencyLevel consistencyLevel;
     private final boolean allowHints;
 
@@ -37,11 +40,20 @@ public class WriteCallbackInfo extends CallbackInfo
                              ConsistencyLevel consistencyLevel,
                              boolean allowHints)
     {
-        super(target, callback, serializer);
+        super(target, callback, serializer, true);
         assert message != null;
         this.sentMessage = message;
         this.consistencyLevel = consistencyLevel;
         this.allowHints = allowHints;
+        //Local writes shouldn't go through messaging service (https://issues.apache.org/jira/browse/CASSANDRA-10477)
+        assert (!target.equals(FBUtilities.getBroadcastAddress()));
+    }
+
+    Mutation mutation()
+    {
+        return sentMessage.verb == MessagingService.Verb.PAXOS_COMMIT
+             ? ((Commit) sentMessage.payload).makeMutation()
+             : (Mutation) sentMessage.payload;
     }
 
     public boolean shouldHint()

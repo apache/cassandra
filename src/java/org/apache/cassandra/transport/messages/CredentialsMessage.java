@@ -20,16 +20,14 @@ package org.apache.cassandra.transport.messages;
 import java.util.HashMap;
 import java.util.Map;
 
+import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.transport.ProtocolException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ProtocolException;
 
 /**
  * Message to indicate that the server is ready to receive requests.
@@ -38,7 +36,7 @@ public class CredentialsMessage extends Message.Request
 {
     public static final Message.Codec<CredentialsMessage> codec = new Message.Codec<CredentialsMessage>()
     {
-        public CredentialsMessage decode(ChannelBuffer body, int version)
+        public CredentialsMessage decode(ByteBuf body, int version)
         {
             if (version > 1)
                 throw new ProtocolException("Legacy credentials authentication is not supported in " +
@@ -48,7 +46,7 @@ public class CredentialsMessage extends Message.Request
             return new CredentialsMessage(credentials);
         }
 
-        public void encode(CredentialsMessage msg, ChannelBuffer dest, int version)
+        public void encode(CredentialsMessage msg, ByteBuf dest, int version)
         {
             CBUtil.writeStringMap(msg.credentials, dest);
         }
@@ -76,14 +74,15 @@ public class CredentialsMessage extends Message.Request
     {
         try
         {
-            AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().authenticate(credentials);
+            AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().legacyAuthenticate(credentials);
             state.getClientState().login(user);
-            return new ReadyMessage();
         }
         catch (AuthenticationException e)
         {
             return ErrorMessage.fromException(e);
         }
+
+        return new ReadyMessage();
     }
 
     @Override

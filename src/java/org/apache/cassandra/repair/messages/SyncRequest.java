@@ -18,7 +18,6 @@
 package org.apache.cassandra.repair.messages;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -29,7 +28,9 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
 
 /**
@@ -58,7 +59,7 @@ public class SyncRequest extends RepairMessage
 
     public static class SyncRequestSerializer implements MessageSerializer<SyncRequest>
     {
-        public void serialize(SyncRequest message, DataOutput out, int version) throws IOException
+        public void serialize(SyncRequest message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
             CompactEndpointSerializationHelper.serialize(message.initiator, out);
@@ -66,7 +67,10 @@ public class SyncRequest extends RepairMessage
             CompactEndpointSerializationHelper.serialize(message.dst, out);
             out.writeInt(message.ranges.size());
             for (Range<Token> range : message.ranges)
-                AbstractBounds.serializer.serialize(range, out, version);
+            {
+                MessagingService.validatePartitioner(range);
+                AbstractBounds.tokenSerializer.serialize(range, out, version);
+            }
         }
 
         public SyncRequest deserialize(DataInput in, int version) throws IOException
@@ -78,7 +82,7 @@ public class SyncRequest extends RepairMessage
             int rangesCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangesCount);
             for (int i = 0; i < rangesCount; ++i)
-                ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(in, version).toTokenBounds());
+                ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, MessagingService.globalPartitioner(), version));
             return new SyncRequest(desc, owner, src, dst, ranges);
         }
 
@@ -88,8 +92,19 @@ public class SyncRequest extends RepairMessage
             size += 3 * CompactEndpointSerializationHelper.serializedSize(message.initiator);
             size += TypeSizes.NATIVE.sizeof(message.ranges.size());
             for (Range<Token> range : message.ranges)
-                size += AbstractBounds.serializer.serializedSize(range, version);
+                size += AbstractBounds.tokenSerializer.serializedSize(range, version);
             return size;
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        return "SyncRequest{" +
+                "initiator=" + initiator +
+                ", src=" + src +
+                ", dst=" + dst +
+                ", ranges=" + ranges +
+                "} " + super.toString();
     }
 }

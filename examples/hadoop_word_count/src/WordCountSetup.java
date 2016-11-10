@@ -177,7 +177,7 @@ public class WordCountSetup
         ksDef.putToStrategy_options("replication_factor", "1");
         client.system_add_keyspace(ksDef);
 
-	int magnitude = getNumberOfHosts(client);
+        int magnitude = getNumberOfHosts(client);
         Uninterruptibles.sleepUninterruptibly(magnitude, TimeUnit.SECONDS);
     }
 

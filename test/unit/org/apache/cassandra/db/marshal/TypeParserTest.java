@@ -40,6 +40,12 @@ public class TypeParserTest
         type = TypeParser.parse("    ");
         assert type == BytesType.instance;
 
+        type = TypeParser.parse("ByteType");
+        assert type == ByteType.instance;
+
+        type = TypeParser.parse("ShortType");
+        assert type == ShortType.instance;
+
         type = TypeParser.parse("LongType");
         assert type == LongType.instance;
 
@@ -69,15 +75,13 @@ public class TypeParserTest
             TypeParser.parse("y");
             fail("Should not pass");
         }
-        catch (ConfigurationException e) {}
-        catch (SyntaxException e) {}
+        catch (ConfigurationException | SyntaxException e) {}
 
         try
         {
             TypeParser.parse("LongType(reversed@)");
             fail("Should not pass");
         }
-        catch (ConfigurationException e) {}
-        catch (SyntaxException e) {}
+        catch (ConfigurationException | SyntaxException e) {}
     }
 }

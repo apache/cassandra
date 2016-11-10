@@ -19,60 +19,76 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutionException;
 import java.util.*;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.SchemaLoader;
+import static org.apache.cassandra.Util.cellname;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.Util;
 
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class TimeSortTest extends SchemaLoader
+public class TimeSortTest
 {
-    @Test
-    public void testMixedSources() throws IOException, ExecutionException, InterruptedException
+    private static final String KEYSPACE1 = "TimeSortTest";
+    private static final String CF_STANDARD1 = "StandardLong1";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
     {
-        Keyspace keyspace = Keyspace.open("Keyspace1");
-        ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("StandardLong1");
-        RowMutation rm;
-        DecoratedKey key = Util.dk("key0");
-
-        rm = new RowMutation("Keyspace1", key.key);
-        rm.add("StandardLong1", getBytes(100), ByteBufferUtil.bytes("a"), 100);
-        rm.apply();
-        cfStore.forceBlockingFlush();
-
-        rm = new RowMutation("Keyspace1", key.key);
-        rm.add("StandardLong1", getBytes(0), ByteBufferUtil.bytes("b"), 0);
-        rm.apply();
-
-        ColumnFamily cf = cfStore.getColumnFamily(key, getBytes(10), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1000, System.currentTimeMillis());
-        Collection<Column> columns = cf.getSortedColumns();
-        assert columns.size() == 1;
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
     }
 
     @Test
-    public void testTimeSort() throws IOException, ExecutionException, InterruptedException
+    public void testMixedSources()
     {
-        Keyspace keyspace = Keyspace.open("Keyspace1");
-        ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("StandardLong1");
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        Mutation rm;
+        DecoratedKey key = Util.dk("key0");
+
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        rm.add(CF_STANDARD1, cellname(100), ByteBufferUtil.bytes("a"), 100);
+        rm.applyUnsafe();
+        cfStore.forceBlockingFlush();
+
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        rm.add(CF_STANDARD1, cellname(0), ByteBufferUtil.bytes("b"), 0);
+        rm.applyUnsafe();
+
+        ColumnFamily cf = cfStore.getColumnFamily(key, cellname(10), Composites.EMPTY, false, 1000, System.currentTimeMillis());
+        Collection<Cell> cells = cf.getSortedColumns();
+        assert cells.size() == 1;
+    }
+
+    @Test
+    public void testTimeSort() throws IOException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore(CF_STANDARD1);
 
         for (int i = 900; i < 1000; ++i)
         {
-            RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(Integer.toString(i)));
+            Mutation rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes(Integer.toString(i)));
             for (int j = 0; j < 8; ++j)
             {
-                rm.add("StandardLong1", getBytes(j * 2), ByteBufferUtil.bytes("a"), j * 2);
+                rm.add(CF_STANDARD1, cellname(j * 2), ByteBufferUtil.bytes("a"), j * 2);
             }
-            rm.apply();
+            rm.applyUnsafe();
         }
 
         validateTimeSort(keyspace);
@@ -82,54 +98,50 @@ public class TimeSortTest extends SchemaLoader
 
         // interleave some new data to test memtable + sstable
         DecoratedKey key = Util.dk("900");
-        RowMutation rm = new RowMutation("Keyspace1", key.key);
+        Mutation rm = new Mutation(KEYSPACE1, key.getKey());
         for (int j = 0; j < 4; ++j)
         {
-            rm.add("StandardLong1", getBytes(j * 2 + 1), ByteBufferUtil.bytes("b"), j * 2 + 1);
+            rm.add(CF_STANDARD1, cellname(j * 2 + 1), ByteBufferUtil.bytes("b"), j * 2 + 1);
         }
-        rm.apply();
+        rm.applyUnsafe();
         // and some overwrites
-        rm = new RowMutation("Keyspace1", key.key);
-        rm.add("StandardLong1", getBytes(0), ByteBufferUtil.bytes("c"), 100);
-        rm.add("StandardLong1", getBytes(10), ByteBufferUtil.bytes("c"), 100);
-        rm.apply();
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        rm.add(CF_STANDARD1, cellname(0), ByteBufferUtil.bytes("c"), 100);
+        rm.add(CF_STANDARD1, cellname(10), ByteBufferUtil.bytes("c"), 100);
+        rm.applyUnsafe();
 
         // verify
-        ColumnFamily cf = cfStore.getColumnFamily(key, getBytes(0), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1000, System.currentTimeMillis());
-        Collection<Column> columns = cf.getSortedColumns();
-        assertEquals(12, columns.size());
-        Iterator<Column> iter = columns.iterator();
-        Column column;
+        ColumnFamily cf = cfStore.getColumnFamily(key, cellname(0), Composites.EMPTY, false, 1000, System.currentTimeMillis());
+        Collection<Cell> cells = cf.getSortedColumns();
+        assertEquals(12, cells.size());
+        Iterator<Cell> iter = cells.iterator();
+        Cell cell;
         for (int j = 0; j < 8; j++)
         {
-            column = iter.next();
-            assert column.name().equals(getBytes(j));
+            cell = iter.next();
+            assert cell.name().toByteBuffer().equals(getBytes(j));
         }
-        TreeSet<ByteBuffer> columnNames = new TreeSet<ByteBuffer>(LongType.instance);
-        columnNames.add(getBytes(10));
-        columnNames.add(getBytes(0));
-        cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("900"), "StandardLong1", columnNames, System.currentTimeMillis()));
-        assert "c".equals(ByteBufferUtil.string(cf.getColumn(getBytes(0)).value()));
-        assert "c".equals(ByteBufferUtil.string(cf.getColumn(getBytes(10)).value()));
+        TreeSet<CellName> columnNames = new TreeSet<CellName>(cfStore.getComparator());
+        columnNames.add(cellname(10));
+        columnNames.add(cellname(0));
+        cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("900"), CF_STANDARD1, columnNames, System.currentTimeMillis()));
+        assert "c".equals(ByteBufferUtil.string(cf.getColumn(cellname(0)).value()));
+        assert "c".equals(ByteBufferUtil.string(cf.getColumn(cellname(10)).value()));
     }
 
-    private void validateTimeSort(Keyspace keyspace) throws IOException
+    private void validateTimeSort(Keyspace keyspace)
     {
         for (int i = 900; i < 1000; ++i)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));
             for (int j = 0; j < 8; j += 3)
             {
-                ColumnFamily cf = keyspace.getColumnFamilyStore("StandardLong1").getColumnFamily(key,
-                                                                                                 getBytes(j * 2),
-                                                                                                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                                                                 false,
-                                                                                                 1000,
-                                                                                                 System.currentTimeMillis());
-                Collection<Column> columns = cf.getSortedColumns();
-                assert columns.size() == 8 - j;
+                ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+                ColumnFamily cf = cfs.getColumnFamily(key, cellname(j * 2), Composites.EMPTY, false, 1000, System.currentTimeMillis());
+                Collection<Cell> cells = cf.getSortedColumns();
+                assert cells.size() == 8 - j;
                 int k = j;
-                for (Column c : columns)
+                for (Cell c : cells)
                 {
                     assertEquals((k++) * 2, c.timestamp());
 

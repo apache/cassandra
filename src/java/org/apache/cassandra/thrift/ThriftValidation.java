@@ -20,25 +20,24 @@ package org.apache.cassandra.thrift;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.serializers.MarshalException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ColumnToCollectionType;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -94,13 +93,13 @@ public class ThriftValidation
 
         if (isCommutativeOp)
         {
-            if (!metadata.getDefaultValidator().isCommutative())
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for non commutative columnfamily " + cfName);
+            if (!metadata.isCounter())
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for non commutative table " + cfName);
         }
         else
         {
-            if (metadata.getDefaultValidator().isCommutative())
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for commutative columnfamily " + cfName);
+            if (metadata.isCounter())
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for commutative table " + cfName);
         }
         return metadata;
     }
@@ -110,11 +109,11 @@ public class ThriftValidation
     {
         validateKeyspace(keyspaceName);
         if (cfName.isEmpty())
-            throw new org.apache.cassandra.exceptions.InvalidRequestException("non-empty columnfamily is required");
+            throw new org.apache.cassandra.exceptions.InvalidRequestException("non-empty table is required");
 
         CFMetaData metadata = Schema.instance.getCFMetaData(keyspaceName, cfName);
         if (metadata == null)
-            throw new org.apache.cassandra.exceptions.InvalidRequestException("unconfigured columnfamily " + cfName);
+            throw new org.apache.cassandra.exceptions.InvalidRequestException("unconfigured table " + cfName);
 
         return metadata;
     }
@@ -156,7 +155,7 @@ public class ThriftValidation
         {
             if (column_parent.super_column != null)
             {
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("columnfamily alone is required for standard CF " + metadata.cfName);
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("table alone is required for standard CF " + metadata.cfName);
             }
         }
 
@@ -200,7 +199,7 @@ public class ThriftValidation
     private static void validateColumnNames(CFMetaData metadata, ByteBuffer superColumnName, Iterable<ByteBuffer> column_names)
     throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        int maxNameLength = org.apache.cassandra.db.Column.MAX_NAME_LENGTH;
+        int maxNameLength = Cell.MAX_NAME_LENGTH;
 
         if (superColumnName != null)
         {
@@ -209,10 +208,9 @@ public class ThriftValidation
             if (superColumnName.remaining() == 0)
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("supercolumn name must not be empty");
             if (metadata.cfType == ColumnFamilyType.Standard)
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("supercolumn specified to ColumnFamily " + metadata.cfName + " containing normal columns");
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("supercolumn specified to table " + metadata.cfName + " containing normal columns");
         }
         AbstractType<?> comparator = SuperColumns.getComparatorFor(metadata, superColumnName);
-        CFDefinition cfDef = metadata.getCfDef();
         boolean isCQL3Table = !metadata.isThriftCompatible();
         for (ByteBuffer name : column_names)
         {
@@ -232,30 +230,28 @@ public class ThriftValidation
             if (isCQL3Table)
             {
                 // CQL3 table don't support having only part of their composite column names set
-                CompositeType composite = (CompositeType)comparator;
-                ByteBuffer[] components = composite.split(name);
-                int minComponents = composite.types.size() - (cfDef.hasCollections ? 1 : 0);
-                if (components.length < minComponents)
+                Composite composite = metadata.comparator.fromByteBuffer(name);
+
+                int minComponents = metadata.comparator.clusteringPrefixSize() + 1;
+                if (composite.size() < minComponents)
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Not enough components (found %d but %d expected) for column name since %s is a CQL3 table",
-                                                                                                    components.length, minComponents, metadata.cfName));
+                                                                                                    composite.size(), minComponents, metadata.cfName));
 
                 // Furthermore, the column name must be a declared one.
-                int columnIndex = composite.types.size() - (cfDef.hasCollections ? 2 : 1);
-                ByteBuffer CQL3ColumnName = components[columnIndex];
+                int columnIndex = metadata.comparator.clusteringPrefixSize();
+                ByteBuffer CQL3ColumnName = composite.get(columnIndex);
                 if (!CQL3ColumnName.hasRemaining())
                     continue; // Row marker, ok
 
-                ColumnIdentifier columnId = new ColumnIdentifier(CQL3ColumnName, composite.types.get(columnIndex));
-                CFDefinition.Name columnName = cfDef.get(columnId);
-                if (columnName == null || columnName.isPrimaryKeyColumn())
+                ColumnIdentifier columnId = new ColumnIdentifier(CQL3ColumnName, metadata.comparator.subtype(columnIndex));
+                if (metadata.getColumnDefinition(columnId) == null)
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Invalid cell for CQL3 table %s. The CQL3 column component (%s) does not correspond to a defined CQL3 column",
                                                                                                     metadata.cfName, columnId));
 
                 // On top of that, if we have a collection component, he (CQL3) column must be a collection
-                if (cfDef.hasCollections && components.length == composite.types.size())
+                if (metadata.comparator.hasCollections() && composite.size() == metadata.comparator.size())
                 {
-                    assert components.length >= 2;
-                    ColumnToCollectionType collectionType = (ColumnToCollectionType)composite.types.get(composite.types.size() - 1);
+                    ColumnToCollectionType collectionType = metadata.comparator.collectionType();
                     if (!collectionType.defined.containsKey(CQL3ColumnName))
                         throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Invalid collection component, %s is not a collection", UTF8Type.instance.getString(CQL3ColumnName)));
                 }
@@ -273,7 +269,7 @@ public class ThriftValidation
         if (range.count < 0)
             throw new org.apache.cassandra.exceptions.InvalidRequestException("get_slice requires non-negative count");
 
-        int maxNameLength = org.apache.cassandra.db.Column.MAX_NAME_LENGTH;
+        int maxNameLength = Cell.MAX_NAME_LENGTH;
         if (range.start.remaining() > maxNameLength)
             throw new org.apache.cassandra.exceptions.InvalidRequestException("range start length cannot be larger than " + maxNameLength);
         if (range.finish.remaining() > maxNameLength)
@@ -302,7 +298,7 @@ public class ThriftValidation
     public static void validateColumnOrSuperColumn(CFMetaData metadata, ByteBuffer key, ColumnOrSuperColumn cosc)
             throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        boolean isCommutative = metadata.getDefaultValidator().isCommutative();
+        boolean isCommutative = metadata.isCounter();
 
         int nulls = 0;
         if (cosc.column == null) nulls++;
@@ -316,29 +312,29 @@ public class ThriftValidation
         if (cosc.column != null)
         {
             if (isCommutative)
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for commutative columnfamily " + metadata.cfName);
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for commutative table " + metadata.cfName);
 
             validateTtl(cosc.column);
             validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column((ByteBuffer)null).setColumn(cosc.column.name));
-            validateColumnData(metadata, key, cosc.column, false);
+            validateColumnData(metadata, key, null, cosc.column);
         }
 
         if (cosc.super_column != null)
         {
             if (isCommutative)
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for commutative columnfamily " + metadata.cfName);
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for commutative table " + metadata.cfName);
 
             for (Column c : cosc.super_column.columns)
             {
                 validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column(cosc.super_column.name).setColumn(c.name));
-                validateColumnData(metadata, key, c, true);
+                validateColumnData(metadata, key, cosc.super_column.name, c);
             }
         }
 
         if (cosc.counter_column != null)
         {
             if (!isCommutative)
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for non commutative columnfamily " + metadata.cfName);
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for non commutative table " + metadata.cfName);
 
             validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column((ByteBuffer)null).setColumn(cosc.counter_column.name));
         }
@@ -346,7 +342,7 @@ public class ThriftValidation
         if (cosc.counter_super_column != null)
         {
             if (!isCommutative)
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for non commutative columnfamily " + metadata.cfName);
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for non commutative table " + metadata.cfName);
 
             for (CounterColumn c : cosc.counter_super_column.columns)
                 validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column(cosc.counter_super_column.name).setColumn(c.name));
@@ -360,8 +356,8 @@ public class ThriftValidation
             if (column.ttl <= 0)
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("ttl must be positive");
 
-            if (column.ttl > ExpiringColumn.MAX_TTL)
-                throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", column.ttl, ExpiringColumn.MAX_TTL));
+            if (column.ttl > ExpiringCell.MAX_TTL)
+                throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", column.ttl, ExpiringCell.MAX_TTL));
         }
         else
         {
@@ -406,18 +402,18 @@ public class ThriftValidation
 
         if (metadata.cfType == ColumnFamilyType.Standard && del.super_column != null)
         {
-            String msg = String.format("Deletion of super columns is not possible on a standard ColumnFamily (KeySpace=%s ColumnFamily=%s Deletion=%s)", metadata.ksName, metadata.cfName, del);
+            String msg = String.format("Deletion of super columns is not possible on a standard table (KeySpace=%s Table=%s Deletion=%s)", metadata.ksName, metadata.cfName, del);
             throw new org.apache.cassandra.exceptions.InvalidRequestException(msg);
         }
 
-        if (metadata.getDefaultValidator().isCommutative())
+        if (metadata.isCounter())
         {
             // forcing server timestamp even if a timestamp was set for coherence with other counter operation
             del.timestamp = System.currentTimeMillis();
         }
         else if (!del.isSetTimestamp())
         {
-            throw new org.apache.cassandra.exceptions.InvalidRequestException("Deletion timestamp is not optional for non commutative column family " + metadata.cfName);
+            throw new org.apache.cassandra.exceptions.InvalidRequestException("Deletion timestamp is not optional for non commutative table " + metadata.cfName);
         }
     }
 
@@ -434,9 +430,9 @@ public class ThriftValidation
     }
 
     /**
-     * Validates the data part of the column (everything in the Column object but the name, which is assumed to be valid)
+     * Validates the data part of the column (everything in the column object but the name, which is assumed to be valid)
      */
-    public static void validateColumnData(CFMetaData metadata, ByteBuffer key, Column column, boolean isSubColumn) throws org.apache.cassandra.exceptions.InvalidRequestException
+    public static void validateColumnData(CFMetaData metadata, ByteBuffer key, ByteBuffer scName, Column column) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
         validateTtl(column);
         if (!column.isSetValue())
@@ -444,43 +440,43 @@ public class ThriftValidation
         if (!column.isSetTimestamp())
             throw new org.apache.cassandra.exceptions.InvalidRequestException("Column timestamp is required");
 
+        CellName cn = scName == null
+                    ? metadata.comparator.cellFromByteBuffer(column.name)
+                    : metadata.comparator.makeCellName(scName, column.name);
         try
         {
-            AbstractType<?> validator = metadata.getValueValidatorFromColumnName(column.name);
+            AbstractType<?> validator = metadata.getValueValidator(cn);
             if (validator != null)
                 validator.validate(column.value);
         }
         catch (MarshalException me)
         {
-            if (logger.isDebugEnabled())
-                logger.debug("rejecting invalid value " + ByteBufferUtil.bytesToHex(summarize(column.value)));
+            if (logger.isTraceEnabled())
+                logger.trace("rejecting invalid value {}", ByteBufferUtil.bytesToHex(summarize(column.value)));
 
             throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("(%s) [%s][%s][%s] failed validation",
                                                                       me.getMessage(),
                                                                       metadata.ksName,
                                                                       metadata.cfName,
-                                                                      (SuperColumns.getComparatorFor(metadata, isSubColumn)).getString(column.name)));
+                                                                      (SuperColumns.getComparatorFor(metadata, scName != null)).getString(column.name)));
         }
 
         // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057/4240 for more details
-        SecondaryIndex failedIndex = Keyspace.open(metadata.ksName)
-                                             .getColumnFamilyStore(metadata.cfName)
-                                             .indexManager
-                                             .validate(key, asDBColumn(column));
+        SecondaryIndex failedIndex = Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(key, asDBColumn(cn, column));
         if (failedIndex != null)
-            throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
+                    throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
                                                                               column.value.remaining(),
                                                                               failedIndex.getIndexName(),
                                                                               metadata.cfName,
                                                                               metadata.ksName));
     }
 
-    private static org.apache.cassandra.db.Column asDBColumn(Column column)
+    private static Cell asDBColumn(CellName name, Column column)
     {
         if (column.ttl <= 0)
-            return new org.apache.cassandra.db.Column(column.name, column.value, column.timestamp);
+            return new BufferCell(name, column.value, column.timestamp);
         else
-            return new org.apache.cassandra.db.ExpiringColumn(column.name, column.value, column.timestamp, column.ttl);
+            return new BufferExpiringCell(name, column.value, column.timestamp, column.ttl);
     }
 
     /**
@@ -528,7 +524,7 @@ public class ThriftValidation
         {
             Token startToken = p.getToken(range.start_key);
             Token endToken = p.getToken(range.end_key);
-            if (startToken.compareTo(endToken) > 0 && !endToken.isMinimum(p))
+            if (startToken.compareTo(endToken) > 0 && !endToken.isMinimum())
             {
                 if (p.preservesOrder())
                     throw new org.apache.cassandra.exceptions.InvalidRequestException("start key must sort before (or equal to) finish key in your partitioner!");
@@ -539,8 +535,8 @@ public class ThriftValidation
         else if (range.start_key != null && range.end_token != null)
         {
             // start_token/end_token can wrap, but key/token should not
-            RowPosition stop = p.getTokenFactory().fromString(range.end_token).maxKeyBound(p);
-            if (RowPosition.forKey(range.start_key, p).compareTo(stop) > 0 && !stop.isMinimum())
+            RowPosition stop = p.getTokenFactory().fromString(range.end_token).maxKeyBound();
+            if (RowPosition.ForKey.get(range.start_key, p).compareTo(stop) > 0 && !stop.isMinimum())
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Start key's token sorts after end token");
         }
 
@@ -601,7 +597,8 @@ public class ThriftValidation
             if (expression.value.remaining() > 0xFFFF)
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Index expression values may not be larger than 64K");
 
-            AbstractType<?> valueValidator = metadata.getValueValidatorFromColumnName(expression.column_name);
+            CellName name = metadata.comparator.cellFromByteBuffer(expression.column_name);
+            AbstractType<?> valueValidator = metadata.getValueValidator(name);
             try
             {
                 valueValidator.validate(expression.value);
@@ -614,7 +611,7 @@ public class ThriftValidation
                                                                                   me.getMessage()));
             }
 
-            isIndexed |= (expression.op == IndexOperator.EQ) && idxManager.indexes(expression.column_name);
+            isIndexed |= (expression.op == IndexOperator.EQ) && idxManager.indexes(name);
         }
 
         return isIndexed;
@@ -636,7 +633,7 @@ public class ThriftValidation
 
     public static void validateKeyspaceNotSystem(String modifiedKeyspace) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        if (modifiedKeyspace.equalsIgnoreCase(Keyspace.SYSTEM_KS))
+        if (modifiedKeyspace.equalsIgnoreCase(SystemKeyspace.NAME))
             throw new org.apache.cassandra.exceptions.InvalidRequestException("system keyspace is not user-modifiable");
     }
 
@@ -644,23 +641,28 @@ public class ThriftValidation
     {
         SliceRange sr = sp.slice_range;
         IDiskAtomFilter filter;
+
+        CellNameType comparator = metadata.isSuper()
+                                ? new SimpleDenseCellNameType(metadata.comparator.subtype(superColumn == null ? 0 : 1))
+                                : metadata.comparator;
         if (sr == null)
         {
-            AbstractType<?> comparator = metadata.isSuper()
-                    ? ((CompositeType)metadata.comparator).types.get(superColumn == null ? 0 : 1)
-                    : metadata.comparator;
 
-            SortedSet<ByteBuffer> ss = new TreeSet<ByteBuffer>(comparator);
-            ss.addAll(sp.column_names);
+            SortedSet<CellName> ss = new TreeSet<CellName>(comparator);
+            for (ByteBuffer bb : sp.column_names)
+                ss.add(comparator.cellFromByteBuffer(bb));
             filter = new NamesQueryFilter(ss);
         }
         else
         {
-            filter = new SliceQueryFilter(sr.start, sr.finish, sr.reversed, sr.count);
+            filter = new SliceQueryFilter(comparator.fromByteBuffer(sr.start),
+                                          comparator.fromByteBuffer(sr.finish),
+                                          sr.reversed,
+                                          sr.count);
         }
 
         if (metadata.isSuper())
-            filter = SuperColumns.fromSCFilter((CompositeType)metadata.comparator, superColumn, filter);
+            filter = SuperColumns.fromSCFilter(metadata.comparator, superColumn, filter);
         return filter;
     }
 }

@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.db;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNull;
@@ -25,34 +26,50 @@ import org.apache.cassandra.db.filter.QueryFilter;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class RemoveColumnFamilyWithFlush1Test extends SchemaLoader
+public class RemoveColumnFamilyWithFlush1Test
 {
+    private static final String KEYSPACE1 = "RemoveColumnFamilyWithFlush1Test";
+    private static final String CF_STANDARD1 = "Standard1";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
+    }
+
     @Test
     public void testRemoveColumnFamilyWithFlush1()
     {
-        Keyspace keyspace = Keyspace.open("Keyspace1");
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
-        RowMutation rm;
+        Mutation rm;
         DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new RowMutation("Keyspace1", dk.key);
-        rm.add("Standard1", ByteBufferUtil.bytes("Column1"), ByteBufferUtil.bytes("asdf"), 0);
-        rm.add("Standard1", ByteBufferUtil.bytes("Column2"), ByteBufferUtil.bytes("asdf"), 0);
-        rm.apply();
+        rm = new Mutation(KEYSPACE1, dk.getKey());
+        rm.add("Standard1", Util.cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
+        rm.add("Standard1", Util.cellname("Column2"), ByteBufferUtil.bytes("asdf"), 0);
+        rm.applyUnsafe();
         store.forceBlockingFlush();
 
         // remove
-        rm = new RowMutation("Keyspace1", dk.key);
+        rm = new Mutation(KEYSPACE1, dk.getKey());
         rm.delete("Standard1", 1);
-        rm.apply();
+        rm.applyUnsafe();
 
         ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Standard1", System.currentTimeMillis()));
         assert retrieved.isMarkedForDelete();
-        assertNull(retrieved.getColumn(ByteBufferUtil.bytes("Column1")));
+        assertNull(retrieved.getColumn(Util.cellname("Column1")));
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
     }
 }

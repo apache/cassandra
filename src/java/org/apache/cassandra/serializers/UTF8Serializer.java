@@ -52,6 +52,9 @@ public class UTF8Serializer extends AbstractTextSerializer
         // buf has already been sliced/duplicated.
         static boolean validate(ByteBuffer buf)
         {
+            if (buf == null)
+                return false;
+
             buf = buf.slice();
             int b = 0;
             State state = State.START;
@@ -71,11 +74,12 @@ public class UTF8Serializer extends AbstractTextSerializer
                         {
                             // validate first byte of 2-byte char, 0xc2-0xdf
                             if (b == (byte) 0xc0)
-                                // speical case: modified utf8 null is 0xc080.
+                                // special case: modified utf8 null is 0xc080.
                                 state = State.TWO_80;
                             else if ((b & 0x1e) == 0)
                                 return false;
-                            state = State.TWO;
+                            else
+                                state = State.TWO;
                         }
                         else if ((b >> 4) == -2)
                         {

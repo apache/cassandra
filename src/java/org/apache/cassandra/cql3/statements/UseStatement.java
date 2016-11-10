@@ -59,9 +59,10 @@ public class UseStatement extends ParsedStatement implements CQLStatement
         return new ResultMessage.SetKeyspace(keyspace);
     }
 
-    public ResultMessage executeInternal(QueryState state, QueryOptions options)
+    public ResultMessage executeInternal(QueryState state, QueryOptions options) throws InvalidRequestException
     {
-        // Internal queries are exclusively on the system keyspace and 'use' is thus useless
-        throw new UnsupportedOperationException();
+        // In production, internal queries are exclusively on the system keyspace and 'use' is thus useless
+        // but for some unit tests we need to set the keyspace (e.g. for tests with DROP INDEX)
+        return execute(state, options);
     }
 }

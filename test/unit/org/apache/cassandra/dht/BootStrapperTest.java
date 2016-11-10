@@ -25,13 +25,16 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Map;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -40,8 +43,16 @@ import org.apache.cassandra.service.StorageService;
 import static org.junit.Assert.*;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class BootStrapperTest extends SchemaLoader
+public class BootStrapperTest
 {
+    @BeforeClass
+    public static void setup() throws ConfigurationException
+    {
+        SchemaLoader.startGossiper();
+        SchemaLoader.prepareServer();
+        SchemaLoader.schemaDefinition("BootStrapperTest");
+    }
+
     @Test
     public void testSourceTargetComputation() throws UnknownHostException
     {
@@ -65,7 +76,7 @@ public class BootStrapperTest extends SchemaLoader
 
         TokenMetadata tmd = ss.getTokenMetadata();
         assertEquals(numOldNodes, tmd.sortedTokens().size());
-        RangeStreamer s = new RangeStreamer(tmd, myEndpoint, "Bootstrap");
+        RangeStreamer s = new RangeStreamer(tmd, null, myEndpoint, "Bootstrap", true, DatabaseDescriptor.getEndpointSnitch(), new StreamStateStore());
         IFailureDetector mockFailureDetector = new IFailureDetector()
         {
             public boolean isAlive(InetAddress ep)
@@ -86,7 +97,7 @@ public class BootStrapperTest extends SchemaLoader
         Collection<Map.Entry<InetAddress, Collection<Range<Token>>>> toFetch = s.toFetch().get(keyspaceName);
 
         // Check we get get RF new ranges in total
-        Set<Range<Token>> ranges = new HashSet<Range<Token>>();
+        Set<Range<Token>> ranges = new HashSet<>();
         for (Map.Entry<InetAddress, Collection<Range<Token>>> e : toFetch)
             ranges.addAll(e.getValue());
 
@@ -103,7 +114,7 @@ public class BootStrapperTest extends SchemaLoader
     {
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         tmd.clearUnsafe();
-        IPartitioner<?> p = StorageService.getPartitioner();
+        IPartitioner p = StorageService.getPartitioner();
 
         for (int i = 1; i <= numOldNodes; i++)
         {

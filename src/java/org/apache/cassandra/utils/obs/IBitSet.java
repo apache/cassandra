@@ -50,11 +50,11 @@ public interface IBitSet extends Closeable
 
     public void clear();
 
+    public void close();
+
     /**
      * Returns the amount of memory in bytes used off heap.
      * @return the amount of memory in bytes used off heap
      */
     public long offHeapSize();
-
-    public void close();
 }

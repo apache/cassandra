@@ -33,6 +33,7 @@ import com.google.common.collect.Iterables;
 public final class SessionInfo implements Serializable
 {
     public final InetAddress peer;
+    public final int sessionIndex;
     public final InetAddress connecting;
     /** Immutable collection of receiving summaries */
     public final Collection<StreamSummary> receivingSummaries;
@@ -45,12 +46,14 @@ public final class SessionInfo implements Serializable
     private final Map<String, ProgressInfo> sendingFiles;
 
     public SessionInfo(InetAddress peer,
+                       int sessionIndex,
                        InetAddress connecting,
                        Collection<StreamSummary> receivingSummaries,
                        Collection<StreamSummary> sendingSummaries,
                        StreamSession.State state)
     {
         this.peer = peer;
+        this.sessionIndex = sessionIndex;
         this.connecting = connecting;
         this.receivingSummaries = ImmutableSet.copyOf(receivingSummaries);
         this.sendingSummaries = ImmutableSet.copyOf(sendingSummaries);

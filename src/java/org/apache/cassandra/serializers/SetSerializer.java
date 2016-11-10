@@ -22,8 +22,6 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 public class SetSerializer<T> extends CollectionSerializer<Set<T>>
 {
     // interning instances
@@ -47,16 +45,55 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
         this.elements = elements;
     }
 
-    public Set<T> deserialize(ByteBuffer bytes)
+    public List<ByteBuffer> serializeValues(Set<T> values)
+    {
+        List<ByteBuffer> buffers = new ArrayList<>(values.size());
+        for (T value : values)
+            buffers.add(elements.serialize(value));
+        return buffers;
+    }
+
+    public int getElementCount(Set<T> value)
+    {
+        return value.size();
+    }
+
+    public void validateForNativeProtocol(ByteBuffer bytes, int version)
     {
         try
         {
             ByteBuffer input = bytes.duplicate();
-            int n = ByteBufferUtil.readShortLength(input);
-            Set<T> l = new LinkedHashSet<T>(n);
+            int n = readCollectionSize(input, version);
+            for (int i = 0; i < n; i++)
+                elements.validate(readValue(input, version));
+            if (input.hasRemaining())
+                throw new MarshalException("Unexpected extraneous bytes after set value");
+        }
+        catch (BufferUnderflowException e)
+        {
+            throw new MarshalException("Not enough bytes to read a set");
+        }
+    }
+
+    public Set<T> deserializeForNativeProtocol(ByteBuffer bytes, int version)
+    {
+        try
+        {
+            ByteBuffer input = bytes.duplicate();
+            int n = readCollectionSize(input, version);
+
+            if (n < 0)
+                throw new MarshalException("The data cannot be deserialized as a set");
+
+            // If the received bytes are not corresponding to a set, n might be a huge number.
+            // In such a case we do not want to initialize the set with that initialCapacity as it can result
+            // in an OOM when add is called (see CASSANDRA-12618). On the other hand we do not want to have to resize
+            // the set if we can avoid it, so we put a reasonable limit on the initialCapacity.
+            Set<T> l = new LinkedHashSet<T>(Math.min(n, 256));
+
             for (int i = 0; i < n; i++)
             {
-                ByteBuffer databb = ByteBufferUtil.readBytesWithShortLength(input);
+                ByteBuffer databb = readValue(input, version);
                 elements.validate(databb);
                 l.add(elements.deserialize(databb));
             }
@@ -66,28 +103,8 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
         }
         catch (BufferUnderflowException e)
         {
-            throw new MarshalException("Not enough bytes to read a list");
+            throw new MarshalException("Not enough bytes to read a set");
         }
-    }
-
-    /**
-     * Layout is: {@code <n><s_1><b_1>...<s_n><b_n> }
-     * where:
-     *   n is the number of elements
-     *   s_i is the number of bytes composing the ith element
-     *   b_i is the s_i bytes composing the ith element
-     */
-    public ByteBuffer serialize(Set<T> value)
-    {
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(value.size());
-        int size = 0;
-        for (T elt : value)
-        {
-            ByteBuffer bb = elements.serialize(elt);
-            bbs.add(bb);
-            size += 2 + bb.remaining();
-        }
-        return pack(bbs, value.size(), size);
     }
 
     public String toString(Set<T> value)

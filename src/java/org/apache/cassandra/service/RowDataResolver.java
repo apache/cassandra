@@ -42,9 +42,9 @@ public class RowDataResolver extends AbstractRowResolver
     private final IDiskAtomFilter filter;
     private final long timestamp;
 
-    public RowDataResolver(String keyspaceName, ByteBuffer key, IDiskAtomFilter qFilter, long timestamp)
+    public RowDataResolver(String keyspaceName, ByteBuffer key, IDiskAtomFilter qFilter, long timestamp, int maxResponseCount)
     {
-        super(key, keyspaceName);
+        super(key, keyspaceName, maxResponseCount);
         this.filter = qFilter;
         this.timestamp = timestamp;
     }
@@ -58,15 +58,16 @@ public class RowDataResolver extends AbstractRowResolver
     */
     public Row resolve() throws DigestMismatchException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("resolving " + replies.size() + " responses");
+        int replyCount = replies.size();
+        if (logger.isTraceEnabled())
+            logger.trace("resolving {} responses", replyCount);
         long start = System.nanoTime();
 
         ColumnFamily resolved;
-        if (replies.size() > 1)
+        if (replyCount > 1)
         {
-            List<ColumnFamily> versions = new ArrayList<ColumnFamily>(replies.size());
-            List<InetAddress> endpoints = new ArrayList<InetAddress>(replies.size());
+            List<ColumnFamily> versions = new ArrayList<>(replyCount);
+            List<InetAddress> endpoints = new ArrayList<>(replyCount);
 
             for (MessageIn<ReadResponse> message : replies)
             {
@@ -83,8 +84,8 @@ public class RowDataResolver extends AbstractRowResolver
             }
 
             resolved = resolveSuperset(versions, timestamp);
-            if (logger.isDebugEnabled())
-                logger.debug("versions merged");
+            if (logger.isTraceEnabled())
+                logger.trace("versions merged");
 
             // send updates to any replica that was missing part of the full row
             // (resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet)
@@ -93,11 +94,11 @@ public class RowDataResolver extends AbstractRowResolver
         }
         else
         {
-            resolved = replies.iterator().next().payload.row().cf;
+            resolved = replies.get(0).payload.row().cf;
         }
 
-        if (logger.isDebugEnabled())
-            logger.debug("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+        if (logger.isTraceEnabled())
+            logger.trace("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
         return new Row(key, resolved);
     }
@@ -116,14 +117,13 @@ public class RowDataResolver extends AbstractRowResolver
             if (diffCf == null) // no repair needs to happen
                 continue;
 
-            // create and send the row mutation message based on the diff
-            RowMutation rowMutation = new RowMutation(keyspaceName, key.key, diffCf);
-            MessageOut repairMessage;
+            // create and send the mutation message based on the diff
+            Mutation mutation = new Mutation(keyspaceName, key.getKey(), diffCf);
             // use a separate verb here because we don't want these to be get the white glove hint-
             // on-timeout behavior that a "real" mutation gets
             Tracing.trace("Sending read-repair-mutation to {}", endpoints.get(i));
-            repairMessage = rowMutation.createMessage(MessagingService.Verb.READ_REPAIR);
-            results.add(MessagingService.instance().sendRR(repairMessage, endpoints.get(i)));
+            results.add(MessagingService.instance().sendRR(mutation.createMessage(MessagingService.Verb.READ_REPAIR),
+                                                           endpoints.get(i)));
         }
 
         return results;
@@ -148,23 +148,21 @@ public class RowDataResolver extends AbstractRowResolver
             return null;
 
         // mimic the collectCollatedColumn + removeDeleted path that getColumnFamily takes.
-        // this will handle removing columns and subcolumns that are supressed by a row or
+        // this will handle removing columns and subcolumns that are suppressed by a row or
         // supercolumn tombstone.
         QueryFilter filter = new QueryFilter(null, resolved.metadata().cfName, new IdentityQueryFilter(), now);
-        List<CloseableIterator<Column>> iters = new ArrayList<CloseableIterator<Column>>();
+        List<CloseableIterator<Cell>> iters = new ArrayList<>(Iterables.size(versions));
         for (ColumnFamily version : versions)
-        {
-            if (version == null)
-                continue;
-            iters.add(FBUtilities.closeableIterator(version.iterator()));
-        }
+            if (version != null)
+                iters.add(FBUtilities.closeableIterator(version.iterator()));
         filter.collateColumns(resolved, iters, Integer.MIN_VALUE);
         return ColumnFamilyStore.removeDeleted(resolved, Integer.MIN_VALUE);
     }
 
     public Row getData()
     {
-        return replies.iterator().next().payload.row();
+        assert !replies.isEmpty();
+        return replies.get(0).payload.row();
     }
 
     public boolean isDataPresent()

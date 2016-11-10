@@ -20,37 +20,42 @@
 package org.apache.cassandra.service;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
-import org.apache.cassandra.dht.BigIntegerToken;
-import org.apache.cassandra.dht.LongToken;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.WindowsFailedSnapshotTracker;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.StringToken;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class StorageServiceServerTest
@@ -60,10 +65,11 @@ public class StorageServiceServerTest
     {
         IEndpointSnitch snitch = new PropertyFileSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
+        Keyspace.setInitialized();
     }
 
     @Test
-    public void testRegularMode() throws IOException, InterruptedException, ConfigurationException
+    public void testRegularMode() throws ConfigurationException
     {
         SchemaLoader.mkdirs();
         SchemaLoader.cleanup();
@@ -84,21 +90,134 @@ public class StorageServiceServerTest
     public void testGetAllRangesEmpty()
     {
         List<Token> toks = Collections.emptyList();
-        assertEquals(Collections.emptyList(), StorageService.instance.getAllRanges(toks));
+        assertEquals(Collections.<Range<Token>>emptyList(), StorageService.instance.getAllRanges(toks));
     }
 
     @Test
     public void testSnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeSnapshot("snapshot", new String[0]);
+        StorageService.instance.takeSnapshot("snapshot");
+    }
+
+    private void checkTempFilePresence(File f, boolean exist)
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            File subdir = new File(f, Integer.toString(i));
+            subdir.mkdir();
+            for (int j = 0; j < 5; j++)
+            {
+                File subF = new File(subdir, Integer.toString(j));
+                assert(exist ? subF.exists() : !subF.exists());
+            }
+        }
+    }
+
+    @Test
+    public void testSnapshotFailureHandler() throws IOException
+    {
+        assumeTrue(FBUtilities.isWindows());
+
+        // Initial "run" of Cassandra, nothing in failed snapshot file
+        WindowsFailedSnapshotTracker.deleteOldSnapshots();
+
+        File f = new File(System.getenv("TEMP") + File.separator + Integer.toString(new Random().nextInt()));
+        f.mkdir();
+        f.deleteOnExit();
+        for (int i = 0; i < 5; i++)
+        {
+            File subdir = new File(f, Integer.toString(i));
+            subdir.mkdir();
+            for (int j = 0; j < 5; j++)
+                new File(subdir, Integer.toString(j)).createNewFile();
+        }
+
+        checkTempFilePresence(f, true);
+
+        // Confirm deletion is recursive
+        for (int i = 0; i < 5; i++)
+            WindowsFailedSnapshotTracker.handleFailedSnapshot(new File(f, Integer.toString(i)));
+
+        assert new File(WindowsFailedSnapshotTracker.TODELETEFILE).exists();
+
+        // Simulate shutdown and restart of C* node, closing out the list of failed snapshots.
+        WindowsFailedSnapshotTracker.resetForTests();
+
+        // Perform new run, mimicking behavior of C* at startup
+        WindowsFailedSnapshotTracker.deleteOldSnapshots();
+        checkTempFilePresence(f, false);
+
+        // Check to make sure we don't delete non-temp, non-datafile locations
+        WindowsFailedSnapshotTracker.resetForTests();
+        PrintWriter tempPrinter = new PrintWriter(new FileWriter(WindowsFailedSnapshotTracker.TODELETEFILE, true));
+        tempPrinter.println(".safeDir");
+        tempPrinter.close();
+
+        File protectedDir = new File(".safeDir");
+        protectedDir.mkdir();
+        File protectedFile = new File(protectedDir, ".safeFile");
+        protectedFile.createNewFile();
+
+        WindowsFailedSnapshotTracker.handleFailedSnapshot(protectedDir);
+        WindowsFailedSnapshotTracker.deleteOldSnapshots();
+
+        assert protectedDir.exists();
+        assert protectedFile.exists();
+
+        protectedFile.delete();
+        protectedDir.delete();
     }
 
     @Test
     public void testColumnFamilySnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeColumnFamilySnapshot(Keyspace.SYSTEM_KS, SystemKeyspace.SCHEMA_KEYSPACES_CF, "cf_snapshot");
+        StorageService.instance.takeColumnFamilySnapshot(SystemKeyspace.NAME, LegacySchemaTables.KEYSPACES, "cf_snapshot");
+    }
+
+    @Test
+    public void testPrimaryRangeForEndpointWithinDCWithNetworkTopologyStrategy() throws Exception
+    {
+        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+        metadata.clearUnsafe();
+
+        // DC1
+        metadata.updateNormalToken(new StringToken("A"), InetAddress.getByName("127.0.0.1"));
+        metadata.updateNormalToken(new StringToken("C"), InetAddress.getByName("127.0.0.2"));
+
+        // DC2
+        metadata.updateNormalToken(new StringToken("B"), InetAddress.getByName("127.0.0.4"));
+        metadata.updateNormalToken(new StringToken("D"), InetAddress.getByName("127.0.0.5"));
+
+        Map<String, String> configOptions = new HashMap<>();
+        configOptions.put("DC1", "1");
+        configOptions.put("DC2", "1");
+
+        Keyspace.clear("Keyspace1");
+        KSMetaData meta = KSMetaData.newKeyspace("Keyspace1", "NetworkTopologyStrategy", configOptions, false);
+        Schema.instance.setKeyspaceDefinition(meta);
+
+        Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name,
+                                                                                                            InetAddress.getByName("127.0.0.1"));
+        assertEquals(2, primaryRanges.size());
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("A"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D"))));
+
+        primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.2"));
+        assertEquals(2, primaryRanges.size());
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C"))));
+
+        primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.4"));
+        assertEquals(2, primaryRanges.size());
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("A"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B"))));
+
+        primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.5"));
+        assertEquals(2, primaryRanges.size());
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D"))));
     }
 
     @Test
@@ -113,7 +232,7 @@ public class StorageServiceServerTest
         metadata.updateNormalToken(new StringToken("B"), InetAddress.getByName("127.0.0.4"));
         metadata.updateNormalToken(new StringToken("D"), InetAddress.getByName("127.0.0.5"));
 
-        Map<String, String> configOptions = new HashMap<String, String>();
+        Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC1", "1");
         configOptions.put("DC2", "1");
 
@@ -150,7 +269,7 @@ public class StorageServiceServerTest
         metadata.updateNormalToken(new StringToken("B"), InetAddress.getByName("127.0.0.4"));
         metadata.updateNormalToken(new StringToken("D"), InetAddress.getByName("127.0.0.5"));
 
-        Map<String, String> configOptions = new HashMap<String, String>();
+        Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC2", "2");
 
         Keyspace.clear("Keyspace1");
@@ -177,6 +296,45 @@ public class StorageServiceServerTest
     }
 
     @Test
+    public void testPrimaryRangeForEndpointWithinDCWithNetworkTopologyStrategyOneDCOnly() throws Exception
+    {
+        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+        metadata.clearUnsafe();
+        // DC1
+        metadata.updateNormalToken(new StringToken("A"), InetAddress.getByName("127.0.0.1"));
+        metadata.updateNormalToken(new StringToken("C"), InetAddress.getByName("127.0.0.2"));
+        // DC2
+        metadata.updateNormalToken(new StringToken("B"), InetAddress.getByName("127.0.0.4"));
+        metadata.updateNormalToken(new StringToken("D"), InetAddress.getByName("127.0.0.5"));
+
+        Map<String, String> configOptions = new HashMap<>();
+        configOptions.put("DC2", "2");
+
+        Keyspace.clear("Keyspace1");
+        KSMetaData meta = KSMetaData.newKeyspace("Keyspace1", "NetworkTopologyStrategy", configOptions, false);
+        Schema.instance.setKeyspaceDefinition(meta);
+
+        // endpoints in DC1 should not have primary range
+        Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.1"));
+        assertTrue(primaryRanges.isEmpty());
+
+        primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name,
+                                                                                   InetAddress.getByName("127.0.0.2"));
+        assertTrue(primaryRanges.isEmpty());
+
+        // endpoints in DC2 should have primary ranges which also cover DC1
+        primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.4"));
+        assertTrue(primaryRanges.size() == 2);
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("A"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B"))));
+
+        primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.5"));
+        assertTrue(primaryRanges.size() == 2);
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C"))));
+    }
+
+    @Test
     public void testPrimaryRangesWithVnodes() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
@@ -200,7 +358,7 @@ public class StorageServiceServerTest
         dc2.put(InetAddress.getByName("127.0.0.5"), new StringToken("K"));
         metadata.updateNormalTokens(dc2);
 
-        Map<String, String> configOptions = new HashMap<String, String>();
+        Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC2", "2");
 
         Keyspace.clear("Keyspace1");
@@ -238,6 +396,86 @@ public class StorageServiceServerTest
         assert primaryRanges.contains(new Range<Token>(new StringToken("H"), new StringToken("I")));
         assert primaryRanges.contains(new Range<Token>(new StringToken("I"), new StringToken("J")));
     }
+
+    @Test
+    public void testPrimaryRangeForEndpointWithinDCWithVnodes() throws Exception
+    {
+        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+        metadata.clearUnsafe();
+
+        // DC1
+        Multimap<InetAddress, Token> dc1 = HashMultimap.create();
+        dc1.put(InetAddress.getByName("127.0.0.1"), new StringToken("A"));
+        dc1.put(InetAddress.getByName("127.0.0.1"), new StringToken("E"));
+        dc1.put(InetAddress.getByName("127.0.0.1"), new StringToken("H"));
+        dc1.put(InetAddress.getByName("127.0.0.2"), new StringToken("C"));
+        dc1.put(InetAddress.getByName("127.0.0.2"), new StringToken("I"));
+        dc1.put(InetAddress.getByName("127.0.0.2"), new StringToken("J"));
+        metadata.updateNormalTokens(dc1);
+
+        // DC2
+        Multimap<InetAddress, Token> dc2 = HashMultimap.create();
+        dc2.put(InetAddress.getByName("127.0.0.4"), new StringToken("B"));
+        dc2.put(InetAddress.getByName("127.0.0.4"), new StringToken("G"));
+        dc2.put(InetAddress.getByName("127.0.0.4"), new StringToken("L"));
+        dc2.put(InetAddress.getByName("127.0.0.5"), new StringToken("D"));
+        dc2.put(InetAddress.getByName("127.0.0.5"), new StringToken("F"));
+        dc2.put(InetAddress.getByName("127.0.0.5"), new StringToken("K"));
+        metadata.updateNormalTokens(dc2);
+
+        Map<String, String> configOptions = new HashMap<>();
+        configOptions.put("DC1", "1");
+        configOptions.put("DC2", "2");
+
+        Keyspace.clear("Keyspace1");
+        KSMetaData meta = KSMetaData.newKeyspace("Keyspace1", "NetworkTopologyStrategy", configOptions, false);
+        Schema.instance.setKeyspaceDefinition(meta);
+
+        // endpoints in DC1 should have primary ranges which also cover DC2
+        Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.1"));
+        assertEquals(8, primaryRanges.size());
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("J"), new StringToken("K"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("K"), new StringToken("L"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("L"), new StringToken("A"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("E"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("E"), new StringToken("F"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("F"), new StringToken("G"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("G"), new StringToken("H"))));
+
+        // endpoints in DC1 should have primary ranges which also cover DC2
+        primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.2"));
+        assertEquals(4, primaryRanges.size());
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("H"), new StringToken("I"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("I"), new StringToken("J"))));
+
+        // endpoints in DC2 should have primary ranges which also cover DC1
+        primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.4"));
+        assertEquals(4, primaryRanges.size());
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("F"), new StringToken("G"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("K"), new StringToken("L"))));
+        // because /127.0.0.4 holds token "B" which is the next to token "A" from /127.0.0.1,
+        // the node covers range (L, A]
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("L"), new StringToken("A"))));
+
+        primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.5"));
+        assertTrue(primaryRanges.size() == 8);
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("E"), new StringToken("F"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("J"), new StringToken("K"))));
+        // ranges from /127.0.0.1
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("E"))));
+        // the next token to "H" in DC2 is "K" in /127.0.0.5, so (G, H] goes to /127.0.0.5
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("G"), new StringToken("H"))));
+        // ranges from /127.0.0.2
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("H"), new StringToken("I"))));
+        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("I"), new StringToken("J"))));
+    }
+
     @Test
     public void testPrimaryRangesWithSimpleStrategy() throws Exception
     {
@@ -248,7 +486,7 @@ public class StorageServiceServerTest
         metadata.updateNormalToken(new StringToken("B"), InetAddress.getByName("127.0.0.2"));
         metadata.updateNormalToken(new StringToken("C"), InetAddress.getByName("127.0.0.3"));
 
-        Map<String, String> configOptions = new HashMap<String, String>();
+        Map<String, String> configOptions = new HashMap<>();
         configOptions.put("replication_factor", "2");
 
         Keyspace.clear("Keyspace1");
@@ -268,10 +506,41 @@ public class StorageServiceServerTest
         assert primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
     }
 
+    /* Does not make much sense to use -local and -pr with simplestrategy, but just to prevent human errors */
+    @Test
+    public void testPrimaryRangeForEndpointWithinDCWithSimpleStrategy() throws Exception
+    {
+        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+        metadata.clearUnsafe();
+
+        metadata.updateNormalToken(new StringToken("A"), InetAddress.getByName("127.0.0.1"));
+        metadata.updateNormalToken(new StringToken("B"), InetAddress.getByName("127.0.0.2"));
+        metadata.updateNormalToken(new StringToken("C"), InetAddress.getByName("127.0.0.3"));
+
+        Map<String, String> configOptions = new HashMap<>();
+        configOptions.put("replication_factor", "2");
+
+        Keyspace.clear("Keyspace1");
+        KSMetaData meta = KSMetaData.newKeyspace("Keyspace1", "SimpleStrategy", configOptions, false);
+        Schema.instance.setKeyspaceDefinition(meta);
+
+        Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.1"));
+        assert primaryRanges.size() == 1;
+        assert primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("A")));
+
+        primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.2"));
+        assert primaryRanges.size() == 1;
+        assert primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
+
+        primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.3"));
+        assert primaryRanges.size() == 1;
+        assert primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
+    }
+
     @Test
     public void testCreateRepairRangeFrom() throws Exception
     {
-        StorageService.instance.setPartitionerUnsafe(new Murmur3Partitioner());
+        StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();
@@ -280,13 +549,6 @@ public class StorageServiceServerTest
         metadata.updateNormalToken(new LongToken(2000L), InetAddress.getByName("127.0.0.2"));
         metadata.updateNormalToken(new LongToken(3000L), InetAddress.getByName("127.0.0.3"));
         metadata.updateNormalToken(new LongToken(4000L), InetAddress.getByName("127.0.0.4"));
-
-        Map<String, String> configOptions = new HashMap<String, String>();
-        configOptions.put("replication_factor", "3");
-
-        Keyspace.clear("Keyspace1");
-        KSMetaData meta = KSMetaData.newKeyspace("Keyspace1", "SimpleStrategy", configOptions, false);
-        Schema.instance.setKeyspaceDefinition(meta);
 
         Collection<Range<Token>> repairRangeFrom = StorageService.instance.createRepairRangeFrom("1500", "3700");
         assert repairRangeFrom.size() == 3;

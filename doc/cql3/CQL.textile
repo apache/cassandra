@@ -1,6 +1,7 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.1.7
+h1. Cassandra Query Language (CQL) v3.3.1
+
 
 
  <span id="tableOfContents">
@@ -37,13 +38,15 @@ bc(sample). SELECT sample_usage FROM cql;
 
 h3(#identifiers). Identifiers and keywords
 
-p. The CQL language uses _identifiers_ (or _names_) to identify tables, columns and other objects. An identifier is a token matching the regular expression @[a-zA-Z][a-zA-Z0-9_]@@*@.
+p. The CQL language uses _identifiers_ (or _names_) to identify tables, columns and other objects. An identifier is a token matching the regular expression @[a-zA-Z]@@[a-zA-Z0-9_]@@*@.
 
 p. A number of such identifiers, like @SELECT@ or @WITH@, are _keywords_. They have a fixed meaning for the language and most are reserved. The list of those keywords can be found in "Appendix A":#appendixA.
 
 p. Identifiers and (unquoted) keywords are case insensitive. Thus @SELECT@ is the same than @select@ or @sElEcT@, and @myId@ is the same than @myid@ or @MYID@ for instance. A convention often used (in particular by the samples of this documentation) is to use upper case for keywords and lower case for other identifiers.
 
-p. There is a second kind of identifiers called _quoted identifiers_ defined by enclosing an arbitrary sequence of characters in double-quotes(@"@). Quoted identifiers are never keywords. Thus @"select"@ is not a reserved keyword and can be used to refer to a column, while @select@ would raise a parse error. Also, contrarily to unquoted identifiers and keywords, quoted identifiers are case sensitive (@"My Quoted Id"@ is _different_ from @"my quoted id"@). A fully lowercase quoted identifier that matches @[a-zA-Z][a-zA-Z0-9_]@@*@ is equivalent to the unquoted identifier obtained by removing the double-quote (so @"myid"@ is equivalent to @myid@ and to @myId@ but different from @"myId"@). Inside a quoted identifier, the double-quote character can be repeated to escape it, so @"foo "" bar"@ is a valid identifier.
+p. There is a second kind of identifiers called _quoted identifiers_ defined by enclosing an arbitrary sequence of characters in double-quotes(@"@). Quoted identifiers are never keywords. Thus @"select"@ is not a reserved keyword and can be used to refer to a column, while @select@ would raise a parse error. Also, contrarily to unquoted identifiers and keywords, quoted identifiers are case sensitive (@"My Quoted Id"@ is _different_ from @"my quoted id"@). A fully lowercase quoted identifier that matches @[a-zA-Z]@@[a-zA-Z0-9_]@@*@ is equivalent to the unquoted identifier obtained by removing the double-quote (so @"myid"@ is equivalent to @myid@ and to @myId@ but different from @"myId"@). Inside a quoted identifier, the double-quote character can be repeated to escape it, so @"foo "" bar"@ is a valid identifier.
+
+p. *Warning*: _quoted identifiers_ allows to declare columns with arbitrary names, and those can sometime clash with specific names used by the server. For instance, when using conditional update, the server will respond with a result-set containing a special result named @"[applied]"@. If you've declared a column with such a name, this could potentially confuse some tools and should be avoided. In general, unquoted identifiers should be preferred but if you use quoted identifiers, it is strongly advised to avoid any name enclosed by squared brackets (like @"[applied]"@) and any name that looks like a function call (like @"f(x)"@).
 
 h3(#constants). Constants
 
@@ -120,10 +123,19 @@ p. A @<variable>@ can be either anonymous (a question mark (@?@)) or named (an i
 
 p. The @<properties>@ production is use by statement that create and alter keyspaces and tables. Each @<property>@ is either a _simple_ one, in which case it just has a value, or a _map_ one, in which case it's value is a map grouping sub-options. The following will refer to one or the other as the _kind_ (_simple_ or _map_) of the property.
 
-p. A @<tablename>@ will be used to identify a table. This is an identifier representing the table name that can be preceded by a keyspace name. The keyspace name, if provided, allow to identify a table in another keyspace than the currently active one (the currently active keyspace is set through the <a href="#useStmt"><tt>USE</tt></a> statement).
+p. A @<tablename>@ will be used to identify a table. This is an identifier representing the table name that can be preceded by a keyspace name. The keyspace name, if provided, allow to identify a table in another keyspace than the currently active one (the currently active keyspace is set through the <a href=":#useStmt"><tt>USE</tt></a> statement).
 
 p. For supported @<function>@, see the section on "functions":#functions.
 
+p. Strings can be either enclosed with single quotes or two dollar characters. The second syntax has been introduced to allow strings that contain single quotes. Typical candidates for such strings are source code fragments for user-defined functions.
+
+__Sample:__
+
+bc(sample).. 
+  'some string value'
+
+  $$double-dollar string can contain single ' quotes$$
+p. 
 
 h3(#preparedStatement). Prepared Statement
 
@@ -218,7 +230,7 @@ __Syntax:__
 
 bc(syntax).. 
 <create-table-stmt> ::= CREATE ( TABLE | COLUMNFAMILY ) ( IF NOT EXISTS )? <tablename>
-                          '(' <definition> ( ',' <definition> )* ')'
+                          '(' <column-definition> ( ',' <column-definition> )* ')'
                           ( WITH <option> ( AND <option>)* )?
 
 <column-definition> ::= <identifier> <type> ( STATIC )? ( PRIMARY KEY )?
@@ -257,7 +269,7 @@ Attempting to create an already existing table will return an error unless the @
 
 h4(#createTableName). @<tablename>@
 
-Valid table names are the same than valid "keyspace names":#createKeyspaceStmt (up to 32 characters long alphanumerical identifiers). If the table name is provided alone, the table is created within the current keyspace (see <a href="#useStmt"><tt>USE</tt></a>), but if it is prefixed by an existing keyspace name (see "@<tablename>@":#statements grammar), it is created in the specified keyspace (but does *not* change the current keyspace).
+Valid table names are the same as valid "keyspace names":#createKeyspaceStmt (up to 32 characters long alphanumerical identifiers). If the table name is provided alone, the table is created within the current keyspace (see <a href="#useStmt"><tt>USE</tt></a>), but if it is prefixed by an existing keyspace name (see "@<tablename>@":#statements grammar), it is created in the specified keyspace (but does *not* change the current keyspace).
 
 
 h4(#createTableColumn). @<column-definition>@
@@ -327,14 +339,12 @@ Table creation supports the following other @<property>@:
 |@dclocal_read_repair_chance@ | _simple_ | 0           | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) belonging to the same data center than the read coordinator for the purpose of read repairs.|
 |@gc_grace_seconds@           | _simple_ | 864000      | Time to wait before garbage collecting tombstones (deletion markers).|
 |@bloom_filter_fp_chance@     | _simple_ | 0.00075     | The target probability of false positive of the sstable bloom filters. Said bloom filters will be sized to provide the provided probability (thus lowering this value impact the size of bloom filters in-memory and on-disk)|
-|@compaction@                 | _map_    | _see below_ | The compaction options to use, see below.|
-|@compression@                | _map_    | _see below_ | Compression options, see below. |
-|@replicate_on_write@         | _simple_ | true        | Whether to replicate data on write. This can only be set to false for tables with counters values. Disabling this is dangerous and can result in random lose of counters, don't disable unless you are sure to know what you are doing|
-|@caching@                    | _simple_ | keys_only   | Whether to cache keys ("key cache") and/or rows ("row cache") for this table. Valid values are: @all@, @keys_only@, @rows_only@ and @none@. |
 |@default_time_to_live@       | _simple_ | 0           | The default expiration time ("TTL") in seconds for a table.|
+|@compaction@                 | _map_    | _see below_ | Compaction options, see "below":#compactionOptions.|
+|@compression@                | _map_    | _see below_ | Compression options, see "below":#compressionOptions.|
+|@caching@                    | _map_    | _see below_ | Caching options, see "below":#cachingOptions.|
 
-
-h4(#compactionOptions). @compaction@ options
+h4(#compactionOptions). Compaction options
 
 The @compaction@ property must at least define the @'class'@ sub-option, that defines the compaction strategy class to use. The default supported class are @'SizeTieredCompactionStrategy'@, @'LeveledCompactionStrategy'@ and @'DateTieredCompactionStrategy'@. Custom strategy can be provided by specifying the full class name as a "string constant":#constants. The rest of the sub-options depends on the chosen class. The sub-options supported by the default classes are:
 
@@ -349,22 +359,31 @@ The @compaction@ property must at least define the @'class'@ sub-option, that de
 | @bucket_low@                     | SizeTieredCompactionStrategy    | 0.5          | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%)|
 | @bucket_high@                    | SizeTieredCompactionStrategy    | 1.5          | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%).|
 | @sstable_size_in_mb@             | LeveledCompactionStrategy       | 5MB          | The target size (in MB) for sstables in the leveled strategy. Note that while sstable sizes should stay less or equal to @sstable_size_in_mb@, it is possible to exceptionally have a larger sstable as during compaction, data for a given partition key are never split into 2 sstables|
-| @timestamp_resolution@           | DateTieredCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit)|
+| @timestamp_resolution@           | DateTieredCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don't change this unless you do mutations with USING TIMESTAMP <non_microsecond_timestamps> (or equivalent directly in the client)|
 | @base_time_seconds@              | DateTieredCompactionStrategy    | 60           | The base size of the time windows. |
 | @max_sstable_age_days@           | DateTieredCompactionStrategy    | 365          | SSTables only containing data that is older than this will never be compacted. |
 
 
-For the @compression@ property, the following default sub-options are available:
+h4(#compressionOptions). Compression options
+
+For the @compression@ property, the following sub-options are available:
 
 |_. option              |_. default        |_. description |
 | @sstable_compression@ | LZ4Compressor    | The compression algorithm to use. Default compressor are: LZ4Compressor, SnappyCompressor and DeflateCompressor. Use an empty string (@''@) to disable compression. Custom compressor can be provided by specifying the full class name as a "string constant":#constants.|
 | @chunk_length_kb@     | 64KB             | On disk SSTables are compressed by block (to allow random reads). This defines the size (in KB) of said block. Bigger values may improve the compression rate, but increases the minimum size of data to be read from disk for a read |
 | @crc_check_chance@    | 1.0              | When compression is enabled, each compressed block includes a checksum of that block for the purpose of detecting disk bitrot and avoiding the propagation of corruption to other replica. This option defines the probability with which those checksums are checked during read. By default they are always checked. Set to 0 to disable checksum checking and to 0.5 for instance to check them every other read|
 
+h4(#cachingOptions). Caching options
+
+For the @caching@ property, the following sub-options are available:
+
+|_. option              |_. default        |_. description |
+|@keys@                 | ALL   | Whether to cache keys ("key cache") for this table. Valid values are: @ALL@ and @NONE@.|
+|@rows_per_partition@   | NONE   | The amount of rows to cache per partition ("row cache"). If an integer @n@ is specified, the first @n@ queried rows of a partition will be cached. Other possible options are @ALL@, to cache all rows of a queried partition, or @NONE@ to disable row caching.|
 
 h4. Other considerations:
 
-* When "inserting":#insertStmt/"updating":#updateStmt a given row, not all columns needs to be defined (except for those part of the key), and missing columns occupy no space on disk. Furthermore, adding new columns (see <a href=#alterStmt><tt>ALTER TABLE</tt></a>) is a constant time operation. There is thus no need to try to anticipate future usage (or to cry when you haven't) when creating a table.
+* When "inserting":#insertStmt / "updating":#updateStmt a given row, not all columns needs to be defined (except for those part of the key), and missing columns occupy no space on disk. Furthermore, adding new columns (see <a href=#alterStmt><tt>ALTER TABLE</tt></a>) is a constant time operation. There is thus no need to try to anticipate future usage (or to cry when you haven't) when creating a table.
 
 
 h3(#alterTableStmt). ALTER TABLE
@@ -392,7 +411,7 @@ ALTER TABLE addamsFamily
 WITH comment = 'A most excellent and useful column family'
  AND read_repair_chance = 0.2;
 p. 
-The @ALTER@ statement is used to manipulate table definitions. It allows to add new columns, drop existing ones, change the type of existing columns, or update the table options. As for table creation, @ALTER COLUMNFAMILY@ is allowed as an alias for @ALTER TABLE@.
+The @ALTER@ statement is used to manipulate table definitions. It allows for adding new columns, dropping existing ones, changing the type of existing columns, or updating the table options. As with table creation, @ALTER COLUMNFAMILY@ is allowed as an alias for @ALTER TABLE@.
 
 The @<tablename>@ is the table name optionally preceded by the keyspace name.  The @<instruction>@ defines the alteration to perform:
 * @ALTER@: Update the type of a given defined column. Note that the type of the "clustering columns":#createTablepartitionClustering cannot be modified as it induces the on-disk ordering of rows. Columns on which a "secondary index":#createIndexStmt is defined have the same restriction. Other columns are free from those restrictions (no validation of existing data is performed), but it is usually a bad idea to change the type to a non-compatible one, unless no data have been inserted for that column yet, as this could confuse CQL drivers/tools.
@@ -412,13 +431,13 @@ bc(sample). DROP TABLE worldSeriesAttendees;
 
 The @DROP TABLE@ statement results in the immediate, irreversible removal of a table, including all data contained in it. As for table creation, @DROP COLUMNFAMILY@ is allowed as an alias for @DROP TABLE@.
 
-If the table does not exists, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+If the table does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 h3(#truncateStmt). TRUNCATE
 
 __Syntax:__
 
-bc(syntax). <truncate-stmt> ::= TRUNCATE <tablename>
+bc(syntax). <truncate-stmt> ::= TRUNCATE ( TABLE | COLUMNFAMILY )? <tablename>
 
 __Sample:__
 
@@ -431,14 +450,20 @@ h3(#createIndexStmt). CREATE INDEX
 
 __Syntax:__
 
-bc(syntax). <create-index-stmt> ::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? <identifier>? ON <tablename> '(' <identifier> ')'
-                                        ( USING <string> ( WITH OPTIONS = <map-literal> )? )?
+bc(syntax).. 
+<create-index-stmt> ::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? ( <indexname> )?
+                            ON <tablename> '(' <index-identifier> ')'
+                            ( USING <string> ( WITH OPTIONS = <map-literal> )? )?
 
+<index-identifier> ::= <identifier>
+                     | keys( <identifier> )
+p. 
 __Sample:__
 
 bc(sample). 
 CREATE INDEX userIndex ON NerdMovies (user);
 CREATE INDEX ON Mutants (abilityId);
+CREATE INDEX ON users (keys(favs));
 CREATE CUSTOM INDEX ON users (email) USING 'path.to.the.IndexClass';
 CREATE CUSTOM INDEX ON users (email) USING 'path.to.the.IndexClass' WITH OPTIONS = {'storage': '/mnt/ssd/indexes/'};
 
@@ -446,19 +471,288 @@ The @CREATE INDEX@ statement is used to create a new (automatic) secondary index
 
 Attempting to create an already existing index will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the index already exists.
 
+h4(#keysIndex). Indexes on Map Keys
+
+When creating an index on a "map column":#map, you may index either the keys or the values.  If the column identifier is placed within the @keys()@ function, the index will be on the map keys, allowing you to use @CONTAINS KEY@ in @WHERE@ clauses.  Otherwise, the index will be on the map values.
+
 h3(#dropIndexStmt). DROP INDEX
 
 __Syntax:__
 
-bc(syntax).  <drop-index-stmt> ::= DROP INDEX ( IF EXISTS )? <identifier>
+bc(syntax).  <drop-index-stmt> ::= DROP INDEX ( IF EXISTS )? ( <keyspace> '.' )? <identifier>
 
 __Sample:__
 
-bc(sample). DROP INDEX userIndex;
+bc(sample).. 
+DROP INDEX userIndex;
 
-The @DROP INDEX@ statement is used to drop an existing secondary index. The argument of the statement is the index name.
+DROP INDEX userkeyspace.address_index;
+p. 
+The @DROP INDEX@ statement is used to drop an existing secondary index. The argument of the statement is the index name, which may optionally specify the keyspace of the index.
 
 If the index does not exists, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+
+h3(#createTypeStmt). CREATE TYPE
+
+__Syntax:__
+
+bc(syntax).. 
+<create-type-stmt> ::= CREATE TYPE ( IF NOT EXISTS )? <typename>
+                         '(' <field-definition> ( ',' <field-definition> )* ')'
+
+<typename> ::= ( <keyspace-name> '.' )? <identifier>
+
+<field-definition> ::= <identifier> <type>
+
+p. 
+__Sample:__
+
+bc(sample).. 
+CREATE TYPE address (
+    street_name text,
+    street_number int,
+    city text,
+    state text,
+    zip int
+)
+
+CREATE TYPE work_and_home_addresses (
+    home_address address,
+    work_address address
+)
+p. 
+The @CREATE TYPE@ statement creates a new user-defined type.  Each type is a set of named, typed fields.  Field types may be any valid type, including collections and other existing user-defined types.
+
+Attempting to create an already existing type will result in an error unless the @IF NOT EXISTS@ option is used.  If it is used, the statement will be a no-op if the type already exists.
+
+h4(#createTypeName). @<typename>@
+
+Valid type names are identifiers.  The names of existing CQL types and "reserved type names":#appendixB may not be used.
+
+If the type name is provided alone, the type is created with the current keyspace (see <a href="#useStmt"><tt>USE</tt></a>). If it is prefixed by an existing keyspace name, the type is created within the specified keyspace instead of the current keyspace.
+
+h3(#alterTypeStmt). ALTER TYPE
+
+__Syntax:__
+
+bc(syntax).. 
+<alter-type-stmt> ::= ALTER TYPE <typename> <instruction>
+
+<instruction> ::= ALTER <field-name> TYPE <type>
+                | ADD <field-name> <type>
+                | RENAME <field-name> TO <field-name> ( AND <field-name> TO <field-name> )*
+p. 
+__Sample:__
+
+bc(sample).. 
+ALTER TYPE address ALTER zip TYPE varint
+
+ALTER TYPE address ADD country text
+
+ALTER TYPE address RENAME zip TO zipcode AND street_name TO street
+p. 
+The @ALTER TYPE@ statement is used to manipulate type definitions. It allows for adding new fields, renaming existing fields, or changing the type of existing fields.
+
+When altering the type of a column, the new type must be compatible with the previous type.
+
+h3(#dropTypeStmt). DROP TYPE
+
+__Syntax:__
+
+bc(syntax).. 
+<drop-type-stmt> ::= DROP TYPE ( IF EXISTS )? <typename>
+p. 
+The @DROP TYPE@ statement results in the immediate, irreversible removal of a type.  Attempting to drop a type that is still in use by another type or a table will result in an error.
+
+If the type does not exist, an error will be returned unless @IF EXISTS@ is used, in which case the operation is a no-op.
+
+h3(#createTriggerStmt). CREATE TRIGGER
+
+__Syntax:__
+
+bc(syntax).. 
+<create-trigger-stmt> ::= CREATE TRIGGER ( IF NOT EXISTS )? ( <triggername> )?
+                            ON <tablename> 
+                            USING <string>
+
+p. 
+__Sample:__
+
+bc(sample). 
+CREATE TRIGGER myTrigger ON myTable USING 'org.apache.cassandra.triggers.InvertedIndex';
+
+The actual logic that makes up the trigger can be written in any Java (JVM) language and exists outside the database. You place the trigger code in a @lib/triggers@ subdirectory of the Cassandra installation directory, it loads during cluster startup, and exists on every node that participates in a cluster. The trigger defined on a table fires before a requested DML statement occurs, which ensures the atomicity of the transaction.
+
+h3(#dropTriggerStmt). DROP TRIGGER
+
+__Syntax:__
+
+bc(syntax).. 
+<drop-trigger-stmt> ::= DROP TRIGGER ( IF EXISTS )? ( <triggername> )?
+                            ON <tablename>
+p. 
+__Sample:__
+
+bc(sample). 
+DROP TRIGGER myTrigger ON myTable;
+
+@DROP TRIGGER@ statement removes the registration of a trigger created using @CREATE TRIGGER@.
+
+h3(#createFunctionStmt). CREATE FUNCTION
+
+__Syntax:__
+
+bc(syntax).. 
+<create-function-stmt> ::= CREATE ( OR REPLACE )? 
+                            FUNCTION ( IF NOT EXISTS )?
+                            ( <keyspace> '.' )? <function-name>
+                            '(' <arg-name> <arg-type> ( ',' <arg-name> <arg-type> )* ')'
+                            ( CALLED | RETURNS NULL ) ON NULL INPUT
+                            RETURNS <type>
+                            LANGUAGE <language>
+                            AS <body>
+p. 
+__Sample:__
+
+bc(sample). 
+CREATE OR REPLACE FUNCTION somefunction
+    ( somearg int, anotherarg text, complexarg frozen<someUDT>, listarg list<bigint> )
+    RETURNS NULL ON NULL INPUT
+    RETURNS text
+    LANGUAGE java
+    AS $$
+       // some Java code
+    $$;
+CREATE FUNCTION akeyspace.fname IF NOT EXISTS
+    ( someArg int )
+    CALLED ON NULL INPUT
+    RETURNS text
+    LANGUAGE java
+    AS $$
+       // some Java code
+    $$;
+
+@CREATE FUNCTION@ creates or replaces a user-defined function.
+
+h4(#functionSignature). Function Signature
+
+Signatures are used to distinguish individual functions. The signature consists of:
+
+# The fully qualified function name - i.e _keyspace_ plus _function-name_
+# The concatenated list of all argument types
+
+Note that keyspace names, function names and argument types are subject to the default naming conventions and case-sensitivity rules.
+
+@CREATE FUNCTION@ with the optional @OR REPLACE@ keywords either creates a function or replaces an existing one with the same signature. A @CREATE FUNCTION@ without @OR REPLACE@ fails if a function with the same signature already exists.
+
+Behavior on invocation with @null@ values must be defined for each function. There are two options:
+
+# @RETURNS NULL ON NULL INPUT@ declares that the function will always return @null@ if any of the input arguments is @null@.
+# @CALLED ON NULL INPUT@ declares that the function will always be executed.
+
+If the optional @IF NOT EXISTS@ keywords are used, the function will only be created if another function with the same signature does not exist.
+
+@OR REPLACE@ and @IF NOT EXIST@ cannot be used together.
+
+Functions belong to a keyspace. If no keyspace is specified in @<function-name>@, the current keyspace is used (i.e. the keyspace specified using the "@USE@":#useStmt statement). It is not possible to create a user-defined function in one of the system keyspaces.
+
+See the section on "user-defined functions":#udfs for more information.
+
+h3(#dropFunctionStmt). DROP FUNCTION
+
+__Syntax:__
+
+bc(syntax).. 
+<drop-function-stmt> ::= DROP FUNCTION ( IF EXISTS )?
+                         ( <keyspace> '.' )? <function-name>
+                         ( '(' <arg-type> ( ',' <arg-type> )* ')' )?
+
+p. 
+__Sample:__
+
+bc(sample). 
+DROP FUNCTION myfunction;
+DROP FUNCTION mykeyspace.afunction;
+DROP FUNCTION afunction ( int );
+DROP FUNCTION afunction ( text );
+
+@DROP FUNCTION@ statement removes a function created using @CREATE FUNCTION@.
+You must specify the argument types ("signature":#functionSignature ) of the function to drop if there are multiple functions with the same name but a different signature (overloaded functions).
+
+@DROP FUNCTION@ with the optional @IF EXISTS@ keywords drops a function if it exists.
+
+h3(#createAggregateStmt). CREATE AGGREGATE
+
+__Syntax:__
+
+bc(syntax).. 
+<create-aggregate-stmt> ::= CREATE ( OR REPLACE )? 
+                            AGGREGATE ( IF NOT EXISTS )?
+                            ( <keyspace> '.' )? <aggregate-name>
+                            '(' <arg-type> ( ',' <arg-type> )* ')'
+                            SFUNC <state-functionname>
+                            STYPE <state-type>
+                            ( FINALFUNC <final-functionname> )?
+                            ( INITCOND <init-cond> )?
+p. 
+__Sample:__
+
+bc(sample). 
+CREATE AGGREGATE myaggregate ( val text )
+  SFUNC myaggregate_state
+  STYPE text
+  FINALFUNC myaggregate_final
+  INITCOND 'foo';
+
+See the section on "user-defined aggregates":#udas for a complete example.
+
+@CREATE AGGREGATE@ creates or replaces a user-defined aggregate.
+
+@CREATE AGGREGATE@ with the optional @OR REPLACE@ keywords either creates an aggregate or replaces an existing one with the same signature. A @CREATE AGGREGATE@ without @OR REPLACE@ fails if an aggregate with the same signature already exists.
+
+@CREATE AGGREGATE@ with the optional @IF NOT EXISTS@ keywords either creates an aggregate if it does not already exist.
+
+@OR REPLACE@ and @IF NOT EXIST@ cannot be used together.
+
+Aggregates belong to a keyspace. If no keyspace is specified in @<aggregate-name>@, the current keyspace is used (i.e. the keyspace specified using the "@USE@":#useStmt statement). It is not possible to create a user-defined aggregate in one of the system keyspaces.
+
+Signatures for user-defined aggregates follow the "same rules":#functionSignature as for user-defined functions.
+
+@STYPE@ defines the type of the state value and must be specified.
+
+The optional @INITCOND@ defines the initial state value for the aggregate. It defaults to @null@. A non-@null@ @INITCOND@ must be specified for state functions that are declared with @RETURNS NULL ON NULL INPUT@.
+
+@SFUNC@ references an existing function to be used as the state modifying function. The type of first argument of the state function must match @STYPE@. The remaining argument types of the state function must match the argument types of the aggregate function. State is not updated for state functions declared with @RETURNS NULL ON NULL INPUT@ and called with @null@.
+
+The optional @FINALFUNC@ is called just before the aggregate result is returned. It must take only one argument with type @STYPE@. The return type of the @FINALFUNC@ may be a different type. A final function declared with @RETURNS NULL ON NULL INPUT@ means that the aggregate's return value will be @null@, if the last state is @null@.
+
+If no @FINALFUNC@ is defined, the overall return type of the aggregate function is @STYPE@.  If a @FINALFUNC@ is defined, it is the return type of that function.
+
+See the section on "user-defined aggregates":#udas for more information.
+
+h3(#dropAggregateStmt). DROP AGGREGATE
+
+__Syntax:__
+
+bc(syntax).. 
+<drop-aggregate-stmt> ::= DROP AGGREGATE ( IF EXISTS )?
+                         ( <keyspace> '.' )? <aggregate-name>
+                         ( '(' <arg-type> ( ',' <arg-type> )* ')' )?
+p. 
+
+__Sample:__
+
+bc(sample). 
+DROP AGGREGATE myAggregate;
+DROP AGGREGATE myKeyspace.anAggregate;
+DROP AGGREGATE someAggregate ( int );
+DROP AGGREGATE someAggregate ( text );
+
+The @DROP AGGREGATE@ statement removes an aggregate created using @CREATE AGGREGATE@.  You must specify the argument types of the aggregate to drop if there are multiple aggregates with the same name but a different signature (overloaded aggregates).
+
+@DROP AGGREGATE@ with the optional @IF EXISTS@ keywords drops an aggregate if it exists, and does nothing if a function with the signature does not exist.
+
+Signatures for user-defined aggregates follow the "same rules":#functionSignature as for user-defined functions.
 
 h2(#dataManipulation). Data Manipulation
 
@@ -468,10 +762,14 @@ __Syntax:__
 
 bc(syntax).. 
 <insertStatement> ::= INSERT INTO <tablename>
-                             '(' <identifier> ( ',' <identifier> )* ')'
-                      VALUES '(' <term-or-literal> ( ',' <term-or-literal> )* ')'
+                      ( ( <name-list> VALUES <value-list> )
+                      | ( JSON <string> ))
                       ( IF NOT EXISTS )?
                       ( USING <option> ( AND <option> )* )?
+
+<names-list> ::= '(' <identifier> ( ',' <identifier> )* ')'
+
+<value-list> ::= '(' <term-or-literal> ( ',' <term-or-literal> )* ')'
 
 <term-or-literal> ::= <term>
                     | <collection-literal>
@@ -481,12 +779,14 @@ bc(syntax)..
 p. 
 __Sample:__
 
-bc(sample). 
+bc(sample).. 
 INSERT INTO NerdMovies (movie, director, main_actor, year)
                 VALUES ('Serenity', 'Joss Whedon', 'Nathan Fillion', 2005)
 USING TTL 86400;
 
-The @INSERT@ statement writes one or more columns for a given row in a table. Note that since a row is identified by its @PRIMARY KEY@, at least the columns composing it must be specified.
+INSERT INTO NerdMovies JSON '{"movie": "Serenity", "director": "Joss Whedon", "year": 2005}'
+p. 
+The @INSERT@ statement writes one or more columns for a given row in a table. Note that since a row is identified by its @PRIMARY KEY@, at least the columns composing it must be specified.  The list of columns to insert to must be supplied when using the @VALUES@ syntax.  When using the @JSON@ syntax, they are optional.  See the section on "@INSERT JSON@":#insertJson for more details.
 
 Note that unlike in SQL, @INSERT@ does not check the prior existence of the row by default: the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened.
 
@@ -512,14 +812,18 @@ bc(syntax)..
                | <identifier> '=' <identifier> '+' <map-literal>
                | <identifier> '[' <term> ']' '=' <term>
 
-<condition> ::= <identifier> '=' <term>
-              | <identifier> '[' <term> ']' '=' <term>
+<condition> ::= <identifier> <op> <term>
+              | <identifier> IN (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
+              | <identifier> '[' <term> ']' <op> <term>
+              | <identifier> '[' <term> ']' IN <term>
+
+<op> ::= '<' | '<=' | '=' | '!=' | '>=' | '>'
 
 <where-clause> ::= <relation> ( AND <relation> )*
 
 <relation> ::= <identifier> '=' <term>
              | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
-             | <identifier> IN '?'
+             | <identifier> IN <variable>
 
 <option> ::= TIMESTAMP <integer>
            | TTL <integer>
@@ -537,7 +841,7 @@ UPDATE UserActions SET total = total + 2 WHERE user = B70DE1D0-9908-4AE3-BE34-55
 p. 
 The @UPDATE@ statement writes one or more columns for a given row in a table. The @<where-clause>@ is used to select the row to update and must include all columns composing the @PRIMARY KEY@ (the @IN@ relation is only supported for the last column of the partition key). Other columns values are specified through @<assignment>@ after the @SET@ keyword.
 
-Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row by default: the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened.
+Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row by default (except through the use of @<condition>@, see below): the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened.
 
 It is however possible to use the conditions on some columns through @IF@, in which case the row will not be updated unless such condition are met. But please note that using @IF@ conditions will incur a non negligible performance cost (internally, Paxos will be used) so this should be used sparingly.
 
@@ -571,10 +875,14 @@ bc(syntax)..
 
 <relation> ::= <identifier> '=' <term>
              | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
-             | <identifier> IN '?'
+             | <identifier> IN <variable>
 
-<condition> ::= <identifier> '=' <term>
-              | <identifier> '[' <term> ']' '=' <term>
+<condition> ::= <identifier> <op> <term>
+              | <identifier> IN (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
+              | <identifier> '[' <term> ']' <op> <term>
+              | <identifier> '[' <term> ']' IN <term>
+
+<op> ::= '<' | '<=' | '=' | '!=' | '>=' | '>'
 p. 
 __Sample:__
 
@@ -621,7 +929,7 @@ APPLY BATCH;
 The @BATCH@ statement group multiple modification statements (insertions/updates and deletions) into a single statement. It serves several purposes:
 # It saves network round-trips between the client and the server (and sometimes between the server coordinator and the replicas) when batching multiple updates.
 # All updates in a @BATCH@ belonging to a given partition key are performed in isolation.
-# By default, all operations in the batch are performed atomically.  See the notes on "@UNLOGGED@":#unloggedBatch for more details.
+# By default, all operations in the batch are performed as @LOGGED@, to ensure all mutations eventually complete (or none will).  See the notes on "@UNLOGGED@":#unloggedBatch for more details.
 
 Note that:
 * @BATCH@ statements may only contain @UPDATE@, @INSERT@ and @DELETE@ statements.
@@ -630,9 +938,9 @@ Note that:
 
 h4(#unloggedBatch). @UNLOGGED@
 
-By default, Cassandra uses a batch log to ensure all operations in a batch are applied atomically. (Note that the operations are still only isolated within a single partition.)
+By default, Cassandra uses a batch log to ensure all operations in a batch eventually complete or none will (note however that operations are only isolated within a single partition).
 
-There is a performance penalty for batch atomicity when a batch spans multiple partitions. If you do not want to incur this penalty, you can tell Cassandra to skip the batchlog with the @UNLOGGED@ option. If the @UNLOGGED@ option is used, operations are only atomic within a single partition.
+There is a performance penalty for batch atomicity when a batch spans multiple partitions. If you do not want to incur this penalty, you can tell Cassandra to skip the batchlog with the @UNLOGGED@ option. If the @UNLOGGED@ option is used, a failed batch might leave the patch only partly applied.
 
 h4(#counterBatch). @COUNTER@
 
@@ -651,7 +959,7 @@ h3(#selectStmt). SELECT
 __Syntax:__
 
 bc(syntax).. 
-<select-stmt> ::= SELECT <select-clause>
+<select-stmt> ::= SELECT ( JSON )? <select-clause>
                   FROM <tablename>
                   ( WHERE <where-clause> )?
                   ( ORDER BY <order-by> )?
@@ -677,7 +985,7 @@ bc(syntax)..
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | TOKEN '(' <identifier> ( ',' <identifer>)* ')' <op> <term>
 
-<op> ::= '=' | '<' | '>' | '<=' | '>='
+<op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS | CONTAINS KEY
 <order-by> ::= <ordering> ( ',' <odering> )*
 <ordering> ::= <identifer> ( ASC | DESC )?
 <term-tuple> ::= '(' <term> (',' <term>)* ')'
@@ -686,6 +994,8 @@ __Sample:__
 
 bc(sample).. 
 SELECT name, occupation FROM users WHERE userid IN (199, 200, 207);
+
+SELECT JSON name, occupation FROM users WHERE userid = 199;
 
 SELECT name AS user_name, occupation AS user_occupation FROM users;
 
@@ -700,13 +1010,13 @@ SELECT COUNT(*) FROM users;
 SELECT COUNT(*) AS user_count FROM users;
 
 p. 
-The @SELECT@ statements reads one or more columns for one or more rows in a table. It returns a result-set of rows, where each row contains the collection of columns corresponding to the query.
+The @SELECT@ statements reads one or more columns for one or more rows in a table. It returns a result-set of rows, where each row contains the collection of columns corresponding to the query.  If the @JSON@ keyword is used, the results for each row will contain only a single column named "json".  See the section on "@SELECT JSON@":#selectJson for more details.
 
 h4(#selectSelection). @<select-clause>@
 
 The @<select-clause>@ determines which columns needs to be queried and returned in the result-set. It consists of either the comma-separated list of <selector> or the wildcard character (@*@) to select all the columns defined for the table.
 
-A @<selector>@ is either a column name to retrieve, or a @<function>@ of one or multiple column names. The functions allows are the same that for @<term>@ and are describe in the "function section":#function. In addition to these generic functions, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)).
+A @<selector>@ is either a column name to retrieve or a @<function>@ of one or more @<term>@s. The function allowed are the same as for @<term>@ and are described in the "function section":#functions. In addition to these generic functions, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)).
 
 Any @<selector>@ can be aliased using @AS@ keyword (see examples). Please note that @<where-clause>@ and @<order-by>@ clause should refer to the columns by their original names and not by their aliases.
 
@@ -762,9 +1072,11 @@ The tuple notation may also be used for @IN@ clauses on @CLUSTERING COLUMNS@:
 bc(sample). 
 SELECT * FROM posts WHERE userid='john doe' AND (blog_title, posted_at) IN (('John''s Blog', '2012-01-01), ('Extreme Chess', '2014-06-01'))
 
+The @CONTAINS@ operator may only be used on collection columns (lists, sets, and maps).  In the case of maps, @CONTAINS@ applies to the map values. The @CONTAINS KEY@ operator may only be used on map columns and applies to the map keys.
+
 h4(#selectOrderBy). @<order-by>@
 
-The @ORDER BY@ option allows to select the order of the returned results. It takes as argument a list of column names along with the order for the column (@ASC@ for ascendant and @DESC@ for descendant, omitting the order being equivalent to @ASC@). Currently the possible orderings are limited (which depends on the table "@CLUSTERING ORDER@":#createTableOptions):
+The @ORDER BY@ option allows to select the order of the returned results. It takes as argument a list of column names along with the order for the column (@ASC@ for ascendant and @DESC@ for descendant, omitting the order being equivalent to @ASC@). Currently the possible orderings are limited (which depends on the table "@CLUSTERING ORDER@":#createTableOptions ):
 * if the table has been defined without any specific @CLUSTERING ORDER@, then then allowed orderings are the order induced by the clustering columns and the reverse of that one.
 * otherwise, the orderings allowed are the order of the @CLUSTERING ORDER@ option and the reversed one.
 
@@ -810,9 +1122,164 @@ because Cassandra cannot guarantee that it won't have to scan large amount of da
 bc(sample). 
 SELECT firstname, lastname FROM users WHERE birth_year = 1981 AND country = 'FR' ALLOW FILTERING;
 
-h2(#databaseUsers). Database Users
+h2(#databaseRoles). Database Roles
+
+h3(#createRoleStmt). CREATE ROLE
+
+__Syntax:__
+
+bc(syntax).. 
+<create-role-stmt> ::= CREATE ROLE ( IF NOT EXISTS )? <identifier> ( WITH <option> ( AND <option> )* )?
+
+<option> ::= PASSWORD = <string>
+           | LOGIN = <boolean>
+           | SUPERUSER = <boolean>
+           | OPTIONS = <map_literal>
+p. 
+
+__Sample:__
+
+bc(sample). 
+CREATE ROLE new_role;
+CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
+CREATE ROLE bob WITH PASSWORD = 'password_b' AND LOGIN = true AND SUPERUSER = true;
+CREATE ROLE carlos WITH OPTIONS = { 'custom_option1' : 'option1_value', 'custom_option2' : 99 };
+
+By default roles do not possess @LOGIN@ privileges or @SUPERUSER@ status.
+
+"Permissions":#permissions on database resources are granted to roles; types of resources include keyspaces, tables, functions and roles themselves. Roles may be granted to other roles to create hierarchical permissions structures; in these hierarchies, permissions and @SUPERUSER@ status are inherited, but the @LOGIN@ privilege is not. 
+
+If a role has the @LOGIN@ privilege, clients may identify as that role when connecting. For the duration of that connection, the client will acquire any roles and privileges granted to that role.
+
+Only a client with with the @CREATE@ permission on the database roles resource may issue @CREATE ROLE@ requests (see the "relevant section":#permissions below), unless the client is a @SUPERUSER@. Role management in Cassandra is pluggable and custom implementations may support only a subset of the listed options.
+
+Role names should be quoted if they contain non-alphanumeric characters. 
+
+h4(#createRolePwd). Setting credentials for internal authentication
+
+Use the @WITH PASSWORD@ clause to set a password for internal authentication, enclosing the password in single quotation marks.
+If internal authentication has not been set up or the role does not have @LOGIN@ privileges, the @WITH PASSWORD@ clause is not necessary.
+
+h4(#createRoleConditional). Creating a role conditionally
+
+Attempting to create an existing role results in an invalid query condition unless the @IF NOT EXISTS@ option is used. If the option is used and the role exists, the statement is a no-op.
+
+bc(sample). 
+CREATE ROLE other_role;
+CREATE ROLE IF NOT EXISTS other_role;
+
+h3(#alterRoleStmt). ALTER ROLE
+
+__Syntax:__
+
+bc(syntax).. 
+<alter-role-stmt> ::= ALTER ROLE <identifier> ( WITH <option> ( AND <option> )* )?
+
+<option> ::= PASSWORD = <string>
+           | LOGIN = <boolean>
+           | SUPERUSER = <boolean>
+           | OPTIONS = <map_literal>
+p. 
+
+__Sample:__
+
+bc(sample). 
+ALTER ROLE bob WITH PASSWORD = 'PASSWORD_B' AND SUPERUSER = false;
+
+Conditions on executing @ALTER ROLE@ statements:
+
+* A client must have @SUPERUSER@ status to alter the @SUPERUSER@ status of another role
+* A client cannot alter the @SUPERUSER@ status of any role it currently holds
+* A client can only modify certain properties of the role with which it identified at login (e.g. @PASSWORD@)
+* To modify properties of a role, the client must be granted @ALTER@ "permission":#permissions on that role
+
+
+h3(#dropRoleStmt). DROP ROLE
+
+__Syntax:__
+
+bc(syntax).. 
+<drop-role-stmt> ::= DROP ROLE ( IF EXISTS )? <identifier>
+p. 
+
+__Sample:__
+
+bc(sample). 
+DROP ROLE alice;
+DROP ROLE IF EXISTS bob;
+
+
+@DROP ROLE@ requires the client to have @DROP@ "permission":#permissions on the role in question. In addition, client may not @DROP@ the role with which it identified at login. Finaly, only a client with @SUPERUSER@ status may @DROP@ another @SUPERUSER@ role.
+Attempting to drop a role which does not exist results in an invalid query condition unless the @IF EXISTS@ option is used. If the option is used and the role does not exist the statement is a no-op. 
+
+
+h3(#grantRoleStmt). GRANT ROLE
+
+__Syntax:__
+
+bc(syntax). 
+<grant-role-stmt> ::= GRANT <identifier> TO <identifier>
+
+
+__Sample:__
+
+bc(sample). 
+GRANT report_writer TO alice;
+
+This statement grants the @report_writer@ role to @alice@. Any permissions granted to @report_writer@ are also acquired by @alice@.
+Roles are modelled as a directed acyclic graph, so circular grants are not permitted. The following examples result in error conditions:
+
+bc(sample). 
+GRANT role_a TO role_b;
+GRANT role_b TO role_a;
+
+bc(sample). 
+GRANT role_a TO role_b;
+GRANT role_b TO role_c;
+GRANT role_c TO role_a;
+
+
+h3(#revokeRoleStmt). REVOKE ROLE
+
+__Syntax:__
+
+bc(syntax). 
+<revoke-role-stmt> ::= REVOKE <identifier> FROM <identifier>
+
+__Sample:__
+
+bc(sample). 
+REVOKE report_writer FROM alice;
+
+This statement revokes the @report_writer@ role from @alice@. Any permissions that @alice@ has acquired via the @report_writer@ role are also revoked. 
+
+h4(#listRolesStmt). LIST ROLES
+
+__Syntax:__
+
+bc(syntax). 
+<list-roles-stmt> ::= LIST ROLES ( OF <identifier> )? ( NORECURSIVE )?
+
+__Sample:__ 
+
+bc(sample). 
+LIST ROLES;
+
+Return all known roles in the system, this requires @DESCRIBE@ permission on the database roles resource.
+
+bc(sample). 
+LIST ROLES OF @alice@;
+
+Enumerate all roles granted to @alice@, including those transitively aquired.
+
+bc(sample). 
+LIST ROLES OF @bob@ NORECURSIVE
+
+List all roles directly granted to @bob@.
 
 h3(#createUserStmt). CREATE USER 
+
+Prior to the introduction of roles in Cassandra 2.2, authentication and authorization were based around the concept of a @USER@. For backward compatibility, the legacy syntax has been preserved with @USER@ centric statments becoming synonyms for the @ROLE@ based equivalents.
 
 __Syntax:__ 
 
@@ -829,23 +1296,24 @@ bc(sample).
 CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
 CREATE USER bob WITH PASSWORD 'password_b' NOSUPERUSER;
 
-By default users do not possess @SUPERUSER@ status.
+@CREATE USER@ is equivalent to @CREATE ROLE@ where the @LOGIN@ option is @true@. So, the following pairs of statements are equivalent:
 
-"Permissions":#permissions on database resources (keyspaces and tables) are granted to users.
-USer names should be quoted if they contain non-alphanumeric characters. 
+bc(sample).. 
+CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
+CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = true;
 
-h4(#createUserPwd). Setting credentials for internal authentication
+CREATE USER IF EXISTS alice WITH PASSWORD 'password_a' SUPERUSER;
+CREATE ROLE IF EXISTS alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = true;
 
-Use the @WITH PASSWORD@ clause to set a password for internal authentication, enclosing the password in single quotation marks.
-If internal authentication has not been set up the @WITH PASSWORD@ clause is not necessary.
+CREATE USER alice WITH PASSWORD 'password_a' NOSUPERUSER;
+CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = false;
 
-h4(#createUserConditional). Creating a user conditionally
+CREATE USER alice WITH PASSWORD 'password_a' NOSUPERUSER;
+CREATE ROLE alice WITH PASSWORD = 'password_a' WITH LOGIN = true;
 
-Attempting to create an existing user results in an invalid query condition unless the @IF NOT EXISTS@ option is used. If the option is used and the user exists, the statement is a no-op.
-
-bc(sample). 
-CREATE USER carlos;
-CREATE USER IF NOT EXISTS carlos;
+CREATE USER alice WITH PASSWORD 'password_a';
+CREATE ROLE alice WITH PASSWORD = 'password_a' WITH LOGIN = true;
+p. 
 
 h3(#alterUserStmt). ALTER USER 
 
@@ -862,11 +1330,6 @@ bc(sample).
 ALTER USER alice WITH PASSWORD 'PASSWORD_A';
 ALTER USER bob SUPERUSER;
 
-@ALTER USER@ requires @SUPERUSER@ status, with two caveats:
-
-* A user cannot alter its own @SUPERUSER@ status
-* A user without @SUPERUSER@ status is permitted to modify a subset of it's own properties (e.g. its @PASSWORD@)
-
 h3(#dropUserStmt). DROP USER 
 
 __Syntax:__ 
@@ -881,9 +1344,6 @@ bc(sample).
 DROP USER alice;
 DROP USER IF EXISTS bob;
 
-@DROP USER@ requires @SUPERUSER@ status, and users are not permitted to @DROP@ themselves.
-Attempting to drop a user which does not exist results in an invalid query condition unless the @IF EXISTS@ option is used. If the option is used and the user does not exist the statement is a no-op. 
-
 h3(#listUsersStmt). LIST USERS
 
 __Syntax:__
@@ -896,15 +1356,25 @@ __Sample:__
 bc(sample). 
 LIST USERS;
 
-Return all known users in the system.
+This statement is equivalent to
+
+bc(sample). 
+LIST ROLES;
+
+but only roles with the @LOGIN@ privilege are included in the output.
+
 
 h2(#dataControl). Data Control
 
 h3(#permissions). Permissions 
 
-Permissions on resources are granted to users and data resources in Cassandra are organized hierarchically, like so: @ALL KEYSPACES@ -> @KEYSPACE@ -> @TABLE@
+Permissions on resources are granted to roles; there are several different types of resources in Cassandra and each type is modelled hierarchically:
 
-Permissions can be granted at any level of the hierarchy and they flow downwards. So granting a permission on a resource higher up the chain automatically grants that same permission on all resources lower down. For example, granting @SELECT@ on a @KEYSPACE@ automatically grants it on all @TABLES@ in that @KEYSPACE@. 
+* The hierarchy of Data resources, Keyspaces and Tables has the structure @ALL KEYSPACES@ -> @KEYSPACE@ -> @TABLE@
+* Function resources have the structure @ALL FUNCTIONS@ -> @KEYSPACE@ -> @FUNCTION@
+* Resources representing roles have the structure @ALL ROLES@ -> @ROLE@
+
+Permissions can be granted at any level of these hierarchies and they flow downwards. So granting a permission on a resource higher up the chain automatically grants that same permission on all resources lower down. For example, granting @SELECT@ on a @KEYSPACE@ automatically grants it on all @TABLES@ in that @KEYSPACE@. Likewise, granting a permission on @ALL FUNCTIONS@ grants it on every defined function, regardless of which keyspace it is scoped in. It is also possible to grant permissions on all functions scoped to a particular keyspace. 
 
 Modifications to permissions are visible to existing client sessions; that is, connections need not be re-established following permissions changes.
 
@@ -915,26 +1385,52 @@ The full set of available permissions is:
 * @SELECT@
 * @MODIFY@
 * @AUTHORIZE@
+* @DESCRIBE@
+* @EXECUTE@
 
+Not all permissions are applicable to every type of resource. For instance, @EXECUTE@ is only relevant in the context of functions; granting @EXECUTE@ on a resource representing a table is nonsensical. Attempting to @GRANT@ a permission on resource to which it cannot be applied results in an error response. The following illustrates which permissions can be granted on which types of resource, and which statements are enabled by that permission.
 
 |_. permission |_. resource                   |_. operations        |
 | @CREATE@     | @ALL KEYSPACES@              |@CREATE KEYSPACE@ ==<br>== @CREATE TABLE@ in any keyspace|
 | @CREATE@     | @KEYSPACE@                   |@CREATE TABLE@ in specified keyspace|
+| @CREATE@     | @ALL FUNCTIONS@              |@CREATE FUNCTION@ in any keyspace ==<br>== @CREATE AGGREGATE@ in any keyspace|
+| @CREATE@     | @ALL FUNCTIONS IN KEYSPACE@  |@CREATE FUNCTION@ in keyspace ==<br>== @CREATE AGGREGATE@ in keyspace|
+| @CREATE@     | @ALL ROLES@                  |@CREATE ROLE@|
 | @ALTER@      | @ALL KEYSPACES@              |@ALTER KEYSPACE@ ==<br>== @ALTER TABLE@ in any keyspace|
 | @ALTER@      | @KEYSPACE@                   |@ALTER KEYSPACE@ ==<br>== @ALTER TABLE@ in keyspace|
-| @ALTER@      | @TABLE@                      |@ALTER TABLE@
+| @ALTER@      | @TABLE@                      |@ALTER TABLE@|
+| @ALTER@      | @ALL FUNCTIONS@              |@CREATE FUNCTION@ replacing any existing ==<br>== @CREATE AGGREGATE@ replacing any existing|
+| @ALTER@      | @ALL FUNCTIONS IN KEYSPACE@  |@CREATE FUNCTION@ replacing existing in keyspace ==<br>== @CREATE AGGREGATE@ replacing any existing in keyspace|
+| @ALTER@      | @FUNCTION@                   |@CREATE FUNCTION@ replacing existing ==<br>== @CREATE AGGREGATE@ replacing existing|
+| @ALTER@      | @ALL ROLES@                  |@ALTER ROLE@ on any role|
+| @ALTER@      | @ROLE@                       |@ALTER ROLE@|
 | @DROP@       | @ALL KEYSPACES@              |@DROP KEYSPACE@ ==<br>== @DROP TABLE@ in any keyspace|
 | @DROP@       | @KEYSPACE@                   |@DROP TABLE@ in specified keyspace|
 | @DROP@       | @TABLE@                      |@DROP TABLE@|
+| @DROP@       | @ALL FUNCTIONS@              |@DROP FUNCTION@ in any keyspace ==<br>== @DROP AGGREGATE@ in any existing|
+| @DROP@       | @ALL FUNCTIONS IN KEYSPACE@  |@DROP FUNCTION@ in keyspace ==<br>== @DROP AGGREGATE@ in existing|
+| @DROP@       | @FUNCTION@                   |@DROP FUNCTION@|
+| @DROP@       | @ALL ROLES@                  |@DROP ROLE@ on any role|
+| @DROP@       | @ROLE@                       |@DROP ROLE@|
 | @SELECT@     | @ALL KEYSPACES@              |@SELECT@ on any table|
 | @SELECT@     | @KEYSPACE@                   |@SELECT@ on any table in keyspace|
 | @SELECT@     | @TABLE@                      |@SELECT@ on specified table|
 | @MODIFY@     | @ALL KEYSPACES@              |@INSERT@ on any table ==<br>== @UPDATE@ on any table ==<br>== @DELETE@ on any table ==<br>== @TRUNCATE@ on any table|
-| @MODIFY@     | @KEYSPACE@                   |@INSERT@ on any table in keyspace ==<br>== @UPDATE@ on any table in keyspace ==<br>== @DELETE@ on any table in keyspace ==<br>== @TRUNCATE@ on any table in keyspace
+| @MODIFY@     | @KEYSPACE@                  |@INSERT@ on any table in keyspace ==<br>== @UPDATE@ on any table in keyspace ==<br>  == @DELETE@ on any table in keyspace ==<br>== @TRUNCATE@ on any table in keyspace
 | @MODIFY@     | @TABLE@                      |@INSERT@ ==<br>== @UPDATE@ ==<br>== @DELETE@ ==<br>== @TRUNCATE@|
 | @AUTHORIZE@  | @ALL KEYSPACES@              |@GRANT PERMISSION@ on any table ==<br>== @REVOKE PERMISSION@ on any table|
 | @AUTHORIZE@  | @KEYSPACE@                   |@GRANT PERMISSION@ on table in keyspace ==<br>== @REVOKE PERMISSION@ on table in keyspace|
 | @AUTHORIZE@  | @TABLE@                      |@GRANT PERMISSION@ ==<br>== @REVOKE PERMISSION@ |
+| @AUTHORIZE@  | @ALL FUNCTIONS@              |@GRANT PERMISSION@ on any function ==<br>== @REVOKE PERMISSION@ on any function|
+| @AUTHORIZE@  | @ALL FUNCTIONS IN KEYSPACE@  |@GRANT PERMISSION@ in keyspace ==<br>== @REVOKE PERMISSION@ in keyspace|
+| @AUTHORIZE@  | @ALL FUNCTIONS IN KEYSPACE@  |@GRANT PERMISSION@ in keyspace ==<br>== @REVOKE PERMISSION@ in keyspace|
+| @AUTHORIZE@  | @FUNCTION@                   |@GRANT PERMISSION@ ==<br>== @REVOKE PERMISSION@|
+| @AUTHORIZE@  | @ALL ROLES@                  |@GRANT ROLE@ grant any role ==<br>== @REVOKE ROLE@ revoke any role|
+| @AUTHORIZE@  | @ROLES@                      |@GRANT ROLE@ grant role ==<br>== @REVOKE ROLE@ revoke role|
+| @DESCRIBE@   | @ALL ROLES@                  |@LIST ROLES@ all roles or only roles granted to another, specified role|
+| @EXECUTE@    | @ALL FUNCTIONS@              |@SELECT@, @INSERT@, @UPDATE@ using any function ==<br>== use of any function in @CREATE AGGREGATE@|
+| @EXECUTE@    | @ALL FUNCTIONS IN KEYSPACE@  |@SELECT@, @INSERT@, @UPDATE@ using any function in keyspace ==<br>== use of any function in keyspace in @CREATE AGGREGATE@|
+| @EXECUTE@    | @FUNCTION@                   |@SELECT@, @INSERT@, @UPDATE@ using function ==<br>== use of function in @CREATE AGGREGATE@|
 
 
 h3(#grantPermissionsStmt). GRANT PERMISSION
@@ -944,29 +1440,51 @@ __Syntax:__
 bc(syntax).. 
 <grant-permission-stmt> ::= GRANT ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? ) ON <resource> TO <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE 
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
              | ( TABLE )? <tablename>
+             | ALL ROLES
+             | ROLE <identifier>
+             | ALL FUNCTIONS ( IN KEYSPACE <identifier> )?
+             | FUNCTION <functionname>
 p. 
 
 __Sample:__ 
 
 bc(sample). 
-GRANT SELECT ON ALL KEYSPACES TO alice;
+GRANT SELECT ON ALL KEYSPACES TO data_reader;
 
-This gives @alice@ permissions to execute @SELECT@ statements on any table across all keyspaces
-
-bc(sample). 
-GRANT MODIFY ON KEYSPACE keyspace1 TO bob;
-
-This gives @bob@ permissions to perform @UPDATE@, @INSERT@, @UPDATE@, @DELETE@ and @TRUNCATE@ queries on all tables in the @keyspace1@ keyspace
+This gives any user with the role @data_reader@ permission to execute @SELECT@ statements on any table across all keyspaces
 
 bc(sample). 
-GRANT DROP ON keyspace1.table1 TO carlos;
+GRANT MODIFY ON KEYSPACE keyspace1 TO data_writer;
 
-This gives @carlos@ permissions to @DROP@ @keyspace1.table1@.
+This give any user with the role @data_writer@ permission to perform @UPDATE@, @INSERT@, @UPDATE@, @DELETE@ and @TRUNCATE@ queries on all tables in the @keyspace1@ keyspace
+
+bc(sample). 
+GRANT DROP ON keyspace1.table1 TO schema_owner;
+
+This gives any user with the @schema_owner@ role permissions to @DROP@ @keyspace1.table1@.
+
+bc(sample). 
+GRANT EXECUTE ON FUNCTION keyspace1.user_function( int ) TO report_writer;
+
+This grants any user with the @report_writer@ role permission to execute @SELECT@, @INSERT@ and @UPDATE@ queries which use the function @keyspace1.user_function( int )@
+
+bc(sample). 
+GRANT DESCRIBE ON ALL ROLES TO role_admin;
+
+This grants any user with the @role_admin@ role permission to view any and all roles in the system with a @LIST ROLES@ statement
+
+h4(#grantAll). GRANT ALL 
+
+When the @GRANT ALL@ form is used, the appropriate set of permissions is determined automatically based on the target resource.
+
+h4(#autoGrantPermissions). Automatic Granting
+
+When a resource is created, via a @CREATE KEYSPACE@, @CREATE TABLE@, @CREATE FUNCTION@, @CREATE AGGREGATE@ or @CREATE ROLE@ statement, the creator (the role the database user who issues the statement is identified as), is automatically granted all applicable permissions on the new resource.
 
 
 h3(#revokePermissionsStmt). REVOKE PERMISSION
@@ -976,19 +1494,25 @@ __Syntax:__
 bc(syntax).. 
 <revoke-permission-stmt> ::= REVOKE ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? ) ON <resource> FROM <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE 
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
              | ( TABLE )? <tablename>
+             | ALL ROLES
+             | ROLE <identifier>
+             | ALL FUNCTIONS ( IN KEYSPACE <identifier> )?
+             | FUNCTION <functionname>
 p. 
 
 __Sample:__ 
 
 bc(sample).. 
-REVOKE SELECT ON ALL KEYSPACES FROM alice;
-REVOKE MODIFY ON KEYSPACE keyspace1 FROM bob;
-REVOKE DROP ON keyspace1.table1 FROM carlos;
+REVOKE SELECT ON ALL KEYSPACES FROM data_reader;
+REVOKE MODIFY ON KEYSPACE keyspace1 FROM data_writer;
+REVOKE DROP ON keyspace1.table1 FROM schema_owner;
+REVOKE EXECUTE ON FUNCTION keyspace1.user_function( int ) FROM report_writer;
+REVOKE DESCRIBE ON ALL ROLES FROM role_admin;
 p. 
 
 h4(#listPermissionsStmt). LIST PERMISSIONS
@@ -1003,6 +1527,10 @@ bc(syntax)..
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
              | ( TABLE )? <tablename>
+             | ALL ROLES
+             | ROLE <identifier>
+             | ALL FUNCTIONS ( IN KEYSPACE <identifier> )?
+             | FUNCTION <functionname>
 p. 
 
 __Sample:__
@@ -1010,17 +1538,17 @@ __Sample:__
 bc(sample). 
 LIST ALL PERMISSIONS OF alice;
 
-Show all permissions granted to @alice@. 
+Show all permissions granted to @alice@, including those acquired transitively from any other roles. 
 
 bc(sample). 
 LIST ALL PERMISSIONS ON keyspace1.table1 OF bob;
 
-Show all permissions on @keyspace1.table1@ granted to @bob@. This also includes any permissions higher up the resource hierarchy which can be applied to @keyspace1.table1@. For example, should @bob@ have @ALTER@ permission on @keyspace1@, that would be included in the results of this query. Adding the @NORECURSIVE@ switch restricts the results to only those permissions which were directly granted to @bob@.
+Show all permissions on @keyspace1.table1@ granted to @bob@, including those acquired transitively from any other roles. This also includes any permissions higher up the resource hierarchy which can be applied to @keyspace1.table1@. For example, should @bob@ have @ALTER@ permission on @keyspace1@, that would be included in the results of this query. Adding the @NORECURSIVE@ switch restricts the results to only those permissions which were directly granted to @bob@ or one of @bob@'s roles.
 
 bc(sample). 
 LIST SELECT PERMISSIONS OF carlos;
 
-Show any permissions granted to @carlos@, limited to @SELECT@ permissions on any resource.
+Show any permissions granted to @carlos@ or any of @carlos@'s roles, limited to @SELECT@ permissions on any resource.
 
 h2(#types). Data Types
 
@@ -1029,6 +1557,7 @@ CQL supports a rich set of data types for columns defined in a table, including 
 bc(syntax).. 
 <type> ::= <native-type>
          | <collection-type>
+         | <tuple-type>
          | <string>       // Used for custom types. The fully-qualified name of a JAVA class
 
 <native-type> ::= ascii
@@ -1036,14 +1565,18 @@ bc(syntax)..
                 | blob
                 | boolean
                 | counter
+                | date
                 | decimal
                 | double
                 | float
                 | inet
                 | int
+                | smallint
                 | text
+                | time
                 | timestamp
                 | timeuuid
+                | tinyint
                 | uuid
                 | varchar
                 | varint
@@ -1051,6 +1584,7 @@ bc(syntax)..
 <collection-type> ::= list '<' <native-type> '>'
                     | set  '<' <native-type> '>'
                     | map  '<' <native-type> ',' <native-type> '>'
+<tuple-type> ::= tuple '<' <type> (',' <type>)* '>'
 p. Note that the native types are keywords and as such are case-insensitive. They are however not reserved ones.
 
 p. The following table gives additional informations on the native data types, and on which kind of "constants":#constants each type supports:
@@ -1061,21 +1595,25 @@ p. The following table gives additional informations on the native data types, a
 |@blob@     |   blobs              |Arbitrary bytes (no validation)|
 |@boolean@  |   booleans           |true or false|
 |@counter@  |   integers           |Counter column (64-bit signed value). See "Counters":#counters for details|
+|@date@     |   integers, strings  |A date (with no corresponding time value).  See "Working with dates":#usingdates below for more information.|
 |@decimal@  |   integers, floats   |Variable-precision decimal|
 |@double@   |   integers           |64-bit IEEE-754 floating point|
 |@float@    |   integers, floats   |32-bit IEEE-754 floating point|
 |@inet@     |   strings            |An IP address. It can be either 4 bytes long (IPv4) or 16 bytes long (IPv6). There is no @inet@ constant, IP address should be inputed as strings|
 |@int@      |   integers           |32-bit signed int|
+|@smallint@ |   integers           |16-bit signed int|
 |@text@     |   strings            |UTF8 encoded string|
-|@timestamp@|   integers, strings  |A timestamp. Strings constant are allow to input timestamps as dates, see "Working with dates":#usingdates below for more information.|
+|@time@     |   integers, strings  |A time with nanosecond precision.  See "Working with time":#usingtime below for more information.|
+|@timestamp@|   integers, strings  |A timestamp. Strings constant are allow to input timestamps as dates, see "Working with timestamps":#usingtimestamps below for more information.|
 |@timeuuid@ |   uuids              |Type 1 UUID. This is generally used as a "conflict-free" timestamp. Also see the "functions on Timeuuid":#timeuuidFun|
+|@tinyint@  |   integers           |8-bit signed int|
 |@uuid@     |   uuids              |Type 1 or type 4 UUID|
 |@varchar@  |   strings            |UTF8 encoded string|
 |@varint@   |   integers           |Arbitrary-precision integer|
 
 For more information on how to use the collection types, see the "Working with collections":#collections section below.
 
-h3(#usingdates). Working with dates
+h3(#usingtimestamps). Working with timestamps
 
 Values of the @timestamp@ type are encoded as 64-bit signed integers representing a number of milliseconds since the standard base time known as "the epoch": January 1 1970 at 00:00:00 GMT.
 
@@ -1107,6 +1645,31 @@ The time of day may also be omitted, if the date is the only piece that matters:
 * @2011-02-03+0000@
 
 In that case, the time of day will default to 00:00:00, in the specified or default time zone.
+
+
+h3(#usingdates). Working with dates
+
+Values of the @date@ type are encoded as 32-bit unsigned integers representing a number of days with "the epoch" at the center of the range (2^31). Epoch is January 1st, 1970
+
+A date can be input in CQL as an unsigned integer as defined above.
+
+They can also be input as string literals in the following format:
+
+* @2014-01-01@
+
+
+h3(#usingtime). Working with time
+
+Values of the @time@ type are encoded as 64-bit signed integers representing the number of nanoseconds since midnight.
+
+A time can be input in CQL as simple long integers, giving the number of nanoseconds since midnight.
+
+They can also be input as string literals in any of the following formats:
+
+* @08:12:54@
+* @08:12:54.123@
+* @08:12:54.123456@
+* @08:12:54.123456789@
 
 
 h3(#counters). Counters
@@ -1234,7 +1797,7 @@ As with "maps":#map, TTLs if used only apply to the newly inserted/updated _valu
 
 h2(#functions). Functions
 
-CQL3 supports a few functions (more to come). Currently, it only support functions on values (functions that transform one or more column values into a new value) and in particular aggregation functions are not supported. The functions supported are described below:
+CQL3 distinguishes between built-in functions (so called 'native functions') and "user-defined functions":#udfs.  CQL3 includes several native functions, described below:
 
 h3(#tokenFun). Token
 
@@ -1264,32 +1827,245 @@ h3(#timeuuidFun). Timeuuid functions
 
 h4. @now@
 
-The @now@ function takes no arguments and generates a new unique timeuuid (at the time where the statement using it is executed). Note that this method is useful for insertion but is largely non-sensical in @WHERE@ clauses. For instance, a query of the form
+The @now@ function takes no arguments and generates, on the coordinator node, a new unique timeuuid (at the time where the statement using it is executed). Note that this method is useful for insertion but is largely non-sensical in @WHERE@ clauses. For instance, a query of the form
 
 bc(sample). 
 SELECT * FROM myTable WHERE t = now()
+
 
 will never return any result by design, since the value returned by @now()@ is guaranteed to be unique.
 
 h4. @minTimeuuid@ and @maxTimeuuid@
 
-The @minTimeuuid@ (resp. @maxTimeuuid@) function takes a @timestamp@ value @t@ (which can be "either a timestamp or a date string":#usingdates) and return a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for timestamp @t@. So for instance:
- 
+The @minTimeuuid@ (resp. @maxTimeuuid@) function takes a @timestamp@ value @t@ (which can be "either a timestamp or a date string":#usingtimestamps ) and return a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for timestamp @t@. So for instance:
+
+
 bc(sample). 
 SELECT * FROM myTable WHERE t > maxTimeuuid('2013-01-01 00:05+0000') AND t < minTimeuuid('2013-02-02 10:00+0000')
- 
+
+
 will select all rows where the @timeuuid@ column @t@ is strictly older than '2013-01-01 00:05+0000' but strictly younger than '2013-02-02 10:00+0000'.  Please note that @t >= maxTimeuuid('2013-01-01 00:05+0000')@ would still _not_ select a @timeuuid@ generated exactly at '2013-01-01 00:05+0000' and is essentially equivalent to @t > maxTimeuuid('2013-01-01 00:05+0000')@.
 
 _Warning_: We called the values generated by @minTimeuuid@ and @maxTimeuuid@ _fake_ UUID because they do no respect the Time-Based UUID generation process specified by the "RFC 4122":http://www.ietf.org/rfc/rfc4122.txt. In particular, the value returned by these 2 methods will not be unique. This means you should only use those methods for querying (as in the example above). Inserting the result of those methods is almost certainly _a bad idea_.
 
-h4. @dateOf@ and @unixTimestampOf@
+h3(#timeFun). Time conversion functions
 
-The @dateOf@ and @unixTimestampOf@ functions take a @timeuuid@ argument and extract the embedded timestamp. However, while the @dateof@ function return it with the @timestamp@ type (that most client, including cqlsh, interpret as a date), the @unixTimestampOf@ function returns it as a @bigint@ raw value.
+A number of functions are provided to "convert" a @timeuuid@, a @timestamp@ or a @date@ into another @native@ type.
+
+|_. function name    |_. input type   |_. description|
+|@toDate@            |@timeuuid@      |Converts the @timeuuid@ argument into a @date@ type|
+|@toDate@            |@timestamp@     |Converts the @timestamp@ argument into a @date@ type|
+|@toTimestamp@       |@timeuuid@      |Converts the @timeuuid@ argument into a @timestamp@ type|
+|@toTimestamp@       |@date@          |Converts the @date@ argument into a @timestamp@ type|
+|@toUnixTimestamp@   |@timeuuid@      |Converts the @timeuuid@ argument into a @bigInt@ raw value|
+|@toUnixTimestamp@   |@timestamp@     |Converts the @timestamp@ argument into a @bigInt@ raw value|
+|@toUnixTimestamp@   |@date@          |Converts the @date@ argument into a @bigInt@ raw value|
+|@dateOf@            |@timeuuid@      |Similar to @toTimestamp(timeuuid)@ (DEPRECATED)|
+|@unixTimestampOf@   |@timeuuid@      |Similar to @toUnixTimestamp(timeuuid)@ (DEPRECATED)|
 
 h3(#blobFun). Blob conversion functions
 
 A number of functions are provided to "convert" the native types into binary data (@blob@). For every @<native-type>@ @type@ supported by CQL3 (a notable exceptions is @blob@, for obvious reasons), the function @typeAsBlob@ takes a argument of type @type@ and return it as a @blob@.  Conversely, the function @blobAsType@ takes a 64-bit @blob@ argument and convert it to a @bigint@ value.  And so for instance, @bigintAsBlob(3)@ is @0x0000000000000003@ and @blobAsBigint(0x0000000000000003)@ is @3@.
 
+h2(#aggregates). Aggregates
+
+Aggregate functions work on a set of rows. They receive values for each row and returns one value for the whole set.
+If @normal@ columns, @scalar functions@, @UDT@ fields, @writetime@ or @ttl@ are selected together with aggregate functions, the values returned for them will be the ones of the first row matching the query.
+
+CQL3 distinguishes between built-in aggregates (so called 'native aggregates') and "user-defined aggregates":#udas. CQL3 includes several native aggregates, described below:
+
+h3(#countFct). Count
+
+The @count@ function can be used to count the rows returned by a query. Example:
+
+bc(sample). 
+SELECT COUNT(*) FROM plays;
+SELECT COUNT(1) FROM plays;
+
+It also can be used to count the non null value of a given column. Example:
+
+bc(sample). 
+SELECT COUNT(scores) FROM plays;
+
+h3(#maxMinFcts). Max and Min
+
+The @max@ and @min@ functions can be used to compute the maximum and the minimum value returned by a query for a given column.
+
+bc(sample). 
+SELECT MIN(players), MAX(players) FROM plays WHERE game = 'quake';
+
+h3(#sumFct). Sum
+
+The @sum@ function can be used to sum up all the values returned by a query for a given column.
+
+bc(sample). 
+SELECT SUM(players) FROM plays;
+
+h3(#avgFct). Avg
+
+The @avg@ function can be used to compute the average of all the values returned by a query for a given column.
+
+bc(sample). 
+SELECT AVG(players) FROM plays;
+
+h2(#udfs). User-Defined Functions
+
+User-defined functions allow execution of user-provided code in Cassandra. By default, Cassandra supports defining functions in _Java_ and _JavaScript_. Support for other JSR 223 compliant scripting languages (such as Python, Ruby, and Scala) can be added by adding a JAR to the classpath.
+
+UDFs are part of the Cassandra schema.  As such, they are automatically propagated to all nodes in the cluster.
+
+UDFs can be _overloaded_ - i.e. multiple UDFs with different argument types but the same function name. Example:
+
+bc(sample). 
+CREATE FUNCTION sample ( arg int ) ...;
+CREATE FUNCTION sample ( arg text ) ...;
+
+User-defined functions are susceptible to all of the normal problems with the chosen programming language.  Accordingly, implementations should be safe against null pointer exceptions, illegal arguments, or any other potential source of exceptions.  An exception during function execution will result in the entire statement failing.
+
+It is valid to use _complex_ types like collections, tuple types and user-defined types as argument and return types. Tuple types and user-defined types are handled by the conversion functions of the DataStax Java Driver. Please see the documentation of the Java Driver for details on handling tuple types and user-defined types.
+
+Arguments for functions can be literals or terms. Prepared statement placeholders can be used, too.
+
+Note that you can use the double-quoted string syntax to enclose the UDF source code. For example:
+
+bc(sample).. 
+CREATE FUNCTION some_function ( arg int )
+  RETURNS NULL ON NULL INPUT
+  RETURNS int
+  LANGUAGE java
+  AS $$ return arg; $$;
+
+SELECT some_function(column) FROM atable ...;
+UPDATE atable SET col = some_function(?) ...;
+p. 
+
+bc(sample). 
+CREATE TYPE custom_type (txt text, i int);
+CREATE FUNCTION fct_using_udt ( udtarg frozen<custom_type> )
+  RETURNS NULL ON NULL INPUT
+  RETURNS text
+  LANGUAGE java
+  AS $$ return udtarg.getString("txt"); $$;
+
+User-defined functions can be used in "@SELECT@":#selectStmt, "@INSERT@":#insertStmt and "@UPDATE@":#updateStmt statements.
+
+See "@CREATE FUNCTION@":#createFunctionStmt and "@DROP FUNCTION@":#dropFunctionStmt.
+
+h2(#udas). User-Defined Aggregates
+
+User-defined aggregates allow creation of custom aggregate functions using "UDFs":#udfs. Common examples of aggregate functions are _count_, _min_, and _max_.
+
+Each aggregate requires an _initial state_ (@INITCOND@, which defaults to @null@) of type @STYPE@. The first argument of the state function must have type @STYPE@. The remaining arguments of the state function must match the types of the user-defined aggregate arguments. The state function is called once for each row, and the value returned by the state function becomes the new state. After all rows are processed, the optional @FINALFUNC@ is executed with last state value as its argument.
+
+@STYPE@ is mandatory in order to be able to distinguish possibly overloaded versions of the state and/or final function (since the overload can appear after creation of the aggregate).
+
+User-defined aggregates can be used in "@SELECT@":#selectStmt statement.
+
+A complete working example for user-defined aggregates (assuming that a keyspace has been selected using the "@USE@":#useStmt statement):
+
+bc(sample).. 
+CREATE OR REPLACE FUNCTION averageState ( state tuple<int,bigint>, val int )
+  CALLED ON NULL INPUT
+  RETURNS tuple<int,bigint>
+  LANGUAGE java
+  AS '
+    if (val != null) {
+      state.setInt(0, state.getInt(0)+1);
+      state.setLong(1, state.getLong(1)+val.intValue());
+    }
+    return state;
+  ';
+
+CREATE OR REPLACE FUNCTION averageFinal ( state tuple<int,bigint> )
+  CALLED ON NULL INPUT
+  RETURNS double
+  LANGUAGE java
+  AS '
+    double r = 0;
+    if (state.getInt(0) == 0) return null;
+    r = state.getLong(1);
+    r /= state.getInt(0);
+    return Double.valueOf(r);
+  ';
+
+CREATE OR REPLACE AGGREGATE average ( int )
+  SFUNC averageState
+  STYPE tuple<int,bigint>
+  FINALFUNC averageFinal
+  INITCOND (0, 0);
+
+CREATE TABLE atable (
+  pk int PRIMARY KEY,
+  val int);
+INSERT INTO atable (pk, val) VALUES (1,1);
+INSERT INTO atable (pk, val) VALUES (2,2);
+INSERT INTO atable (pk, val) VALUES (3,3);
+INSERT INTO atable (pk, val) VALUES (4,4);
+SELECT average(val) FROM atable;
+p. 
+
+See "@CREATE AGGREGATE@":#createAggregateStmt and "@DROP AGGREGATE@":#dropAggregateStmt.
+
+h2(#json). JSON Support
+
+Cassandra 2.2 introduces JSON support to "@SELECT@":#selectStmt and "@INSERT@":#insertStmt statements.  This support does not fundamentally alter the CQL API (for example, the schema is still enforced), it simply provides a convenient way to work with JSON documents.
+
+h3(#selectJson). SELECT JSON
+
+With @SELECT@ statements, the new @JSON@ keyword can be used to return each row as a single @JSON@ encoded map.  The remainder of the @SELECT@ statment behavior is the same.
+
+The result map keys are the same as the column names in a normal result set.  For example, a statement like "@SELECT JSON a, ttl(b) FROM ...@" would result in a map with keys @"a"@ and @"ttl(b)"@.  However, this is one notable exception: for symmetry with @INSERT JSON@ behavior, case-sensitive column names with upper-case letters will be surrounded with double quotes.  For example, "@SELECT JSON myColumn FROM ...@" would result in a map key @"\"myColumn\""@ (note the escaped quotes).
+
+The map values will @JSON@-encoded representations (as described below) of the result set values.
+
+h3(#insertJson). INSERT JSON
+
+With @INSERT@ statements, the new @JSON@ keyword can be used to enable inserting a @JSON@ encoded map as a single row.  The format of the @JSON@ map should generally match that returned by a @SELECT JSON@ statement on the same table.  In particular, case-sensitive column names should be surrounded with double quotes.  For example, to insert into a table with two columns named "myKey" and "value", you would do the following:
+
+bc(sample). 
+INSERT INTO mytable JSON '{"\"myKey\"": 0, "value": 0}'
+
+Any columns which are ommitted from the @JSON@ map will be defaulted to a @NULL@ value (which will result in a tombstone being created).
+
+h3(#jsonEncoding). JSON Encoding of Cassandra Data Types
+
+Where possible, Cassandra will represent and accept data types in their native @JSON@ representation.  Cassandra will also accept string representations matching the CQL literal format for all single-field types.  For example, floats, ints, UUIDs, and dates can be represented by CQL literal strings.  However, compound types, such as collections, tuples, and user-defined types must be represented by native @JSON@ collections (maps and lists) or a JSON-encoded string representation of the collection.
+
+The following table describes the encodings that Cassandra will accept in @INSERT JSON@ values (and @fromJson()@ arguments) as well as the format Cassandra will use when returning data for @SELECT JSON@ statements (and @fromJson()@):
+
+|_. type    |_. formats accepted   |_. return format |_. notes|
+|@ascii@    |string                |string           |Uses JSON's @\u@ character escape|
+|@bigint@   |integer, string       |integer          |String must be valid 64 bit integer|
+|@blob@     |string                |string           |String should be 0x followed by an even number of hex digits|
+|@boolean@  |boolean, string       |boolean          |String must be "true" or "false"|
+|@date@     |string                |string           |Date in format @YYYY-MM-DD@, timezone UTC|
+|@decimal@  |integer, float, string|float            |May exceed 32 or 64-bit IEEE-754 floating point precision in client-side decoder|
+|@double@   |integer, float, string|float            |String must be valid integer or float|
+|@float@    |integer, float, string|float            |String must be valid integer or float|
+|@inet@     |string                |string           |IPv4 or IPv6 address|
+|@int@      |integer, string       |integer          |String must be valid 32 bit integer|
+|@list@     |list, string          |list             |Uses JSON's native list representation|
+|@map@      |map, string           |map              |Uses JSON's native map representation|
+|@smallint@ |integer, string       |integer          |String must be valid 16 bit integer|
+|@set@      |list, string          |list             |Uses JSON's native list representation|
+|@text@     |string                |string           |Uses JSON's @\u@ character escape|
+|@time@     |string                |string           |Time of day in format @HH-MM-SS[.fffffffff]@|
+|@timestamp@|integer, string       |string           |A timestamp. Strings constant are allow to input timestamps as dates, see "Working with dates":#usingdates below for more information.  Datestamps with format @YYYY-MM-DD HH:MM:SS.SSS@ are returned.|
+|@timeuuid@ |string                |string           |Type 1 UUID. See "Constants":#constants for the UUID format|
+|@tinyint@  |integer, string       |integer          |String must be valid 8 bit integer|
+|@tuple@    |list, string          |list             |Uses JSON's native list representation|
+|@UDT@      |map, string           |map              |Uses JSON's native map representation with field names as keys|
+|@uuid@     |string                |string           |See "Constants":#constants for the UUID format|
+|@varchar@  |string                |string           |Uses JSON's @\u@ character escape|
+|@varint@   |integer, string       |integer          |Variable length; may overflow 32 or 64 bit integers in client-side decoder|
+
+h3(#fromJson). The fromJson() Function
+
+The @fromJson()@ function may be used similarly to @INSERT JSON@, but for a single column value.  It may only be used in the @VALUES@ clause of an @INSERT@ statement or as one of the column values in an @UPDATE@, @DELETE@, or @SELECT@ statement.  For example, it cannot be used in the selection clause of a @SELECT@ statement.
+
+h3(#toJson). The toJson() Function
+
+The @toJson()@ function may be used similarly to @SELECT JSON@, but for a single column value.  It may only be used in the selection clause of a @SELECT@ statement.
 
 h2(#appendixA). Appendix A: CQL Keywords
 
@@ -1297,10 +2073,11 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 
 |_. Keyword      |_. Reserved? |
 | @ADD@          | yes |
+| @AGGREGATE@    | no  |
 | @ALL@          | no  |
+| @ALLOW@        | yes |
 | @ALTER@        | yes |
 | @AND@          | yes |
-| @ANY@          | yes |
 | @APPLY@        | yes |
 | @AS@           | no  |
 | @ASC@          | yes |
@@ -1312,62 +2089,100 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @BLOB@         | no  |
 | @BOOLEAN@      | no  |
 | @BY@           | yes |
+| @CALLED@       | no  |
 | @CLUSTERING@   | no  |
 | @COLUMNFAMILY@ | yes |
 | @COMPACT@      | no  |
-| @CONSISTENCY@  | no  |
+| @CONTAINS@     | no  |
 | @COUNT@        | no  |
 | @COUNTER@      | no  |
 | @CREATE@       | yes |
+| @CUSTOM@       | no  |
+| @DATE@         | no  |
 | @DECIMAL@      | no  |
 | @DELETE@       | yes |
 | @DESC@         | yes |
+| @DESCRIBE@     | yes |
+| @DISTINCT@     | no  |
 | @DOUBLE@       | no  |
 | @DROP@         | yes |
-| @EACH_QUORUM@  | yes |
+| @ENTRIES@      | yes |
+| @EXECUTE@      | yes |
+| @EXISTS@       | no  |
+| @FILTERING@    | no  |
+| @FINALFUNC@    | no  |
 | @FLOAT@        | no  |
 | @FROM@         | yes |
+| @FROZEN@       | no  |
+| @FULL@         | yes |
+| @FUNCTION@     | no  |
+| @FUNCTIONS@    | no  |
 | @GRANT@        | yes |
+| @IF@           | yes |
 | @IN@           | yes |
 | @INDEX@        | yes |
-| @CUSTOM@       | no  |
+| @INET@         | no  |
+| @INFINITY@     | yes |
+| @INITCOND@     | no  |
+| @INPUT@        | no  |
 | @INSERT@       | yes |
 | @INT@          | no  |
 | @INTO@         | yes |
+| @JSON@         | no  |
 | @KEY@          | no  |
+| @KEYS@         | no  |
 | @KEYSPACE@     | yes |
-| @LEVEL@        | no  |
+| @KEYSPACES@    | no  |
+| @LANGUAGE@     | no  |
 | @LIMIT@        | yes |
-| @LOCAL_ONE@    | yes |
-| @LOCAL_QUORUM@ | yes |
+| @LIST@         | no  |
+| @LOGIN@        | no  |
+| @MAP@          | no  |
 | @MODIFY@       | yes |
+| @NAN@          | yes |
+| @NOLOGIN@      | no  |
 | @NORECURSIVE@  | yes |
 | @NOSUPERUSER@  | no  |
+| @NOT@          | yes |
+| @NULL@         | yes |
 | @OF@           | yes |
 | @ON@           | yes |
-| @ONE@          | yes |
+| @OPTIONS@      | no  |
+| @OR@           | yes |
 | @ORDER@        | yes |
 | @PASSWORD@     | no  |
 | @PERMISSION@   | no  |
 | @PERMISSIONS@  | no  |
 | @PRIMARY@      | yes |
-| @QUORUM@       | yes |
+| @RENAME@       | yes |
+| @REPLACE@      | yes |
+| @RETURNS@      | no  |
 | @REVOKE@       | yes |
+| @ROLE@         | no  |
+| @ROLES@        | no  |
 | @SCHEMA@       | yes |
 | @SELECT@       | yes |
 | @SET@          | yes |
+| @SFUNC@        | no  |
+| @SMALLINT@     | no  |
+| @STATIC@       | no  |
 | @STORAGE@      | no  |
+| @STYPE@        | no  |
 | @SUPERUSER@    | no  |
 | @TABLE@        | yes |
 | @TEXT@         | no  |
+| @TIME@         | no  |
 | @TIMESTAMP@    | no  |
 | @TIMEUUID@     | no  |
-| @THREE@        | yes |
+| @TINYINT@      | no  |
+| @TO@           | yes |
 | @TOKEN@        | yes |
+| @TRIGGER@      | no  |
 | @TRUNCATE@     | yes |
 | @TTL@          | no  |
-| @TWO@          | yes |
+| @TUPLE@        | no  |
 | @TYPE@         | no  |
+| @UNLOGGED@     | yes |
 | @UPDATE@       | yes |
 | @USE@          | yes |
 | @USER@         | no  |
@@ -1380,12 +2195,49 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @WHERE@        | yes |
 | @WITH@         | yes |
 | @WRITETIME@    | no  |
-| @DISTINCT@     | no  |
 
+h2(#appendixB). Appendix B: CQL Reserved Types
+
+The following type names are not currently used by CQL, but are reserved for potential future use.  User-defined types may not use reserved type names as their name.
+
+|_. type      |
+| @bitstring@ |
+| @byte@      |
+| @complex@   |
+| @date@      |
+| @enum@      |
+| @interval@  |
+| @macaddr@   |
+| @smallint@  |
 
 h2(#changes). Changes
 
-The following describes the addition/changes brought for each version of CQL.
+The following describes the changes in each version of CQL.
+
+
+h3. 3.3.1
+
+* The syntax @TRUNCATE TABLE X@ is now accepted as an alias for @TRUNCATE X@
+
+h3. 3.3.0
+
+* Adds new "aggregates":#aggregates
+* User-defined functions are now supported through "@CREATE FUNCTION@":#createFunctionStmt and "@DROP FUNCTION@":#dropFunctionStmt.
+* User-defined aggregates are now supported through "@CREATE AGGREGATE@":#createAggregateStmt and "@DROP AGGREGATE@":#dropAggregateStmt.
+* Allows double-dollar enclosed strings literals as an alternative to single-quote enclosed strings.
+* Introduces Roles to supercede user based authentication and access control
+* "@Date@":#usingdates and "@Time@":usingtime data types have been added
+* "@JSON@":#json support has been added
+* @Tinyint@ and @Smallint@ data types have been added
+* Adds new time conversion functions and deprecate @dateOf@ and @unixTimestampOf@. See "@Time conversion functions@":#timeFun
+
+h3. 3.2.0
+
+* User-defined types are now supported through "@CREATE TYPE@":#createTypeStmt, "@ALTER TYPE@":#alterTypeStmt, and "@DROP TYPE@":#dropTypeStmt
+* "@CREATE INDEX@":#createIndexStmt now supports indexing collection columns, including indexing the keys of map collections through the @keys()@ function
+* Indexes on collections may be queried using the new @CONTAINS@ and @CONTAINS KEY@ operators
+* Tuple types were added to hold fixed-length sets of typed positional fields (see the section on "types":#types )
+* "@DROP INDEX@":#dropIndexStmt now supports optionally specifying a keyspace
 
 h3. 3.1.7
 
@@ -1404,15 +2256,15 @@ h3. 3.1.5
 
 h3. 3.1.4
 
-* @CREATE INDEX@ now allows specifying options when creating CUSTOM indexes (see "CREATE INDEX reference":#createIndexStmt).
+* @CREATE INDEX@ now allows specifying options when creating CUSTOM indexes (see "CREATE INDEX reference":#createIndexStmt ).
 
 h3. 3.1.3
 
-* Millisecond precision formats have been added to the timestamp parser (see "working with dates":#usingdates).
+* Millisecond precision formats have been added to the timestamp parser (see "working with dates":#usingtimestamps ).
 
 h3. 3.1.2
 
-* @NaN@ and @Infinity@ has been added as valid float contants. They are now reserved keywords. In the unlikely case you we using them as a column identifier (or keyspace/table one), you will noew need to double quote them (see "quote identifiers":#identifiers).
+* @NaN@ and @Infinity@ has been added as valid float contants. They are now reserved keywords. In the unlikely case you we using them as a column identifier (or keyspace/table one), you will noew need to double quote them (see "quote identifiers":#identifiers ).
 
 h3. 3.1.1
 
@@ -1423,7 +2275,7 @@ h3. 3.1.1
 h3. 3.1.0
 
 * "ALTER TABLE":#alterTableStmt @DROP@ option has been reenabled for CQL3 tables and has new semantics now: the space formerly used by dropped columns will now be eventually reclaimed (post-compaction). You should not readd previously dropped columns unless you use timestamps with microsecond precision (see "CASSANDRA-3919":https://issues.apache.org/jira/browse/CASSANDRA-3919 for more details).
-* @SELECT@ statement now supports aliases in select clause. Aliases in WHERE and ORDER BY clauses are not supported. See the "section on select"#selectStmt for details.
+* @SELECT@ statement now supports aliases in select clause. Aliases in WHERE and ORDER BY clauses are not supported. See the "section on select":#selectStmt for details.
 * @CREATE@ statements for @KEYSPACE@, @TABLE@ and @INDEX@ now supports an @IF NOT EXISTS@ condition. Similarly, @DROP@ statements support a @IF EXISTS@ condition.
 * @INSERT@ statements optionally supports a @IF NOT EXISTS@ condition and @UPDATE@ supports @IF@ conditions.
 
@@ -1434,7 +2286,7 @@ h3. 3.0.5
 h3. 3.0.4
 
 * Updated the syntax for custom "secondary indexes":#createIndexStmt.
-* Non-equal condition on the partition key are now never supported, even for ordering partitioner as this was not correct (the order was *not* the one of the type of the partition key). Instead, the @token@ method should always be used for range queries on the partition key (see "WHERE clauses":#selectWhere).
+* Non-equal condition on the partition key are now never supported, even for ordering partitioner as this was not correct (the order was *not* the one of the type of the partition key). Instead, the @token@ method should always be used for range queries on the partition key (see "WHERE clauses":#selectWhere ).
 
 h3. 3.0.3
 
@@ -1448,9 +2300,8 @@ h3. 3.0.2
 
 h3. 3.0.1
 
-* "Date strings":#usingdates (and timestamps) are no longer accepted as valid @timeuuid@ values. Doing so was a bug in the sense that date string are not valid @timeuuid@, and it was thus resulting in "confusing behaviors":https://issues.apache.org/jira/browse/CASSANDRA-4936.  However, the following new methods have been added to help working with @timeuuid@: @now@, @minTimeuuid@, @maxTimeuuid@ , @dateOf@ and @unixTimestampOf@. See the "section dedicated to these methods":#usingtimeuuid for more detail.
+* "Date strings":#usingtimestamps (and timestamps) are no longer accepted as valid @timeuuid@ values. Doing so was a bug in the sense that date string are not valid @timeuuid@, and it was thus resulting in "confusing behaviors":https://issues.apache.org/jira/browse/CASSANDRA-4936.  However, the following new methods have been added to help working with @timeuuid@: @now@, @minTimeuuid@, @maxTimeuuid@ , @dateOf@ and @unixTimestampOf@. See the "section dedicated to these methods":#timeuuidFun for more detail.
 * "Float constants"#constants now support the exponent notation. In other words, @4.2E10@ is now a valid floating point value.
-
 
 h2. Versioning
 

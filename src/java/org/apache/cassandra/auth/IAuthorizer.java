@@ -29,7 +29,12 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 public interface IAuthorizer
 {
     /**
-     * The primary IAuthorizer method. Returns a set of permissions of a user on a resource.
+     * Returns a set of permissions of a user on a resource.
+     * Since Roles were introduced in version 2.2, Cassandra does not distinguish in any
+     * meaningful way between users and roles. A role may or may not have login privileges
+     * and roles may be granted to other roles. In fact, Cassandra does not really have the
+     * concept of a user, except to link a client session to role. AuthenticatedUser can be
+     * thought of as a manifestation of a role, linked to a specific client connection.
      *
      * @param user Authenticated user requesting authorization.
      * @param resource Resource for which the authorization is being requested. @see DataResource.
@@ -38,66 +43,85 @@ public interface IAuthorizer
     Set<Permission> authorize(AuthenticatedUser user, IResource resource);
 
     /**
-     * Grants a set of permissions on a resource to a user.
+     * Grants a set of permissions on a resource to a role.
      * The opposite of revoke().
+     * This method is optional and may be called internally, so implementations which do
+     * not support it should be sure to throw UnsupportedOperationException.
      *
      * @param performer User who grants the permissions.
      * @param permissions Set of permissions to grant.
-     * @param to Grantee of the permissions.
      * @param resource Resource on which to grant the permissions.
+     * @param grantee Role to which the permissions are to be granted.
      *
      * @throws RequestValidationException
      * @throws RequestExecutionException
+     * @throws java.lang.UnsupportedOperationException
      */
-    void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String to)
+    void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource grantee)
     throws RequestValidationException, RequestExecutionException;
 
     /**
      * Revokes a set of permissions on a resource from a user.
      * The opposite of grant().
+     * This method is optional and may be called internally, so implementations which do
+     * not support it should be sure to throw UnsupportedOperationException.
      *
      * @param performer User who revokes the permissions.
      * @param permissions Set of permissions to revoke.
-     * @param from Revokee of the permissions.
+     * @param revokee Role from which to the permissions are to be revoked.
      * @param resource Resource on which to revoke the permissions.
      *
      * @throws RequestValidationException
      * @throws RequestExecutionException
+     * @throws java.lang.UnsupportedOperationException
      */
-    void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String from)
+    void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource revokee)
     throws RequestValidationException, RequestExecutionException;
 
     /**
-     * Returns a list of permissions on a resource of a user.
+     * Returns a list of permissions on a resource granted to a role.
+     * This method is optional and may be called internally, so implementations which do
+     * not support it should be sure to throw UnsupportedOperationException.
      *
      * @param performer User who wants to see the permissions.
-     * @param permissions Set of Permission values the user is interested in. The result should only include the matching ones.
-     * @param resource The resource on which permissions are requested. Can be null, in which case permissions on all resources
-     *                 should be returned.
-     * @param of The user whose permissions are requested. Can be null, in which case permissions of every user should be returned.
+     * @param permissions Set of Permission values the user is interested in. The result should only include the
+     *                    matching ones.
+     * @param resource The resource on which permissions are requested. Can be null, in which case permissions on all
+     *                 resources should be returned.
+     * @param grantee The role whose permissions are requested. Can be null, in which case permissions of every
+     *           role should be returned.
      *
      * @return All of the matching permission that the requesting user is authorized to know about.
      *
      * @throws RequestValidationException
      * @throws RequestExecutionException
+     * @throws java.lang.UnsupportedOperationException
      */
-    Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String of)
+    Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource grantee)
     throws RequestValidationException, RequestExecutionException;
 
     /**
-     * This method is called before deleting a user with DROP USER query so that a new user with the same
-     * name wouldn't inherit permissions of the deleted user in the future.
+     * Called before deleting a role with DROP ROLE statement (or the alias provided for compatibility,
+     * DROP USER) so that a new role with the same name wouldn't inherit permissions of the deleted one in the future.
+     * This removes all permissions granted to the Role in question.
+     * This method is optional and may be called internally, so implementations which do
+     * not support it should be sure to throw UnsupportedOperationException.
      *
-     * @param droppedUser The user to revoke all permissions from.
+     * @param revokee The role to revoke all permissions from.
+     * @throws java.lang.UnsupportedOperationException
      */
-    void revokeAll(String droppedUser);
+    void revokeAllFrom(RoleResource revokee);
 
     /**
-     * This method is called after a resource is removed (i.e. keyspace or a table is dropped).
+     * This method is called after a resource is removed (i.e. keyspace, table or role is dropped) and revokes all
+     * permissions granted on the IResource in question.
+     * This method is optional and may be called internally, so implementations which do
+     * not support it should be sure to throw UnsupportedOperationException.
      *
      * @param droppedResource The resource to revoke all permissions on.
+     * @throws java.lang.UnsupportedOperationException
      */
-    void revokeAll(IResource droppedResource);
+    void revokeAllOn(IResource droppedResource);
 
     /**
      * Set of resources that should be made inaccessible to users and only accessible internally.

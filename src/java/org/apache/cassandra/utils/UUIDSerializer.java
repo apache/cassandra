@@ -18,18 +18,18 @@
 package org.apache.cassandra.utils;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.UUID;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class UUIDSerializer implements IVersionedSerializer<UUID>
 {
     public static UUIDSerializer serializer = new UUIDSerializer();
 
-    public void serialize(UUID uuid, DataOutput out, int version) throws IOException
+    public void serialize(UUID uuid, DataOutputPlus out, int version) throws IOException
     {
         out.writeLong(uuid.getMostSignificantBits());
         out.writeLong(uuid.getLeastSignificantBits());

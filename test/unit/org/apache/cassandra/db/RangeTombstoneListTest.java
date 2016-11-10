@@ -18,18 +18,19 @@
 */
 package org.apache.cassandra.db;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
 
+import org.apache.cassandra.Util;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class RangeTombstoneListTest
 {
-    private static final Comparator<ByteBuffer> cmp = IntegerType.instance;
+    private static final Comparator<Composite> cmp = new SimpleDenseCellNameType(IntegerType.instance);
 
     @Test
     public void testDiff()
@@ -282,7 +283,7 @@ public class RangeTombstoneListTest
         l2.add(rt(4, 10, 12L));
         l2.add(rt(0, 8, 25L));
 
-        assertEquals(25L, l2.search(b(8)).markedForDeleteAt);
+        assertEquals(25L, l2.searchDeletionTime(b(8)).markedForDeleteAt);
     }
 
     @Test
@@ -329,9 +330,9 @@ public class RangeTombstoneListTest
         l.add(rt(1, 4, 2));
         l.add(rt(4, 10, 5));
 
-        assertEquals(2, l.search(b(3)).markedForDeleteAt);
-        assertEquals(5, l.search(b(4)).markedForDeleteAt);
-        assertEquals(5, l.search(b(8)).markedForDeleteAt);
+        assertEquals(2, l.searchDeletionTime(b(3)).markedForDeleteAt);
+        assertEquals(5, l.searchDeletionTime(b(4)).markedForDeleteAt);
+        assertEquals(5, l.searchDeletionTime(b(8)).markedForDeleteAt);
         assertEquals(3, l.size());
     }
 
@@ -345,20 +346,20 @@ public class RangeTombstoneListTest
         l.add(rt(14, 15, 3));
         l.add(rt(15, 17, 6));
 
-        assertEquals(null, l.search(b(-1)));
+        assertEquals(null, l.searchDeletionTime(b(-1)));
 
-        assertEquals(5, l.search(b(0)).markedForDeleteAt);
-        assertEquals(5, l.search(b(3)).markedForDeleteAt);
-        assertEquals(5, l.search(b(4)).markedForDeleteAt);
+        assertEquals(5, l.searchDeletionTime(b(0)).markedForDeleteAt);
+        assertEquals(5, l.searchDeletionTime(b(3)).markedForDeleteAt);
+        assertEquals(5, l.searchDeletionTime(b(4)).markedForDeleteAt);
 
-        assertEquals(2, l.search(b(5)).markedForDeleteAt);
+        assertEquals(2, l.searchDeletionTime(b(5)).markedForDeleteAt);
 
-        assertEquals(null, l.search(b(7)));
+        assertEquals(null, l.searchDeletionTime(b(7)));
 
-        assertEquals(3, l.search(b(14)).markedForDeleteAt);
+        assertEquals(3, l.searchDeletionTime(b(14)).markedForDeleteAt);
 
-        assertEquals(6, l.search(b(15)).markedForDeleteAt);
-        assertEquals(null, l.search(b(18)));
+        assertEquals(6, l.searchDeletionTime(b(15)).markedForDeleteAt);
+        assertEquals(null, l.searchDeletionTime(b(18)));
     }
 
     @Test
@@ -577,14 +578,14 @@ public class RangeTombstoneListTest
         return sb.append(" }").toString();
     }
 
-    private static ByteBuffer b(int i)
+    private static Composite b(int i)
     {
-        return ByteBufferUtil.bytes(i);
+        return Util.cellname(i);
     }
 
-    private static int i(ByteBuffer bb)
+    private static int i(Composite c)
     {
-        return ByteBufferUtil.toInt(bb);
+        return ByteBufferUtil.toInt(c.toByteBuffer());
     }
 
     private static RangeTombstone rt(int start, int end, long tstamp)

@@ -20,38 +20,56 @@ package org.apache.cassandra.db;
  *
  */
 
-
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-
-import org.apache.cassandra.Util;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.apache.cassandra.db.KeyspaceTest.assertColumns;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import static org.apache.cassandra.Util.column;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 
-public class MultitableTest extends SchemaLoader
+public class MultitableTest
 {
-    @Test
-    public void testSameCFs() throws IOException, ExecutionException, InterruptedException
-    {
-        Keyspace keyspace1 = Keyspace.open("Keyspace1");
-        Keyspace keyspace2 = Keyspace.open("Keyspace2");
+    private static final String KEYSPACE1 = "MultitableTest1";
+    private static final String KEYSPACE2 = "MultitableTest2";
+    private static final String CF1 = "Standard1";
 
-        RowMutation rm;
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF1));
+        SchemaLoader.createKeyspace(KEYSPACE2,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE2, CF1));
+    }
+
+    @Test
+    public void testSameCFs()
+    {
+        Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
+        Keyspace keyspace2 = Keyspace.open(KEYSPACE2);
+
+        Mutation rm;
         DecoratedKey dk = Util.dk("keymulti");
         ColumnFamily cf;
 
-        cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+        cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
-        rm = new RowMutation("Keyspace1", dk.key, cf);
-        rm.apply();
+        rm = new Mutation(KEYSPACE1, dk.getKey(), cf);
+        rm.applyUnsafe();
 
-        cf = TreeMapBackedSortedColumns.factory.create("Keyspace2", "Standard1");
+        cf = ArrayBackedSortedColumns.factory.create(KEYSPACE2, "Standard1");
         cf.addColumn(column("col2", "val2", 1L));
-        rm = new RowMutation("Keyspace2", dk.key, cf);
-        rm.apply();
+        rm = new Mutation(KEYSPACE2, dk.getKey(), cf);
+        rm.applyUnsafe();
 
         keyspace1.getColumnFamilyStore("Standard1").forceBlockingFlush();
         keyspace2.getColumnFamilyStore("Standard1").forceBlockingFlush();

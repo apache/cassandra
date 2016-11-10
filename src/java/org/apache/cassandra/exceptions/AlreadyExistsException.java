@@ -31,7 +31,7 @@ public class AlreadyExistsException extends ConfigurationException
 
     public AlreadyExistsException(String ksName, String cfName)
     {
-        this(ksName, cfName, String.format("Cannot add already existing column family \"%s\" to keyspace \"%s\"", cfName, ksName));
+        this(ksName, cfName, String.format("Cannot add already existing table \"%s\" to keyspace \"%s\"", cfName, ksName));
     }
 
     public AlreadyExistsException(String ksName)

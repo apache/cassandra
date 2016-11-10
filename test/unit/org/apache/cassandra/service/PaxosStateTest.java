@@ -25,12 +25,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.ArrayBackedSortedColumns;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.paxos.Commit;
@@ -49,6 +45,7 @@ public class PaxosStateTest
     public static void setUpClass() throws Throwable
     {
         SchemaLoader.loadSchema();
+        SchemaLoader.schemaDefinition("PaxosStateTest");
     }
 
     @AfterClass
@@ -60,9 +57,9 @@ public class PaxosStateTest
     @Test
     public void testCommittingAfterTruncation() throws Exception
     {
-        ColumnFamilyStore cfs = Keyspace.open("Keyspace1").getColumnFamilyStore("Standard1");
+        ColumnFamilyStore cfs = Keyspace.open("PaxosStateTestKeyspace1").getColumnFamilyStore("Standard1");
         DecoratedKey key = Util.dk("key" + System.nanoTime());
-        ByteBuffer name = ByteBufferUtil.bytes("col");
+        CellName name = Util.cellname("col");
         ByteBuffer value = ByteBufferUtil.bytes(0);
         ColumnFamily update = ArrayBackedSortedColumns.factory.create(cfs.metadata);
         update.addColumn(name, value, FBUtilities.timestampMicros());
@@ -71,7 +68,7 @@ public class PaxosStateTest
         assertNoDataPresent(cfs, key);
 
         // Commit the proposal & verify the data is present
-        Commit beforeTruncate = newProposal(0, key.key, update);
+        Commit beforeTruncate = newProposal(0, key.getKey(), update);
         PaxosState.commit(beforeTruncate);
         assertDataPresent(cfs, key, name, value);
 
@@ -83,7 +80,7 @@ public class PaxosStateTest
 
         // Now try again with a ballot created after the truncation
         long timestamp = SystemKeyspace.getTruncatedAt(update.metadata().cfId) + 1;
-        Commit afterTruncate = newProposal(timestamp, key.key, update);
+        Commit afterTruncate = newProposal(timestamp, key.getKey(), update);
         PaxosState.commit(afterTruncate);
         assertDataPresent(cfs, key, name, value);
     }
@@ -93,7 +90,7 @@ public class PaxosStateTest
         return Commit.newProposal(key, UUIDGen.getTimeUUID(ballotMillis), update);
     }
 
-    private void assertDataPresent(ColumnFamilyStore cfs, DecoratedKey key, ByteBuffer name, ByteBuffer value)
+    private void assertDataPresent(ColumnFamilyStore cfs, DecoratedKey key, CellName name, ByteBuffer value)
     {
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfs.name, System.currentTimeMillis()));
         assertFalse(cf.isEmpty());

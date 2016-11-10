@@ -91,10 +91,12 @@ public class ExpiringMap<K, V>
                 {
                     if (entry.getValue().isReadyToDieAt(start))
                     {
-                        cache.remove(entry.getKey());
-                        n++;
-                        if (postExpireHook != null)
-                            postExpireHook.apply(Pair.create(entry.getKey(), entry.getValue()));
+                        if (cache.remove(entry.getKey()) != null)
+                        {
+                            n++;
+                            if (postExpireHook != null)
+                                postExpireHook.apply(Pair.create(entry.getKey(), entry.getValue()));
+                        }
                     }
                 }
                 logger.trace("Expired {} entries", n);
@@ -103,12 +105,12 @@ public class ExpiringMap<K, V>
         service.scheduleWithFixedDelay(runnable, defaultExpiration / 2, defaultExpiration / 2, TimeUnit.MILLISECONDS);
     }
 
-    public void shutdownBlocking()
+    public boolean shutdownBlocking()
     {
         service.shutdown();
         try
         {
-            service.awaitTermination(defaultExpiration * 2, TimeUnit.MILLISECONDS);
+            return service.awaitTermination(defaultExpiration * 2, TimeUnit.MILLISECONDS);
         }
         catch (InterruptedException e)
         {

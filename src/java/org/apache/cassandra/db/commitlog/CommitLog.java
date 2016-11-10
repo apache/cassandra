@@ -19,29 +19,37 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.*;
 import java.lang.management.ManagementFactory;
+import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.commons.lang3.StringUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.commons.lang3.StringUtils;
+
+import com.github.tjake.ICRC32;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.io.compress.ICompressor;
+import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.CRC32Factory;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import static org.apache.cassandra.db.commitlog.CommitLogSegment.*;
 
 /*
  * Commit Log tracks every write operation into the system. The aim of the commit log is to be able to
@@ -51,53 +59,61 @@ public class CommitLog implements CommitLogMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
 
-    public static final CommitLog instance = new CommitLog();
+    public static final CommitLog instance = CommitLog.construct();
 
-    private final ICommitLogExecutorService executor;
+    // we only permit records HALF the size of a commit log, to ensure we don't spin allocating many mostly
+    // empty segments when writing large records
+    private final long MAX_MUTATION_SIZE = DatabaseDescriptor.getCommitLogSegmentSize() >> 1;
 
-    public final CommitLogAllocator allocator;
+    public final CommitLogSegmentManager allocator;
+    public final CommitLogArchiver archiver;
+    final CommitLogMetrics metrics;
+    final AbstractCommitLogService executor;
 
-    public final CommitLogArchiver archiver = new CommitLogArchiver();
+    volatile Configuration configuration;
+    final public String location;
 
-    public static final int END_OF_SEGMENT_MARKER = 0;          // this is written out at the end of a segment
-    public static final int END_OF_SEGMENT_MARKER_SIZE = 4;     // number of bytes of ^^^
-
-    public volatile CommitLogSegment activeSegment;
-
-    private final CommitLogMetrics metrics;
-
-    private CommitLog()
+    static private CommitLog construct()
     {
-        DatabaseDescriptor.createAllDirectories();
-
-        allocator = new CommitLogAllocator();
-        activateNextSegment();
-
-        executor = DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch
-                 ? new BatchCommitLogExecutorService()
-                 : new PeriodicCommitLogExecutorService(this);
+        CommitLog log = new CommitLog(DatabaseDescriptor.getCommitLogLocation(), CommitLogArchiver.construct());
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=Commitlog"));
+            mbs.registerMBean(log, new ObjectName("org.apache.cassandra.db:type=Commitlog"));
         }
         catch (Exception e)
         {
             throw new RuntimeException(e);
         }
-
-        // register metrics
-        metrics = new CommitLogMetrics(executor, allocator);
+        return log.start();
     }
 
-    /**
-     * FOR TESTING PURPOSES. See CommitLogAllocator.
-     */
-    public void resetUnsafe()
+    @VisibleForTesting
+    CommitLog(String location, CommitLogArchiver archiver)
     {
-        allocator.resetUnsafe();
-        activateNextSegment();
+        this.location = location;
+        this.configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression());
+        DatabaseDescriptor.createAllDirectories();
+
+        this.archiver = archiver;
+        metrics = new CommitLogMetrics();
+
+        executor = DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch
+                ? new BatchCommitLogService(this)
+                : new PeriodicCommitLogService(this);
+
+        allocator = new CommitLogSegmentManager(this);
+
+        // register metrics
+        metrics.attach(executor, allocator);
+    }
+
+    CommitLog start()
+    {
+        executor.start();
+        allocator.start();
+        return this;
     }
 
     /**
@@ -107,6 +123,10 @@ public class CommitLog implements CommitLogMBean
      */
     public int recover() throws IOException
     {
+        // If createReserveSegments is already flipped, the CLSM is running and recovery has already taken place.
+        if (allocator.createReserveSegments)
+            return 0;
+
         FilenameFilter unmanagedFilesFilter = new FilenameFilter()
         {
             public boolean accept(File dir, String name)
@@ -114,7 +134,7 @@ public class CommitLog implements CommitLogMBean
                 // we used to try to avoid instantiating commitlog (thus creating an empty segment ready for writes)
                 // until after recover was finished.  this turns out to be fragile; it is less error-prone to go
                 // ahead and allow writes before recover(), and just skip active segments when we do.
-                return CommitLogDescriptor.isValid(name) && !instance.allocator.manages(name);
+                return CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
             }
         };
 
@@ -136,13 +156,13 @@ public class CommitLog implements CommitLogMBean
         }
         else
         {
-            Arrays.sort(files, new CommitLogSegment.CommitLogSegmentFileComparator());
-            logger.info("Replaying " + StringUtils.join(files, ", "));
+            Arrays.sort(files, new CommitLogSegmentFileComparator());
+            logger.info("Replaying {}", StringUtils.join(files, ", "));
             replayed = recover(files);
-            logger.info("Log replay complete, " + replayed + " replayed mutations");
+            logger.info("Log replay complete, {} replayed mutations", replayed);
 
             for (File f : files)
-                CommitLog.instance.allocator.recycleSegment(f);
+                allocator.recycleSegment(f);
         }
 
         allocator.enableReserveSegmentCreation();
@@ -157,7 +177,7 @@ public class CommitLog implements CommitLogMBean
      */
     public int recover(File... clogs) throws IOException
     {
-        CommitLogReplayer recovery = new CommitLogReplayer();
+        CommitLogReplayer recovery = CommitLogReplayer.construct(this);
         recovery.recover(clogs);
         return recovery.blockForWrites();
     }
@@ -167,43 +187,103 @@ public class CommitLog implements CommitLogMBean
      */
     public void recover(String path) throws IOException
     {
-        recover(new File(path));
+        CommitLogReplayer recovery = CommitLogReplayer.construct(this);
+        recovery.recover(new File(path), false);
+        recovery.blockForWrites();
     }
 
     /**
-     * @return a Future representing a ReplayPosition such that when it is ready,
-     * all commitlog tasks enqueued prior to the getContext call will be complete (i.e., appended to the log)
+     * @return a ReplayPosition which, if >= one returned from add(), implies add() was started
+     * (but not necessarily finished) prior to this call
      */
-    public Future<ReplayPosition> getContext()
+    public ReplayPosition getContext()
     {
-        Callable<ReplayPosition> task = new Callable<ReplayPosition>()
+        return allocator.allocatingFrom().getContext();
+    }
+
+    /**
+     * Flushes all dirty CFs, waiting for them to free and recycle any segments they were retaining
+     */
+    public void forceRecycleAllSegments(Iterable<UUID> droppedCfs)
+    {
+        allocator.forceRecycleAll(droppedCfs);
+    }
+
+    /**
+     * Flushes all dirty CFs, waiting for them to free and recycle any segments they were retaining
+     */
+    public void forceRecycleAllSegments()
+    {
+        allocator.forceRecycleAll(Collections.<UUID>emptyList());
+    }
+
+    /**
+     * Forces a disk flush on the commit log files that need it.  Blocking.
+     */
+    public void sync(boolean syncAllSegments)
+    {
+        CommitLogSegment current = allocator.allocatingFrom();
+        for (CommitLogSegment segment : allocator.getActiveSegments())
         {
-            public ReplayPosition call()
-            {
-                return activeSegment.getContext();
-            }
-        };
-        return executor.submit(task);
+            if (!syncAllSegments && segment.id > current.id)
+                return;
+            segment.sync();
+        }
     }
 
     /**
-     * Used by tests.
-     *
-     * @return the number of active segments (segments with unflushed data in them)
+     * Preempts the CLExecutor, telling to to sync immediately
      */
-    public int activeSegments()
+    public void requestExtraSync()
     {
-        return allocator.getActiveSegments().size();
+        executor.requestExtraSync();
     }
 
     /**
-     * Add a RowMutation to the commit log.
+     * Add a Mutation to the commit log.
      *
-     * @param rm the RowMutation to add to the log
+     * @param mutation the Mutation to add to the log
      */
-    public void add(RowMutation rm)
+    public ReplayPosition add(Mutation mutation)
     {
-        executor.add(new LogRecordAdder(rm));
+        assert mutation != null;
+
+        long size = Mutation.serializer.serializedSize(mutation, MessagingService.current_version);
+
+        long totalSize = size + ENTRY_OVERHEAD_SIZE;
+        if (totalSize > MAX_MUTATION_SIZE)
+        {
+            throw new IllegalArgumentException(String.format("Mutation of %s bytes is too large for the maximum size of %s",
+                                                             totalSize, MAX_MUTATION_SIZE));
+        }
+
+        Allocation alloc = allocator.allocate(mutation, (int) totalSize);
+        ICRC32 checksum = CRC32Factory.instance.create();
+        final ByteBuffer buffer = alloc.getBuffer();
+        try (BufferedDataOutputStreamPlus dos = new DataOutputBufferFixed(buffer))
+        {
+            // checksummed length
+            dos.writeInt((int) size);
+            checksum.update(buffer, buffer.position() - 4, 4);
+            buffer.putInt(checksum.getCrc());
+
+            int start = buffer.position();
+            // checksummed mutation
+            Mutation.serializer.serialize(mutation, dos, MessagingService.current_version);
+            checksum.update(buffer, start, (int) size);
+            buffer.putInt(checksum.getCrc());
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, alloc.getSegment().getPath());
+        }
+        finally
+        {
+            alloc.markWritten();
+        }
+
+        executor.finishWriteFor(alloc);
+        return alloc.getReplayPosition();
     }
 
     /**
@@ -215,88 +295,33 @@ public class CommitLog implements CommitLogMBean
      */
     public void discardCompletedSegments(final UUID cfId, final ReplayPosition context)
     {
-        Callable task = new Callable()
+        logger.trace("discard completed log segments for {}, table {}", context, cfId);
+
+        // Go thru the active segment files, which are ordered oldest to newest, marking the
+        // flushed CF as clean, until we reach the segment file containing the ReplayPosition passed
+        // in the arguments. Any segments that become unused after they are marked clean will be
+        // recycled or discarded.
+        for (Iterator<CommitLogSegment> iter = allocator.getActiveSegments().iterator(); iter.hasNext();)
         {
-            public Object call()
+            CommitLogSegment segment = iter.next();
+            segment.markClean(cfId, context);
+
+            if (segment.isUnused())
             {
-                logger.debug("discard completed log segments for {}, column family {}", context, cfId);
-
-                // Go thru the active segment files, which are ordered oldest to newest, marking the
-                // flushed CF as clean, until we reach the segment file containing the ReplayPosition passed
-                // in the arguments. Any segments that become unused after they are marked clean will be
-                // recycled or discarded.
-                for (Iterator<CommitLogSegment> iter = allocator.getActiveSegments().iterator(); iter.hasNext();)
-                {
-                    CommitLogSegment segment = iter.next();
-                    segment.markClean(cfId, context);
-
-                    // If the segment is no longer needed, and we have another spare segment in the hopper
-                    // (to keep the last segment from getting discarded), pursue either recycling or deleting
-                    // this segment file.
-                    if (iter.hasNext())
-                    {
-                        if (segment.isUnused())
-                        {
-                            logger.debug("Commit log segment {} is unused", segment);
-                            allocator.recycleSegment(segment);
-                        }
-                        else
-                        {
-                            logger.debug("Not safe to delete commit log segment {}; dirty is {}",
-                                         segment, segment.dirtyString());
-                        }
-                    }
-                    else
-                    {
-                        logger.debug("Not deleting active commitlog segment {}", segment);
-                    }
-
-                    // Don't mark or try to delete any newer segments once we've reached the one containing the
-                    // position of the flush.
-                    if (segment.contains(context))
-                        break;
-                }
-
-                return null;
+                logger.trace("Commit log segment {} is unused", segment);
+                allocator.recycleSegment(segment);
             }
-        };
+            else
+            {
+                logger.trace("Not safe to delete{} commit log segment {}; dirty is {}",
+                        (iter.hasNext() ? "" : " active"), segment, segment.dirtyString());
+            }
 
-        FBUtilities.waitOnFuture(executor.submit(task));
-    }
-
-    /**
-     * Forces a disk flush on the commit log files that need it.
-     */
-    public void sync()
-    {
-        for (CommitLogSegment segment : allocator.getActiveSegments())
-        {
-            segment.sync();
+            // Don't mark or try to delete any newer segments once we've reached the one containing the
+            // position of the flush.
+            if (segment.contains(context))
+                break;
         }
-    }
-
-    /**
-     * @return the number of tasks completed by the commit log executor
-     */
-    public long getCompletedTasks()
-    {
-        return metrics.completedTasks.value();
-    }
-
-    /**
-     * @return the depth of pending commit log executor queue
-     */
-    public long getPendingTasks()
-    {
-        return metrics.pendingTasks.value();
-    }
-
-    /**
-     * @return the total size occupied by commitlo segments expressed in bytes. (used by MBean)
-     */
-    public long getTotalCommitlogSize()
-    {
-        return metrics.totalCommitLogSize.value();
     }
 
     @Override
@@ -329,20 +354,9 @@ public class CommitLog implements CommitLogMBean
         return archiver.precision.toString();
     }
 
-    /**
-     * Fetches a new segment file from the allocator and activates it.
-     *
-     * @return the newly activated segment
-     */
-    private void activateNextSegment()
-    {
-        activeSegment = allocator.fetchSegment();
-        logger.debug("Active segment is now {}", activeSegment);
-    }
-
     public List<String> getActiveSegmentNames()
     {
-        List<String> segmentNames = new ArrayList<String>();
+        List<String> segmentNames = new ArrayList<>();
         for (CommitLogSegment segment : allocator.getActiveSegments())
             segmentNames.add(segment.getName());
         return segmentNames;
@@ -350,7 +364,31 @@ public class CommitLog implements CommitLogMBean
 
     public List<String> getArchivingSegmentNames()
     {
-        return new ArrayList<String>(archiver.archivePending.keySet());
+        return new ArrayList<>(archiver.archivePending.keySet());
+    }
+
+    @Override
+    public long getActiveContentSize()
+    {
+        long size = 0;
+        for (CommitLogSegment segment : allocator.getActiveSegments())
+            size += segment.contentSize();
+        return size;
+    }
+
+    @Override
+    public long getActiveOnDiskSize()
+    {
+        return allocator.onDiskSize();
+    }
+
+    @Override
+    public Map<String, Double> getActiveSegmentCompressionRatios()
+    {
+        Map<String, Double> segmentRatios = new TreeMap<>();
+        for (CommitLogSegment segment : allocator.getActiveSegments())
+            segmentRatios.put(segment.getName(), 1.0 * segment.onDiskSize() / segment.contentSize());
+        return segmentRatios;
     }
 
     /**
@@ -364,68 +402,151 @@ public class CommitLog implements CommitLogMBean
         allocator.awaitTermination();
     }
 
-    // TODO this should be a Runnable since it doesn't actually return anything, but it's difficult to do that
-    // without breaking the fragile CheaterFutureTask in BatchCLES.
-    class LogRecordAdder implements Callable, Runnable
+    /**
+     * FOR TESTING PURPOSES. See CommitLogAllocator.
+     * @return the number of files recovered
+     */
+    public int resetUnsafe(boolean deleteSegments) throws IOException
     {
-        final RowMutation rowMutation;
+        stopUnsafe(deleteSegments);
+        resetConfiguration();
+        return restartUnsafe();
+    }
 
-        LogRecordAdder(RowMutation rm)
+    /**
+     * FOR TESTING PURPOSES. See CommitLogAllocator.
+     */
+    public void stopUnsafe(boolean deleteSegments)
+    {
+        executor.shutdown();
+        try
         {
-            this.rowMutation = rm;
+            executor.awaitTermination();
         }
-
-        public void run()
+        catch (InterruptedException e)
         {
-            long totalSize = RowMutation.serializer.serializedSize(rowMutation, MessagingService.current_version) + CommitLogSegment.ENTRY_OVERHEAD_SIZE;
-            if (totalSize > DatabaseDescriptor.getCommitLogSegmentSize())
-            {
-                logger.warn("Skipping commitlog append of extremely large mutation ({} bytes)", totalSize);
-                return;
-            }
-
-            if (!activeSegment.hasCapacityFor(totalSize))
-            {
-                CommitLogSegment oldSegment = activeSegment;
-                activateNextSegment();
-                // Now we can run the user defined command just before switching to the new commit log.
-                // (Do this here instead of in the recycle call so we can get a head start on the archive.)
-                archiver.maybeArchive(oldSegment.getPath(), oldSegment.getName());
-            }
-            try
-            {
-                activeSegment.write(rowMutation);
-            }
-            catch (IOException e)
-            {
-                throw new FSWriteError(e, activeSegment.getPath());
-            }
+            throw new RuntimeException(e);
         }
+        allocator.stopUnsafe(deleteSegments);
+        CommitLogSegment.resetReplayLimit();
+    }
 
-        public Object call()
+    /**
+     * FOR TESTING PURPOSES.
+     */
+    public void resetConfiguration()
+    {
+        this.configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression());
+    }
+
+    /**
+     * FOR TESTING PURPOSES.  See CommitLogAllocator
+     */
+    public int restartUnsafe() throws IOException
+    {
+        allocator.start();
+        executor.restartUnsafe();
+        try
         {
-            run();
-            return null;
+            return recover();
         }
+        catch (FSWriteError e)
+        {
+            // Workaround for a class of races that keeps showing up on Windows tests.
+            // stop/start/reset path on Windows with segment deletion is very touchy/brittle
+            // and the timing keeps getting screwed up. Rather than chasing our tail further
+            // or rewriting the CLSM, just report that we didn't recover anything back up
+            // the chain. This will silence most intermittent test failures on Windows
+            // and appropriately fail tests that expected segments to be recovered that
+            // were not.
+            return 0;
+        }
+    }
+
+    /**
+     * Used by tests.
+     *
+     * @return the number of active segments (segments with unflushed data in them)
+     */
+    public int activeSegments()
+    {
+        return allocator.getActiveSegments().size();
     }
 
     @VisibleForTesting
     public static boolean handleCommitError(String message, Throwable t)
     {
+        JVMStabilityInspector.inspectCommitLogThrowable(t);
         switch (DatabaseDescriptor.getCommitFailurePolicy())
         {
+            // Needed here for unit tests to not fail on default assertion
+            case die:
             case stop:
                 StorageService.instance.stopTransports();
+                //$FALL-THROUGH$
             case stop_commit:
                 logger.error(String.format("%s. Commit disk failure policy is %s; terminating thread", message, DatabaseDescriptor.getCommitFailurePolicy()), t);
                 return false;
             case ignore:
                 logger.error(message, t);
-                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
                 return true;
             default:
                 throw new AssertionError(DatabaseDescriptor.getCommitFailurePolicy());
         }
     }
 
+    public static final class Configuration
+    {
+        /**
+         * The compressor class.
+         */
+        private final ParameterizedClass compressorClass;
+
+        /**
+         * The compressor used to compress the segments.
+         */
+        private final ICompressor compressor;
+
+        public Configuration(ParameterizedClass compressorClass)
+        {
+            this.compressorClass = compressorClass;
+            this.compressor = compressorClass != null ? CompressionParameters.createCompressor(compressorClass) : null;
+        }
+
+        /**
+         * Checks if the segments must be compressed.
+         * @return <code>true</code> if the segments must be compressed, <code>false</code> otherwise.
+         */
+        public boolean useCompression()
+        {
+            return compressor != null;
+        }
+
+        /**
+         * Returns the compressor used to compress the segments.
+         * @return the compressor used to compress the segments
+         */
+        public ICompressor getCompressor()
+        {
+            return compressor;
+        }
+
+        /**
+         * Returns the compressor class.
+         * @return the compressor class
+         */
+        public ParameterizedClass getCompressorClass()
+        {
+            return compressorClass;
+        }
+
+        /**
+         * Returns the compressor name.
+         * @return the compressor name.
+         */
+        public String getCompressorName()
+        {
+            return useCompression() ? compressor.getClass().getSimpleName() : "none";
+        }
+    }
 }

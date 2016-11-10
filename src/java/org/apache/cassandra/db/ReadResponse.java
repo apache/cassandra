@@ -19,8 +19,11 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /*
@@ -31,22 +34,27 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class ReadResponse
 {
     public static final IVersionedSerializer<ReadResponse> serializer = new ReadResponseSerializer();
+    private static final AtomicReferenceFieldUpdater<ReadResponse, ByteBuffer> digestUpdater = AtomicReferenceFieldUpdater.newUpdater(ReadResponse.class, ByteBuffer.class, "digest");
 
     private final Row row;
-    private final ByteBuffer digest;
+    private volatile ByteBuffer digest;
 
     public ReadResponse(ByteBuffer digest)
     {
+        this(null, digest);
         assert digest != null;
-        this.digest= digest;
-        this.row = null;
     }
 
     public ReadResponse(Row row)
     {
+        this(row, null);
         assert row != null;
+    }
+
+    public ReadResponse(Row row, ByteBuffer digest)
+    {
         this.row = row;
-        this.digest = null;
+        this.digest = digest;
     }
 
     public Row row()
@@ -59,19 +67,31 @@ public class ReadResponse
         return digest;
     }
 
+    public void setDigest(ByteBuffer digest)
+    {
+        ByteBuffer curr = this.digest;
+        if (!digestUpdater.compareAndSet(this, curr, digest))
+        {
+            assert digest.equals(this.digest) :
+                String.format("Digest mismatch : %s vs %s",
+                              Arrays.toString(digest.array()),
+                              Arrays.toString(this.digest.array()));
+        }
+    }
+
     public boolean isDigestQuery()
     {
-        return digest != null;
+        return digest != null && row == null;
     }
 }
 
 class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
 {
-    public void serialize(ReadResponse response, DataOutput out, int version) throws IOException
+    public void serialize(ReadResponse response, DataOutputPlus out, int version) throws IOException
     {
         out.writeInt(response.isDigestQuery() ? response.digest().remaining() : 0);
         ByteBuffer buffer = response.isDigestQuery() ? response.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        ByteBufferUtil.write(buffer, out);
+        out.write(buffer);
         out.writeBoolean(response.isDigestQuery());
         if (!response.isDigestQuery())
             Row.serializer.serialize(response.row(), out, version);

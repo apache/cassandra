@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.transport;
 
-import org.jboss.netty.channel.Channel;
+import io.netty.channel.Channel;
+import io.netty.util.AttributeKey;
 
 public class Connection
 {
+    static final AttributeKey<Connection> attributeKey = AttributeKey.valueOf("CONN");
+
     private final Channel channel;
     private final int version;
     private final Tracker tracker;
@@ -63,12 +66,11 @@ public class Connection
 
     public interface Factory
     {
-        public Connection newConnection(Channel channel, int version);
+        Connection newConnection(Channel channel, int version);
     }
 
     public interface Tracker
     {
-        public void addConnection(Channel ch, Connection connection);
-        public void closeAll();
+        void addConnection(Channel ch, Connection connection);
     }
 }

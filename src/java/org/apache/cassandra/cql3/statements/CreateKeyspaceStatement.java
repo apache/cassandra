@@ -17,20 +17,14 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.exceptions.AlreadyExistsException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ThriftValidation;
-import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.Event;
 
 /** A <code>CREATE KEYSPACE</code> statement parsed from a CQL query. */
 public class CreateKeyspaceStatement extends SchemaAlteringStatement
@@ -97,11 +91,11 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
                                                                 attrs.getReplicationOptions());
     }
 
-    public boolean announceMigration() throws RequestValidationException
+    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         try
         {
-            MigrationManager.announceNewKeyspace(attrs.asKSMetadata(name));
+            MigrationManager.announceNewKeyspace(attrs.asKSMetadata(name), isLocalOnly);
             return true;
         }
         catch (AlreadyExistsException e)
@@ -112,8 +106,30 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         }
     }
 
-    public ResultMessage.SchemaChange.Change changeType()
+    public Event.SchemaChange changeEvent()
     {
-        return ResultMessage.SchemaChange.Change.CREATED;
+        return new Event.SchemaChange(Event.SchemaChange.Change.CREATED, keyspace());
+    }
+
+    protected void grantPermissionsToCreator(QueryState state)
+    {
+        try
+        {
+            RoleResource role = RoleResource.role(state.getClientState().getUser().getName());
+            DataResource keyspace = DataResource.keyspace(keyspace());
+            DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
+                                                     keyspace.applicablePermissions(),
+                                                     keyspace,
+                                                     role);
+            FunctionResource functions = FunctionResource.keyspace(keyspace());
+            DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
+                                                     functions.applicablePermissions(),
+                                                     functions,
+                                                     role);
+        }
+        catch (RequestExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 }

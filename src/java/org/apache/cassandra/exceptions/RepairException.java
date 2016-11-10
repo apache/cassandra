@@ -41,6 +41,6 @@ public class RepairException extends Exception
     @Override
     public String getMessage()
     {
-        return desc.toString() + " " + super.getMessage();
+        return desc + " " + super.getMessage();
     }
 }

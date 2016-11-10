@@ -26,6 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ClockAndCount;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.serializers.MarshalException;
@@ -72,7 +73,7 @@ import org.apache.cassandra.utils.*;
  * rules work this way, see CASSANDRA-1938 - specifically the 1938_discussion
  * attachment (doesn't cover global shards, see CASSANDRA-4775 for that).
  */
-public class CounterContext implements IContext
+public class CounterContext
 {
     private static final int HEADER_SIZE_LENGTH = TypeSizes.NATIVE.sizeof(Short.MAX_VALUE);
     private static final int HEADER_ELT_LENGTH = TypeSizes.NATIVE.sizeof(Short.MAX_VALUE);
@@ -81,6 +82,11 @@ public class CounterContext implements IContext
     private static final int STEP_LENGTH = CounterId.LENGTH + CLOCK_LENGTH + COUNT_LENGTH;
 
     private static final Logger logger = LoggerFactory.getLogger(CounterContext.class);
+
+    public static enum Relationship
+    {
+        EQUAL, GREATER_THAN, LESS_THAN, DISJOINT
+    }
 
     // lazy-load singleton
     private static class LazyHolder
@@ -94,21 +100,33 @@ public class CounterContext implements IContext
     }
 
     /**
-     * Creates a counter context with a single local shard.
+     * Creates a counter context with a single global, 2.1+ shard (a result of increment).
      */
-    public ByteBuffer createLocal(long count, Allocator allocator)
+    public ByteBuffer createGlobal(CounterId id, long clock, long count)
     {
-        ContextState state = ContextState.allocate(0, 1, 0, allocator);
+        ContextState state = ContextState.allocate(1, 0, 0);
+        state.writeGlobal(id, clock, count);
+        return state.context;
+    }
+
+    /**
+     * Creates a counter context with a single local shard.
+     * For use by tests of compatibility with pre-2.1 counters only.
+     */
+    public ByteBuffer createLocal(long count)
+    {
+        ContextState state = ContextState.allocate(0, 1, 0);
         state.writeLocal(CounterId.getLocalId(), 1L, count);
         return state.context;
     }
 
     /**
      * Creates a counter context with a single remote shard.
+     * For use by tests of compatibility with pre-2.1 counters only.
      */
-    public ByteBuffer createRemote(CounterId id, long clock, long count, Allocator allocator)
+    public ByteBuffer createRemote(CounterId id, long clock, long count)
     {
-        ContextState state = ContextState.allocate(0, 0, 1, allocator);
+        ContextState state = ContextState.allocate(0, 0, 1);
         state.writeRemote(id, clock, count);
         return state.context;
     }
@@ -135,11 +153,11 @@ public class CounterContext implements IContext
      *
      * @param left counter context.
      * @param right counter context.
-     * @return the ContextRelationship between the contexts.
+     * @return the Relationship between the contexts.
      */
-    public ContextRelationship diff(ByteBuffer left, ByteBuffer right)
+    public Relationship diff(ByteBuffer left, ByteBuffer right)
     {
-        ContextRelationship relationship = ContextRelationship.EQUAL;
+        Relationship relationship = Relationship.EQUAL;
         ContextState leftState = ContextState.wrap(left);
         ContextState rightState = ContextState.wrap(right);
 
@@ -165,45 +183,25 @@ public class CounterContext implements IContext
                     {
                         // Inconsistent shard (see the corresponding code in merge()). We return DISJOINT in this
                         // case so that it will be treated as a difference, allowing read-repair to work.
-                        return ContextRelationship.DISJOINT;
-                    }
-                    else
-                    {
-                        continue;
+                        return Relationship.DISJOINT;
                     }
                 }
                 else if ((leftClock >= 0 && rightClock > 0 && leftClock > rightClock)
                       || (leftClock < 0 && (rightClock > 0 || leftClock < rightClock)))
                 {
-                    if (relationship == ContextRelationship.EQUAL)
-                    {
-                        relationship = ContextRelationship.GREATER_THAN;
-                    }
-                    else if (relationship == ContextRelationship.GREATER_THAN)
-                    {
-                        continue;
-                    }
-                    else
-                    {
-                        // relationship == ContextRelationship.LESS_THAN
-                        return ContextRelationship.DISJOINT;
-                    }
+                    if (relationship == Relationship.EQUAL)
+                        relationship = Relationship.GREATER_THAN;
+                    else if (relationship == Relationship.LESS_THAN)
+                        return Relationship.DISJOINT;
+                    // relationship == Relationship.GREATER_THAN
                 }
                 else
                 {
-                    if (relationship == ContextRelationship.EQUAL)
-                    {
-                        relationship = ContextRelationship.LESS_THAN;
-                    }
-                    else if (relationship == ContextRelationship.GREATER_THAN)
-                    {
-                        return ContextRelationship.DISJOINT;
-                    }
-                    else
-                    {
-                        // relationship == ContextRelationship.LESS_THAN
-                        continue;
-                    }
+                    if (relationship == Relationship.EQUAL)
+                        relationship = Relationship.LESS_THAN;
+                    else if (relationship == Relationship.GREATER_THAN)
+                        return Relationship.DISJOINT;
+                    // relationship == Relationship.LESS_THAN
                 }
             }
             else if (compareId > 0)
@@ -211,63 +209,40 @@ public class CounterContext implements IContext
                 // only advance the right context
                 rightState.moveToNext();
 
-                if (relationship == ContextRelationship.EQUAL)
-                {
-                    relationship = ContextRelationship.LESS_THAN;
-                }
-                else if (relationship == ContextRelationship.GREATER_THAN)
-                {
-                    return ContextRelationship.DISJOINT;
-                }
-                else
-                {
-                    // relationship == ContextRelationship.LESS_THAN
-                    continue;
-                }
+                if (relationship == Relationship.EQUAL)
+                    relationship = Relationship.LESS_THAN;
+                else if (relationship == Relationship.GREATER_THAN)
+                    return Relationship.DISJOINT;
+                // relationship == Relationship.LESS_THAN
             }
             else // compareId < 0
             {
                 // only advance the left context
                 leftState.moveToNext();
 
-                if (relationship == ContextRelationship.EQUAL)
-                {
-                    relationship = ContextRelationship.GREATER_THAN;
-                }
-                else if (relationship == ContextRelationship.GREATER_THAN)
-                {
-                    continue;
-                }
-                else
-                // relationship == ContextRelationship.LESS_THAN
-                {
-                    return ContextRelationship.DISJOINT;
-                }
+                if (relationship == Relationship.EQUAL)
+                    relationship = Relationship.GREATER_THAN;
+                else if (relationship == Relationship.LESS_THAN)
+                    return Relationship.DISJOINT;
+                // relationship == Relationship.GREATER_THAN
             }
         }
 
         // check final lengths
         if (leftState.hasRemaining())
         {
-            if (relationship == ContextRelationship.EQUAL)
-            {
-                return ContextRelationship.GREATER_THAN;
-            }
-            else if (relationship == ContextRelationship.LESS_THAN)
-            {
-                return ContextRelationship.DISJOINT;
-            }
+            if (relationship == Relationship.EQUAL)
+                return Relationship.GREATER_THAN;
+            else if (relationship == Relationship.LESS_THAN)
+                return Relationship.DISJOINT;
         }
-        else if (rightState.hasRemaining())
+
+        if (rightState.hasRemaining())
         {
-            if (relationship == ContextRelationship.EQUAL)
-            {
-                return ContextRelationship.LESS_THAN;
-            }
-            else if (relationship == ContextRelationship.GREATER_THAN)
-            {
-                return ContextRelationship.DISJOINT;
-            }
+            if (relationship == Relationship.EQUAL)
+                return Relationship.LESS_THAN;
+            else if (relationship == Relationship.GREATER_THAN)
+                return Relationship.DISJOINT;
         }
 
         return relationship;
@@ -278,10 +253,12 @@ public class CounterContext implements IContext
      *
      * @param left counter context.
      * @param right counter context.
-     * @param allocator An allocator for the merged value.
      */
-    public ByteBuffer merge(ByteBuffer left, ByteBuffer right, Allocator allocator)
+    public ByteBuffer merge(ByteBuffer left, ByteBuffer right)
     {
+        boolean leftIsSuperSet = true;
+        boolean rightIsSuperSet = true;
+
         int globalCount = 0;
         int localCount = 0;
         int remoteCount = 0;
@@ -294,6 +271,14 @@ public class CounterContext implements IContext
             int cmp = leftState.compareIdTo(rightState);
             if (cmp == 0)
             {
+                Relationship rel = compare(leftState, rightState);
+                if (rel == Relationship.GREATER_THAN)
+                    rightIsSuperSet = false;
+                else if (rel == Relationship.LESS_THAN)
+                    leftIsSuperSet = false;
+                else if (rel == Relationship.DISJOINT)
+                    leftIsSuperSet = rightIsSuperSet = false;
+
                 if (leftState.isGlobal() || rightState.isGlobal())
                     globalCount += 1;
                 else if (leftState.isLocal() || rightState.isLocal())
@@ -306,6 +291,8 @@ public class CounterContext implements IContext
             }
             else if (cmp > 0)
             {
+                leftIsSuperSet = false;
+
                 if (rightState.isGlobal())
                     globalCount += 1;
                 else if (rightState.isLocal())
@@ -317,6 +304,8 @@ public class CounterContext implements IContext
             }
             else // cmp < 0
             {
+                rightIsSuperSet = false;
+
                 if (leftState.isGlobal())
                     globalCount += 1;
                 else if (leftState.isLocal())
@@ -327,6 +316,17 @@ public class CounterContext implements IContext
                 leftState.moveToNext();
             }
         }
+
+        if (leftState.hasRemaining())
+            rightIsSuperSet = false;
+        else if (rightState.hasRemaining())
+            leftIsSuperSet = false;
+
+        // if one of the contexts is a superset, return it early.
+        if (leftIsSuperSet)
+            return left;
+        else if (rightIsSuperSet)
+            return right;
 
         while (leftState.hasRemaining())
         {
@@ -355,7 +355,7 @@ public class CounterContext implements IContext
         leftState.reset();
         rightState.reset();
 
-        return merge(ContextState.allocate(globalCount, localCount, remoteCount, allocator), leftState, rightState);
+        return merge(ContextState.allocate(globalCount, localCount, remoteCount), leftState, rightState);
     }
 
     private ByteBuffer merge(ContextState mergedState, ContextState leftState, ContextState rightState)
@@ -365,7 +365,16 @@ public class CounterContext implements IContext
             int cmp = leftState.compareIdTo(rightState);
             if (cmp == 0)
             {
-                mergeTie(mergedState, leftState, rightState);
+                Relationship rel = compare(leftState, rightState);
+                if (rel == Relationship.DISJOINT) // two local shards
+                    mergedState.writeLocal(leftState.getCounterId(),
+                                           leftState.getClock() + rightState.getClock(),
+                                           leftState.getCount() + rightState.getCount());
+                else if (rel == Relationship.GREATER_THAN)
+                    leftState.copyTo(mergedState);
+                else // EQUAL or LESS_THAN
+                    rightState.copyTo(mergedState);
+
                 rightState.moveToNext();
                 leftState.moveToNext();
             }
@@ -396,20 +405,26 @@ public class CounterContext implements IContext
         return mergedState.context;
     }
 
-    private void mergeTie(ContextState mergedState, ContextState leftState, ContextState rightState)
+    /*
+     * Compares two shards, returns:
+     * - GREATER_THAN if leftState overrides rightState
+     * - LESS_THAN if rightState overrides leftState
+     * - EQUAL for two equal, non-local, shards
+     * - DISJOINT for any two local shards
+     */
+    private Relationship compare(ContextState leftState, ContextState rightState)
     {
+        long leftClock = leftState.getClock();
+        long leftCount = leftState.getCount();
+        long rightClock = rightState.getClock();
+        long rightCount = rightState.getCount();
+
         if (leftState.isGlobal() || rightState.isGlobal())
         {
             if (leftState.isGlobal() && rightState.isGlobal())
             {
-                long leftClock = leftState.getClock();
-                long rightClock = rightState.getClock();
-
                 if (leftClock == rightClock)
                 {
-                    long leftCount = leftState.getCount();
-                    long rightCount = rightState.getCount();
-
                     // Can happen if an sstable gets lost and disk failure policy is set to 'best effort'
                     if (leftCount != rightCount && CompactionManager.isCompactionManager.get())
                     {
@@ -420,69 +435,60 @@ public class CounterContext implements IContext
                     }
 
                     if (leftCount > rightCount)
-                        leftState.copyTo(mergedState);
+                        return Relationship.GREATER_THAN;
+                    else if (leftCount == rightCount)
+                        return Relationship.EQUAL;
                     else
-                        rightState.copyTo(mergedState);
+                        return Relationship.LESS_THAN;
                 }
                 else
                 {
-                    (leftClock > rightClock ? leftState : rightState).copyTo(mergedState);
+                    return leftClock > rightClock ? Relationship.GREATER_THAN : Relationship.LESS_THAN;
                 }
             }
             else // only one is global - keep that one
             {
-                (leftState.isGlobal() ? leftState : rightState).copyTo(mergedState);
+                return leftState.isGlobal() ? Relationship.GREATER_THAN : Relationship.LESS_THAN;
             }
         }
-        else if (leftState.isLocal() || rightState.isLocal())
+
+        if (leftState.isLocal() || rightState.isLocal())
         {
             // Local id and at least one is a local shard.
             if (leftState.isLocal() && rightState.isLocal())
-            {
-                // both local - sum
-                long clock = leftState.getClock() + rightState.getClock();
-                long count = leftState.getCount() + rightState.getCount();
-                mergedState.writeLocal(leftState.getCounterId(), clock, count);
-            }
+                return Relationship.DISJOINT;
             else // only one is local - keep that one
-            {
-                (leftState.isLocal() ? leftState : rightState).copyTo(mergedState);
-            }
+                return leftState.isLocal() ? Relationship.GREATER_THAN : Relationship.LESS_THAN;
         }
-        else // both are remote shards
+
+        // both are remote shards
+        if (leftClock == rightClock)
         {
-            long leftClock = leftState.getClock();
-            long rightClock = rightState.getClock();
-
-            if (leftClock == rightClock)
+            // We should never see non-local shards w/ same id+clock but different counts. However, if we do
+            // we should "heal" the problem by being deterministic in our selection of shard - and
+            // log the occurrence so that the operator will know something is wrong.
+            if (leftCount != rightCount && CompactionManager.isCompactionManager.get())
             {
-                // We should never see non-local shards w/ same id+clock but different counts. However, if we do
-                // we should "heal" the problem by being deterministic in our selection of shard - and
-                // log the occurrence so that the operator will know something is wrong.
-                long leftCount = leftState.getCount();
-                long rightCount = rightState.getCount();
-
-                if (leftCount != rightCount && CompactionManager.isCompactionManager.get())
-                {
-                    logger.warn("invalid remote counter shard detected; ({}, {}, {}) and ({}, {}, {}) differ only in "
-                                + "count; will pick highest to self-heal on compaction",
-                                leftState.getCounterId(), leftClock, leftCount,
-                                rightState.getCounterId(), rightClock, rightCount);
-                }
-
-                if (leftCount > rightCount)
-                    leftState.copyTo(mergedState);
-                else
-                    rightState.copyTo(mergedState);
+                logger.warn("invalid remote counter shard detected; ({}, {}, {}) and ({}, {}, {}) differ only in "
+                            + "count; will pick highest to self-heal on compaction",
+                            leftState.getCounterId(), leftClock, leftCount,
+                            rightState.getCounterId(), rightClock, rightCount);
             }
+
+            if (leftCount > rightCount)
+                return Relationship.GREATER_THAN;
+            else if (leftCount == rightCount)
+                return Relationship.EQUAL;
             else
-            {
-                if ((leftClock >= 0 && rightClock > 0 && leftClock >= rightClock)
-                        || (leftClock < 0 && (rightClock > 0 || leftClock < rightClock)))
-                    leftState.copyTo(mergedState);
-                else
-                    rightState.copyTo(mergedState);
-            }
+                return Relationship.LESS_THAN;
+        }
+        else
+        {
+            if ((leftClock >= 0 && rightClock > 0 && leftClock >= rightClock)
+                    || (leftClock < 0 && (rightClock > 0 || leftClock < rightClock)))
+                return Relationship.GREATER_THAN;
+            else
+                return Relationship.LESS_THAN;
         }
     }
 
@@ -503,7 +509,7 @@ public class CounterContext implements IContext
             if (state.getElementIndex() > 0)
                 sb.append(",");
             sb.append("{");
-            sb.append(state.getCounterId().toString()).append(", ");
+            sb.append(state.getCounterId()).append(", ");
             sb.append(state.getClock()).append(", ");
             sb.append(state.getCount());
             sb.append("}");
@@ -527,14 +533,9 @@ public class CounterContext implements IContext
     public long total(ByteBuffer context)
     {
         long total = 0L;
-
         // we could use a ContextState but it is easy enough that we avoid the object creation
         for (int offset = context.position() + headerLength(context); offset < context.limit(); offset += STEP_LENGTH)
-        {
-            long count = context.getLong(offset + CounterId.LENGTH + CLOCK_LENGTH);
-            total += count;
-        }
-
+            total += context.getLong(offset + CounterId.LENGTH + CLOCK_LENGTH);
         return total;
     }
 
@@ -542,6 +543,24 @@ public class CounterContext implements IContext
     {
         // #elt being negative means we have to clean local shards.
         return context.getShort(context.position()) < 0;
+    }
+
+    /**
+     * Detects whether or not the context has any legacy (local or remote) shards in it.
+     */
+    public boolean hasLegacyShards(ByteBuffer context)
+    {
+        int totalCount = (context.remaining() - headerLength(context)) / STEP_LENGTH;
+        int localAndGlobalCount = Math.abs(context.getShort(context.position()));
+
+        if (localAndGlobalCount < totalCount)
+            return true; // remote shard(s) present
+
+        for (int i = 0; i < localAndGlobalCount; i++)
+            if (context.getShort(context.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH) >= 0)
+                return true; // found a local shard
+
+        return false;
     }
 
     /**
@@ -642,24 +661,54 @@ public class CounterContext implements IContext
     }
 
     /**
-     * Checks whether the provided context has a count for the provided
-     * CounterId.
-     *
-     * TODO: since the context is sorted, we could implement a binary search.
-     * This is however not called in any critical path and contexts will be
-     * fairly small so it doesn't matter much.
+     * Returns the clock and the count associated with the local counter id, or (0, 0) if no such shard is present.
      */
-    public boolean hasCounterId(ByteBuffer context, CounterId id)
+    public ClockAndCount getLocalClockAndCount(ByteBuffer context)
     {
-        // we could use a ContextState but it is easy enough that we avoid the object creation
-        for (int offset = context.position() + headerLength(context); offset < context.limit(); offset += STEP_LENGTH)
+        return getClockAndCountOf(context, CounterId.getLocalId());
+    }
+
+    /**
+     * Returns the clock and the count associated with the given counter id, or (0, 0) if no such shard is present.
+     */
+    @VisibleForTesting
+    public ClockAndCount getClockAndCountOf(ByteBuffer context, CounterId id)
+    {
+        int position = findPositionOf(context, id);
+        if (position == -1)
+            return ClockAndCount.BLANK;
+
+        long clock = context.getLong(position + CounterId.LENGTH);
+        long count = context.getLong(position + CounterId.LENGTH + CLOCK_LENGTH);
+        return ClockAndCount.create(clock, count);
+    }
+
+    /**
+     * Finds the position of a shard with the given id within the context (via binary search).
+     */
+    @VisibleForTesting
+    public int findPositionOf(ByteBuffer context, CounterId id)
+    {
+        int headerLength = headerLength(context);
+        int offset = context.position() + headerLength;
+
+        int left = 0;
+        int right = (context.remaining() - headerLength) / STEP_LENGTH - 1;
+
+        while (right >= left)
         {
-            if (id.equals(CounterId.wrap(context, offset)))
-            {
-                return true;
-            }
+            int middle = (left + right) / 2;
+            int cmp = compareId(context, offset + middle * STEP_LENGTH, id.bytes(), id.bytes().position());
+
+            if (cmp == -1)
+                left = middle + 1;
+            else if (cmp == 0)
+                return offset + middle * STEP_LENGTH;
+            else
+                right = middle - 1;
         }
-        return false;
+
+        return -1; // position not found
     }
 
     /**
@@ -699,12 +748,12 @@ public class CounterContext implements IContext
          * Allocate a new context big enough for globalCount + localCount + remoteCount elements
          * and return the initial corresponding ContextState.
          */
-        public static ContextState allocate(int globalCount, int localCount, int remoteCount, Allocator allocator)
+        public static ContextState allocate(int globalCount, int localCount, int remoteCount)
         {
             int headerLength = HEADER_SIZE_LENGTH + (globalCount + localCount) * HEADER_ELT_LENGTH;
             int bodyLength = (globalCount + localCount + remoteCount) * STEP_LENGTH;
 
-            ByteBuffer buffer = allocator.allocate(headerLength + bodyLength);
+            ByteBuffer buffer = ByteBuffer.allocate(headerLength + bodyLength);
             buffer.putShort(buffer.position(), (short) (globalCount + localCount));
 
             return ContextState.wrap(buffer);
@@ -754,20 +803,7 @@ public class CounterContext implements IContext
 
         public void copyTo(ContextState other)
         {
-            ByteBufferUtil.arrayCopy(context,
-                                     context.position() + bodyOffset,
-                                     other.context,
-                                     other.context.position() + other.bodyOffset,
-                                     STEP_LENGTH);
-
-            if (currentIsGlobal)
-                other.context.putShort(other.context.position() + other.headerOffset, (short) (other.getElementIndex() + Short.MIN_VALUE));
-            else if (currentIsLocal)
-                other.context.putShort(other.context.position() + other.headerOffset, (short) other.getElementIndex());
-
-            other.currentIsGlobal = currentIsGlobal;
-            other.currentIsLocal = currentIsLocal;
-            other.moveToNext();
+            other.writeElement(getCounterId(), getClock(), getCount(), currentIsGlobal, currentIsLocal);
         }
 
         public int compareIdTo(ContextState other)
@@ -802,17 +838,18 @@ public class CounterContext implements IContext
             return context.getLong(context.position() + bodyOffset + CounterId.LENGTH + CLOCK_LENGTH);
         }
 
-        // In 2.0 only used by the unit tests.
         public void writeGlobal(CounterId id, long clock, long count)
         {
             writeElement(id, clock, count, true, false);
         }
 
+        // In 2.1 only used by the unit tests.
         public void writeLocal(CounterId id, long clock, long count)
         {
             writeElement(id, clock, count, false, true);
         }
 
+        // In 2.1 only used by the unit tests.
         public void writeRemote(CounterId id, long clock, long count)
         {
             writeElement(id, clock, count, false, false);

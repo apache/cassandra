@@ -30,19 +30,6 @@ FD_LIMIT=100000
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
 
-# Read Cassandra environment file.
-. /etc/cassandra/cassandra-env.sh
-
-if [ -z "$JVM_OPTS" ]; then
-    echo "Initialization failed; \$JVM_OPTS not set!" >&2
-    exit 3
-fi
-
-# Add JNA to EXTRA_CLASSPATH
-export EXTRA_CLASSPATH="/usr/share/java/jna.jar:$EXTRA_CLASSPATH"
-
-export JVM_OPTS
-
 # Export JAVA_HOME, if set.
 [ -n "$JAVA_HOME" ] && export JAVA_HOME
 
@@ -60,7 +47,7 @@ export JVM_OPTS
 # process is not running but the pidfile exists (to match the exit codes for
 # the "status" command; see LSB core spec 3.1, section 20.2)
 #
-CMD_PATT="cassandra.+CassandraDaemon"
+CMD_PATT="Dcassandra-pidfile=.*cassandra\.pid"
 is_running()
 {
     if [ -f $PIDFILE ]; then

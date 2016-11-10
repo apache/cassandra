@@ -24,7 +24,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.Event;
 
 public class DropTableStatement extends SchemaAlteringStatement
 {
@@ -54,11 +54,11 @@ public class DropTableStatement extends SchemaAlteringStatement
         // validated in announceMigration()
     }
 
-    public boolean announceMigration() throws ConfigurationException
+    public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException
     {
         try
         {
-            MigrationManager.announceColumnFamilyDrop(keyspace(), columnFamily());
+            MigrationManager.announceColumnFamilyDrop(keyspace(), columnFamily(), isLocalOnly);
             return true;
         }
         catch (ConfigurationException e)
@@ -69,8 +69,8 @@ public class DropTableStatement extends SchemaAlteringStatement
         }
     }
 
-    public ResultMessage.SchemaChange.Change changeType()
+    public Event.SchemaChange changeEvent()
     {
-        return ResultMessage.SchemaChange.Change.DROPPED;
+        return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 }

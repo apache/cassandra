@@ -22,14 +22,19 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
@@ -37,9 +42,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  */
 public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIndex
 {
-    private volatile CompositeType indexComparator;
+    private volatile CellNameType indexComparator;
 
-    protected CompositeType getIndexComparator()
+    protected CellNameType getIndexComparator()
     {
         // Yes, this is racy, but doing this more than once is not a big deal, we just want to avoid doing it every time
         // More seriously, we should fix that whole SecondaryIndex API so this can be a final and avoid all that non-sense.
@@ -53,9 +58,27 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
 
     public static CompositesIndex create(ColumnDefinition cfDef)
     {
-        switch (cfDef.type)
+        if (cfDef.type.isCollection() && cfDef.type.isMultiCell())
         {
-            case CLUSTERING_KEY:
+            switch (((CollectionType)cfDef.type).kind)
+            {
+                case LIST:
+                    return new CompositesIndexOnCollectionValue();
+                case SET:
+                    return new CompositesIndexOnCollectionKey();
+                case MAP:
+                    if (cfDef.hasIndexOption(SecondaryIndex.INDEX_KEYS_OPTION_NAME))
+                        return new CompositesIndexOnCollectionKey();
+                    else if (cfDef.hasIndexOption(SecondaryIndex.INDEX_ENTRIES_OPTION_NAME))
+                        return new CompositesIndexOnCollectionKeyAndValue();
+                    else
+                        return new CompositesIndexOnCollectionValue();
+            }
+        }
+
+        switch (cfDef.kind)
+        {
+            case CLUSTERING_COLUMN:
                 return new CompositesIndexOnClusteringKey();
             case REGULAR:
                 return new CompositesIndexOnRegular();
@@ -68,11 +91,29 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
     }
 
     // Check SecondaryIndex.getIndexComparator if you want to know why this is static
-    public static CompositeType getIndexComparator(CFMetaData baseMetadata, ColumnDefinition cfDef)
+    public static CellNameType getIndexComparator(CFMetaData baseMetadata, ColumnDefinition cfDef)
     {
-        switch (cfDef.type)
+        if (cfDef.type.isCollection() && cfDef.type.isMultiCell())
         {
-            case CLUSTERING_KEY:
+            switch (((CollectionType)cfDef.type).kind)
+            {
+                case LIST:
+                    return CompositesIndexOnCollectionValue.buildIndexComparator(baseMetadata, cfDef);
+                case SET:
+                    return CompositesIndexOnCollectionKey.buildIndexComparator(baseMetadata, cfDef);
+                case MAP:
+                    if (cfDef.hasIndexOption(SecondaryIndex.INDEX_KEYS_OPTION_NAME))
+                        return CompositesIndexOnCollectionKey.buildIndexComparator(baseMetadata, cfDef);
+                    else if (cfDef.hasIndexOption(SecondaryIndex.INDEX_ENTRIES_OPTION_NAME))
+                        return CompositesIndexOnCollectionKeyAndValue.buildIndexComparator(baseMetadata, cfDef);
+                    else
+                        return CompositesIndexOnCollectionValue.buildIndexComparator(baseMetadata, cfDef);
+            }
+        }
+
+        switch (cfDef.kind)
+        {
+            case CLUSTERING_COLUMN:
                 return CompositesIndexOnClusteringKey.buildIndexComparator(baseMetadata, cfDef);
             case REGULAR:
                 return CompositesIndexOnRegular.buildIndexComparator(baseMetadata, cfDef);
@@ -84,37 +125,30 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
         throw new AssertionError();
     }
 
-    protected ByteBuffer makeIndexColumnName(ByteBuffer rowKey, Column column)
+    protected CellName makeIndexColumnName(ByteBuffer rowKey, Cell cell)
     {
-        return makeIndexColumnNameBuilder(rowKey, column.name()).build();
+        return getIndexComparator().create(makeIndexColumnPrefix(rowKey, cell.name()), null);
     }
 
-    protected abstract ColumnNameBuilder makeIndexColumnNameBuilder(ByteBuffer rowKey, ByteBuffer columnName);
+    protected abstract Composite makeIndexColumnPrefix(ByteBuffer rowKey, Composite columnName);
 
-    public abstract IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry);
+    public abstract IndexedEntry decodeEntry(DecoratedKey indexedValue, Cell indexEntry);
 
     public abstract boolean isStale(IndexedEntry entry, ColumnFamily data, long now);
 
-    public void delete(IndexedEntry entry)
+    public void delete(IndexedEntry entry, OpOrder.Group opGroup)
     {
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
         cfi.addTombstone(entry.indexEntry, localDeletionTime, entry.timestamp);
-        indexCfs.apply(entry.indexValue, cfi, SecondaryIndexManager.nullUpdater);
-        if (logger.isDebugEnabled())
-            logger.debug("removed index entry for cleaned-up value {}:{}", entry.indexValue, cfi);
-
+        indexCfs.apply(entry.indexValue, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
+        if (logger.isTraceEnabled())
+            logger.trace("removed index entry for cleaned-up value {}:{}", entry.indexValue, cfi);
     }
 
-    protected AbstractType getExpressionComparator()
+    protected AbstractType<?> getExpressionComparator()
     {
         return baseCfs.metadata.getColumnDefinitionComparator(columnDef);
-    }
-
-    protected CompositeType getBaseComparator()
-    {
-        assert baseCfs.getComparator() instanceof CompositeType;
-        return (CompositeType)baseCfs.getComparator();
     }
 
     public SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
@@ -127,9 +161,15 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
         ColumnDefinition columnDef = columnDefs.iterator().next();
         Map<String, String> options = new HashMap<String, String>(columnDef.getIndexOptions());
 
-        // We take no options though we used to have one called "prefix_size",
-        // so skip it silently for backward compatibility sake.
+        // We used to have an option called "prefix_size" so skip it silently for backward compatibility sake.
         options.remove("prefix_size");
+
+        if (columnDef.type.isCollection())
+        {
+            options.remove(SecondaryIndex.INDEX_VALUES_OPTION_NAME);
+            options.remove(SecondaryIndex.INDEX_KEYS_OPTION_NAME);
+            options.remove(SecondaryIndex.INDEX_ENTRIES_OPTION_NAME);
+        }
 
         if (!options.isEmpty())
             throw new ConfigurationException("Unknown options provided for COMPOSITES index: " + options.keySet());
@@ -138,29 +178,31 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
     public static class IndexedEntry
     {
         public final DecoratedKey indexValue;
-        public final ByteBuffer indexEntry;
+        public final CellName indexEntry;
         public final long timestamp;
 
         public final ByteBuffer indexedKey;
-        public final ColumnNameBuilder indexedEntryNameBuilder;
+        public final Composite indexedEntryPrefix;
+        public final ByteBuffer indexedEntryCollectionKey; // may be null
 
-        public IndexedEntry(DecoratedKey indexValue, ByteBuffer indexEntry, long timestamp, ByteBuffer indexedKey, ColumnNameBuilder indexedEntryNameBuilder)
+        public IndexedEntry(DecoratedKey indexValue, CellName indexEntry, long timestamp, ByteBuffer indexedKey, Composite indexedEntryPrefix)
+        {
+            this(indexValue, indexEntry, timestamp, indexedKey, indexedEntryPrefix, null);
+        }
+
+        public IndexedEntry(DecoratedKey indexValue,
+                            CellName indexEntry,
+                            long timestamp,
+                            ByteBuffer indexedKey,
+                            Composite indexedEntryPrefix,
+                            ByteBuffer indexedEntryCollectionKey)
         {
             this.indexValue = indexValue;
             this.indexEntry = indexEntry;
             this.timestamp = timestamp;
             this.indexedKey = indexedKey;
-            this.indexedEntryNameBuilder = indexedEntryNameBuilder;
-        }
-
-        public ByteBuffer indexedEntryStart()
-        {
-            return indexedEntryNameBuilder.build();
-        }
-
-        public ByteBuffer indexedEntryEnd()
-        {
-            return indexedEntryNameBuilder.buildAsEndOfRange();
+            this.indexedEntryPrefix = indexedEntryPrefix;
+            this.indexedEntryCollectionKey = indexedEntryCollectionKey;
         }
     }
 }

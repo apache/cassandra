@@ -19,18 +19,20 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.util.Collections;
+import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.DataTracker;
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.service.StorageService;
+import com.codahale.metrics.Counter;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Blocker;
 
 public class SSTableDeletingTask implements Runnable
 {
@@ -40,52 +42,52 @@ public class SSTableDeletingTask implements Runnable
     // and delete will fail (on Windows) until it is (we only force the unmapping on SUN VMs).
     // Additionally, we need to make sure to delete the data file first, so on restart the others
     // will be recognized as GCable.
-    private static final Set<SSTableDeletingTask> failedTasks = new CopyOnWriteArraySet<SSTableDeletingTask>();
+    private static final Queue<Runnable> failedTasks = new ConcurrentLinkedQueue<>();
+    private static final Blocker blocker = new Blocker();
 
-    private final SSTableReader referent;
     private final Descriptor desc;
     private final Set<Component> components;
-    private DataTracker tracker;
+    private final long bytesOnDisk;
+    private final Counter totalDiskSpaceUsed;
 
-    public SSTableDeletingTask(SSTableReader referent)
+    /**
+     * realDescriptor is the actual descriptor for the sstable, the descriptor inside
+     * referent can be 'faked' as FINAL for early opened files. We need the real one
+     * to be able to remove the files.
+     */
+    public SSTableDeletingTask(Descriptor realDescriptor, Set<Component> components, Counter totalDiskSpaceUsed, long bytesOnDisk)
     {
-        this.referent = referent;
-        this.desc = referent.descriptor;
-        this.components = referent.components;
-    }
-
-    public void setTracker(DataTracker tracker)
-    {
-        this.tracker = tracker;
-    }
-
-    public void schedule()
-    {
-        StorageService.tasks.submit(this);
+        this.desc = realDescriptor;
+        this.bytesOnDisk = bytesOnDisk;
+        this.totalDiskSpaceUsed = totalDiskSpaceUsed;
+        switch (desc.type)
+        {
+            case FINAL:
+                this.components = components;
+                break;
+            case TEMPLINK:
+                this.components = Sets.newHashSet(Component.DATA, Component.PRIMARY_INDEX);
+                break;
+            default:
+                throw new IllegalStateException();
+        }
     }
 
     public void run()
     {
-        long size = referent.bytesOnDisk();
-
-        if (tracker != null)
-            tracker.notifyDeleting(referent);
-
-        if (referent.readMeter != null)
-            SystemKeyspace.clearSSTableReadMeter(referent.getKeyspaceName(), referent.getColumnFamilyName(), referent.descriptor.generation);
-
+        blocker.ask();
         // If we can't successfully delete the DATA component, set the task to be retried later: see above
         File datafile = new File(desc.filenameFor(Component.DATA));
         if (!datafile.delete())
         {
-            logger.error("Unable to delete " + datafile + " (it will be removed on server restart; we'll also retry after GC)");
+            logger.error("Unable to delete {} (it will be removed on server restart; we'll also retry after GC)", datafile);
             failedTasks.add(this);
             return;
         }
         // let the remainder be cleaned up by delete
         SSTable.delete(desc, Sets.difference(components, Collections.singleton(Component.DATA)));
-        if (tracker != null)
-            tracker.spaceReclaimed(size);
+        if (totalDiskSpaceUsed != null)
+            totalDiskSpaceUsed.dec(bytesOnDisk);
     }
 
     /**
@@ -94,14 +96,16 @@ public class SSTableDeletingTask implements Runnable
      */
     public static void rescheduleFailedTasks()
     {
-        for (SSTableDeletingTask task : failedTasks)
-        {
-            failedTasks.remove(task);
-            task.schedule();
-        }
+        Runnable task;
+        while ( null != (task = failedTasks.poll()))
+            ScheduledExecutors.nonPeriodicTasks.submit(task);
+
+        // On Windows, snapshots cannot be deleted so long as a segment of the root element is memory-mapped in NTFS.
+        SnapshotDeletingTask.rescheduleFailedTasks();
     }
 
     /** for tests */
+    @VisibleForTesting
     public static void waitForDeletions()
     {
         Runnable runnable = new Runnable()
@@ -111,7 +115,13 @@ public class SSTableDeletingTask implements Runnable
             }
         };
 
-        FBUtilities.waitOnFuture(StorageService.tasks.schedule(runnable, 0, TimeUnit.MILLISECONDS));
+        FBUtilities.waitOnFuture(ScheduledExecutors.nonPeriodicTasks.schedule(runnable, 0, TimeUnit.MILLISECONDS));
+    }
+
+    @VisibleForTesting
+    public static void pauseDeletions(boolean stop)
+    {
+        blocker.block(stop);
     }
 }
 

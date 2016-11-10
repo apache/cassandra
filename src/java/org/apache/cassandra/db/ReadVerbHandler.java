@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
@@ -30,8 +26,6 @@ import org.apache.cassandra.tracing.Tracing;
 
 public class ReadVerbHandler implements IVerbHandler<ReadCommand>
 {
-    private static final Logger logger = LoggerFactory.getLogger( ReadVerbHandler.class );
-
     public void doVerb(MessageIn<ReadCommand> message, int id)
     {
         if (StorageService.instance.isBootstrapMode())
@@ -41,16 +35,7 @@ public class ReadVerbHandler implements IVerbHandler<ReadCommand>
 
         ReadCommand command = message.payload;
         Keyspace keyspace = Keyspace.open(command.ksName);
-        Row row;
-        try
-        {
-            row = command.getRow(keyspace);
-        }
-        catch (TombstoneOverwhelmingException e)
-        {
-            // error already logged.  Drop the request
-            return;
-        }
+        Row row = command.getRow(keyspace);
 
         MessageOut<ReadResponse> reply = new MessageOut<ReadResponse>(MessagingService.Verb.REQUEST_RESPONSE,
                                                                       getResponse(command, row),

@@ -21,10 +21,14 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,23 +41,28 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
     private static final Logger logger = LoggerFactory.getLogger(SliceQueryPager.class);
 
     private final SliceFromReadCommand command;
+    private final ClientState cstate;
 
-    private volatile ByteBuffer lastReturned;
+    private volatile CellName lastReturned;
 
     // Don't use directly, use QueryPagers method instead
-    SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery)
+    SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, ClientState cstate, boolean localQuery)
     {
         super(consistencyLevel, command.filter.count, localQuery, command.ksName, command.cfName, command.filter, command.timestamp);
         this.command = command;
+        this.cstate = cstate;
     }
 
-    SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
+    SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, ClientState cstate, boolean localQuery, PagingState state)
     {
-        this(command, consistencyLevel, localQuery);
+        this(command, consistencyLevel, cstate, localQuery);
 
         if (state != null)
         {
-            lastReturned = state.cellName;
+            // The cellname can be empty if this is used in a MultiPartitionPager and we're supposed to start reading this row
+            // (because the previous page has exhausted the previous pager). See #10352 for details.
+            if (state.cellName.hasRemaining())
+                lastReturned = (CellName) cfm.comparator.fromByteBuffer(state.cellName);
             restoreState(state.remaining, true);
         }
     }
@@ -67,7 +76,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
     {
         return lastReturned == null
              ? null
-             : new PagingState(null, lastReturned, maxRemaining());
+             : new PagingState(null, lastReturned.toByteBuffer(), maxRemaining());
     }
 
     protected List<Row> queryNextPage(int pageSize, ConsistencyLevel consistencyLevel, boolean localQuery)
@@ -84,7 +93,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
         ReadCommand pageCmd = command.withUpdatedFilter(filter);
         return localQuery
              ? Collections.singletonList(pageCmd.getRow(Keyspace.open(command.ksName)))
-             : StorageProxy.read(Collections.singletonList(pageCmd), consistencyLevel);
+             : StorageProxy.read(Collections.singletonList(pageCmd), consistencyLevel, cstate);
     }
 
     protected boolean containsPreviousLast(Row first)
@@ -92,18 +101,24 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
         if (lastReturned == null)
             return false;
 
-        Column firstColumn = isReversed() ? lastColumn(first.cf) : firstNonStaticColumn(first.cf);
+        Cell firstCell = isReversed() ? lastCell(first.cf) : firstNonStaticCell(first.cf);
+        // If the row was containing only static columns it has already been returned and we can skip it.
+        if (firstCell == null)
+            return true;
+
+        CFMetaData metadata = Schema.instance.getCFMetaData(command.getKeyspace(), command.getColumnFamilyName());
         // Note: we only return true if the column is the lastReturned *and* it is live. If it is deleted, it is ignored by the
         // rest of the paging code (it hasn't been counted as live in particular) and we want to act as if it wasn't there.
-        return !first.cf.deletionInfo().isDeleted(firstColumn)
-            && firstColumn.isLive(timestamp())
-            && lastReturned.equals(firstColumn.name());
+
+        return !first.cf.deletionInfo().isDeleted(firstCell)
+                && firstCell.isLive(timestamp())
+                && firstCell.name().isSameCQL3RowAs(metadata.comparator, lastReturned);
     }
 
     protected boolean recordLast(Row last)
     {
-        Column lastColumn = isReversed() ? firstNonStaticColumn(last.cf) : lastColumn(last.cf);
-        lastReturned = lastColumn.name();
+        Cell lastCell = isReversed() ? firstNonStaticCell(last.cf) : lastCell(last.cf);
+        lastReturned = lastCell.name();
         return true;
     }
 

@@ -19,9 +19,8 @@ package org.apache.cassandra.notifications;
 
 import java.util.Collection;
 
-import org.apache.cassandra.io.sstable.SSTableReader;
-
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 public class SSTableListChangedNotification implements INotification
 {

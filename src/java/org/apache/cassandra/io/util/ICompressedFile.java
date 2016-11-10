@@ -17,9 +17,14 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.nio.MappedByteBuffer;
+import java.util.TreeMap;
+
 import org.apache.cassandra.io.compress.CompressionMetadata;
 
 public interface ICompressedFile
 {
+    public ChannelProxy channel();
     public CompressionMetadata getMetadata();
+    public TreeMap<Long, MappedByteBuffer> chunkSegments();
 }

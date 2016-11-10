@@ -19,7 +19,6 @@
 
 package org.apache.cassandra.service;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -28,8 +27,15 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import static org.junit.Assert.*;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.locator.PendingRangeMaps;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -39,6 +45,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -47,8 +54,19 @@ import org.apache.cassandra.locator.TokenMetadata;
 
 public class MoveTest
 {
-    private static final IPartitioner partitioner = new RandomPartitioner();
+    private static final IPartitioner partitioner = RandomPartitioner.instance;
     private static IPartitioner oldPartitioner;
+    //Simple Strategy Keyspaces
+    private static final String Simple_RF1_KeyspaceName = "MoveTestKeyspace1";
+    private static final String Simple_RF2_KeyspaceName = "MoveTestKeyspace5";
+    private static final String Simple_RF3_KeyspaceName = "MoveTestKeyspace4";
+    private static final String KEYSPACE2 = "MoveTestKeyspace2";
+    private static final String KEYSPACE3 = "MoveTestKeyspace3";
+
+    //Network Strategy Keyspace with RF DC1=1 and DC2=1 and so on.
+    private static final String Network_11_KeyspaceName = "MoveTestNetwork11";
+    private static final String Network_22_KeyspaceName = "MoveTestNetwork22";
+    private static final String Network_33_KeyspaceName = "MoveTestNetwork33";
 
     /*
      * NOTE: the tests above uses RandomPartitioner, which is not the default
@@ -57,17 +75,448 @@ public class MoveTest
      * So instead of extending SchemaLoader, we call it's method below.
      */
     @BeforeClass
-    public static void setup() throws IOException, ConfigurationException
+    public static void setup() throws ConfigurationException
     {
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
         SchemaLoader.loadSchema();
+        SchemaLoader.schemaDefinition("MoveTest");
+        addNetworkTopologyKeyspace(Network_11_KeyspaceName, 1, 1);
+        addNetworkTopologyKeyspace(Network_22_KeyspaceName, 2, 2);
+        addNetworkTopologyKeyspace(Network_33_KeyspaceName, 3, 3);
     }
 
     @AfterClass
     public static void tearDown()
     {
         StorageService.instance.setPartitionerUnsafe(oldPartitioner);
-        SchemaLoader.stopGossiper();
+    }
+
+    @Before
+    public void clearTokenMetadata()
+    {
+        PendingRangeCalculatorService.instance.blockUntilFinished();
+        StorageService.instance.getTokenMetadata().clearUnsafe();
+    }
+
+    private static void addNetworkTopologyKeyspace(String keyspaceName, Integer... replicas) throws ConfigurationException
+    {
+
+        DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
+        {
+            //Odd IPs are in DC1 and Even are in DC2. Endpoints upto .14 will have unique racks and
+            // then will be same for a set of three.
+            @Override
+            public String getRack(InetAddress endpoint)
+            {
+                int ipLastPart = getIPLastPart(endpoint);
+                if (ipLastPart <= 14)
+                    return UUID.randomUUID().toString();
+                else
+                    return "RAC" + (ipLastPart % 3);
+            }
+
+            @Override
+            public String getDatacenter(InetAddress endpoint)
+            {
+                if (getIPLastPart(endpoint) % 2 == 0)
+                    return "DC2";
+                else
+                    return "DC1";
+            }
+
+            private int getIPLastPart(InetAddress endpoint)
+            {
+                String str = endpoint.toString();
+                int index = str.lastIndexOf(".");
+                return Integer.parseInt(str.substring(index + 1).trim());
+            }
+        });
+
+        Class<? extends AbstractReplicationStrategy> strategy = NetworkTopologyStrategy.class;
+        KSMetaData keyspace = KSMetaData.testMetadata(keyspaceName, strategy, configOptions(replicas),
+                CFMetaData.denseCFMetaData(keyspaceName, "CF1", BytesType.instance));
+        MigrationManager.announceNewKeyspace(keyspace);
+    }
+
+    private static Map<String, String> configOptions(Integer[] replicas)
+    {
+        Map<String, String> configOptions = new HashMap<>();
+        int i = 1;
+        for(Integer replica : replicas)
+        {
+            if(replica == null)
+                continue;
+            configOptions.put("DC" + i++, String.valueOf(replica));
+        }
+        return configOptions;
+    }
+
+    @Test
+    public void testMoveWithPendingRangesNetworkStrategyRackAwareThirtyNodes() throws Exception
+    {
+        StorageService ss = StorageService.instance;
+        final int RING_SIZE = 60;
+
+        TokenMetadata tmd = ss.getTokenMetadata();
+        tmd.clearUnsafe();
+        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
+        ArrayList<Token> endpointTokens = new ArrayList<>();
+        ArrayList<Token> keyTokens = new ArrayList<>();
+        List<InetAddress> hosts = new ArrayList<>();
+        List<UUID> hostIds = new ArrayList<>();
+
+        for(int i=0; i < RING_SIZE/2; i++)
+        {
+            endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
+            endpointTokens.add(new BigIntegerToken(String.valueOf((10 * i) + 1)));
+        }
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
+        PendingRangeCalculatorService.instance.blockUntilFinished();
+
+        //Moving Endpoint 127.0.0.37 in RAC1 with current token 180
+        int MOVING_NODE = 36;
+        moveHost(hosts.get(MOVING_NODE), 215, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(150, 151, "127.0.0.43"),
+                generatePendingMapEntry(151, 160, "127.0.0.43"),generatePendingMapEntry(160, 161, "127.0.0.43"),
+                generatePendingMapEntry(161, 170, "127.0.0.43"), generatePendingMapEntry(170, 171, "127.0.0.43"),
+                generatePendingMapEntry(171, 180, "127.0.0.43"), generatePendingMapEntry(210, 211, "127.0.0.37"),
+                generatePendingMapEntry(211, 215, "127.0.0.37")), Network_33_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 215, tmd);
+
+        //Moving it back to original spot
+        moveHost(hosts.get(MOVING_NODE), 180, tmd, valueFactory);
+        finishMove(hosts.get(MOVING_NODE), 180, tmd);
+
+    }
+
+    @Test
+    public void testMoveWithPendingRangesNetworkStrategyTenNode() throws Exception
+    {
+        StorageService ss = StorageService.instance;
+        final int RING_SIZE = 14;
+
+        TokenMetadata tmd = ss.getTokenMetadata();
+        tmd.clearUnsafe();
+        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
+        ArrayList<Token> endpointTokens = new ArrayList<>();
+        ArrayList<Token> keyTokens = new ArrayList<>();
+        List<InetAddress> hosts = new ArrayList<>();
+        List<UUID> hostIds = new ArrayList<>();
+
+        for(int i=0; i < RING_SIZE/2; i++)
+        {
+            endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
+            endpointTokens.add(new BigIntegerToken(String.valueOf((10 * i) + 1)));
+        }
+
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
+        PendingRangeCalculatorService.instance.blockUntilFinished();
+
+        int MOVING_NODE = 0;
+        moveHost(hosts.get(MOVING_NODE), 5, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 1, "127.0.0.1"),
+                generatePendingMapEntry(1, 5, "127.0.0.1")), Network_11_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 1, "127.0.0.1"),
+                generatePendingMapEntry(1, 5, "127.0.0.1")), Network_22_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 1, "127.0.0.1"),
+                generatePendingMapEntry(1, 5, "127.0.0.1")), Network_33_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 5, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 0, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 1, "127.0.0.3"),
+                generatePendingMapEntry(1, 5, "127.0.0.3")), Network_11_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 1, "127.0.0.5"),
+                generatePendingMapEntry(1, 5, "127.0.0.5")), Network_22_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 1, "127.0.0.7"),
+                generatePendingMapEntry(1, 5, "127.0.0.7")), Network_33_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 0, tmd);
+
+        MOVING_NODE = 1;
+        moveHost(hosts.get(MOVING_NODE), 5, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1, 5, "127.0.0.2")), Network_11_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1, 5, "127.0.0.2")), Network_22_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1, 5, "127.0.0.2")), Network_33_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 5, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 1, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1, 5, "127.0.0.4")), Network_11_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1, 5, "127.0.0.6")), Network_22_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1, 5, "127.0.0.8")), Network_33_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 1, tmd);
+
+        MOVING_NODE = 3;
+        moveHost(hosts.get(MOVING_NODE), 25, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1, 10, "127.0.0.6"),
+                generatePendingMapEntry(10, 11, "127.0.0.6"), generatePendingMapEntry(21, 25, "127.0.0.4")), Network_11_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(61, 0, "127.0.0.6"),
+                generatePendingMapEntry(0, 1, "127.0.0.6"), generatePendingMapEntry(21, 25, "127.0.0.4"),
+                generatePendingMapEntry(11, 20, "127.0.0.4"),generatePendingMapEntry(20, 21, "127.0.0.4")), Network_22_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(51, 60, "127.0.0.6"),
+                generatePendingMapEntry(60, 61, "127.0.0.6"), generatePendingMapEntry(21, 25, "127.0.0.4"),
+                generatePendingMapEntry(11, 20, "127.0.0.4"), generatePendingMapEntry(20, 21, "127.0.0.4")), Network_33_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 25, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 11, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1, 10, "127.0.0.4"),
+                generatePendingMapEntry(10, 11, "127.0.0.4"), generatePendingMapEntry(21, 25, "127.0.0.8")), Network_11_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(61, 0, "127.0.0.4"),
+                generatePendingMapEntry(0, 1, "127.0.0.4"), generatePendingMapEntry(11, 20, "127.0.0.8"),
+                generatePendingMapEntry(20, 21, "127.0.0.8"), generatePendingMapEntry(21, 25, "127.0.0.10")), Network_22_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(51, 60, "127.0.0.4"),
+                generatePendingMapEntry(60, 61, "127.0.0.4"), generatePendingMapEntry(21, 25, "127.0.0.12"),
+                generatePendingMapEntry(11, 20, "127.0.0.10"), generatePendingMapEntry(20, 21, "127.0.0.10")), Network_33_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 11, tmd);
+    }
+
+    @Test
+    public void testMoveWithPendingRangesSimpleStrategyTenNode() throws Exception
+    {
+        StorageService ss = StorageService.instance;
+        final int RING_SIZE = 10;
+
+        TokenMetadata tmd = ss.getTokenMetadata();
+        tmd.clearUnsafe();
+        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
+        ArrayList<Token> endpointTokens = new ArrayList<>();
+        ArrayList<Token> keyTokens = new ArrayList<>();
+        List<InetAddress> hosts = new ArrayList<>();
+        List<UUID> hostIds = new ArrayList<>();
+
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
+        PendingRangeCalculatorService.instance.blockUntilFinished();
+
+        final int MOVING_NODE = 0; // index of the moving node
+        moveHost(hosts.get(MOVING_NODE), 2, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.1")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.1")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.1")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 2, tmd);
+
+
+        moveHost(hosts.get(MOVING_NODE), 0, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.2")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.3")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.4")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 0, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 1000, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1000, 0, "127.0.0.2")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1000, 0, "127.0.0.3")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1000, 0, "127.0.0.4")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 1000, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 0, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1000, 0, "127.0.0.1")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1000, 0, "127.0.0.1")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1000, 0, "127.0.0.1")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 0, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 35, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(30, 35, "127.0.0.1"), generatePendingMapEntry(90, 0, "127.0.0.2")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(30, 35, "127.0.0.1"), generatePendingMapEntry(20, 30, "127.0.0.1"),
+                generatePendingMapEntry(80, 90, "127.0.0.2"), generatePendingMapEntry(90, 0, "127.0.0.3")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(30, 35, "127.0.0.1"), generatePendingMapEntry(20, 30, "127.0.0.1"),
+                generatePendingMapEntry(80, 90, "127.0.0.3"), generatePendingMapEntry(90, 0, "127.0.0.4"),
+                generatePendingMapEntry(10, 20, "127.0.0.1"), generatePendingMapEntry(70, 80, "127.0.0.2")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 35, tmd);
+
+    }
+
+    @Test
+    public void testMoveWithPendingRangesForSimpleStrategyFourNode() throws Exception
+    {
+        StorageService ss = StorageService.instance;
+        final int RING_SIZE = 4;
+
+        TokenMetadata tmd = ss.getTokenMetadata();
+        tmd.clearUnsafe();
+        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
+        ArrayList<Token> endpointTokens = new ArrayList<>();
+        ArrayList<Token> keyTokens = new ArrayList<>();
+        List<InetAddress> hosts = new ArrayList<>();
+        List<UUID> hostIds = new ArrayList<>();
+
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
+        PendingRangeCalculatorService.instance.blockUntilFinished();
+
+        int MOVING_NODE = 0; // index of the moving node
+        moveHost(hosts.get(MOVING_NODE), 2, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.1")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.1")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.1")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 2, tmd);
+
+
+        moveHost(hosts.get(MOVING_NODE), 0, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.2")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.3")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 2, "127.0.0.4")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 0, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 1500, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1500, 0, "127.0.0.2")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1500, 0, "127.0.0.3")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1500, 0, "127.0.0.4")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 1500, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 0, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1500, 0, "127.0.0.1")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1500, 0, "127.0.0.1")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(1500, 0, "127.0.0.1")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 0, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 15, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(10, 15, "127.0.0.1"), generatePendingMapEntry(30, 0, "127.0.0.2")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(20, 30, "127.0.0.2"), generatePendingMapEntry(10, 15, "127.0.0.1"),
+                generatePendingMapEntry(0, 10, "127.0.0.1")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(15, 20, "127.0.0.2"),
+                generatePendingMapEntry(0, 10, "127.0.0.1")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 15, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 0, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(30, 0, "127.0.0.1"),
+                generatePendingMapEntry(10, 15, "127.0.0.3")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(20, 30, "127.0.0.1"),
+                generatePendingMapEntry(10, 15, "127.0.0.4"), generatePendingMapEntry(0, 10, "127.0.0.3")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(15, 20, "127.0.0.1"),
+                generatePendingMapEntry(0, 10, "127.0.0.4")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 0, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 26, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(20, 26, "127.0.0.1"),
+                generatePendingMapEntry(30, 0, "127.0.0.2")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(26, 30, "127.0.0.2"),
+                generatePendingMapEntry(30, 0, "127.0.0.3"), generatePendingMapEntry(10, 20, "127.0.0.1")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(0, 10, "127.0.0.1"),
+                generatePendingMapEntry(26, 30, "127.0.0.3")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 26, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 0, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(20, 26, "127.0.0.4"),
+                generatePendingMapEntry(30, 0, "127.0.0.1")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(30, 0, "127.0.0.1"),
+                generatePendingMapEntry(26, 30, "127.0.0.1"), generatePendingMapEntry(10, 20, "127.0.0.4")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(26, 30, "127.0.0.1"),
+                generatePendingMapEntry(0, 10, "127.0.0.4")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 0, tmd);
+
+        MOVING_NODE = 3;
+
+        moveHost(hosts.get(MOVING_NODE), 33, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(30, 33, "127.0.0.4")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(30, 33, "127.0.0.4")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(30, 33, "127.0.0.4")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 33, tmd);
+
+        moveHost(hosts.get(MOVING_NODE), 30, tmd, valueFactory);
+
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(30, 33, "127.0.0.1")), Simple_RF1_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(30, 33, "127.0.0.2")), Simple_RF2_KeyspaceName);
+        assertPendingRanges(tmd, generatePendingRanges(generatePendingMapEntry(30, 33, "127.0.0.3")), Simple_RF3_KeyspaceName);
+
+        finishMove(hosts.get(MOVING_NODE), 30, tmd);
+    }
+
+    private void moveHost(InetAddress host, int token, TokenMetadata tmd, VersionedValue.VersionedValueFactory valueFactory )
+    {
+        StorageService.instance.onChange(host, ApplicationState.STATUS, valueFactory.moving(new BigIntegerToken(String.valueOf(token))));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
+        assertTrue(tmd.isMoving(host));
+    }
+
+    private void finishMove(InetAddress host, int token, TokenMetadata tmd)
+    {
+        tmd.removeFromMoving(host);
+        assertTrue(!tmd.isMoving(host));
+        tmd.updateNormalToken(new BigIntegerToken(String.valueOf(token)), host);
+    }
+
+    private Map.Entry<Range<Token>, Collection<InetAddress>> generatePendingMapEntry(int start, int end, String... endpoints) throws UnknownHostException
+    {
+        Map<Range<Token>, Collection<InetAddress>> pendingRanges = new HashMap<>();
+        pendingRanges.put(generateRange(start, end), makeAddrs(endpoints));
+        return pendingRanges.entrySet().iterator().next();
+    }
+
+    private Map<Range<Token>, Collection<InetAddress>> generatePendingRanges(Map.Entry<Range<Token>, Collection<InetAddress>>... entries)
+    {
+        Map<Range<Token>, Collection<InetAddress>> pendingRanges = new HashMap<>();
+        for(Map.Entry<Range<Token>, Collection<InetAddress>> entry : entries)
+        {
+            pendingRanges.put(entry.getKey(), entry.getValue());
+        }
+        return pendingRanges;
+    }
+
+    private void assertPendingRanges(TokenMetadata tmd, Map<Range<Token>,  Collection<InetAddress>> pendingRanges, String keyspaceName) throws ConfigurationException
+    {
+        boolean keyspaceFound = false;
+        for (String nonSystemKeyspaceName : Schema.instance.getNonSystemKeyspaces())
+        {
+            if(!keyspaceName.equals(nonSystemKeyspaceName))
+                continue;
+            assertMaps(pendingRanges, tmd.getPendingRanges(keyspaceName));
+            keyspaceFound = true;
+        }
+
+        assert keyspaceFound;
+    }
+
+    private void assertMaps(Map<Range<Token>, Collection<InetAddress>> expected, PendingRangeMaps actual)
+    {
+        int sizeOfActual = 0;
+        Iterator<Map.Entry<Range<Token>, List<InetAddress>>> iterator = actual.iterator();
+        while(iterator.hasNext())
+        {
+            Map.Entry<Range<Token>, List<InetAddress>> actualEntry = iterator.next();
+            assertNotNull(expected.get(actualEntry.getKey()));
+            assertEquals(new HashSet<>(expected.get(actualEntry.getKey())), new HashSet<>(actualEntry.getValue()));
+            sizeOfActual++;
+        }
+
+        assertEquals(expected.size(), sizeOfActual);
     }
 
     /*
@@ -82,7 +531,6 @@ public class MoveTest
         final int MOVING_NODE = 3; // index of the moving node
 
         TokenMetadata tmd = ss.getTokenMetadata();
-        tmd.clearUnsafe();
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
@@ -117,6 +565,8 @@ public class MoveTest
         for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
         {
             strategy = getStrategy(keyspaceName, tmd);
+            if(strategy instanceof NetworkTopologyStrategy)
+                continue;
             int numMoved = 0;
             for (Token token : keyTokens)
             {
@@ -138,8 +588,7 @@ public class MoveTest
                 	numMoved++;
                 }
             }
-            // This assertion isn't reliable in 2.0 and 2.1.  See CASSANDRA-7390
-            // assertEquals("mismatched number of moved token", numMoved, 1);
+            assertEquals("mismatched number of moved token", 1, numMoved);
         }
 
         // moving endpoint back to the normal state
@@ -150,13 +599,12 @@ public class MoveTest
      * Test ranges and write endpoints when multiple nodes are on the move simultaneously
      */
     @Test
-    public void testSimultaneousMove() throws UnknownHostException, ConfigurationException
+    public void testSimultaneousMove() throws UnknownHostException
     {
         StorageService ss = StorageService.instance;
         final int RING_SIZE = 10;
         TokenMetadata tmd = ss.getTokenMetadata();
-        tmd.clearUnsafe();
-        IPartitioner partitioner = new RandomPartitioner();
+        IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
@@ -193,6 +641,8 @@ public class MoveTest
         ss.onChange(boot1,
                     ApplicationState.STATUS,
                     valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(5))));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
+
         InetAddress boot2 = InetAddress.getByName("127.0.1.2");
         Gossiper.instance.initializeNodeUnsafe(boot2, UUID.randomUUID(), 1);
         Gossiper.instance.injectApplicationState(boot2, ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(7))));
@@ -205,7 +655,7 @@ public class MoveTest
         Map<String, AbstractReplicationStrategy> keyspaceStrategyMap = new HashMap<String, AbstractReplicationStrategy>();
         for (int i = 1; i <= 4; i++)
         {
-            keyspaceStrategyMap.put("Keyspace" + i, getStrategy("Keyspace" + i, tmd));
+            keyspaceStrategyMap.put("MoveTestKeyspace" + i, getStrategy("MoveTestKeyspace" + i, tmd));
         }
 
        /**
@@ -224,37 +674,37 @@ public class MoveTest
         *  }
         */
 
-        Multimap<InetAddress, Range<Token>> keyspace1ranges = keyspaceStrategyMap.get("Keyspace1").getAddressRanges();
+        Multimap<InetAddress, Range<Token>> keyspace1ranges = keyspaceStrategyMap.get(Simple_RF1_KeyspaceName).getAddressRanges();
         Collection<Range<Token>> ranges1 = keyspace1ranges.get(InetAddress.getByName("127.0.0.1"));
-        assertEquals(collectionSize(ranges1), 1);
-        assertTrue(ranges1.iterator().next().equals(generateRange(97, 0)));
+        assertEquals(1, collectionSize(ranges1));
+        assertEquals(generateRange(97, 0), ranges1.iterator().next());
         Collection<Range<Token>> ranges2 = keyspace1ranges.get(InetAddress.getByName("127.0.0.2"));
-        assertEquals(collectionSize(ranges2), 1);
-        assertTrue(ranges2.iterator().next().equals(generateRange(0, 10)));
+        assertEquals(1, collectionSize(ranges2));
+        assertEquals(generateRange(0, 10), ranges2.iterator().next());
         Collection<Range<Token>> ranges3 = keyspace1ranges.get(InetAddress.getByName("127.0.0.3"));
-        assertEquals(collectionSize(ranges3), 1);
-        assertTrue(ranges3.iterator().next().equals(generateRange(10, 20)));
+        assertEquals(1, collectionSize(ranges3));
+        assertEquals(generateRange(10, 20), ranges3.iterator().next());
         Collection<Range<Token>> ranges4 = keyspace1ranges.get(InetAddress.getByName("127.0.0.4"));
-        assertEquals(collectionSize(ranges4), 1);
-        assertTrue(ranges4.iterator().next().equals(generateRange(20, 30)));
+        assertEquals(1, collectionSize(ranges4));
+        assertEquals(generateRange(20, 30), ranges4.iterator().next());
         Collection<Range<Token>> ranges5 = keyspace1ranges.get(InetAddress.getByName("127.0.0.5"));
-        assertEquals(collectionSize(ranges5), 1);
-        assertTrue(ranges5.iterator().next().equals(generateRange(30, 40)));
+        assertEquals(1, collectionSize(ranges5));
+        assertEquals(generateRange(30, 40), ranges5.iterator().next());
         Collection<Range<Token>> ranges6 = keyspace1ranges.get(InetAddress.getByName("127.0.0.6"));
-        assertEquals(collectionSize(ranges6), 1);
-        assertTrue(ranges6.iterator().next().equals(generateRange(40, 50)));
+        assertEquals(1, collectionSize(ranges6));
+        assertEquals(generateRange(40, 50), ranges6.iterator().next());
         Collection<Range<Token>> ranges7 = keyspace1ranges.get(InetAddress.getByName("127.0.0.7"));
-        assertEquals(collectionSize(ranges7), 1);
-        assertTrue(ranges7.iterator().next().equals(generateRange(50, 67)));
+        assertEquals(1, collectionSize(ranges7));
+        assertEquals(generateRange(50, 67), ranges7.iterator().next());
         Collection<Range<Token>> ranges8 = keyspace1ranges.get(InetAddress.getByName("127.0.0.8"));
-        assertEquals(collectionSize(ranges8), 1);
-        assertTrue(ranges8.iterator().next().equals(generateRange(67, 70)));
+        assertEquals(1, collectionSize(ranges8));
+        assertEquals(generateRange(67, 70), ranges8.iterator().next());
         Collection<Range<Token>> ranges9 = keyspace1ranges.get(InetAddress.getByName("127.0.0.9"));
-        assertEquals(collectionSize(ranges9), 1);
-        assertTrue(ranges9.iterator().next().equals(generateRange(70, 87)));
+        assertEquals(1, collectionSize(ranges9));
+        assertEquals(generateRange(70, 87), ranges9.iterator().next());
         Collection<Range<Token>> ranges10 = keyspace1ranges.get(InetAddress.getByName("127.0.0.10"));
-        assertEquals(collectionSize(ranges10), 1);
-        assertTrue(ranges10.iterator().next().equals(generateRange(87, 97)));
+        assertEquals(1, collectionSize(ranges10));
+        assertEquals(generateRange(87, 97), ranges10.iterator().next());
 
 
         /**
@@ -273,7 +723,7 @@ public class MoveTest
         * }
         */
 
-        Multimap<InetAddress, Range<Token>> keyspace3ranges = keyspaceStrategyMap.get("Keyspace3").getAddressRanges();
+        Multimap<InetAddress, Range<Token>> keyspace3ranges = keyspaceStrategyMap.get(KEYSPACE3).getAddressRanges();
         ranges1 = keyspace3ranges.get(InetAddress.getByName("127.0.0.1"));
         assertEquals(collectionSize(ranges1), 5);
         assertTrue(ranges1.equals(generateRanges(97, 0, 70, 87, 50, 67, 87, 97, 67, 70)));
@@ -321,7 +771,7 @@ public class MoveTest
          *      /127.0.0.10=[(70,87], (87,97], (67,70]]
          *  }
          */
-        Multimap<InetAddress, Range<Token>> keyspace4ranges = keyspaceStrategyMap.get("Keyspace4").getAddressRanges();
+        Multimap<InetAddress, Range<Token>> keyspace4ranges = keyspaceStrategyMap.get(Simple_RF3_KeyspaceName).getAddressRanges();
         ranges1 = keyspace4ranges.get(InetAddress.getByName("127.0.0.1"));
         assertEquals(collectionSize(ranges1), 3);
         assertTrue(ranges1.equals(generateRanges(97, 0, 70, 87, 87, 97)));
@@ -355,50 +805,50 @@ public class MoveTest
 
         // pre-calculate the results.
         Map<String, Multimap<Token, InetAddress>> expectedEndpoints = new HashMap<String, Multimap<Token, InetAddress>>();
-        expectedEndpoints.put("Keyspace1", HashMultimap.<Token, InetAddress>create());
-        expectedEndpoints.get("Keyspace1").putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2"));
-        expectedEndpoints.get("Keyspace1").putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3"));
-        expectedEndpoints.get("Keyspace1").putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4"));
-        expectedEndpoints.get("Keyspace1").putAll(new BigIntegerToken("35"), makeAddrs("127.0.0.5"));
-        expectedEndpoints.get("Keyspace1").putAll(new BigIntegerToken("45"), makeAddrs("127.0.0.6"));
-        expectedEndpoints.get("Keyspace1").putAll(new BigIntegerToken("55"), makeAddrs("127.0.0.7", "127.0.1.1"));
-        expectedEndpoints.get("Keyspace1").putAll(new BigIntegerToken("65"), makeAddrs("127.0.0.7"));
-        expectedEndpoints.get("Keyspace1").putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.1.2"));
-        expectedEndpoints.get("Keyspace1").putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.9"));
-        expectedEndpoints.get("Keyspace1").putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.10"));
-        expectedEndpoints.put("Keyspace2", HashMultimap.<Token, InetAddress>create());
-        expectedEndpoints.get("Keyspace2").putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2"));
-        expectedEndpoints.get("Keyspace2").putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3"));
-        expectedEndpoints.get("Keyspace2").putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4"));
-        expectedEndpoints.get("Keyspace2").putAll(new BigIntegerToken("35"), makeAddrs("127.0.0.5"));
-        expectedEndpoints.get("Keyspace2").putAll(new BigIntegerToken("45"), makeAddrs("127.0.0.6"));
-        expectedEndpoints.get("Keyspace2").putAll(new BigIntegerToken("55"), makeAddrs("127.0.0.7", "127.0.1.1"));
-        expectedEndpoints.get("Keyspace2").putAll(new BigIntegerToken("65"), makeAddrs("127.0.0.7"));
-        expectedEndpoints.get("Keyspace2").putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.1.2"));
-        expectedEndpoints.get("Keyspace2").putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.9"));
-        expectedEndpoints.get("Keyspace2").putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.10"));
-        expectedEndpoints.put("Keyspace3", HashMultimap.<Token, InetAddress>create());
-        expectedEndpoints.get("Keyspace3").putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.0.6"));
-        expectedEndpoints.get("Keyspace3").putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.1.1"));
-        expectedEndpoints.get("Keyspace3").putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4", "127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.0.8", "127.0.1.1"));
-        expectedEndpoints.get("Keyspace3").putAll(new BigIntegerToken("35"), makeAddrs("127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.1.1", "127.0.1.2"));
-        expectedEndpoints.get("Keyspace3").putAll(new BigIntegerToken("45"), makeAddrs("127.0.0.6", "127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.0.10", "127.0.1.1", "127.0.1.2"));
-        expectedEndpoints.get("Keyspace3").putAll(new BigIntegerToken("55"), makeAddrs("127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.1.1", "127.0.1.2"));
-        expectedEndpoints.get("Keyspace3").putAll(new BigIntegerToken("65"), makeAddrs("127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.1.2"));
-        expectedEndpoints.get("Keyspace3").putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.1.2"));
-        expectedEndpoints.get("Keyspace3").putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3"));
-        expectedEndpoints.get("Keyspace3").putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4"));
-        expectedEndpoints.put("Keyspace4", HashMultimap.<Token, InetAddress>create());
-        expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2", "127.0.0.3", "127.0.0.4"));
-        expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3", "127.0.0.4", "127.0.0.5"));
-        expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4", "127.0.0.5", "127.0.0.6"));
-        expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("35"), makeAddrs("127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.1.1"));
-        expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("45"), makeAddrs("127.0.0.6", "127.0.0.7", "127.0.0.8", "127.0.1.1"));
-        expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("55"), makeAddrs("127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.1.1", "127.0.1.2"));
-        expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("65"), makeAddrs("127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.1.2"));
-        expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.1.2"));
-        expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1"));
-        expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.10", "127.0.0.1", "127.0.0.2"));
+        expectedEndpoints.put(Simple_RF1_KeyspaceName, HashMultimap.<Token, InetAddress>create());
+        expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2"));
+        expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3"));
+        expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4"));
+        expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("35"), makeAddrs("127.0.0.5"));
+        expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("45"), makeAddrs("127.0.0.6"));
+        expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("55"), makeAddrs("127.0.0.7", "127.0.1.1"));
+        expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("65"), makeAddrs("127.0.0.7"));
+        expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.1.2"));
+        expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.9"));
+        expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.10"));
+        expectedEndpoints.put(KEYSPACE2, HashMultimap.<Token, InetAddress>create());
+        expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2"));
+        expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3"));
+        expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4"));
+        expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("35"), makeAddrs("127.0.0.5"));
+        expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("45"), makeAddrs("127.0.0.6"));
+        expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("55"), makeAddrs("127.0.0.7", "127.0.1.1"));
+        expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("65"), makeAddrs("127.0.0.7"));
+        expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.1.2"));
+        expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.9"));
+        expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.10"));
+        expectedEndpoints.put(KEYSPACE3, HashMultimap.<Token, InetAddress>create());
+        expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.0.6"));
+        expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.1.1"));
+        expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4", "127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.0.8", "127.0.1.1"));
+        expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("35"), makeAddrs("127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.1.1", "127.0.1.2"));
+        expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("45"), makeAddrs("127.0.0.6", "127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.0.10", "127.0.1.1", "127.0.1.2"));
+        expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("55"), makeAddrs("127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.1.1", "127.0.1.2"));
+        expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("65"), makeAddrs("127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.1.2"));
+        expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.1.2"));
+        expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3"));
+        expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4"));
+        expectedEndpoints.put(Simple_RF3_KeyspaceName, HashMultimap.<Token, InetAddress>create());
+        expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2", "127.0.0.3", "127.0.0.4"));
+        expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3", "127.0.0.4", "127.0.0.5"));
+        expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4", "127.0.0.5", "127.0.0.6"));
+        expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("35"), makeAddrs("127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.1.1"));
+        expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("45"), makeAddrs("127.0.0.6", "127.0.0.7", "127.0.0.8", "127.0.1.1"));
+        expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("55"), makeAddrs("127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.1.1", "127.0.1.2"));
+        expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("65"), makeAddrs("127.0.0.7", "127.0.0.8", "127.0.0.9", "127.0.1.2"));
+        expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.1.2"));
+        expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1"));
+        expectedEndpoints.get(Simple_RF3_KeyspaceName).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.10", "127.0.0.1", "127.0.0.2"));
 
         for (Map.Entry<String, AbstractReplicationStrategy> keyspaceStrategy : keyspaceStrategyMap.entrySet())
         {
@@ -408,7 +858,7 @@ public class MoveTest
             for (Token token : keyTokens)
             {
                 endpoints = tmd.getWriteEndpoints(token, keyspaceName, strategy.getNaturalEndpoints(token));
-                assertTrue(expectedEndpoints.get(keyspaceName).get(token).size() == endpoints.size());
+                assertEquals(expectedEndpoints.get(keyspaceName).get(token).size(), endpoints.size());
                 assertTrue(expectedEndpoints.get(keyspaceName).get(token).containsAll(endpoints));
             }
 
@@ -420,7 +870,7 @@ public class MoveTest
             for (int i = 0; i < 3; i++)
             {
                 endpoints = tmd.getWriteEndpoints(keyTokens.get(i), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(i)));
-                assertTrue(endpoints.size() == 3);
+                assertEquals(3, endpoints.size());
                 assertTrue(endpoints.contains(hosts.get(i+1)));
                 assertTrue(endpoints.contains(hosts.get(i+2)));
                 assertTrue(endpoints.contains(hosts.get(i+3)));
@@ -428,7 +878,7 @@ public class MoveTest
 
             // token 35 should go to nodes 4, 5, 6 and boot1
             endpoints = tmd.getWriteEndpoints(keyTokens.get(3), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(3)));
-            assertTrue(endpoints.size() == 4);
+            assertEquals(4, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(4)));
             assertTrue(endpoints.contains(hosts.get(5)));
             assertTrue(endpoints.contains(hosts.get(6)));
@@ -436,7 +886,7 @@ public class MoveTest
 
             // token 45 should go to nodes 5, 6, 7 boot1
             endpoints = tmd.getWriteEndpoints(keyTokens.get(4), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(4)));
-            assertTrue(endpoints.size() == 4);
+            assertEquals(4, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(5)));
             assertTrue(endpoints.contains(hosts.get(6)));
             assertTrue(endpoints.contains(hosts.get(7)));
@@ -444,7 +894,7 @@ public class MoveTest
 
             // token 55 should go to nodes 6, 7, 8 boot1 and boot2
             endpoints = tmd.getWriteEndpoints(keyTokens.get(5), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(5)));
-            assertTrue(endpoints.size() == 5);
+            assertEquals(5, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(6)));
             assertTrue(endpoints.contains(hosts.get(7)));
             assertTrue(endpoints.contains(hosts.get(8)));
@@ -453,7 +903,7 @@ public class MoveTest
 
             // token 65 should go to nodes 6, 7, 8 and boot2
             endpoints = tmd.getWriteEndpoints(keyTokens.get(6), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(6)));
-            assertTrue(endpoints.size() == 4);
+            assertEquals(4, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(6)));
             assertTrue(endpoints.contains(hosts.get(7)));
             assertTrue(endpoints.contains(hosts.get(8)));
@@ -461,7 +911,7 @@ public class MoveTest
 
             // token 75 should to go nodes 8, 9, 0 and boot2
             endpoints = tmd.getWriteEndpoints(keyTokens.get(7), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(7)));
-            assertTrue(endpoints.size() == 4);
+            assertEquals(4, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(8)));
             assertTrue(endpoints.contains(hosts.get(9)));
             assertTrue(endpoints.contains(hosts.get(0)));
@@ -469,14 +919,14 @@ public class MoveTest
 
             // token 85 should go to nodes 8, 9 and 0
             endpoints = tmd.getWriteEndpoints(keyTokens.get(8), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(8)));
-            assertTrue(endpoints.size() == 3);
+            assertEquals(3, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(8)));
             assertTrue(endpoints.contains(hosts.get(9)));
             assertTrue(endpoints.contains(hosts.get(0)));
 
             // token 95 should go to nodes 9, 0 and 1
             endpoints = tmd.getWriteEndpoints(keyTokens.get(9), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(9)));
-            assertTrue(endpoints.size() == 3);
+            assertEquals(3, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(9)));
             assertTrue(endpoints.contains(hosts.get(0)));
             assertTrue(endpoints.contains(hosts.get(1)));
@@ -496,8 +946,7 @@ public class MoveTest
     {
         StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
-        tmd.clearUnsafe();
-        IPartitioner partitioner = new RandomPartitioner();
+        IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
@@ -513,14 +962,14 @@ public class MoveTest
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.moving(newToken));
 
         assertTrue(tmd.isMoving(hosts.get(2)));
-        assertTrue(tmd.getToken(hosts.get(2)).equals(endpointTokens.get(2)));
+        assertEquals(endpointTokens.get(2), tmd.getToken(hosts.get(2)));
 
         // back to normal
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(newToken)));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(newToken)));
 
         assertTrue(tmd.getMovingEndpoints().isEmpty());
-        assertTrue(tmd.getToken(hosts.get(2)).equals(newToken));
+        assertEquals(newToken, tmd.getToken(hosts.get(2)));
 
         newToken = positionToken(8);
         // node 2 goes through leave and left and then jumps to normal at its new token
@@ -530,7 +979,7 @@ public class MoveTest
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getMovingEndpoints().isEmpty());
-        assertTrue(tmd.getToken(hosts.get(2)).equals(newToken));
+        assertEquals(newToken, tmd.getToken(hosts.get(2)));
     }
 
     private static Collection<InetAddress> makeAddrs(String... hosts) throws UnknownHostException
@@ -541,7 +990,7 @@ public class MoveTest
         return addrs;
     }
 
-    private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd) throws ConfigurationException
+    private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd)
     {
         KSMetaData ksmd = Schema.instance.getKSMetaData(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(

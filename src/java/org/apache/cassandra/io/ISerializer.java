@@ -18,20 +18,22 @@
 package org.apache.cassandra.io;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public interface ISerializer<T>
 {
     /**
      * Serialize the specified type into the specified DataOutput instance.
+     *
+     *
      * @param t type that needs to be serialized
      * @param out DataOutput into which serialization needs to happen.
      * @throws java.io.IOException
      */
-    public void serialize(T t, DataOutput out) throws IOException;
+    public void serialize(T t, DataOutputPlus out) throws IOException;
 
     /**
      * Deserialize from the specified DataInput instance.

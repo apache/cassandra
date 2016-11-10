@@ -18,30 +18,46 @@
 package org.apache.cassandra.hadoop.pig;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
-import org.apache.cassandra.hadoop.HadoopCompat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.Column;
+import org.apache.cassandra.auth.PasswordAuthenticator;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.hadoop.*;
+import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.hadoop.ColumnFamilyRecordReader;
+import org.apache.cassandra.hadoop.ConfigHelper;
+import org.apache.cassandra.hadoop.HadoopCompat;
+import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
+import org.apache.cassandra.utils.UUIDGen;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.pig.Expression;
+import org.apache.pig.LoadFunc;
+import org.apache.pig.LoadMetadata;
 import org.apache.pig.ResourceSchema;
-import org.apache.pig.ResourceSchema.ResourceFieldSchema;
+import org.apache.pig.ResourceStatistics;
+import org.apache.pig.StoreFuncInterface;
 import org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigSplit;
 import org.apache.pig.data.*;
 import org.apache.pig.impl.util.UDFContext;
+import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
@@ -52,7 +68,8 @@ import org.apache.thrift.protocol.TBinaryProtocol;
  *
  * A row from a standard CF will be returned as nested tuples: (key, ((name1, val1), (name2, val2))).
  */
-public class CassandraStorage extends AbstractCassandraStorage
+@Deprecated
+public class CassandraStorage extends LoadFunc implements StoreFuncInterface, LoadMetadata
 {
     public final static String PIG_ALLOW_DELETES = "PIG_ALLOW_DELETES";
     public final static String PIG_WIDEROW_INPUT = "PIG_WIDEROW_INPUT";
@@ -66,15 +83,37 @@ public class CassandraStorage extends AbstractCassandraStorage
     private boolean slice_reverse = false;
     private boolean allow_deletes = false;
 
-    private RecordReader<ByteBuffer, Map<ByteBuffer, Column>> reader;
+    private RecordReader<ByteBuffer, Map<ByteBuffer, ColumnFamilyRecordReader.Column>> reader;
     private RecordWriter<ByteBuffer, List<Mutation>> writer;
 
     private boolean widerows = false;
     private int limit;
+
+    protected String DEFAULT_INPUT_FORMAT;
+    protected String DEFAULT_OUTPUT_FORMAT;
+
+    protected enum MarshallerType { COMPARATOR, DEFAULT_VALIDATOR, KEY_VALIDATOR, SUBCOMPARATOR };
+
+    protected String username;
+    protected String password;
+    protected String keyspace;
+    protected String column_family;
+    protected String loadSignature;
+    protected String storeSignature;
+
+    protected Configuration conf;
+    protected String inputFormatClass;
+    protected String outputFormatClass;
+    protected int splitSize = 64 * 1024;
+    protected String partitionerClass;
+    protected boolean usePartitionFilter = false;
+    protected String initHostAddress;
+    protected String rpcPort;
+    protected int nativeProtocolVersion = 1;
     
     // wide row hacks
     private ByteBuffer lastKey;
-    private Map<ByteBuffer, Column> lastRow;
+    private Map<ByteBuffer, ColumnFamilyRecordReader.Column> lastRow;
     private boolean hasNext = true;
 
     public CassandraStorage()
@@ -104,8 +143,7 @@ public class CassandraStorage extends AbstractCassandraStorage
     /** read wide row*/
     public Tuple getNextWide() throws IOException
     {
-        CfInfo cfInfo = getCfInfo(loadSignature);
-        CfDef cfDef = cfInfo.cfDef;
+        CfDef cfDef = getCfDef(loadSignature);
         ByteBuffer key = null;
         Tuple tuple = null; 
         DefaultDataBag bag = new DefaultDataBag();
@@ -123,12 +161,12 @@ public class CassandraStorage extends AbstractCassandraStorage
                     {
                         if (tuple.size() == 0) // lastRow is a new one
                         {
-                            key = (ByteBuffer)reader.getCurrentKey();
+                            key = reader.getCurrentKey();
                             tuple = keyToTuple(key, cfDef, parseType(cfDef.getKey_validation_class()));
                         }
-                        for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
+                        for (Map.Entry<ByteBuffer, ColumnFamilyRecordReader.Column> entry : lastRow.entrySet())
                         {
-                            bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
+                            bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
                         }
                         lastKey = null;
                         lastRow = null;
@@ -146,31 +184,31 @@ public class CassandraStorage extends AbstractCassandraStorage
                             return null;
                     }
                 }
-                if (key != null && !((ByteBuffer)reader.getCurrentKey()).equals(key)) // key changed
+                if (key != null && !(reader.getCurrentKey()).equals(key)) // key changed
                 {
                     // read too much, hold on to it for next time
-                    lastKey = (ByteBuffer)reader.getCurrentKey();
-                    lastRow = (SortedMap<ByteBuffer, Column>)reader.getCurrentValue();
+                    lastKey = reader.getCurrentKey();
+                    lastRow = reader.getCurrentValue();
                     // but return what we have so far
                     tuple.append(bag);
                     return tuple;
                 }
                 if (key == null) // only set the key on the first iteration
                 {
-                    key = (ByteBuffer)reader.getCurrentKey();
+                    key = reader.getCurrentKey();
                     if (lastKey != null && !(key.equals(lastKey))) // last key only had one value
                     {
                         if (tuple == null)
                             tuple = keyToTuple(lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
                         else
                             addKeyToTuple(tuple, lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
-                        for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
+                        for (Map.Entry<ByteBuffer, ColumnFamilyRecordReader.Column> entry : lastRow.entrySet())
                         {
-                            bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
+                            bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
                         }
                         tuple.append(bag);
                         lastKey = key;
-                        lastRow = (SortedMap<ByteBuffer, Column>)reader.getCurrentValue();
+                        lastRow = reader.getCurrentValue();
                         return tuple;
                     }
                     if (tuple == null)
@@ -178,19 +216,20 @@ public class CassandraStorage extends AbstractCassandraStorage
                     else
                         addKeyToTuple(tuple, lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
                 }
-                SortedMap<ByteBuffer, Column> row = (SortedMap<ByteBuffer, Column>)reader.getCurrentValue();
+                SortedMap<ByteBuffer, ColumnFamilyRecordReader.Column> row =
+                    (SortedMap<ByteBuffer, ColumnFamilyRecordReader.Column>)reader.getCurrentValue();
                 if (lastRow != null) // prepend what was read last time
                 {
-                    for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
+                    for (Map.Entry<ByteBuffer, ColumnFamilyRecordReader.Column> entry : lastRow.entrySet())
                     {
-                        bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
+                        bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
                     }
                     lastKey = null;
                     lastRow = null;
                 }
-                for (Map.Entry<ByteBuffer, Column> entry : row.entrySet())
+                for (Map.Entry<ByteBuffer, ColumnFamilyRecordReader.Column> entry : row.entrySet())
                 {
-                    bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
+                    bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
                 }
             }
         }
@@ -200,7 +239,6 @@ public class CassandraStorage extends AbstractCassandraStorage
         }
     }
 
-    @Override
     /** read next row */
     public Tuple getNext() throws IOException
     {
@@ -212,10 +250,9 @@ public class CassandraStorage extends AbstractCassandraStorage
             if (!reader.nextKeyValue())
                 return null;
 
-            CfInfo cfInfo = getCfInfo(loadSignature);
-            CfDef cfDef = cfInfo.cfDef;
+            CfDef cfDef = getCfDef(loadSignature);
             ByteBuffer key = reader.getCurrentKey();
-            Map<ByteBuffer, Column> cf = reader.getCurrentValue();
+            Map<ByteBuffer, ColumnFamilyRecordReader.Column> cf = reader.getCurrentValue();
             assert key != null && cf != null;
 
             // output tuple, will hold the key, each indexed column in a tuple, then a bag of the rest
@@ -224,7 +261,7 @@ public class CassandraStorage extends AbstractCassandraStorage
             Tuple tuple = keyToTuple(key, cfDef, parseType(cfDef.getKey_validation_class()));
             DefaultDataBag bag = new DefaultDataBag();
             // we must add all the indexed columns first to match the schema
-            Map<ByteBuffer, Boolean> added = new HashMap<ByteBuffer, Boolean>();
+            Map<ByteBuffer, Boolean> added = new HashMap<ByteBuffer, Boolean>(cfDef.column_metadata.size());
             // take care to iterate these in the same order as the schema does
             for (ColumnDef cdef : cfDef.column_metadata)
             {
@@ -236,11 +273,11 @@ public class CassandraStorage extends AbstractCassandraStorage
                 }
                 catch (Exception e)
                 {
-                    cql3Table = true;                  
+                    cql3Table = true;
                 }
                 if (hasColumn)
                 {
-                    tuple.append(columnToTuple(cf.get(cdef.name), cfInfo, parseType(cfDef.getComparator_type())));
+                    tuple.append(columnToTuple(cf.get(cdef.name), cfDef, parseType(cfDef.getComparator_type())));
                 }
                 else if (!cql3Table)
                 {   // otherwise, we need to add an empty tuple to take its place
@@ -249,10 +286,10 @@ public class CassandraStorage extends AbstractCassandraStorage
                 added.put(cdef.name, true);
             }
             // now add all the other columns
-            for (Map.Entry<ByteBuffer, Column> entry : cf.entrySet())
+            for (Map.Entry<ByteBuffer, ColumnFamilyRecordReader.Column> entry : cf.entrySet())
             {
                 if (!added.containsKey(entry.getKey()))
-                    bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
+                    bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
             }
             tuple.append(bag);
             // finally, special top-level indexes if needed
@@ -260,7 +297,7 @@ public class CassandraStorage extends AbstractCassandraStorage
             {
                 for (ColumnDef cdef : getIndexes())
                 {
-                    Tuple throwaway = columnToTuple(cf.get(cdef.name), cfInfo, parseType(cfDef.getComparator_type()));
+                    Tuple throwaway = columnToTuple(cf.get(cdef.name), cfDef, parseType(cfDef.getComparator_type()));
                     tuple.append(throwaway.get(1));
                 }
             }
@@ -272,12 +309,55 @@ public class CassandraStorage extends AbstractCassandraStorage
         }
     }
 
+    /** write next row */
+    public void putNext(Tuple t) throws IOException
+    {
+        /*
+        We support two cases for output:
+        First, the original output:
+            (key, (name, value), (name,value), {(name,value)}) (tuples or bag is optional)
+        For supers, we only accept the original output.
+        */
+
+        if (t.size() < 1)
+        {
+            // simply nothing here, we can't even delete without a key
+            logger.warn("Empty output skipped, filter empty tuples to suppress this warning");
+            return;
+        }
+        ByteBuffer key = objToBB(t.get(0));
+        if (t.getType(1) == DataType.TUPLE)
+            writeColumnsFromTuple(key, t, 1);
+        else if (t.getType(1) == DataType.BAG)
+        {
+            if (t.size() > 2)
+                throw new IOException("No arguments allowed after bag");
+            writeColumnsFromBag(key, (DataBag) t.get(1));
+        }
+        else
+            throw new IOException("Second argument in output must be a tuple or bag");
+    }
+
     /** set hadoop cassandra connection settings */
     protected void setConnectionInformation() throws IOException
     {
-        super.setConnectionInformation();
+        StorageHelper.setConnectionInformation(conf);
+        if (System.getenv(StorageHelper.PIG_INPUT_FORMAT) != null)
+            inputFormatClass = getFullyQualifiedClassName(System.getenv(StorageHelper.PIG_INPUT_FORMAT));
+        else
+            inputFormatClass = DEFAULT_INPUT_FORMAT;
+        if (System.getenv(StorageHelper.PIG_OUTPUT_FORMAT) != null)
+            outputFormatClass = getFullyQualifiedClassName(System.getenv(StorageHelper.PIG_OUTPUT_FORMAT));
+        else
+            outputFormatClass = DEFAULT_OUTPUT_FORMAT;
         if (System.getenv(PIG_ALLOW_DELETES) != null)
             allow_deletes = Boolean.parseBoolean(System.getenv(PIG_ALLOW_DELETES));
+    }
+
+    /** get the full class name */
+    protected String getFullyQualifiedClassName(String classname)
+    {
+        return classname.contains(".") ? classname : "org.apache.cassandra.hadoop." + classname;
     }
 
     /** set read configuration settings */
@@ -296,11 +376,11 @@ public class CassandraStorage extends AbstractCassandraStorage
             widerows = Boolean.parseBoolean(System.getenv(PIG_WIDEROW_INPUT));
         if (System.getenv(PIG_USE_SECONDARY) != null)
             usePartitionFilter = Boolean.parseBoolean(System.getenv(PIG_USE_SECONDARY));
-        if (System.getenv(PIG_INPUT_SPLIT_SIZE) != null)
+        if (System.getenv(StorageHelper.PIG_INPUT_SPLIT_SIZE) != null)
         {
             try
             {
-                ConfigHelper.setInputSplitSize(conf, Integer.parseInt(System.getenv(PIG_INPUT_SPLIT_SIZE)));
+                ConfigHelper.setInputSplitSize(conf, Integer.parseInt(System.getenv(StorageHelper.PIG_INPUT_SPLIT_SIZE)));
             }
             catch (NumberFormatException e)
             {
@@ -380,12 +460,67 @@ public class CassandraStorage extends AbstractCassandraStorage
         initSchema(storeSignature);
     }
 
+    /** Methods to get the column family schema from Cassandra */
+    protected void initSchema(String signature) throws IOException
+    {
+        Properties properties = UDFContext.getUDFContext().getUDFProperties(CassandraStorage.class);
+
+        // Only get the schema if we haven't already gotten it
+        if (!properties.containsKey(signature))
+        {
+            try
+            {
+                Cassandra.Client client = ConfigHelper.getClientFromInputAddressList(conf);
+                client.set_keyspace(keyspace);
+
+                if (username != null && password != null)
+                {
+                    Map<String, String> credentials = new HashMap<String, String>(2);
+                    credentials.put(PasswordAuthenticator.USERNAME_KEY, username);
+                    credentials.put(PasswordAuthenticator.PASSWORD_KEY, password);
+
+                    try
+                    {
+                        client.login(new AuthenticationRequest(credentials));
+                    }
+                    catch (AuthenticationException e)
+                    {
+                        logger.error("Authentication exception: invalid username and/or password");
+                        throw new IOException(e);
+                    }
+                }
+
+                // compose the CfDef for the columfamily
+                CfDef cfDef = getCfDef(client);
+
+                if (cfDef != null)
+                {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(cfdefToString(cfDef));
+                    properties.setProperty(signature, sb.toString());
+                }
+                else
+                    throw new IOException(String.format("Table '%s' not found in keyspace '%s'",
+                            column_family,
+                            keyspace));
+            }
+            catch (Exception e)
+            {
+                throw new IOException(e);
+            }
+        }
+    }
+
+    public void checkSchema(ResourceSchema schema) throws IOException
+    {
+        // we don't care about types, they all get casted to ByteBuffers
+    }
+
     /** define the schema */
     public ResourceSchema getSchema(String location, Job job) throws IOException
     {
         setLocation(location, job);
-        CfInfo cfInfo = getCfInfo(loadSignature);
-        CfDef cfDef = cfInfo.cfDef;
+        CfDef cfDef = getCfDef(loadSignature);
         if (cfDef.column_type.equals("Super"))
             return null;
         /*
@@ -405,7 +540,7 @@ public class CassandraStorage extends AbstractCassandraStorage
         // add key
         ResourceFieldSchema keyFieldSchema = new ResourceFieldSchema();
         keyFieldSchema.setName("key");
-        keyFieldSchema.setType(getPigType(marshallers.get(MarshallerType.KEY_VALIDATOR)));
+        keyFieldSchema.setType(StorageHelper.getPigType(marshallers.get(MarshallerType.KEY_VALIDATOR)));
 
         ResourceSchema bagSchema = new ResourceSchema();
         ResourceFieldSchema bagField = new ResourceFieldSchema();
@@ -419,8 +554,8 @@ public class CassandraStorage extends AbstractCassandraStorage
         ResourceFieldSchema bagvalSchema = new ResourceFieldSchema();
         bagcolSchema.setName("name");
         bagvalSchema.setName("value");
-        bagcolSchema.setType(getPigType(marshallers.get(MarshallerType.COMPARATOR)));
-        bagvalSchema.setType(getPigType(marshallers.get(MarshallerType.DEFAULT_VALIDATOR)));
+        bagcolSchema.setType(StorageHelper.getPigType(marshallers.get(MarshallerType.COMPARATOR)));
+        bagvalSchema.setType(StorageHelper.getPigType(marshallers.get(MarshallerType.DEFAULT_VALIDATOR)));
         bagTupleSchema.setFields(new ResourceFieldSchema[] { bagcolSchema, bagvalSchema });
         bagTupleField.setSchema(bagTupleSchema);
         bagSchema.setFields(new ResourceFieldSchema[] { bagTupleField });
@@ -431,7 +566,7 @@ public class CassandraStorage extends AbstractCassandraStorage
         // add the key first, then the indexed columns, and finally the bag
         allSchemaFields.add(keyFieldSchema);
 
-        if (!widerows && (cfInfo.compactCqlTable || !cfInfo.cql3Table))
+        if (!widerows)
         {
             // defined validators/indexes
             for (ColumnDef cdef : cfDef.column_metadata)
@@ -445,14 +580,14 @@ public class CassandraStorage extends AbstractCassandraStorage
 
                 ResourceFieldSchema idxColSchema = new ResourceFieldSchema();
                 idxColSchema.setName("name");
-                idxColSchema.setType(getPigType(marshallers.get(MarshallerType.COMPARATOR)));
+                idxColSchema.setType(StorageHelper.getPigType(marshallers.get(MarshallerType.COMPARATOR)));
 
                 ResourceFieldSchema valSchema = new ResourceFieldSchema();
                 AbstractType validator = validators.get(cdef.name);
                 if (validator == null)
                     validator = marshallers.get(MarshallerType.DEFAULT_VALIDATOR);
                 valSchema.setName("value");
-                valSchema.setType(getPigType(validator));
+                valSchema.setType(StorageHelper.getPigType(validator));
 
                 innerTupleSchema.setFields(new ResourceFieldSchema[] { idxColSchema, valSchema });
                 allSchemaFields.add(innerTupleField);
@@ -472,7 +607,7 @@ public class CassandraStorage extends AbstractCassandraStorage
                 AbstractType validator = validators.get(cdef.name);
                 if (validator == null)
                     validator = marshallers.get(MarshallerType.DEFAULT_VALIDATOR);
-                idxSchema.setType(getPigType(validator));
+                idxSchema.setType(StorageHelper.getPigType(validator));
                 allSchemaFields.add(idxSchema);
             }
         }
@@ -485,8 +620,8 @@ public class CassandraStorage extends AbstractCassandraStorage
     public void setPartitionFilter(Expression partitionFilter) throws IOException
     {
         UDFContext context = UDFContext.getUDFContext();
-        Properties property = context.getUDFProperties(AbstractCassandraStorage.class);
-        property.setProperty(PARTITION_FILTER_SIGNATURE, indexExpressionsToString(filterToIndexExpressions(partitionFilter)));
+        Properties property = context.getUDFProperties(CassandraStorage.class);
+        property.setProperty(StorageHelper.PARTITION_FILTER_SIGNATURE, indexExpressionsToString(filterToIndexExpressions(partitionFilter)));
     }
 
     /** prepare writer */
@@ -495,33 +630,93 @@ public class CassandraStorage extends AbstractCassandraStorage
         this.writer = writer;
     }
 
-    /** write next row */
-    public void putNext(Tuple t) throws IOException
+    /** convert object to ByteBuffer */
+    protected ByteBuffer objToBB(Object o)
     {
-        /*
-        We support two cases for output:
-        First, the original output:
-            (key, (name, value), (name,value), {(name,value)}) (tuples or bag is optional)
-        For supers, we only accept the original output.
-        */
+        if (o == null)
+            return nullToBB();
+        if (o instanceof java.lang.String)
+            return ByteBuffer.wrap(new DataByteArray((String)o).get());
+        if (o instanceof Integer)
+            return Int32Type.instance.decompose((Integer)o);
+        if (o instanceof Long)
+            return LongType.instance.decompose((Long)o);
+        if (o instanceof Float)
+            return FloatType.instance.decompose((Float)o);
+        if (o instanceof Double)
+            return DoubleType.instance.decompose((Double)o);
+        if (o instanceof UUID)
+            return ByteBuffer.wrap(UUIDGen.decompose((UUID) o));
+        if(o instanceof Tuple) {
+            List<Object> objects = ((Tuple)o).getAll();
+            //collections
+            if (objects.size() > 0 && objects.get(0) instanceof String)
+            {
+                String collectionType = (String) objects.get(0);
+                if ("set".equalsIgnoreCase(collectionType) ||
+                        "list".equalsIgnoreCase(collectionType))
+                    return objToListOrSetBB(objects.subList(1, objects.size()));
+                else if ("map".equalsIgnoreCase(collectionType))
+                    return objToMapBB(objects.subList(1, objects.size()));
 
-        if (t.size() < 1)
-        {
-            // simply nothing here, we can't even delete without a key
-            logger.warn("Empty output skipped, filter empty tuples to suppress this warning");
-            return;
+            }
+            return objToCompositeBB(objects);
         }
-        ByteBuffer key = objToBB(t.get(0));
-        if (t.getType(1) == DataType.TUPLE)
-            writeColumnsFromTuple(key, t, 1);
-        else if (t.getType(1) == DataType.BAG)
+
+        return ByteBuffer.wrap(((DataByteArray) o).get());
+    }
+
+    private ByteBuffer objToListOrSetBB(List<Object> objects)
+    {
+        List<ByteBuffer> serialized = new ArrayList<ByteBuffer>(objects.size());
+        for(Object sub : objects)
         {
-            if (t.size() > 2)
-                throw new IOException("No arguments allowed after bag");
-            writeColumnsFromBag(key, (DataBag) t.get(1));
+            ByteBuffer buffer = objToBB(sub);
+            serialized.add(buffer);
         }
-        else
-            throw new IOException("Second argument in output must be a tuple or bag");
+        // NOTE: using protocol v1 serialization format for collections so as to not break
+        // compatibility. Not sure if that's the right thing.
+        return CollectionSerializer.pack(serialized, objects.size(), 1);
+    }
+
+    private ByteBuffer objToMapBB(List<Object> objects)
+    {
+        List<ByteBuffer> serialized = new ArrayList<ByteBuffer>(objects.size() * 2);
+        for(Object sub : objects)
+        {
+            List<Object> keyValue = ((Tuple)sub).getAll();
+            for (Object entry: keyValue)
+            {
+                ByteBuffer buffer = objToBB(entry);
+                serialized.add(buffer);
+            }
+        }
+        // NOTE: using protocol v1 serialization format for collections so as to not break
+        // compatibility. Not sure if that's the right thing.
+        return CollectionSerializer.pack(serialized, objects.size(), 1);
+    }
+
+    private ByteBuffer objToCompositeBB(List<Object> objects)
+    {
+        List<ByteBuffer> serialized = new ArrayList<ByteBuffer>(objects.size());
+        int totalLength = 0;
+        for(Object sub : objects)
+        {
+            ByteBuffer buffer = objToBB(sub);
+            serialized.add(buffer);
+            totalLength += 2 + buffer.remaining() + 1;
+        }
+        ByteBuffer out = ByteBuffer.allocate(totalLength);
+        for (ByteBuffer bb : serialized)
+        {
+            int length = bb.remaining();
+            out.put((byte) ((length >> 8) & 0xFF));
+            out.put((byte) (length & 0xFF));
+            out.put(bb);
+            out.put((byte) 0);
+        }
+        out.flip();
+        return out;
     }
 
     /** write tuple data to cassandra */
@@ -643,6 +838,19 @@ public class CassandraStorage extends AbstractCassandraStorage
         }
     }
 
+    /** get a list of columns with defined index*/
+    protected List<ColumnDef> getIndexes() throws IOException
+    {
+        CfDef cfdef = getCfDef(loadSignature);
+        List<ColumnDef> indexes = new ArrayList<ColumnDef>();
+        for (ColumnDef cdef : cfdef.column_metadata)
+        {
+            if (cdef.index_type != null)
+                indexes.add(cdef);
+        }
+        return indexes;
+    }
+
     /** get a list of Cassandra IndexExpression from Pig expression */
     private List<IndexExpression> filterToIndexExpressions(Expression expression) throws IOException
     {
@@ -713,22 +921,196 @@ public class CassandraStorage extends AbstractCassandraStorage
         return indexClause.getExpressions();
     }
 
+    public ResourceStatistics getStatistics(String location, Job job)
+    {
+        return null;
+    }
+
+    public void cleanupOnFailure(String failure, Job job)
+    {
+    }
+
+    public void cleanupOnSuccess(String location, Job job) throws IOException {
+    }
+
+
+    /** StoreFunc methods */
+    public void setStoreFuncUDFContextSignature(String signature)
+    {
+        this.storeSignature = signature;
+    }
+
+    public String relToAbsPathForStoreLocation(String location, Path curDir) throws IOException
+    {
+        return relativeToAbsolutePath(location, curDir);
+    }
+
+    /** output format */
+    public OutputFormat getOutputFormat() throws IOException
+    {
+        try
+        {
+            return FBUtilities.construct(outputFormatClass, "outputformat");
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e);
+        }
+    }
+
+
+    @Override
+    public InputFormat getInputFormat() throws IOException
+    {
+        try
+        {
+            return FBUtilities.construct(inputFormatClass, "inputformat");
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e);
+        }
+    }
+
     /** get a list of index expression */
     private List<IndexExpression> getIndexExpressions() throws IOException
     {
         UDFContext context = UDFContext.getUDFContext();
-        Properties property = context.getUDFProperties(AbstractCassandraStorage.class);
-        if (property.getProperty(PARTITION_FILTER_SIGNATURE) != null)
-            return indexExpressionsFromString(property.getProperty(PARTITION_FILTER_SIGNATURE));
+        Properties property = context.getUDFProperties(CassandraStorage.class);
+        if (property.getProperty(StorageHelper.PARTITION_FILTER_SIGNATURE) != null)
+            return indexExpressionsFromString(property.getProperty(StorageHelper.PARTITION_FILTER_SIGNATURE));
         else
             return null;
     }
 
     /** get a list of column for the column family */
-    protected List<ColumnDef> getColumnMetadata(Cassandra.Client client) 
+    protected List<ColumnDef> getColumnMetadata(Cassandra.Client client)
     throws TException, CharacterCodingException, InvalidRequestException, ConfigurationException
     {   
         return getColumnMeta(client, true, true);
+    }
+
+
+    /** get column meta data */
+    protected List<ColumnDef> getColumnMeta(Cassandra.Client client, boolean cassandraStorage, boolean includeCompactValueColumn)
+            throws org.apache.cassandra.thrift.InvalidRequestException,
+            UnavailableException,
+            TimedOutException,
+            SchemaDisagreementException,
+            TException,
+            CharacterCodingException,
+            org.apache.cassandra.exceptions.InvalidRequestException,
+            ConfigurationException,
+            NotFoundException
+    {
+        String query = String.format("SELECT column_name, validator, index_type, type " +
+                        "FROM %s.%s " +
+                        "WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
+                SystemKeyspace.NAME,
+                LegacySchemaTables.COLUMNS,
+                keyspace,
+                column_family);
+
+        CqlResult result = client.execute_cql3_query(ByteBufferUtil.bytes(query), Compression.NONE, ConsistencyLevel.ONE);
+
+        List<CqlRow> rows = result.rows;
+        List<ColumnDef> columnDefs = new ArrayList<ColumnDef>();
+        if (rows == null || rows.isEmpty())
+        {
+            // if CassandraStorage, just return the empty list
+            if (cassandraStorage)
+                return columnDefs;
+
+            // otherwise for CqlNativeStorage, check metadata for classic thrift tables
+            CFMetaData cfm = getCFMetaData(keyspace, column_family, client);
+            for (ColumnDefinition def : cfm.regularAndStaticColumns())
+            {
+                ColumnDef cDef = new ColumnDef();
+                String columnName = def.name.toString();
+                String type = def.type.toString();
+                logger.trace("name: {}, type: {} ", columnName, type);
+                cDef.name = ByteBufferUtil.bytes(columnName);
+                cDef.validation_class = type;
+                columnDefs.add(cDef);
+            }
+            // we may not need to include the value column for compact tables as we
+            // could have already processed it as schema_columnfamilies.value_alias
+            if (columnDefs.size() == 0 && includeCompactValueColumn && cfm.compactValueColumn() != null)
+            {
+                ColumnDefinition def = cfm.compactValueColumn();
+                if ("value".equals(def.name.toString()))
+                {
+                    ColumnDef cDef = new ColumnDef();
+                    cDef.name = def.name.bytes;
+                    cDef.validation_class = def.type.toString();
+                    columnDefs.add(cDef);
+                }
+            }
+            return columnDefs;
+        }
+
+        Iterator<CqlRow> iterator = rows.iterator();
+        while (iterator.hasNext())
+        {
+            CqlRow row = iterator.next();
+            ColumnDef cDef = new ColumnDef();
+            String type = ByteBufferUtil.string(row.getColumns().get(3).value);
+            if (!type.equals("regular"))
+                continue;
+            cDef.setName(ByteBufferUtil.clone(row.getColumns().get(0).value));
+            cDef.validation_class = ByteBufferUtil.string(row.getColumns().get(1).value);
+            ByteBuffer indexType = row.getColumns().get(2).value;
+            if (indexType != null)
+                cDef.index_type = getIndexType(ByteBufferUtil.string(indexType));
+            columnDefs.add(cDef);
+        }
+        return columnDefs;
+    }
+
+
+    /** get CFMetaData of a column family */
+    protected CFMetaData getCFMetaData(String ks, String cf, Cassandra.Client client)
+            throws NotFoundException,
+            org.apache.cassandra.thrift.InvalidRequestException,
+            TException,
+            org.apache.cassandra.exceptions.InvalidRequestException,
+            ConfigurationException
+    {
+        KsDef ksDef = client.describe_keyspace(ks);
+        for (CfDef cfDef : ksDef.cf_defs)
+        {
+            if (cfDef.name.equalsIgnoreCase(cf))
+                return ThriftConversion.fromThrift(cfDef);
+        }
+        return null;
+    }
+
+    /** get index type from string */
+    protected IndexType getIndexType(String type)
+    {
+        type = type.toLowerCase();
+        if ("keys".equals(type))
+            return IndexType.KEYS;
+        else if("custom".equals(type))
+            return IndexType.CUSTOM;
+        else if("composites".equals(type))
+            return IndexType.COMPOSITES;
+        else
+            return null;
+    }
+
+    /** return partition keys */
+    public String[] getPartitionKeys(String location, Job job) throws IOException
+    {
+        if (!usePartitionFilter)
+            return null;
+        List<ColumnDef> indexes = getIndexes();
+        String[] partitionKeys = new String[indexes.size()];
+        for (int i = 0; i < indexes.size(); i++)
+        {
+            partitionKeys[i] = new String(indexes.get(i).getName());
+        }
+        return partitionKeys;
     }
 
     /** convert key to a tuple */
@@ -744,13 +1126,24 @@ public class CassandraStorage extends AbstractCassandraStorage
     {
         if( comparator instanceof AbstractCompositeType )
         {
-            setTupleValue(tuple, 0, composeComposite((AbstractCompositeType)comparator,key));
+            StorageHelper.setTupleValue(tuple, 0, composeComposite((AbstractCompositeType) comparator, key));
         }
         else
         {
-            setTupleValue(tuple, 0, cassandraToObj(getDefaultMarshallers(cfDef).get(MarshallerType.KEY_VALIDATOR), key));
+            StorageHelper.setTupleValue(tuple, 0, StorageHelper.cassandraToObj(getDefaultMarshallers(cfDef).get(MarshallerType.KEY_VALIDATOR), key, nativeProtocolVersion));
         }
 
+    }
+
+    /** Deconstructs a composite type to a Tuple. */
+    protected Tuple composeComposite(AbstractCompositeType comparator, ByteBuffer name) throws IOException
+    {
+        List<AbstractCompositeType.CompositeComponent> result = comparator.deconstruct(name);
+        Tuple t = TupleFactory.getInstance().newTuple(result.size());
+        for (int i=0; i<result.size(); i++)
+            StorageHelper.setTupleValue(t, i, StorageHelper.cassandraToObj(result.get(i).comparator, result.get(i).value, nativeProtocolVersion));
+
+        return t;
     }
 
     /** cassandra://[username:password@]<keyspace>/<columnfamily>[?slice_start=<start>&slice_end=<end>
@@ -810,17 +1203,211 @@ public class CassandraStorage extends AbstractCassandraStorage
         }
         catch (Exception e)
         {
-            throw new IOException("Expected 'cassandra://[username:password@]<keyspace>/<columnfamily>" +
+            throw new IOException("Expected 'cassandra://[username:password@]<keyspace>/<table>" +
                     "[?slice_start=<start>&slice_end=<end>[&reversed=true][&limit=1]" +
                     "[&allow_deletes=true][&widerows=true][&use_secondary=true]" +
                     "[&comparator=<comparator>][&split_size=<size>][&partitioner=<partitioner>]" +
                     "[&init_address=<host>][&rpc_port=<port>]]': " + e.getMessage());
         }
     }
-    
+
+
+    /** decompose the query to store the parameters in a map */
+    public static Map<String, String> getQueryMap(String query) throws UnsupportedEncodingException
+    {
+        String[] params = query.split("&");
+        Map<String, String> map = new HashMap<String, String>(params.length);
+        for (String param : params)
+        {
+            String[] keyValue = param.split("=");
+            map.put(keyValue[0], URLDecoder.decode(keyValue[1], "UTF-8"));
+        }
+        return map;
+    }
+
     public ByteBuffer nullToBB()
     {
-        return (ByteBuffer) null;
+        return null;
+    }
+
+    /** return the CfInfo for the column family */
+    protected CfDef getCfDef(Cassandra.Client client)
+            throws org.apache.cassandra.thrift.InvalidRequestException,
+            UnavailableException,
+            TimedOutException,
+            SchemaDisagreementException,
+            TException,
+            NotFoundException,
+            org.apache.cassandra.exceptions.InvalidRequestException,
+            ConfigurationException,
+            IOException
+    {
+        // get CF meta data
+        String query = String.format("SELECT type, comparator, subcomparator, default_validator, key_validator " +
+                        "FROM %s.%s " +
+                        "WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
+                SystemKeyspace.NAME,
+                LegacySchemaTables.COLUMNFAMILIES,
+                keyspace,
+                column_family);
+
+        CqlResult result = client.execute_cql3_query(ByteBufferUtil.bytes(query), Compression.NONE, ConsistencyLevel.ONE);
+
+        if (result == null || result.rows == null || result.rows.isEmpty())
+            return null;
+
+        Iterator<CqlRow> iteraRow = result.rows.iterator();
+        CfDef cfDef = new CfDef();
+        cfDef.keyspace = keyspace;
+        cfDef.name = column_family;
+        if (iteraRow.hasNext())
+        {
+            CqlRow cqlRow = iteraRow.next();
+
+            cfDef.column_type = ByteBufferUtil.string(cqlRow.columns.get(0).value);
+            cfDef.comparator_type = ByteBufferUtil.string(cqlRow.columns.get(1).value);
+            ByteBuffer subComparator = cqlRow.columns.get(2).value;
+            if (subComparator != null)
+                cfDef.subcomparator_type = ByteBufferUtil.string(subComparator);
+            cfDef.default_validation_class = ByteBufferUtil.string(cqlRow.columns.get(3).value);
+            cfDef.key_validation_class = ByteBufferUtil.string(cqlRow.columns.get(4).value);
+        }
+        cfDef.column_metadata = getColumnMetadata(client);
+        return cfDef;
+    }
+
+    /** get the columnfamily definition for the signature */
+    protected CfDef getCfDef(String signature) throws IOException
+    {
+        UDFContext context = UDFContext.getUDFContext();
+        Properties property = context.getUDFProperties(CassandraStorage.class);
+        String prop = property.getProperty(signature);
+        return cfdefFromString(prop);
+    }
+
+    /** convert string back to CfDef */
+    protected static CfDef cfdefFromString(String st) throws IOException
+    {
+        assert st != null;
+        TDeserializer deserializer = new TDeserializer(new TBinaryProtocol.Factory());
+        CfDef cfDef = new CfDef();
+        try
+        {
+            deserializer.deserialize(cfDef, Hex.hexToBytes(st));
+        }
+        catch (TException e)
+        {
+            throw new IOException(e);
+        }
+        return cfDef;
+    }
+
+    /** convert CfDef to string */
+    protected static String cfdefToString(CfDef cfDef) throws IOException
+    {
+        assert cfDef != null;
+        // this is so awful it's kind of cool!
+        TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
+        try
+        {
+            return Hex.bytesToHex(serializer.serialize(cfDef));
+        }
+        catch (TException e)
+        {
+            throw new IOException(e);
+        }
+    }
+
+    /** parse the string to a cassandra data type */
+    protected AbstractType parseType(String type) throws IOException
+    {
+        try
+        {
+            // always treat counters like longs, specifically CCT.compose is not what we need
+            if (type != null && type.equals("org.apache.cassandra.db.marshal.CounterColumnType"))
+                return LongType.instance;
+            return TypeParser.parse(type);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e);
+        }
+        catch (SyntaxException e)
+        {
+            throw new IOException(e);
+        }
+    }
+
+    /** convert a column to a tuple */
+    protected Tuple columnToTuple(ColumnFamilyRecordReader.Column column, CfDef cfDef, AbstractType comparator) throws IOException
+    {
+        Tuple pair = TupleFactory.getInstance().newTuple(2);
+
+        // name
+        if(comparator instanceof AbstractCompositeType)
+            StorageHelper.setTupleValue(pair, 0, composeComposite((AbstractCompositeType) comparator, column.name));
+        else
+            StorageHelper.setTupleValue(pair, 0, StorageHelper.cassandraToObj(comparator, column.name, nativeProtocolVersion));
+
+        // value
+        Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
+        if (validators.get(column.name) == null)
+        {
+            Map<MarshallerType, AbstractType> marshallers = getDefaultMarshallers(cfDef);
+            StorageHelper.setTupleValue(pair, 1, StorageHelper.cassandraToObj(marshallers.get(MarshallerType.DEFAULT_VALIDATOR), column.value, nativeProtocolVersion));
+        }
+        else
+            StorageHelper.setTupleValue(pair, 1, StorageHelper.cassandraToObj(validators.get(column.name), column.value, nativeProtocolVersion));
+        return pair;
+    }
+
+    /** construct a map to store the mashaller type to cassandra data type mapping */
+    protected Map<MarshallerType, AbstractType> getDefaultMarshallers(CfDef cfDef) throws IOException
+    {
+        Map<MarshallerType, AbstractType> marshallers = new EnumMap<MarshallerType, AbstractType>(MarshallerType.class);
+        AbstractType comparator;
+        AbstractType subcomparator;
+        AbstractType default_validator;
+        AbstractType key_validator;
+
+        comparator = parseType(cfDef.getComparator_type());
+        subcomparator = parseType(cfDef.getSubcomparator_type());
+        default_validator = parseType(cfDef.getDefault_validation_class());
+        key_validator = parseType(cfDef.getKey_validation_class());
+
+        marshallers.put(MarshallerType.COMPARATOR, comparator);
+        marshallers.put(MarshallerType.DEFAULT_VALIDATOR, default_validator);
+        marshallers.put(MarshallerType.KEY_VALIDATOR, key_validator);
+        marshallers.put(MarshallerType.SUBCOMPARATOR, subcomparator);
+        return marshallers;
+    }
+
+    /** get the validators */
+    protected Map<ByteBuffer, AbstractType> getValidatorMap(CfDef cfDef) throws IOException
+    {
+        Map<ByteBuffer, AbstractType> validators = new HashMap<ByteBuffer, AbstractType>();
+        for (ColumnDef cd : cfDef.getColumn_metadata())
+        {
+            if (cd.getValidation_class() != null && !cd.getValidation_class().isEmpty())
+            {
+                AbstractType validator = null;
+                try
+                {
+                    validator = TypeParser.parse(cd.getValidation_class());
+                    if (validator instanceof CounterColumnType)
+                        validator = LongType.instance;
+                    validators.put(cd.name, validator);
+                }
+                catch (ConfigurationException e)
+                {
+                    throw new IOException(e);
+                }
+                catch (SyntaxException e)
+                {
+                    throw new IOException(e);
+                }
+            }
+        }
+        return validators;
     }
 }
-

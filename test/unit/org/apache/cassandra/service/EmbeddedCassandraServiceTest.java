@@ -26,9 +26,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.TException;
@@ -48,10 +48,23 @@ import static org.junit.Assert.assertNotNull;
  * Tests connect to localhost:9160 when the embedded server is running.
  *
  */
-public class EmbeddedCassandraServiceTest extends SchemaLoader
+public class EmbeddedCassandraServiceTest
 {
 
     private static EmbeddedCassandraService cassandra;
+    private static final String KEYSPACE1 = "EmbeddedCassandraServiceTest";
+    private static final String CF_STANDARD = "Standard1";
+
+    @BeforeClass
+    public static void defineSchema() throws Exception
+    {
+        SchemaLoader.prepareServer();
+        setup();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
+    }
 
     /**
      * Set embedded cassandra up and spawn it in a new thread.
@@ -60,10 +73,9 @@ public class EmbeddedCassandraServiceTest extends SchemaLoader
      * @throws IOException
      * @throws InterruptedException
      */
-    @BeforeClass
-    public static void setup() throws TTransportException, IOException, InterruptedException, ConfigurationException
+    public static void setup() throws TTransportException, IOException, InterruptedException
     {
-        Schema.instance.clear(); // Schema are now written on disk and will be reloaded
+        // unique ks / cfs mean no need to clear the schema
         cassandra = new EmbeddedCassandraService();
         cassandra.start();
     }
@@ -73,7 +85,7 @@ public class EmbeddedCassandraServiceTest extends SchemaLoader
     throws AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, CharacterCodingException
     {
         Cassandra.Client client = getClient();
-        client.set_keyspace("Keyspace1");
+        client.set_keyspace(KEYSPACE1);
 
         ByteBuffer key_user_id = ByteBufferUtil.bytes("1");
 

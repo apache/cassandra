@@ -21,16 +21,17 @@ from __future__ import with_statement
 
 import re
 from itertools import izip
-from .basecase import (BaseTestCase, cqlshlog, dedent, at_a_time,
+from .basecase import (BaseTestCase, cqlshlog, dedent, at_a_time, cqlsh,
                        TEST_HOST, TEST_PORT)
-from .cassconnect import (get_test_keyspace, testrun_cqlsh, testcall_cqlsh,
+from .cassconnect import (get_keyspace, testrun_cqlsh, testcall_cqlsh,
                           cassandra_cursor, split_cql_commands, quote_name)
 from .ansi_colors import (ColoredText, lookup_colorcode, lookup_colorname,
                           lookup_colorletter, ansi_seq)
+import unittest
+import sys
 
 CONTROL_C = '\x03'
 CONTROL_D = '\x04'
-
 
 class TestCqlshOutput(BaseTestCase):
 
@@ -67,7 +68,7 @@ class TestCqlshOutput(BaseTestCase):
                                  % (tags, coloredtext.colored_version(), coloredtext.colortags()))
 
     def assertCqlverQueriesGiveColoredOutput(self, queries_and_expected_outputs,
-                                             cqlver=(), **kwargs):
+                                             cqlver=(cqlsh.DEFAULT_CQLVER,), **kwargs):
         if not isinstance(cqlver, (tuple, list)):
             cqlver = (cqlver,)
         for ver in cqlver:
@@ -92,7 +93,8 @@ class TestCqlshOutput(BaseTestCase):
     def test_no_color_output(self):
         for termname in ('', 'dumb', 'vt100'):
             cqlshlog.debug('TERM=%r' % termname)
-            with testrun_cqlsh(tty=True, env={'TERM': termname}) as c:
+            with testrun_cqlsh(tty=True, env={'TERM': termname},
+                               win_force_colors=False) as c:
                 c.send('select * from has_all_types;\n')
                 self.assertNoHasColors(c.read_to_next_prompt())
                 c.send('select count(*) from has_all_types;\n')
@@ -110,13 +112,14 @@ class TestCqlshOutput(BaseTestCase):
             for line in output:
                 self.assertNoHasColors(line)
                 self.assertNotRegexpMatches(line, r'^cqlsh\S*>')
-            self.assertTrue(6 <= len(output) <= 8,
-                            msg='output: %r' % '\n'.join(output))
+            self.assertEqual(len(output), 6,
+                             msg='output: %r' % '\n'.join(output))
             self.assertEqual(output[0], '')
             self.assertNicelyFormattedTableHeader(output[1])
             self.assertNicelyFormattedTableRule(output[2])
             self.assertNicelyFormattedTableData(output[3])
             self.assertEqual(output[4].strip(), '')
+            self.assertEqual(output[5].strip(), '(1 rows)')
 
     def test_color_output(self):
         for termname in ('xterm', 'unknown-garbage'):
@@ -175,7 +178,7 @@ class TestCqlshOutput(BaseTestCase):
              MMMMM
             -------
 
-                10
+                20
                 GG
 
 
@@ -195,7 +198,7 @@ class TestCqlshOutput(BaseTestCase):
             (1 rows)
             nnnnnnnn
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
         q = 'select COUNT(*) FROM twenty_rows_composite_table limit 1000000;'
         self.assertQueriesGiveColoredOutput((
@@ -211,13 +214,13 @@ class TestCqlshOutput(BaseTestCase):
             (1 rows)
             nnnnnnnn
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
     def test_static_cf_output(self):
         self.assertCqlverQueriesGiveColoredOutput((
             ("select a, b from twenty_rows_table where a in ('1', '13', '2');", """
              a  | b
-             MM   MM
+             RR   MM
             ----+----
 
               1 |  1
@@ -231,12 +234,12 @@ class TestCqlshOutput(BaseTestCase):
             (3 rows)
             nnnnnnnn
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
         self.assertQueriesGiveColoredOutput((
             ('select * from dynamic_columns;', """
              somekey | column1 | value
-             MMMMMMM   MMMMMMM   MMMMM
+             RRRRRRR   CCCCCCC   MMMMM
             ---------+---------+-------------------------
 
                    1 |     1.2 |           one point two
@@ -254,23 +257,34 @@ class TestCqlshOutput(BaseTestCase):
             (5 rows)
             nnnnnnnn
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
     def test_empty_cf_output(self):
+        # we print the header after CASSANDRA-6910
         self.assertCqlverQueriesGiveColoredOutput((
             ('select * from empty_table;', """
+             lonelykey | lonelycol
+             RRRRRRRRR   MMMMMMMMM
+            -----------+-----------
+
+
             (0 rows)
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
         q = 'select * from has_all_types where num = 999;'
 
         # same query should show up as empty in cql 3
         self.assertQueriesGiveColoredOutput((
             (q, """
+             num | asciicol | bigintcol | blobcol | booleancol | decimalcol | doublecol | floatcol | intcol | smallintcol | textcol | timestampcol | tinyintcol | uuidcol | varcharcol | varintcol
+             RRR   MMMMMMMM   MMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMMM   MMMMMMMMM   MMMMMMMM   MMMMMM   MMMMMMMMMMM   MMMMMMM   MMMMMMMMMMMM   MMMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMM
+            -----+----------+-----------+---------+------------+------------+-----------+----------+--------+-------------+---------+--------------+------------+---------+------------+-----------
+
+
             (0 rows)
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
     def test_columnless_key_output(self):
         q = "select a from twenty_rows_table where a in ('1', '2', '-9192');"
@@ -278,7 +292,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertQueriesGiveColoredOutput((
             (q, """
              a
-             M
+             R
             ---
 
              1
@@ -290,7 +304,7 @@ class TestCqlshOutput(BaseTestCase):
             (2 rows)
             nnnnnnnn
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
     def test_numeric_output(self):
         self.assertCqlverQueriesGiveColoredOutput((
@@ -339,7 +353,7 @@ class TestCqlshOutput(BaseTestCase):
             (5 rows)
             nnnnnnnn
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
     def test_timestamp_output(self):
         self.assertQueriesGiveColoredOutput((
@@ -356,27 +370,30 @@ class TestCqlshOutput(BaseTestCase):
             nnnnnnnn
             """),
         ), env={'TZ': 'Etc/UTC'})
+        try:
+            import pytz  # test only if pytz is available on PYTHONPATH
+            self.assertQueriesGiveColoredOutput((
+                ('''select timestampcol from has_all_types where num = 0;''', """
+                 timestampcol
+                 MMMMMMMMMMMM
+                --------------------------
 
-        self.assertQueriesGiveColoredOutput((
-            ('''select timestampcol from has_all_types where num = 0;''', """
-             timestampcol
-             MMMMMMMMMMMM
-            --------------------------
-
-             2012-05-14 07:53:20-0500
-             GGGGGGGGGGGGGGGGGGGGGGGG
+                 2012-05-14 09:53:20-0300
+                 GGGGGGGGGGGGGGGGGGGGGGGG
 
 
-            (1 rows)
-            nnnnnnnn
-            """),
-        ), env={'TZ': 'EST'})
+                (1 rows)
+                nnnnnnnn
+                """),
+            ), env={'TZ': 'America/Sao_Paulo'})
+        except ImportError:
+            pass
 
     def test_boolean_output(self):
         self.assertCqlverQueriesGiveColoredOutput((
             ('select num, booleancol from has_all_types where num in (0, 1, 2, 3);', """
              num | booleancol
-             MMM   MMMMMMMMMM
+             RRR   MMMMMMMMMM
             -----+------------
 
                0 |       True
@@ -392,14 +409,14 @@ class TestCqlshOutput(BaseTestCase):
             (4 rows)
             nnnnnnnn
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
     def test_null_output(self):
         # column with metainfo but no values
         self.assertCqlverQueriesGiveColoredOutput((
             ("select k, c, notthere from undefined_values_table where k in ('k1', 'k2');", """
              k  | c  | notthere
-             M    M    MMMMMMMM
+             R    M    MMMMMMMM
             ----+----+----------
 
              k1 | c1 |     null
@@ -411,13 +428,13 @@ class TestCqlshOutput(BaseTestCase):
             (2 rows)
             nnnnnnnn
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
         # all-columns, including a metainfo column has no values (cql3)
         self.assertQueriesGiveColoredOutput((
             ("select * from undefined_values_table where k in ('k1', 'k2');", """
              k  | c  | notthere
-             M    M    MMMMMMMM
+             R    M    MMMMMMMM
             ----+----+----------
 
              k1 | c1 |     null
@@ -429,13 +446,13 @@ class TestCqlshOutput(BaseTestCase):
             (2 rows)
             nnnnnnnn
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
     def test_string_output_ascii(self):
         self.assertCqlverQueriesGiveColoredOutput((
             ("select * from ascii_with_special_chars where k in (0, 1, 2, 3);", r"""
              k | val
-             M   MMM
+             R   MMM
             ---+-----------------------------------------------
 
              0 |                                    newline:\n
@@ -451,7 +468,7 @@ class TestCqlshOutput(BaseTestCase):
             (4 rows)
             nnnnnnnn
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
     def test_string_output_utf8(self):
         # many of these won't line up visually here, to keep the source code
@@ -463,7 +480,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertCqlverQueriesGiveColoredOutput((
             ("select * from utf8_with_special_chars where k in (0, 1, 2, 3, 4, 5, 6);", u"""
              k | val
-             M   MMM
+             R   MMM
             ---+-------------------------------
 
              0 |                 Normal string
@@ -485,13 +502,13 @@ class TestCqlshOutput(BaseTestCase):
             (7 rows)
             nnnnnnnn
             """.encode('utf-8')),
-        ), cqlver=3, env={'LANG': 'en_US.UTF-8'})
+        ), cqlver=cqlsh.DEFAULT_CQLVER, env={'LANG': 'en_US.UTF-8'})
 
     def test_blob_output(self):
         self.assertCqlverQueriesGiveColoredOutput((
             ("select num, blobcol from has_all_types where num in (0, 1, 2, 3);", r"""
              num | blobcol
-             MMM   MMMMMMM
+             RRR   MMMMMMM
             -----+----------------------
 
                0 | 0x000102030405fffefd
@@ -507,41 +524,45 @@ class TestCqlshOutput(BaseTestCase):
             (4 rows)
             nnnnnnnn
             """),
-        ), cqlver=3)
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
     def test_prompt(self):
-        with testrun_cqlsh(tty=True, keyspace=None, cqlver=3) as c:
-            self.assertEqual(c.output_header.splitlines()[-1], 'cqlsh> ')
+        with testrun_cqlsh(tty=True, keyspace=None, cqlver=cqlsh.DEFAULT_CQLVER) as c:
+            self.assertTrue(c.output_header.splitlines()[-1].endswith('cqlsh> '))
 
             c.send('\n')
             output = c.read_to_next_prompt().replace('\r\n', '\n')
-            self.assertEqual(output, '\ncqlsh> ')
+            self.assertTrue(output.endswith('cqlsh> '))
 
-            cmd = "USE \"%s\";\n" % get_test_keyspace().replace('"', '""')
+            cmd = "USE \"%s\";\n" % get_keyspace().replace('"', '""')
             c.send(cmd)
             output = c.read_to_next_prompt().replace('\r\n', '\n')
-            self.assertEqual(output, '%scqlsh:%s> ' % (cmd, get_test_keyspace()))
+            self.assertTrue(output.endswith('cqlsh:%s> ' % (get_keyspace())))
 
             c.send('use system;\n')
             output = c.read_to_next_prompt().replace('\r\n', '\n')
-            self.assertEqual(output, 'use system;\ncqlsh:system> ')
+            self.assertTrue(output.endswith('cqlsh:system> '))
 
             c.send('use NONEXISTENTKEYSPACE;\n')
             outputlines = c.read_to_next_prompt().splitlines()
 
-            self.assertEqual(outputlines[0], 'use NONEXISTENTKEYSPACE;')
-            self.assertEqual(outputlines[2], 'cqlsh:system> ')
-            midline = ColoredText(outputlines[1])
+            start_index = 0
+            if c.realtty:
+                self.assertEqual(outputlines[start_index], 'use NONEXISTENTKEYSPACE;')
+                start_index = 1
+
+            self.assertTrue(outputlines[start_index+1].endswith('cqlsh:system> '))
+            midline = ColoredText(outputlines[start_index])
             self.assertEqual(midline.plain(),
-                             "Bad Request: Keyspace 'nonexistentkeyspace' does not exist")
+                             'InvalidRequest: Error from server: code=2200 [Invalid query] message="Keyspace \'nonexistentkeyspace\' does not exist"')
             self.assertColorFromTags(midline,
                              "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
 
     def test_describe_keyspace_output(self):
-        fullcqlver = '3.1.0'
+        fullcqlver = cqlsh.DEFAULT_CQLVER
         with testrun_cqlsh(tty=True, cqlver=fullcqlver) as c:
-            ks = get_test_keyspace()
-            qks = quote_name(fullcqlver, ks)
+            ks = get_keyspace()
+            qks = quote_name(ks)
             for cmd in ('describe keyspace', 'desc keyspace'):
                 for givename in ('system', '', qks):
                     for semicolon in ('', ';'):
@@ -553,7 +574,7 @@ class TestCqlshOutput(BaseTestCase):
             # new keyspace name
             new_ks_name = 'COPY_OF_' + ks
             copy_desc = desc.replace(ks, new_ks_name)
-            statements = split_cql_commands(copy_desc, cqlver=fullcqlver)
+            statements = split_cql_commands(copy_desc)
             do_drop = True
 
             with cassandra_cursor(cql_version=fullcqlver) as curs:
@@ -564,13 +585,12 @@ class TestCqlshOutput(BaseTestCase):
                 finally:
                     curs.execute('use system')
                     if do_drop:
-                        curs.execute('drop keyspace %s' % quote_name(fullcqlver, new_ks_name))
+                        curs.execute('drop keyspace %s' % quote_name(new_ks_name))
 
     def check_describe_keyspace_output(self, output, qksname, fullcqlver):
         expected_bits = [r'(?im)^CREATE KEYSPACE %s WITH\b' % re.escape(qksname),
-                         r'(?im)^USE \S+;$',
                          r';\s*$',
-                         r'\breplication = {\n  \'class\':']
+                         r'\breplication = {\'class\':']
         for expr in expected_bits:
             self.assertRegexpMatches(output, expr)
 
@@ -581,46 +601,45 @@ class TestCqlshOutput(BaseTestCase):
         # note columns are now comparator-ordered instead of original-order.
         table_desc3 = dedent("""
 
-            CREATE TABLE has_all_types (
-              num int,
-              asciicol ascii,
-              bigintcol bigint,
-              blobcol blob,
-              booleancol boolean,
-              decimalcol decimal,
-              doublecol double,
-              floatcol float,
-              intcol int,
-              textcol text,
-              timestampcol timestamp,
-              uuidcol uuid,
-              varcharcol text,
-              varintcol varint,
-              PRIMARY KEY ((num))
-            ) WITH
-              bloom_filter_fp_chance=0.010000 AND
-              caching='KEYS_ONLY' AND
-              comment='' AND
-              dclocal_read_repair_chance=0.100000 AND
-              gc_grace_seconds=864000 AND
-              index_interval=128 AND
-              read_repair_chance=0.000000 AND
-              replicate_on_write='true' AND
-              populate_io_cache_on_flush='false' AND
-              default_time_to_live=0 AND
-              speculative_retry='99.0PERCENTILE' AND
-              memtable_flush_period_in_ms=0 AND
-              compaction={'class': 'SizeTieredCompactionStrategy'} AND
-              compression={'sstable_compression': 'LZ4Compressor'};
+            CREATE TABLE %s.has_all_types (
+                num int PRIMARY KEY,
+                asciicol ascii,
+                bigintcol bigint,
+                blobcol blob,
+                booleancol boolean,
+                decimalcol decimal,
+                doublecol double,
+                floatcol float,
+                intcol int,
+                smallintcol smallint,
+                textcol text,
+                timestampcol timestamp,
+                tinyintcol tinyint,
+                uuidcol uuid,
+                varcharcol text,
+                varintcol varint
+            ) WITH bloom_filter_fp_chance = 0.01
+                AND caching = '{"keys":"ALL", "rows_per_partition":"NONE"}'
+                AND comment = ''
+                AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy'}
+                AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+                AND dclocal_read_repair_chance = 0.1
+                AND default_time_to_live = 0
+                AND gc_grace_seconds = 864000
+                AND max_index_interval = 2048
+                AND memtable_flush_period_in_ms = 0
+                AND min_index_interval = 128
+                AND read_repair_chance = 0.0
+                AND speculative_retry = '99.0PERCENTILE';
 
-        """)
+        """ % quote_name(get_keyspace()))
 
-        with testrun_cqlsh(tty=True, cqlver='3.0.0') as c:
+        with testrun_cqlsh(tty=True, cqlver=cqlsh.DEFAULT_CQLVER) as c:
             for cmdword in ('describe table', 'desc columnfamily'):
                 for semicolon in (';', ''):
                     output = c.cmd_and_response('%s has_all_types%s' % (cmdword, semicolon))
                     self.assertNoHasColors(output)
-                    self.assertEqual(output, table_desc3)
+                    self.assertSequenceEqual(output.split('\n'), table_desc3.split('\n'))
 
     def test_describe_columnfamilies_output(self):
         output_re = r'''
@@ -631,9 +650,9 @@ class TestCqlshOutput(BaseTestCase):
             \n
         '''
 
-        ks = get_test_keyspace()
+        ks = get_keyspace()
 
-        with testrun_cqlsh(tty=True, keyspace=None, cqlver=3) as c:
+        with testrun_cqlsh(tty=True, keyspace=None, cqlver=cqlsh.DEFAULT_CQLVER) as c:
 
             # when not in a keyspace
             for cmdword in ('DESCRIBE COLUMNFAMILIES', 'desc tables'):
@@ -652,10 +671,10 @@ class TestCqlshOutput(BaseTestCase):
                             self.assertIn('ascii_with_special_chars', cfnames)
 
                     self.assertIn('system', ksnames)
-                    self.assertIn(quote_name('3.0.0', ks), ksnames)
+                    self.assertIn(quote_name(ks), ksnames)
 
             # when in a keyspace
-            c.send('USE %s;\n' % quote_name('3.0.0', ks))
+            c.send('USE %s;\n' % quote_name(ks))
             c.read_to_next_prompt()
 
             for cmdword in ('DESCRIBE COLUMNFAMILIES', 'desc tables'):
@@ -664,7 +683,7 @@ class TestCqlshOutput(BaseTestCase):
                     self.assertNoHasColors(output)
                     self.assertEqual(output[0], '\n')
                     self.assertEqual(output[-1], '\n')
-                    self.assertNotIn('Keyspace %s' % quote_name('3.0.0', ks), output)
+                    self.assertNotIn('Keyspace %s' % quote_name(ks), output)
                     self.assertIn('undefined_values_table', output)
 
     def test_describe_cluster_output(self):
@@ -673,7 +692,6 @@ class TestCqlshOutput(BaseTestCase):
             \n
             Cluster: [ ] (?P<clustername> .* ) \n
             Partitioner: [ ] (?P<partitionername> .* ) \n
-            Snitch: [ ] (?P<snitchname> .* ) \n
             \n
         '''
 
@@ -685,7 +703,7 @@ class TestCqlshOutput(BaseTestCase):
             \n
         '''
 
-        with testrun_cqlsh(tty=True, keyspace=None, cqlver=3) as c:
+        with testrun_cqlsh(tty=True, keyspace=None, cqlver=cqlsh.DEFAULT_CQLVER) as c:
 
             # not in a keyspace
             for semicolon in ('', ';'):
@@ -693,7 +711,7 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertNoHasColors(output)
                 self.assertRegexpMatches(output, output_re + '$')
 
-            c.send('USE %s;\n' % quote_name('3.0.0', get_test_keyspace()))
+            c.send('USE %s;\n' % quote_name(get_keyspace()))
             c.read_to_next_prompt()
 
             for semicolon in ('', ';'):
@@ -707,7 +725,7 @@ class TestCqlshOutput(BaseTestCase):
                 output = c.cmd_and_response('desc full schema' + semicolon)
                 self.assertNoHasColors(output)
                 self.assertRegexpMatches(output, '^\nCREATE KEYSPACE')
-                self.assertIn("\nCREATE KEYSPACE system WITH replication = {\n  'class': 'LocalStrategy'\n};\n",
+                self.assertIn("\nCREATE KEYSPACE system WITH replication = {'class': 'LocalStrategy'}  AND durable_writes = true;\n",
                               output)
                 self.assertRegexpMatches(output, ';\s*$')
 
@@ -715,13 +733,14 @@ class TestCqlshOutput(BaseTestCase):
         with testrun_cqlsh(tty=True) as c:
             output = c.cmd_and_response('show version;')
             self.assertRegexpMatches(output,
-                    '^\[cqlsh \S+ \| Cassandra \S+ \| CQL spec \S+ \| Thrift protocol \S+\]$')
+                    '^\[cqlsh \S+ \| Cassandra \S+ \| CQL spec \S+ \| Native protocol \S+\]$')
 
             output = c.cmd_and_response('show host;')
             self.assertHasColors(output)
             self.assertRegexpMatches(output, '^Connected to .* at %s:%d\.$'
                                              % (re.escape(TEST_HOST), TEST_PORT))
 
+    @unittest.skipIf(sys.platform == "win32", 'EOF signaling not supported on Windows')
     def test_eof_prints_newline(self):
         with testrun_cqlsh(tty=True) as c:
             c.send(CONTROL_D)
@@ -736,8 +755,9 @@ class TestCqlshOutput(BaseTestCase):
             with testrun_cqlsh(tty=True) as c:
                 cmd = 'exit%s\n' % semicolon
                 c.send(cmd)
-                out = c.read_lines(1)[0].replace('\r', '')
-                self.assertEqual(out, cmd)
+                if c.realtty:
+                    out = c.read_lines(1)[0].replace('\r', '')
+                    self.assertEqual(out, cmd)
                 with self.assertRaises(BaseException) as cm:
                     c.read_lines(1)
                 self.assertIn(type(cm.exception), (EOFError, OSError))
@@ -769,3 +789,67 @@ class TestCqlshOutput(BaseTestCase):
 
     def test_empty_line(self):
         pass
+
+    def test_user_types_output(self):
+        self.assertCqlverQueriesGiveColoredOutput((
+            ("select addresses from users;", r"""
+             addresses
+             MMMMMMMMM
+            --------------------------------------------------------------------------------------------------------------------------------------------
+
+                                          {{city: 'Chelyabinsk', address: '3rd street', zip: null}, {city: 'Chigirinsk', address: null, zip: '676722'}}
+                                          BBYYYYBBYYYYYYYYYYYYYBBYYYYYYYBBYYYYYYYYYYYYBBYYYBBRRRRBBBBYYYYBBYYYYYYYYYYYYBBYYYYYYYBBRRRRBBYYYBBYYYYYYYYBB
+             {{city: 'Austin', address: '902 East 5th St. #202', zip: '78702'}, {city: 'Sunnyvale', address: '292 Gibraltar Drive #107', zip: '94089'}}
+             BBYYYYBBYYYYYYYYBBYYYYYYYBBYYYYYYYYYYYYYYYYYYYYYYYBBYYYBBYYYYYYYBBBBYYYYBBYYYYYYYYYYYBBYYYYYYYBBYYYYYYYYYYYYYYYYYYYYYYYYYYBBYYYBBYYYYYYYBB
+
+
+            (2 rows)
+            nnnnnnnn
+            """),
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
+        self.assertCqlverQueriesGiveColoredOutput((
+            ("select phone_numbers from users;", r"""
+             phone_numbers
+             MMMMMMMMMMMMM
+            -------------------------------------------------------------------------------------
+
+                                  {{country: null, number: '03'}, {country: '+7', number: null}}
+                                  BBYYYYYYYBBRRRRBBYYYYYYBBYYYYBBBBYYYYYYYBBYYYYBBYYYYYYBBRRRRBB
+             {{country: '+1', number: '512-537-7809'}, {country: '+44', number: '208 622 3021'}}
+             BBYYYYYYYBBYYYYBBYYYYYYBBYYYYYYYYYYYYYYBBBBYYYYYYYBBYYYYYBBYYYYYYBBYYYYYYYYYYYYYYBB
+
+
+            (2 rows)
+            nnnnnnnn
+            """),
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
+
+    def test_user_types_with_collections(self):
+        self.assertCqlverQueriesGiveColoredOutput((
+            ("select info from songs;", r"""
+             info
+             MMMM
+            -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+             {founded: 188694000, members: {'Adrian Smith', 'Bruce Dickinson', 'Dave Murray', 'Janick Gers', 'Nicko McBrain', 'Steve Harris'}, description: 'Pure evil metal'}
+             BYYYYYYYBBGGGGGGGGGBBYYYYYYYBBBYYYYYYYYYYYYYYBBYYYYYYYYYYYYYYYYYBBYYYYYYYYYYYYYBBYYYYYYYYYYYYYBBYYYYYYYYYYYYYYYBBYYYYYYYYYYYYYYBBBYYYYYYYYYYYBBYYYYYYYYYYYYYYYYYB
+
+
+            (1 rows)
+            nnnnnnnn
+            """),
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
+        self.assertCqlverQueriesGiveColoredOutput((
+            ("select tags from songs;", r"""
+             tags
+             MMMM
+            -------------------------------------------------
+
+             {tags: {'genre': 'metal', 'origin': 'england'}}
+             BYYYYBBBYYYYYYYBBYYYYYYYBBYYYYYYYYBBYYYYYYYYYBB
+
+
+            (1 rows)
+            nnnnnnnn
+            """),
+        ), cqlver=cqlsh.DEFAULT_CQLVER)

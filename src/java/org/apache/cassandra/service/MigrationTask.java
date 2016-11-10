@@ -24,9 +24,9 @@ import java.util.Collection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.db.DefsTables;
-import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.schema.LegacySchemaTables;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
@@ -65,13 +65,14 @@ class MigrationTask extends WrappedRunnable
 
         MessageOut message = new MessageOut<>(MessagingService.Verb.MIGRATION_REQUEST, null, MigrationManager.MigrationsSerializer.instance);
 
-        IAsyncCallback<Collection<RowMutation>> cb = new IAsyncCallback<Collection<RowMutation>>()
+        IAsyncCallback<Collection<Mutation>> cb = new IAsyncCallback<Collection<Mutation>>()
         {
-            public void response(MessageIn<Collection<RowMutation>> message)
+            @Override
+            public void response(MessageIn<Collection<Mutation>> message)
             {
                 try
                 {
-                    DefsTables.mergeSchema(message.payload);
+                    LegacySchemaTables.mergeSchema(message.payload);
                 }
                 catch (IOException e)
                 {

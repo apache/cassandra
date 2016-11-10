@@ -23,15 +23,17 @@ import java.io.InputStream;
 import java.util.Iterator;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.zip.Adler32;
-import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 /**
@@ -39,6 +41,9 @@ import org.apache.cassandra.utils.WrappedRunnable;
  */
 public class CompressedInputStream extends InputStream
 {
+
+    private static final Logger logger = LoggerFactory.getLogger(CompressedInputStream.class);
+
     private final CompressionInfo info;
     // chunk buffer
     private final BlockingQueue<byte[]> dataBuffer;
@@ -58,20 +63,27 @@ public class CompressedInputStream extends InputStream
     // raw checksum bytes
     private final byte[] checksumBytes = new byte[4];
 
+    /**
+     * Indicates there was a problem when reading from source stream.
+     * When this is added to the <code>dataBuffer</code> by the stream Reader,
+     * it is expected that the <code>readException</code> variable is populated
+     * with the cause of the error when reading from source stream, so it is
+     * thrown to the consumer on subsequent read operation.
+     */
     private static final byte[] POISON_PILL = new byte[0];
 
+    protected volatile IOException readException = null;
+
     private long totalCompressedBytesRead;
-    private final boolean hasPostCompressionAdlerChecksums;
 
     /**
      * @param source Input source to read compressed data from
      * @param info Compression info
      */
-    public CompressedInputStream(InputStream source, CompressionInfo info, boolean hasPostCompressionAdlerChecksums)
+    public CompressedInputStream(InputStream source, CompressionInfo info)
     {
         this.info = info;
-        this.checksum = hasPostCompressionAdlerChecksums ? new Adler32() : new CRC32();
-        this.hasPostCompressionAdlerChecksums = hasPostCompressionAdlerChecksums;
+        this.checksum =  new Adler32();
         this.buffer = new byte[info.parameters.chunkLength()];
         // buffer is limited to store up to 1024 chunks
         this.dataBuffer = new ArrayBlockingQueue<byte[]>(Math.min(info.chunks.length, 1024));
@@ -81,13 +93,19 @@ public class CompressedInputStream extends InputStream
 
     public int read() throws IOException
     {
+        if (readException != null)
+            throw readException;
+
         if (current >= bufferOffset + buffer.length || validBufferBytes == -1)
         {
             try
             {
                 byte[] compressedWithCRC = dataBuffer.take();
                 if (compressedWithCRC == POISON_PILL)
-                    throw new EOFException("No chunk available");
+                {
+                    assert readException != null;
+                    throw readException;
+                }
                 decompress(compressedWithCRC);
             }
             catch (InterruptedException e)
@@ -114,16 +132,9 @@ public class CompressedInputStream extends InputStream
         totalCompressedBytesRead += compressed.length;
 
         // validate crc randomly
-        if (info.parameters.getCrcCheckChance() > FBUtilities.threadLocalRandom().nextDouble())
+        if (info.parameters.getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
         {
-            if (hasPostCompressionAdlerChecksums)
-            {
-                checksum.update(compressed, 0, compressed.length - checksumBytes.length);
-            }
-            else
-            {
-                checksum.update(buffer, 0, validBufferBytes);
-            }
+            checksum.update(compressed, 0, compressed.length - checksumBytes.length);
 
             System.arraycopy(compressed, compressed.length - checksumBytes.length, checksumBytes, 0, checksumBytes.length);
             if (Ints.fromByteArray(checksumBytes) != (int) checksum.getValue())
@@ -142,7 +153,7 @@ public class CompressedInputStream extends InputStream
         return totalCompressedBytesRead;
     }
 
-    static class Reader extends WrappedRunnable
+    class Reader extends WrappedRunnable
     {
         private final InputStream source;
         private final Iterator<CompressionMetadata.Chunk> chunks;
@@ -168,13 +179,24 @@ public class CompressedInputStream extends InputStream
                 int bufferRead = 0;
                 while (bufferRead < readLength)
                 {
-                    int r = source.read(compressedWithCRC, bufferRead, readLength - bufferRead);
-                    if (r < 0)
+                    try
                     {
+                        int r = source.read(compressedWithCRC, bufferRead, readLength - bufferRead);
+                        if (r < 0)
+                        {
+                            readException = new EOFException("No chunk available");
+                            dataBuffer.put(POISON_PILL);
+                            return; // throw exception where we consume dataBuffer
+                        }
+                        bufferRead += r;
+                    }
+                    catch (IOException e)
+                    {
+                        logger.warn("Error while reading compressed input stream.", e);
+                        readException = e;
                         dataBuffer.put(POISON_PILL);
                         return; // throw exception where we consume dataBuffer
                     }
-                    bufferRead += r;
                 }
                 dataBuffer.put(compressedWithCRC);
             }

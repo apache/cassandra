@@ -1,0 +1,43 @@
+package org.apache.cassandra.cql3.udf.gen;
+
+import java.nio.ByteBuffer;
+import java.util.List;
+import com.datastax.driver.core.DataType;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.JavaSourceUDFFactory;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.exceptions.FunctionExecutionException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+
+public final class #class_name# extends org.apache.cassandra.cql3.functions.UDFunction
+{
+    public #class_name#(FunctionName name, List<ColumnIdentifier> argNames, List<AbstractType<?>> argTypes,
+                        DataType[] argDataTypes, AbstractType<?> returnType, DataType returnDataType, boolean calledOnNullInput, String body)
+    {
+        super(name, argNames, argTypes, argDataTypes, returnType, returnDataType, calledOnNullInput, "java", body);
+    }
+
+    protected ByteBuffer executeUserDefined(int protocolVersion, List<ByteBuffer> params) throws InvalidRequestException
+    {
+        try
+        {
+            #return_type# result = executeInternal(
+#arguments#
+            );
+            return decompose(protocolVersion, result);
+        }
+        catch (Throwable t)
+        {
+            logger.debug("Invocation of function '{}' failed", this, t);
+            if (t instanceof VirtualMachineError)
+                throw (VirtualMachineError)t;
+            throw FunctionExecutionException.create(this, t);
+        }
+    }
+
+    private #return_type# executeInternal(#argument_list#)
+    {
+#body#
+    }
+}

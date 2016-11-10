@@ -17,28 +17,34 @@
  */
 package org.apache.cassandra.cql3;
 
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 
-import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class ThriftCompatibilityTest extends SchemaLoader
 {
-    private static UntypedResultSet execute(String query) throws Throwable
+    @BeforeClass
+    public static void defineSchema() throws Exception
     {
-        try
-        {
-            return processInternal(String.format(query));
-        }
-        catch (RuntimeException exc)
-        {
-            if (exc.getCause() != null)
-                throw exc.getCause();
-            throw exc;
-        }
+        // The before class annotation of SchemaLoader will prepare the service so no need to do it here
+        SchemaLoader.createKeyspace("thriftcompat",
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    jdbcSparseCFMD("thriftcompat", "JdbcInteger", Int32Type.instance)
+                                            .addColumnDefinition(integerColumn("thriftcompat", "JdbcInteger")));
+    }
+
+    private static UntypedResultSet execute(String query)
+    {
+        return QueryProcessor.executeInternal(String.format(query));
     }
 
     /** Test For CASSANDRA-8178 */
@@ -46,10 +52,10 @@ public class ThriftCompatibilityTest extends SchemaLoader
     public void testNonTextComparator() throws Throwable
     {
         // the comparator is IntegerType, and there is a column named 42 with a UTF8Type validation type
-        execute("INSERT INTO \"Keyspace1\".\"JdbcInteger\" (key, \"42\") VALUES (0x00000001, 'abc')");
-        execute("UPDATE \"Keyspace1\".\"JdbcInteger\" SET \"42\" = 'abc' WHERE key = 0x00000001");
-        execute("DELETE \"42\" FROM \"Keyspace1\".\"JdbcInteger\" WHERE key = 0x00000000");
-        UntypedResultSet results = execute("SELECT key, \"42\" FROM \"Keyspace1\".\"JdbcInteger\"");
+        execute("INSERT INTO \"thriftcompat\".\"JdbcInteger\" (key, \"42\") VALUES (0x00000001, 'abc')");
+        execute("UPDATE \"thriftcompat\".\"JdbcInteger\" SET \"42\" = 'abc' WHERE key = 0x00000001");
+        execute("DELETE \"42\" FROM \"thriftcompat\".\"JdbcInteger\" WHERE key = 0x00000000");
+        UntypedResultSet results = execute("SELECT key, \"42\" FROM \"thriftcompat\".\"JdbcInteger\"");
         assertEquals(1, results.size());
         UntypedResultSet.Row row = results.iterator().next();
         assertEquals(ByteBufferUtil.bytes(1), row.getBytes("key"));

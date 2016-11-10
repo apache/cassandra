@@ -20,6 +20,10 @@ package org.apache.cassandra.cql3;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ReversedType;
+
+import java.util.Collection;
+import java.util.Iterator;
 
 public class ColumnSpecification
 {
@@ -36,30 +40,65 @@ public class ColumnSpecification
         this.type = type;
     }
 
-    @Override
-    public String toString()
+    /**
+     * Returns a new <code>ColumnSpecification</code> for the same column but with the specified alias.
+     *
+     * @param alias the column alias
+     * @return a new <code>ColumnSpecification</code> for the same column but with the specified alias.
+     */
+    public ColumnSpecification withAlias(ColumnIdentifier alias)
     {
-        // Not fully conventional, but convenient (for error message to users in particular)
-        return name.toString();
+        return new ColumnSpecification(ksName, cfName, alias, type);
     }
 
-    public boolean equals(Object obj)
+    public boolean isReversedType()
     {
-        if (null == obj)
+        return type instanceof ReversedType;
+    }
+
+    /**
+     * Returns true if all ColumnSpecifications are in the same table, false otherwise.
+     */
+    public static boolean allInSameTable(Collection<ColumnSpecification> names)
+    {
+        if (names == null || names.isEmpty())
             return false;
 
-        if(!(obj instanceof ColumnSpecification))
+        Iterator<ColumnSpecification> iter = names.iterator();
+        ColumnSpecification first = iter.next();
+        while (iter.hasNext())
+        {
+            ColumnSpecification name = iter.next();
+            if (!name.ksName.equals(first.ksName) || !name.cfName.equals(first.cfName))
+                return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean equals(Object other)
+    {
+        if (!(other instanceof ColumnSpecification))
             return false;
 
-        ColumnSpecification other = (ColumnSpecification)obj;
-        return Objects.equal(ksName, other.ksName)
-            && Objects.equal(cfName, other.cfName)
-            && Objects.equal(name, other.name)
-            && Objects.equal(type, other.type);
+        ColumnSpecification that = (ColumnSpecification) other;
+        return this.ksName.equals(that.ksName) &&
+               this.cfName.equals(that.cfName) &&
+               this.name.equals(that.name) &&
+               this.type.equals(that.type);
     }
 
     public int hashCode()
     {
         return Objects.hashCode(ksName, cfName, name, type);
+    }
+
+    @Override
+    public String toString()
+    {
+        return Objects.toStringHelper(this)
+                      .add("name", name)
+                      .add("type", type)
+                      .toString();
     }
 }

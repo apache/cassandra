@@ -21,20 +21,20 @@ import java.lang.reflect.Array;
 import java.util.EnumMap;
 import java.util.Map;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
+import io.netty.buffer.ByteBuf;
 
+import io.netty.buffer.Unpooled;
 import org.apache.cassandra.utils.Pair;
 
 public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
 {
     public interface Codecable<T extends Enum<T>>
     {
-        public int getId();
+        public int getId(int version);
 
-        public Object readValue(ChannelBuffer cb);
-        public void writeValue(Object value, ChannelBuffer cb);
-        public int serializedValueSize(Object obj);
+        public Object readValue(ByteBuf cb, int version);
+        public void writeValue(Object value, ByteBuf cb, int version);
+        public int serializedValueSize(Object obj, int version);
     }
 
     private final Class<T> klass;
@@ -48,13 +48,13 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         T[] values = klass.getEnumConstants();
         int maxId = -1;
         for (T opt : values)
-            maxId = Math.max(maxId, opt.getId());
+            maxId = Math.max(maxId, opt.getId(Server.CURRENT_VERSION));
         ids = (T[])Array.newInstance(klass, maxId + 1);
         for (T opt : values)
         {
-            if (ids[opt.getId()] != null)
-                throw new IllegalStateException(String.format("Duplicate option id %d", opt.getId()));
-            ids[opt.getId()] = opt;
+            if (ids[opt.getId(Server.CURRENT_VERSION)] != null)
+                throw new IllegalStateException(String.format("Duplicate option id %d", opt.getId(Server.CURRENT_VERSION)));
+            ids[opt.getId(Server.CURRENT_VERSION)] = opt;
         }
     }
 
@@ -66,14 +66,14 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return opt;
     }
 
-    public Map<T, Object> decode(ChannelBuffer body)
+    public Map<T, Object> decode(ByteBuf body, int version)
     {
         EnumMap<T, Object> options = new EnumMap<T, Object>(klass);
         int n = body.readUnsignedShort();
         for (int i = 0; i < n; i++)
         {
             T opt = fromId(body.readUnsignedShort());
-            Object value = opt.readValue(body);
+            Object value = opt.readValue(body, version);
             if (options.containsKey(opt))
                 throw new ProtocolException(String.format("Duplicate option %s in message", opt.name()));
             options.put(opt, value);
@@ -81,41 +81,41 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return options;
     }
 
-    public ChannelBuffer encode(Map<T, Object> options)
+    public ByteBuf encode(Map<T, Object> options, int version)
     {
         int optLength = 2;
         for (Map.Entry<T, Object> entry : options.entrySet())
-            optLength += 2 + entry.getKey().serializedValueSize(entry.getValue());
-        ChannelBuffer cb = ChannelBuffers.buffer(optLength);
+            optLength += 2 + entry.getKey().serializedValueSize(entry.getValue(), version);
+        ByteBuf cb = Unpooled.buffer(optLength);
         cb.writeShort(options.size());
         for (Map.Entry<T, Object> entry : options.entrySet())
         {
             T opt = entry.getKey();
-            cb.writeShort(opt.getId());
-            opt.writeValue(entry.getValue(), cb);
+            cb.writeShort(opt.getId(version));
+            opt.writeValue(entry.getValue(), cb, version);
         }
         return cb;
     }
 
-    public Pair<T, Object> decodeOne(ChannelBuffer body)
+    public Pair<T, Object> decodeOne(ByteBuf body, int version)
     {
         T opt = fromId(body.readUnsignedShort());
-        Object value = opt.readValue(body);
+        Object value = opt.readValue(body, version);
         return Pair.create(opt, value);
     }
 
-    public void writeOne(Pair<T, Object> option, ChannelBuffer dest)
+    public void writeOne(Pair<T, Object> option, ByteBuf dest, int version)
     {
         T opt = option.left;
         Object obj = option.right;
-        dest.writeShort(opt.getId());
-        opt.writeValue(obj, dest);
+        dest.writeShort(opt.getId(version));
+        opt.writeValue(obj, dest, version);
     }
 
-    public int oneSerializedSize(Pair<T, Object> option)
+    public int oneSerializedSize(Pair<T, Object> option, int version)
     {
         T opt = option.left;
         Object obj = option.right;
-        return 2 + opt.serializedValueSize(obj);
+        return 2 + opt.serializedValueSize(obj, version);
     }
 }

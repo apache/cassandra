@@ -24,28 +24,51 @@ package org.apache.cassandra.db.compaction;
 import java.io.RandomAccessFile;
 import java.util.*;
 
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.apache.cassandra.Util.cellname;
 
-public class BlacklistingCompactionsTest extends SchemaLoader
+public class BlacklistingCompactionsTest
 {
-    public static final String KEYSPACE = "Keyspace1";
+    private static final String KEYSPACE1 = "BlacklistingCompactionsTest";
+    private static final String CF_STANDARD1 = "Standard1";
+
+    @After
+    public void leakDetect() throws InterruptedException
+    {
+        System.gc();
+        System.gc();
+        System.gc();
+        Thread.sleep(10);
+    }
 
     @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
+        closeStdErr();
+    }
+
     public static void closeStdErr()
     {
         // These tests generate an error message per CorruptSSTableException since it goes through
@@ -71,11 +94,11 @@ public class BlacklistingCompactionsTest extends SchemaLoader
     public void testBlacklisting(String compactionStrategy) throws Exception
     {
         // this test does enough rows to force multiple block indexes to be used
-        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
 
         final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = cfs.metadata.getIndexInterval() * 2 / ROWS_PER_SSTABLE;
+        final int SSTABLES = cfs.metadata.getMinIndexInterval() * 2 / ROWS_PER_SSTABLE;
 
         cfs.setCompactionStrategyClass(compactionStrategy);
 
@@ -90,13 +113,11 @@ public class BlacklistingCompactionsTest extends SchemaLoader
             for (int i = 0; i < ROWS_PER_SSTABLE; i++)
             {
                 DecoratedKey key = Util.dk(String.valueOf(i % 2));
-                RowMutation rm = new RowMutation(KEYSPACE, key.key);
+                Mutation rm = new Mutation(KEYSPACE1, key.getKey());
                 long timestamp = j * ROWS_PER_SSTABLE + i;
-                rm.add("Standard1", ByteBufferUtil.bytes(String.valueOf(i / 2)),
-                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                       timestamp);
+                rm.add("Standard1", cellname(i / 2), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
-                rm.apply();
+                rm.applyUnsafe();
                 inserted.add(key);
             }
             cfs.forceBlockingFlush();
@@ -158,7 +179,6 @@ public class BlacklistingCompactionsTest extends SchemaLoader
             assertEquals(sstablesToCorrupt + 1, cfs.getSSTables().size());
             break;
         }
-
 
         cfs.truncateBlocking();
         assertEquals(sstablesToCorrupt, failures);

@@ -260,7 +260,7 @@ public enum ConsistencyLevel
                 int localLive = countLocalEndpoints(liveEndpoints);
                 if (localLive < blockFor)
                 {
-                    if (logger.isDebugEnabled())
+                    if (logger.isTraceEnabled())
                     {
                         StringBuilder builder = new StringBuilder("Local replicas [");
                         for (InetAddress endpoint : liveEndpoints)
@@ -269,7 +269,7 @@ public enum ConsistencyLevel
                                 builder.append(endpoint).append(",");
                         }
                         builder.append("] are insufficient to satisfy LOCAL_QUORUM requirement of ").append(blockFor).append(" live nodes in '").append(DatabaseDescriptor.getLocalDataCenter()).append("'");
-                        logger.debug(builder.toString());
+                        logger.trace(builder.toString());
                     }
                     throw new UnavailableException(this, blockFor, localLive);
                 }
@@ -291,7 +291,7 @@ public enum ConsistencyLevel
                 int live = Iterables.size(liveEndpoints);
                 if (live < blockFor)
                 {
-                    logger.debug("Live nodes {} do not satisfy ConsistencyLevel ({} required)", Iterables.toString(liveEndpoints), blockFor);
+                    logger.trace("Live nodes {} do not satisfy ConsistencyLevel ({} required)", Iterables.toString(liveEndpoints), blockFor);
                     throw new UnavailableException(this, blockFor, live);
                 }
                 break;
@@ -347,17 +347,10 @@ public enum ConsistencyLevel
     public void validateCounterForWrite(CFMetaData metadata) throws InvalidRequestException
     {
         if (this == ConsistencyLevel.ANY)
-        {
-            throw new InvalidRequestException("Consistency level ANY is not yet supported for counter columnfamily " + metadata.cfName);
-        }
-        else if (!metadata.getReplicateOnWrite() && !(this == ConsistencyLevel.ONE || this == ConsistencyLevel.LOCAL_ONE))
-        {
-            throw new InvalidRequestException("cannot achieve CL > CL.ONE without replicate_on_write on columnfamily " + metadata.cfName);
-        }
-        else if (isSerialConsistency())
-        {
+            throw new InvalidRequestException("Consistency level ANY is not yet supported for counter table " + metadata.cfName);
+
+        if (isSerialConsistency())
             throw new InvalidRequestException("Counter operations are inherently non-serializable");
-        }
     }
 
     private void requireNetworkTopologyStrategy(String keyspaceName) throws InvalidRequestException

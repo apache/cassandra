@@ -20,39 +20,34 @@ package org.apache.cassandra.auth;
 import java.util.Collections;
 import java.util.Set;
 
-import org.apache.cassandra.exceptions.InvalidRequestException;
-
 public class AllowAllAuthorizer implements IAuthorizer
 {
     public Set<Permission> authorize(AuthenticatedUser user, IResource resource)
     {
-        return Permission.ALL;
+        return resource.applicablePermissions();
     }
 
-    public void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String to)
-    throws InvalidRequestException
+    public void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource to)
     {
-        throw new InvalidRequestException("GRANT operation is not supported by AllowAllAuthorizer");
+        throw new UnsupportedOperationException("GRANT operation is not supported by AllowAllAuthorizer");
     }
 
-    public void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String from)
-    throws InvalidRequestException
+    public void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource from)
     {
-        throw new InvalidRequestException("REVOKE operation is not supported by AllowAllAuthorizer");
+        throw new UnsupportedOperationException("REVOKE operation is not supported by AllowAllAuthorizer");
     }
 
-    public void revokeAll(String droppedUser)
+    public void revokeAllFrom(RoleResource droppedRole)
     {
     }
 
-    public void revokeAll(IResource droppedResource)
+    public void revokeAllOn(IResource droppedResource)
     {
     }
 
-    public Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String of)
-    throws InvalidRequestException
+    public Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource of)
     {
-        throw new InvalidRequestException("LIST PERMISSIONS operation is not supported by AllowAllAuthorizer");
+        throw new UnsupportedOperationException("LIST PERMISSIONS operation is not supported by AllowAllAuthorizer");
     }
 
     public Set<IResource> protectedResources()

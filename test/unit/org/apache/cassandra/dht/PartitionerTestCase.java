@@ -21,15 +21,16 @@ package org.apache.cassandra.dht;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.service.StorageService;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-public abstract class PartitionerTestCase<T extends Token>
+public abstract class PartitionerTestCase
 {
-    protected IPartitioner<T> partitioner;
+    protected IPartitioner partitioner;
 
     public abstract void initPartitioner();
 
@@ -39,12 +40,12 @@ public abstract class PartitionerTestCase<T extends Token>
         initPartitioner();
     }
 
-    public T tok(byte[] key)
+    public Token tok(byte[] key)
     {
         return partitioner.getToken(ByteBuffer.wrap(key));
     }
 
-    public T tok(String key)
+    public Token tok(String key)
     {
         return tok(key.getBytes());
     }
@@ -52,7 +53,7 @@ public abstract class PartitionerTestCase<T extends Token>
     /**
      * Recurses randomly to the given depth a few times.
      */
-    public void assertMidpoint(T left, T right, int depth)
+    public void assertMidpoint(Token left, Token right, int depth)
     {
         Random rand = new Random();
         for (int i = 0; i < 1000; i++)
@@ -90,7 +91,7 @@ public abstract class PartitionerTestCase<T extends Token>
 
     protected void midpointMinimumTestCase()
     {
-        T mintoken = partitioner.getMinimumToken();
+        Token mintoken = partitioner.getMinimumToken();
         assert mintoken.compareTo(partitioner.midpoint(mintoken, mintoken)) != 0;
         assertMidpoint(mintoken, tok("a"), 16);
         assertMidpoint(mintoken, tok("aaa"), 16);
@@ -122,6 +123,10 @@ public abstract class PartitionerTestCase<T extends Token>
     @Test
     public void testDescribeOwnership()
     {
+        // This call initializes StorageService, needed to populate the keyspaces.
+        // TODO: This points to potential problems in the initialization sequence. Should be solved by CASSANDRA-7837.
+        StorageService.getPartitioner();
+
         try
         {
             testDescribeOwnershipWith(0);

@@ -22,7 +22,6 @@ package org.apache.cassandra.service.paxos;
 
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.UUID;
 import java.nio.ByteBuffer;
@@ -30,13 +29,9 @@ import java.nio.ByteBuffer;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnSerializer;
-import org.apache.cassandra.db.EmptyColumns;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.UnsortedColumns;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -62,7 +57,7 @@ public class Commit
 
     public static Commit newPrepare(ByteBuffer key, CFMetaData metadata, UUID ballot)
     {
-        return new Commit(key, ballot, EmptyColumns.factory.create(metadata));
+        return new Commit(key, ballot, ArrayBackedSortedColumns.factory.create(metadata));
     }
 
     public static Commit newProposal(ByteBuffer key, UUID ballot, ColumnFamily update)
@@ -72,7 +67,7 @@ public class Commit
 
     public static Commit emptyCommit(ByteBuffer key, CFMetaData metadata)
     {
-        return new Commit(key, UUIDGen.minTimeUUID(0), EmptyColumns.factory.create(metadata));
+        return new Commit(key, UUIDGen.minTimeUUID(0), ArrayBackedSortedColumns.factory.create(metadata));
     }
 
     public boolean isAfter(Commit other)
@@ -85,10 +80,10 @@ public class Commit
         return this.ballot.equals(ballot);
     }
 
-    public RowMutation makeMutation()
+    public Mutation makeMutation()
     {
         assert update != null;
-        return new RowMutation(key, update);
+        return new Mutation(key, update);
     }
 
     @Override
@@ -120,8 +115,8 @@ public class Commit
         // the collection and we want that to have a lower timestamp and our new values. Since tombstones wins over normal insert, using t-1
         // should not be a problem in general (see #6069).
         cf.deletionInfo().updateAllTimestamp(t-1);
-        for (Column column : updates)
-            cf.addAtom(column.withUpdatedTimestamp(t));
+        for (Cell cell : updates)
+            cf.addAtom(cell.withUpdatedTimestamp(t));
         return cf;
     }
 
@@ -133,7 +128,7 @@ public class Commit
 
     public static class CommitSerializer implements IVersionedSerializer<Commit>
     {
-        public void serialize(Commit commit, DataOutput out, int version) throws IOException
+        public void serialize(Commit commit, DataOutputPlus out, int version) throws IOException
         {
             ByteBufferUtil.writeWithShortLength(commit.key, out);
             UUIDSerializer.serializer.serialize(commit.ballot, out, version);
@@ -144,7 +139,10 @@ public class Commit
         {
             return new Commit(ByteBufferUtil.readWithShortLength(in),
                               UUIDSerializer.serializer.deserialize(in, version),
-                              ColumnFamily.serializer.deserialize(in, UnsortedColumns.factory, ColumnSerializer.Flag.LOCAL, version));
+                              ColumnFamily.serializer.deserialize(in,
+                                                                  ArrayBackedSortedColumns.factory,
+                                                                  ColumnSerializer.Flag.LOCAL,
+                                                                  version));
         }
 
         public long serializedSize(Commit commit, int version)

@@ -18,62 +18,76 @@
 */
 package org.apache.cassandra.db;
 
-import static org.junit.Assert.assertEquals;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutionException;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.junit.Test;
 
-import org.apache.cassandra.io.sstable.SSTableReader;
+import static org.junit.Assert.assertEquals;
 
-public class CollationControllerTest extends SchemaLoader
+public class CollationControllerTest
 {
+    private static final String KEYSPACE1 = "CollationControllerTest";
+    private static final String CF = "Standard1";
+    private static final String CFGCGRACE = "StandardGCGS0";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CFGCGRACE).gcGraceSeconds(0));
+    }
+
     @Test
     public void getTopLevelColumnsSkipsSSTablesModifiedBeforeRowDelete() 
-    throws IOException, ExecutionException, InterruptedException
     {
-        Keyspace keyspace = Keyspace.open("Keyspace1");
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
-        RowMutation rm;
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        Mutation rm;
         DecoratedKey dk = Util.dk("key1");
         
         // add data
-        rm = new RowMutation(keyspace.getName(), dk.key);
-        rm.add(cfs.name, ByteBufferUtil.bytes("Column1"), ByteBufferUtil.bytes("asdf"), 0);
-        rm.apply();
+        rm = new Mutation(keyspace.getName(), dk.getKey());
+        rm.add(cfs.name, Util.cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
         
         // remove
-        rm = new RowMutation(keyspace.getName(), dk.key);
+        rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.delete(cfs.name, 10);
-        rm.apply();
+        rm.applyUnsafe();
         
         // add another mutation because sstable maxtimestamp isn't set
         // correctly during flush if the most recent mutation is a row delete
-        rm = new RowMutation(keyspace.getName(), Util.dk("key2").key);
-        rm.add(cfs.name, ByteBufferUtil.bytes("Column1"), ByteBufferUtil.bytes("zxcv"), 20);
-        rm.apply();
+        rm = new Mutation(keyspace.getName(), Util.dk("key2").getKey());
+        rm.add(cfs.name, Util.cellname("Column1"), ByteBufferUtil.bytes("zxcv"), 20);
+        rm.applyUnsafe();
         
         cfs.forceBlockingFlush();
 
         // add yet one more mutation
-        rm = new RowMutation(keyspace.getName(), dk.key);
-        rm.add(cfs.name, ByteBufferUtil.bytes("Column1"), ByteBufferUtil.bytes("foobar"), 30);
-        rm.apply();
+        rm = new Mutation(keyspace.getName(), dk.getKey());
+        rm.add(cfs.name, Util.cellname("Column1"), ByteBufferUtil.bytes("foobar"), 30);
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         // A NamesQueryFilter goes down one code path (through collectTimeOrderedData())
         // It should only iterate the last flushed sstable, since it probably contains the most recent value for Column1
-        QueryFilter filter = QueryFilter.getNamesFilter(dk, cfs.name, FBUtilities.singleton(ByteBufferUtil.bytes("Column1"), cfs.getComparator()), System.currentTimeMillis());
+        QueryFilter filter = Util.namesQueryFilter(cfs, dk, "Column1");
         CollationController controller = new CollationController(cfs, filter, Integer.MIN_VALUE);
-        controller.getTopLevelColumns();
+        controller.getTopLevelColumns(true);
         assertEquals(1, controller.getSstablesIterated());
 
         // SliceQueryFilter goes down another path (through collectAllData())
@@ -81,32 +95,31 @@ public class CollationControllerTest extends SchemaLoader
         // recent than the maxTimestamp of the very first sstable we flushed, we should only read the 2 first sstables.
         filter = QueryFilter.getIdentityFilter(dk, cfs.name, System.currentTimeMillis());
         controller = new CollationController(cfs, filter, Integer.MIN_VALUE);
-        controller.getTopLevelColumns();
+        controller.getTopLevelColumns(true);
         assertEquals(2, controller.getSstablesIterated());
     }
 
     @Test
     public void ensureTombstonesAppliedAfterGCGS()
-    throws IOException, ExecutionException, InterruptedException
     {
-        Keyspace keyspace = Keyspace.open("Keyspace1");
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("StandardGCGS0");
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CFGCGRACE);
         cfs.disableAutoCompaction();
 
-        RowMutation rm;
+        Mutation rm;
         DecoratedKey dk = Util.dk("key1");
-        ByteBuffer cellName = ByteBufferUtil.bytes("Column1");
+        CellName cellName = Util.cellname("Column1");
 
         // add data
-        rm = new RowMutation(keyspace.getName(), dk.key);
+        rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.add(cfs.name, cellName, ByteBufferUtil.bytes("asdf"), 0);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         // remove
-        rm = new RowMutation(keyspace.getName(), dk.key);
+        rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.delete(cfs.name, cellName, 0);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         // use "realistic" query times since we'll compare these numbers to the local deletion time of the tombstone
@@ -116,10 +129,10 @@ public class CollationControllerTest extends SchemaLoader
 
         filter = QueryFilter.getNamesFilter(dk, cfs.name, FBUtilities.singleton(cellName, cfs.getComparator()), queryAt);
         CollationController controller = new CollationController(cfs, filter, gcBefore);
-        assert ColumnFamilyStore.removeDeleted(controller.getTopLevelColumns(), gcBefore) == null;
+        assert ColumnFamilyStore.removeDeleted(controller.getTopLevelColumns(true), gcBefore) == null;
 
         filter = QueryFilter.getIdentityFilter(dk, cfs.name, queryAt);
         controller = new CollationController(cfs, filter, gcBefore);
-        assert ColumnFamilyStore.removeDeleted(controller.getTopLevelColumns(), gcBefore) == null;
+        assert ColumnFamilyStore.removeDeleted(controller.getTopLevelColumns(true), gcBefore) == null;
     }
 }

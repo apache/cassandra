@@ -18,7 +18,6 @@
 package org.apache.cassandra.gms;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashMap;
@@ -27,6 +26,7 @@ import java.util.Map;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 /**
@@ -59,7 +59,7 @@ public class GossipDigestAck
 
 class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
 {
-    public void serialize(GossipDigestAck gDigestAckMessage, DataOutput out, int version) throws IOException
+    public void serialize(GossipDigestAck gDigestAckMessage, DataOutputPlus out, int version) throws IOException
     {
         GossipDigestSerializationHelper.serialize(gDigestAckMessage.gDigestList, out, version);
         out.writeInt(gDigestAckMessage.epStateMap.size());

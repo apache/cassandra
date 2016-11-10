@@ -21,10 +21,10 @@ import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.*;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.service.IReadCommand;
-import org.apache.cassandra.thrift.IndexExpression;
 
 public abstract class AbstractRangeCommand implements IReadCommand
 {
@@ -36,6 +36,8 @@ public abstract class AbstractRangeCommand implements IReadCommand
     public final IDiskAtomFilter predicate;
     public final List<IndexExpression> rowFilter;
 
+    public final SecondaryIndexSearcher searcher;
+
     public AbstractRangeCommand(String keyspace, String columnFamily, long timestamp, AbstractBounds<RowPosition> keyRange, IDiskAtomFilter predicate, List<IndexExpression> rowFilter)
     {
         this.keyspace = keyspace;
@@ -44,6 +46,26 @@ public abstract class AbstractRangeCommand implements IReadCommand
         this.keyRange = keyRange;
         this.predicate = predicate;
         this.rowFilter = rowFilter;
+        SecondaryIndexManager indexManager = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily).indexManager;
+        this.searcher = indexManager.getHighestSelectivityIndexSearcher(rowFilter);
+    }
+
+    public boolean requiresScanningAllRanges()
+    {
+        return searcher != null && searcher.requiresScanningAllRanges(rowFilter);
+    }
+
+    public List<Row> postReconciliationProcessing(List<Row> rows)
+    {
+        return searcher == null ? trim(rows) : trim(searcher.postReconciliationProcessing(rowFilter, rows));
+    }
+
+    private List<Row> trim(List<Row> rows)
+    {
+        if (countCQL3Rows() || ignoredTombstonedPartitions())
+            return rows;
+        else
+            return rows.size() > limit() ? rows.subList(0, limit()) : rows;
     }
 
     public String getKeyspace()

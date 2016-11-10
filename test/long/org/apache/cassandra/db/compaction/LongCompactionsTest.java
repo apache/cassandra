@@ -18,28 +18,45 @@
 */
 package org.apache.cassandra.db.compaction;
 
-import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.BeforeClass;
 import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.SSTableUtils;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertEquals;
 
-public class LongCompactionsTest extends SchemaLoader
+public class LongCompactionsTest
 {
     public static final String KEYSPACE1 = "Keyspace1";
+    public static final String CF_STANDARD = "Standard1";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        Map<String, String> compactionOptions = new HashMap<>();
+        compactionOptions.put("tombstone_compaction_interval", "1");
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD)
+                                                .compactionStrategyOptions(compactionOptions));
+    }
 
     @Before
     public void cleanupFiles()
@@ -83,20 +100,20 @@ public class LongCompactionsTest extends SchemaLoader
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
 
-        ArrayList<SSTableReader> sstables = new ArrayList<SSTableReader>();
+        ArrayList<SSTableReader> sstables = new ArrayList<>();
         for (int k = 0; k < sstableCount; k++)
         {
             SortedMap<String,ColumnFamily> rows = new TreeMap<String,ColumnFamily>();
             for (int j = 0; j < rowsPerSSTable; j++)
             {
                 String key = String.valueOf(j);
-                Column[] cols = new Column[colsPerRow];
+                Cell[] cols = new Cell[colsPerRow];
                 for (int i = 0; i < colsPerRow; i++)
                 {
                     // last sstable has highest timestamps
                     cols[i] = Util.column(String.valueOf(i), String.valueOf(i), k);
                 }
-                rows.put(key, SSTableUtils.createCF(Long.MIN_VALUE, Integer.MIN_VALUE, cols));
+                rows.put(key, SSTableUtils.createCF(KEYSPACE1, CF_STANDARD, Long.MIN_VALUE, Integer.MIN_VALUE, cols));
             }
             SSTableReader sstable = SSTableUtils.prepare().write(rows);
             sstables.add(sstable);
@@ -108,8 +125,11 @@ public class LongCompactionsTest extends SchemaLoader
 
         long start = System.nanoTime();
         final int gcBefore = (int) (System.currentTimeMillis() / 1000) - Schema.instance.getCFMetaData(KEYSPACE1, "Standard1").getGcGraceSeconds();
-        assert store.getDataTracker().markCompacting(sstables): "Cannot markCompacting all sstables";
-        new CompactionTask(store, sstables, gcBefore).execute(null);
+        try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.COMPACTION))
+        {
+            assert txn != null : "Cannot markCompacting all sstables";
+            new CompactionTask(store, txn, gcBefore, false).execute(null);
+        }
         System.out.println(String.format("%s: sstables=%d rowsper=%d colsper=%d: %d ms",
                                          this.getClass().getName(),
                                          sstableCount,
@@ -119,7 +139,7 @@ public class LongCompactionsTest extends SchemaLoader
     }
 
     @Test
-    public void testStandardColumnCompactions() throws IOException, ExecutionException, InterruptedException
+    public void testStandardColumnCompactions()
     {
         // this test does enough rows to force multiple block indexes to be used
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
@@ -127,7 +147,7 @@ public class LongCompactionsTest extends SchemaLoader
         cfs.clearUnsafe();
 
         final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = cfs.metadata.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
+        final int SSTABLES = cfs.metadata.getMinIndexInterval() * 3 / ROWS_PER_SSTABLE;
 
         // disable compaction while flushing
         cfs.disableAutoCompaction();
@@ -137,9 +157,9 @@ public class LongCompactionsTest extends SchemaLoader
         for (int j = 0; j < SSTABLES; j++) {
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
                 DecoratedKey key = Util.dk(String.valueOf(i % 2));
-                RowMutation rm = new RowMutation(KEYSPACE1, key.key);
+                Mutation rm = new Mutation(KEYSPACE1, key.getKey());
                 long timestamp = j * ROWS_PER_SSTABLE + i;
-                rm.add("Standard1", ByteBufferUtil.bytes(String.valueOf(i / 2)),
+                rm.add("Standard1", Util.cellname(String.valueOf(i / 2)),
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                        timestamp);
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
@@ -160,7 +180,7 @@ public class LongCompactionsTest extends SchemaLoader
         cfs.truncateBlocking();
     }
 
-    private void forceCompactions(ColumnFamilyStore cfs) throws ExecutionException, InterruptedException
+    private void forceCompactions(ColumnFamilyStore cfs)
     {
         // re-enable compaction with thresholds low enough to force a few rounds
         cfs.setCompactionThresholds(2, 4);
@@ -178,7 +198,7 @@ public class LongCompactionsTest extends SchemaLoader
 
         if (cfs.getSSTables().size() > 1)
         {
-            CompactionManager.instance.performMaximal(cfs);
+            CompactionManager.instance.performMaximal(cfs, false);
         }
     }
 }

@@ -19,6 +19,7 @@ package org.apache.cassandra.db.index;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.UUID;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -27,6 +28,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
+import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * Manages building an entire index from column family data. Runs on to compaction manager.
@@ -36,12 +38,14 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
     private final ColumnFamilyStore cfs;
     private final Set<String> idxNames;
     private final ReducingKeyIterator iter;
+    private final UUID compactionId;
 
     public SecondaryIndexBuilder(ColumnFamilyStore cfs, Set<String> idxNames, ReducingKeyIterator iter)
     {
         this.cfs = cfs;
         this.idxNames = idxNames;
         this.iter = iter;
+        compactionId = UUIDGen.getTimeUUID();
     }
 
     public CompactionInfo getCompactionInfo()
@@ -49,7 +53,8 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
         return new CompactionInfo(cfs.metadata,
                                   OperationType.INDEX_BUILD,
                                   iter.getBytesRead(),
-                                  iter.getTotalBytes());
+                                  iter.getTotalBytes(),
+                                  compactionId);
     }
 
     public void build()

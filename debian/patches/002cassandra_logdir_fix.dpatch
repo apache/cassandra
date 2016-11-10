@@ -1,0 +1,31 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## cassandra_logdir_fix.dpatch by Michael Shuler <michael@pbandjelly.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: No description.
+
+@DPATCH@
+diff -urNad '--exclude=CVS' '--exclude=.svn' '--exclude=.git' '--exclude=.arch' '--exclude=.hg' '--exclude=_darcs' '--exclude=.bzr' cassandra~/bin/cassandra cassandra/bin/cassandra
+--- cassandra~/bin/cassandra	2015-10-27 14:15:10.718076265 -0500
++++ cassandra/bin/cassandra	2015-10-27 14:23:10.000000000 -0500
+@@ -139,7 +139,7 @@
+     props="$3"
+     class="$4"
+     cassandra_parms="-Dlogback.configurationFile=logback.xml"
+-    cassandra_parms="$cassandra_parms -Dcassandra.logdir=$CASSANDRA_HOME/logs"
++    cassandra_parms="$cassandra_parms -Dcassandra.logdir=/var/log/cassandra"
+     cassandra_parms="$cassandra_parms -Dcassandra.storagedir=$cassandra_storagedir"
+ 
+     if [ "x$pidpath" != "x" ]; then
+diff -urNad '--exclude=CVS' '--exclude=.svn' '--exclude=.git' '--exclude=.arch' '--exclude=.hg' '--exclude=_darcs' '--exclude=.bzr' cassandra~/conf/cassandra-env.sh cassandra/conf/cassandra-env.sh
+--- cassandra~/conf/cassandra-env.sh	2015-10-27 14:20:22.990840135 -0500
++++ cassandra/conf/cassandra-env.sh	2015-10-27 14:24:03.210202234 -0500
+@@ -288,7 +288,7 @@
+ JVM_OPTS="$JVM_OPTS -XX:+PrintPromotionFailure"
+ #JVM_OPTS="$JVM_OPTS -XX:PrintFLSStatistics=1"
+ 
+-JVM_OPTS="$JVM_OPTS -Xloggc:${CASSANDRA_HOME}/logs/gc.log"
++JVM_OPTS="$JVM_OPTS -Xloggc:/var/log/cassandra/gc.log"
+ JVM_OPTS="$JVM_OPTS -XX:+UseGCLogFileRotation"
+ JVM_OPTS="$JVM_OPTS -XX:NumberOfGCLogFiles=10"
+ JVM_OPTS="$JVM_OPTS -XX:GCLogFileSize=10M"

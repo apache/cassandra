@@ -20,30 +20,40 @@ package org.apache.cassandra.streaming;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Function;
 import com.google.common.collect.*;
+
+import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
+import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.metrics.StreamingMetrics;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
  * Handles the streaming a one or more section of one of more sstables to and from a specific
@@ -95,10 +105,8 @@ import org.apache.cassandra.utils.Pair;
  *       complete (received()). When all files for the StreamReceiveTask have been received, the sstables
  *       are added to the CFS (and 2ndary index are built, StreamReceiveTask.complete()) and the task
  *       is marked complete (taskCompleted())
- *   (b) If during the streaming of a particular file an I/O error occurs on the receiving end of a stream
- *       (FileMessage.deserialize), the node will retry the file (up to DatabaseDescriptor.getMaxStreamingRetries())
- *       by sending a RetryMessage to the sender. On receiving a RetryMessage, the sender simply issue a new
- *       FileMessage for that file.
+ *   (b) If during the streaming of a particular file an error occurs on the receiving end of a stream
+ *       (FileMessage.deserialize), the node will send a SessionFailedMessage to the sender and close the stream session.
  *   (c) When all transfer and receive tasks for a session are complete, the move to the Completion phase
  *       (maybeCompleted()).
  *
@@ -113,17 +121,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
 
-    // Executor that establish the streaming connection. Once we're connected to the other end, the rest of the streaming
-    // is directly handled by the ConnectionHandler incoming and outgoing threads.
-    private static final DebuggableThreadPoolExecutor streamExecutor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("StreamConnectionEstablisher",
-                                                                                                                            FBUtilities.getAvailableProcessors());
-
     /**
      * Streaming endpoint.
      *
      * Each {@code StreamSession} is identified by this InetAddress which is broadcast address of the node streaming.
      */
     public final InetAddress peer;
+    private final int index;
     /** Actual connecting address. Can be the same as {@linkplain #peer}. */
     public final InetAddress connecting;
 
@@ -131,9 +135,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private StreamResultFuture streamResult;
 
     // stream requests to send to the peer
-    private final Set<StreamRequest> requests = Sets.newConcurrentHashSet();
+    protected final Set<StreamRequest> requests = Sets.newConcurrentHashSet();
     // streaming tasks are created and managed per ColumnFamily ID
-    private final Map<UUID, StreamTransferTask> transfers = new ConcurrentHashMap<>();
+    @VisibleForTesting
+    protected final ConcurrentHashMap<UUID, StreamTransferTask> transfers = new ConcurrentHashMap<>();
     // data receivers, filled after receiving prepare message
     private final Map<UUID, StreamReceiveTask> receivers = new ConcurrentHashMap<>();
     private final StreamingMetrics metrics;
@@ -142,9 +147,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public final ConnectionHandler handler;
 
-    private int retries;
-
     private AtomicBoolean isAborted = new AtomicBoolean(false);
+    private final boolean keepSSTableLevel;
+    private final boolean isIncremental;
 
     public static enum State
     {
@@ -166,13 +171,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * @param connecting Actual connecting address
      * @param factory is used for establishing connection
      */
-    public StreamSession(InetAddress peer, InetAddress connecting, StreamConnectionFactory factory)
+    public StreamSession(InetAddress peer, InetAddress connecting, StreamConnectionFactory factory, int index, boolean keepSSTableLevel, boolean isIncremental)
     {
         this.peer = peer;
         this.connecting = connecting;
+        this.index = index;
         this.factory = factory;
         this.handler = new ConnectionHandler(this);
         this.metrics = StreamingMetrics.get(connecting);
+        this.keepSSTableLevel = keepSSTableLevel;
+        this.isIncremental = isIncremental;
     }
 
     public UUID planId()
@@ -180,10 +188,26 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         return streamResult == null ? null : streamResult.planId;
     }
 
+    public int sessionIndex()
+    {
+        return index;
+    }
+
     public String description()
     {
         return streamResult == null ? null : streamResult.description;
     }
+
+    public boolean keepSSTableLevel()
+    {
+        return keepSSTableLevel;
+    }
+
+    public boolean isIncremental()
+    {
+        return isIncremental;
+    }
+
 
     /**
      * Bind this session to report to specific {@link StreamResultFuture} and
@@ -205,24 +229,19 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             return;
         }
 
-        streamExecutor.execute(new Runnable()
+        try
         {
-            public void run()
-            {
-                try
-                {
-                    logger.info("[Stream #{}] Starting streaming to {}{}", planId(),
-                                                                           peer,
-                                                                           peer.equals(connecting) ? "" : " through " + connecting);
-                    handler.initiate();
-                    onInitializationComplete();
-                }
-                catch (IOException e)
-                {
-                    onError(e);
-                }
-            }
-        });
+            logger.info("[Stream #{}] Starting streaming to {}{}", planId(),
+                                                                   peer,
+                                                                   peer.equals(connecting) ? "" : " through " + connecting);
+            handler.initiate();
+            onInitializationComplete();
+        }
+        catch (Exception e)
+        {
+            JVMStabilityInspector.inspectThrowable(e);
+            onError(e);
+        }
     }
 
     public Socket createConnection() throws IOException
@@ -238,19 +257,42 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * @param ranges Ranges to retrieve data
      * @param columnFamilies ColumnFamily names. Can be empty if requesting all CF under the keyspace.
      */
-    public void addStreamRequest(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies)
+    public void addStreamRequest(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, long repairedAt)
     {
-        requests.add(new StreamRequest(keyspace, ranges, columnFamilies));
+        requests.add(new StreamRequest(keyspace, ranges, columnFamilies, repairedAt));
     }
 
     /**
      * Set up transfer for specific keyspace/ranges/CFs
      *
+     * Used in repair - a streamed sstable in repair will be marked with the given repairedAt time
+     *
      * @param keyspace Transfer keyspace
      * @param ranges Transfer ranges
      * @param columnFamilies Transfer ColumnFamilies
+     * @param flushTables flush tables?
+     * @param repairedAt the time the repair started.
      */
-    public void addTransferRanges(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, boolean flushTables)
+    public void addTransferRanges(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, boolean flushTables, long repairedAt)
+    {
+        Collection<ColumnFamilyStore> stores = getColumnFamilyStores(keyspace, columnFamilies);
+        if (flushTables)
+            flushSSTables(stores);
+
+        List<Range<Token>> normalizedRanges = Range.normalize(ranges);
+        List<SSTableStreamingSections> sections = getSSTableSectionsForRanges(normalizedRanges, stores, repairedAt, isIncremental);
+        try
+        {
+            addTransferFiles(sections);
+        }
+        finally
+        {
+            for (SSTableStreamingSections release : sections)
+                release.ref.release();
+        }
+    }
+
+    private Collection<ColumnFamilyStore> getColumnFamilyStores(String keyspace, Collection<String> columnFamilies)
     {
         Collection<ColumnFamilyStore> stores = new HashSet<>();
         // if columnfamilies are not specified, we add all cf under the keyspace
@@ -263,54 +305,66 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             for (String cf : columnFamilies)
                 stores.add(Keyspace.open(keyspace).getColumnFamilyStore(cf));
         }
-
-        if (flushTables)
-            flushSSTables(stores);
-
-        List<Range<Token>> normalizedRanges = Range.normalize(ranges);
-        List<SSTableStreamingSections> sections = getSSTableSectionsForRanges(normalizedRanges, stores);
-        try
-        {
-            addTransferFiles(sections);
-        }
-        finally
-        {
-            for (SSTableStreamingSections release : sections)
-                release.sstable.releaseReference();
-        }
+        return stores;
     }
 
-    private List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores)
+    @VisibleForTesting
+    public static List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, long overriddenRepairedAt, final boolean isIncremental)
     {
-        List<SSTableReader> sstables = new ArrayList<>();
+        Refs<SSTableReader> refs = new Refs<>();
         try
         {
             for (ColumnFamilyStore cfStore : stores)
             {
-                List<AbstractBounds<RowPosition>> rowBoundsList = new ArrayList<>(ranges.size());
+                final List<Range<RowPosition>> keyRanges = new ArrayList<>(ranges.size());
                 for (Range<Token> range : ranges)
-                    rowBoundsList.add(range.toRowBounds());
-                ColumnFamilyStore.ViewFragment view = cfStore.markReferenced(rowBoundsList);
-                sstables.addAll(view.sstables);
+                    keyRanges.add(Range.makeRowRange(range));
+                refs.addAll(cfStore.selectAndReference(new Function<View, List<SSTableReader>>()
+                {
+                    public List<SSTableReader> apply(View view)
+                    {
+                        SSTableIntervalTree intervalTree = SSTableIntervalTree.build(ColumnFamilyStore.CANONICAL_SSTABLES.apply(view));
+                        Set<SSTableReader> sstables = Sets.newHashSet();
+                        for (Range<RowPosition> keyRange : keyRanges)
+                        {
+                            // keyRange excludes its start, while sstableInBounds is inclusive (of both start and end).
+                            // This is fine however, because keyRange has been created from a token range through Range.makeRowRange (see above).
+                            // And that later method uses the Token.maxKeyBound() method to creates the range, which return a "fake" key that
+                            // sort after all keys having the token. That "fake" key cannot however be equal to any real key, so that even
+                            // including keyRange.left will still exclude any key having the token of the original token range, and so we're
+                            // still actually selecting what we wanted.
+                            for (SSTableReader sstable : View.sstablesInBounds(keyRange.left, keyRange.right, intervalTree))
+                            {
+                                if (!isIncremental || !sstable.isRepaired())
+                                    sstables.add(sstable);
+                            }
+                        }
+
+                        logger.debug("ViewFilter for {}/{} sstables", sstables.size(), view.sstables.size());
+                        return ImmutableList.copyOf(sstables);
+                    }
+                }).refs);
             }
 
-            List<SSTableStreamingSections> sections = new ArrayList<>(sstables.size());
-            for (SSTableReader sstable : sstables)
+            List<SSTableStreamingSections> sections = new ArrayList<>(refs.size());
+            for (SSTableReader sstable : refs)
             {
-                sections.add(new SSTableStreamingSections(sstable,
+                long repairedAt = overriddenRepairedAt;
+                if (overriddenRepairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
+                    repairedAt = sstable.getSSTableMetadata().repairedAt;
+                sections.add(new SSTableStreamingSections(refs.get(sstable),
                                                           sstable.getPositionsForRanges(ranges),
-                                                          sstable.estimatedKeysForRanges(ranges)));
+                                                          sstable.estimatedKeysForRanges(ranges),
+                                                          repairedAt));
             }
             return sections;
         }
         catch (Throwable t)
         {
-            SSTableReader.releaseReferences(sstables);
+            refs.release();
             throw t;
         }
     }
-
-
 
     public void addTransferFiles(Collection<SSTableStreamingSections> sstableDetails)
     {
@@ -321,34 +375,39 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             if (details.sections.isEmpty())
             {
                 // A reference was acquired on the sstable and we won't stream it
-                details.sstable.releaseReference();
+                details.ref.release();
                 iter.remove();
                 continue;
             }
 
-            UUID cfId = details.sstable.metadata.cfId;
+            UUID cfId = details.ref.get().metadata.cfId;
             StreamTransferTask task = transfers.get(cfId);
             if (task == null)
             {
-                task = new StreamTransferTask(this, cfId);
-                transfers.put(cfId, task);
+                //guarantee atomicity
+                StreamTransferTask newTask = new StreamTransferTask(this, cfId);
+                task = transfers.putIfAbsent(cfId, newTask);
+                if (task == null)
+                    task = newTask;
             }
-            task.addTransferFile(details.sstable, details.estimatedKeys, details.sections);
+            task.addTransferFile(details.ref, details.estimatedKeys, details.sections, details.repairedAt);
             iter.remove();
         }
     }
 
     public static class SSTableStreamingSections
     {
-        public final SSTableReader sstable;
+        public final Ref<SSTableReader> ref;
         public final List<Pair<Long, Long>> sections;
         public final long estimatedKeys;
+        public final long repairedAt;
 
-        public SSTableStreamingSections(SSTableReader sstable, List<Pair<Long, Long>> sections, long estimatedKeys)
+        public SSTableStreamingSections(Ref<SSTableReader> ref, List<Pair<Long, Long>> sections, long estimatedKeys, long repairedAt)
         {
-            this.sstable = sstable;
+            this.ref = ref;
             this.sections = sections;
             this.estimatedKeys = estimatedKeys;
+            this.repairedAt = repairedAt;
         }
     }
 
@@ -418,11 +477,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 received(received.cfId, received.sequenceNumber);
                 break;
 
-            case RETRY:
-                RetryMessage retry = (RetryMessage) message;
-                retry(retry.cfId, retry.sequenceNumber);
-                break;
-
             case COMPLETE:
                 complete();
                 break;
@@ -451,14 +505,24 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             startStreamingFiles();
     }
 
-    /**
+    /**l
      * Call back for handling exception during streaming.
      *
      * @param e thrown exception
      */
     public void onError(Throwable e)
     {
-        logger.error("[Stream #" + planId() + "] Streaming error occurred", e);
+        if (e instanceof SocketTimeoutException)
+        {
+            logger.error("[Stream #{}] Streaming socket timed out. This means the session peer stopped responding or " +
+                         "is still processing received data. If there is no sign of failure in the other end or a very " +
+                         "dense table is being transferred you may want to increase streaming_socket_timeout_in_ms " +
+                         "property. Current value is {}ms.", planId(), DatabaseDescriptor.getStreamingSocketTimeout(), e);
+        }
+        else
+        {
+            logger.error("[Stream #{}] Streaming error occurred", planId(), e);
+        }
         // send session failure message
         if (handler.isOutgoingConnected())
             handler.sendMessage(new SessionFailedMessage());
@@ -474,7 +538,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         // prepare tasks
         state(State.PREPARING);
         for (StreamRequest request : requests)
-            addTransferRanges(request.keyspace, request.ranges, request.columnFamilies, true); // always flush on stream request
+            addTransferRanges(request.keyspace, request.ranges, request.columnFamilies, true, request.repairedAt); // always flush on stream request
         for (StreamSummary summary : summaries)
             prepareReceiving(summary);
 
@@ -527,25 +591,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public void progress(Descriptor desc, ProgressInfo.Direction direction, long bytes, long total)
     {
-        ProgressInfo progress = new ProgressInfo(peer, desc.filenameFor(Component.DATA), direction, bytes, total);
+        ProgressInfo progress = new ProgressInfo(peer, index, desc.filenameFor(Component.DATA), direction, bytes, total);
         streamResult.handleProgress(progress);
     }
 
     public void received(UUID cfId, int sequenceNumber)
     {
         transfers.get(cfId).complete(sequenceNumber);
-    }
-
-    /**
-     * Call back on receiving {@code StreamMessage.Type.RETRY} message.
-     *
-     * @param cfId ColumnFamily ID
-     * @param sequenceNumber Sequence number to indicate which file to stream again
-     */
-    public void retry(UUID cfId, int sequenceNumber)
-    {
-        OutgoingFileMessage message = transfers.get(cfId).createMessageForRetry(sequenceNumber);
-        handler.sendMessage(message);
     }
 
     /**
@@ -565,6 +617,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         else
         {
             state(State.WAIT_COMPLETE);
+            handler.closeIncoming();
         }
     }
 
@@ -573,18 +626,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public synchronized void sessionFailed()
     {
+        logger.error("[Stream #{}] Remote peer {} failed stream session.", planId(), peer.getHostAddress());
         closeSession(State.FAILED);
-    }
-
-    public void doRetry(FileMessageHeader header, Throwable e)
-    {
-        logger.warn("[Stream #" + planId() + "] Retrying for following error", e);
-        // retry
-        retries++;
-        if (retries > DatabaseDescriptor.getMaxStreamingRetries())
-            onError(new IOException("Too many retries for " + header, e));
-        else
-            handler.sendMessage(new RetryMessage(header.cfId, header.sequenceNumber));
     }
 
     /**
@@ -598,7 +641,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         List<StreamSummary> transferSummaries = Lists.newArrayList();
         for (StreamTask transfer : transfers.values())
             transferSummaries.add(transfer.getSummary());
-        return new SessionInfo(peer, connecting, receivingSummaries, transferSummaries, state);
+        return new SessionInfo(peer, index, connecting, receivingSummaries, transferSummaries, state);
     }
 
     public synchronized void taskCompleted(StreamReceiveTask completedTask)
@@ -621,11 +664,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public void onRemove(InetAddress endpoint)
     {
+        logger.error("[Stream #{}] Session failed because remote peer {} has left.", planId(), peer.getHostAddress());
         closeSession(State.FAILED);
     }
 
     public void onRestart(InetAddress endpoint, EndpointState epState)
     {
+        logger.error("[Stream #{}] Session failed because remote peer {} was restarted.", planId(), peer.getHostAddress());
         closeSession(State.FAILED);
     }
 
@@ -649,6 +694,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 handler.sendMessage(new CompleteMessage());
                 completeSent = true;
                 state(State.WAIT_COMPLETE);
+                handler.closeOutgoing();
             }
         }
         return completed;

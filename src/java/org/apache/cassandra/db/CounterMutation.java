@@ -18,62 +18,68 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 
+import com.google.common.base.Function;
+import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Striped;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HeapAllocator;
+import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.*;
 
 public class CounterMutation implements IMutation
 {
     public static final CounterMutationSerializer serializer = new CounterMutationSerializer();
 
-    private final RowMutation rowMutation;
+    private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentCounterWriters() * 1024);
+
+    private final Mutation mutation;
     private final ConsistencyLevel consistency;
 
-    public CounterMutation(RowMutation rowMutation, ConsistencyLevel consistency)
+    public CounterMutation(Mutation mutation, ConsistencyLevel consistency)
     {
-        this.rowMutation = rowMutation;
+        this.mutation = mutation;
         this.consistency = consistency;
     }
 
     public String getKeyspaceName()
     {
-        return rowMutation.getKeyspaceName();
+        return mutation.getKeyspaceName();
     }
 
     public Collection<UUID> getColumnFamilyIds()
     {
-        return rowMutation.getColumnFamilyIds();
+        return mutation.getColumnFamilyIds();
     }
 
     public Collection<ColumnFamily> getColumnFamilies()
     {
-        return rowMutation.getColumnFamilies();
+        return mutation.getColumnFamilies();
+    }
+
+    public Mutation getMutation()
+    {
+        return mutation;
     }
 
     public ByteBuffer key()
     {
-        return rowMutation.key();
-    }
-
-    public RowMutation rowMutation()
-    {
-        return rowMutation;
+        return mutation.key();
     }
 
     public ConsistencyLevel consistency()
@@ -81,79 +87,219 @@ public class CounterMutation implements IMutation
         return consistency;
     }
 
-    public RowMutation makeReplicationMutation()
-    {
-        List<ReadCommand> readCommands = new LinkedList<ReadCommand>();
-        long timestamp = System.currentTimeMillis();
-        for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
-        {
-            if (!columnFamily.metadata().getReplicateOnWrite())
-                continue;
-            addReadCommandFromColumnFamily(rowMutation.getKeyspaceName(), rowMutation.key(), columnFamily, timestamp, readCommands);
-        }
-
-        // create a replication RowMutation
-        RowMutation replicationMutation = new RowMutation(rowMutation.getKeyspaceName(), rowMutation.key());
-        for (ReadCommand readCommand : readCommands)
-        {
-            Keyspace keyspace = Keyspace.open(readCommand.ksName);
-            Row row = readCommand.getRow(keyspace);
-            if (row == null || row.cf == null)
-                continue;
-
-            ColumnFamily cf = row.cf;
-            replicationMutation.add(cf);
-        }
-
-        return replicationMutation.isEmpty() ? null : replicationMutation;
-    }
-
-    private void addReadCommandFromColumnFamily(String keyspaceName, ByteBuffer key, ColumnFamily columnFamily, long timestamp, List<ReadCommand> commands)
-    {
-        SortedSet<ByteBuffer> s = new TreeSet<ByteBuffer>(columnFamily.metadata().comparator);
-        Iterables.addAll(s, columnFamily.getColumnNames());
-        commands.add(new SliceByNamesReadCommand(keyspaceName, key, columnFamily.metadata().cfName, timestamp, new NamesQueryFilter(s)));
-    }
-
     public MessageOut<CounterMutation> makeMutationMessage()
     {
-        return new MessageOut<CounterMutation>(MessagingService.Verb.COUNTER_MUTATION, this, serializer);
+        return new MessageOut<>(MessagingService.Verb.COUNTER_MUTATION, this, serializer);
     }
 
-    public boolean shouldReplicateOnWrite()
+    /**
+     * Applies the counter mutation, returns the result Mutation (for replication to other nodes).
+     *
+     * 1. Grabs the striped cell-level locks in the proper order
+     * 2. Gets the current values of the counters-to-be-modified from the counter cache
+     * 3. Reads the rest of the current values (cache misses) from the CF
+     * 4. Writes the updated counter values
+     * 5. Updates the counter cache
+     * 6. Releases the lock(s)
+     *
+     * See CASSANDRA-4775 and CASSANDRA-6504 for further details.
+     *
+     * @return the applied resulting Mutation
+     */
+    public Mutation apply() throws WriteTimeoutException
     {
-        for (ColumnFamily cf : rowMutation.getColumnFamilies())
-            if (cf.metadata().getReplicateOnWrite())
-                return true;
-        return false;
-    }
+        Mutation result = new Mutation(getKeyspaceName(), key());
+        Keyspace keyspace = Keyspace.open(getKeyspaceName());
 
-    public void apply()
-    {
-        // transform all CounterUpdateColumn to CounterColumn: accomplished by localCopy
-        RowMutation rm = new RowMutation(rowMutation.getKeyspaceName(), ByteBufferUtil.clone(rowMutation.key()));
-        Keyspace keyspace = Keyspace.open(rm.getKeyspaceName());
+        int count = 0;
+        for (ColumnFamily cf : getColumnFamilies())
+            count += cf.getColumnCount();
 
-        for (ColumnFamily cf_ : rowMutation.getColumnFamilies())
+        List<Lock> locks = new ArrayList<>(count);
+        Tracing.trace("Acquiring {} counter locks", count);
+        try
         {
-            ColumnFamily cf = cf_.cloneMeShallow();
-            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cf.id());
-            for (Column column : cf_)
-            {
-                cf.addColumn(column.localCopy(cfs), HeapAllocator.instance);
-            }
-            rm.add(cf);
+            grabCounterLocks(keyspace, locks);
+            for (ColumnFamily cf : getColumnFamilies())
+                result.add(processModifications(cf));
+            result.apply();
+            updateCounterCache(result, keyspace);
+            return result;
         }
-        rm.apply();
+        finally
+        {
+            for (Lock lock : locks)
+                lock.unlock();
+        }
+    }
+
+    private void grabCounterLocks(Keyspace keyspace, List<Lock> locks) throws WriteTimeoutException
+    {
+        long startTime = System.nanoTime();
+
+        for (Lock lock : LOCKS.bulkGet(getCounterLockKeys()))
+        {
+            long timeout = TimeUnit.MILLISECONDS.toNanos(getTimeout()) - (System.nanoTime() - startTime);
+            try
+            {
+                if (!lock.tryLock(timeout, TimeUnit.NANOSECONDS))
+                    throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(keyspace));
+                locks.add(lock);
+            }
+            catch (InterruptedException e)
+            {
+                throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(keyspace));
+            }
+        }
+    }
+
+    /**
+     * Returns a wrapper for the Striped#bulkGet() call (via Keyspace#counterLocksFor())
+     * Striped#bulkGet() depends on Object#hashCode(), so here we make sure that the cf id and the partition key
+     * all get to be part of the hashCode() calculation, not just the cell name.
+     */
+    private Iterable<Object> getCounterLockKeys()
+    {
+        return Iterables.concat(Iterables.transform(getColumnFamilies(), new Function<ColumnFamily, Iterable<Object>>()
+        {
+            public Iterable<Object> apply(final ColumnFamily cf)
+            {
+                return Iterables.transform(cf, new Function<Cell, Object>()
+                {
+                    public Object apply(Cell cell)
+                    {
+                        return Objects.hashCode(cf.id(), key(), cell.name());
+                    }
+                });
+            }
+        }));
+    }
+
+    // Replaces all the CounterUpdateCell-s with updated regular CounterCell-s
+    private ColumnFamily processModifications(ColumnFamily changesCF)
+    {
+        ColumnFamilyStore cfs = Keyspace.open(getKeyspaceName()).getColumnFamilyStore(changesCF.id());
+
+        ColumnFamily resultCF = changesCF.cloneMeShallow();
+
+        List<CounterUpdateCell> counterUpdateCells = new ArrayList<>(changesCF.getColumnCount());
+        for (Cell cell : changesCF)
+        {
+            if (cell instanceof CounterUpdateCell)
+                counterUpdateCells.add((CounterUpdateCell)cell);
+            else
+                resultCF.addColumn(cell);
+        }
+
+        if (counterUpdateCells.isEmpty())
+            return resultCF; // only DELETEs
+
+        ClockAndCount[] currentValues = getCurrentValues(counterUpdateCells, cfs);
+        for (int i = 0; i < counterUpdateCells.size(); i++)
+        {
+            ClockAndCount currentValue = currentValues[i];
+            CounterUpdateCell update = counterUpdateCells.get(i);
+
+            long clock = currentValue.clock + 1L;
+            long count = currentValue.count + update.delta();
+
+            resultCF.addColumn(new BufferCounterCell(update.name(),
+                                                     CounterContext.instance().createGlobal(CounterId.getLocalId(), clock, count),
+                                                     update.timestamp()));
+        }
+
+        return resultCF;
+    }
+
+    // Attempt to load the current values(s) from cache. If that fails, read the rest from the cfs.
+    private ClockAndCount[] getCurrentValues(List<CounterUpdateCell> counterUpdateCells, ColumnFamilyStore cfs)
+    {
+        ClockAndCount[] currentValues = new ClockAndCount[counterUpdateCells.size()];
+        int remaining = counterUpdateCells.size();
+
+        if (CacheService.instance.counterCache.getCapacity() != 0)
+        {
+            Tracing.trace("Fetching {} counter values from cache", counterUpdateCells.size());
+            remaining = getCurrentValuesFromCache(counterUpdateCells, cfs, currentValues);
+            if (remaining == 0)
+                return currentValues;
+        }
+
+        Tracing.trace("Reading {} counter values from the CF", remaining);
+        getCurrentValuesFromCFS(counterUpdateCells, cfs, currentValues);
+
+        return currentValues;
+    }
+
+    // Returns the count of cache misses.
+    private int getCurrentValuesFromCache(List<CounterUpdateCell> counterUpdateCells,
+                                          ColumnFamilyStore cfs,
+                                          ClockAndCount[] currentValues)
+    {
+        int cacheMisses = 0;
+        for (int i = 0; i < counterUpdateCells.size(); i++)
+        {
+            ClockAndCount cached = cfs.getCachedCounter(key(), counterUpdateCells.get(i).name());
+            if (cached != null)
+                currentValues[i] = cached;
+            else
+                cacheMisses++;
+        }
+        return cacheMisses;
+    }
+
+    // Reads the missing current values from the CFS.
+    private void getCurrentValuesFromCFS(List<CounterUpdateCell> counterUpdateCells,
+                                         ColumnFamilyStore cfs,
+                                         ClockAndCount[] currentValues)
+    {
+        SortedSet<CellName> names = new TreeSet<>(cfs.metadata.comparator);
+        for (int i = 0; i < currentValues.length; i++)
+            if (currentValues[i] == null)
+                names.add(counterUpdateCells.get(i).name());
+
+        ReadCommand cmd = new SliceByNamesReadCommand(getKeyspaceName(), key(), cfs.metadata.cfName, Long.MIN_VALUE, new NamesQueryFilter(names));
+        Row row = cmd.getRow(cfs.keyspace);
+        ColumnFamily cf = row == null ? null : row.cf;
+
+        for (int i = 0; i < currentValues.length; i++)
+        {
+            if (currentValues[i] != null)
+                continue;
+
+            Cell cell = cf == null ? null : cf.getColumn(counterUpdateCells.get(i).name());
+            if (cell == null || !cell.isLive()) // absent or a tombstone.
+                currentValues[i] = ClockAndCount.BLANK;
+            else
+                currentValues[i] = CounterContext.instance().getLocalClockAndCount(cell.value());
+        }
+    }
+
+    private void updateCounterCache(Mutation applied, Keyspace keyspace)
+    {
+        if (CacheService.instance.counterCache.getCapacity() == 0)
+            return;
+
+        for (ColumnFamily cf : applied.getColumnFamilies())
+        {
+            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cf.id());
+            for (Cell cell : cf)
+                if (cell instanceof CounterCell)
+                    cfs.putCachedCounter(key(), cell.name(), CounterContext.instance().getLocalClockAndCount(cell.value()));
+        }
     }
 
     public void addAll(IMutation m)
     {
         if (!(m instanceof CounterMutation))
             throw new IllegalArgumentException();
-
         CounterMutation cm = (CounterMutation)m;
-        rowMutation.addAll(cm.rowMutation);
+        mutation.addAll(cm.mutation);
+    }
+
+    public long getTimeout()
+    {
+        return DatabaseDescriptor.getCounterWriteRpcTimeout();
     }
 
     @Override
@@ -164,31 +310,28 @@ public class CounterMutation implements IMutation
 
     public String toString(boolean shallow)
     {
-        StringBuilder buff = new StringBuilder("CounterMutation(");
-        buff.append(rowMutation.toString(shallow));
-        buff.append(", ").append(consistency.toString());
-        return buff.append(")").toString();
-    }
-}
-
-class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
-{
-    public void serialize(CounterMutation cm, DataOutput out, int version) throws IOException
-    {
-        RowMutation.serializer.serialize(cm.rowMutation(), out, version);
-        out.writeUTF(cm.consistency().name());
+        return String.format("CounterMutation(%s, %s)", mutation.toString(shallow), consistency);
     }
 
-    public CounterMutation deserialize(DataInput in, int version) throws IOException
+    public static class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
     {
-        RowMutation rm = RowMutation.serializer.deserialize(in, version);
-        ConsistencyLevel consistency = Enum.valueOf(ConsistencyLevel.class, in.readUTF());
-        return new CounterMutation(rm, consistency);
-    }
+        public void serialize(CounterMutation cm, DataOutputPlus out, int version) throws IOException
+        {
+            Mutation.serializer.serialize(cm.mutation, out, version);
+            out.writeUTF(cm.consistency.name());
+        }
 
-    public long serializedSize(CounterMutation cm, int version)
-    {
-        return RowMutation.serializer.serializedSize(cm.rowMutation(), version)
-             + TypeSizes.NATIVE.sizeof(cm.consistency().name());
+        public CounterMutation deserialize(DataInput in, int version) throws IOException
+        {
+            Mutation m = Mutation.serializer.deserialize(in, version);
+            ConsistencyLevel consistency = Enum.valueOf(ConsistencyLevel.class, in.readUTF());
+            return new CounterMutation(m, consistency);
+        }
+
+        public long serializedSize(CounterMutation cm, int version)
+        {
+            return Mutation.serializer.serializedSize(cm.mutation, version)
+                 + TypeSizes.NATIVE.sizeof(cm.consistency.name());
+        }
     }
 }

@@ -19,10 +19,12 @@ package org.apache.cassandra.cache;
 
 import org.apache.cassandra.utils.Pair;
 
-public interface CacheKey extends IMeasurableMemory
+public abstract class CacheKey implements IMeasurableMemory
 {
-    /**
-     * @return The keyspace and ColumnFamily names to which this key belongs
-     */
-    public Pair<String, String> getPathInfo();
+    public final Pair<String, String> ksAndCFName;
+
+    public CacheKey(Pair<String, String> ksAndCFName)
+    {
+        this.ksAndCFName = ksAndCFName;
+    }
 }

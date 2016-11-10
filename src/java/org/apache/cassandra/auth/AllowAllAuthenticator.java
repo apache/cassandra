@@ -23,43 +23,14 @@ import java.util.Set;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class AllowAllAuthenticator implements IAuthenticator
 {
+    private static final SaslNegotiator AUTHENTICATOR_INSTANCE = new Negotiator();
+
     public boolean requireAuthentication()
     {
         return false;
-    }
-
-    public Set<Option> supportedOptions()
-    {
-        return Collections.emptySet();
-    }
-
-    public Set<Option> alterableOptions()
-    {
-        return Collections.emptySet();
-    }
-
-    public AuthenticatedUser authenticate(Map<String, String> credentials) throws AuthenticationException
-    {
-        return AuthenticatedUser.ANONYMOUS_USER;
-    }
-
-    public void create(String username, Map<Option, Object> options) throws InvalidRequestException
-    {
-        throw new InvalidRequestException("CREATE USER operation is not supported by AllowAllAuthenticator");
-    }
-
-    public void alter(String username, Map<Option, Object> options) throws InvalidRequestException
-    {
-        throw new InvalidRequestException("ALTER USER operation is not supported by AllowAllAuthenticator");
-    }
-
-    public void drop(String username) throws InvalidRequestException
-    {
-        throw new InvalidRequestException("DROP USER operation is not supported by AllowAllAuthenticator");
     }
 
     public Set<IResource> protectedResources()
@@ -73,5 +44,34 @@ public class AllowAllAuthenticator implements IAuthenticator
 
     public void setup()
     {
+    }
+
+    public SaslNegotiator newSaslNegotiator()
+    {
+        return AUTHENTICATOR_INSTANCE;
+    }
+
+    public AuthenticatedUser legacyAuthenticate(Map<String, String> credentialsData)
+    {
+        return AuthenticatedUser.ANONYMOUS_USER;
+    }
+
+    private static class Negotiator implements SaslNegotiator
+    {
+
+        public byte[] evaluateResponse(byte[] clientResponse) throws AuthenticationException
+        {
+            return null;
+        }
+
+        public boolean isComplete()
+        {
+            return true;
+        }
+
+        public AuthenticatedUser getAuthenticatedUser() throws AuthenticationException
+        {
+            return AuthenticatedUser.ANONYMOUS_USER;
+        }
     }
 }

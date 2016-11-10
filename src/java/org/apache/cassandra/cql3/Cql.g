@@ -30,18 +30,18 @@ options {
     import java.util.Arrays;
     import java.util.Collections;
     import java.util.EnumSet;
+    import java.util.HashSet;
     import java.util.HashMap;
     import java.util.LinkedHashMap;
     import java.util.List;
     import java.util.Map;
     import java.util.Set;
 
-    import org.apache.cassandra.auth.Permission;
-    import org.apache.cassandra.auth.DataResource;
-    import org.apache.cassandra.auth.IResource;
+    import org.apache.cassandra.auth.*;
     import org.apache.cassandra.cql3.*;
     import org.apache.cassandra.cql3.statements.*;
-    import org.apache.cassandra.cql3.functions.FunctionCall;
+    import org.apache.cassandra.cql3.selection.*;
+    import org.apache.cassandra.cql3.functions.*;
     import org.apache.cassandra.db.marshal.CollectionType;
     import org.apache.cassandra.exceptions.ConfigurationException;
     import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -50,8 +50,19 @@ options {
 }
 
 @members {
-    private final List<String> recognitionErrors = new ArrayList<String>();
+    private final List<ErrorListener> listeners = new ArrayList<ErrorListener>();
     private final List<ColumnIdentifier> bindVariables = new ArrayList<ColumnIdentifier>();
+
+    public static final Set<String> reservedTypeNames = new HashSet<String>()
+    {{
+        add("byte");
+        add("complex");
+        add("enum");
+        add("date");
+        add("interval");
+        add("macaddr");
+        add("bitstring");
+    }};
 
     public AbstractMarker.Raw newBindVariables(ColumnIdentifier name)
     {
@@ -81,27 +92,33 @@ options {
         return marker;
     }
 
+    public Json.Marker newJsonBindVariables(ColumnIdentifier name)
+    {
+        Json.Marker marker = new Json.Marker(bindVariables.size());
+        bindVariables.add(name);
+        return marker;
+    }
+
+    public void addErrorListener(ErrorListener listener)
+    {
+        this.listeners.add(listener);
+    }
+
+    public void removeErrorListener(ErrorListener listener)
+    {
+        this.listeners.remove(listener);
+    }
+
     public void displayRecognitionError(String[] tokenNames, RecognitionException e)
     {
-        String hdr = getErrorHeader(e);
-        String msg = getErrorMessage(e, tokenNames);
-        recognitionErrors.add(hdr + " " + msg);
+        for (int i = 0, m = listeners.size(); i < m; i++)
+            listeners.get(i).syntaxError(this, tokenNames, e);
     }
 
-    public void addRecognitionError(String msg)
+    private void addRecognitionError(String msg)
     {
-        recognitionErrors.add(msg);
-    }
-
-    public List<String> getRecognitionErrors()
-    {
-        return recognitionErrors;
-    }
-
-    public void throwLastRecognitionError() throws SyntaxException
-    {
-        if (recognitionErrors.size() > 0)
-            throw new SyntaxException(recognitionErrors.get((recognitionErrors.size()-1)));
+        for (int i = 0, m = listeners.size(); i < m; i++)
+            listeners.get(i).syntaxError(this, msg);
     }
 
     public Map<String, String> convertPropertyMap(Maps.Literal map)
@@ -151,6 +168,19 @@ options {
         }
         operations.add(Pair.create(key, update));
     }
+
+    public Set<Permission> filterPermissions(Set<Permission> permissions, IResource resource)
+    {
+        if (resource == null)
+            return Collections.emptySet();
+        Set<Permission> filtered = new HashSet<>(permissions);
+        filtered.retainAll(resource.applicablePermissions());
+        if (filtered.isEmpty())
+            addRecognitionError("Resource type " + resource.getClass().getSimpleName() +
+                                    " does not support any of the requested permissions");
+
+        return filtered;
+    }
 }
 
 @lexer::header {
@@ -172,28 +202,26 @@ options {
     {
         super.nextToken();
         if (tokens.size() == 0)
-            return Token.EOF_TOKEN;
+            return new CommonToken(Token.EOF);
         return tokens.remove(0);
     }
 
-    private List<String> recognitionErrors = new ArrayList<String>();
+    private final List<ErrorListener> listeners = new ArrayList<ErrorListener>();
+
+    public void addErrorListener(ErrorListener listener)
+    {
+        this.listeners.add(listener);
+    }
+
+    public void removeErrorListener(ErrorListener listener)
+    {
+        this.listeners.remove(listener);
+    }
 
     public void displayRecognitionError(String[] tokenNames, RecognitionException e)
     {
-        String hdr = getErrorHeader(e);
-        String msg = getErrorMessage(e, tokenNames);
-        recognitionErrors.add(hdr + " " + msg);
-    }
-
-    public List<String> getRecognitionErrors()
-    {
-        return recognitionErrors;
-    }
-
-    public void throwLastRecognitionError() throws SyntaxException
-    {
-        if (recognitionErrors.size() > 0)
-            throw new SyntaxException(recognitionErrors.get((recognitionErrors.size()-1)));
+        for (int i = 0, m = listeners.size(); i < m; i++)
+            listeners.get(i).syntaxError(this, tokenNames, e);
     }
 }
 
@@ -220,8 +248,8 @@ cqlStatement returns [ParsedStatement stmt]
     | st13=dropIndexStatement          { $stmt = st13; }
     | st14=alterTableStatement         { $stmt = st14; }
     | st15=alterKeyspaceStatement      { $stmt = st15; }
-    | st16=grantStatement              { $stmt = st16; }
-    | st17=revokeStatement             { $stmt = st17; }
+    | st16=grantPermissionsStatement   { $stmt = st16; }
+    | st17=revokePermissionsStatement  { $stmt = st17; }
     | st18=listPermissionsStatement    { $stmt = st18; }
     | st19=createUserStatement         { $stmt = st19; }
     | st20=alterUserStatement          { $stmt = st20; }
@@ -229,6 +257,19 @@ cqlStatement returns [ParsedStatement stmt]
     | st22=listUsersStatement          { $stmt = st22; }
     | st23=createTriggerStatement      { $stmt = st23; }
     | st24=dropTriggerStatement        { $stmt = st24; }
+    | st25=createTypeStatement         { $stmt = st25; }
+    | st26=alterTypeStatement          { $stmt = st26; }
+    | st27=dropTypeStatement           { $stmt = st27; }
+    | st28=createFunctionStatement     { $stmt = st28; }
+    | st29=dropFunctionStatement       { $stmt = st29; }
+    | st30=createAggregateStatement    { $stmt = st30; }
+    | st31=dropAggregateStatement      { $stmt = st31; }
+    | st32=createRoleStatement         { $stmt = st32; }
+    | st33=alterRoleStatement          { $stmt = st33; }
+    | st34=dropRoleStatement           { $stmt = st34; }
+    | st35=listRolesStatement          { $stmt = st35; }
+    | st36=grantRoleStatement          { $stmt = st36; }
+    | st37=revokeRoleStatement         { $stmt = st37; }
     ;
 
 /*
@@ -247,14 +288,14 @@ useStatement returns [UseStatement stmt]
 selectStatement returns [SelectStatement.RawStatement expr]
     @init {
         boolean isDistinct = false;
-        boolean isCount = false;
-        ColumnIdentifier countAlias = null;
         Term.Raw limit = null;
         Map<ColumnIdentifier.Raw, Boolean> orderings = new LinkedHashMap<ColumnIdentifier.Raw, Boolean>();
         boolean allowFiltering = false;
+        boolean isJson = false;
     }
-    : K_SELECT ( ( K_DISTINCT { isDistinct = true; } )? sclause=selectClause
-               | (K_COUNT '(' sclause=selectCountClause ')' { isCount = true; } (K_AS c=ident { countAlias = c; })?) )
+    : K_SELECT 
+      ( K_JSON { isJson = true; } )?
+      ( ( K_DISTINCT { isDistinct = true; } )? sclause=selectClause )
       K_FROM cf=columnFamilyName
       ( K_WHERE wclause=whereClause )?
       ( K_ORDER K_BY orderByClause[orderings] ( ',' orderByClause[orderings] )* )?
@@ -263,9 +304,8 @@ selectStatement returns [SelectStatement.RawStatement expr]
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(orderings,
                                                                              isDistinct,
-                                                                             isCount,
-                                                                             countAlias,
-                                                                             allowFiltering);
+                                                                             allowFiltering,
+                                                                             isJson);
           $expr = new SelectStatement.RawStatement(cf, params, sclause, wclause, limit);
       }
     ;
@@ -281,22 +321,25 @@ selector returns [RawSelector s]
     ;
 
 unaliasedSelector returns [Selectable.Raw s]
-    : c=cident                                  { $s = c; }
-    | K_WRITETIME '(' c=cident ')'              { $s = new Selectable.WritetimeOrTTL.Raw(c, true); }
-    | K_TTL       '(' c=cident ')'              { $s = new Selectable.WritetimeOrTTL.Raw(c, false); }
-    | f=functionName args=selectionFunctionArgs { $s = new Selectable.WithFunction.Raw(f, args); }
+    @init { Selectable.Raw tmp = null; }
+    :  ( c=cident                                  { tmp = c; }
+       | K_COUNT '(' countArgument ')'             { tmp = new Selectable.WithFunction.Raw(FunctionName.nativeFunction("countRows"), Collections.<Selectable.Raw>emptyList());}
+       | K_WRITETIME '(' c=cident ')'              { tmp = new Selectable.WritetimeOrTTL.Raw(c, true); }
+       | K_TTL       '(' c=cident ')'              { tmp = new Selectable.WritetimeOrTTL.Raw(c, false); }
+       | f=functionName args=selectionFunctionArgs { tmp = new Selectable.WithFunction.Raw(f, args); }
+       ) ( '.' fi=cident { tmp = new Selectable.WithFieldSelection.Raw(tmp, fi); } )* { $s = tmp; }
     ;
 
 selectionFunctionArgs returns [List<Selectable.Raw> a]
     : '(' ')' { $a = Collections.emptyList(); }
     | '(' s1=unaliasedSelector { List<Selectable.Raw> args = new ArrayList<Selectable.Raw>(); args.add(s1); }
           ( ',' sn=unaliasedSelector { args.add(sn); } )*
-       ')' { $a = args; }
+      ')' { $a = args; }
     ;
 
-selectCountClause returns [List<RawSelector> expr]
-    : '\*'           { $expr = Collections.<RawSelector>emptyList();}
-    | i=INTEGER      { if (!i.getText().equals("1")) addRecognitionError("Only COUNT(1) is supported, got COUNT(" + i.getText() + ")"); $expr = Collections.<RawSelector>emptyList();}
+countArgument
+    : '\*'
+    | i=INTEGER { if (!i.getText().equals("1")) addRecognitionError("Only COUNT(1) is supported, got COUNT(" + i.getText() + ")");}
     ;
 
 whereClause returns [List<Relation> clause]
@@ -306,10 +349,9 @@ whereClause returns [List<Relation> clause]
 
 orderByClause[Map<ColumnIdentifier.Raw, Boolean> orderings]
     @init{
-        ColumnIdentifier.Raw orderBy = null;
         boolean reversed = false;
     }
-    : c=cident { orderBy = c; } (K_ASC | K_DESC { reversed = true; })? { orderings.put(c, reversed); }
+    : c=cident (K_ASC | K_DESC { reversed = true; })? { orderings.put(c, reversed); }
     ;
 
 /**
@@ -318,27 +360,47 @@ orderByClause[Map<ColumnIdentifier.Raw, Boolean> orderings]
  * USING TIMESTAMP <long>;
  *
  */
-insertStatement returns [UpdateStatement.ParsedInsert expr]
+insertStatement returns [ModificationStatement.Parsed expr]
+    : K_INSERT K_INTO cf=columnFamilyName
+        ( st1=normalInsertStatement[cf] { $expr = st1; }
+        | K_JSON st2=jsonInsertStatement[cf] { $expr = st2; })
+    ;
+
+normalInsertStatement [CFName cf] returns [UpdateStatement.ParsedInsert expr]
     @init {
         Attributes.Raw attrs = new Attributes.Raw();
         List<ColumnIdentifier.Raw> columnNames  = new ArrayList<ColumnIdentifier.Raw>();
         List<Term.Raw> values = new ArrayList<Term.Raw>();
         boolean ifNotExists = false;
     }
-    : K_INSERT K_INTO cf=columnFamilyName
-          '(' c1=cident { columnNames.add(c1); }  ( ',' cn=cident { columnNames.add(cn); } )* ')'
-        K_VALUES
-          '(' v1=term { values.add(v1); } ( ',' vn=term { values.add(vn); } )* ')'
-
-        ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
-        ( usingClause[attrs] )?
+    : '(' c1=cident { columnNames.add(c1); }  ( ',' cn=cident { columnNames.add(cn); } )* ')'
+      K_VALUES
+      '(' v1=term { values.add(v1); } ( ',' vn=term { values.add(vn); } )* ')'
+      ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+      ( usingClause[attrs] )?
       {
-          $expr = new UpdateStatement.ParsedInsert(cf,
-                                                   attrs,
-                                                   columnNames,
-                                                   values,
-                                                   ifNotExists);
+          $expr = new UpdateStatement.ParsedInsert(cf, attrs, columnNames, values, ifNotExists);
       }
+    ;
+
+jsonInsertStatement [CFName cf] returns [UpdateStatement.ParsedInsertJson expr]
+    @init {
+        Attributes.Raw attrs = new Attributes.Raw();
+        boolean ifNotExists = false;
+    }
+    : val=jsonValue
+      ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+      ( usingClause[attrs] )?
+      {
+          $expr = new UpdateStatement.ParsedInsertJson(cf, attrs, val, ifNotExists);
+      }
+    ;
+
+jsonValue returns [Json.Raw value]
+    :
+    | s=STRING_LITERAL { $value = new Json.Literal($s.text); }
+    | ':' id=ident     { $value = newJsonBindVariables(id); }
+    | QMARK            { $value = newJsonBindVariables(null); }
     ;
 
 usingClause[Attributes.Raw attrs]
@@ -473,6 +535,103 @@ batchStatementObjective returns [ModificationStatement.Parsed statement]
     | d=deleteStatement  { $statement = d; }
     ;
 
+createAggregateStatement returns [CreateAggregateStatement expr]
+    @init {
+        boolean orReplace = false;
+        boolean ifNotExists = false;
+
+        List<CQL3Type.Raw> argsTypes = new ArrayList<>();
+    }
+    : K_CREATE (K_OR K_REPLACE { orReplace = true; })?
+      K_AGGREGATE
+      (K_IF K_NOT K_EXISTS { ifNotExists = true; })?
+      fn=functionName
+      '('
+        (
+          v=comparatorType { argsTypes.add(v); }
+          ( ',' v=comparatorType { argsTypes.add(v); } )*
+        )?
+      ')'
+      K_SFUNC sfunc = allowedFunctionName
+      K_STYPE stype = comparatorType
+      (
+        K_FINALFUNC ffunc = allowedFunctionName
+      )?
+      (
+        K_INITCOND ival = term
+      )?
+      { $expr = new CreateAggregateStatement(fn, argsTypes, sfunc, stype, ffunc, ival, orReplace, ifNotExists); }
+    ;
+
+dropAggregateStatement returns [DropAggregateStatement expr]
+    @init {
+        boolean ifExists = false;
+        List<CQL3Type.Raw> argsTypes = new ArrayList<>();
+        boolean argsPresent = false;
+    }
+    : K_DROP K_AGGREGATE
+      (K_IF K_EXISTS { ifExists = true; } )?
+      fn=functionName
+      (
+        '('
+          (
+            v=comparatorType { argsTypes.add(v); }
+            ( ',' v=comparatorType { argsTypes.add(v); } )*
+          )?
+        ')'
+        { argsPresent = true; }
+      )?
+      { $expr = new DropAggregateStatement(fn, argsTypes, argsPresent, ifExists); }
+    ;
+
+createFunctionStatement returns [CreateFunctionStatement expr]
+    @init {
+        boolean orReplace = false;
+        boolean ifNotExists = false;
+
+        List<ColumnIdentifier> argsNames = new ArrayList<>();
+        List<CQL3Type.Raw> argsTypes = new ArrayList<>();
+        boolean calledOnNullInput = false;
+    }
+    : K_CREATE (K_OR K_REPLACE { orReplace = true; })?
+      K_FUNCTION
+      (K_IF K_NOT K_EXISTS { ifNotExists = true; })?
+      fn=functionName
+      '('
+        (
+          k=ident v=comparatorType { argsNames.add(k); argsTypes.add(v); }
+          ( ',' k=ident v=comparatorType { argsNames.add(k); argsTypes.add(v); } )*
+        )?
+      ')'
+      ( (K_RETURNS K_NULL) | (K_CALLED { calledOnNullInput=true; })) K_ON K_NULL K_INPUT
+      K_RETURNS rt = comparatorType
+      K_LANGUAGE language = IDENT
+      K_AS body = STRING_LITERAL
+      { $expr = new CreateFunctionStatement(fn, $language.text.toLowerCase(), $body.text,
+                                            argsNames, argsTypes, rt, calledOnNullInput, orReplace, ifNotExists); }
+    ;
+
+dropFunctionStatement returns [DropFunctionStatement expr]
+    @init {
+        boolean ifExists = false;
+        List<CQL3Type.Raw> argsTypes = new ArrayList<>();
+        boolean argsPresent = false;
+    }
+    : K_DROP K_FUNCTION
+      (K_IF K_EXISTS { ifExists = true; } )?
+      fn=functionName
+      (
+        '('
+          (
+            v=comparatorType { argsTypes.add(v); }
+            ( ',' v=comparatorType { argsTypes.add(v); } )*
+          )?
+        ')'
+        { argsPresent = true; }
+      )?
+      { $expr = new DropFunctionStatement(fn, argsTypes, argsPresent, ifExists); }
+    ;
+
 /**
  * CREATE KEYSPACE [IF NOT EXISTS] <KEYSPACE> WITH attr1 = value1 AND attr2 = value2;
  */
@@ -526,6 +685,26 @@ cfamOrdering[CreateTableStatement.RawStatement expr]
     : k=ident (K_ASC | K_DESC { reversed=true;} ) { $expr.setOrdering(k, reversed); }
     ;
 
+
+/**
+ * CREATE TYPE foo (
+ *    <name1> <type1>,
+ *    <name2> <type2>,
+ *    ....
+ * )
+ */
+createTypeStatement returns [CreateTypeStatement expr]
+    @init { boolean ifNotExists = false; }
+    : K_CREATE K_TYPE (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+         tn=userTypeName { $expr = new CreateTypeStatement(tn, ifNotExists); }
+         '(' typeColumns[expr] ( ',' typeColumns[expr]? )* ')'
+    ;
+
+typeColumns[CreateTypeStatement expr]
+    : k=ident v=comparatorType { $expr.addDefinition(k, v); }
+    ;
+
+
 /**
  * CREATE INDEX [IF NOT EXISTS] [indexName] ON <columnFamily> (<columnName>);
  * CREATE CUSTOM INDEX [IF NOT EXISTS] [indexName] ON <columnFamily> (<columnName>) USING <indexClass>;
@@ -534,28 +713,42 @@ createIndexStatement returns [CreateIndexStatement expr]
     @init {
         IndexPropDefs props = new IndexPropDefs();
         boolean ifNotExists = false;
+        IndexName name = new IndexName();
     }
     : K_CREATE (K_CUSTOM { props.isCustom = true; })? K_INDEX (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
-        (idxName=IDENT)? K_ON cf=columnFamilyName '(' id=cident ')'
+        (idxName[name])? K_ON cf=columnFamilyName '(' id=indexIdent ')'
         (K_USING cls=STRING_LITERAL { props.customClass = $cls.text; })?
         (K_WITH properties[props])?
-      { $expr = new CreateIndexStatement(cf, $idxName.text, id, props, ifNotExists); }
+      { $expr = new CreateIndexStatement(cf, name, id, props, ifNotExists); }
     ;
+
+indexIdent returns [IndexTarget.Raw id]
+    : c=cident                   { $id = IndexTarget.Raw.valuesOf(c); }
+    | K_KEYS '(' c=cident ')'    { $id = IndexTarget.Raw.keysOf(c); }
+    | K_ENTRIES '(' c=cident ')' { $id = IndexTarget.Raw.keysAndValuesOf(c); }
+    | K_FULL '(' c=cident ')'    { $id = IndexTarget.Raw.fullCollection(c); }
+    ;
+
 
 /**
  * CREATE TRIGGER triggerName ON columnFamily USING 'triggerClass';
  */
 createTriggerStatement returns [CreateTriggerStatement expr]
-    : K_CREATE K_TRIGGER (name=IDENT) K_ON cf=columnFamilyName K_USING cls=STRING_LITERAL
-      { $expr = new CreateTriggerStatement(cf, $name.text, $cls.text); }
+    @init {
+        boolean ifNotExists = false;
+    }
+    : K_CREATE K_TRIGGER (K_IF K_NOT K_EXISTS { ifNotExists = true; } )? (name=cident)
+        K_ON cf=columnFamilyName K_USING cls=STRING_LITERAL
+      { $expr = new CreateTriggerStatement(cf, name.toString(), $cls.text, ifNotExists); }
     ;
 
 /**
- * DROP TRIGGER triggerName ON columnFamily;
+ * DROP TRIGGER [IF EXISTS] triggerName ON columnFamily;
  */
 dropTriggerStatement returns [DropTriggerStatement expr]
-    : K_DROP K_TRIGGER (name=IDENT) K_ON cf=columnFamilyName
-      { $expr = new DropTriggerStatement(cf, $name.text); }
+     @init { boolean ifExists = false; }
+    : K_DROP K_TRIGGER (K_IF K_EXISTS { ifExists = true; } )? (name=cident) K_ON cf=columnFamilyName
+      { $expr = new DropTriggerStatement(cf, name.toString(), ifExists); }
     ;
 
 /**
@@ -597,6 +790,24 @@ alterTableStatement returns [AlterTableStatement expr]
     ;
 
 /**
+ * ALTER TYPE <name> ALTER <field> TYPE <newtype>;
+ * ALTER TYPE <name> ADD <field> <newtype>;
+ * ALTER TYPE <name> RENAME <field> TO <newtype> AND ...;
+ */
+alterTypeStatement returns [AlterTypeStatement expr]
+    : K_ALTER K_TYPE name=userTypeName
+          ( K_ALTER f=ident K_TYPE v=comparatorType { $expr = AlterTypeStatement.alter(name, f, v); }
+          | K_ADD   f=ident v=comparatorType        { $expr = AlterTypeStatement.addition(name, f, v); }
+          | K_RENAME
+               { Map<ColumnIdentifier, ColumnIdentifier> renames = new HashMap<ColumnIdentifier, ColumnIdentifier>(); }
+                 id1=ident K_TO toId1=ident { renames.put(id1, toId1); }
+                 ( K_AND idn=ident K_TO toIdn=ident { renames.put(idn, toIdn); } )*
+               { $expr = AlterTypeStatement.renames(name, renames); }
+          )
+    ;
+
+
+/**
  * DROP KEYSPACE [IF EXISTS] <KSP>;
  */
 dropKeyspaceStatement returns [DropKeyspaceStatement ksp]
@@ -613,132 +824,276 @@ dropTableStatement returns [DropTableStatement stmt]
     ;
 
 /**
+ * DROP TYPE <name>;
+ */
+dropTypeStatement returns [DropTypeStatement stmt]
+    @init { boolean ifExists = false; }
+    : K_DROP K_TYPE (K_IF K_EXISTS { ifExists = true; } )? name=userTypeName { $stmt = new DropTypeStatement(name, ifExists); }
+    ;
+
+/**
  * DROP INDEX [IF EXISTS] <INDEX_NAME>
  */
 dropIndexStatement returns [DropIndexStatement expr]
     @init { boolean ifExists = false; }
-    : K_DROP K_INDEX (K_IF K_EXISTS { ifExists = true; } )? index=IDENT
-      { $expr = new DropIndexStatement($index.text, ifExists); }
+    : K_DROP K_INDEX (K_IF K_EXISTS { ifExists = true; } )? index=indexName
+      { $expr = new DropIndexStatement(index, ifExists); }
     ;
 
 /**
   * TRUNCATE <CF>;
   */
 truncateStatement returns [TruncateStatement stmt]
-    : K_TRUNCATE cf=columnFamilyName { $stmt = new TruncateStatement(cf); }
+    : K_TRUNCATE (K_COLUMNFAMILY)? cf=columnFamilyName { $stmt = new TruncateStatement(cf); }
     ;
 
 /**
- * GRANT <permission> ON <resource> TO <username>
+ * GRANT <permission> ON <resource> TO <rolename>
  */
-grantStatement returns [GrantStatement stmt]
+grantPermissionsStatement returns [GrantPermissionsStatement stmt]
     : K_GRANT
           permissionOrAll
       K_ON
           resource
       K_TO
-          username
-      { $stmt = new GrantStatement($permissionOrAll.perms, $resource.res, $username.text); }
+          grantee=userOrRoleName
+      { $stmt = new GrantPermissionsStatement(filterPermissions($permissionOrAll.perms, $resource.res), $resource.res, grantee); }
     ;
 
 /**
- * REVOKE <permission> ON <resource> FROM <username>
+ * REVOKE <permission> ON <resource> FROM <rolename>
  */
-revokeStatement returns [RevokeStatement stmt]
+revokePermissionsStatement returns [RevokePermissionsStatement stmt]
     : K_REVOKE
           permissionOrAll
       K_ON
           resource
       K_FROM
-          username
-      { $stmt = new RevokeStatement($permissionOrAll.perms, $resource.res, $username.text); }
+          revokee=userOrRoleName
+      { $stmt = new RevokePermissionsStatement(filterPermissions($permissionOrAll.perms, $resource.res), $resource.res, revokee); }
+    ;
+
+/**
+ * GRANT ROLE <rolename> TO <grantee>
+ */
+grantRoleStatement returns [GrantRoleStatement stmt]
+    : K_GRANT
+          role=userOrRoleName
+      K_TO
+          grantee=userOrRoleName
+      { $stmt = new GrantRoleStatement(role, grantee); }
+    ;
+
+/**
+ * REVOKE ROLE <rolename> FROM <revokee>
+ */
+revokeRoleStatement returns [RevokeRoleStatement stmt]
+    : K_REVOKE
+          role=userOrRoleName
+      K_FROM
+          revokee=userOrRoleName
+      { $stmt = new RevokeRoleStatement(role, revokee); }
     ;
 
 listPermissionsStatement returns [ListPermissionsStatement stmt]
     @init {
         IResource resource = null;
-        String username = null;
         boolean recursive = true;
+        RoleName grantee = new RoleName();
     }
     : K_LIST
           permissionOrAll
       ( K_ON resource { resource = $resource.res; } )?
-      ( K_OF username { username = $username.text; } )?
+      ( K_OF roleName[grantee] )?
       ( K_NORECURSIVE { recursive = false; } )?
-      { $stmt = new ListPermissionsStatement($permissionOrAll.perms, resource, username, recursive); }
+      { $stmt = new ListPermissionsStatement($permissionOrAll.perms, resource, grantee, recursive); }
     ;
 
 permission returns [Permission perm]
-    : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE)
+    : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE | K_DESCRIBE | K_EXECUTE)
     { $perm = Permission.valueOf($p.text.toUpperCase()); }
     ;
 
 permissionOrAll returns [Set<Permission> perms]
-    : K_ALL ( K_PERMISSIONS )?       { $perms = Permission.ALL_DATA; }
+    : K_ALL ( K_PERMISSIONS )?       { $perms = Permission.ALL; }
     | p=permission ( K_PERMISSION )? { $perms = EnumSet.of($p.perm); }
     ;
 
 resource returns [IResource res]
-    : r=dataResource { $res = $r.res; }
+    : d=dataResource { $res = $d.res; }
+    | r=roleResource { $res = $r.res; }
+    | f=functionResource { $res = $f.res; }
     ;
 
 dataResource returns [DataResource res]
     : K_ALL K_KEYSPACES { $res = DataResource.root(); }
     | K_KEYSPACE ks = keyspaceName { $res = DataResource.keyspace($ks.id); }
     | ( K_COLUMNFAMILY )? cf = columnFamilyName
-      { $res = DataResource.columnFamily($cf.name.getKeyspace(), $cf.name.getColumnFamily()); }
+      { $res = DataResource.table($cf.name.getKeyspace(), $cf.name.getColumnFamily()); }
+    ;
+
+roleResource returns [RoleResource res]
+    : K_ALL K_ROLES { $res = RoleResource.root(); }
+    | K_ROLE role = userOrRoleName { $res = RoleResource.role($role.name.getName()); }
+    ;
+
+functionResource returns [FunctionResource res]
+    @init {
+        List<CQL3Type.Raw> argsTypes = new ArrayList<>();
+    }
+    : K_ALL K_FUNCTIONS { $res = FunctionResource.root(); }
+    | K_ALL K_FUNCTIONS K_IN K_KEYSPACE ks = keyspaceName { $res = FunctionResource.keyspace($ks.id); }
+    // Arg types are mandatory for DCL statements on Functions
+    | K_FUNCTION fn=functionName
+      (
+        '('
+          (
+            v=comparatorType { argsTypes.add(v); }
+            ( ',' v=comparatorType { argsTypes.add(v); } )*
+          )?
+        ')'
+      )
+      { $res = FunctionResource.functionFromCql($fn.s.keyspace, $fn.s.name, argsTypes); }
     ;
 
 /**
  * CREATE USER [IF NOT EXISTS] <username> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
  */
-createUserStatement returns [CreateUserStatement stmt]
+createUserStatement returns [CreateRoleStatement stmt]
     @init {
-        UserOptions opts = new UserOptions();
+        RoleOptions opts = new RoleOptions();
+        opts.setOption(IRoleManager.Option.LOGIN, true);
         boolean superuser = false;
         boolean ifNotExists = false;
+        RoleName name = new RoleName();
     }
-    : K_CREATE K_USER (K_IF K_NOT K_EXISTS { ifNotExists = true; })? username
-      ( K_WITH userOptions[opts] )?
+    : K_CREATE K_USER (K_IF K_NOT K_EXISTS { ifNotExists = true; })? u=username { name.setName($u.text, true); }
+      ( K_WITH userPassword[opts] )?
       ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
-      { $stmt = new CreateUserStatement($username.text, opts, superuser, ifNotExists); }
+      { opts.setOption(IRoleManager.Option.SUPERUSER, superuser);
+        $stmt = new CreateRoleStatement(name, opts, ifNotExists); }
     ;
 
 /**
  * ALTER USER <username> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
  */
-alterUserStatement returns [AlterUserStatement stmt]
+alterUserStatement returns [AlterRoleStatement stmt]
     @init {
-        UserOptions opts = new UserOptions();
-        Boolean superuser = null;
+        RoleOptions opts = new RoleOptions();
+        RoleName name = new RoleName();
     }
-    : K_ALTER K_USER username
-      ( K_WITH userOptions[opts] )?
-      ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
-      { $stmt = new AlterUserStatement($username.text, opts, superuser); }
+    : K_ALTER K_USER u=username { name.setName($u.text, true); }
+      ( K_WITH userPassword[opts] )?
+      ( K_SUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, true); }
+        | K_NOSUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, false); } ) ?
+      {  $stmt = new AlterRoleStatement(name, opts); }
     ;
 
 /**
  * DROP USER [IF EXISTS] <username>
  */
-dropUserStatement returns [DropUserStatement stmt]
-    @init { boolean ifExists = false; }
-    : K_DROP K_USER (K_IF K_EXISTS { ifExists = true; })? username { $stmt = new DropUserStatement($username.text, ifExists); }
+dropUserStatement returns [DropRoleStatement stmt]
+    @init {
+        boolean ifExists = false;
+        RoleName name = new RoleName();
+    }
+    : K_DROP K_USER (K_IF K_EXISTS { ifExists = true; })? u=username { name.setName($u.text, true); $stmt = new DropRoleStatement(name, ifExists); }
     ;
 
 /**
  * LIST USERS
  */
-listUsersStatement returns [ListUsersStatement stmt]
+listUsersStatement returns [ListRolesStatement stmt]
     : K_LIST K_USERS { $stmt = new ListUsersStatement(); }
     ;
 
-userOptions[UserOptions opts]
-    : userOption[opts]
+/**
+ * CREATE ROLE [IF NOT EXISTS] <rolename> [ [WITH] option [ [AND] option ]* ]
+ *
+ * where option can be:
+ *  PASSWORD = '<password>'
+ *  SUPERUSER = (true|false)
+ *  LOGIN = (true|false)
+ *  OPTIONS = { 'k1':'v1', 'k2':'v2'}
+ */
+createRoleStatement returns [CreateRoleStatement stmt]
+    @init {
+        RoleOptions opts = new RoleOptions();
+        boolean ifNotExists = false;
+    }
+    : K_CREATE K_ROLE (K_IF K_NOT K_EXISTS { ifNotExists = true; })? name=userOrRoleName
+      ( K_WITH roleOptions[opts] )?
+      {
+        // set defaults if they weren't explictly supplied
+        if (!opts.getLogin().isPresent())
+        {
+            opts.setOption(IRoleManager.Option.LOGIN, false);
+        }
+        if (!opts.getSuperuser().isPresent())
+        {
+            opts.setOption(IRoleManager.Option.SUPERUSER, false);
+        }
+        $stmt = new CreateRoleStatement(name, opts, ifNotExists);
+      }
     ;
 
-userOption[UserOptions opts]
-    : k=K_PASSWORD v=STRING_LITERAL { opts.put($k.text, $v.text); }
+/**
+ * ALTER ROLE <rolename> [ [WITH] option [ [AND] option ]* ]
+ *
+ * where option can be:
+ *  PASSWORD = '<password>'
+ *  SUPERUSER = (true|false)
+ *  LOGIN = (true|false)
+ *  OPTIONS = { 'k1':'v1', 'k2':'v2'}
+ */
+alterRoleStatement returns [AlterRoleStatement stmt]
+    @init {
+        RoleOptions opts = new RoleOptions();
+    }
+    : K_ALTER K_ROLE name=userOrRoleName
+      ( K_WITH roleOptions[opts] )?
+      {  $stmt = new AlterRoleStatement(name, opts); }
+    ;
+
+/**
+ * DROP ROLE [IF EXISTS] <rolename>
+ */
+dropRoleStatement returns [DropRoleStatement stmt]
+    @init {
+        boolean ifExists = false;
+    }
+    : K_DROP K_ROLE (K_IF K_EXISTS { ifExists = true; })? name=userOrRoleName
+      { $stmt = new DropRoleStatement(name, ifExists); }
+    ;
+
+/**
+ * LIST ROLES [OF <rolename>] [NORECURSIVE]
+ */
+listRolesStatement returns [ListRolesStatement stmt]
+    @init {
+        boolean recursive = true;
+        RoleName grantee = new RoleName();
+    }
+    : K_LIST K_ROLES
+      ( K_OF roleName[grantee])?
+      ( K_NORECURSIVE { recursive = false; } )?
+      { $stmt = new ListRolesStatement(grantee, recursive); }
+    ;
+
+roleOptions[RoleOptions opts]
+    : roleOption[opts] (K_AND roleOption[opts])*
+    ;
+
+roleOption[RoleOptions opts]
+    :  K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
+    |  K_OPTIONS '=' m=mapLiteral { opts.setOption(IRoleManager.Option.OPTIONS, convertPropertyMap(m)); }
+    |  K_SUPERUSER '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.SUPERUSER, Boolean.valueOf($b.text)); }
+    |  K_LOGIN '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.LOGIN, Boolean.valueOf($b.text)); }
+    ;
+
+// for backwards compatibility in CREATE/ALTER USER, this has no '='
+userPassword[RoleOptions opts]
+    :  K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
     ;
 
 /** DEFINITIONS **/
@@ -752,7 +1107,7 @@ cident returns [ColumnIdentifier.Raw id]
     | k=unreserved_keyword { $id = new ColumnIdentifier.Raw(k, false); }
     ;
 
-// Identifiers that do not refer to columns.
+// Identifiers that do not refer to columns or where the comparator is known to be text
 ident returns [ColumnIdentifier id]
     : t=IDENT              { $id = new ColumnIdentifier($t.text, false); }
     | t=QUOTED_NAME        { $id = new ColumnIdentifier($t.text, true); }
@@ -762,19 +1117,55 @@ ident returns [ColumnIdentifier id]
 // Keyspace & Column family names
 keyspaceName returns [String id]
     @init { CFName name = new CFName(); }
-    : cfOrKsName[name, true] { $id = name.getKeyspace(); }
+    : ksName[name] { $id = name.getKeyspace(); }
+    ;
+
+indexName returns [IndexName name]
+    @init { $name = new IndexName(); }
+    : (ksName[name] '.')? idxName[name]
     ;
 
 columnFamilyName returns [CFName name]
     @init { $name = new CFName(); }
-    : (cfOrKsName[name, true] '.')? cfOrKsName[name, false]
+    : (ksName[name] '.')? cfName[name]
     ;
 
-cfOrKsName[CFName name, boolean isKs]
-    : t=IDENT              { if (isKs) $name.setKeyspace($t.text, false); else $name.setColumnFamily($t.text, false); }
-    | t=QUOTED_NAME        { if (isKs) $name.setKeyspace($t.text, true); else $name.setColumnFamily($t.text, true); }
-    | k=unreserved_keyword { if (isKs) $name.setKeyspace(k, false); else $name.setColumnFamily(k, false); }
-    | QMARK {addRecognitionError("Bind variables cannot be used for keyspace or table names");}
+userTypeName returns [UTName name]
+    : (ks=ident '.')? ut=non_type_ident { return new UTName(ks, ut); }
+    ;
+
+userOrRoleName returns [RoleName name]
+    @init { $name = new RoleName(); }
+    : roleName[name] {return $name;}
+    ;
+
+ksName[KeyspaceElementName name]
+    : t=IDENT              { $name.setKeyspace($t.text, false);}
+    | t=QUOTED_NAME        { $name.setKeyspace($t.text, true);}
+    | k=unreserved_keyword { $name.setKeyspace(k, false);}
+    | QMARK {addRecognitionError("Bind variables cannot be used for keyspace names");}
+    ;
+
+cfName[CFName name]
+    : t=IDENT              { $name.setColumnFamily($t.text, false); }
+    | t=QUOTED_NAME        { $name.setColumnFamily($t.text, true); }
+    | k=unreserved_keyword { $name.setColumnFamily(k, false); }
+    | QMARK {addRecognitionError("Bind variables cannot be used for table names");}
+    ;
+
+idxName[IndexName name]
+    : t=IDENT              { $name.setIndex($t.text, false); }
+    | t=QUOTED_NAME        { $name.setIndex($t.text, true);}
+    | k=unreserved_keyword { $name.setIndex(k, false); }
+    | QMARK {addRecognitionError("Bind variables cannot be used for index names");}
+    ;
+
+roleName[RoleName name]
+    : t=IDENT              { $name.setName($t.text, false); }
+    | s=STRING_LITERAL     { $name.setName($s.text, true); }
+    | t=QUOTED_NAME        { $name.setName($t.text, true); }
+    | k=unreserved_keyword { $name.setName(k, false); }
+    | QMARK {addRecognitionError("Bind variables cannot be used for role names");}
     ;
 
 constant returns [Constants.Literal constant]
@@ -787,13 +1178,13 @@ constant returns [Constants.Literal constant]
     | { String sign=""; } ('-' {sign = "-"; } )? t=(K_NAN | K_INFINITY) { $constant = Constants.Literal.floatingPoint(sign + $t.text); }
     ;
 
-map_literal returns [Maps.Literal map]
+mapLiteral returns [Maps.Literal map]
     : '{' { List<Pair<Term.Raw, Term.Raw>> m = new ArrayList<Pair<Term.Raw, Term.Raw>>(); }
           ( k1=term ':' v1=term { m.add(Pair.create(k1, v1)); } ( ',' kn=term ':' vn=term { m.add(Pair.create(kn, vn)); } )* )?
       '}' { $map = new Maps.Literal(m); }
     ;
 
-set_or_map[Term.Raw t] returns [Term.Raw value]
+setOrMapLiteral[Term.Raw t] returns [Term.Raw value]
     : ':' v=term { List<Pair<Term.Raw, Term.Raw>> m = new ArrayList<Pair<Term.Raw, Term.Raw>>(); m.add(Pair.create(t, v)); }
           ( ',' kn=term ':' vn=term { m.add(Pair.create(kn, vn)); } )*
       { $value = new Maps.Literal(m); }
@@ -802,19 +1193,34 @@ set_or_map[Term.Raw t] returns [Term.Raw value]
       { $value = new Sets.Literal(s); }
     ;
 
-collection_literal returns [Term.Raw value]
+collectionLiteral returns [Term.Raw value]
     : '[' { List<Term.Raw> l = new ArrayList<Term.Raw>(); }
           ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )?
       ']' { $value = new Lists.Literal(l); }
-    | '{' t=term v=set_or_map[t] { $value = v; } '}'
+    | '{' t=term v=setOrMapLiteral[t] { $value = v; } '}'
     // Note that we have an ambiguity between maps and set for "{}". So we force it to a set literal,
     // and deal with it later based on the type of the column (SetLiteral.java).
     | '{' '}' { $value = new Sets.Literal(Collections.<Term.Raw>emptyList()); }
     ;
 
+usertypeLiteral returns [UserTypes.Literal ut]
+    @init{ Map<ColumnIdentifier, Term.Raw> m = new HashMap<ColumnIdentifier, Term.Raw>(); }
+    @after{ $ut = new UserTypes.Literal(m); }
+    // We don't allow empty literals because that conflicts with sets/maps and is currently useless since we don't allow empty user types
+    : '{' k1=ident ':' v1=term { m.put(k1, v1); } ( ',' kn=ident ':' vn=term { m.put(kn, vn); } )* '}'
+    ;
+
+tupleLiteral returns [Tuples.Literal tt]
+    @init{ List<Term.Raw> l = new ArrayList<Term.Raw>(); }
+    @after{ $tt = new Tuples.Literal(l); }
+    : '(' t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* ')'
+    ;
+
 value returns [Term.Raw value]
     : c=constant           { $value = c; }
-    | l=collection_literal { $value = l; }
+    | l=collectionLiteral  { $value = l; }
+    | u=usertypeLiteral    { $value = u; }
+    | t=tupleLiteral       { $value = t; }
     | K_NULL               { $value = Constants.NULL_LITERAL; }
     | ':' id=ident         { $value = newBindVariables(id); }
     | QMARK                { $value = newBindVariables(null); }
@@ -827,27 +1233,45 @@ intValue returns [Term.Raw value]
     | QMARK         { $value = newBindVariables(null); }
     ;
 
-functionName returns [String s]
-    : f=IDENT                       { $s = $f.text; }
-    | u=unreserved_function_keyword { $s = u; }
-    | K_TOKEN                       { $s = "token"; }
+functionName returns [FunctionName s]
+    : (ks=keyspaceName '.')? f=allowedFunctionName   { $s = new FunctionName(ks, f); }
     ;
 
-functionArgs returns [List<Term.Raw> a]
-    : '(' ')' { $a = Collections.emptyList(); }
-    | '(' t1=term { List<Term.Raw> args = new ArrayList<Term.Raw>(); args.add(t1); }
-          ( ',' tn=term { args.add(tn); } )*
-       ')' { $a = args; }
+allowedFunctionName returns [String s]
+    : f=IDENT                       { $s = $f.text.toLowerCase(); }
+    | f=QUOTED_NAME                 { $s = $f.text; }
+    | u=unreserved_function_keyword { $s = u; }
+    | K_TOKEN                       { $s = "token"; }
+    | K_COUNT                       { $s = "count"; }
+    ;
+
+function returns [Term.Raw t]
+    : f=functionName '(' ')'                   { $t = new FunctionCall.Raw(f, Collections.<Term.Raw>emptyList()); }
+    | f=functionName '(' args=functionArgs ')' { $t = new FunctionCall.Raw(f, args); }
+    ;
+
+functionArgs returns [List<Term.Raw> args]
+    @init{ $args = new ArrayList<Term.Raw>(); }
+    : t1=term {args.add(t1); } ( ',' tn=term { args.add(tn); } )*
     ;
 
 term returns [Term.Raw term]
     : v=value                          { $term = v; }
-    | f=functionName args=functionArgs { $term = new FunctionCall.Raw(f, args); }
+    | f=function                       { $term = f; }
     | '(' c=comparatorType ')' t=term  { $term = new TypeCast(c, t); }
     ;
 
 columnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations]
-    : key=cident '=' t=term ('+' c=cident )?
+    : key=cident columnOperationDifferentiator[operations, key]
+    ;
+
+columnOperationDifferentiator[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations, ColumnIdentifier.Raw key]
+    : '=' normalColumnOperation[operations, key]
+    | '[' k=term ']' specializedColumnOperation[operations, key, k]
+    ;
+
+normalColumnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations, ColumnIdentifier.Raw key]
+    : t=term ('+' c=cident )?
       {
           if (c == null)
           {
@@ -860,13 +1284,13 @@ columnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations
               addRawUpdate(operations, key, new Operation.Prepend(t));
           }
       }
-    | key=cident '=' c=cident sig=('+' | '-') t=term
+    | c=cident sig=('+' | '-') t=term
       {
           if (!key.equals(c))
               addRecognitionError("Only expressions of the form X = X " + $sig.text + "<value> are supported.");
           addRawUpdate(operations, key, $sig.text.equals("+") ? new Operation.Addition(t) : new Operation.Substraction(t));
       }
-    | key=cident '=' c=cident i=INTEGER
+    | c=cident i=INTEGER
       {
           // Note that this production *is* necessary because X = X - 3 will in fact be lexed as [ X, '=', X, INTEGER].
           if (!key.equals(c))
@@ -874,7 +1298,10 @@ columnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations
               addRecognitionError("Only expressions of the form X = X " + ($i.text.charAt(0) == '-' ? '-' : '+') + " <value> are supported.");
           addRawUpdate(operations, key, new Operation.Addition(Constants.Literal.integer($i.text)));
       }
-    | key=cident '[' k=term ']' '=' t=term
+    ;
+
+specializedColumnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations, ColumnIdentifier.Raw key, Term.Raw k]
+    : '=' t=term
       {
           addRawUpdate(operations, key, new Operation.SetElement(k, t));
       }
@@ -882,8 +1309,20 @@ columnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations
 
 columnCondition[List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions]
     // Note: we'll reject duplicates later
-    : key=cident '=' t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleEqual(t))); }
-    | key=cident '[' element=term ']' '=' t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.collectionEqual(t, element))); } 
+    : key=cident
+        ( op=relationType t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleCondition(t, op))); }
+        | K_IN
+            ( values=singleColumnInValues { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleInCondition(values))); }
+            | marker=inMarker { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleInCondition(marker))); }
+            )
+        | '[' element=term ']'
+            ( op=relationType t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.collectionCondition(t, element, op))); }
+            | K_IN
+                ( values=singleColumnInValues { conditions.add(Pair.create(key, ColumnCondition.Raw.collectionInCondition(element, values))); }
+                | marker=inMarker { conditions.add(Pair.create(key, ColumnCondition.Raw.collectionInCondition(element, marker))); }
+                )
+            )
+        )
     ;
 
 properties[PropertyDefinitions props]
@@ -892,7 +1331,7 @@ properties[PropertyDefinitions props]
 
 property[PropertyDefinitions props]
     : k=ident '=' simple=propertyValue { try { $props.addProperty(k.toString(), simple); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
-    | k=ident '=' map=map_literal { try { $props.addProperty(k.toString(), convertPropertyMap(map)); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
+    | k=ident '=' map=mapLiteral { try { $props.addProperty(k.toString(), convertPropertyMap(map)); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
     ;
 
 propertyValue returns [String str]
@@ -900,25 +1339,26 @@ propertyValue returns [String str]
     | u=unreserved_keyword { $str = u; }
     ;
 
-relationType returns [Relation.Type op]
-    : '='  { $op = Relation.Type.EQ; }
-    | '<'  { $op = Relation.Type.LT; }
-    | '<=' { $op = Relation.Type.LTE; }
-    | '>'  { $op = Relation.Type.GT; }
-    | '>=' { $op = Relation.Type.GTE; }
+relationType returns [Operator op]
+    : '='  { $op = Operator.EQ; }
+    | '<'  { $op = Operator.LT; }
+    | '<=' { $op = Operator.LTE; }
+    | '>'  { $op = Operator.GT; }
+    | '>=' { $op = Operator.GTE; }
+    | '!=' { $op = Operator.NEQ; }
     ;
 
 relation[List<Relation> clauses]
     : name=cident type=relationType t=term { $clauses.add(new SingleColumnRelation(name, type, t)); }
     | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
-        {
-            for (ColumnIdentifier.Raw id : l)
-                $clauses.add(new SingleColumnRelation(id, type, t, true));
-        }
+        { $clauses.add(new TokenRelation(l, type, t)); }
     | name=cident K_IN marker=inMarker
-        { $clauses.add(new SingleColumnRelation(name, Relation.Type.IN, marker)); }
+        { $clauses.add(new SingleColumnRelation(name, Operator.IN, marker)); }
     | name=cident K_IN inValues=singleColumnInValues
         { $clauses.add(SingleColumnRelation.createInRelation($name.id, inValues)); }
+    | name=cident K_CONTAINS { Operator rt = Operator.CONTAINS; } (K_KEY { rt = Operator.CONTAINS_KEY; })?
+        t=term { $clauses.add(new SingleColumnRelation(name, rt, t)); }
+    | name=cident '[' key=term ']' type=relationType t=term { $clauses.add(new SingleColumnRelation(name, key, type, t)); }
     | ids=tupleOfIdentifiers
       ( K_IN
           ( '(' ')'
@@ -957,11 +1397,6 @@ singleColumnInValues returns [List<Term.Raw> terms]
     : '(' ( t1 = term { $terms.add(t1); } (',' ti=term { $terms.add(ti); })* )? ')'
     ;
 
-tupleLiteral returns [Tuples.Literal literal]
-    @init { List<Term.Raw> terms = new ArrayList<>(); }
-    : '(' t1=term { terms.add(t1); } (',' ti=term { terms.add(ti); })* ')' { $literal = new Tuples.Literal(terms); }
-    ;
-
 tupleOfTupleLiterals returns [List<Tuples.Literal> literals]
     @init { $literals = new ArrayList<>(); }
     : '(' t1=tupleLiteral { $literals.add(t1); } (',' ti=tupleLiteral { $literals.add(ti); })* ')'
@@ -982,13 +1417,23 @@ inMarkerForTuple returns [Tuples.INRaw marker]
     | ':' name=ident { $marker = newTupleINBindVariables(name); }
     ;
 
-comparatorType returns [CQL3Type t]
-    : c=native_type     { $t = c; }
+comparatorType returns [CQL3Type.Raw t]
+    : n=native_type     { $t = CQL3Type.Raw.from(n); }
     | c=collection_type { $t = c; }
+    | tt=tuple_type     { $t = tt; }
+    | id=userTypeName   { $t = CQL3Type.Raw.userType(id); }
+    | K_FROZEN '<' f=comparatorType '>'
+      {
+        try {
+            $t = CQL3Type.Raw.frozen(f);
+        } catch (InvalidRequestException e) {
+            addRecognitionError(e.getMessage());
+        }
+      }
     | s=STRING_LITERAL
       {
         try {
-            $t = new CQL3Type.Custom($s.text);
+            $t = CQL3Type.Raw.from(new CQL3Type.Custom($s.text));
         } catch (SyntaxException e) {
             addRecognitionError("Cannot parse type " + $s.text + ": " + e.getMessage());
         } catch (ConfigurationException e) {
@@ -1008,39 +1453,64 @@ native_type returns [CQL3Type t]
     | K_FLOAT     { $t = CQL3Type.Native.FLOAT; }
     | K_INET      { $t = CQL3Type.Native.INET;}
     | K_INT       { $t = CQL3Type.Native.INT; }
+    | K_SMALLINT  { $t = CQL3Type.Native.SMALLINT; }
     | K_TEXT      { $t = CQL3Type.Native.TEXT; }
     | K_TIMESTAMP { $t = CQL3Type.Native.TIMESTAMP; }
+    | K_TINYINT   { $t = CQL3Type.Native.TINYINT; }
     | K_UUID      { $t = CQL3Type.Native.UUID; }
     | K_VARCHAR   { $t = CQL3Type.Native.VARCHAR; }
     | K_VARINT    { $t = CQL3Type.Native.VARINT; }
     | K_TIMEUUID  { $t = CQL3Type.Native.TIMEUUID; }
+    | K_DATE      { $t = CQL3Type.Native.DATE; }
+    | K_TIME      { $t = CQL3Type.Native.TIME; }
     ;
 
-collection_type returns [CQL3Type pt]
+collection_type returns [CQL3Type.Raw pt]
     : K_MAP  '<' t1=comparatorType ',' t2=comparatorType '>'
-        { try {
+        {
             // if we can't parse either t1 or t2, antlr will "recover" and we may have t1 or t2 null.
             if (t1 != null && t2 != null)
-                $pt = CQL3Type.Collection.map(t1, t2);
-          } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+                $pt = CQL3Type.Raw.map(t1, t2);
+        }
     | K_LIST '<' t=comparatorType '>'
-        { try { if (t != null) $pt = CQL3Type.Collection.list(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        { if (t != null) $pt = CQL3Type.Raw.list(t); }
     | K_SET  '<' t=comparatorType '>'
-        { try { if (t != null) $pt = CQL3Type.Collection.set(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        { if (t != null) $pt = CQL3Type.Raw.set(t); }
+    ;
+
+tuple_type returns [CQL3Type.Raw t]
+    : K_TUPLE '<' { List<CQL3Type.Raw> types = new ArrayList<>(); }
+         t1=comparatorType { types.add(t1); } (',' tn=comparatorType { types.add(tn); })*
+      '>' { $t = CQL3Type.Raw.tuple(types); }
     ;
 
 username
     : IDENT
     | STRING_LITERAL
+    | QUOTED_NAME { addRecognitionError("Quoted strings are are not supported for user names and USER is deprecated, please use ROLE");}
+    ;
+
+// Basically the same as cident, but we need to exlude existing CQL3 types
+// (which for some reason are not reserved otherwise)
+non_type_ident returns [ColumnIdentifier id]
+    : t=IDENT                    { if (reservedTypeNames.contains($t.text)) addRecognitionError("Invalid (reserved) user type name " + $t.text); $id = new ColumnIdentifier($t.text, false); }
+    | t=QUOTED_NAME              { $id = new ColumnIdentifier($t.text, true); }
+    | k=basic_unreserved_keyword { $id = new ColumnIdentifier(k, false); }
+    | kk=K_KEY                   { $id = new ColumnIdentifier($kk.text, false); }
     ;
 
 unreserved_keyword returns [String str]
     : u=unreserved_function_keyword     { $str = u; }
-    | k=(K_TTL | K_COUNT | K_WRITETIME) { $str = $k.text; }
+    | k=(K_TTL | K_COUNT | K_WRITETIME | K_KEY) { $str = $k.text; }
     ;
 
 unreserved_function_keyword returns [String str]
-    : k=( K_KEY
+    : u=basic_unreserved_keyword { $str = u; }
+    | t=native_type              { $str = t.toString(); }
+    ;
+
+basic_unreserved_keyword returns [String str]
+    : k=( K_KEYS
         | K_AS
         | K_CLUSTERING
         | K_COMPACT
@@ -1056,18 +1526,36 @@ unreserved_function_keyword returns [String str]
         | K_ALL
         | K_USER
         | K_USERS
+        | K_ROLE
+        | K_ROLES
         | K_SUPERUSER
         | K_NOSUPERUSER
+        | K_LOGIN
+        | K_NOLOGIN
+        | K_OPTIONS
         | K_PASSWORD
         | K_EXISTS
         | K_CUSTOM
         | K_TRIGGER
         | K_DISTINCT
+        | K_CONTAINS
         | K_STATIC
+        | K_FROZEN
+        | K_TUPLE
+        | K_FUNCTION
+        | K_FUNCTIONS
+        | K_AGGREGATE
+        | K_SFUNC
+        | K_STYPE
+        | K_FINALFUNC
+        | K_INITCOND
+        | K_RETURNS
+        | K_LANGUAGE
+        | K_JSON
+        | K_CALLED
+        | K_INPUT
         ) { $str = $k.text; }
-    | t=native_type { $str = t.toString(); }
     ;
-
 
 // Case-insensitive keywords
 K_SELECT:      S E L E C T;
@@ -1076,6 +1564,9 @@ K_AS:          A S;
 K_WHERE:       W H E R E;
 K_AND:         A N D;
 K_KEY:         K E Y;
+K_KEYS:        K E Y S;
+K_ENTRIES:     E N T R I E S;
+K_FULL:        F U L L;
 K_INSERT:      I N S E R T;
 K_UPDATE:      U P D A T E;
 K_WITH:        W I T H;
@@ -1121,6 +1612,7 @@ K_DESC:        D E S C;
 K_ALLOW:       A L L O W;
 K_FILTERING:   F I L T E R I N G;
 K_IF:          I F;
+K_CONTAINS:    C O N T A I N S;
 
 K_GRANT:       G R A N T;
 K_ALL:         A L L;
@@ -1130,13 +1622,20 @@ K_OF:          O F;
 K_REVOKE:      R E V O K E;
 K_MODIFY:      M O D I F Y;
 K_AUTHORIZE:   A U T H O R I Z E;
+K_DESCRIBE:    D E S C R I B E;
+K_EXECUTE:     E X E C U T E;
 K_NORECURSIVE: N O R E C U R S I V E;
 
 K_USER:        U S E R;
 K_USERS:       U S E R S;
+K_ROLE:        R O L E;
+K_ROLES:       R O L E S;
 K_SUPERUSER:   S U P E R U S E R;
 K_NOSUPERUSER: N O S U P E R U S E R;
 K_PASSWORD:    P A S S W O R D;
+K_LOGIN:       L O G I N;
+K_NOLOGIN:     N O L O G I N;
+K_OPTIONS:     O P T I O N S;
 
 K_CLUSTERING:  C L U S T E R I N G;
 K_ASCII:       A S C I I;
@@ -1149,6 +1648,8 @@ K_DOUBLE:      D O U B L E;
 K_FLOAT:       F L O A T;
 K_INET:        I N E T;
 K_INT:         I N T;
+K_SMALLINT:    S M A L L I N T;
+K_TINYINT:     T I N Y I N T;
 K_TEXT:        T E X T;
 K_UUID:        U U I D;
 K_VARCHAR:     V A R C H A R;
@@ -1156,6 +1657,8 @@ K_VARINT:      V A R I N T;
 K_TIMEUUID:    T I M E U U I D;
 K_TOKEN:       T O K E N;
 K_WRITETIME:   W R I T E T I M E;
+K_DATE:        D A T E;
+K_TIME:        T I M E;
 
 K_NULL:        N U L L;
 K_NOT:         N O T;
@@ -1165,9 +1668,27 @@ K_MAP:         M A P;
 K_LIST:        L I S T;
 K_NAN:         N A N;
 K_INFINITY:    I N F I N I T Y;
+K_TUPLE:       T U P L E;
 
 K_TRIGGER:     T R I G G E R;
 K_STATIC:      S T A T I C;
+K_FROZEN:      F R O Z E N;
+
+K_FUNCTION:    F U N C T I O N;
+K_FUNCTIONS:   F U N C T I O N S;
+K_AGGREGATE:   A G G R E G A T E;
+K_SFUNC:       S F U N C;
+K_STYPE:       S T Y P E;
+K_FINALFUNC:   F I N A L F U N C;
+K_INITCOND:    I N I T C O N D;
+K_RETURNS:     R E T U R N S;
+K_CALLED:      C A L L E D;
+K_INPUT:       I N P U T;
+K_LANGUAGE:    L A N G U A G E;
+K_OR:          O R;
+K_REPLACE:     R E P L A C E;
+
+K_JSON:        J S O N;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
@@ -1198,9 +1719,26 @@ fragment Y: ('y'|'Y');
 fragment Z: ('z'|'Z');
 
 STRING_LITERAL
-    @init{ StringBuilder b = new StringBuilder(); }
-    @after{ setText(b.toString()); }
-    : '\'' (c=~('\'') { b.appendCodePoint(c);} | '\'' '\'' { b.appendCodePoint('\''); })* '\''
+    @init{
+        StringBuilder txt = new StringBuilder(); // temporary to build pg-style-string
+    }
+    @after{ setText(txt.toString()); }
+    :
+      /* pg-style string literal */
+      (
+        '\$' '\$'
+        ( /* collect all input until '$$' is reached again */
+          {  (input.size() - input.index() > 1)
+               && !"$$".equals(input.substring(input.index(), input.index() + 1)) }?
+             => c=. { txt.appendCodePoint(c); }
+        )*
+        '\$' '\$'
+      )
+      |
+      /* conventional quoted string literal */
+      (
+        '\'' (c=~('\'') { txt.appendCodePoint(c);} | '\'' '\'' { txt.appendCodePoint('\''); })* '\''
+      )
     ;
 
 QUOTED_NAME

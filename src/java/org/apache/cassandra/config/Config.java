@@ -17,34 +17,58 @@
  */
 package org.apache.cassandra.config;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StringReader;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.Sets;
-import org.supercsv.io.CsvListReader;
-import org.supercsv.prefs.CsvPreference;
+
+import org.apache.commons.lang3.builder.ToStringBuilder;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.NativeAllocator;
-import org.apache.cassandra.utils.FBUtilities;
+import org.supercsv.io.CsvListReader;
+import org.supercsv.prefs.CsvPreference;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
- * 
+ *
  * Properties declared as volatile can be mutated via JMX.
  */
 public class Config
 {
+    private static final Logger logger = LoggerFactory.getLogger(Config.class);
+
+    /*
+     * Prefix for Java properties for internal Cassandra configuration options
+     */
+    public static final String PROPERTY_PREFIX = "cassandra.";
+
+
     public String cluster_name = "Test Cluster";
     public String authenticator;
     public String authorizer;
-    public int permissions_validity_in_ms = 2000;
+    public String role_manager;
+    public volatile int permissions_validity_in_ms = 2000;
     public int permissions_cache_max_entries = 1000;
-    public int permissions_update_interval_in_ms = -1;
+    public volatile int permissions_update_interval_in_ms = -1;
+    public volatile int roles_validity_in_ms = 2000;
+    public int roles_cache_max_entries = 1000;
+    public volatile int roles_update_interval_in_ms = -1;
 
     /* Hashing strategy Random or OPHF */
     public String partitioner;
@@ -53,9 +77,9 @@ public class Config
     public volatile boolean hinted_handoff_enabled_global = true;
     public String hinted_handoff_enabled;
     public Set<String> hinted_handoff_enabled_by_dc = Sets.newConcurrentHashSet();
-    public volatile Integer max_hint_window_in_ms = 3600 * 1000; // one hour
+    public volatile Integer max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
 
-    public SeedProviderDef seed_provider;
+    public ParameterizedClass seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
 
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
@@ -65,40 +89,56 @@ public class Config
     public String initial_token;
     public Integer num_tokens = 1;
 
-    public volatile Long request_timeout_in_ms = new Long(10000);
+    public volatile Long request_timeout_in_ms = 10000L;
 
-    public Long read_request_timeout_in_ms = new Long(5000);
+    public volatile Long read_request_timeout_in_ms = 5000L;
 
-    public Long range_request_timeout_in_ms = new Long(10000);
+    public volatile Long range_request_timeout_in_ms = 10000L;
 
-    public Long write_request_timeout_in_ms = new Long(2000);
+    public volatile Long write_request_timeout_in_ms = 2000L;
 
-    public Long cas_contention_timeout_in_ms = new Long(1000);
+    public volatile Long counter_write_request_timeout_in_ms = 5000L;
 
-    public Long truncate_request_timeout_in_ms = new Long(60000);
+    public volatile Long cas_contention_timeout_in_ms = 1000L;
 
-    public Integer streaming_socket_timeout_in_ms = new Integer(0);
+    public volatile Long truncate_request_timeout_in_ms = 60000L;
+
+    public Integer streaming_socket_timeout_in_ms = 86400000; //24 hours
 
     public boolean cross_node_timeout = false;
 
     public volatile Double phi_convict_threshold = 8.0;
 
-    public Integer concurrent_reads = 8;
+    public Integer concurrent_reads = 32;
     public Integer concurrent_writes = 32;
-    public Integer concurrent_replicates = 32;
+    public Integer concurrent_counter_writes = 32;
 
-    public Integer memtable_flush_writers = null; // will get set to the length of data dirs in DatabaseDescriptor
-    public Integer memtable_total_space_in_mb;
+    @Deprecated
+    public Integer concurrent_replicates = null;
+
+    public Integer memtable_flush_writers = null;
+    public Integer memtable_heap_space_in_mb;
+    public Integer memtable_offheap_space_in_mb;
+    public Float memtable_cleanup_threshold = null;
 
     public Integer storage_port = 7000;
     public Integer ssl_storage_port = 7001;
     public String listen_address;
+    public String listen_interface;
+    public Boolean listen_interface_prefer_ipv6 = false;
     public String broadcast_address;
+    public Boolean listen_on_broadcast_address = false;
     public String internode_authenticator;
 
+    /* intentionally left set to true, despite being set to false in stock 2.2 cassandra.yaml
+       we don't want to surprise Thrift users who have the setting blank in the yaml during 2.1->2.2 upgrade */
     public Boolean start_rpc = true;
     public String rpc_address;
+    public String rpc_interface;
+    public Boolean rpc_interface_prefer_ipv6 = false;
+    public String broadcast_rpc_address;
     public Integer rpc_port = 9160;
+    public Integer rpc_listen_backlog = 50;
     public String rpc_server_type = "sync";
     public Boolean rpc_keepalive = true;
     public Integer rpc_min_threads = 16;
@@ -124,16 +164,21 @@ public class Config
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public Integer column_index_size_in_kb = 64;
-    public Integer batch_size_warn_threshold_in_kb = 5;
-    public Integer in_memory_compaction_limit_in_mb = 64;
-    public Integer concurrent_compactors = FBUtilities.getAvailableProcessors();
+    public volatile int batch_size_warn_threshold_in_kb = 5;
+    public volatile int batch_size_fail_threshold_in_kb = 50;
+    public Integer unlogged_batch_across_partitions_warn_threshold = 10;
+    public Integer concurrent_compactors;
     public volatile Integer compaction_throughput_mb_per_sec = 16;
-    public Boolean multithreaded_compaction = false;
+    public volatile Integer compaction_large_partition_warning_threshold_mb = 100;
 
+    /**
+     * @deprecated retry support removed on CASSANDRA-10992
+     */
+    @Deprecated
     public Integer max_streaming_retries = 3;
 
     public volatile Integer stream_throughput_outbound_megabits_per_sec = 200;
-    public volatile Integer inter_dc_stream_throughput_outbound_megabits_per_sec = 0;
+    public volatile Integer inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
 
     public String[] data_file_directories;
 
@@ -146,7 +191,11 @@ public class Config
     public Double commitlog_sync_batch_window_in_ms;
     public Integer commitlog_sync_period_in_ms;
     public int commitlog_segment_size_in_mb = 32;
-    public int commitlog_periodic_queue_size = 1024 * FBUtilities.getAvailableProcessors();
+    public ParameterizedClass commitlog_compression;
+    public int commitlog_max_compression_buffers_in_pool = 3;
+ 
+    @Deprecated
+    public int commitlog_periodic_queue_size = -1;
 
     public String endpoint_snitch;
     public Boolean dynamic_snitch = true;
@@ -171,40 +220,73 @@ public class Config
     public int hinted_handoff_throttle_in_kb = 1024;
     public int batchlog_replay_throttle_in_kb = 1024;
     public int max_hints_delivery_threads = 1;
-    public boolean compaction_preheat_key_cache = true;
+    public int sstable_preemptive_open_interval_in_mb = 50;
 
     public volatile boolean incremental_backups = false;
-    public int memtable_flush_queue_size = 4;
     public boolean trickle_fsync = false;
     public int trickle_fsync_interval_in_kb = 10240;
 
     public Long key_cache_size_in_mb = null;
     public volatile int key_cache_save_period = 14400;
-    public int key_cache_keys_to_save = Integer.MAX_VALUE;
+    public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
 
+    public String row_cache_class_name = "org.apache.cassandra.cache.OHCProvider";
     public long row_cache_size_in_mb = 0;
     public volatile int row_cache_save_period = 0;
-    public int row_cache_keys_to_save = Integer.MAX_VALUE;
-    public String memory_allocator = NativeAllocator.class.getSimpleName();
-    public boolean populate_io_cache_on_flush = false; // ignored! see CASSANDRA-4694
+    public volatile int row_cache_keys_to_save = Integer.MAX_VALUE;
+
+    public Long counter_cache_size_in_mb = null;
+    public volatile int counter_cache_save_period = 7200;
+    public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
+
+    @Deprecated
+    public String memory_allocator;
 
     private static boolean isClientMode = false;
-
-    public boolean preheat_kernel_page_cache = false;
 
     public Integer file_cache_size_in_mb;
 
     public boolean inter_dc_tcp_nodelay = true;
 
-    public String memtable_allocator = "SlabAllocator";
+    public MemtableAllocationType memtable_allocation_type = MemtableAllocationType.heap_buffers;
 
     private static boolean outboundBindAny = false;
 
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
+    public volatile Long index_summary_capacity_in_mb;
+    public volatile int index_summary_resize_interval_in_minutes = 60;
+
+    public int gc_log_threshold_in_ms = 200;
+    public int gc_warn_threshold_in_ms = 0;
+
     private static final CsvPreference STANDARD_SURROUNDING_SPACES_NEED_QUOTES = new CsvPreference.Builder(CsvPreference.STANDARD_PREFERENCE)
                                                                                                   .surroundingSpacesNeedQuotes(true).build();
+
+    // TTL for different types of trace events.
+    public int tracetype_query_ttl = (int) TimeUnit.DAYS.toSeconds(1);
+    public int tracetype_repair_ttl = (int) TimeUnit.DAYS.toSeconds(7);
+
+    /*
+     * Strategy to use for coalescing messages in OutboundTcpConnection.
+     * Can be fixed, movingaverage, timehorizon, disabled. Setting is case and leading/trailing
+     * whitespace insensitive. You can also specify a subclass of CoalescingStrategies.CoalescingStrategy by name.
+     */
+    public String otc_coalescing_strategy = "TIMEHORIZON";
+
+    /*
+     * How many microseconds to wait for coalescing. For fixed strategy this is the amount of time after the first
+     * messgae is received before it will be sent with any accompanying messages. For moving average this is the
+     * maximum amount of time that will be waited as well as the interval at which messages must arrive on average
+     * for coalescing to be enabled.
+     */
+    public static final int otc_coalescing_window_us_default = 200;
+    public int otc_coalescing_window_us = otc_coalescing_window_us_default;
+
+    public int windows_timer_interval = 0;
+
+    public boolean enable_user_defined_functions = false;
 
     public static boolean getOutboundBindAny()
     {
@@ -218,7 +300,7 @@ public class Config
 
     public static boolean isClientMode()
     {
-       return isClientMode;
+        return isClientMode;
     }
 
     public static void setClientMode(boolean clientMode)
@@ -254,8 +336,10 @@ public class Config
 
     public static List<String> parseHintedHandoffEnabledDCs(final String dcNames) throws IOException
     {
-        final CsvListReader csvListReader = new CsvListReader(new StringReader(dcNames), STANDARD_SURROUNDING_SPACES_NEED_QUOTES);
-        return csvListReader.read();
+        try (final CsvListReader csvListReader = new CsvListReader(new StringReader(dcNames), STANDARD_SURROUNDING_SPACES_NEED_QUOTES))
+        {
+        	return csvListReader.read();
+        }
     }
 
     public static enum CommitLogSync
@@ -276,12 +360,21 @@ public class Config
         standard,
     }
 
+    public static enum MemtableAllocationType
+    {
+        unslabbed_heap_buffers,
+        heap_buffers,
+        offheap_buffers,
+        offheap_objects
+    }
+
     public static enum DiskFailurePolicy
     {
         best_effort,
         stop,
         ignore,
         stop_paranoid,
+        die
     }
 
     public static enum CommitFailurePolicy
@@ -289,10 +382,48 @@ public class Config
         stop,
         stop_commit,
         ignore,
+        die,
     }
 
     public static enum RequestSchedulerId
     {
         keyspace
+    }
+
+    private static final List<String> SENSITIVE_KEYS = new ArrayList<String>() {{
+        add("client_encryption_options");
+        add("server_encryption_options");
+    }};
+
+    public static void log(Config config)
+    {
+        Map<String, String> configMap = new TreeMap<>();
+        for (Field field : Config.class.getFields())
+        {
+            // ignore the constants
+            if (Modifier.isFinal(field.getModifiers()))
+                continue;
+
+            String name = field.getName();
+            if (SENSITIVE_KEYS.contains(name))
+            {
+                configMap.put(name, "<REDACTED>");
+                continue;
+            }
+
+            String value;
+            try
+            {
+                // Field.get() can throw NPE if the value of the field is null
+                value = field.get(config).toString();
+            }
+            catch (NullPointerException | IllegalAccessException npe)
+            {
+                value = "null";
+            }
+            configMap.put(name, value);
+        }
+
+        logger.info("Node configuration:[" + Joiner.on("; ").join(configMap.entrySet()) + "]");
     }
 }

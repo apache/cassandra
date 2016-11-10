@@ -25,9 +25,10 @@ import java.util.List;
 import com.google.common.base.Objects;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Groups key range and column filter for range queries.
@@ -59,19 +60,24 @@ public class DataRange
     public static boolean isFullRowSlice(SliceQueryFilter filter)
     {
         return filter.slices.length == 1
-            && filter.start().remaining() == 0
-            && filter.finish().remaining() == 0
+            && filter.start().isEmpty()
+            && filter.finish().isEmpty()
             && filter.count == Integer.MAX_VALUE;
     }
 
     public static DataRange allData(IPartitioner partitioner)
     {
-        return forKeyRange(new Range<Token>(partitioner.getMinimumToken(), partitioner.getMinimumToken()));
+        return forTokenRange(new Range<Token>(partitioner.getMinimumToken(), partitioner.getMinimumToken()));
     }
 
-    public static DataRange forKeyRange(Range<Token> keyRange)
+    public static DataRange forTokenRange(Range<Token> keyRange)
     {
-        return new DataRange(keyRange.toRowBounds(), new IdentityQueryFilter());
+        return forKeyRange(Range.makeRowRange(keyRange));
+    }
+
+    public static DataRange forKeyRange(Range<RowPosition> keyRange)
+    {
+        return new DataRange(keyRange, new IdentityQueryFilter());
     }
 
     public AbstractBounds<RowPosition> keyRange()
@@ -105,7 +111,7 @@ public class DataRange
     public boolean isWrapAround()
     {
         // On range can ever wrap
-        return keyRange instanceof Range && ((Range)keyRange).isWrapAround();
+        return keyRange instanceof Range && ((Range<?>)keyRange).isWrapAround();
     }
 
     public boolean contains(RowPosition pos)
@@ -150,25 +156,25 @@ public class DataRange
 
         private final CFMetaData cfm;
 
-        private final Comparator<ByteBuffer> comparator;
+        private final Comparator<Composite> comparator;
 
         // used to restrict the start of the slice for the first partition in the range
-        private final ByteBuffer firstPartitionColumnStart;
+        private final Composite firstPartitionColumnStart;
 
         // used to restrict the end of the slice for the last partition in the range
-        private final ByteBuffer lastPartitionColumnFinish;
+        private final Composite lastPartitionColumnFinish;
 
         // tracks the last key that we updated the filter for to avoid duplicating work
         private ByteBuffer lastKeyFilterWasUpdatedFor;
 
-        private Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, ByteBuffer firstPartitionColumnStart,
-                       ByteBuffer lastPartitionColumnFinish, CFMetaData cfm, Comparator<ByteBuffer> comparator)
+        private Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, Composite firstPartitionColumnStart,
+                       Composite lastPartitionColumnFinish, CFMetaData cfm, Comparator<Composite> comparator)
         {
             super(range, filter);
 
             // When using a paging range, we don't allow wrapped ranges, as it's unclear how to handle them properly.
             // This is ok for now since we only need this in range slice queries, and the range are "unwrapped" in that case.
-            assert !(range instanceof Range) || !((Range)range).isWrapAround() || range.right.isMinimum() : range;
+            assert !(range instanceof Range) || !((Range<?>)range).isWrapAround() || range.right.isMinimum() : range;
 
             this.sliceFilter = filter;
             this.cfm = cfm;
@@ -178,9 +184,9 @@ public class DataRange
             this.lastKeyFilterWasUpdatedFor = null;
         }
 
-        public Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, ByteBuffer columnStart, ByteBuffer columnFinish, CFMetaData cfm)
+        public Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, Composite columnStart, Composite columnFinish, CFMetaData cfm)
         {
-            this(range, filter, columnStart, columnFinish, cfm, filter.isReversed() ? cfm.comparator.reverseComparator : cfm.comparator);
+            this(range, filter, columnStart, columnFinish, cfm, filter.isReversed() ? cfm.comparator.reverseComparator() : cfm.comparator);
         }
 
         @Override
@@ -198,7 +204,7 @@ public class DataRange
 
         private boolean equals(RowPosition pos, ByteBuffer rowKey)
         {
-            return pos instanceof DecoratedKey && ((DecoratedKey)pos).key.equals(rowKey);
+            return pos instanceof DecoratedKey && ((DecoratedKey)pos).getKey().equals(rowKey);
         }
 
         @Override
@@ -231,17 +237,16 @@ public class DataRange
         private boolean sliceIncludesStatics(ColumnSlice slice, boolean reversed, CFMetaData cfm)
         {
             return cfm.hasStaticColumns() &&
-                    cfm.getStaticColumnNameBuilder().build().compareTo(reversed ? slice.finish : slice.start) >= 0;
+                   slice.includes(reversed ? cfm.comparator.reverseComparator() : cfm.comparator, cfm.comparator.staticPrefix().end());
         }
 
         private ColumnSlice[] slicesForKey(ByteBuffer key)
         {
-            // We don't call that until it's necessary, so assume we have to do some hard work
             // Also note that firstPartitionColumnStart and lastPartitionColumnFinish, when used, only "restrict" the filter slices,
             // it doesn't expand on them. As such, we can ignore the case where they are empty and we do
             // as it screw up with the logic below (see #6592)
-            ByteBuffer newStart = equals(startKey(), key) && firstPartitionColumnStart.hasRemaining() ? firstPartitionColumnStart : null;
-            ByteBuffer newFinish = equals(stopKey(), key) && lastPartitionColumnFinish.hasRemaining() ? lastPartitionColumnFinish : null;
+            Composite newStart = equals(startKey(), key) && !firstPartitionColumnStart.isEmpty() ? firstPartitionColumnStart : null;
+            Composite newFinish = equals(stopKey(), key) && !lastPartitionColumnFinish.isEmpty() ? lastPartitionColumnFinish : null;
 
             // in the common case, we'll have the same number of slices
             List<ColumnSlice> newSlices = new ArrayList<>(sliceFilter.slices.length);
@@ -259,15 +264,15 @@ public class DataRange
                     if (slice.isBefore(comparator, newStart))
                     {
                         if (!sliceFilter.reversed && sliceIncludesStatics(slice, false, cfm))
-                            newSlices.add(new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, cfm.getStaticColumnNameBuilder().buildAsEndOfRange()));
+                            newSlices.add(new ColumnSlice(Composites.EMPTY, cfm.comparator.staticPrefix().end()));
 
                         continue;
                     }
 
                     if (slice.includes(comparator, newStart))
                     {
-                        if (!sliceFilter.reversed && sliceIncludesStatics(slice, false, cfm) && !newStart.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER))
-                            newSlices.add(new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, cfm.getStaticColumnNameBuilder().buildAsEndOfRange()));
+                        if (!sliceFilter.reversed && sliceIncludesStatics(slice, false, cfm) && !newStart.equals(Composites.EMPTY))
+                            newSlices.add(new ColumnSlice(Composites.EMPTY, cfm.comparator.staticPrefix().end()));
 
                         slice = new ColumnSlice(newStart, slice.finish);
                     }
@@ -305,8 +310,8 @@ public class DataRange
                           .add("keyRange", keyRange)
                           .add("sliceFilter", sliceFilter)
                           .add("columnFilter", columnFilter)
-                          .add("firstPartitionColumnStart", firstPartitionColumnStart == null ? "null" : ByteBufferUtil.bytesToHex(firstPartitionColumnStart))
-                          .add("lastPartitionColumnFinish", lastPartitionColumnFinish == null ? "null" : ByteBufferUtil.bytesToHex(lastPartitionColumnFinish))
+                          .add("firstPartitionColumnStart", firstPartitionColumnStart == null ? "null" : cfm.comparator.getString(firstPartitionColumnStart))
+                          .add("lastPartitionColumnFinish", lastPartitionColumnFinish == null ? "null" : cfm.comparator.getString(lastPartitionColumnFinish))
                           .toString();
         }
     }

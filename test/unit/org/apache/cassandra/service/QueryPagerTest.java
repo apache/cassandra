@@ -29,23 +29,54 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.*;
-import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.Util.range;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class QueryPagerTest extends SchemaLoader
+public class QueryPagerTest
 {
-    private static final String KS = "Keyspace1";
-    private static final String CF = "Standard1";
+    public static final String KEYSPACE1 = "QueryPagerTest";
+    public static final String CF_STANDARD = "Standard1";
+    public static final String KEYSPACE_CQL = "cql_keyspace";
+    public static final String CF_CQL = "table2";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
+        SchemaLoader.createKeyspace(KEYSPACE_CQL,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    CFMetaData.compile("CREATE TABLE " + CF_CQL + " ("
+                                                     + "k text,"
+                                                     + "c text,"
+                                                     + "v text,"
+                                                     + "PRIMARY KEY (k, c))", KEYSPACE_CQL));
+        addData();
+    }
+
+    private static String string(CellName name)
+    {
+        return string(name.toByteBuffer());
+    }
 
     private static String string(ByteBuffer bb)
     {
@@ -59,7 +90,6 @@ public class QueryPagerTest extends SchemaLoader
         }
     }
 
-    @BeforeClass
     public static void addData()
     {
         cfs().clearUnsafe();
@@ -75,8 +105,8 @@ public class QueryPagerTest extends SchemaLoader
          */
         for (int i = 0; i < nbKeys; i++)
         {
-            RowMutation rm = new RowMutation(KS, bytes("k" + i));
-            ColumnFamily cf = rm.addOrGet(CF);
+            Mutation rm = new Mutation(KEYSPACE1, bytes("k" + i));
+            ColumnFamily cf = rm.addOrGet(CF_STANDARD);
 
             for (int j = 0; j < nbCols; j++)
                 cf.addColumn(Util.column("c" + j, "", 0));
@@ -87,14 +117,14 @@ public class QueryPagerTest extends SchemaLoader
 
     private static ColumnFamilyStore cfs()
     {
-        return Keyspace.open(KS).getColumnFamilyStore(CF);
+        return Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
     }
 
     private static String toString(List<Row> rows)
     {
         StringBuilder sb = new StringBuilder();
         for (Row row : rows)
-            sb.append(string(row.key.key)).append(":").append(toString(row.cf)).append("\n");
+            sb.append(string(row.key.getKey())).append(":").append(toString(row.cf)).append("\n");
         return sb.toString();
     }
 
@@ -104,17 +134,17 @@ public class QueryPagerTest extends SchemaLoader
             return "";
 
         StringBuilder sb = new StringBuilder();
-        for (Column c : cf)
+        for (Cell c : cf)
             sb.append(" ").append(string(c.name()));
         return sb.toString();
     }
 
     private static ReadCommand namesQuery(String key, String... names)
     {
-        SortedSet<ByteBuffer> s = new TreeSet<ByteBuffer>(cfs().metadata.comparator);
+        SortedSet<CellName> s = new TreeSet<CellName>(cfs().metadata.comparator);
         for (String name : names)
-            s.add(bytes(name));
-        return new SliceByNamesReadCommand(KS, bytes(key), CF, System.currentTimeMillis(), new NamesQueryFilter(s, true));
+            s.add(CellNames.simpleDense(bytes(name)));
+        return new SliceByNamesReadCommand(KEYSPACE1, bytes(key), CF_STANDARD, System.currentTimeMillis(), new NamesQueryFilter(s, true));
     }
 
     private static ReadCommand sliceQuery(String key, String start, String end, int count)
@@ -124,23 +154,23 @@ public class QueryPagerTest extends SchemaLoader
 
     private static ReadCommand sliceQuery(String key, String start, String end, boolean reversed, int count)
     {
-        SliceQueryFilter filter = new SliceQueryFilter(bytes(start), bytes(end), reversed, count);
+        SliceQueryFilter filter = new SliceQueryFilter(CellNames.simpleDense(bytes(start)), CellNames.simpleDense(bytes(end)), reversed, count);
         // Note: for MultiQueryTest, we need the same timestamp/expireBefore for all queries, so we just use 0 as it doesn't matter here.
-        return new SliceFromReadCommand(KS, bytes(key), CF, 0, filter);
+        return new SliceFromReadCommand(KEYSPACE1, bytes(key), CF_STANDARD, 0, filter);
     }
 
     private static RangeSliceCommand rangeNamesQuery(AbstractBounds<RowPosition> range, int count, String... names)
     {
-        SortedSet<ByteBuffer> s = new TreeSet<ByteBuffer>(cfs().metadata.comparator);
+        SortedSet<CellName> s = new TreeSet<CellName>(cfs().metadata.comparator);
         for (String name : names)
-            s.add(bytes(name));
-        return new RangeSliceCommand(KS, CF, System.currentTimeMillis(), new NamesQueryFilter(s, true), range, count);
+            s.add(CellNames.simpleDense(bytes(name)));
+        return new RangeSliceCommand(KEYSPACE1, CF_STANDARD, System.currentTimeMillis(), new NamesQueryFilter(s, true), range, count);
     }
 
     private static RangeSliceCommand rangeSliceQuery(AbstractBounds<RowPosition> range, int count, String start, String end)
     {
-        SliceQueryFilter filter = new SliceQueryFilter(bytes(start), bytes(end), false, Integer.MAX_VALUE);
-        return new RangeSliceCommand(KS, CF, System.currentTimeMillis(), filter, range, count);
+        SliceQueryFilter filter = new SliceQueryFilter(CellNames.simpleDense(bytes(start)), CellNames.simpleDense(bytes(end)), false, Integer.MAX_VALUE);
+        return new RangeSliceCommand(KEYSPACE1, CF_STANDARD, System.currentTimeMillis(), filter, range, count);
     }
 
     private static void assertRow(Row r, String key, String... names)
@@ -153,22 +183,22 @@ public class QueryPagerTest extends SchemaLoader
 
     private static void assertRow(Row r, String key, ByteBuffer... names)
     {
-        assertEquals(key, string(r.key.key));
+        assertEquals(key, string(r.key.getKey()));
         assertNotNull(r.cf);
         int i = 0;
-        for (Column c : r.cf)
+        for (Cell c : r.cf)
         {
             // Ignore deleted cells if we have them
-            if (!c.isLive(0))
+            if (!c.isLive())
                 continue;
 
             ByteBuffer expected = names[i++];
-            assertEquals("column " + i + " doesn't match: " + toString(r.cf), expected, c.name());
+            assertEquals("column " + i + " doesn't match: " + toString(r.cf), expected, c.name().toByteBuffer());
         }
     }
 
     @Test
-    public void NamesQueryTest() throws Exception
+    public void namesQueryTest() throws Exception
     {
         QueryPager pager = QueryPagers.localPager(namesQuery("k0", "c1", "c5", "c7", "c8"));
 
@@ -181,7 +211,7 @@ public class QueryPagerTest extends SchemaLoader
     }
 
     @Test
-    public void SliceQueryTest() throws Exception
+    public void sliceQueryTest() throws Exception
     {
         QueryPager pager = QueryPagers.localPager(sliceQuery("k0", "c1", "c8", 10));
 
@@ -231,7 +261,7 @@ public class QueryPagerTest extends SchemaLoader
     }
 
     @Test
-    public void MultiQueryTest() throws Exception
+    public void multiQueryTest() throws Exception
     {
         QueryPager pager = QueryPagers.localPager(new Pageable.ReadCommands(new ArrayList<ReadCommand>() {{
             add(sliceQuery("k1", "c2", "c6", 10));
@@ -260,7 +290,7 @@ public class QueryPagerTest extends SchemaLoader
     }
 
     @Test
-    public void RangeNamesQueryTest() throws Exception
+    public void rangeNamesQueryTest() throws Exception
     {
         QueryPager pager = QueryPagers.localPager(rangeNamesQuery(range("k0", "k5"), 100, "c1", "c4", "c8"));
 
@@ -282,7 +312,7 @@ public class QueryPagerTest extends SchemaLoader
     }
 
     @Test
-    public void RangeSliceQueryTest() throws Exception
+    public void rangeSliceQueryTest() throws Exception
     {
         QueryPager pager = QueryPagers.localPager(rangeSliceQuery(range("k1", "k5"), 100, "c1", "c7"));
 
@@ -331,11 +361,11 @@ public class QueryPagerTest extends SchemaLoader
         String keyspace = "cql_keyspace";
         String table = "table2";
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
-        CompositeType ct = (CompositeType)cfs.metadata.comparator;
+        CompositeType ct = (CompositeType)cfs.metadata.comparator.asAbstractType();
 
         // Insert rows but with a tombstone as last cell
         for (int i = 0; i < 5; i++)
-            processInternal(String.format("INSERT INTO %s.%s (k, c, v) VALUES ('k%d', 'c%d', null)", keyspace, table, 0, i));
+            executeInternal(String.format("INSERT INTO %s.%s (k, c, v) VALUES ('k%d', 'c%d', null)", keyspace, table, 0, i));
 
         SliceQueryFilter filter = new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, 100);
         QueryPager pager = QueryPagers.localPager(new SliceFromReadCommand(keyspace, bytes("k0"), table, 0, filter));

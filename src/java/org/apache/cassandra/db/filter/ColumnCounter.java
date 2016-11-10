@@ -20,13 +20,11 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.nio.ByteBuffer;
-
-import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnCounter
 {
@@ -39,17 +37,23 @@ public class ColumnCounter
         this.timestamp = timestamp;
     }
 
-    public void count(Column column, DeletionInfo.InOrderTester tester)
+    /**
+     * @return true if the cell counted as a live cell or a valid tombstone; false if it got immediately discarded for
+     *         being shadowed by a range- or a partition tombstone
+     */
+    public boolean count(Cell cell, DeletionInfo.InOrderTester tester)
     {
         // The cell is shadowed by a higher-level deletion, and won't be retained.
         // For the purposes of this counter, we don't care if it's a tombstone or not.
-        if (tester.isDeleted(column))
-            return;
+        if (tester.isDeleted(cell))
+            return false;
 
-        if (column.isLive(timestamp))
+        if (cell.isLive(timestamp))
             live++;
         else
             tombstones++;
+
+        return true;
     }
 
     public int live()
@@ -68,17 +72,16 @@ public class ColumnCounter
             return this;
 
         DeletionInfo.InOrderTester tester = container.inOrderDeletionTester();
-        for (Column c : container)
+        for (Cell c : container)
             count(c, tester);
         return this;
     }
 
     public static class GroupByPrefix extends ColumnCounter
     {
-        protected final CompositeType type;
+        protected final CellNameType type;
         protected final int toGroup;
-        protected ByteBuffer[] previous;
-        protected boolean previousGroupIsStatic;
+        protected CellName previous;
 
         /**
          * A column counter that count only 1 for all the columns sharing a
@@ -90,7 +93,7 @@ public class ColumnCounter
          *                column. If 0, all columns are grouped, otherwise we group
          *                those for which the {@code toGroup} first component are equals.
          */
-        public GroupByPrefix(long timestamp, CompositeType type, int toGroup)
+        public GroupByPrefix(long timestamp, CellNameType type, int toGroup)
         {
             super(timestamp);
             this.type = type;
@@ -99,39 +102,35 @@ public class ColumnCounter
             assert toGroup == 0 || type != null;
         }
 
-        public void count(Column column, DeletionInfo.InOrderTester tester)
+        @Override
+        public boolean count(Cell cell, DeletionInfo.InOrderTester tester)
         {
-            if (tester.isDeleted(column))
-                return;
+            if (tester.isDeleted(cell))
+                return false;
 
-            if (!column.isLive(timestamp))
+            if (!cell.isLive(timestamp))
             {
                 tombstones++;
-                return;
+                return true;
             }
 
             if (toGroup == 0)
             {
                 live = 1;
-                return;
+                return true;
             }
 
-            ByteBuffer[] current = type.split(column.name());
-            assert current.length >= toGroup;
+            CellName current = cell.name();
+            assert current.size() >= toGroup;
 
-            if (previous == null)
+            if (previous != null)
             {
-                // Only the first group can be static
-                previousGroupIsStatic = CompositeType.isStaticName(column.name());
-            }
-            else
-            {
-                boolean isSameGroup = previousGroupIsStatic == CompositeType.isStaticName(column.name());
+                boolean isSameGroup = previous.isStatic() == current.isStatic();
                 if (isSameGroup)
                 {
                     for (int i = 0; i < toGroup; i++)
                     {
-                        if (ByteBufferUtil.compareUnsigned(previous[i], current[i]) != 0)
+                        if (type.subtype(i).compare(previous.get(i), current.get(i)) != 0)
                         {
                             isSameGroup = false;
                             break;
@@ -140,21 +139,22 @@ public class ColumnCounter
                 }
 
                 if (isSameGroup)
-                    return;
+                    return true;
 
                 // We want to count the static group as 1 (CQL) row only if it's the only
                 // group in the partition. So, since we have already counted it at this point,
                 // just don't count the 2nd group if there is one and the first one was static
-                if (previousGroupIsStatic)
+                if (previous.isStatic())
                 {
                     previous = current;
-                    previousGroupIsStatic = false;
-                    return;
+                    return true;
                 }
             }
 
             live++;
             previous = current;
+
+            return true;
         }
     }
 
@@ -163,57 +163,55 @@ public class ColumnCounter
      */
     public static class GroupByPrefixReversed extends GroupByPrefix
     {
-        public GroupByPrefixReversed(long timestamp, CompositeType type, int toGroup)
+        public GroupByPrefixReversed(long timestamp, CellNameType type, int toGroup)
         {
             super(timestamp, type, toGroup);
         }
 
         @Override
-        public void count(Column column, DeletionInfo.InOrderTester tester)
+        public boolean count(Cell cell, DeletionInfo.InOrderTester tester)
         {
-            if (tester.isDeleted(column))
-                return;
+            if (tester.isDeleted(cell))
+                return false;
 
-            if (!column.isLive(timestamp))
+            if (!cell.isLive(timestamp))
             {
                 tombstones++;
-                return;
+                return true;
             }
 
             if (toGroup == 0)
             {
                 live = 1;
-                return;
+                return true;
             }
 
-            ByteBuffer[] current = type.split(column.name());
-            assert current.length >= toGroup;
+            CellName current = cell.name();
+            assert current.size() >= toGroup;
 
-            boolean isStatic = CompositeType.isStaticName(column.name());
             if (previous == null)
             {
-                // This is the first group we've seen, and it's static.  In this case we want to return a count of 1,
-                // because there are no other live groups.
-                previousGroupIsStatic = true;
+                // This is the first group we've seen.  If it happens to be static, we still want to increment the
+                // count because a) there are no-static rows (statics are always last in reversed order), and b) any
+                // static cells we see after this will not increment the count
                 previous = current;
                 live++;
             }
-            else if (isStatic)
+            else if (!current.isStatic())  // ignore statics if we've seen any other statics or any other groups
             {
-                // Ignore statics if we've seen any other statics or any other groups
-                return;
-            }
-
-            for (int i = 0; i < toGroup; i++)
-            {
-                if (ByteBufferUtil.compareUnsigned(previous[i], current[i]) != 0)
+                for (int i = 0; i < toGroup; i++)
                 {
-                    // it's a new group
-                    live++;
-                    previous = current;
-                    return;
+                    if (type.subtype(i).compare(previous.get(i), current.get(i)) != 0)
+                    {
+                        // it's a new group
+                        live++;
+                        previous = current;
+                        return true;
+                    }
                 }
             }
+
+            return true;
         }
     }
 }

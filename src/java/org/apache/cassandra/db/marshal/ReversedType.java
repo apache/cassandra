@@ -23,8 +23,10 @@ import java.util.Map;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 
 public class ReversedType<T> extends AbstractType<T>
@@ -50,7 +52,7 @@ public class ReversedType<T> extends AbstractType<T>
             type = new ReversedType<T>(baseType);
             instances.put(baseType, type);
         }
-        return (ReversedType<T>) type;
+        return type;
     }
 
     private ReversedType(AbstractType<T> baseType)
@@ -58,18 +60,13 @@ public class ReversedType<T> extends AbstractType<T>
         this.baseType = baseType;
     }
 
+    public boolean isEmptyValueMeaningless()
+    {
+        return baseType.isEmptyValueMeaningless();
+    }
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        // An empty byte buffer is always smaller
-        if (o1.remaining() == 0)
-        {
-            return o2.remaining() == 0 ? 0 : -1;
-        }
-        if (o2.remaining() == 0)
-        {
-            return 1;
-        }
-
         return baseType.compare(o2, o1);
     }
 
@@ -81,6 +78,18 @@ public class ReversedType<T> extends AbstractType<T>
     public ByteBuffer fromString(String source)
     {
         return baseType.fromString(source);
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        return baseType.fromJSONObject(parsed);
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        return baseType.toJSONString(buffer, protocolVersion);
     }
 
     @Override
@@ -107,6 +116,17 @@ public class ReversedType<T> extends AbstractType<T>
     public TypeSerializer<T> getSerializer()
     {
         return baseType.getSerializer();
+    }
+
+    public boolean references(AbstractType<?> check)
+    {
+        return super.references(check) || baseType.references(check);
+    }
+
+    @Override
+    public boolean isReversed()
+    {
+        return true;
     }
 
     @Override

@@ -1,6 +1,4 @@
-package org.apache.cassandra.db;
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -9,35 +7,45 @@ package org.apache.cassandra.db;
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+package org.apache.cassandra.db;
 
-
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.dht.BytesToken;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.CassandraVersion;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class SystemKeyspaceTest
 {
+    @BeforeClass
+    public static void prepSnapshotTracker()
+    {
+        if (FBUtilities.isWindows())
+            WindowsFailedSnapshotTracker.deleteOldSnapshots();
+    }
+
     @Test
     public void testLocalTokens()
     {
@@ -76,5 +84,101 @@ public class SystemKeyspaceTest
         UUID firstId = SystemKeyspace.getLocalHostId();
         UUID secondId = SystemKeyspace.getLocalHostId();
         assert firstId.equals(secondId) : String.format("%s != %s%n", firstId.toString(), secondId.toString());
+    }
+
+    private void assertDeletedOrDeferred(int expectedCount)
+    {
+        if (FBUtilities.isWindows())
+            assertEquals(expectedCount, getDeferredDeletionCount());
+        else
+            assertTrue(getSystemSnapshotFiles().isEmpty());
+    }
+
+    private int getDeferredDeletionCount()
+    {
+        try
+        {
+            Class c = Class.forName("java.io.DeleteOnExitHook");
+            LinkedHashSet<String> files = (LinkedHashSet<String>)FBUtilities.getProtectedField(c, "files").get(c);
+            return files.size();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    public void snapshotSystemKeyspaceIfUpgrading() throws IOException
+    {
+        // First, check that in the absence of any previous installed version, we don't create snapshots
+        for (ColumnFamilyStore cfs : Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStores())
+            cfs.clearUnsafe();
+        Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+
+        int baseline = getDeferredDeletionCount();
+
+        SystemKeyspace.snapshotOnVersionChange();
+        assertDeletedOrDeferred(baseline);
+
+        // now setup system.local as if we're upgrading from a previous version
+        setupReleaseVersion(getOlderVersionString());
+        Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+        assertDeletedOrDeferred(baseline);
+
+        // Compare versions again & verify that snapshots were created for all tables in the system ks
+        SystemKeyspace.snapshotOnVersionChange();
+        assertEquals(SystemKeyspace.definition().cfMetaData().size(), getSystemSnapshotFiles().size());
+
+        // clear out the snapshots & set the previous recorded version equal to the latest, we shouldn't
+        // see any new snapshots created this time.
+        Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+        setupReleaseVersion(FBUtilities.getReleaseVersionString());
+
+        SystemKeyspace.snapshotOnVersionChange();
+
+        // snapshotOnVersionChange for upgrade case will open a SSTR when the CFS is flushed. On Windows, we won't be
+        // able to delete hard-links to that file while segments are memory-mapped, so they'll be marked for deferred deletion.
+        // 10 files expected.
+        assertDeletedOrDeferred(baseline + 10);
+
+        Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+    }
+
+    private String getOlderVersionString()
+    {
+        String version = FBUtilities.getReleaseVersionString();
+        CassandraVersion semver = new CassandraVersion(version.contains("-") ? version.substring(0, version.indexOf('-'))
+                                                                           : version);
+        return (String.format("%s.%s.%s", semver.major - 1, semver.minor, semver.patch));
+    }
+
+    private Set<String> getSystemSnapshotFiles()
+    {
+        Set<String> snapshottedTableNames = new HashSet<>();
+        for (ColumnFamilyStore cfs : Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStores())
+        {
+            if (!cfs.getSnapshotDetails().isEmpty())
+                snapshottedTableNames.add(cfs.getColumnFamilyName());
+        }
+        return snapshottedTableNames;
+    }
+
+    private void setupReleaseVersion(String version)
+    {
+        // besides the release_version, we also need to insert the cluster_name or the check
+        // in SystemKeyspace.checkHealth were we verify it matches DatabaseDescriptor will fail
+        QueryProcessor.executeInternal(String.format("INSERT INTO system.local(key, release_version, cluster_name) " +
+                                                     "VALUES ('local', '%s', '%s')",
+                                                     version,
+                                                     DatabaseDescriptor.getClusterName()));
+        String r = readLocalVersion();
+        assertEquals(String.format("Expected %s, got %s", version, r), version, r);
+    }
+
+    private String readLocalVersion()
+    {
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT release_version FROM system.local WHERE key='local'");
+        return rs.isEmpty() || !rs.one().has("release_version") ? null : rs.one().getString("release_version");
     }
 }

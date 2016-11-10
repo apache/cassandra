@@ -21,6 +21,7 @@ import java.util.EnumSet;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 /**
  * An enum encapsulating the set of possible permissions that an authenticated user can have on a resource.
@@ -35,23 +36,34 @@ public enum Permission
     @Deprecated
     WRITE,
 
-    // schema management
-    CREATE, // required for CREATE KEYSPACE and CREATE TABLE.
-    ALTER,  // required for ALTER KEYSPACE, ALTER TABLE, CREATE INDEX, DROP INDEX.
-    DROP,   // required for DROP KEYSPACE and DROP TABLE.
+    // schema and role management
+    // CREATE, ALTER and DROP permissions granted on an appropriate DataResource are required for
+    // CREATE KEYSPACE and CREATE TABLE.
+    // ALTER KEYSPACE, ALTER TABLE, CREATE INDEX and DROP INDEX require ALTER permission on the
+    // relevant DataResource.
+    // DROP KEYSPACE and DROP TABLE require DROP permission.
+    //
+    // In the context of Role management, these permissions may also be granted on a RoleResource.
+    // CREATE is only granted on the root-level role resource, and is required to create new roles.
+    // ALTER & DROP may be granted on either the root-level role resource, giving permissions on
+    // all roles, or on specific role-level resources.
+    CREATE,
+    ALTER,
+    DROP,
 
     // data access
-    SELECT, // required for SELECT.
-    MODIFY, // required for INSERT, UPDATE, DELETE, TRUNCATE.
+    SELECT, // required for SELECT on a table
+    MODIFY, // required for INSERT, UPDATE, DELETE, TRUNCATE on a DataResource.
 
     // permission management
-    AUTHORIZE; // required for GRANT and REVOKE.
+    AUTHORIZE, // required for GRANT and REVOKE of permissions or roles.
 
+    DESCRIBE, // required on the root-level RoleResource to list all Roles
 
-    public static final Set<Permission> ALL_DATA =
-            ImmutableSet.copyOf(EnumSet.range(Permission.CREATE, Permission.AUTHORIZE));
+    // UDF permissions
+    EXECUTE;  // required to invoke any user defined function or aggregate
 
     public static final Set<Permission> ALL =
-            ImmutableSet.copyOf(EnumSet.range(Permission.CREATE, Permission.AUTHORIZE));
+            Sets.immutableEnumSet(EnumSet.range(Permission.CREATE, Permission.EXECUTE));
     public static final Set<Permission> NONE = ImmutableSet.of();
 }

@@ -20,69 +20,86 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 
-import org.apache.cassandra.dht.IPartitioner;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.StorageService;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.cassandra.utils.ByteBufferUtil.toInt;
 
-public class SSTableSimpleWriterTest extends SchemaLoader
+public class SSTableSimpleWriterTest
 {
+    public static final String KEYSPACE = "SSTableSimpleWriterTest";
+    public static final String CF_STANDARDINT = "StandardInteger1";
+
+    @BeforeClass
+    public static void defineSchema() throws Exception
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE, CF_STANDARDINT));
+    }
+
     @Test
     public void testSSTableSimpleUnsortedWriter() throws Exception
     {
         final int INC = 5;
         final int NBCOL = 10;
 
-        String keyspaceName = "Keyspace1";
+        String keyspaceName = KEYSPACE;
         String cfname = "StandardInteger1";
 
         Keyspace t = Keyspace.open(keyspaceName); // make sure we create the directory
-        File dir = Directories.create(keyspaceName, cfname).getDirectoryForNewSSTables();
+        File dir = new Directories(Schema.instance.getCFMetaData(keyspaceName, cfname)).getDirectoryForNewSSTables();
         assert dir.exists();
 
         IPartitioner partitioner = StorageService.getPartitioner();
-        SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dir, partitioner, keyspaceName, cfname, IntegerType.instance, null, 16);
-
-        int k = 0;
-
-        // Adding a few rows first
-        for (; k < 10; ++k)
+        try (SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dir, partitioner, keyspaceName, cfname, IntegerType.instance, null, 16))
         {
-            writer.newRow(bytes("Key" + k));
-            writer.addColumn(bytes(1), bytes("v"), 0);
-            writer.addColumn(bytes(2), bytes("v"), 0);
-            writer.addColumn(bytes(3), bytes("v"), 0);
-        }
 
-
-        // Testing multiple opening of the same row
-        // We'll write column 0, 5, 10, .., on the first row, then 1, 6, 11, ... on the second one, etc.
-        for (int i = 0; i < INC; ++i)
-        {
-            writer.newRow(bytes("Key" + k));
-            for (int j = 0; j < NBCOL; ++j)
+            int k = 0;
+    
+            // Adding a few rows first
+            for (; k < 10; ++k)
             {
-                writer.addColumn(bytes(i + INC * j), bytes("v"), 1);
+                writer.newRow(bytes("Key" + k));
+                writer.addColumn(bytes(1), bytes("v"), 0);
+                writer.addColumn(bytes(2), bytes("v"), 0);
+                writer.addColumn(bytes(3), bytes("v"), 0);
+            }
+    
+    
+            // Testing multiple opening of the same row
+            // We'll write column 0, 5, 10, .., on the first row, then 1, 6, 11, ... on the second one, etc.
+            for (int i = 0; i < INC; ++i)
+            {
+                writer.newRow(bytes("Key" + k));
+                for (int j = 0; j < NBCOL; ++j)
+                {
+                    writer.addColumn(bytes(i + INC * j), bytes("v"), 1);
+                }
+            }
+            k++;
+    
+            // Adding a few more rows
+            for (; k < 20; ++k)
+            {
+                writer.newRow(bytes("Key" + k));
+                writer.addColumn(bytes(1), bytes("v"), 0);
+                writer.addColumn(bytes(2), bytes("v"), 0);
+                writer.addColumn(bytes(3), bytes("v"), 0);
             }
         }
-        k++;
-
-        // Adding a few more rows
-        for (; k < 20; ++k)
-        {
-            writer.newRow(bytes("Key" + k));
-            writer.addColumn(bytes(1), bytes("v"), 0);
-            writer.addColumn(bytes(2), bytes("v"), 0);
-            writer.addColumn(bytes(3), bytes("v"), 0);
-        }
-
-        writer.close();
 
         // Now add that newly created files to the column family
         ColumnFamilyStore cfs = t.getColumnFamilyStore(cfname);
@@ -92,9 +109,9 @@ public class SSTableSimpleWriterTest extends SchemaLoader
         ColumnFamily cf = Util.getColumnFamily(t, Util.dk("Key10"), cfname);
         assert cf.getColumnCount() == INC * NBCOL : "expecting " + (INC * NBCOL) + " columns, got " + cf.getColumnCount();
         int i = 0;
-        for (Column c : cf)
+        for (Cell c : cf)
         {
-            assert toInt(c.name()) == i : "Column name should be " + i + ", got " + toInt(c.name());
+            assert toInt(c.name().toByteBuffer()) == i : "Cell name should be " + i + ", got " + toInt(c.name().toByteBuffer());
             assert c.value().equals(bytes("v"));
             assert c.timestamp() == 1;
             ++i;

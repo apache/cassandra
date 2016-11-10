@@ -36,11 +36,16 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class OutboundTcpConnectionPool
 {
+    public static final long LARGE_MESSAGE_THRESHOLD =
+            Long.getLong(Config.PROPERTY_PREFIX + "otcp_large_message_threshold", 1024 * 64);
+
     // pointer for the real Address.
     private final InetAddress id;
     private final CountDownLatch started;
-    public final OutboundTcpConnection cmdCon;
-    public final OutboundTcpConnection ackCon;
+    public final OutboundTcpConnection smallMessages;
+    public final OutboundTcpConnection largeMessages;
+    public final OutboundTcpConnection gossipMessages;
+
     // pointer to the reset Address.
     private InetAddress resetEndpoint;
     private ConnectionMetrics metrics;
@@ -51,8 +56,9 @@ public class OutboundTcpConnectionPool
         resetEndpoint = SystemKeyspace.getPreferredIP(remoteEp);
         started = new CountDownLatch(1);
 
-        cmdCon = new OutboundTcpConnection(this);
-        ackCon = new OutboundTcpConnection(this);
+        smallMessages = new OutboundTcpConnection(this);
+        largeMessages = new OutboundTcpConnection(this);
+        gossipMessages = new OutboundTcpConnection(this);
     }
 
     /**
@@ -61,21 +67,22 @@ public class OutboundTcpConnectionPool
      */
     OutboundTcpConnection getConnection(MessageOut msg)
     {
-        Stage stage = msg.getStage();
-        return stage == Stage.REQUEST_RESPONSE || stage == Stage.INTERNAL_RESPONSE || stage == Stage.GOSSIP
-               ? ackCon
-               : cmdCon;
+        if (Stage.GOSSIP == msg.getStage())
+            return gossipMessages;
+        return msg.payloadSize(smallMessages.getTargetVersion()) > LARGE_MESSAGE_THRESHOLD
+               ? largeMessages
+               : smallMessages;
     }
 
     void reset()
     {
-        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
+        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { smallMessages, largeMessages, gossipMessages })
             conn.closeSocket(false);
     }
 
     public void resetToNewerVersion(int version)
     {
-        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
+        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { smallMessages, largeMessages, gossipMessages })
         {
             if (version > conn.getTargetVersion())
                 conn.softCloseSocket();
@@ -91,7 +98,7 @@ public class OutboundTcpConnectionPool
     {
         SystemKeyspace.updatePreferredIP(id, remoteEP);
         resetEndpoint = remoteEP;
-        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
+        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { smallMessages, largeMessages, gossipMessages })
             conn.softCloseSocket();
 
         // release previous metrics and create new one with reset address
@@ -101,13 +108,9 @@ public class OutboundTcpConnectionPool
 
     public long getTimeouts()
     {
-       return metrics.timeouts.count();
+       return metrics.timeouts.getCount();
     }
 
-    public long getRecentTimeouts()
-    {
-        return metrics.getRecentTimeout();
-    }
 
     public void incrementTimeout()
     {
@@ -119,6 +122,8 @@ public class OutboundTcpConnectionPool
         return newSocket(endPoint());
     }
 
+    // Closing the socket will close the underlying channel.
+    @SuppressWarnings("resource")
     public static Socket newSocket(InetAddress endpoint) throws IOException
     {
         // zero means 'bind on any available port.'
@@ -131,10 +136,11 @@ public class OutboundTcpConnectionPool
         }
         else
         {
-            Socket socket = SocketChannel.open(new InetSocketAddress(endpoint, DatabaseDescriptor.getStoragePort())).socket();
-            if (Config.getOutboundBindAny() && !socket.isBound())
-                socket.bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
-            return socket;
+            SocketChannel channel = SocketChannel.open();
+            if (!Config.getOutboundBindAny())
+                channel.bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
+            channel.connect(new InetSocketAddress(endpoint, DatabaseDescriptor.getStoragePort()));
+            return channel.socket();
         }
     }
 
@@ -167,17 +173,18 @@ public class OutboundTcpConnectionPool
         }
         return true;
     }
-    
+
     public void start()
     {
-        cmdCon.start();
-        ackCon.start();
+        smallMessages.start();
+        largeMessages.start();
+        gossipMessages.start();
 
         metrics = new ConnectionMetrics(id, this);
-        
+
         started.countDown();
     }
-    
+
     public void waitForStarted()
     {
         if (started.getCount() == 0)
@@ -201,11 +208,13 @@ public class OutboundTcpConnectionPool
     public void close()
     {
         // these null guards are simply for tests
-        if (ackCon != null)
-            ackCon.closeSocket(true);
-        if (cmdCon != null)
-            cmdCon.closeSocket(true);
-        
+        if (largeMessages != null)
+            largeMessages.closeSocket(true);
+        if (smallMessages != null)
+            smallMessages.closeSocket(true);
+        if (gossipMessages != null)
+            gossipMessages.closeSocket(true);
+
         metrics.release();
     }
 }

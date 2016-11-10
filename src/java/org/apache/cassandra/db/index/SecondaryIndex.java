@@ -18,8 +18,12 @@
 package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 
 import com.google.common.base.Objects;
 import org.apache.commons.lang3.StringUtils;
@@ -28,22 +32,27 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.db.Column;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.index.keys.KeysIndex;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
 import org.apache.cassandra.db.index.composites.CompositesIndex;
+import org.apache.cassandra.db.index.keys.KeysIndex;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LocalByPartionerType;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+
+import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
  * Abstract base class for different types of secondary indexes.
@@ -56,6 +65,21 @@ public abstract class SecondaryIndex
 
     public static final String CUSTOM_INDEX_OPTION_NAME = "class_name";
 
+    /**
+     * The name of the option used to specify that the index is on the collection keys.
+     */
+    public static final String INDEX_KEYS_OPTION_NAME = "index_keys";
+
+    /**
+     * The name of the option used to specify that the index is on the collection values.
+     */
+    public static final String INDEX_VALUES_OPTION_NAME = "index_values";
+
+    /**
+     * The name of the option used to specify that the index is on the collection (map) entries.
+     */
+    public static final String INDEX_ENTRIES_OPTION_NAME = "index_keys_and_values";
+
     public static final AbstractType<?> keyComparator = StorageService.getPartitioner().preservesOrder()
                                                       ? BytesType.instance
                                                       : new LocalByPartionerType(StorageService.getPartitioner());
@@ -65,6 +89,12 @@ public abstract class SecondaryIndex
      */
     protected ColumnFamilyStore baseCfs;
 
+    // We need to keep track if the index is queryable or not to be sure that we can safely use it. If the index
+    // is still being build, using it will return incomplete results.
+    /**
+     * Specify if the index is queryable or not.
+     */
+    private volatile boolean queryable;
 
     /**
      * The column definitions which this index is responsible for
@@ -126,16 +156,26 @@ public abstract class SecondaryIndex
         return SystemKeyspace.isIndexBuilt(baseCfs.keyspace.getName(), getNameForSystemKeyspace(columnName));
     }
 
+    /**
+     * Checks if the index is ready.
+     * @return <code>true</code> if the index is ready, <code>false</code> otherwise
+     */
+    public boolean isQueryable()
+    {
+        return queryable;
+    }
+
     public void setIndexBuilt()
     {
+        queryable = true;
         for (ColumnDefinition columnDef : columnDefs)
-            SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), getNameForSystemKeyspace(columnDef.name));
+            SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), getNameForSystemKeyspace(columnDef.name.bytes));
     }
 
     public void setIndexRemoved()
     {
         for (ColumnDefinition columnDef : columnDefs)
-            SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), getNameForSystemKeyspace(columnDef.name));
+            SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), getNameForSystemKeyspace(columnDef.name.bytes));
     }
 
     /**
@@ -147,14 +187,9 @@ public abstract class SecondaryIndex
     protected abstract SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns);
 
     /**
-     * Forces this indexes in memory data to disk
+     * Forces this indexes' in memory data to disk
      */
     public abstract void forceBlockingFlush();
-
-    /**
-     * Get current amount of memory this index is consuming (in bytes)
-     */
-    public abstract long getLiveSize();
 
     /**
      * Allow access to the underlying column family store if there is one
@@ -190,8 +225,7 @@ public abstract class SecondaryIndex
         logger.info(String.format("Submitting index build of %s for data in %s",
                 getIndexName(), StringUtils.join(baseCfs.getSSTables(), ", ")));
 
-        Collection<SSTableReader> sstables = baseCfs.markCurrentSSTablesReferenced();
-        try
+        try (Refs<SSTableReader> sstables = baseCfs.selectAndReference(ColumnFamilyStore.CANONICAL_SSTABLES).refs)
         {
             SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs,
                                                                       Collections.singleton(getIndexName()),
@@ -201,11 +235,7 @@ public abstract class SecondaryIndex
             forceBlockingFlush();
             setIndexBuilt();
         }
-        finally
-        {
-            SSTableReader.releaseReferences(sstables);
-        }
-        logger.info("Index build of " + getIndexName() + " complete");
+        logger.info("Index build of {} complete", getIndexName());
     }
 
 
@@ -215,13 +245,13 @@ public abstract class SecondaryIndex
      *
      * @return A future object which the caller can block on (optional)
      */
-    public Future<?> buildIndexAsync()
+    public final Future<?> buildIndexAsync()
     {
         // if we're just linking in the index to indexedColumns on an already-built index post-restart, we're done
         boolean allAreBuilt = true;
         for (ColumnDefinition cdef : columnDefs)
         {
-            if (!SystemKeyspace.isIndexBuilt(baseCfs.keyspace.getName(), getNameForSystemKeyspace(cdef.name)))
+            if (!SystemKeyspace.isIndexBuilt(baseCfs.keyspace.getName(), getNameForSystemKeyspace(cdef.name.bytes)))
             {
                 allAreBuilt = false;
                 break;
@@ -229,7 +259,17 @@ public abstract class SecondaryIndex
         }
 
         if (allAreBuilt)
+        {
+            queryable = true;
             return null;
+        }
+
+        // If the base table is empty we can directly mark the index as built.
+        if (baseCfs.isEmpty())
+        {
+            setIndexBuilt();
+            return null;
+        }
 
         // build it asynchronously; addIndex gets called by CFS open and schema update, neither of which
         // we want to block for a long period.  (actual build is serialized on CompactionManager.)
@@ -272,39 +312,35 @@ public abstract class SecondaryIndex
         Iterator<ColumnDefinition> it = columnDefs.iterator();
         while (it.hasNext())
         {
-            if (it.next().name.equals(name))
+            if (it.next().name.bytes.equals(name))
                 it.remove();
         }
     }
 
+    /** Returns true if the index supports lookups for the given operator, false otherwise. */
+    public boolean supportsOperator(Operator operator)
+    {
+        return operator == Operator.EQ;
+    }
+
     /**
-     * Returns the decoratedKey for a column value
+     * Returns the decoratedKey for a column value. Assumes an index CFS is present.
      * @param value column value
      * @return decorated key
      */
     public DecoratedKey getIndexKeyFor(ByteBuffer value)
     {
-        // FIXME: this imply one column definition per index
-        ByteBuffer name = columnDefs.iterator().next().name;
-        return new DecoratedKey(new LocalToken(baseCfs.metadata.getColumnDefinition(name).getValidator(), value), value);
+        return getIndexCfs().partitioner.decorateKey(value);
     }
 
     /**
-     * Returns true if the provided column name is indexed by this secondary index.
+     * Returns true if the provided cell name is indexed by this secondary index.
      *
      * The default implementation checks whether the name is one the columnDef name,
      * but this should be overriden but subclass if needed.
      */
-    public boolean indexes(ByteBuffer name)
-    {
-        for (ColumnDefinition columnDef : columnDefs)
-        {
-            if (baseCfs.getComparator().compare(columnDef.name, name) == 0)
-                return true;
-        }
-        return false;
-    }
-    
+    public abstract boolean indexes(CellName name);
+
     /**
      * Returns true if the provided column definition is indexed by this secondary index.
      *
@@ -361,7 +397,9 @@ public abstract class SecondaryIndex
         return index;
     }
 
-    public abstract boolean validate(ByteBuffer key, Column column);
+    public abstract boolean validate(ByteBuffer rowKey, Cell cell);
+
+    public abstract long estimateResultRows();
 
     /**
      * Returns the index comparator for index backed by CFS, or null.
@@ -369,12 +407,12 @@ public abstract class SecondaryIndex
      * Note: it would be cleaner to have this be a member method. However we need this when opening indexes
      * sstables, but by then the CFS won't be fully initiated, so the SecondaryIndex object won't be accessible.
      */
-    public static AbstractType<?> getIndexComparator(CFMetaData baseMetadata, ColumnDefinition cdef)
+    public static CellNameType getIndexComparator(CFMetaData baseMetadata, ColumnDefinition cdef)
     {
         switch (cdef.getIndexType())
         {
             case KEYS:
-                return keyComparator;
+                return new SimpleDenseCellNameType(keyComparator);
             case COMPOSITES:
                 return CompositesIndex.getIndexComparator(baseMetadata, cdef);
             case CUSTOM:

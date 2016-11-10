@@ -18,11 +18,11 @@
 package org.apache.cassandra.repair.messages;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.NodePair;
 import org.apache.cassandra.repair.RepairJobDesc;
 
@@ -55,7 +55,7 @@ public class SyncComplete extends RepairMessage
 
     private static class SyncCompleteSerializer implements MessageSerializer<SyncComplete>
     {
-        public void serialize(SyncComplete message, DataOutput out, int version) throws IOException
+        public void serialize(SyncComplete message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
             NodePair.serializer.serialize(message.nodes, out, version);

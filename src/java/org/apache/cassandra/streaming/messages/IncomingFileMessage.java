@@ -21,12 +21,17 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 
-import org.apache.cassandra.io.sstable.SSTableWriter;
+import com.google.common.base.Optional;
+
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.streaming.StreamReader;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.CompressedStreamReader;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
 
 /**
  * IncomingFileMessage is used to receive the part(or whole) of a SSTable data file.
@@ -35,40 +40,26 @@ public class IncomingFileMessage extends StreamMessage
 {
     public static Serializer<IncomingFileMessage> serializer = new Serializer<IncomingFileMessage>()
     {
+        @SuppressWarnings("resource")
         public IncomingFileMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
         {
             DataInputStream input = new DataInputStream(Channels.newInputStream(in));
             FileMessageHeader header = FileMessageHeader.serializer.deserialize(input, version);
-            StreamReader reader = header.compressionInfo == null ? new StreamReader(header, session)
+            StreamReader reader = !header.isCompressed() ? new StreamReader(header, session)
                     : new CompressedStreamReader(header, session);
 
             try
             {
                 return new IncomingFileMessage(reader.read(in), header);
             }
-            catch (IOException eof)
+            catch (Throwable t)
             {
-                // Reading from remote failed(i.e. reached EOF before reading expected length of data).
-                // This can be caused by network/node failure thus we are not retrying
-                throw eof;
-            }
-            catch (Throwable e)
-            {
-                // Throwable can be Runtime error containing IOException.
-                // In that case we don't want to retry.
-                Throwable cause = e;
-                while ((cause = cause.getCause()) != null)
-                {
-                   if (cause instanceof IOException)
-                       throw (IOException) cause;
-                }
-                // Otherwise, we can retry
-                session.doRetry(header, e);
-                return null;
+                JVMStabilityInspector.inspectThrowable(t);
+                throw t;
             }
         }
 
-        public void serialize(IncomingFileMessage message, WritableByteChannel out, int version, StreamSession session) throws IOException
+        public void serialize(IncomingFileMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
         {
             throw new UnsupportedOperationException("Not allowed to call serialize on an incoming file");
         }

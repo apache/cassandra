@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
@@ -27,6 +26,8 @@ import java.util.UUID;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -40,18 +41,24 @@ public class StreamInitMessage
     public static IVersionedSerializer<StreamInitMessage> serializer = new StreamInitMessageSerializer();
 
     public final InetAddress from;
+    public final int sessionIndex;
     public final UUID planId;
     public final String description;
 
     // true if this init message is to connect for outgoing message on receiving side
     public final boolean isForOutgoing;
+    public final boolean keepSSTableLevel;
+    public final boolean isIncremental;
 
-    public StreamInitMessage(InetAddress from, UUID planId, String description, boolean isForOutgoing)
+    public StreamInitMessage(InetAddress from, int sessionIndex, UUID planId, String description, boolean isForOutgoing, boolean keepSSTableLevel, boolean isIncremental)
     {
         this.from = from;
+        this.sessionIndex = sessionIndex;
         this.planId = planId;
         this.description = description;
         this.isForOutgoing = isForOutgoing;
+        this.keepSSTableLevel = keepSSTableLevel;
+        this.isIncremental = isIncremental;
     }
 
     /**
@@ -76,9 +83,11 @@ public class StreamInitMessage
         try
         {
             int size = (int)StreamInitMessage.serializer.serializedSize(this, version);
-            DataOutputBuffer buffer = new DataOutputBuffer(size);
-            StreamInitMessage.serializer.serialize(this, buffer, version);
-            bytes = buffer.getData();
+            try (DataOutputBuffer buffer = new DataOutputBufferFixed(size))
+            {
+                StreamInitMessage.serializer.serialize(this, buffer, version);
+                bytes = buffer.getData();
+            }
         }
         catch (IOException e)
         {
@@ -96,29 +105,38 @@ public class StreamInitMessage
 
     private static class StreamInitMessageSerializer implements IVersionedSerializer<StreamInitMessage>
     {
-        public void serialize(StreamInitMessage message, DataOutput out, int version) throws IOException
+        public void serialize(StreamInitMessage message, DataOutputPlus out, int version) throws IOException
         {
             CompactEndpointSerializationHelper.serialize(message.from, out);
+            out.writeInt(message.sessionIndex);
             UUIDSerializer.serializer.serialize(message.planId, out, MessagingService.current_version);
             out.writeUTF(message.description);
             out.writeBoolean(message.isForOutgoing);
+            out.writeBoolean(message.keepSSTableLevel);
+            out.writeBoolean(message.isIncremental);
         }
 
         public StreamInitMessage deserialize(DataInput in, int version) throws IOException
         {
             InetAddress from = CompactEndpointSerializationHelper.deserialize(in);
+            int sessionIndex = in.readInt();
             UUID planId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
             String description = in.readUTF();
             boolean sentByInitiator = in.readBoolean();
-            return new StreamInitMessage(from, planId, description, sentByInitiator);
+            boolean keepSSTableLevel = in.readBoolean();
+            boolean isIncremental = in.readBoolean();
+            return new StreamInitMessage(from, sessionIndex, planId, description, sentByInitiator, keepSSTableLevel, isIncremental);
         }
 
         public long serializedSize(StreamInitMessage message, int version)
         {
             long size = CompactEndpointSerializationHelper.serializedSize(message.from);
+            size += TypeSizes.NATIVE.sizeof(message.sessionIndex);
             size += UUIDSerializer.serializer.serializedSize(message.planId, MessagingService.current_version);
             size += TypeSizes.NATIVE.sizeof(message.description);
             size += TypeSizes.NATIVE.sizeof(message.isForOutgoing);
+            size += TypeSizes.NATIVE.sizeof(message.keepSSTableLevel);
+            size += TypeSizes.NATIVE.sizeof(message.isIncremental);
             return size;
         }
     }

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 
 /**
@@ -30,10 +31,12 @@ import java.util.Arrays;
 public class MD5Digest
 {
     public final byte[] bytes;
+    private final int hashCode;
 
     private MD5Digest(byte[] bytes)
     {
         this.bytes = bytes;
+        hashCode = Arrays.hashCode(bytes);
     }
 
     public static MD5Digest wrap(byte[] digest)
@@ -48,13 +51,20 @@ public class MD5Digest
 
     public static MD5Digest compute(String toHash)
     {
-        return compute(toHash.getBytes());
+        try
+        {
+            return compute(toHash.getBytes("UTF-8"));
+        }
+        catch (UnsupportedEncodingException e)
+        {
+            throw new RuntimeException(e.getMessage());
+        }
     }
 
     @Override
     public final int hashCode()
     {
-        return Arrays.hashCode(bytes);
+        return hashCode;
     }
 
     @Override

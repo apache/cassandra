@@ -20,21 +20,21 @@ package org.apache.cassandra;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
-import org.apache.cassandra.db.index.SecondaryIndex;
-import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
-import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
@@ -44,31 +44,43 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class SchemaLoader
 {
     private static Logger logger = LoggerFactory.getLogger(SchemaLoader.class);
 
     @BeforeClass
-    public static void loadSchema() throws IOException, ConfigurationException
+    public static void loadSchema() throws ConfigurationException
     {
-        loadSchema(false);
+        prepareServer();
+
+        // Migrations aren't happy if gossiper is not started.  Even if we don't use migrations though,
+        // some tests now expect us to start gossip for them.
+        startGossiper();
     }
 
-    public static void loadSchema(boolean withOldCfIds) throws IOException, ConfigurationException
+    @After
+    public void leakDetect() throws InterruptedException
     {
-        loadSchema(withOldCfIds, null);
+        System.gc();
+        System.gc();
+        System.gc();
+        Thread.sleep(10);
     }
 
-    public static void loadSchema(boolean withOldCfIds, Integer compressionChunkLength) throws IOException, ConfigurationException
+    public static void prepareServer()
     {
         // Cleanup first
-        cleanupAndLeaveDirs();
-
-        CommitLog.instance.allocator.enableReserveSegmentCreation();
+        try
+        {
+            cleanupAndLeaveDirs();
+        }
+        catch (IOException e)
+        {
+            logger.error("Failed to cleanup and recreate directories and files.");
+            throw new RuntimeException(e);
+        }
 
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
         {
@@ -78,42 +90,32 @@ public class SchemaLoader
             }
         });
 
-        // Migrations aren't happy if gossiper is not started.  Even if we don't use migrations though,
-        // some tests now expect us to start gossip for them.
-        startGossiper();
-        // if you're messing with low-level sstable stuff, it can be useful to inject the schema directly
-        // Schema.instance.load(schemaDefinition(withOldCfIds));
-        for (KSMetaData ksm : schemaDefinition(withOldCfIds, compressionChunkLength))
-            MigrationManager.announceNewKeyspace(ksm);
+        Keyspace.setInitialized();
     }
 
     public static void startGossiper()
     {
-        Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
+        if (!Gossiper.instance.isEnabled())
+            Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
     }
 
-    @AfterClass
-    public static void stopGossiper()
-    {
-        Gossiper.instance.stop();
-    }
-
-    public static Collection<KSMetaData> schemaDefinition(boolean withOldCfIds, Integer compressionChunkLength) throws ConfigurationException
+    public static void schemaDefinition(String testName) throws ConfigurationException
     {
         List<KSMetaData> schema = new ArrayList<KSMetaData>();
 
         // A whole bucket of shorthand
-        String ks1 = "Keyspace1";
-        String ks2 = "Keyspace2";
-        String ks3 = "Keyspace3";
-        String ks4 = "Keyspace4";
-        String ks5 = "Keyspace5";
-        String ks6 = "Keyspace6";
-        String ks_kcs = "KeyCacheSpace";
-        String ks_rcs = "RowCacheSpace";
-        String ks_nocommit = "NoCommitlogSpace";
-        String ks_prsi = "PerRowSecondaryIndex";
-        String ks_cql = "cql_keyspace";
+        String ks1 = testName + "Keyspace1";
+        String ks2 = testName + "Keyspace2";
+        String ks3 = testName + "Keyspace3";
+        String ks4 = testName + "Keyspace4";
+        String ks5 = testName + "Keyspace5";
+        String ks6 = testName + "Keyspace6";
+        String ks_kcs = testName + "KeyCacheSpace";
+        String ks_rcs = testName + "RowCacheSpace";
+        String ks_ccs = testName + "CounterCacheSpace";
+        String ks_nocommit = testName + "NoCommitlogSpace";
+        String ks_prsi = testName + "PerRowSecondaryIndex";
+        String ks_cql = testName + "cql_keyspace";
 
         Class<? extends AbstractReplicationStrategy> simple = SimpleStrategy.class;
 
@@ -122,8 +124,6 @@ public class SchemaLoader
         Map<String, String> opts_rf3 = KSMetaData.optsWithRF(3);
         Map<String, String> opts_rf5 = KSMetaData.optsWithRF(5);
 
-        ColumnFamilyType st = ColumnFamilyType.Standard;
-        ColumnFamilyType su = ColumnFamilyType.Super;
         AbstractType bytes = BytesType.instance;
 
         AbstractType<?> composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{BytesType.instance, TimeUUIDType.instance, IntegerType.instance}));
@@ -134,12 +134,6 @@ public class SchemaLoader
         aliases.put((byte)'B', ReversedType.getInstance(BytesType.instance));
         aliases.put((byte)'T', ReversedType.getInstance(TimeUUIDType.instance));
         AbstractType<?> dynamicComposite = DynamicCompositeType.getInstance(aliases);
-
-        // these column definitions will will be applied to the jdbc utf and integer column familes respectively.
-        Map<ByteBuffer, ColumnDefinition> integerColumn = new HashMap<ByteBuffer, ColumnDefinition>();
-        integerColumn.put(IntegerType.instance.fromString("42"), ColumnDefinition.regularDef(IntegerType.instance.fromString("42"), UTF8Type.instance, null));
-        Map<ByteBuffer, ColumnDefinition> utf8Column = new HashMap<ByteBuffer, ColumnDefinition>();
-        utf8Column.put(UTF8Type.instance.fromString("fortytwo"), ColumnDefinition.regularDef(UTF8Type.instance.fromString("fortytwo"), IntegerType.instance, null));
 
         // Make it easy to test compaction
         Map<String, String> compactionOptions = new HashMap<String, String>();
@@ -160,12 +154,7 @@ public class SchemaLoader
                                            standardCFMD(ks1, "StandardGCGS0").gcGraceSeconds(0),
                                            standardCFMD(ks1, "StandardLong1"),
                                            standardCFMD(ks1, "StandardLong2"),
-                                           new CFMetaData(ks1,
-                                                          "ValuesWithQuotes",
-                                                          st,
-                                                          BytesType.instance,
-                                                          null)
-                                                   .defaultValidator(UTF8Type.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "ValuesWithQuotes", BytesType.instance).defaultValidator(UTF8Type.instance),
                                            superCFMD(ks1, "Super1", LongType.instance),
                                            superCFMD(ks1, "Super2", LongType.instance),
                                            superCFMD(ks1, "Super3", LongType.instance),
@@ -174,66 +163,33 @@ public class SchemaLoader
                                            superCFMD(ks1, "Super6", LexicalUUIDType.instance, UTF8Type.instance),
                                            indexCFMD(ks1, "Indexed1", true),
                                            indexCFMD(ks1, "Indexed2", false),
-                                           new CFMetaData(ks1,
-                                                          "StandardInteger1",
-                                                          st,
-                                                          IntegerType.instance,
-                                                          null),
-                                           new CFMetaData(ks1,
-                                                          "StandardLong3",
-                                                          st,
-                                                          LongType.instance,
-                                                          null),
-                                           new CFMetaData(ks1,
-                                                          "Counter1",
-                                                          st,
-                                                          bytes,
-                                                          null)
-                                                   .defaultValidator(CounterColumnType.instance),
-                                           new CFMetaData(ks1,
-                                                          "SuperCounter1",
-                                                          su,
-                                                          bytes,
-                                                          bytes)
-                                                   .defaultValidator(CounterColumnType.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "StandardInteger1", IntegerType.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "StandardLong3", IntegerType.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "Counter1", bytes).defaultValidator(CounterColumnType.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "SuperCounter1", bytes, bytes).defaultValidator(CounterColumnType.instance),
                                            superCFMD(ks1, "SuperDirectGC", BytesType.instance).gcGraceSeconds(0),
-                                           jdbcCFMD(ks1, "JdbcInteger", IntegerType.instance).columnMetadata(integerColumn),
-                                           jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).columnMetadata(utf8Column),
+                                           jdbcSparseCFMD(ks1, "JdbcInteger", IntegerType.instance).addColumnDefinition(integerColumn(ks1, "JdbcInteger")),
+                                           jdbcSparseCFMD(ks1, "JdbcUtf8", UTF8Type.instance).addColumnDefinition(utf8Column(ks1, "JdbcUtf8")),
                                            jdbcCFMD(ks1, "JdbcLong", LongType.instance),
                                            jdbcCFMD(ks1, "JdbcBytes", bytes),
                                            jdbcCFMD(ks1, "JdbcAscii", AsciiType.instance),
-                                           new CFMetaData(ks1,
-                                                          "StandardComposite",
-                                                          st,
-                                                          composite,
-                                                          null),
-                                           new CFMetaData(ks1,
-                                                          "StandardComposite2",
-                                                          st,
-                                                          compositeMaxMin,
-                                                          null),
-                                           new CFMetaData(ks1,
-                                                          "StandardDynamicComposite",
-                                                          st,
-                                                          dynamicComposite,
-                                                          null),
+                                           CFMetaData.denseCFMetaData(ks1, "StandardComposite", composite),
+                                           CFMetaData.denseCFMetaData(ks1, "StandardComposite2", compositeMaxMin),
+                                           CFMetaData.denseCFMetaData(ks1, "StandardDynamicComposite", dynamicComposite),
                                            standardCFMD(ks1, "StandardLeveled")
                                                                                .compactionStrategyClass(LeveledCompactionStrategy.class)
                                                                                .compactionStrategyOptions(leveledOptions),
                                            standardCFMD(ks1, "legacyleveled")
                                                                                .compactionStrategyClass(LeveledCompactionStrategy.class)
                                                                                .compactionStrategyOptions(leveledOptions),
+                                           standardCFMD(ks1, "StandardLowIndexInterval").minIndexInterval(8)
+                                                                                        .maxIndexInterval(256)
+                                                                                        .caching(CachingOptions.NONE),
                                            standardCFMD(ks1, "UUIDKeys").keyValidator(UUIDType.instance),
-                                           new CFMetaData(ks1,
-                                                          "MixedTypes",
-                                                          st,
-                                                          LongType.instance,
-                                                          null).keyValidator(UUIDType.instance).defaultValidator(BooleanType.instance),
-                                           new CFMetaData(ks1,
-                                                          "MixedTypesComposite",
-                                                          st,
-                                                          composite,
-                                                          null).keyValidator(composite).defaultValidator(BooleanType.instance)));
+                                           CFMetaData.denseCFMetaData(ks1, "MixedTypes", LongType.instance).keyValidator(UUIDType.instance).defaultValidator(BooleanType.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "MixedTypesComposite", composite).keyValidator(composite).defaultValidator(BooleanType.instance),
+                                           standardCFMD(ks1, "AsciiKeys").keyValidator(AsciiType.instance)
+        ));
 
         // Keyspace 2
         schema.add(KSMetaData.testMetadata(ks2,
@@ -246,8 +202,8 @@ public class SchemaLoader
                                            superCFMD(ks2, "Super3", bytes),
                                            superCFMD(ks2, "Super4", TimeUUIDType.instance),
                                            indexCFMD(ks2, "Indexed1", true),
-                                           compositeIndexCFMD(ks2, "Indexed2", true, withOldCfIds),
-                                           compositeIndexCFMD(ks2, "Indexed3", true, withOldCfIds).gcGraceSeconds(0)));
+                                           compositeIndexCFMD(ks2, "Indexed2", true),
+                                           compositeIndexCFMD(ks2, "Indexed3", true).gcGraceSeconds(0)));
 
         // Keyspace 3
         schema.add(KSMetaData.testMetadata(ks3,
@@ -268,11 +224,7 @@ public class SchemaLoader
                                            standardCFMD(ks4, "Standard3"),
                                            superCFMD(ks4, "Super3", bytes),
                                            superCFMD(ks4, "Super4", TimeUUIDType.instance),
-                                           new CFMetaData(ks4,
-                                                          "Super5",
-                                                          su,
-                                                          TimeUUIDType.instance,
-                                                          bytes)));
+                                           CFMetaData.denseCFMetaData(ks4, "Super5", TimeUUIDType.instance, bytes)));
 
         // Keyspace 5
         schema.add(KSMetaData.testMetadata(ks5,
@@ -300,8 +252,19 @@ public class SchemaLoader
         schema.add(KSMetaData.testMetadata(ks_rcs,
                                            simple,
                                            opts_rf1,
-                                           standardCFMD(ks_rcs, "CFWithoutCache").caching(CFMetaData.Caching.NONE),
-                                           standardCFMD(ks_rcs, "CachedCF").caching(CFMetaData.Caching.ALL)));
+                                           standardCFMD(ks_rcs, "CFWithoutCache").caching(CachingOptions.NONE),
+                                           standardCFMD(ks_rcs, "CachedCF").caching(CachingOptions.ALL),
+                                           standardCFMD(ks_rcs, "CachedIntCF").
+                                                   defaultValidator(IntegerType.instance).
+                                                   caching(new CachingOptions(new CachingOptions.KeyCache(CachingOptions.KeyCache.Type.ALL),
+                                                                                  new CachingOptions.RowCache(CachingOptions.RowCache.Type.HEAD, 100)))));
+
+        // CounterCacheSpace
+        schema.add(KSMetaData.testMetadata(ks_ccs,
+                                           simple,
+                                           opts_rf1,
+                                           standardCFMD(ks_ccs, "Counter1").defaultValidator(CounterColumnType.instance),
+                                           standardCFMD(ks_ccs, "Counter2").defaultValidator(CounterColumnType.instance)));
 
         schema.add(KSMetaData.testMetadataNotDurable(ks_nocommit,
                                                      simple,
@@ -312,7 +275,7 @@ public class SchemaLoader
         schema.add(KSMetaData.testMetadata(ks_prsi,
                                            simple,
                                            opts_rf1,
-                                           perRowIndexedCFMD(ks_prsi, "Indexed1", withOldCfIds)));
+                                           perRowIndexedCFMD(ks_prsi, "Indexed1")));
 
         // CQLKeyspace
         schema.add(KSMetaData.testMetadata(ks_cql,
@@ -349,94 +312,158 @@ public class SchemaLoader
 
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
-            useCompression(schema, compressionChunkLength);
+            useCompression(schema);
 
-        return schema;
+        // if you're messing with low-level sstable stuff, it can be useful to inject the schema directly
+        // Schema.instance.load(schemaDefinition());
+        for (KSMetaData ksm : schema)
+            MigrationManager.announceNewKeyspace(ksm, false);
     }
 
-    private static CFMetaData perRowIndexedCFMD(String ksName, String cfName, boolean withOldCfIds)
+    public static void createKeyspace(String keyspaceName,
+                                      Class<? extends AbstractReplicationStrategy> strategy,
+                                      Map<String, String> options,
+                                      CFMetaData... cfmetas) throws ConfigurationException
+    {
+        createKeyspace(keyspaceName, true, true, strategy, options, cfmetas);
+    }
+
+    public static void createKeyspace(String keyspaceName,
+                                      boolean durable,
+                                      boolean announceLocally,
+                                      Class<? extends AbstractReplicationStrategy> strategy,
+                                      Map<String, String> options,
+                                      CFMetaData... cfmetas) throws ConfigurationException
+    {
+        KSMetaData ksm = durable ? KSMetaData.testMetadata(keyspaceName, strategy, options, cfmetas)
+                                 : KSMetaData.testMetadataNotDurable(keyspaceName, strategy, options, cfmetas);
+        MigrationManager.announceNewKeyspace(ksm, announceLocally);
+    }
+
+    public static ColumnDefinition integerColumn(String ksName, String cfName)
+    {
+        return new ColumnDefinition(ksName,
+                                    cfName,
+                                    new ColumnIdentifier(IntegerType.instance.fromString("42"), IntegerType.instance),
+                                    UTF8Type.instance,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    ColumnDefinition.Kind.REGULAR);
+    }
+
+    private static ColumnDefinition utf8Column(String ksName, String cfName)
+    {
+        return new ColumnDefinition(ksName,
+                                    cfName,
+                                    new ColumnIdentifier("fortytwo", true),
+                                    UTF8Type.instance,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    ColumnDefinition.Kind.REGULAR);
+    }
+
+    public static CFMetaData perRowIndexedCFMD(String ksName, String cfName)
     {
         final Map<String, String> indexOptions = Collections.singletonMap(
                                                       SecondaryIndex.CUSTOM_INDEX_OPTION_NAME,
                                                       PerRowSecondaryIndexTest.TestIndex.class.getName());
-        return standardCFMD(ksName, cfName)
-                .keyValidator(AsciiType.instance)
-                .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
-                {{
-                        ByteBuffer cName = ByteBuffer.wrap("indexed".getBytes(StandardCharsets.UTF_8));
-                        put(cName, new ColumnDefinition(cName,
-                                AsciiType.instance,
-                                IndexType.CUSTOM,
-                                indexOptions,
-                                ByteBufferUtil.bytesToHex(cName),
-                                null, ColumnDefinition.Type.REGULAR));
-                }});
+
+        CFMetaData cfm =  CFMetaData.sparseCFMetaData(ksName, cfName, AsciiType.instance).keyValidator(AsciiType.instance);
+
+        ByteBuffer cName = ByteBufferUtil.bytes("indexed");
+        return cfm.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(cfm, cName, AsciiType.instance, null)
+                                                                .setIndex("indexe1", IndexType.CUSTOM, indexOptions));
     }
 
-    private static void useCompression(List<KSMetaData> schema, Integer chunkLength) throws ConfigurationException
+    private static void useCompression(List<KSMetaData> schema)
     {
         for (KSMetaData ksm : schema)
         {
             for (CFMetaData cfm : ksm.cfMetaData().values())
             {
-                cfm.compressionParameters(new CompressionParameters(SnappyCompressor.instance,
-                                                                    chunkLength,
-                                                                    Collections.<String, String>emptyMap()));
+                cfm.compressionParameters(new CompressionParameters(SnappyCompressor.instance));
             }
         }
     }
 
-    private static CFMetaData standardCFMD(String ksName, String cfName)
+    public static CFMetaData standardCFMD(String ksName, String cfName)
     {
-        return new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, BytesType.instance, null);
+        return CFMetaData.denseCFMetaData(ksName, cfName, BytesType.instance).compressionParameters(getCompressionParameters());
     }
-    private static CFMetaData superCFMD(String ksName, String cfName, AbstractType subcc)
+
+    public static CFMetaData standardCFMD(String ksName, String cfName, AbstractType<?> comparator)
     {
-        return superCFMD(ksName, cfName, BytesType.instance, subcc);
+        return CFMetaData.denseCFMetaData(ksName, cfName, comparator).compressionParameters(getCompressionParameters());
     }
-    private static CFMetaData superCFMD(String ksName, String cfName, AbstractType cc, AbstractType subcc)
+
+    public static CFMetaData superCFMD(String ksName, String cfName, AbstractType subcc)
     {
-        return new CFMetaData(ksName, cfName, ColumnFamilyType.Super, cc, subcc);
+        return superCFMD(ksName, cfName, BytesType.instance, subcc).compressionParameters(getCompressionParameters());
     }
-    private static CFMetaData indexCFMD(String ksName, String cfName, final Boolean withIdxType) throws ConfigurationException
+
+    public static CFMetaData superCFMD(String ksName, String cfName, AbstractType cc, AbstractType subcc)
     {
-        return standardCFMD(ksName, cfName)
-               .keyValidator(AsciiType.instance)
-               .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
-                   {{
-                        ByteBuffer cName = ByteBuffer.wrap("birthdate".getBytes(StandardCharsets.UTF_8));
-                        IndexType keys = withIdxType ? IndexType.KEYS : null;
-                        put(cName, ColumnDefinition.regularDef(cName, LongType.instance, null).setIndex(withIdxType ? ByteBufferUtil.bytesToHex(cName) : null, keys, null));
-                    }});
+        return CFMetaData.denseCFMetaData(ksName, cfName, cc, subcc).compressionParameters(getCompressionParameters());
     }
-    private static CFMetaData compositeIndexCFMD(String ksName, String cfName, final Boolean withIdxType, boolean withOldCfIds) throws ConfigurationException
+
+    public static CFMetaData indexCFMD(String ksName, String cfName, final Boolean withIdxType) throws ConfigurationException
+    {
+        CFMetaData cfm = CFMetaData.sparseCFMetaData(ksName, cfName, BytesType.instance).keyValidator(AsciiType.instance);
+
+        ByteBuffer cName = ByteBufferUtil.bytes("birthdate");
+        IndexType keys = withIdxType ? IndexType.KEYS : null;
+        return cfm.addColumnDefinition(ColumnDefinition.regularDef(cfm, cName, LongType.instance, null)
+                                                       .setIndex(withIdxType ? ByteBufferUtil.bytesToHex(cName) : null, keys, null))
+                                      .compressionParameters(getCompressionParameters());
+    }
+
+    public static CFMetaData compositeIndexCFMD(String ksName, String cfName, final Boolean withIdxType) throws ConfigurationException
     {
         final CompositeType composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{UTF8Type.instance, UTF8Type.instance})); 
-        return new CFMetaData(ksName,
-                cfName,
-                ColumnFamilyType.Standard,
-                composite,
-                null)
-               .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
-                {{
-                   ByteBuffer cName = ByteBuffer.wrap("col1".getBytes(StandardCharsets.UTF_8));
-                   IndexType idxType = withIdxType ? IndexType.COMPOSITES : null;
-                   put(cName, ColumnDefinition.regularDef(cName, UTF8Type.instance, 1)
-                                              .setIndex(withIdxType ? "col1_idx" : null, idxType, Collections.<String, String>emptyMap()));
-                }});
+        CFMetaData cfm = CFMetaData.sparseCFMetaData(ksName, cfName, composite);
+
+        ByteBuffer cName = ByteBufferUtil.bytes("col1");
+        IndexType idxType = withIdxType ? IndexType.COMPOSITES : null;
+        return cfm.addColumnDefinition(ColumnDefinition.regularDef(cfm, cName, UTF8Type.instance, 1)
+                                                       .setIndex(withIdxType ? "col1_idx" : null, idxType, Collections.<String, String>emptyMap()))
+                                       .compressionParameters(getCompressionParameters());
     }
     
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)
     {
-        return new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, comp, null).defaultValidator(comp);
+        return CFMetaData.denseCFMetaData(ksName, cfName, comp).defaultValidator(comp).compressionParameters(getCompressionParameters());
     }
 
-    public static void cleanupAndLeaveDirs()
+    public static CFMetaData jdbcSparseCFMD(String ksName, String cfName, AbstractType comp)
     {
+        return CFMetaData.sparseCFMetaData(ksName, cfName, comp).defaultValidator(comp).compressionParameters(getCompressionParameters());
+    }
+
+    public static CompressionParameters getCompressionParameters()
+    {
+        return getCompressionParameters(null);
+    }
+
+    public static CompressionParameters getCompressionParameters(Integer chunkSize)
+    {
+        if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
+            return new CompressionParameters(SnappyCompressor.instance, chunkSize, Collections.<String, String>emptyMap());
+        else
+            return new CompressionParameters(null);
+    }
+
+    public static void cleanupAndLeaveDirs() throws IOException
+    {
+        // We need to stop and unmap all CLS instances prior to cleanup() or we'll get failures on Windows.
+        CommitLog.instance.stopUnsafe(true);
         mkdirs();
         cleanup();
         mkdirs();
-        CommitLog.instance.resetUnsafe(); // cleanup screws w/ CommitLog, this brings it back to safe state
+        CommitLog.instance.restartUnsafe();
     }
 
     public static void cleanup()
@@ -448,7 +475,11 @@ public class SchemaLoader
             File dir = new File(dirName);
             if (!dir.exists())
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
-            FileUtils.deleteRecursive(dir);
+
+            // Leave the folder around as Windows will complain about directory deletion w/handles open to children files
+            String[] children = dir.list();
+            for (String child : children)
+                FileUtils.deleteRecursive(new File(dir, child));
         }
 
         cleanupSavedCaches();
@@ -459,7 +490,9 @@ public class SchemaLoader
             File dir = new File(dirName);
             if (!dir.exists())
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
-            FileUtils.deleteRecursive(dir);
+            String[] children = dir.list();
+            for (String child : children)
+                FileUtils.deleteRecursive(new File(dir, child));
         }
     }
 
@@ -468,29 +501,29 @@ public class SchemaLoader
         DatabaseDescriptor.createAllDirectories();
     }
 
-    protected void insertData(String keyspace, String columnFamily, int offset, int numberOfRows) throws IOException
+    public static void insertData(String keyspace, String columnFamily, int offset, int numberOfRows)
     {
         for (int i = offset; i < offset + numberOfRows; i++)
         {
             ByteBuffer key = ByteBufferUtil.bytes("key" + i);
-            RowMutation rowMutation = new RowMutation(keyspace, key);
-            rowMutation.add(columnFamily, ByteBufferUtil.bytes("col" + i), ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
-            rowMutation.applyUnsafe();
+            Mutation mutation = new Mutation(keyspace, key);
+            mutation.add(columnFamily, Util.cellname("col" + i), ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
+            mutation.applyUnsafe();
         }
     }
 
     /* usually used to populate the cache */
-    protected void readData(String keyspace, String columnFamily, int offset, int numberOfRows) throws IOException
+    public static void readData(String keyspace, String columnFamily, int offset, int numberOfRows)
     {
         ColumnFamilyStore store = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
         for (int i = offset; i < offset + numberOfRows; i++)
         {
             DecoratedKey key = Util.dk("key" + i);
-            store.getColumnFamily(QueryFilter.getNamesFilter(key, columnFamily, FBUtilities.singleton(ByteBufferUtil.bytes("col" + i), store.getComparator()), System.currentTimeMillis()));
+            store.getColumnFamily(Util.namesQueryFilter(store, key, "col" + i));
         }
     }
 
-    protected static void cleanupSavedCaches()
+    public static void cleanupSavedCaches()
     {
         File cachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
 

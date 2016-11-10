@@ -36,6 +36,7 @@ public abstract class EncryptionOptions
     public static class ClientEncryptionOptions extends EncryptionOptions
     {
         public boolean enabled = false;
+        public boolean optional = false;
     }
 
     public static class ServerEncryptionOptions extends EncryptionOptions

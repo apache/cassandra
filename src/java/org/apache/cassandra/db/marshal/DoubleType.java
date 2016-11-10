@@ -20,6 +20,8 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.DoubleSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -31,16 +33,15 @@ public class DoubleType extends AbstractType<Double>
 
     DoubleType() {} // singleton
 
+    public boolean isEmptyValueMeaningless()
+    {
+        return true;
+    }
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        if (o1.remaining() == 0)
-        {
-            return o2.remaining() == 0 ? 0 : -1;
-        }
-        if (o2.remaining() == 0)
-        {
-            return 1;
-        }
+        if (!o1.hasRemaining() || !o2.hasRemaining())
+            return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
         return compose(o1).compareTo(compose(o2));
     }
@@ -58,10 +59,33 @@ public class DoubleType extends AbstractType<Double>
       }
       catch (NumberFormatException e1)
       {
-          throw new MarshalException(String.format("unable to coerce '%s' to a double", source), e1);
+          throw new MarshalException(String.format("Unable to make double from '%s'", source), e1);
       }
 
       return decompose(d);
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        try
+        {
+            if (parsed instanceof String)
+                return new Constants.Value(fromString((String) parsed));
+            else
+                return new Constants.Value(getSerializer().serialize(((Number) parsed).doubleValue()));
+        }
+        catch (ClassCastException exc)
+        {
+            throw new MarshalException(String.format(
+                    "Expected a double value, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+        }
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        return getSerializer().deserialize(buffer).toString();
     }
 
     public CQL3Type asCQL3Type()

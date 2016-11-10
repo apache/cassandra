@@ -18,10 +18,11 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.streaming.StreamSession;
 
 /**
@@ -32,33 +33,39 @@ import org.apache.cassandra.streaming.StreamSession;
 public abstract class StreamMessage
 {
     /** Streaming protocol version */
-    public static final int CURRENT_VERSION = 1;
+    public static final int VERSION_20 = 2;
+    public static final int VERSION_22 = 3;
+    public static final int CURRENT_VERSION = VERSION_22;
 
-    public static void serialize(StreamMessage message, WritableByteChannel out, int version, StreamSession session) throws IOException
+    public static void serialize(StreamMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
     {
         ByteBuffer buff = ByteBuffer.allocate(1);
         // message type
         buff.put(message.type.type);
         buff.flip();
-        while (buff.hasRemaining())
-            out.write(buff);
+        out.write(buff);
         message.type.outSerializer.serialize(message, out, version, session);
     }
 
     public static StreamMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
     {
         ByteBuffer buff = ByteBuffer.allocate(1);
-        if (in.read(buff) > 0)
+        int readBytes = in.read(buff);
+        if (readBytes > 0)
         {
             buff.flip();
             Type type = Type.get(buff.get());
             return type.inSerializer.deserialize(in, version, session);
         }
+        else if (readBytes == 0)
+        {
+            // input socket buffer was not filled yet
+            return null;
+        }
         else
         {
-            // when socket gets closed, there is a chance that buff is empty
-            // in that case, just return null
-            return null;
+            // possibly socket gets closed
+            throw new SocketException("End-of-stream reached");
         }
     }
 
@@ -66,7 +73,7 @@ public abstract class StreamMessage
     public static interface Serializer<V extends StreamMessage>
     {
         V deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException;
-        void serialize(V message, WritableByteChannel out, int version, StreamSession session) throws IOException;
+        void serialize(V message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException;
     }
 
     /** StreamMessage types */

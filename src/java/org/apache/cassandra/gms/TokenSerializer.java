@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.gms;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 
@@ -36,7 +35,7 @@ public class TokenSerializer
 
     public static void serialize(IPartitioner partitioner, Collection<Token> tokens, DataOutput out) throws IOException
     {
-        for (Token<?> token : tokens)
+        for (Token token : tokens)
         {
             byte[] bintoken = partitioner.getTokenFactory().toByteArray(token).array();
             out.writeInt(bintoken.length);

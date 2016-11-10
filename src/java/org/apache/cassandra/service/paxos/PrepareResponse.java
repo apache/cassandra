@@ -22,14 +22,14 @@ package org.apache.cassandra.service.paxos;
 
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.ArrayBackedSortedColumns;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnSerializer;
-import org.apache.cassandra.db.UnsortedColumns;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -65,7 +65,7 @@ public class PrepareResponse
 
     public static class PrepareResponseSerializer implements IVersionedSerializer<PrepareResponse>
     {
-        public void serialize(PrepareResponse response, DataOutput out, int version) throws IOException
+        public void serialize(PrepareResponse response, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(response.promised);
             ByteBufferUtil.writeWithShortLength(response.inProgressCommit.key, out);
@@ -82,10 +82,14 @@ public class PrepareResponse
             return new PrepareResponse(success,
                                        new Commit(key,
                                                   UUIDSerializer.serializer.deserialize(in, version),
-                                                  ColumnFamily.serializer.deserialize(in, UnsortedColumns.factory, ColumnSerializer.Flag.LOCAL, version)),
+                                                  ColumnFamily.serializer.deserialize(in,
+                                                                                      ArrayBackedSortedColumns.factory,
+                                                                                      ColumnSerializer.Flag.LOCAL, version)),
                                        new Commit(key,
                                                   UUIDSerializer.serializer.deserialize(in, version),
-                                                  ColumnFamily.serializer.deserialize(in, UnsortedColumns.factory, ColumnSerializer.Flag.LOCAL, version)));
+                                                  ColumnFamily.serializer.deserialize(in,
+                                                                                      ArrayBackedSortedColumns.factory,
+                                                                                      ColumnSerializer.Flag.LOCAL, version)));
         }
 
         public long serializedSize(PrepareResponse response, int version)

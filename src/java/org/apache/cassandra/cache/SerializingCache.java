@@ -18,7 +18,7 @@
 package org.apache.cassandra.cache;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.Iterator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,7 +92,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         }
         catch (IOException e)
         {
-            logger.debug("Cannot fetch in memory data, we will fallback to read from disk ", e);
+            logger.trace("Cannot fetch in memory data, we will fallback to read from disk ", e);
             return null;
         }
     }
@@ -155,6 +155,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         map.clear();
     }
 
+    @SuppressWarnings("resource")
     public V get(K key)
     {
         RefCountedMemory mem = map.get(key);
@@ -172,6 +173,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         }
     }
 
+    @SuppressWarnings("resource")
     public void put(K key, V value)
     {
         RefCountedMemory mem = serialize(value);
@@ -193,6 +195,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
             old.unreference();
     }
 
+    @SuppressWarnings("resource")
     public boolean putIfAbsent(K key, V value)
     {
         RefCountedMemory mem = serialize(value);
@@ -216,6 +219,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         return old == null;
     }
 
+    @SuppressWarnings("resource")
     public boolean replace(K key, V oldToReplace, V value)
     {
         // if there is no old value in our map, we fail
@@ -259,19 +263,20 @@ public class SerializingCache<K, V> implements ICache<K, V>
 
     public void remove(K key)
     {
+        @SuppressWarnings("resource")
         RefCountedMemory mem = map.remove(key);
         if (mem != null)
             mem.unreference();
     }
 
-    public Set<K> keySet()
+    public Iterator<K> keyIterator()
     {
-        return map.keySet();
+        return map.keySet().iterator();
     }
 
-    public Set<K> hotKeySet(int n)
+    public Iterator<K> hotKeyIterator(int n)
     {
-        return map.descendingKeySetWithLimit(n);
+        return map.descendingKeySetWithLimit(n).iterator();
     }
 
     public boolean containsKey(K key)

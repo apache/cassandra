@@ -30,10 +30,11 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.CounterId;
-import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.Pair;
 
 public abstract class AbstractSSTableSimpleWriter implements Closeable
@@ -44,7 +45,9 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     protected ColumnFamily columnFamily;
     protected ByteBuffer currentSuperColumn;
     protected final CounterId counterid = CounterId.generate();
+    private SSTableFormat.Type formatType = DatabaseDescriptor.getSSTableFormat();
     protected static AtomicInteger generation = new AtomicInteger(0);
+
 
     public AbstractSSTableSimpleWriter(File directory, CFMetaData metadata, IPartitioner partitioner)
     {
@@ -53,20 +56,25 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         DatabaseDescriptor.setPartitioner(partitioner);
     }
 
-    protected SSTableWriter getWriter()
+    protected void setSSTableFormatType(SSTableFormat.Type type)
     {
-        return new SSTableWriter(
-            makeFilename(directory, metadata.ksName, metadata.cfName),
-            0, // We don't care about the bloom filter
-            metadata,
-            DatabaseDescriptor.getPartitioner(),
-            SSTableMetadata.createCollector(metadata.comparator));
+        this.formatType = type;
     }
 
-    // find available generation and pick up filename from that
-    protected static String makeFilename(File directory, final String keyspace, final String columnFamily)
+    protected SSTableWriter getWriter()
     {
-        final Set<Descriptor> existing = new HashSet<Descriptor>();
+        return SSTableWriter.create(createDescriptor(directory, metadata.ksName, metadata.cfName, formatType), 0, ActiveRepairService.UNREPAIRED_SSTABLE);
+    }
+
+    protected static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt)
+    {
+        int maxGen = getNextGeneration(directory, columnFamily);
+        return new Descriptor(directory, keyspace, columnFamily, maxGen + 1, Descriptor.Type.TEMP, fmt);
+    }
+
+    private static int getNextGeneration(File directory, final String columnFamily)
+    {
+        final Set<Descriptor> existing = new HashSet<>();
         directory.list(new FilenameFilter()
         {
             public boolean accept(File dir, String name)
@@ -90,8 +98,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
                 maxGen = generation.getAndIncrement();
             }
         }
-
-        return new Descriptor(directory, keyspace, columnFamily, maxGen + 1, true).filenameFor(Component.DATA);
+        return maxGen;
     }
 
     /**
@@ -114,21 +121,21 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     public void newSuperColumn(ByteBuffer name)
     {
         if (!columnFamily.metadata().isSuper())
-            throw new IllegalStateException("Cannot add a super column to a standard column family");
+            throw new IllegalStateException("Cannot add a super column to a standard table");
 
         currentSuperColumn = name;
     }
 
-    protected void addColumn(Column column) throws IOException
+    protected void addColumn(Cell cell) throws IOException
     {
         if (columnFamily.metadata().isSuper())
         {
             if (currentSuperColumn == null)
-                throw new IllegalStateException("Trying to add a column to a super column family, but no super column has been started.");
+                throw new IllegalStateException("Trying to add a cell to a super column family, but no super cell has been started.");
 
-            column = column.withUpdatedName(CompositeType.build(currentSuperColumn, column.name()));
+            cell = cell.withUpdatedName(columnFamily.getComparator().makeCellName(currentSuperColumn, cell.name().toByteBuffer()));
         }
-        columnFamily.addColumn(column);
+        columnFamily.addColumn(cell);
     }
 
     /**
@@ -139,7 +146,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
      */
     public void addColumn(ByteBuffer name, ByteBuffer value, long timestamp) throws IOException
     {
-        addColumn(new Column(name, value, timestamp));
+        addColumn(new BufferCell(metadata.comparator.cellFromByteBuffer(name), value, timestamp));
     }
 
     /**
@@ -154,7 +161,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
      */
     public void addExpiringColumn(ByteBuffer name, ByteBuffer value, long timestamp, int ttl, long expirationTimestampMS) throws IOException
     {
-        addColumn(new ExpiringColumn(name, value, timestamp, ttl, (int)(expirationTimestampMS / 1000)));
+        addColumn(new BufferExpiringCell(metadata.comparator.cellFromByteBuffer(name), value, timestamp, ttl, (int)(expirationTimestampMS / 1000)));
     }
 
     /**
@@ -164,9 +171,9 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
      */
     public void addCounterColumn(ByteBuffer name, long value) throws IOException
     {
-        addColumn(new CounterColumn(name,
-                                    CounterContext.instance().createRemote(counterid, 1L, value, HeapAllocator.instance),
-                                    System.currentTimeMillis()));
+        addColumn(new BufferCounterCell(metadata.comparator.cellFromByteBuffer(name),
+                                        CounterContext.instance().createGlobal(counterid, 1L, value),
+                                        System.currentTimeMillis()));
     }
 
     /**
@@ -199,4 +206,6 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     protected abstract void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException;
 
     protected abstract ColumnFamily getColumnFamily() throws IOException;
+
+    public abstract Descriptor getCurrentDescriptor();
 }

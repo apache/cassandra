@@ -18,11 +18,19 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import junit.framework.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.composites.CellNames;
+import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Test;
@@ -32,33 +40,41 @@ public class RowIndexEntryTest extends SchemaLoader
     @Test
     public void testSerializedSize() throws IOException
     {
-        final RowIndexEntry simple = new RowIndexEntry(123);
+        final RowIndexEntry<IndexHelper.IndexInfo> simple = new RowIndexEntry<>(123);
 
         DataOutputBuffer buffer = new DataOutputBuffer();
-        RowIndexEntry.serializer.serialize(simple, buffer);
+        RowIndexEntry.Serializer serializer = new RowIndexEntry.Serializer(new IndexHelper.IndexInfo.Serializer(new SimpleDenseCellNameType(UTF8Type.instance)));
 
-        Assert.assertEquals(buffer.size(), simple.serializedSize());
+        serializer.serialize(simple, buffer);
+
+        Assert.assertEquals(buffer.getLength(), serializer.serializedSize(simple));
 
         buffer = new DataOutputBuffer();
+        Schema.instance.setKeyspaceDefinition(KSMetaData.newKeyspace("Keyspace1",
+                                                                     SimpleStrategy.class,
+                                                                     Collections.<String,String>emptyMap(),
+                                                                     false,
+                                                                     Collections.singleton(standardCFMD("Keyspace1", "Standard1"))));
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         ColumnIndex columnIndex = new ColumnIndex.Builder(cf, ByteBufferUtil.bytes("a"), new DataOutputBuffer())
         {{
             int idx = 0, size = 0;
-            Column column;
+            Cell column;
             do
             {
-                column = new Column(ByteBufferUtil.bytes("c" + idx++), ByteBufferUtil.bytes("v"), FBUtilities.timestampMicros());
-                size += column.serializedSize(TypeSizes.NATIVE);
+                column = new BufferCell(CellNames.simpleDense(ByteBufferUtil.bytes("c" + idx++)), ByteBufferUtil.bytes("v"), FBUtilities.timestampMicros());
+                size += column.serializedSize(new SimpleDenseCellNameType(UTF8Type.instance), TypeSizes.NATIVE);
 
                 add(column);
             }
             while (size < DatabaseDescriptor.getColumnIndexSize() * 3);
+            finishAddingAtoms();
 
         }}.build();
 
-        RowIndexEntry withIndex = RowIndexEntry.create(0xdeadbeef, DeletionTime.LIVE, columnIndex);
+        RowIndexEntry<IndexHelper.IndexInfo> withIndex = RowIndexEntry.create(0xdeadbeef, DeletionTime.LIVE, columnIndex);
 
-        RowIndexEntry.serializer.serialize(withIndex, buffer);
-        Assert.assertEquals(buffer.size(), withIndex.serializedSize());
+        serializer.serialize(withIndex, buffer);
+        Assert.assertEquals(buffer.getLength(), serializer.serializedSize(withIndex));
     }
 }

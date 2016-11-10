@@ -20,16 +20,16 @@ package org.apache.cassandra.utils;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Random;
 
 import com.google.common.collect.Lists;
-import org.junit.Test;
 
+import org.junit.Test;
 import org.junit.Assert;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.KeyGenerator.WordGenerator;
+import org.apache.cassandra.utils.IFilter.FilterKey;
+import org.apache.cassandra.utils.KeyGenerator.RandomStringGenerator;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
 import org.apache.cassandra.utils.obs.OpenBitSet;
@@ -44,17 +44,17 @@ public class BitSetTest
     @Test
     public void compareBitSets()
     {
-        BloomFilter bf2 = (BloomFilter) FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
-        BloomFilter bf3 = (BloomFilter) FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE, true);
-        int skipEven = KeyGenerator.WordGenerator.WORDS % 2 == 0 ? 0 : 2;
-        WordGenerator gen1 = new KeyGenerator.WordGenerator(skipEven, 2);
+        BloomFilter bf2 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
+        BloomFilter bf3 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, true);
+
+        RandomStringGenerator gen1 = new KeyGenerator.RandomStringGenerator(new Random().nextInt(), FilterTestHelper.ELEMENTS);
 
         // make sure both bitsets are empty.
         compare(bf2.bitset, bf3.bitset);
 
         while (gen1.hasNext())
         {
-            ByteBuffer key = gen1.next();
+            FilterKey key = FilterTestHelper.wrap(gen1.next());
             bf2.add(key);
             bf3.add(key);
         }
@@ -70,15 +70,19 @@ public class BitSetTest
     @Test
     public void testOffHeapSerialization() throws IOException
     {
-        OffHeapBitSet bs = new OffHeapBitSet(100000);
-        populateAndReserialize(bs);
+        try (OffHeapBitSet bs = new OffHeapBitSet(100000))
+        {
+            populateAndReserialize(bs);
+        }
     }
 
     @Test
     public void testOffHeapCompatibility() throws IOException
     {
-        OpenBitSet bs = new OpenBitSet(100000);
-        populateAndReserialize(bs);
+        try (OpenBitSet bs = new OpenBitSet(100000)) 
+        {
+            populateAndReserialize(bs);
+        }
     }
 
     private void populateAndReserialize(IBitSet bs) throws IOException
@@ -90,11 +94,13 @@ public class BitSetTest
         DataOutputBuffer out = new DataOutputBuffer();
         bs.serialize(out);
         DataInputStream in = new DataInputStream(new ByteArrayInputStream(out.getData()));
-        OffHeapBitSet newbs = OffHeapBitSet.deserialize(in);
-        compare(bs, newbs);
+        try (OffHeapBitSet newbs = OffHeapBitSet.deserialize(in))
+        {
+            compare(bs, newbs);
+        }
     }
 
-    private void compare(IBitSet bs, IBitSet newbs)
+    static void compare(IBitSet bs, IBitSet newbs)
     {
         assertEquals(bs.capacity(), newbs.capacity());
         for (long i = 0; i < bs.capacity(); i++)
@@ -102,25 +108,26 @@ public class BitSetTest
     }
 
     @Test
-    public void testBitClear() throws IOException
+    public void testBitClear()
     {
         int size = Integer.MAX_VALUE / 4000;
-        OffHeapBitSet bitset = new OffHeapBitSet(size);
-        List<Integer> randomBits = Lists.newArrayList();
-        for (int i = 0; i < 10; i++)
-            randomBits.add(random.nextInt(size));
-
-        for (long randomBit : randomBits)
-            bitset.set(randomBit);
-
-        for (long randomBit : randomBits)
-            Assert.assertEquals(true, bitset.get(randomBit));
-
-        for (long randomBit : randomBits)
-            bitset.clear(randomBit);
-
-        for (long randomBit : randomBits)
-            Assert.assertEquals(false, bitset.get(randomBit));
-        bitset.close();
+        try (OffHeapBitSet bitset = new OffHeapBitSet(size))
+        {
+            List<Integer> randomBits = Lists.newArrayList();
+            for (int i = 0; i < 10; i++)
+                randomBits.add(random.nextInt(size));
+    
+            for (long randomBit : randomBits)
+                bitset.set(randomBit);
+    
+            for (long randomBit : randomBits)
+                Assert.assertEquals(true, bitset.get(randomBit));
+    
+            for (long randomBit : randomBits)
+                bitset.clear(randomBit);
+    
+            for (long randomBit : randomBits)
+                Assert.assertEquals(false, bitset.get(randomBit));
+        }
     }
 }

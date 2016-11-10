@@ -26,6 +26,7 @@ import static org.junit.Assert.*;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.filter.ColumnCounter;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -33,7 +34,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class AbstractQueryPagerTest
 {
     @Test
-    public void DiscardFirstTest()
+    public void discardFirstTest()
     {
         TestPager pager = new TestPager();
         List<Row> rows = Arrays.asList(createRow("r1", 1),
@@ -68,7 +69,7 @@ public class AbstractQueryPagerTest
     }
 
     @Test
-    public void DiscardLastTest()
+    public void discardLastTest()
     {
         TestPager pager = new TestPager();
         List<Row> rows = Arrays.asList(createRow("r1", 2),
@@ -104,12 +105,12 @@ public class AbstractQueryPagerTest
 
     private void assertRow(Row row, String name, int... values)
     {
-        assertEquals(row.key.key, ByteBufferUtil.bytes(name));
+        assertEquals(row.key.getKey(), ByteBufferUtil.bytes(name));
         assertEquals(values.length, row.cf.getColumnCount());
 
         int i = 0;
-        for (Column c : row.cf)
-            assertEquals(values[i++], i(c.name()));
+        for (Cell c : row.cf)
+            assertEquals(values[i++], i(c.name().toByteBuffer()));
     }
 
     private Row createRow(String name, int nbCol)
@@ -119,15 +120,15 @@ public class AbstractQueryPagerTest
 
     private ColumnFamily createCF(int nbCol)
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(createMetadata());
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(createMetadata());
         for (int i = 0; i < nbCol; i++)
-            cf.addColumn(bb(i), bb(i), 0);
+            cf.addColumn(CellNames.simpleDense(bb(i)), bb(i), 0);
         return cf;
     }
 
     private static CFMetaData createMetadata()
     {
-        CFMetaData cfm = new CFMetaData("ks", "cf", ColumnFamilyType.Standard, Int32Type.instance);
+        CFMetaData cfm = new CFMetaData("ks", "cf", ColumnFamilyType.Standard, CellNames.fromAbstractType(Int32Type.instance, false));
         cfm.rebuild();
         return cfm;
     }

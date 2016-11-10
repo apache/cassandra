@@ -28,8 +28,18 @@ public enum Bound
         this.idx = idx;
     }
 
-    public static Bound reverse(Bound b)
+    public Bound reverse()
     {
-        return b == START ? END : START;
+        return isStart() ? END : START;
+    }
+
+    public boolean isStart()
+    {
+        return this == START;
+    }
+
+    public boolean isEnd()
+    {
+        return this == END;
     }
 }
