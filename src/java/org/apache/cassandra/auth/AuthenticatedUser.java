@@ -84,7 +84,7 @@ public class AuthenticatedUser
     /**
      * Some internal operations are performed on behalf of Cassandra itself, in those cases
      * the system user should be used where an identity is required
-     * see CreateRoleStatement#execute() and overrides of SchemaAlteringStatement#grantPermissionsToCreator()
+     * see CreateRoleStatement#execute() and overrides of AlterSchemaStatement#createdResources()
      */
     public boolean isSystem()
     {

@@ -23,13 +23,14 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.auth.DCPermissions;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
 
 public class AlterRoleStatementTest
 {
     private static AlterRoleStatement parse(String query)
     {
-        ParsedStatement stmt = QueryProcessor.parseStatement(query);
+        CQLStatement.Raw stmt = QueryProcessor.parseStatement(query);
         Assert.assertTrue(stmt instanceof AlterRoleStatement);
         return (AlterRoleStatement) stmt;
     }

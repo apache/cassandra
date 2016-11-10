@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.cql3.functions;
 
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Optional;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.schema.Difference;
 import org.github.jamm.Unmetered;
 
 @Unmetered
@@ -46,7 +49,7 @@ public interface Function extends AssignmentTestable
 
     public void addFunctionsTo(List<Function> functions);
 
-    public boolean hasReferenceTo(Function function);
+    public boolean referencesUserType(ByteBuffer name);
 
     /**
      * Returns the name of the function to use within a ResultSet.
@@ -55,4 +58,9 @@ public interface Function extends AssignmentTestable
      * @return the name of the function to use within a ResultSet
      */
     public String columnName(List<String> columnNames);
+
+    public default Optional<Difference> compare(Function other)
+    {
+        throw new UnsupportedOperationException();
+    }
 }

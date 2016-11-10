@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -42,7 +43,7 @@ public class CreateRoleStatement extends AuthenticationStatement
         this.ifNotExists = ifNotExists;
     }
 
-    public void checkAccess(ClientState state) throws UnauthorizedException
+    public void authorize(ClientState state) throws UnauthorizedException
     {
         super.checkPermission(state, Permission.CREATE, RoleResource.root());
         if (opts.getSuperuser().isPresent())
@@ -64,7 +65,7 @@ public class CreateRoleStatement extends AuthenticationStatement
         if (role.getRoleName().isEmpty())
             throw new InvalidRequestException("Role name can't be an empty string");
 
-        // validate login here before checkAccess to avoid leaking role existence to anonymous users.
+        // validate login here before authorize to avoid leaking role existence to anonymous users.
         state.ensureNotAnonymous();
 
         if (!ifNotExists && DatabaseDescriptor.getRoleManager().isExistingRole(role))
@@ -88,7 +89,7 @@ public class CreateRoleStatement extends AuthenticationStatement
 
     /**
      * Grant all applicable permissions on the newly created role to the user performing the request
-     * see also: SchemaAlteringStatement#grantPermissionsToCreator and the overridden implementations
+     * see also: AlterTableStatement#createdResources() and the overridden implementations
      * of it in subclasses CreateKeyspaceStatement & CreateTableStatement.
      * @param state
      */

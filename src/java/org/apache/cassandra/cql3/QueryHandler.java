@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 import org.apache.cassandra.cql3.statements.BatchStatement;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
@@ -41,7 +40,7 @@ public interface QueryHandler
                                    ClientState clientState,
                                    Map<String, ByteBuffer> customPayload) throws RequestValidationException;
 
-    ParsedStatement.Prepared getPrepared(MD5Digest id);
+    QueryHandler.Prepared getPrepared(MD5Digest id);
 
     ResultMessage processPrepared(CQLStatement statement,
                                   QueryState state,
@@ -54,4 +53,30 @@ public interface QueryHandler
                                BatchQueryOptions options,
                                Map<String, ByteBuffer> customPayload,
                                long queryStartNanoTime) throws RequestExecutionException, RequestValidationException;
+
+    public static class Prepared
+    {
+        public final CQLStatement statement;
+
+        public final MD5Digest resultMetadataId;
+
+        /**
+         * Contains the CQL statement source if the statement has been "regularly" perpared via
+         * {@link QueryHandler#prepare(String, ClientState, Map)}.
+         * Other usages of this class may or may not contain the CQL statement source.
+         */
+        public final String rawCQLStatement;
+
+        public Prepared(CQLStatement statement)
+        {
+            this(statement, "");
+        }
+
+        public Prepared(CQLStatement statement, String rawCQLStatement)
+        {
+            this.statement = statement;
+            this.rawCQLStatement = rawCQLStatement;
+            this.resultMetadataId = ResultSet.ResultMetadata.fromPrepared(statement).getResultMetadataId();
+        }
+    }
 }

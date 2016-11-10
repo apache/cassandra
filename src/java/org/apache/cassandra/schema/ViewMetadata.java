@@ -17,54 +17,50 @@
  */
 package org.apache.cassandra.schema;
 
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
-import org.antlr.runtime.*;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.statements.SelectStatement;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.view.View;
-import org.apache.cassandra.exceptions.SyntaxException;
+import java.nio.ByteBuffer;
+import java.util.Optional;
 
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 
+import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.db.marshal.UserType;
+
 public final class ViewMetadata
 {
-    public final String keyspace;
-    public final String name;
     public final TableId baseTableId;
     public final String baseTableName;
+
     public final boolean includeAllColumns;
     public final TableMetadata metadata;
 
-    public final SelectStatement.RawStatement select;
-    public final String whereClause;
+    public final WhereClause whereClause;
 
     /**
-     * @param name              Name of the view
      * @param baseTableId       Internal ID of the table which this view is based off of
      * @param includeAllColumns Whether to include all columns or not
      */
-    public ViewMetadata(String keyspace,
-                        String name,
-                        TableId baseTableId,
+    public ViewMetadata(TableId baseTableId,
                         String baseTableName,
                         boolean includeAllColumns,
-                        SelectStatement.RawStatement select,
-                        String whereClause,
+                        WhereClause whereClause,
                         TableMetadata metadata)
     {
-        this.keyspace = keyspace;
-        this.name = name;
         this.baseTableId = baseTableId;
         this.baseTableName = baseTableName;
         this.includeAllColumns = includeAllColumns;
-        this.select = select;
         this.whereClause = whereClause;
         this.metadata = metadata;
+    }
+
+    public String keyspace()
+    {
+        return metadata.keyspace;
+    }
+
+    public String name()
+    {
+        return metadata.name;
     }
 
     /**
@@ -77,7 +73,7 @@ public final class ViewMetadata
 
     public ViewMetadata copy(TableMetadata newMetadata)
     {
-        return new ViewMetadata(keyspace, name, baseTableId, baseTableName, includeAllColumns, select, whereClause, newMetadata);
+        return new ViewMetadata(baseTableId, baseTableName, includeAllColumns, whereClause, newMetadata);
     }
 
     public TableMetadata baseTableMetadata()
@@ -95,20 +91,24 @@ public final class ViewMetadata
             return false;
 
         ViewMetadata other = (ViewMetadata) o;
-        return Objects.equals(keyspace, other.keyspace)
-               && Objects.equals(name, other.name)
-               && Objects.equals(baseTableId, other.baseTableId)
-               && Objects.equals(includeAllColumns, other.includeAllColumns)
-               && Objects.equals(whereClause, other.whereClause)
-               && Objects.equals(metadata, other.metadata);
+        return baseTableId.equals(other.baseTableId)
+            && includeAllColumns == other.includeAllColumns
+            && whereClause.equals(other.whereClause)
+            && metadata.equals(other.metadata);
+    }
+
+    Optional<Difference> compare(ViewMetadata other)
+    {
+        if (!baseTableId.equals(other.baseTableId) || includeAllColumns != other.includeAllColumns || !whereClause.equals(other.whereClause))
+            return Optional.of(Difference.SHALLOW);
+
+        return metadata.compare(other.metadata);
     }
 
     @Override
     public int hashCode()
     {
         return new HashCodeBuilder(29, 1597)
-               .append(keyspace)
-               .append(name)
                .append(baseTableId)
                .append(includeAllColumns)
                .append(whereClause)
@@ -120,8 +120,6 @@ public final class ViewMetadata
     public String toString()
     {
         return new ToStringBuilder(this)
-               .append("keyspace", keyspace)
-               .append("name", name)
                .append("baseTableId", baseTableId)
                .append("baseTableName", baseTableName)
                .append("includeAllColumns", includeAllColumns)
@@ -130,68 +128,37 @@ public final class ViewMetadata
                .toString();
     }
 
-    /**
-     * Replace the column 'from' with 'to' in this materialized view definition's partition,
-     * clustering, or included columns.
-     * @param from the existing column
-     * @param to the new column
-     */
-    public ViewMetadata renamePrimaryKeyColumn(ColumnIdentifier from, ColumnIdentifier to)
+    public boolean referencesUserType(ByteBuffer name)
+    {
+        return metadata.referencesUserType(name);
+    }
+
+    public ViewMetadata withUpdatedUserType(UserType udt)
+    {
+        return referencesUserType(udt.name)
+             ? copy(metadata.withUpdatedUserType(udt))
+             : this;
+    }
+
+    public ViewMetadata withRenamedPrimaryKeyColumn(ColumnIdentifier from, ColumnIdentifier to)
     {
         // convert whereClause to Relations, rename ids in Relations, then convert back to whereClause
-        List<Relation> relations = whereClauseToRelations(whereClause);
-        ColumnMetadata.Raw fromRaw = ColumnMetadata.Raw.forQuoted(from.toString());
-        ColumnMetadata.Raw toRaw = ColumnMetadata.Raw.forQuoted(to.toString());
-        List<Relation> newRelations =
-            relations.stream()
-                     .map(r -> r.renameIdentifier(fromRaw, toRaw))
-                     .collect(Collectors.toList());
+        ColumnMetadata.Raw rawFrom = ColumnMetadata.Raw.forQuoted(from.toString());
+        ColumnMetadata.Raw rawTo = ColumnMetadata.Raw.forQuoted(to.toString());
 
-        String rawSelect = View.buildSelectStatement(baseTableName, metadata.columns(), whereClause);
-
-        return new ViewMetadata(keyspace,
-                                name,
-                                baseTableId,
+        return new ViewMetadata(baseTableId,
                                 baseTableName,
                                 includeAllColumns,
-                                (SelectStatement.RawStatement) QueryProcessor.parseStatement(rawSelect),
-                                View.relationsToWhereClause(newRelations),
+                                whereClause.renameIdentifier(rawFrom, rawTo),
                                 metadata.unbuild().renamePrimaryKeyColumn(from, to).build());
     }
 
     public ViewMetadata withAddedRegularColumn(ColumnMetadata column)
     {
-        return new ViewMetadata(keyspace,
-                                name,
-                                baseTableId,
+        return new ViewMetadata(baseTableId,
                                 baseTableName,
                                 includeAllColumns,
-                                select,
                                 whereClause,
                                 metadata.unbuild().addColumn(column).build());
-    }
-
-    public ViewMetadata withAlteredColumnType(ColumnIdentifier name, AbstractType<?> type)
-    {
-        return new ViewMetadata(keyspace,
-                                this.name,
-                                baseTableId,
-                                baseTableName,
-                                includeAllColumns,
-                                select,
-                                whereClause,
-                                metadata.unbuild().alterColumnType(name, type).build());
-    }
-
-    private static List<Relation> whereClauseToRelations(String whereClause)
-    {
-        try
-        {
-            return CQLFragmentParser.parseAnyUnhandled(CqlParser::whereClause, whereClause).build().relations;
-        }
-        catch (RecognitionException | SyntaxException exc)
-        {
-            throw new RuntimeException("Unexpected error parsing materialized view's where clause while handling column rename: ", exc);
-        }
     }
 }

@@ -32,6 +32,9 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Iterables.transform;
+
 /*
  * The encoding of a CompositeType column name should be:
  *   <component><component><component> ...
@@ -102,18 +105,10 @@ public class CompositeType extends AbstractCompositeType
     public static CompositeType getInstance(List<AbstractType<?>> types)
     {
         assert types != null && !types.isEmpty();
-
-        CompositeType ct = instances.get(types);
-        if (ct == null)
-        {
-            ct = new CompositeType(types);
-            CompositeType previous = instances.putIfAbsent(types, ct);
-            if (previous != null)
-            {
-                ct = previous;
-            }
-        }
-        return ct;
+        CompositeType t = instances.get(types);
+        return null == t
+             ? instances.computeIfAbsent(types, CompositeType::new)
+             : t;
     }
 
     protected CompositeType(List<AbstractType<?>> types)
@@ -285,6 +280,29 @@ public class CompositeType extends AbstractCompositeType
                 return false;
         }
         return true;
+    }
+
+    @Override
+    public boolean referencesUserType(ByteBuffer name)
+    {
+        return any(types, t -> t.referencesUserType(name));
+    }
+
+    @Override
+    public CompositeType withUpdatedUserType(UserType udt)
+    {
+        if (!referencesUserType(udt.name))
+            return this;
+
+        instances.remove(types);
+
+        return getInstance(transform(types, t -> t.withUpdatedUserType(udt)));
+    }
+
+    @Override
+    public AbstractType<?> expandUserTypes()
+    {
+        return getInstance(transform(types, AbstractType::expandUserTypes));
     }
 
     private static class StaticParsedComparator implements ParsedComparator

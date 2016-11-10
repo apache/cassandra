@@ -40,9 +40,8 @@ import com.datastax.driver.core.exceptions.AlreadyExistsException;
 import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.CqlParser;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -165,7 +164,7 @@ public class StressProfile implements Serializable
         {
             try
             {
-                String name = CQLFragmentParser.parseAnyUnhandled(CqlParser::createKeyspaceStatement, keyspaceCql).keyspace();
+                String name = CQLFragmentParser.parseAnyUnhandled(CqlParser::createKeyspaceStatement, keyspaceCql).keyspaceName;
                 assert name.equalsIgnoreCase(keyspaceName) : "Name in keyspace_definition doesn't match keyspace property: '" + name + "' != '" + keyspaceName + "'";
             }
             catch (RecognitionException | SyntaxException e)
@@ -182,7 +181,7 @@ public class StressProfile implements Serializable
         {
             try
             {
-                String name = CQLFragmentParser.parseAnyUnhandled(CqlParser::createTableStatement, tableCql).columnFamily();
+                String name = CQLFragmentParser.parseAnyUnhandled(CqlParser::createTableStatement, tableCql).table();
                 assert name.equalsIgnoreCase(tableName) : "Name in table_definition doesn't match table property: '" + name + "' != '" + tableName + "'";
             }
             catch (RecognitionException | RuntimeException e)
@@ -461,11 +460,10 @@ public class StressProfile implements Serializable
         return new PartitionGenerator(partitionColumns, clusteringColumns, regularColumns, PartitionGenerator.Order.ARBITRARY);
     }
 
-    public CreateTableStatement.RawStatement getCreateStatement()
+    public CreateTableStatement.Raw getCreateStatement()
     {
-        CreateTableStatement.RawStatement createStatement = QueryProcessor.parseStatement(tableCql, CreateTableStatement.RawStatement.class, "CREATE TABLE");
-        createStatement.prepareKeyspace(keyspaceName);
-
+        CreateTableStatement.Raw createStatement = CQLFragmentParser.parseAny(CqlParser::createTableStatement, tableCql, "CREATE TABLE");
+        createStatement.keyspace(keyspaceName);
         return createStatement;
     }
 

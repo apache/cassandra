@@ -36,7 +36,6 @@ import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.BatchStatement;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -368,7 +367,7 @@ public class MessagePayloadTest extends CQLTester
 
     public static class TestQueryHandler implements QueryHandler
     {
-        public ParsedStatement.Prepared getPrepared(MD5Digest id)
+        public QueryProcessor.Prepared getPrepared(MD5Digest id)
         {
             return QueryProcessor.instance.getPrepared(id);
         }

@@ -1859,7 +1859,7 @@ public class SelectTest extends CQLTester
         });
 
         // test clutering order
-        createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY ((a, b), c, d)) WITH CLUSTERING ORDER BY (c DESC)");
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY ((a, b), c, d)) WITH CLUSTERING ORDER BY (c DESC, d ASC)");
 
         execute("INSERT INTO %s (a,b,c,d,e) VALUES (11, 11, 13, 14, 15)");
         execute("INSERT INTO %s (a,b,c,d,e) VALUES (11, 11, 14, 17, 18)");
@@ -2415,7 +2415,7 @@ public class SelectTest extends CQLTester
                    row("a", 3));
 
         // compound, first column DESC order
-        createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b, c)) WITH CLUSTERING ORDER BY (b DESC)");
+        createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b, c)) WITH CLUSTERING ORDER BY (b DESC, c ASC)");
 
         execute("INSERT INTO %s (a, b, c) VALUES ('a', 2, 4)");
         execute("INSERT INTO %s (a, b, c) VALUES ('a', 3, 5)");

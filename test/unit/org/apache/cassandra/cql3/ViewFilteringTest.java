@@ -1848,7 +1848,7 @@ public class ViewFilteringTest extends CQLTester
         executeNet(protocolVersion, "USE " + keyspace());
 
         try {
-            createView("mv_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE b IS NOT NULL AND c IS NOT NULL AND d = 1 PRIMARY KEY (a, b, c)");
+            createView("mv_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL AND d = 1 PRIMARY KEY (a, b, c)");
             dropView("mv_test");
         } catch(Exception e) {
             throw new RuntimeException("MV creation with non primary column restrictions failed.", e);

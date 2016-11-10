@@ -31,7 +31,6 @@ import java.util.Objects;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.pager.PagingState;
@@ -306,10 +305,8 @@ public class ResultSet
             return resultMetadataId;
         }
 
-        public static ResultMetadata fromPrepared(ParsedStatement.Prepared prepared)
+        public static ResultMetadata fromPrepared(CQLStatement statement)
         {
-            CQLStatement statement = prepared.statement;
-
             if (statement instanceof SelectStatement)
                 return ((SelectStatement)statement).getResultMetadata();
 
@@ -569,9 +566,9 @@ public class ResultSet
             return sb.toString();
         }
 
-        public static PreparedMetadata fromPrepared(ParsedStatement.Prepared prepared)
+        public static PreparedMetadata fromPrepared(CQLStatement statement)
         {
-            return new PreparedMetadata(prepared.boundNames, prepared.partitionKeyBindIndexes);
+            return new PreparedMetadata(statement.getBindVariables(), statement.getPartitionKeyBindVariableIndexes());
         }
 
         private static class Codec implements CBCodec<PreparedMetadata>
