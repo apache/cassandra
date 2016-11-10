@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.schema;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -38,8 +37,13 @@ import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnknownTableException;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
+import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -79,20 +83,6 @@ public final class Schema
     }
 
     /**
-     * Validates that the provided keyspace is not one of the system keyspace.
-     *
-     * @param keyspace the keyspace name to validate.
-     *
-     * @throws InvalidRequestException if {@code keyspace} is the name of a
-     * system keyspace.
-     */
-    public static void validateKeyspaceNotSystem(String keyspace)
-    {
-        if (SchemaConstants.isLocalSystemKeyspace(keyspace))
-            throw new InvalidRequestException(format("%s keyspace is not user-modifiable", keyspace));
-    }
-
-    /**
      * load keyspace (keyspace) definitions, but do not initialize the keyspace instances.
      * Schema version may be updated as the result.
      */
@@ -108,19 +98,9 @@ public final class Schema
      */
     public void loadFromDisk(boolean updateVersion)
     {
-        load(SchemaKeyspace.fetchNonSystemKeyspaces());
+        SchemaKeyspace.fetchNonSystemKeyspaces().forEach(this::load);
         if (updateVersion)
             updateVersion();
-    }
-
-    /**
-     * Load up non-system keyspaces
-     *
-     * @param keyspaceDefs The non-system keyspace definitions
-     */
-    private void load(Iterable<KeyspaceMetadata> keyspaceDefs)
-    {
-        keyspaceDefs.forEach(this::load);
     }
 
     /**
@@ -153,50 +133,33 @@ public final class Schema
     private void reload(KeyspaceMetadata previous, KeyspaceMetadata updated)
     {
         Keyspace keyspace = getKeyspaceInstance(updated.name);
-        if (keyspace != null)
+        if (null != keyspace)
             keyspace.setMetadata(updated);
 
-        MapDifference<TableId, TableMetadata> tablesDiff = previous.tables.diff(updated.tables);
-        MapDifference<TableId, ViewMetadata> viewsDiff = previous.views.diff(updated.views);
+        Tables.TablesDiff tablesDiff = Tables.diff(previous.tables, updated.tables);
+        Views.ViewsDiff viewsDiff = Views.diff(previous.views, updated.views);
+
         MapDifference<String, TableMetadata> indexesDiff = previous.tables.indexesDiff(updated.tables);
 
         // clean up after removed entries
-
-        tablesDiff.entriesOnlyOnLeft()
-                  .values()
-                  .forEach(table -> metadataRefs.remove(table.id));
-
-        viewsDiff.entriesOnlyOnLeft()
-                 .values()
-                 .forEach(view -> metadataRefs.remove(view.metadata.id));
+        tablesDiff.dropped.forEach(table -> metadataRefs.remove(table.id));
+        viewsDiff.dropped.forEach(view -> metadataRefs.remove(view.metadata.id));
 
         indexesDiff.entriesOnlyOnLeft()
                    .values()
                    .forEach(indexTable -> indexMetadataRefs.remove(Pair.create(indexTable.keyspace, indexTable.indexName().get())));
 
         // load up new entries
-
-        tablesDiff.entriesOnlyOnRight()
-                  .values()
-                  .forEach(table -> metadataRefs.put(table.id, new TableMetadataRef(table)));
-
-        viewsDiff.entriesOnlyOnRight()
-                 .values()
-                 .forEach(view -> metadataRefs.put(view.metadata.id, new TableMetadataRef(view.metadata)));
+        tablesDiff.created.forEach(table -> metadataRefs.put(table.id, new TableMetadataRef(table)));
+        viewsDiff.created.forEach(view -> metadataRefs.put(view.metadata.id, new TableMetadataRef(view.metadata)));
 
         indexesDiff.entriesOnlyOnRight()
                    .values()
                    .forEach(indexTable -> indexMetadataRefs.put(Pair.create(indexTable.keyspace, indexTable.indexName().get()), new TableMetadataRef(indexTable)));
 
         // refresh refs to updated ones
-
-        tablesDiff.entriesDiffering()
-                  .values()
-                  .forEach(diff -> metadataRefs.get(diff.rightValue().id).set(diff.rightValue()));
-
-        viewsDiff.entriesDiffering()
-                 .values()
-                 .forEach(diff -> metadataRefs.get(diff.rightValue().metadata.id).set(diff.rightValue().metadata));
+        tablesDiff.altered.forEach(diff -> metadataRefs.get(diff.after.id).set(diff.after));
+        viewsDiff.altered.forEach(diff -> metadataRefs.get(diff.after.metadata.id).set(diff.after.metadata));
 
         indexesDiff.entriesDiffering()
                    .values()
@@ -556,7 +519,16 @@ public final class Schema
     public void updateVersionAndAnnounce()
     {
         updateVersion();
-        MigrationManager.passiveAnnounce(version);
+        passiveAnnounceVersion();
+    }
+
+    /**
+     * Announce my version passively over gossip.
+     * Used to notify nodes as they arrive in the cluster.
+     */
+    private void passiveAnnounceVersion()
+    {
+        Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(version));
     }
 
     /**
@@ -576,7 +548,7 @@ public final class Schema
     {
         Keyspaces before = keyspaces.filter(k -> !SchemaConstants.isLocalSystemKeyspace(k.name));
         Keyspaces after = SchemaKeyspace.fetchNonSystemKeyspaces();
-        merge(before, after);
+        merge(Keyspaces.diff(before, after));
         updateVersionAndAnnounce();
     }
 
@@ -594,6 +566,60 @@ public final class Schema
         updateVersionAndAnnounce();
     }
 
+    public synchronized TransformationResult transform(SchemaTransformation transformation, boolean locally, long now)
+    {
+        KeyspacesDiff diff;
+        try
+        {
+            Keyspaces before = keyspaces;
+            Keyspaces after = transformation.apply(before);
+            diff = Keyspaces.diff(before, after);
+        }
+        catch (RuntimeException e)
+        {
+            return new TransformationResult(e);
+        }
+
+        if (diff.isEmpty())
+            return new TransformationResult(diff, Collections.emptyList());
+
+        Collection<Mutation> mutations = SchemaKeyspace.convertSchemaDiffToMutations(diff, now);
+        SchemaKeyspace.applyChanges(mutations);
+
+        merge(diff);
+        updateVersion();
+        if (!locally)
+            passiveAnnounceVersion();
+
+        return new TransformationResult(diff, mutations);
+    }
+
+    public static final class TransformationResult
+    {
+        public final boolean success;
+        public final RuntimeException exception;
+        public final KeyspacesDiff diff;
+        public final Collection<Mutation> mutations;
+
+        private TransformationResult(boolean success, RuntimeException exception, KeyspacesDiff diff, Collection<Mutation> mutations)
+        {
+            this.success = success;
+            this.exception = exception;
+            this.diff = diff;
+            this.mutations = mutations;
+        }
+
+        TransformationResult(RuntimeException exception)
+        {
+            this(false, exception, null, null);
+        }
+
+        TransformationResult(KeyspacesDiff diff, Collection<Mutation> mutations)
+        {
+            this(true, null, diff, mutations);
+        }
+    }
+
     synchronized void merge(Collection<Mutation> mutations)
     {
         // only compare the keyspaces affected by this set of schema mutations
@@ -608,71 +634,57 @@ public final class Schema
         // apply the schema mutations and fetch the new versions of the altered keyspaces
         Keyspaces after = SchemaKeyspace.fetchKeyspaces(affectedKeyspaces);
 
-        merge(before, after);
+        merge(Keyspaces.diff(before, after));
     }
 
-    private synchronized void merge(Keyspaces before, Keyspaces after)
+    private void merge(KeyspacesDiff diff)
     {
-        MapDifference<String, KeyspaceMetadata> keyspacesDiff = before.diff(after);
-
-        // dropped keyspaces
-        keyspacesDiff.entriesOnlyOnLeft().values().forEach(this::dropKeyspace);
-
-        // new keyspaces
-        keyspacesDiff.entriesOnlyOnRight().values().forEach(this::createKeyspace);
-
-        // updated keyspaces
-        keyspacesDiff.entriesDiffering().entrySet().forEach(diff -> alterKeyspace(diff.getValue().leftValue(), diff.getValue().rightValue()));
+        diff.dropped.forEach(this::dropKeyspace);
+        diff.created.forEach(this::createKeyspace);
+        diff.altered.forEach(this::alterKeyspace);
     }
 
-    private void alterKeyspace(KeyspaceMetadata before, KeyspaceMetadata after)
+    private void alterKeyspace(KeyspaceDiff delta)
     {
-        // calculate the deltas
-        MapDifference<TableId, TableMetadata> tablesDiff = before.tables.diff(after.tables);
-        MapDifference<TableId, ViewMetadata> viewsDiff = before.views.diff(after.views);
-        MapDifference<ByteBuffer, UserType> typesDiff = before.types.diff(after.types);
-        MapDifference<Pair<FunctionName, List<String>>, UDFunction> udfsDiff = before.functions.udfsDiff(after.functions);
-        MapDifference<Pair<FunctionName, List<String>>, UDAggregate> udasDiff = before.functions.udasDiff(after.functions);
-
         // drop tables and views
-        viewsDiff.entriesOnlyOnLeft().values().forEach(this::dropView);
-        tablesDiff.entriesOnlyOnLeft().values().forEach(this::dropTable);
+        delta.views.dropped.forEach(this::dropView);
+        delta.tables.dropped.forEach(this::dropTable);
 
-        load(after);
+        load(delta.after);
 
         // add tables and views
-        tablesDiff.entriesOnlyOnRight().values().forEach(this::createTable);
-        viewsDiff.entriesOnlyOnRight().values().forEach(this::createView);
+        delta.tables.created.forEach(this::createTable);
+        delta.views.created.forEach(this::createView);
 
         // update tables and views
-        tablesDiff.entriesDiffering().values().forEach(diff -> alterTable(diff.rightValue()));
-        viewsDiff.entriesDiffering().values().forEach(diff -> alterView(diff.rightValue()));
+        delta.tables.altered.forEach(diff -> alterTable(diff.after));
+        delta.views.altered.forEach(diff -> alterView(diff.after));
 
         // deal with all removed, added, and altered views
-        Keyspace.open(before.name).viewManager.reload(true);
+        Keyspace.open(delta.after.name).viewManager.reload(true);
 
         // notify on everything dropped
-        udasDiff.entriesOnlyOnLeft().values().forEach(this::notifyDropAggregate);
-        udfsDiff.entriesOnlyOnLeft().values().forEach(this::notifyDropFunction);
-        viewsDiff.entriesOnlyOnLeft().values().forEach(this::notifyDropView);
-        tablesDiff.entriesOnlyOnLeft().values().forEach(this::notifyDropTable);
-        typesDiff.entriesOnlyOnLeft().values().forEach(this::notifyDropType);
+        delta.udas.dropped.forEach(uda -> notifyDropAggregate((UDAggregate) uda));
+        delta.udfs.dropped.forEach(udf -> notifyDropFunction((UDFunction) udf));
+        delta.views.dropped.forEach(this::notifyDropView);
+        delta.tables.dropped.forEach(this::notifyDropTable);
+        delta.types.dropped.forEach(this::notifyDropType);
 
         // notify on everything created
-        typesDiff.entriesOnlyOnRight().values().forEach(this::notifyCreateType);
-        tablesDiff.entriesOnlyOnRight().values().forEach(this::notifyCreateTable);
-        viewsDiff.entriesOnlyOnRight().values().forEach(this::notifyCreateView);
-        udfsDiff.entriesOnlyOnRight().values().forEach(this::notifyCreateFunction);
-        udasDiff.entriesOnlyOnRight().values().forEach(this::notifyCreateAggregate);
+        delta.types.created.forEach(this::notifyCreateType);
+        delta.tables.created.forEach(this::notifyCreateTable);
+        delta.views.created.forEach(this::notifyCreateView);
+        delta.udfs.created.forEach(udf -> notifyCreateFunction((UDFunction) udf));
+        delta.udas.created.forEach(uda -> notifyCreateAggregate((UDAggregate) uda));
 
         // notify on everything altered
-        if (!before.params.equals(after.params))
-            notifyAlterKeyspace(after);
-        typesDiff.entriesDiffering().values().forEach(diff -> notifyAlterType(diff.rightValue()));
-        tablesDiff.entriesDiffering().values().forEach(diff -> notifyAlterTable(diff.leftValue(), diff.rightValue()));
-        viewsDiff.entriesDiffering().values().forEach(diff -> notifyAlterView(diff.leftValue(), diff.rightValue()));
-        udfsDiff.entriesDiffering().values().forEach(diff -> notifyAlterFunction(diff.rightValue()));
-        udasDiff.entriesDiffering().values().forEach(diff -> notifyAlterAggregate(diff.rightValue()));
+        if (!delta.before.params.equals(delta.after.params))
+            notifyAlterKeyspace(delta.before, delta.after);
+        delta.types.altered.forEach(diff -> notifyAlterType(diff.before, diff.after));
+        delta.tables.altered.forEach(diff -> notifyAlterTable(diff.before, diff.after));
+        delta.views.altered.forEach(diff -> notifyAlterView(diff.before, diff.after));
+        delta.udfs.altered.forEach(diff -> notifyAlterFunction(diff.before, diff.after));
+        delta.udas.altered.forEach(diff -> notifyAlterAggregate(diff.before, diff.after));
     }
 
     private void createKeyspace(KeyspaceMetadata keyspace)
@@ -708,7 +720,7 @@ public final class Schema
 
     private void dropView(ViewMetadata metadata)
     {
-        Keyspace.open(metadata.keyspace).viewManager.stopBuild(metadata.name);
+        Keyspace.open(metadata.keyspace()).viewManager.stopBuild(metadata.name());
         dropTable(metadata.metadata);
     }
 
@@ -732,7 +744,7 @@ public final class Schema
 
     private void createView(ViewMetadata view)
     {
-        Keyspace.open(view.keyspace).initCf(metadataRefs.get(view.metadata.id), true);
+        Keyspace.open(view.keyspace()).initCf(metadataRefs.get(view.metadata.id), true);
     }
 
     private void alterTable(TableMetadata updated)
@@ -742,7 +754,7 @@ public final class Schema
 
     private void alterView(ViewMetadata updated)
     {
-        Keyspace.open(updated.keyspace).getColumnFamilyStore(updated.name).reload();
+        Keyspace.open(updated.keyspace()).getColumnFamilyStore(updated.name()).reload();
     }
 
     private void notifyCreateKeyspace(KeyspaceMetadata ksm)
@@ -757,7 +769,7 @@ public final class Schema
 
     private void notifyCreateView(ViewMetadata view)
     {
-        changeListeners.forEach(l -> l.onCreateView(view.keyspace, view.name));
+        changeListeners.forEach(l -> l.onCreateView(view.keyspace(), view.name()));
     }
 
     private void notifyCreateType(UserType ut)
@@ -775,36 +787,36 @@ public final class Schema
         changeListeners.forEach(l -> l.onCreateAggregate(udf.name().keyspace, udf.name().name, udf.argTypes()));
     }
 
-    private void notifyAlterKeyspace(KeyspaceMetadata ksm)
+    private void notifyAlterKeyspace(KeyspaceMetadata before, KeyspaceMetadata after)
     {
-        changeListeners.forEach(l -> l.onAlterKeyspace(ksm.name));
+        changeListeners.forEach(l -> l.onAlterKeyspace(after.name));
     }
 
-    private void notifyAlterTable(TableMetadata current, TableMetadata updated)
+    private void notifyAlterTable(TableMetadata before, TableMetadata after)
     {
-        boolean changeAffectedPreparedStatements = current.changeAffectsPreparedStatements(updated);
-        changeListeners.forEach(l -> l.onAlterTable(updated.keyspace, updated.name, changeAffectedPreparedStatements));
+        boolean changeAffectedPreparedStatements = before.changeAffectsPreparedStatements(after);
+        changeListeners.forEach(l -> l.onAlterTable(after.keyspace, after.name, changeAffectedPreparedStatements));
     }
 
-    private void notifyAlterView(ViewMetadata current, ViewMetadata updated)
+    private void notifyAlterView(ViewMetadata before, ViewMetadata after)
     {
-        boolean changeAffectedPreparedStatements = current.metadata.changeAffectsPreparedStatements(updated.metadata);
-        changeListeners.forEach(l ->l.onAlterView(updated.keyspace, updated.name, changeAffectedPreparedStatements));
+        boolean changeAffectedPreparedStatements = before.metadata.changeAffectsPreparedStatements(after.metadata);
+        changeListeners.forEach(l ->l.onAlterView(after.keyspace(), after.name(), changeAffectedPreparedStatements));
     }
 
-    private void notifyAlterType(UserType ut)
+    private void notifyAlterType(UserType before, UserType after)
     {
-        changeListeners.forEach(l -> l.onAlterType(ut.keyspace, ut.getNameAsString()));
+        changeListeners.forEach(l -> l.onAlterType(after.keyspace, after.getNameAsString()));
     }
 
-    private void notifyAlterFunction(UDFunction udf)
+    private void notifyAlterFunction(UDFunction before, UDFunction after)
     {
-        changeListeners.forEach(l -> l.onAlterFunction(udf.name().keyspace, udf.name().name, udf.argTypes()));
+        changeListeners.forEach(l -> l.onAlterFunction(after.name().keyspace, after.name().name, after.argTypes()));
     }
 
-    private void notifyAlterAggregate(UDAggregate udf)
+    private void notifyAlterAggregate(UDAggregate before, UDAggregate after)
     {
-        changeListeners.forEach(l -> l.onAlterAggregate(udf.name().keyspace, udf.name().name, udf.argTypes()));
+        changeListeners.forEach(l -> l.onAlterAggregate(after.name().keyspace, after.name().name, after.argTypes()));
     }
 
     private void notifyDropKeyspace(KeyspaceMetadata ksm)
@@ -819,7 +831,7 @@ public final class Schema
 
     private void notifyDropView(ViewMetadata view)
     {
-        changeListeners.forEach(l -> l.onDropView(view.keyspace, view.name));
+        changeListeners.forEach(l -> l.onDropView(view.keyspace(), view.name()));
     }
 
     private void notifyDropType(UserType ut)

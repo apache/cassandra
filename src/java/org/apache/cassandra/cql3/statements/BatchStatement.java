@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
 
+import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -45,6 +46,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 
+import static java.util.function.Predicate.isEqual;
+
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 
 /**
@@ -57,8 +60,8 @@ public class BatchStatement implements CQLStatement
         LOGGED, UNLOGGED, COUNTER
     }
 
-    private final int boundTerms;
     public final Type type;
+    private final VariableSpecifications bindVariables;
     private final List<ModificationStatement> statements;
 
     // Columns modified for each table (keyed by the table ID)
@@ -93,10 +96,10 @@ public class BatchStatement implements CQLStatement
      * @param statements the list of statements in the batch
      * @param attrs      additional attributes for statement (CL, timestamp, timeToLive)
      */
-    public BatchStatement(int boundTerms, Type type, List<ModificationStatement> statements, Attributes attrs)
+    public BatchStatement(Type type, VariableSpecifications bindVariables, List<ModificationStatement> statements, Attributes attrs)
     {
-        this.boundTerms = boundTerms;
         this.type = type;
+        this.bindVariables = bindVariables;
         this.statements = statements;
         this.attrs = attrs;
 
@@ -128,6 +131,26 @@ public class BatchStatement implements CQLStatement
         this.updatesVirtualTables = updatesVirtualTables;
     }
 
+    @Override
+    public List<ColumnSpecification> getBindVariables()
+    {
+        return bindVariables.getBindVariables();
+    }
+
+    @Override
+    public short[] getPartitionKeyBindVariableIndexes()
+    {
+        boolean affectsMultipleTables =
+            !statements.isEmpty() && statements.stream().map(s -> s.metadata().id).allMatch(isEqual(statements.get(0).metadata().id));
+
+        // Use the TableMetadata of the first statement for partition key bind indexes.  If the statements affect
+        // multiple tables, we won't send partition key bind indexes.
+        return (affectsMultipleTables || statements.isEmpty())
+             ? null
+             : bindVariables.getPartitionKeyBindVariableIndexes(statements.get(0).metadata());
+    }
+
+    @Override
     public Iterable<org.apache.cassandra.cql3.functions.Function> getFunctions()
     {
         List<org.apache.cassandra.cql3.functions.Function> functions = new ArrayList<>();
@@ -136,15 +159,10 @@ public class BatchStatement implements CQLStatement
         return functions;
     }
 
-    public int getBoundTerms()
-    {
-        return boundTerms;
-    }
-
-    public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
+    public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         for (ModificationStatement statement : statements)
-            statement.checkAccess(state);
+            statement.authorize(state);
     }
 
     // Validates a prepared batch statement without validating its nested statements.
@@ -506,7 +524,7 @@ public class BatchStatement implements CQLStatement
         return hasConditions;
     }
 
-    public ResultMessage executeInternal(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
+    public ResultMessage executeLocally(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
         BatchQueryOptions batchOptions = BatchQueryOptions.withoutPerStatementVariables(options);
 
@@ -544,7 +562,7 @@ public class BatchStatement implements CQLStatement
         return String.format("BatchStatement(type=%s, statements=%s)", type, statements);
     }
 
-    public static class Parsed extends CFStatement
+    public static class Parsed extends QualifiedStatement
     {
         private final Type type;
         private final Attributes.Raw attrs;
@@ -559,48 +577,24 @@ public class BatchStatement implements CQLStatement
         }
 
         @Override
-        public void prepareKeyspace(ClientState state) throws InvalidRequestException
+        public void setKeyspace(ClientState state) throws InvalidRequestException
         {
             for (ModificationStatement.Parsed statement : parsedStatements)
-                statement.prepareKeyspace(state);
+                statement.setKeyspace(state);
         }
 
-        public ParsedStatement.Prepared prepare() throws InvalidRequestException
+        public BatchStatement prepare(ClientState state)
         {
-            VariableSpecifications boundNames = getBoundVariables();
-
-            String firstKS = null;
-            String firstCF = null;
-            boolean haveMultipleCFs = false;
-
             List<ModificationStatement> statements = new ArrayList<>(parsedStatements.size());
-            for (ModificationStatement.Parsed parsed : parsedStatements)
-            {
-                if (firstKS == null)
-                {
-                    firstKS = parsed.keyspace();
-                    firstCF = parsed.columnFamily();
-                }
-                else if (!haveMultipleCFs)
-                {
-                    haveMultipleCFs = !firstKS.equals(parsed.keyspace()) || !firstCF.equals(parsed.columnFamily());
-                }
-
-                statements.add(parsed.prepare(boundNames));
-            }
+            parsedStatements.forEach(s -> statements.add(s.prepare(bindVariables)));
 
             Attributes prepAttrs = attrs.prepare("[batch]", "[batch]");
-            prepAttrs.collectMarkerSpecification(boundNames);
+            prepAttrs.collectMarkerSpecification(bindVariables);
 
-            BatchStatement batchStatement = new BatchStatement(boundNames.size(), type, statements, prepAttrs);
+            BatchStatement batchStatement = new BatchStatement(type, bindVariables, statements, prepAttrs);
             batchStatement.validate();
 
-            // Use the TableMetadata of the first statement for partition key bind indexes.  If the statements affect
-            // multiple tables, we won't send partition key bind indexes.
-            short[] partitionKeyBindIndexes = (haveMultipleCFs || batchStatement.statements.isEmpty())? null
-                                                              : boundNames.getPartitionKeyBindIndexes(batchStatement.statements.get(0).metadata());
-
-            return new ParsedStatement.Prepared(batchStatement, boundNames, partitionKeyBindIndexes);
+            return batchStatement;
         }
     }
 

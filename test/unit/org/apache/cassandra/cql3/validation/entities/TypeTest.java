@@ -28,8 +28,8 @@ public class TypeTest extends CQLTester
     @Test
     public void testNonExistingOnes() throws Throwable
     {
-        assertInvalidMessage("No user type named", "DROP TYPE " + KEYSPACE + ".type_does_not_exist");
-        assertInvalidMessage("Cannot drop type in unknown keyspace", "DROP TYPE keyspace_does_not_exist.type_does_not_exist");
+        assertInvalidMessage(String.format("Type '%s.type_does_not_exist' doesn't exist", KEYSPACE), "DROP TYPE " + KEYSPACE + ".type_does_not_exist");
+        assertInvalidMessage("Type 'keyspace_does_not_exist.type_does_not_exist' doesn't exist", "DROP TYPE keyspace_does_not_exist.type_does_not_exist");
 
         execute("DROP TYPE IF EXISTS " + KEYSPACE + ".type_does_not_exist");
         execute("DROP TYPE IF EXISTS keyspace_does_not_exist.type_does_not_exist");

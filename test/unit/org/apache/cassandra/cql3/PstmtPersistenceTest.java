@@ -22,11 +22,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.junit.Assert;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -99,7 +98,7 @@ public class PstmtPersistenceTest extends CQLTester
         for (UntypedResultSet.Row row : QueryProcessor.executeOnceInternal(queryAll))
         {
             MD5Digest digest = MD5Digest.wrap(ByteBufferUtil.getArray(row.getBytes("prepared_id")));
-            ParsedStatement.Prepared prepared = QueryProcessor.instance.getPrepared(digest);
+            QueryProcessor.Prepared prepared = QueryProcessor.instance.getPrepared(digest);
             Assert.assertNotNull(prepared);
         }
 
@@ -128,8 +127,8 @@ public class PstmtPersistenceTest extends CQLTester
 
     private static void validatePstmt(QueryHandler handler, MD5Digest stmtId, QueryOptions options)
     {
-        ParsedStatement.Prepared prepared = handler.getPrepared(stmtId);
-        assertNotNull(prepared);
+        QueryProcessor.Prepared prepared = handler.getPrepared(stmtId);
+        Assert.assertNotNull(prepared);
         handler.processPrepared(prepared.statement, QueryState.forInternalCalls(), options, Collections.emptyMap(), System.nanoTime());
     }
 

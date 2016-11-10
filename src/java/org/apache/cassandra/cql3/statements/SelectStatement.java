@@ -25,8 +25,8 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.audit.IAuditLogContext;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -91,7 +91,7 @@ public class SelectStatement implements CQLStatement
 
     public static final int DEFAULT_PAGE_SIZE = 10000;
 
-    private final int boundTerms;
+    public final VariableSpecifications bindVariables;
     public final TableMetadata table;
     public final Parameters parameters;
     private final Selection selection;
@@ -120,7 +120,7 @@ public class SelectStatement implements CQLStatement
                                                                        false);
 
     public SelectStatement(TableMetadata table,
-                           int boundTerms,
+                           VariableSpecifications bindVariables,
                            Parameters parameters,
                            Selection selection,
                            StatementRestrictions restrictions,
@@ -131,7 +131,7 @@ public class SelectStatement implements CQLStatement
                            Term perPartitionLimit)
     {
         this.table = table;
-        this.boundTerms = boundTerms;
+        this.bindVariables = bindVariables;
         this.selection = selection;
         this.restrictions = restrictions;
         this.isReversed = isReversed;
@@ -142,6 +142,19 @@ public class SelectStatement implements CQLStatement
         this.perPartitionLimit = perPartitionLimit;
     }
 
+    @Override
+    public List<ColumnSpecification> getBindVariables()
+    {
+        return bindVariables.getBindVariables();
+    }
+
+    @Override
+    public short[] getPartitionKeyBindVariableIndexes()
+    {
+        return bindVariables.getPartitionKeyBindVariableIndexes(table);
+    }
+
+    @Override
     public Iterable<Function> getFunctions()
     {
         List<Function> functions = new ArrayList<>();
@@ -176,7 +189,7 @@ public class SelectStatement implements CQLStatement
     static SelectStatement forSelection(TableMetadata table, Selection selection)
     {
         return new SelectStatement(table,
-                                   0,
+                                   VariableSpecifications.empty(),
                                    defaultParameters,
                                    selection,
                                    StatementRestrictions.empty(StatementType.SELECT, table),
@@ -192,26 +205,21 @@ public class SelectStatement implements CQLStatement
         return selection.getResultMetadata();
     }
 
-    public int getBoundTerms()
-    {
-        return boundTerms;
-    }
-
-    public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
+    public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         if (table.isView())
         {
             TableMetadataRef baseTable = View.findBaseTable(keyspace(), columnFamily());
             if (baseTable != null)
-                state.hasColumnFamilyAccess(baseTable, Permission.SELECT);
+                state.ensureTablePermission(baseTable, Permission.SELECT);
         }
         else
         {
-            state.hasColumnFamilyAccess(table, Permission.SELECT);
+            state.ensureTablePermission(table, Permission.SELECT);
         }
 
         for (Function function : getFunctions())
-            state.ensureHasPermission(Permission.EXECUTE, function);
+            state.ensurePermission(Permission.EXECUTE, function);
     }
 
     public void validate(ClientState state) throws InvalidRequestException
@@ -418,7 +426,7 @@ public class SelectStatement implements CQLStatement
         return new ResultMessage.Rows(rset);
     }
 
-    public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
+    public ResultMessage.Rows executeLocally(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
         return executeInternal(state, options, FBUtilities.nowInSeconds(), System.nanoTime());
     }
@@ -911,7 +919,7 @@ public class SelectStatement implements CQLStatement
         Collections.sort(cqlRows.rows, orderingComparator);
     }
 
-    public static class RawStatement extends CFStatement
+    public static class RawStatement extends QualifiedStatement
     {
         public final Parameters parameters;
         public final List<RawSelector> selectClause;
@@ -919,7 +927,8 @@ public class SelectStatement implements CQLStatement
         public final Term.Raw limit;
         public final Term.Raw perPartitionLimit;
 
-        public RawStatement(CFName cfName, Parameters parameters,
+        public RawStatement(QualifiedName cfName,
+                            Parameters parameters,
                             List<RawSelector> selectClause,
                             WhereClause whereClause,
                             Term.Raw limit,
@@ -933,20 +942,19 @@ public class SelectStatement implements CQLStatement
             this.perPartitionLimit = perPartitionLimit;
         }
 
-        public ParsedStatement.Prepared prepare() throws InvalidRequestException
+        public SelectStatement prepare(ClientState state)
         {
             return prepare(false);
         }
 
-        public ParsedStatement.Prepared prepare(boolean forView) throws InvalidRequestException
+        public SelectStatement prepare(boolean forView) throws InvalidRequestException
         {
-            TableMetadata table = Schema.instance.validateTable(keyspace(), columnFamily());
-            VariableSpecifications boundNames = getBoundVariables();
+            TableMetadata table = Schema.instance.validateTable(keyspace(), name());
 
             List<Selectable> selectables = RawSelector.toSelectables(selectClause, table);
             boolean containsOnlyStaticColumns = selectOnlyStaticColumns(table, selectables);
 
-            StatementRestrictions restrictions = prepareRestrictions(table, boundNames, containsOnlyStaticColumns, forView);
+            StatementRestrictions restrictions = prepareRestrictions(table, bindVariables, containsOnlyStaticColumns, forView);
 
             // If we order post-query, the sorted column needs to be in the ResultSet for sorting,
             // even if we don't ultimately ship them to the client (CASSANDRA-4911).
@@ -956,7 +964,7 @@ public class SelectStatement implements CQLStatement
 
             Selection selection = prepareSelection(table,
                                                    selectables,
-                                                   boundNames,
+                                                   bindVariables,
                                                    resultSetOrderingColumns,
                                                    restrictions);
 
@@ -989,18 +997,16 @@ public class SelectStatement implements CQLStatement
 
             checkNeedsFiltering(restrictions);
 
-            SelectStatement stmt = new SelectStatement(table,
-                                                       boundNames.size(),
-                                                       parameters,
-                                                       selection,
-                                                       restrictions,
-                                                       isReversed,
-                                                       aggregationSpec,
-                                                       orderingComparator,
-                                                       prepareLimit(boundNames, limit, keyspace(), limitReceiver()),
-                                                       prepareLimit(boundNames, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
-
-            return new ParsedStatement.Prepared(stmt, boundNames, boundNames.getPartitionKeyBindIndexes(table));
+            return new SelectStatement(table,
+                                       bindVariables,
+                                       parameters,
+                                       selection,
+                                       restrictions,
+                                       isReversed,
+                                       aggregationSpec,
+                                       orderingComparator,
+                                       prepareLimit(bindVariables, limit, keyspace(), limitReceiver()),
+                                       prepareLimit(bindVariables, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
         }
 
         private Selection prepareSelection(TableMetadata table,
@@ -1258,19 +1264,19 @@ public class SelectStatement implements CQLStatement
 
         private ColumnSpecification limitReceiver()
         {
-            return new ColumnSpecification(keyspace(), columnFamily(), new ColumnIdentifier("[limit]", true), Int32Type.instance);
+            return new ColumnSpecification(keyspace(), name(), new ColumnIdentifier("[limit]", true), Int32Type.instance);
         }
 
         private ColumnSpecification perPartitionLimitReceiver()
         {
-            return new ColumnSpecification(keyspace(), columnFamily(), new ColumnIdentifier("[per_partition_limit]", true), Int32Type.instance);
+            return new ColumnSpecification(keyspace(), name(), new ColumnIdentifier("[per_partition_limit]", true), Int32Type.instance);
         }
 
         @Override
         public String toString()
         {
             return MoreObjects.toStringHelper(this)
-                              .add("name", cfName)
+                              .add("name", qualifiedName)
                               .add("selectClause", selectClause)
                               .add("whereClause", whereClause)
                               .add("isDistinct", parameters.isDistinct)

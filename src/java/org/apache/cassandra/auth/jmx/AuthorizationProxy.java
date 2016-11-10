@@ -53,7 +53,7 @@ import org.apache.cassandra.service.StorageService;
  *
  * Because an ObjectName may contain wildcards, meaning it represents a set of individual MBeans,
  * JMX resources don't fit well with the hierarchical approach modelled by other IResource
- * implementations and utilised by ClientState::ensureHasPermission etc. To enable grants to use
+ * implementations and utilised by ClientState::ensurePermission etc. To enable grants to use
  * pattern-type ObjectNames, this class performs its own custom matching and filtering of resources
  * rather than pushing that down to the configured IAuthorizer. To that end, during authorization
  * it pulls back all permissions for the active subject, filtering them to retain only grants on

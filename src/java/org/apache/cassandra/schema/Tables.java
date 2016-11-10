@@ -17,32 +17,38 @@
  */
 package org.apache.cassandra.schema;
 
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.MapDifference;
-import com.google.common.collect.Maps;
+import com.google.common.collect.*;
 
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.index.internal.CassandraIndex;
 
-import static com.google.common.collect.Iterables.filter;
+import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Iterables.transform;
 
 /**
  * An immutable container for a keyspace's Tables.
  */
 public final class Tables implements Iterable<TableMetadata>
 {
+    private static final Tables NONE = builder().build();
+
     private final ImmutableMap<String, TableMetadata> tables;
+    private final ImmutableMap<TableId, TableMetadata> tablesById;
     private final ImmutableMap<String, TableMetadata> indexTables;
 
     private Tables(Builder builder)
     {
         tables = builder.tables.build();
+        tablesById = builder.tablesById.build();
         indexTables = builder.indexTables.build();
     }
 
@@ -53,7 +59,7 @@ public final class Tables implements Iterable<TableMetadata>
 
     public static Tables none()
     {
-        return builder().build();
+        return NONE;
     }
 
     public static Tables of(TableMetadata... tables)
@@ -69,6 +75,11 @@ public final class Tables implements Iterable<TableMetadata>
     public Iterator<TableMetadata> iterator()
     {
         return tables.values().iterator();
+    }
+
+    public Iterable<TableMetadata> referencingUserType(ByteBuffer name)
+    {
+        return Iterables.filter(tables.values(), t -> t.referencesUserType(name));
     }
 
     ImmutableMap<String, TableMetadata> indexTables()
@@ -105,9 +116,21 @@ public final class Tables implements Iterable<TableMetadata>
     }
 
     @Nullable
-    public TableMetadata getIndexTableNullable(String name)
+    TableMetadata getNullable(TableId id)
     {
-        return indexTables.get(name);
+        return tablesById.get(id);
+    }
+
+    boolean containsTable(TableId id)
+    {
+        return tablesById.containsKey(id);
+    }
+
+    public Tables filter(Predicate<TableMetadata> predicate)
+    {
+        Builder builder = builder();
+        tables.values().stream().filter(predicate).forEach(builder::add);
+        return builder.build();
     }
 
     /**
@@ -134,18 +157,19 @@ public final class Tables implements Iterable<TableMetadata>
         TableMetadata table =
             get(name).orElseThrow(() -> new IllegalStateException(String.format("Table %s doesn't exists", name)));
 
-        return builder().add(filter(this, t -> t != table)).build();
+        return without(table);
     }
 
-    MapDifference<TableId, TableMetadata> diff(Tables other)
+    public Tables without(TableMetadata table)
     {
-        Map<TableId, TableMetadata> thisTables = new HashMap<>();
-        this.forEach(t -> thisTables.put(t.id, t));
+        return filter(t -> t != table);
+    }
 
-        Map<TableId, TableMetadata> otherTables = new HashMap<>();
-        other.forEach(t -> otherTables.put(t.id, t));
-
-        return Maps.difference(thisTables, otherTables);
+    public Tables withUpdatedUserType(UserType udt)
+    {
+        return any(this, t -> t.referencesUserType(udt.name))
+             ? builder().add(transform(this, t -> t.withUpdatedUserType(udt))).build()
+             : this;
     }
 
     MapDifference<String, TableMetadata> indexesDiff(Tables other)
@@ -180,6 +204,7 @@ public final class Tables implements Iterable<TableMetadata>
     public static final class Builder
     {
         final ImmutableMap.Builder<String, TableMetadata> tables = new ImmutableMap.Builder<>();
+        final ImmutableMap.Builder<TableId, TableMetadata> tablesById = new ImmutableMap.Builder<>();
         final ImmutableMap.Builder<String, TableMetadata> indexTables = new ImmutableMap.Builder<>();
 
         private Builder()
@@ -194,6 +219,8 @@ public final class Tables implements Iterable<TableMetadata>
         public Builder add(TableMetadata table)
         {
             tables.put(table.name, table);
+
+            tablesById.put(table.id, table);
 
             table.indexes
                  .stream()
@@ -215,6 +242,40 @@ public final class Tables implements Iterable<TableMetadata>
         {
             tables.forEach(this::add);
             return this;
+        }
+    }
+
+    static TablesDiff diff(Tables before, Tables after)
+    {
+        return TablesDiff.diff(before, after);
+    }
+
+    public static final class TablesDiff extends Diff<Tables, TableMetadata>
+    {
+        private final static TablesDiff NONE = new TablesDiff(Tables.none(), Tables.none(), ImmutableList.of());
+
+        private TablesDiff(Tables created, Tables dropped, ImmutableCollection<Altered<TableMetadata>> altered)
+        {
+            super(created, dropped, altered);
+        }
+
+        private static TablesDiff diff(Tables before, Tables after)
+        {
+            if (before == after)
+                return NONE;
+
+            Tables created = after.filter(t -> !before.containsTable(t.id));
+            Tables dropped = before.filter(t -> !after.containsTable(t.id));
+
+            ImmutableList.Builder<Altered<TableMetadata>> altered = ImmutableList.builder();
+            before.forEach(tableBefore ->
+            {
+                TableMetadata tableAfter = after.getNullable(tableBefore.id);
+                if (null != tableAfter)
+                    tableBefore.compare(tableAfter).ifPresent(kind -> altered.add(new Altered<>(tableBefore, tableAfter, kind)));
+            });
+
+            return new TablesDiff(created, dropped, altered.build());
         }
     }
 }

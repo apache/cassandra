@@ -65,6 +65,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -631,8 +632,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public synchronized void initServer(int delay) throws ConfigurationException
     {
         logger.info("Cassandra version: {}", FBUtilities.getReleaseVersionString());
-        logger.info("CQL supported versions: {} (default: {})",
-                StringUtils.join(ClientState.getCQLSupportedVersion(), ", "), ClientState.DEFAULT_CQL_VERSION);
+        logger.info("CQL version: {}", QueryProcessor.CQL_VERSION);
         logger.info("Native protocol supported versions: {} (default: {})",
                     StringUtils.join(ProtocolVersion.supportedVersions(), ", "), ProtocolVersion.CURRENT);
 
@@ -1590,7 +1590,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (String keyspace : Schema.instance.getUserKeyspaces())
         {
             for (ViewMetadata view: Schema.instance.getKeyspaceMetadata(keyspace).views)
-                SystemKeyspace.finishViewBuildStatus(view.keyspace, view.name);
+                SystemKeyspace.finishViewBuildStatus(view.keyspace(), view.name());
         }
     }
 

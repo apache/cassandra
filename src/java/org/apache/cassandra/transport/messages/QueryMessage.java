@@ -24,9 +24,9 @@ import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.audit.AuditLogEntry;
 import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
@@ -122,13 +122,13 @@ public class QueryMessage extends Message.Request
 
             if (isLoggingEnabled)
             {
-                ParsedStatement.Prepared parsedStatement = QueryProcessor.parseStatement(query, state.getClientState());
+                CQLStatement parsedStatement = QueryProcessor.parseStatement(query, state.getClientState());
                 AuditLogEntry auditEntry = new AuditLogEntry.Builder(state.getClientState())
-                                           .setType(parsedStatement.statement.getAuditLogContext().auditLogEntryType)
+                                           .setType(parsedStatement.getAuditLogContext().auditLogEntryType)
                                            .setOperation(query)
                                            .setTimestamp(fqlTime)
-                                           .setScope(parsedStatement.statement)
-                                           .setKeyspace(state, parsedStatement.statement)
+                                           .setScope(parsedStatement)
+                                           .setKeyspace(state, parsedStatement)
                                            .setOptions(options)
                                            .build();
                 AuditLogManager.getInstance().log(auditEntry);

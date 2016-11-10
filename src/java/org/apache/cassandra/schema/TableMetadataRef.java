@@ -66,7 +66,7 @@ public final class TableMetadataRef
      */
     void set(TableMetadata metadata)
     {
-        get().validateCompatibility(metadata);
+        metadata.validateCompatibility(get());
         this.metadata = metadata;
     }
 

@@ -64,6 +64,7 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -715,7 +716,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
                 String format = "select event_id, source, source_port, activity from %s.%s where session_id = ? and event_id > ? and event_id < ?;";
                 String query = String.format(format, SchemaConstants.TRACE_KEYSPACE_NAME, TraceKeyspace.EVENTS);
-                SelectStatement statement = (SelectStatement) QueryProcessor.parseStatement(query).prepare().statement;
+                SelectStatement statement = (SelectStatement) QueryProcessor.parseStatement(query).prepare(ClientState.forInternalCalls());
 
                 ByteBuffer sessionIdBytes = ByteBufferUtil.bytes(sessionId);
                 InetAddressAndPort source = FBUtilities.getBroadcastAddressAndPort();

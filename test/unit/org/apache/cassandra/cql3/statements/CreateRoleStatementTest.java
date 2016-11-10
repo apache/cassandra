@@ -23,6 +23,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.auth.DCPermissions;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 
@@ -31,7 +32,7 @@ public class CreateRoleStatementTest extends CQLTester
 
     private static CreateRoleStatement parse(String query)
     {
-        ParsedStatement stmt = QueryProcessor.parseStatement(query);
+        CQLStatement.Raw stmt = QueryProcessor.parseStatement(query);
         Assert.assertTrue(stmt instanceof CreateRoleStatement);
         return (CreateRoleStatement) stmt;
     }

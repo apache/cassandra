@@ -85,7 +85,7 @@ public class TableViews extends AbstractCollection<View>
     public Iterable<ColumnFamilyStore> allViewsCfs()
     {
         Keyspace keyspace = Keyspace.open(baseTableMetadata.keyspace);
-        return Iterables.transform(views, view -> keyspace.getColumnFamilyStore(view.getDefinition().name));
+        return Iterables.transform(views, view -> keyspace.getColumnFamilyStore(view.getDefinition().name()));
     }
 
     public void forceBlockingFlush()

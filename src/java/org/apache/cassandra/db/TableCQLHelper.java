@@ -26,7 +26,7 @@ import java.util.function.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.cql3.statements.*;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.utils.*;

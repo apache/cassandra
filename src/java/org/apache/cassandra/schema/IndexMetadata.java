@@ -32,7 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.statements.IndexTarget;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
@@ -98,12 +98,14 @@ public final class IndexMetadata
         return name != null && !name.isEmpty() && PATTERN_WORD_CHARS.matcher(name).matches();
     }
 
-    public static String getDefaultIndexName(String cfName, String root)
+    public static String generateDefaultIndexName(String table, ColumnIdentifier column)
     {
-        if (root == null)
-            return PATTERN_NON_WORD_CHAR.matcher(cfName + "_" + "idx").replaceAll("");
-        else
-            return PATTERN_NON_WORD_CHAR.matcher(cfName + "_" + root + "_idx").replaceAll("");
+        return PATTERN_NON_WORD_CHAR.matcher(table + "_" + column.toString() + "_idx").replaceAll("");
+    }
+
+    public static String generateDefaultIndexName(String table)
+    {
+        return PATTERN_NON_WORD_CHAR.matcher(table + "_" + "idx").replaceAll("");
     }
 
     public void validate(TableMetadata table)

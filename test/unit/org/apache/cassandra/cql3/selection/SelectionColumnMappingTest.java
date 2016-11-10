@@ -124,7 +124,7 @@ public class SelectionColumnMappingTest extends CQLTester
         // we don't use verify like with the other tests because this query will produce no results
         SelectStatement statement = getSelect("SELECT token(a,b) FROM %s");
         verifyColumnMapping(expected, statement);
-        statement.executeInternal(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
+        statement.executeLocally(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
     }
 
     private void testSimpleTypes() throws Throwable
@@ -581,8 +581,8 @@ public class SelectionColumnMappingTest extends CQLTester
     private void checkExecution(SelectStatement statement, List<ColumnSpecification> expectedResultColumns)
     throws RequestExecutionException, RequestValidationException
     {
-        UntypedResultSet rs = UntypedResultSet.create(statement.executeInternal(QueryState.forInternalCalls(),
-                                                                                QueryOptions.DEFAULT).result);
+        UntypedResultSet rs = UntypedResultSet.create(statement.executeLocally(QueryState.forInternalCalls(),
+                                                                               QueryOptions.DEFAULT).result);
 
         assertEquals(expectedResultColumns, rs.one().getColumns());
     }
@@ -590,7 +590,7 @@ public class SelectionColumnMappingTest extends CQLTester
     private SelectStatement getSelect(String query) throws RequestValidationException
     {
         CQLStatement statement = QueryProcessor.getStatement(String.format(query, KEYSPACE + "." + tableName),
-                                                             ClientState.forInternalCalls()).statement;
+                                                             ClientState.forInternalCalls());
         assertTrue(statement instanceof SelectStatement);
         return (SelectStatement)statement;
     }

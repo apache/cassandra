@@ -279,34 +279,34 @@ public class VirtualTableTest extends CQLTester
     @Test
     public void testInvalidDDLOperations() throws Throwable
     {
-        assertInvalidMessage("Cannot drop virtual keyspaces",
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "DROP KEYSPACE test_virtual_ks");
 
-        assertInvalidMessage("Cannot alter virtual keyspaces",
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "ALTER KEYSPACE test_virtual_ks WITH durable_writes = false");
 
-        assertInvalidMessage("Cannot create tables in virtual keyspaces",
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "CREATE TABLE test_virtual_ks.test (id int PRIMARY KEY)");
 
-        assertInvalidMessage("Cannot create types in virtual keyspaces",
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "CREATE TYPE test_virtual_ks.type (id int)");
 
-        assertInvalidMessage("Cannot drop virtual tables",
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "DROP TABLE test_virtual_ks.vt1");
 
-        assertInvalidMessage("Cannot alter virtual tables",
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "ALTER TABLE test_virtual_ks.vt1 DROP v1");
 
-        assertInvalidMessage("Cannot truncate virtual tables",
+        assertInvalidMessage("Error during truncate: Cannot truncate virtual tables",
                              "TRUNCATE TABLE test_virtual_ks.vt1");
 
-        assertInvalidMessage("Secondary indexes are not supported on virtual tables",
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "CREATE INDEX ON test_virtual_ks.vt1 (v1)");
 
-        assertInvalidMessage("Materialized views are not supported on virtual tables",
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "CREATE MATERIALIZED VIEW test_virtual_ks.mvt1 AS SELECT c, v1 FROM test_virtual_ks.vt1 WHERE c IS NOT NULL PRIMARY KEY(c)");
 
-        assertInvalidMessage("Cannot CREATE TRIGGER against a virtual table",
+        assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "CREATE TRIGGER test_trigger ON test_virtual_ks.vt1 USING '" + TestTrigger.class.getName() + '\'');
     }
 

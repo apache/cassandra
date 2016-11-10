@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
@@ -307,7 +308,7 @@ public class UFIdentificationTest extends CQLTester
         statements.add(modificationStatement(cql("INSERT INTO %s (key, i_cc, t_cc) VALUES (2, 2, %s)",
                                                  functionCall(tFunc, "'foo'"))));
 
-        BatchStatement batch = new BatchStatement(-1, BatchStatement.Type.LOGGED, statements, Attributes.none());
+        BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED, VariableSpecifications.empty(), statements, Attributes.none());
         assertFunctions(batch, iFunc, iFunc2, tFunc);
     }
 
@@ -320,18 +321,18 @@ public class UFIdentificationTest extends CQLTester
         statements.add(modificationStatement(cql("UPDATE %s SET i_val = %s WHERE key=0 AND i_cc=1 and t_cc='foo' IF s_val = %s",
                                                  functionCall(iFunc, "0"), functionCall(sFunc, "{1}"))));
 
-        BatchStatement batch = new BatchStatement(-1, BatchStatement.Type.LOGGED, statements, Attributes.none());
+        BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED, VariableSpecifications.empty(), statements, Attributes.none());
         assertFunctions(batch, iFunc, lFunc, sFunc);
     }
 
     private ModificationStatement modificationStatement(String cql)
     {
-        return (ModificationStatement) QueryProcessor.getStatement(cql, ClientState.forInternalCalls()).statement;
+        return (ModificationStatement) QueryProcessor.getStatement(cql, ClientState.forInternalCalls());
     }
 
     private void assertFunctions(String cql, String... function)
     {
-        CQLStatement stmt = QueryProcessor.getStatement(cql, ClientState.forInternalCalls()).statement;
+        CQLStatement stmt = QueryProcessor.getStatement(cql, ClientState.forInternalCalls());
         assertFunctions(stmt, function);
     }
 

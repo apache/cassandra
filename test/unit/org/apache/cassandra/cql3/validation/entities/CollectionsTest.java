@@ -684,11 +684,11 @@ public class CollectionsTest extends CQLTester
     @Test
     public void testDropAndReaddDroppedCollection() throws Throwable
     {
-        createTable("create table %s (k int primary key, v frozen<set<text>>, x int)");
+        createTable("create table %s (k int primary key, v set<text>, x int)");
         execute("insert into %s (k, v) VALUES (0, {'fffffffff'})");
         flush();
         execute("alter table %s drop v");
-        execute("alter table %s add v set<int>");
+        execute("alter table %s add v set<text>");
     }
 
     @Test
@@ -1652,9 +1652,9 @@ public class CollectionsTest extends CQLTester
     public void testCollectionSliceOnMV() throws Throwable
     {
         createTable("CREATE TABLE %s (k int, c int, l text, m map<text, text>, o int, PRIMARY KEY (k, c))");
-        assertInvalidMessage("Cannot use collection element selection when defining a materialized view",
+        assertInvalidMessage("Can only select columns by name when defining a materialized view (got m['abc'])",
                              "CREATE MATERIALIZED VIEW " + KEYSPACE + ".view1 AS SELECT m['abc'] FROM %s WHERE k IS NOT NULL AND c IS NOT NULL AND m IS NOT NULL PRIMARY KEY (c, k)");
-        assertInvalidMessage("Cannot use collection slice selection when defining a materialized view",
+        assertInvalidMessage("Can only select columns by name when defining a materialized view (got m['abc'..'def'])",
                              "CREATE MATERIALIZED VIEW " + KEYSPACE + ".view1 AS SELECT m['abc'..'def'] FROM %s WHERE k IS NOT NULL AND c IS NOT NULL AND m IS NOT NULL PRIMARY KEY (c, k)");
     }
 
@@ -1762,7 +1762,7 @@ public class CollectionsTest extends CQLTester
         String type = createType("CREATE TYPE %s (s set<int>, m map<text, text>)");
 
         assertInvalidMessage("Non-frozen UDTs are not allowed inside collections",
-                             "CREATE TABLE " + KEYSPACE + "t (k int PRIMARY KEY, v map<text, " + type + ">)");
+                             "CREATE TABLE " + KEYSPACE + ".t (k int PRIMARY KEY, v map<text, " + type + ">)");
 
         String mapType = "map<text, frozen<" + type + ">>";
         for (boolean frozen : new boolean[]{false, true})

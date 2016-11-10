@@ -37,7 +37,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
-import org.apache.cassandra.cql3.statements.IndexTarget;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -54,7 +54,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-import static org.apache.cassandra.cql3.statements.IndexTarget.CUSTOM_INDEX_OPTION_NAME;
+import static org.apache.cassandra.cql3.statements.schema.IndexTarget.CUSTOM_INDEX_OPTION_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -163,11 +163,11 @@ public class CustomIndexTest extends CQLTester
     {
         createTable("CREATE TABLE %s(k int, c int, v1 int, v2 int, PRIMARY KEY (k,c))");
 
-        assertInvalidMessage("Duplicate column v1 in index target list",
+        assertInvalidMessage("Duplicate column 'v1' in index target list",
                              String.format("CREATE CUSTOM INDEX ON %%s(v1, v1) USING '%s'",
                                            StubIndex.class.getName()));
 
-        assertInvalidMessage("Duplicate column v1 in index target list",
+        assertInvalidMessage("Duplicate column 'v1' in index target list",
                              String.format("CREATE CUSTOM INDEX ON %%s(v1, v1, c, c) USING '%s'",
                                            StubIndex.class.getName()));
     }

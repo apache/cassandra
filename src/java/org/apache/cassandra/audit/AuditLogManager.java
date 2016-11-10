@@ -31,8 +31,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -187,7 +187,7 @@ public class AuditLogManager
     /**
      * Logs Batch queries to both FQL and standard audit logger.
      */
-    public void logBatch(String batchTypeName, List<Object> queryOrIdList, List<List<ByteBuffer>> values, List<ParsedStatement.Prepared> prepared, QueryOptions options, QueryState state, long queryStartTimeMillis)
+    public void logBatch(String batchTypeName, List<Object> queryOrIdList, List<List<ByteBuffer>> values, List<QueryHandler.Prepared> prepared, QueryOptions options, QueryState state, long queryStartTimeMillis)
     {
         if (isAuditingEnabled())
         {
@@ -201,7 +201,7 @@ public class AuditLogManager
         if (isFQLEnabled())
         {
             List<String> queryStrings = new ArrayList<>(queryOrIdList.size());
-            for (ParsedStatement.Prepared prepStatment : prepared)
+            for (QueryHandler.Prepared prepStatment : prepared)
             {
                 queryStrings.add(prepStatment.rawCQLStatement);
             }
@@ -209,7 +209,7 @@ public class AuditLogManager
         }
     }
 
-    private static List<AuditLogEntry> buildEntriesForBatch(List<Object> queryOrIdList, List<ParsedStatement.Prepared> prepared, QueryState state, QueryOptions options, long queryStartTimeMillis)
+    private static List<AuditLogEntry> buildEntriesForBatch(List<Object> queryOrIdList, List<QueryHandler.Prepared> prepared, QueryState state, QueryOptions options, long queryStartTimeMillis)
     {
         List<AuditLogEntry> auditLogEntries = new ArrayList<>(queryOrIdList.size() + 1);
         UUID batchId = UUID.randomUUID();

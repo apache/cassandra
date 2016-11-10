@@ -27,8 +27,8 @@ public class DropTest extends CQLTester
     @Test
     public void testNonExistingOnes() throws Throwable
     {
-        assertInvalidMessage("Cannot drop non existing table", "DROP TABLE " + KEYSPACE + ".table_does_not_exist");
-        assertInvalidMessage("Cannot drop table in unknown keyspace", "DROP TABLE keyspace_does_not_exist.table_does_not_exist");
+        assertInvalidMessage(String.format("Table '%s.table_does_not_exist' doesn't exist", KEYSPACE),  "DROP TABLE " + KEYSPACE + ".table_does_not_exist");
+        assertInvalidMessage("Table 'keyspace_does_not_exist.table_does_not_exist' doesn't exist", "DROP TABLE keyspace_does_not_exist.table_does_not_exist");
 
         execute("DROP TABLE IF EXISTS " + KEYSPACE + ".table_does_not_exist");
         execute("DROP TABLE IF EXISTS keyspace_does_not_exist.table_does_not_exist");

@@ -205,7 +205,7 @@ public class MigrationManagerTest
         store.forceBlockingFlush();
         assertTrue(store.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().size() > 0);
 
-        MigrationManager.announceTableDrop(ks.name, cfm.name);
+        MigrationManager.announceTableDrop(ks.name, cfm.name, false);
 
         assertFalse(Schema.instance.getKeyspaceMetadata(ks.name).tables.get(cfm.name).isPresent());
 

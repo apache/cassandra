@@ -22,10 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
 
-import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.MD5Digest;
 

@@ -101,7 +101,7 @@ public class ViewManager
         Map<String, ViewMetadata> newViewsByName = Maps.newHashMapWithExpectedSize(views.size());
         for (ViewMetadata definition : views)
         {
-            newViewsByName.put(definition.name, definition);
+            newViewsByName.put(definition.name(), definition);
         }
 
         for (String viewName : viewsByName.keySet())
@@ -147,14 +147,14 @@ public class ViewManager
         if (!keyspace.hasColumnFamilyStore(definition.baseTableId))
         {
             logger.warn("Not adding view {} because the base table {} is unknown",
-                        definition.name,
+                        definition.name(),
                         definition.baseTableId);
             return;
         }
 
         View view = new View(definition, keyspace.getColumnFamilyStore(definition.baseTableId));
         forTable(view.getDefinition().baseTableId).add(view);
-        viewsByName.put(definition.name, view);
+        viewsByName.put(definition.name(), view);
     }
 
     public void removeView(String name)

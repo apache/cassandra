@@ -1296,6 +1296,12 @@ public interface Selectable extends AssignmentTestable
             {
                 return new WithElementSelection(selected.prepare(cfm), element);
             }
+
+            @Override
+            public String toString()
+            {
+                return String.format("%s[%s]", selected, element);
+            }
         }
     }
 
@@ -1378,6 +1384,12 @@ public interface Selectable extends AssignmentTestable
             public WithSliceSelection prepare(TableMetadata cfm)
             {
                 return new WithSliceSelection(selected.prepare(cfm), from, to);
+            }
+
+            @Override
+            public String toString()
+            {
+                return String.format("%s[%s..%s]", selected, from == null ? "" : from, to == null ? "" : to);
             }
         }
     }

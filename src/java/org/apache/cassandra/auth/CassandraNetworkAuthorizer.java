@@ -46,7 +46,7 @@ public class CassandraNetworkAuthorizer implements INetworkAuthorizer
         String query = String.format("SELECT dcs FROM %s.%s WHERE role = ?",
                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                      AuthKeyspace.NETWORK_PERMISSIONS);
-        authorizeUserStatement = (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls()).statement;
+        authorizeUserStatement = (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls());
     }
 
     @VisibleForTesting

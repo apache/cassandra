@@ -39,7 +39,7 @@ public abstract class RoleManagementStatement extends AuthenticationStatement
         this.grantee = RoleResource.role(grantee.getName());
     }
 
-    public void checkAccess(ClientState state) throws UnauthorizedException
+    public void authorize(ClientState state) throws UnauthorizedException
     {
         super.checkPermission(state, Permission.AUTHORIZE, role);
     }

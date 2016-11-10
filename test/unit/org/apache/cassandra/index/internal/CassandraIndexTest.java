@@ -510,10 +510,10 @@ public class CassandraIndexTest extends CQLTester
 
 
     // this is slightly annoying, but we cannot read rows from the methods in Util as
-    // ReadCommand#executeInternal uses metadata retrieved via the tableId, which the index
+    // ReadCommand#executeLocally uses metadata retrieved via the tableId, which the index
     // CFS inherits from the base CFS. This has the 'wrong' partitioner (the index table
     // uses LocalPartition, the base table a real one, so we cannot read from the index
-    // table with executeInternal
+    // table with executeLocally
     private void assertIndexRowTtl(ColumnFamilyStore indexCfs, int indexedValue, int ttl) throws Throwable
     {
         DecoratedKey indexKey = indexCfs.decorateKey(ByteBufferUtil.bytes(indexedValue));

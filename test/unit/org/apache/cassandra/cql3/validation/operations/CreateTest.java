@@ -25,22 +25,21 @@ import java.util.UUID;
 
 import org.junit.Test;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.AbstractEndpointSnitch;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.triggers.ITrigger;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -91,14 +90,14 @@ public class CreateTest extends CQLTester
     @Test
     public void testCreateTableWithDurationColumns() throws Throwable
     {
-        assertInvalidMessage("duration type is not supported for PRIMARY KEY part a",
-                             "CREATE TABLE test (a duration PRIMARY KEY, b int);");
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'a'",
+                             "CREATE TABLE cql_test_keyspace.table0 (a duration PRIMARY KEY, b int);");
 
-        assertInvalidMessage("duration type is not supported for PRIMARY KEY part b",
-                             "CREATE TABLE test (a text, b duration, c duration, primary key (a, b));");
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'b'",
+                             "CREATE TABLE cql_test_keyspace.table0 (a text, b duration, c duration, primary key (a, b));");
 
-        assertInvalidMessage("duration type is not supported for PRIMARY KEY part b",
-                             "CREATE TABLE test (a text, b duration, c duration, primary key (a, b)) with clustering order by (b DESC);");
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'b'",
+                             "CREATE TABLE cql_test_keyspace.table0 (a text, b duration, c duration, primary key (a, b)) with clustering order by (b DESC);");
 
         createTable("CREATE TABLE %s (a int, b int, c duration, primary key (a, b));");
         execute("INSERT INTO %s (a, b, c) VALUES (1, 1, 1y2mo)");
@@ -178,25 +177,25 @@ public class CreateTest extends CQLTester
 
         // Test duration within Map
         assertInvalidMessage("Durations are not allowed as map keys: map<duration, text>",
-                             "CREATE TABLE test(pk int PRIMARY KEY, m map<duration, text>)");
+                             "CREATE TABLE cql_test_keyspace.table0(pk int PRIMARY KEY, m map<duration, text>)");
 
         createTable("CREATE TABLE %s(pk int PRIMARY KEY, m map<text, duration>)");
         execute("INSERT INTO %s (pk, m) VALUES (1, {'one month' : 1mo, '60 days' : 60d})");
         assertRows(execute("SELECT * FROM %s"),
                    row(1, map("one month", Duration.from("1mo"), "60 days", Duration.from("60d"))));
 
-        assertInvalidMessage("duration type is not supported for PRIMARY KEY part m",
-                "CREATE TABLE %s(m frozen<map<text, duration>> PRIMARY KEY, v int)");
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'm'",
+                "CREATE TABLE cql_test_keyspace.table0(m frozen<map<text, duration>> PRIMARY KEY, v int)");
 
-        assertInvalidMessage("duration type is not supported for PRIMARY KEY part m",
-                             "CREATE TABLE %s(pk int, m frozen<map<text, duration>>, v int, PRIMARY KEY (pk, m))");
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'm'",
+                             "CREATE TABLE cql_test_keyspace.table0(pk int, m frozen<map<text, duration>>, v int, PRIMARY KEY (pk, m))");
 
         // Test duration within Set
         assertInvalidMessage("Durations are not allowed inside sets: set<duration>",
-                             "CREATE TABLE %s(pk int PRIMARY KEY, s set<duration>)");
+                             "CREATE TABLE cql_test_keyspace.table0(pk int PRIMARY KEY, s set<duration>)");
 
         assertInvalidMessage("Durations are not allowed inside sets: frozen<set<duration>>",
-                             "CREATE TABLE %s(s frozen<set<duration>> PRIMARY KEY, v int)");
+                             "CREATE TABLE cql_test_keyspace.table0(s frozen<set<duration>> PRIMARY KEY, v int)");
 
         // Test duration within List
         createTable("CREATE TABLE %s(pk int PRIMARY KEY, l list<duration>)");
@@ -204,8 +203,8 @@ public class CreateTest extends CQLTester
         assertRows(execute("SELECT * FROM %s"),
                    row(1, list(Duration.from("1mo"), Duration.from("60d"))));
 
-        assertInvalidMessage("duration type is not supported for PRIMARY KEY part l",
-                             "CREATE TABLE %s(l frozen<list<duration>> PRIMARY KEY, v int)");
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'l'",
+                             "CREATE TABLE cql_test_keyspace.table0(l frozen<list<duration>> PRIMARY KEY, v int)");
 
         // Test duration within Tuple
         createTable("CREATE TABLE %s(pk int PRIMARY KEY, t tuple<int, duration>)");
@@ -213,8 +212,8 @@ public class CreateTest extends CQLTester
         assertRows(execute("SELECT * FROM %s"),
                    row(1, tuple(1, Duration.from("1mo"))));
 
-        assertInvalidMessage("duration type is not supported for PRIMARY KEY part t",
-                             "CREATE TABLE %s(t frozen<tuple<int, duration>> PRIMARY KEY, v int)");
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY column 't'",
+                             "CREATE TABLE cql_test_keyspace.table0(t frozen<tuple<int, duration>> PRIMARY KEY, v int)");
 
         // Test duration within UDT
         String typename = createType("CREATE TYPE %s (a duration)");
@@ -224,12 +223,12 @@ public class CreateTest extends CQLTester
         assertRows(execute("SELECT * FROM %s"),
                    row(1, userType("a", Duration.from("1mo"))));
 
-        assertInvalidMessage("duration type is not supported for PRIMARY KEY part u",
-                             "CREATE TABLE %s(pk int, u frozen<" + myType + ">, v int, PRIMARY KEY(pk, u))");
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'u'",
+                             "CREATE TABLE cql_test_keyspace.table0(pk int, u frozen<" + myType + ">, v int, PRIMARY KEY(pk, u))");
 
         // Test duration with several level of depth
-        assertInvalidMessage("duration type is not supported for PRIMARY KEY part m",
-                "CREATE TABLE %s(pk int, m frozen<map<text, list<tuple<int, duration>>>>, v int, PRIMARY KEY (pk, m))");
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY column 'm'",
+                "CREATE TABLE cql_test_keyspace.table0(pk int, m frozen<map<text, list<tuple<int, duration>>>>, v int, PRIMARY KEY (pk, m))");
     }
 
     private ByteBuffer duration(long months, long days, long nanoseconds) throws IOException
@@ -336,7 +335,7 @@ public class CreateTest extends CQLTester
     @Test
     public void testObsoleteTableProperties() throws Throwable
     {
-        assertInvalidThrow(SyntaxException.class, "CREATE TABLE test (foo text PRIMARY KEY, c int) WITH default_validation=timestamp");
+        assertInvalidThrow(SyntaxException.class, "CREATE TABLE cql_test_keyspace.table0 (foo text PRIMARY KEY, c int) WITH default_validation=timestamp");
 
         createTable("CREATE TABLE %s (foo text PRIMARY KEY, c int)");
         assertInvalidThrow(SyntaxException.class, "ALTER TABLE %s WITH default_validation=int");
@@ -357,7 +356,7 @@ public class CreateTest extends CQLTester
                      "CREATE KEYSPACE My_much_much_too_long_identifier_that_should_not_work WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
 
         execute("DROP KEYSPACE testXYZ");
-        assertInvalidThrow(ConfigurationException.class, "DROP KEYSPACE non_existing");
+        assertInvalidThrow(InvalidRequestException.class, "DROP KEYSPACE non_existing");
 
         execute("CREATE KEYSPACE testXYZ WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
 
@@ -419,7 +418,15 @@ public class CreateTest extends CQLTester
         String table4 = createTableName();
 
         // repeated column
-        assertInvalidMessage("Multiple definition of identifier k", String.format("CREATE TABLE %s (k int PRIMARY KEY, c int, k text)", table4));
+        assertInvalidMessage("Duplicate column 'k' declaration for table", String.format("CREATE TABLE %s (k int PRIMARY KEY, c int, k text)", table4));
+
+        // compact storage limitations
+        assertInvalidThrow(SyntaxException.class,
+                           String.format("CREATE TABLE %s (k int, name, int, c1 int, c2 int, PRIMARY KEY(k, name)) WITH COMPACT STORAGE", table4));
+
+        execute(String.format("DROP TABLE %s.%s", keyspace(), table1));
+
+        createTable(String.format("CREATE TABLE %s.%s ( k int PRIMARY KEY, c1 int, c2 int, ) ", keyspace(), table1));
     }
 
     /**
@@ -682,7 +689,7 @@ public class CreateTest extends CQLTester
     @Test
     public void compactTableTest() throws Throwable
     {
-        assertInvalidMessage("Compact tables are not allowed in Cassandra starting with 4.0 version.",
+        assertInvalidMessage("COMPACT STORAGE tables are not allowed starting with version 4.0",
                              "CREATE TABLE compact_table_create (id text PRIMARY KEY, content text) WITH COMPACT STORAGE;");
     }
 

@@ -322,7 +322,7 @@ public class AlterTest extends CQLTester
         execute("insert into %s (k, v) VALUES (0, {'f'})");
         flush();
         execute("alter table %s drop v");
-        execute("alter table %s add v int");
+        execute("alter table %s add v1 int");
     }
 
     @Test
@@ -358,7 +358,7 @@ public class AlterTest extends CQLTester
                            currentTable()),
                    row(map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
 
-        execute("ALTER TABLE %s WITH compression = { 'sstable_compression' : 'LZ4Compressor', 'chunk_length_kb' : 64 };");
+        execute("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'chunk_length_in_kb' : 64 };");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
@@ -367,7 +367,7 @@ public class AlterTest extends CQLTester
                            currentTable()),
                    row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
 
-        execute("ALTER TABLE %s WITH compression = { 'sstable_compression' : 'LZ4Compressor', 'min_compress_ratio' : 2 };");
+        execute("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 2 };");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
@@ -376,7 +376,7 @@ public class AlterTest extends CQLTester
                            currentTable()),
                    row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "2.0")));
 
-        execute("ALTER TABLE %s WITH compression = { 'sstable_compression' : 'LZ4Compressor', 'min_compress_ratio' : 1 };");
+        execute("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 1 };");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
@@ -385,7 +385,7 @@ public class AlterTest extends CQLTester
                            currentTable()),
                    row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor", "min_compress_ratio", "1.0")));
 
-        execute("ALTER TABLE %s WITH compression = { 'sstable_compression' : 'LZ4Compressor', 'min_compress_ratio' : 0 };");
+        execute("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 0 };");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
@@ -393,15 +393,6 @@ public class AlterTest extends CQLTester
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
-
-        execute("ALTER TABLE %s WITH compression = { 'sstable_compression' : '', 'chunk_length_kb' : 32 };");
-
-        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
-                                  SchemaKeyspace.TABLES),
-                           KEYSPACE,
-                           currentTable()),
-                   row(map("enabled", "false")));
 
         execute("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
         execute("ALTER TABLE %s WITH compression = { 'enabled' : 'false'};");
