@@ -250,8 +250,6 @@ public class Config
 
     public MemtableAllocationType memtable_allocation_type = MemtableAllocationType.heap_buffers;
 
-    private static boolean outboundBindAny = false;
-
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
@@ -287,16 +285,6 @@ public class Config
     public int windows_timer_interval = 0;
 
     public boolean enable_user_defined_functions = false;
-
-    public static boolean getOutboundBindAny()
-    {
-        return outboundBindAny;
-    }
-
-    public static void setOutboundBindAny(boolean value)
-    {
-        outboundBindAny = value;
-    }
 
     public static boolean isClientMode()
     {
