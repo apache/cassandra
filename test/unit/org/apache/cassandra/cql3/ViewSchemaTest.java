@@ -34,9 +34,9 @@ import junit.framework.Assert;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
@@ -176,8 +176,8 @@ public class ViewSchemaTest extends CQLTester
 
         //Test alter add
         executeNet(protocolVersion, "ALTER TABLE %s ADD foo text");
-        CFMetaData metadata = Schema.instance.getCFMetaData(keyspace(), "mv1_test");
-        Assert.assertNotNull(metadata.getColumnDefinition(ByteBufferUtil.bytes("foo")));
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), "mv1_test");
+        Assert.assertNotNull(metadata.getColumn(ByteBufferUtil.bytes("foo")));
 
         updateView("INSERT INTO %s(k,asciival,bigintval,foo)VALUES(?,?,?,?)", 0, "foo", 1L, "bar");
         assertRows(execute("SELECT foo from %s"), row("bar"));
@@ -186,8 +186,8 @@ public class ViewSchemaTest extends CQLTester
         executeNet(protocolVersion, "ALTER TABLE %s RENAME asciival TO bar");
 
         assertRows(execute("SELECT bar from %s"), row("foo"));
-        metadata = Schema.instance.getCFMetaData(keyspace(), "mv1_test");
-        Assert.assertNotNull(metadata.getColumnDefinition(ByteBufferUtil.bytes("bar")));
+        metadata = Schema.instance.getTableMetadata(keyspace(), "mv1_test");
+        Assert.assertNotNull(metadata.getColumn(ByteBufferUtil.bytes("bar")));
     }
 
 
@@ -286,12 +286,12 @@ public class ViewSchemaTest extends CQLTester
                     "tupleval frozen<tuple<int, ascii, uuid>>," +
                     "udtval frozen<" + myType + ">)");
 
-        CFMetaData metadata = currentTableMetadata();
+        TableMetadata metadata = currentTableMetadata();
 
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
 
-        for (ColumnDefinition def : new HashSet<>(metadata.allColumns()))
+        for (ColumnMetadata def : new HashSet<>(metadata.columns()))
         {
             try
             {

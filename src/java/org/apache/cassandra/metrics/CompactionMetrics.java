@@ -24,12 +24,12 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -110,25 +110,25 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
                 // currently running compactions
                 for (CompactionInfo.Holder compaction : compactions)
                 {
-                    CFMetaData metaData = compaction.getCompactionInfo().getCFMetaData();
+                    TableMetadata metaData = compaction.getCompactionInfo().getTableMetadata();
                     if (metaData == null)
                     {
                         continue;
                     }
-                    if (!resultMap.containsKey(metaData.ksName))
+                    if (!resultMap.containsKey(metaData.keyspace))
                     {
-                        resultMap.put(metaData.ksName, new HashMap<>());
+                        resultMap.put(metaData.keyspace, new HashMap<>());
                     }
 
-                    Map<String, Integer> tableNameToCountMap = resultMap.get(metaData.ksName);
-                    if (tableNameToCountMap.containsKey(metaData.cfName))
+                    Map<String, Integer> tableNameToCountMap = resultMap.get(metaData.keyspace);
+                    if (tableNameToCountMap.containsKey(metaData.name))
                     {
-                        tableNameToCountMap.put(metaData.cfName,
-                                                tableNameToCountMap.get(metaData.cfName) + 1);
+                        tableNameToCountMap.put(metaData.name,
+                                                tableNameToCountMap.get(metaData.name) + 1);
                     }
                     else
                     {
-                        tableNameToCountMap.put(metaData.cfName, 1);
+                        tableNameToCountMap.put(metaData.name, 1);
                     }
                 }
                 return resultMap;

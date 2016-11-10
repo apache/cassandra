@@ -24,12 +24,15 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.ArrayUtils;
+
 import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.TypeCodec;
 import org.antlr.runtime.RecognitionException;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.CqlParser;
@@ -51,6 +54,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -246,7 +250,7 @@ public class StressCQLSSTableWriter implements Closeable
         long now = System.currentTimeMillis() * 1000;
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
-        UpdateParameters params = new UpdateParameters(insert.cfm,
+        UpdateParameters params = new UpdateParameters(insert.metadata(),
                                                        insert.updatedColumns(),
                                                        options,
                                                        insert.getTimestamp(now, options),
@@ -307,7 +311,7 @@ public class StressCQLSSTableWriter implements Closeable
      */
     public com.datastax.driver.core.UserType getUDType(String dataType)
     {
-        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(insert.keyspace());
+        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(insert.keyspace());
         UserType userType = ksm.types.getNullable(ByteBufferUtil.bytes(dataType));
         return (com.datastax.driver.core.UserType) UDHelper.driverType(userType);
     }
@@ -579,13 +583,13 @@ public class StressCQLSSTableWriter implements Closeable
 
         private static void createTypes(String keyspace, List<CreateTypeStatement> typeStatements)
         {
-            KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
+            KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
             Types.RawBuilder builder = Types.rawBuilder(keyspace);
             for (CreateTypeStatement st : typeStatements)
                 st.addToRawBuilder(builder);
 
             ksm = ksm.withSwapped(builder.build());
-            Schema.instance.setKeyspaceMetadata(ksm);
+            Schema.instance.load(ksm);
         }
 
         public static ColumnFamilyStore createOfflineTable(String schema, List<File> directoryList)
@@ -601,36 +605,38 @@ public class StressCQLSSTableWriter implements Closeable
         {
             String keyspace = schemaStatement.keyspace();
 
-            if (Schema.instance.getKSMetaData(keyspace) == null)
+            if (Schema.instance.getKeyspaceMetadata(keyspace) == null)
                 Schema.instance.load(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)));
 
             createTypes(keyspace, typeStatements);
 
-            KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
+            KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
 
-            CFMetaData cfMetaData = ksm.tables.getNullable(schemaStatement.columnFamily());
-            assert cfMetaData == null;
+            assert ksm.tables.getNullable(schemaStatement.columnFamily()) == null;
 
             CreateTableStatement statement = (CreateTableStatement) schemaStatement.prepare(ksm.types).statement;
             statement.validate(ClientState.forInternalCalls());
 
-            //Build metatdata with a portable cfId
-            cfMetaData = statement.metadataBuilder()
-                                  .withId(CFMetaData.generateLegacyCfId(keyspace, statement.columnFamily()))
-                                  .build()
-                                  .params(statement.params());
+            //Build metadata with a portable tableId
+            TableMetadata tableMetadata = statement.builder()
+                                                   .id(deterministicId(statement.keyspace(), statement.columnFamily()))
+                                                   .build();
 
             Keyspace.setInitialized();
-            Directories directories = new Directories(cfMetaData, directoryList.stream().map(Directories.DataDirectory::new).collect(Collectors.toList()));
+            Directories directories = new Directories(tableMetadata, directoryList.stream().map(Directories.DataDirectory::new).collect(Collectors.toList()));
 
             Keyspace ks = Keyspace.openWithoutSSTables(keyspace);
-            ColumnFamilyStore cfs =  ColumnFamilyStore.createColumnFamilyStore(ks, cfMetaData.cfName, cfMetaData, directories, false, false, true);
+            ColumnFamilyStore cfs =  ColumnFamilyStore.createColumnFamilyStore(ks, tableMetadata.name, TableMetadataRef.forOfflineTools(tableMetadata), directories, false, false, true);
 
             ks.initCfCustom(cfs);
-            Schema.instance.load(cfs.metadata);
-            Schema.instance.setKeyspaceMetadata(ksm.withSwapped(ksm.tables.with(cfs.metadata)));
+            Schema.instance.load(ksm.withSwapped(ksm.tables.with(cfs.metadata())));
 
             return cfs;
+        }
+
+        private static TableId deterministicId(String keyspace, String table)
+        {
+            return TableId.fromUUID(UUID.nameUUIDFromBytes(ArrayUtils.addAll(keyspace.getBytes(), table.getBytes())));
         }
 
         /**

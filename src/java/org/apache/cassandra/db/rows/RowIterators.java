@@ -22,9 +22,9 @@ import java.security.MessageDigest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -76,12 +76,12 @@ public abstract class RowIterators
      */
     public static RowIterator loggingIterator(RowIterator iterator, final String id)
     {
-        CFMetaData metadata = iterator.metadata();
+        TableMetadata metadata = iterator.metadata();
         logger.info("[{}] Logging iterator on {}.{}, partition key={}, reversed={}",
                     id,
-                    metadata.ksName,
-                    metadata.cfName,
-                    metadata.getKeyValidator().getString(iterator.partitionKey().getKey()),
+                    metadata.keyspace,
+                    metadata.name,
+                    metadata.partitionKeyType.getString(iterator.partitionKey().getKey()),
                     iterator.isReverseOrder());
 
         class Log extends Transformation

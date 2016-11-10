@@ -30,7 +30,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.apache.cassandra.*;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.partitions.*;
@@ -62,10 +62,10 @@ public class PartitionRangeReadTest
     public void testInclusiveBounds()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD1);
-        new RowUpdateBuilder(cfs.metadata, 0, ByteBufferUtil.bytes("key1"))
+        new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes("key1"))
                 .clustering("cc1")
                 .add("val", "asdf").build().applyUnsafe();
-        new RowUpdateBuilder(cfs.metadata, 0, ByteBufferUtil.bytes("key2"))
+        new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes("key2"))
                 .clustering("cc2")
                 .add("val", "asdf").build().applyUnsafe();
 
@@ -81,18 +81,18 @@ public class PartitionRangeReadTest
         cfs.truncateBlocking();
 
         ByteBuffer col = ByteBufferUtil.bytes("val");
-        ColumnDefinition cDef = cfs.metadata.getColumnDefinition(col);
+        ColumnMetadata cDef = cfs.metadata().getColumn(col);
 
         // insert two columns that represent the same integer but have different binary forms (the
         // second one is padded with extra zeros)
-        new RowUpdateBuilder(cfs.metadata, 0, "k1")
+        new RowUpdateBuilder(cfs.metadata(), 0, "k1")
                 .clustering(new BigInteger(new byte[]{1}))
                 .add("val", "val1")
                 .build()
                 .applyUnsafe();
         cfs.forceBlockingFlush();
 
-        new RowUpdateBuilder(cfs.metadata, 1, "k1")
+        new RowUpdateBuilder(cfs.metadata(), 1, "k1")
                 .clustering(new BigInteger(new byte[]{0, 0, 1}))
                 .add("val", "val2")
                 .build()
@@ -119,7 +119,7 @@ public class PartitionRangeReadTest
 
         for (int i = 0; i < 10; ++i)
         {
-            RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 10, String.valueOf(i));
+            RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 10, String.valueOf(i));
             builder.clustering("c");
             builder.add("val", String.valueOf(i));
             builder.build().applyUnsafe();
@@ -127,7 +127,7 @@ public class PartitionRangeReadTest
 
         cfs.forceBlockingFlush();
 
-        ColumnDefinition cDef = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("val"));
+        ColumnMetadata cDef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
 
         List<FilteredPartition> partitions;
 

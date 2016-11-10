@@ -29,7 +29,8 @@ import com.google.common.collect.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -539,9 +540,9 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         return LogTransaction.removeUnfinishedLeftovers(cfs.getDirectories().getCFDirectories());
     }
 
-    public static boolean removeUnfinishedLeftovers(CFMetaData cfMetaData)
+    public static boolean removeUnfinishedLeftovers(TableMetadata metadata)
     {
-        return LogTransaction.removeUnfinishedLeftovers(cfMetaData);
+        return LogTransaction.removeUnfinishedLeftovers(metadata);
     }
 
     /**

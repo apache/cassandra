@@ -32,8 +32,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -162,7 +162,7 @@ public class CassandraRoleManager implements IRoleManager
         // it, so we can continue to use the old tables while the cluster is upgraded.
         // Otherwise, we may need to create a default superuser role to enable others
         // to be added.
-        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, "users") != null)
+        if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, "users") != null)
         {
             legacySelectUserStatement = prepareLegacySelectUserStatement();
 
@@ -399,7 +399,7 @@ public class CassandraRoleManager implements IRoleManager
         try
         {
             // read old data at QUORUM as it may contain the data for the default superuser
-            if (Schema.instance.getCFMetaData("system_auth", "users") != null)
+            if (Schema.instance.getTableMetadata("system_auth", "users") != null)
             {
                 logger.info("Converting legacy users");
                 UntypedResultSet users = QueryProcessor.process("SELECT * FROM system_auth.users",
@@ -414,7 +414,7 @@ public class CassandraRoleManager implements IRoleManager
                 logger.info("Completed conversion of legacy users");
             }
 
-            if (Schema.instance.getCFMetaData("system_auth", "credentials") != null)
+            if (Schema.instance.getTableMetadata("system_auth", "credentials") != null)
             {
                 logger.info("Migrating legacy credentials data to new system table");
                 UntypedResultSet credentials = QueryProcessor.process("SELECT * FROM system_auth.credentials",
@@ -489,7 +489,7 @@ public class CassandraRoleManager implements IRoleManager
             // If it exists, try the legacy users table in case the cluster
             // is in the process of being upgraded and so is running with mixed
             // versions of the authn schema.
-            if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, "users") == null)
+            if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, "users") == null)
                 return getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
             else
             {

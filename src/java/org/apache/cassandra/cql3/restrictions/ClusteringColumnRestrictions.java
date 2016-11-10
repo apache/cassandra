@@ -19,8 +19,8 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.*;
@@ -47,14 +47,14 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
      */
     private final boolean allowFiltering;
 
-    public ClusteringColumnRestrictions(CFMetaData cfm)
+    public ClusteringColumnRestrictions(TableMetadata table)
     {
-        this(cfm, false);
+        this(table, false);
     }
 
-    public ClusteringColumnRestrictions(CFMetaData cfm, boolean allowFiltering)
+    public ClusteringColumnRestrictions(TableMetadata table, boolean allowFiltering)
     {
-        this(cfm.comparator, new RestrictionSet(), allowFiltering);
+        this(table.comparator, new RestrictionSet(), allowFiltering);
     }
 
     private ClusteringColumnRestrictions(ClusteringComparator comparator,
@@ -74,8 +74,8 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         if (!isEmpty() && !allowFiltering)
         {
             SingleRestriction lastRestriction = restrictions.lastRestriction();
-            ColumnDefinition lastRestrictionStart = lastRestriction.getFirstColumn();
-            ColumnDefinition newRestrictionStart = restriction.getFirstColumn();
+            ColumnMetadata lastRestrictionStart = lastRestriction.getFirstColumn();
+            ColumnMetadata newRestrictionStart = restriction.getFirstColumn();
 
             checkFalse(lastRestriction.isSlice() && newRestrictionStart.position() > lastRestrictionStart.position(),
                        "Clustering column \"%s\" cannot be restricted (preceding column \"%s\" is restricted by a non-EQ relation)",

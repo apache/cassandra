@@ -28,8 +28,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -45,7 +44,6 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class BatchTest
 {
@@ -64,7 +62,7 @@ public class BatchTest
     @Test
     public void testSerialization() throws IOException
     {
-        CFMetaData cfm = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF_STANDARD).metadata;
+        TableMetadata cfm = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF_STANDARD).metadata();
 
         long now = FBUtilities.timestampMicros();
         int version = MessagingService.current_version;

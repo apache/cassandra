@@ -51,7 +51,7 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
 
     public CompactionInfo getCompactionInfo()
     {
-        return new CompactionInfo(cfs.metadata,
+        return new CompactionInfo(cfs.metadata(),
                 OperationType.INDEX_BUILD,
                 iter.getBytesRead(),
                 iter.getTotalBytes(),

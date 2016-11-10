@@ -76,7 +76,7 @@ public class ClusteringColumnIndex extends CassandraIndex
     public IndexEntry decodeEntry(DecoratedKey indexedValue,
                                   Row indexEntry)
     {
-        int ckCount = baseCfs.metadata.clusteringColumns().size();
+        int ckCount = baseCfs.metadata().clusteringColumns().size();
 
         Clustering clustering = indexEntry.clustering();
         CBuilder builder = CBuilder.create(baseCfs.getComparator());

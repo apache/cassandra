@@ -22,13 +22,13 @@ import java.util.*;
 
 import com.google.common.collect.Iterators;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -39,11 +39,11 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.*;
  */
 public abstract class ColumnCondition
 {
-    public final ColumnDefinition column;
+    public final ColumnMetadata column;
     public final Operator operator;
     private final Terms terms;
 
-    private ColumnCondition(ColumnDefinition column, Operator op, Terms terms)
+    private ColumnCondition(ColumnMetadata column, Operator op, Terms terms)
     {
         this.column = column;
         this.operator = op;
@@ -116,7 +116,7 @@ public abstract class ColumnCondition
      */
     private static final class SimpleColumnCondition extends ColumnCondition
     {
-        public SimpleColumnCondition(ColumnDefinition column, Operator op, Terms values)
+        public SimpleColumnCondition(ColumnMetadata column, Operator op, Terms values)
         {
             super(column, op, values);
         }
@@ -140,7 +140,7 @@ public abstract class ColumnCondition
     {
         private final Term collectionElement;
 
-        public CollectionElementCondition(ColumnDefinition column, Term collectionElement, Operator op, Terms values)
+        public CollectionElementCondition(ColumnMetadata column, Term collectionElement, Operator op, Terms values)
         {
             super(column, op, values);
             this.collectionElement = collectionElement;
@@ -171,7 +171,7 @@ public abstract class ColumnCondition
     {
         private final FieldIdentifier udtField;
 
-        public UDTFieldCondition(ColumnDefinition column, FieldIdentifier udtField, Operator op, Terms values)
+        public UDTFieldCondition(ColumnMetadata column, FieldIdentifier udtField, Operator op, Terms values)
         {
             super(column, op, values);
             assert udtField != null;
@@ -187,7 +187,7 @@ public abstract class ColumnCondition
     /**
      *  A regular column, simple condition.
      */
-    public static ColumnCondition condition(ColumnDefinition column, Operator op, Terms terms)
+    public static ColumnCondition condition(ColumnMetadata column, Operator op, Terms terms)
     {
         return new SimpleColumnCondition(column, op, terms);
     }
@@ -195,7 +195,7 @@ public abstract class ColumnCondition
     /**
      * A collection column, simple condition.
      */
-    public static ColumnCondition condition(ColumnDefinition column, Term collectionElement, Operator op, Terms terms)
+    public static ColumnCondition condition(ColumnMetadata column, Term collectionElement, Operator op, Terms terms)
     {
         return new CollectionElementCondition(column, collectionElement, op, terms);
     }
@@ -203,17 +203,17 @@ public abstract class ColumnCondition
     /**
      * A UDT column, simple condition.
      */
-    public static ColumnCondition condition(ColumnDefinition column, FieldIdentifier udtField, Operator op, Terms terms)
+    public static ColumnCondition condition(ColumnMetadata column, FieldIdentifier udtField, Operator op, Terms terms)
     {
         return new UDTFieldCondition(column, udtField, op, terms);
     }
 
     public static abstract class Bound
     {
-        public final ColumnDefinition column;
+        public final ColumnMetadata column;
         public final Operator comparisonOperator;
 
-        protected Bound(ColumnDefinition column, Operator operator)
+        protected Bound(ColumnMetadata column, Operator operator)
         {
             this.column = column;
             // If the operator is an IN we want to compare the value using an EQ.
@@ -257,21 +257,21 @@ public abstract class ColumnCondition
         }
     }
 
-    protected static final Cell getCell(Row row, ColumnDefinition column)
+    protected static final Cell getCell(Row row, ColumnMetadata column)
     {
         // If we're asking for a given cell, and we didn't got any row from our read, it's
         // the same as not having said cell.
         return row == null ? null : row.getCell(column);
     }
 
-    protected static final Cell getCell(Row row, ColumnDefinition column, CellPath path)
+    protected static final Cell getCell(Row row, ColumnMetadata column, CellPath path)
     {
         // If we're asking for a given cell, and we didn't got any row from our read, it's
         // the same as not having said cell.
         return row == null ? null : row.getCell(column, path);
     }
 
-    protected static final Iterator<Cell> getCells(Row row, ColumnDefinition column)
+    protected static final Iterator<Cell> getCells(Row row, ColumnMetadata column)
     {
         // If we're asking for a complex cells, and we didn't got any row from our read, it's
         // the same as not having any cells for that column.
@@ -312,7 +312,7 @@ public abstract class ColumnCondition
          */
         private final List<ByteBuffer> values;
 
-        private SimpleBound(ColumnDefinition column, Operator operator, List<ByteBuffer> values)
+        private SimpleBound(ColumnMetadata column, Operator operator, List<ByteBuffer> values)
         {
             super(column, operator);
             this.values = values;
@@ -356,10 +356,10 @@ public abstract class ColumnCondition
          */
         private final List<ByteBuffer> values;
 
-        private ElementAccessBound(ColumnDefinition column,
-                                     ByteBuffer collectionElement,
-                                     Operator operator,
-                                     List<ByteBuffer> values)
+        private ElementAccessBound(ColumnMetadata column,
+                                   ByteBuffer collectionElement,
+                                   Operator operator,
+                                   List<ByteBuffer> values)
         {
             super(column, operator);
 
@@ -452,7 +452,7 @@ public abstract class ColumnCondition
     {
         private final List<Term.Terminal> values;
 
-        public MultiCellCollectionBound(ColumnDefinition column, Operator operator, List<Term.Terminal> values)
+        public MultiCellCollectionBound(ColumnMetadata column, Operator operator, List<Term.Terminal> values)
         {
             super(column, operator);
             assert column.type.isMultiCell();
@@ -586,7 +586,7 @@ public abstract class ColumnCondition
          */
         private final List<ByteBuffer> values;
 
-        private UDTFieldAccessBound(ColumnDefinition column, FieldIdentifier field, Operator operator, List<ByteBuffer> values)
+        private UDTFieldAccessBound(ColumnMetadata column, FieldIdentifier field, Operator operator, List<ByteBuffer> values)
         {
             super(column, operator);
             assert column.type.isUDT() && field != null;
@@ -645,7 +645,7 @@ public abstract class ColumnCondition
          */
         private final ProtocolVersion protocolVersion;
 
-        private MultiCellUdtBound(ColumnDefinition column, Operator op, List<ByteBuffer> values, ProtocolVersion protocolVersion)
+        private MultiCellUdtBound(ColumnMetadata column, Operator op, List<ByteBuffer> values, ProtocolVersion protocolVersion)
         {
             super(column, op);
             assert column.type.isMultiCell();
@@ -756,7 +756,7 @@ public abstract class ColumnCondition
             return new Raw(null, null, inMarker, null, udtField, Operator.IN);
         }
 
-        public ColumnCondition prepare(String keyspace, ColumnDefinition receiver, CFMetaData cfm)
+        public ColumnCondition prepare(String keyspace, ColumnMetadata receiver, TableMetadata cfm)
         {
             if (receiver.type instanceof CounterColumnType)
                 throw invalidRequest("Conditions on counters are not supported");

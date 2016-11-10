@@ -53,7 +53,7 @@ public interface ReadQuery
 
         public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
         {
-            return EmptyIterators.unfilteredPartition(executionController.metaData());
+            return EmptyIterators.unfilteredPartition(executionController.metadata());
         }
 
         public DataLimits limits()

@@ -25,8 +25,8 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -37,10 +37,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.junit.*;
@@ -61,11 +58,11 @@ public class OperationTest extends SchemaLoader
     {
         System.setProperty("cassandra.config", "cassandra-murmur.yaml");
         SchemaLoader.loadSchema();
-        MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(KS_NAME,
-                                                                     KeyspaceParams.simpleTransient(1),
-                                                                     Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME),
-                                                                               SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME),
-                                                                               SchemaLoader.staticSASICFMD(KS_NAME, STATIC_CF_NAME))));
+        SchemaLoader.createKeyspace(KS_NAME,
+                                    KeyspaceParams.simpleTransient(1),
+                                    SchemaLoader.sasiCFMD(KS_NAME, CF_NAME),
+                                    SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME),
+                                    SchemaLoader.staticSASICFMD(KS_NAME, STATIC_CF_NAME));
 
         BACKEND = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
         CLUSTERING_BACKEND = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME);
@@ -78,7 +75,7 @@ public class OperationTest extends SchemaLoader
     public void beforeTest()
     {
         controller = new QueryController(BACKEND,
-                                         PartitionRangeReadCommand.allDataRead(BACKEND.metadata, FBUtilities.nowInSeconds()),
+                                         PartitionRangeReadCommand.allDataRead(BACKEND.metadata(), FBUtilities.nowInSeconds()),
                                          TimeUnit.SECONDS.toMillis(10));
     }
 
@@ -91,9 +88,9 @@ public class OperationTest extends SchemaLoader
     @Test
     public void testAnalyze() throws Exception
     {
-        final ColumnDefinition firstName = getColumn(UTF8Type.instance.decompose("first_name"));
-        final ColumnDefinition age = getColumn(UTF8Type.instance.decompose("age"));
-        final ColumnDefinition comment = getColumn(UTF8Type.instance.decompose("comment"));
+        final ColumnMetadata firstName = getColumn(UTF8Type.instance.decompose("first_name"));
+        final ColumnMetadata age = getColumn(UTF8Type.instance.decompose("age"));
+        final ColumnMetadata comment = getColumn(UTF8Type.instance.decompose("comment"));
 
         // age != 5 AND age > 1 AND age != 6 AND age <= 10
         Map<Expression.Op, Expression> expressions = convert(Operation.analyzeGroup(controller, OperationType.AND,
@@ -184,8 +181,8 @@ public class OperationTest extends SchemaLoader
                             }}, expressions.get(Expression.Op.EQ));
 
         // comment = 'soft eng' and comment != 'likes do'
-        ListMultimap<ColumnDefinition, Expression> e = Operation.analyzeGroup(controller, OperationType.OR,
-                                                    Arrays.asList(new SimpleExpression(comment, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("soft eng")),
+        ListMultimap<ColumnMetadata, Expression> e = Operation.analyzeGroup(controller, OperationType.OR,
+                                                                            Arrays.asList(new SimpleExpression(comment, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("soft eng")),
                                                                   new SimpleExpression(comment, Operator.NEQ, UTF8Type.instance.decompose("likes do"))));
 
         List<Expression> expectedExpressions = new ArrayList<Expression>(2)
@@ -274,8 +271,8 @@ public class OperationTest extends SchemaLoader
     @Test
     public void testSatisfiedBy() throws Exception
     {
-        final ColumnDefinition timestamp = getColumn(UTF8Type.instance.decompose("timestamp"));
-        final ColumnDefinition age = getColumn(UTF8Type.instance.decompose("age"));
+        final ColumnMetadata timestamp = getColumn(UTF8Type.instance.decompose("timestamp"));
+        final ColumnMetadata age = getColumn(UTF8Type.instance.decompose("age"));
 
         Operation.Builder builder = new Operation.Builder(OperationType.AND, controller, new SimpleExpression(age, Operator.NEQ, Int32Type.instance.decompose(5)));
         Operation op = builder.complete();
@@ -438,8 +435,8 @@ public class OperationTest extends SchemaLoader
     @Test
     public void testAnalyzeNotIndexedButDefinedColumn() throws Exception
     {
-        final ColumnDefinition firstName = getColumn(UTF8Type.instance.decompose("first_name"));
-        final ColumnDefinition height = getColumn(UTF8Type.instance.decompose("height"));
+        final ColumnMetadata firstName = getColumn(UTF8Type.instance.decompose("first_name"));
+        final ColumnMetadata height = getColumn(UTF8Type.instance.decompose("height"));
 
         // first_name = 'a' AND height != 10
         Map<Expression.Op, Expression> expressions;
@@ -490,7 +487,7 @@ public class OperationTest extends SchemaLoader
     @Test
     public void testSatisfiedByWithMultipleTerms()
     {
-        final ColumnDefinition comment = getColumn(UTF8Type.instance.decompose("comment"));
+        final ColumnMetadata comment = getColumn(UTF8Type.instance.decompose("comment"));
 
         Unfiltered row = buildRow(buildCell(comment,UTF8Type.instance.decompose("software engineer is working on a project"),System.currentTimeMillis()));
         Row staticRow = buildRow(Clustering.STATIC_CLUSTERING);
@@ -511,10 +508,10 @@ public class OperationTest extends SchemaLoader
     @Test
     public void testSatisfiedByWithClustering()
     {
-        ColumnDefinition location = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("location"));
-        ColumnDefinition age = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("age"));
-        ColumnDefinition height = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("height"));
-        ColumnDefinition score = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("score"));
+        ColumnMetadata location = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("location"));
+        ColumnMetadata age = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("age"));
+        ColumnMetadata height = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("height"));
+        ColumnMetadata score = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("score"));
 
         Unfiltered row = buildRow(Clustering.make(UTF8Type.instance.fromString("US"), Int32Type.instance.decompose(27)),
                                   buildCell(height, Int32Type.instance.decompose(182), System.currentTimeMillis()),
@@ -567,7 +564,7 @@ public class OperationTest extends SchemaLoader
         Assert.assertTrue(builder.complete().satisfiedBy(row, staticRow, false));
     }
 
-    private Map<Expression.Op, Expression> convert(Multimap<ColumnDefinition, Expression> expressions)
+    private Map<Expression.Op, Expression> convert(Multimap<ColumnMetadata, Expression> expressions)
     {
         Map<Expression.Op, Expression> converted = new HashMap<>();
         for (Expression expression : expressions.values())
@@ -583,8 +580,8 @@ public class OperationTest extends SchemaLoader
     @Test
     public void testSatisfiedByWithStatic()
     {
-        final ColumnDefinition sensorType = getColumn(STATIC_BACKEND, UTF8Type.instance.decompose("sensor_type"));
-        final ColumnDefinition value = getColumn(STATIC_BACKEND, UTF8Type.instance.decompose("value"));
+        final ColumnMetadata sensorType = getColumn(STATIC_BACKEND, UTF8Type.instance.decompose("sensor_type"));
+        final ColumnMetadata value = getColumn(STATIC_BACKEND, UTF8Type.instance.decompose("value"));
 
         Unfiltered row = buildRow(Clustering.make(UTF8Type.instance.fromString("date"), LongType.instance.decompose(20160401L)),
                           buildCell(value, DoubleType.instance.decompose(24.56), System.currentTimeMillis()));
@@ -638,7 +635,7 @@ public class OperationTest extends SchemaLoader
 
     private static class SimpleExpression extends RowFilter.Expression
     {
-        SimpleExpression(ColumnDefinition column, Operator operator, ByteBuffer value)
+        SimpleExpression(ColumnMetadata column, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
         }
@@ -650,7 +647,7 @@ public class OperationTest extends SchemaLoader
         }
 
         @Override
-        public boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row)
+        public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
         {
             throw new UnsupportedOperationException();
         }
@@ -684,23 +681,23 @@ public class OperationTest extends SchemaLoader
         return rowBuilder.build();
     }
 
-    private static Cell buildCell(ColumnDefinition column, ByteBuffer value, long timestamp)
+    private static Cell buildCell(ColumnMetadata column, ByteBuffer value, long timestamp)
     {
         return BufferCell.live(column, timestamp, value);
     }
 
-    private static Cell deletedCell(ColumnDefinition column, long timestamp, int nowInSeconds)
+    private static Cell deletedCell(ColumnMetadata column, long timestamp, int nowInSeconds)
     {
         return BufferCell.tombstone(column, timestamp, nowInSeconds);
     }
 
-    private static ColumnDefinition getColumn(ByteBuffer name)
+    private static ColumnMetadata getColumn(ByteBuffer name)
     {
         return getColumn(BACKEND, name);
     }
 
-    private static ColumnDefinition getColumn(ColumnFamilyStore cfs, ByteBuffer name)
+    private static ColumnMetadata getColumn(ColumnFamilyStore cfs, ByteBuffer name)
     {
-        return cfs.metadata.getColumnDefinition(name);
+        return cfs.metadata().getColumn(name);
     }
 }

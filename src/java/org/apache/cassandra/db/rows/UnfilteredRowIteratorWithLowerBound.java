@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -108,8 +108,8 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         if (lowerBound != null && ret != null)
             assert comparator().compare(lowerBound, ret.clustering()) <= 0
                 : String.format("Lower bound [%s ]is bigger than first returned value [%s] for sstable %s",
-                                lowerBound.toString(sstable.metadata),
-                                ret.toString(sstable.metadata),
+                                lowerBound.toString(metadata()),
+                                ret.toString(metadata()),
                                 sstable.getFilename());
 
         return ret;
@@ -117,13 +117,13 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
 
     private Comparator<Clusterable> comparator()
     {
-        return filter.isReversed() ? sstable.metadata.comparator.reversed() : sstable.metadata.comparator;
+        return filter.isReversed() ? metadata().comparator.reversed() : metadata().comparator;
     }
 
     @Override
-    public CFMetaData metadata()
+    public TableMetadata metadata()
     {
-        return sstable.metadata;
+        return sstable.metadata();
     }
 
     @Override
@@ -133,7 +133,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     }
 
     @Override
-    public PartitionColumns columns()
+    public RegularAndStaticColumns columns()
     {
         return selectedColumns.fetchedColumns();
     }
@@ -184,10 +184,10 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         {
             IndexInfo column = onHeapRetriever.columnsIndex(filter.isReversed() ? rowIndexEntry.columnsIndexCount() - 1 : 0);
             ClusteringPrefix lowerBoundPrefix = filter.isReversed() ? column.lastName : column.firstName;
-            assert lowerBoundPrefix.getRawValues().length <= sstable.metadata.comparator.size() :
+            assert lowerBoundPrefix.getRawValues().length <= metadata().comparator.size() :
             String.format("Unexpected number of clustering values %d, expected %d or fewer for %s",
                           lowerBoundPrefix.getRawValues().length,
-                          sstable.metadata.comparator.size(),
+                          metadata().comparator.size(),
                           sstable.getFilename());
             return ClusteringBound.inclusiveOpen(filter.isReversed(), lowerBoundPrefix.getRawValues());
         }
@@ -217,10 +217,10 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
 
         final StatsMetadata m = sstable.getSSTableMetadata();
         List<ByteBuffer> vals = filter.isReversed() ? m.maxClusteringValues : m.minClusteringValues;
-        assert vals.size() <= sstable.metadata.comparator.size() :
+        assert vals.size() <= metadata().comparator.size() :
         String.format("Unexpected number of clustering values %d, expected %d or fewer for %s",
                       vals.size(),
-                      sstable.metadata.comparator.size(),
+                      metadata().comparator.size(),
                       sstable.getFilename());
         return  ClusteringBound.inclusiveOpen(filter.isReversed(), vals.toArray(new ByteBuffer[vals.size()]));
     }

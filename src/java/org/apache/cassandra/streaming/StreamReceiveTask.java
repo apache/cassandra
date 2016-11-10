@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -30,7 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
@@ -45,8 +43,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -75,9 +73,9 @@ public class StreamReceiveTask extends StreamTask
 
     private int remoteSSTablesReceived = 0;
 
-    public StreamReceiveTask(StreamSession session, UUID cfId, int totalFiles, long totalSize)
+    public StreamReceiveTask(StreamSession session, TableId tableId, int totalFiles, long totalSize)
     {
-        super(session, cfId);
+        super(session, tableId);
         this.totalFiles = totalFiles;
         this.totalSize = totalSize;
         // this is an "offline" transaction, as we currently manually expose the sstables once done;
@@ -102,7 +100,7 @@ public class StreamReceiveTask extends StreamTask
         }
 
         remoteSSTablesReceived++;
-        assert cfId.equals(sstable.getCfId());
+        assert tableId.equals(sstable.getTableId());
 
         Collection<SSTableReader> finished = null;
         try
@@ -136,7 +134,7 @@ public class StreamReceiveTask extends StreamTask
     public synchronized LifecycleTransaction getTransaction()
     {
         if (done)
-            throw new RuntimeException(String.format("Stream receive task %s of cf %s already finished.", session.planId(), cfId));
+            throw new RuntimeException(String.format("Stream receive task %s of cf %s already finished.", session.planId(), tableId));
         return txn;
     }
 
@@ -156,8 +154,8 @@ public class StreamReceiveTask extends StreamTask
             ColumnFamilyStore cfs = null;
             try
             {
-                Pair<String, String> kscf = Schema.instance.getCF(task.cfId);
-                if (kscf == null)
+                cfs = ColumnFamilyStore.getIfExists(task.tableId);
+                if (cfs == null)
                 {
                     // schema was dropped during streaming
                     task.sstables.clear();
@@ -165,9 +163,8 @@ public class StreamReceiveTask extends StreamTask
                     task.session.taskCompleted(task);
                     return;
                 }
-                cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
-                hasViews = !Iterables.isEmpty(View.findAll(kscf.left, kscf.right));
-                hasCDC = cfs.metadata.params.cdc;
+                hasViews = !Iterables.isEmpty(View.findAll(cfs.metadata.keyspace, cfs.getTableName()));
+                hasCDC = cfs.metadata().params.cdc;
 
                 Collection<SSTableReader> readers = task.sstables;
 
@@ -193,7 +190,7 @@ public class StreamReceiveTask extends StreamTask
                                 {
                                     try (UnfilteredRowIterator rowIterator = scanner.next())
                                     {
-                                        Mutation m = new Mutation(PartitionUpdate.fromIterator(rowIterator, ColumnFilter.all(cfs.metadata)));
+                                        Mutation m = new Mutation(PartitionUpdate.fromIterator(rowIterator, ColumnFilter.all(cfs.metadata())));
 
                                         // MV *can* be applied unsafe if there's no CDC on the CFS as we flush below
                                         // before transaction is done.
@@ -215,7 +212,7 @@ public class StreamReceiveTask extends StreamTask
                         cfs.indexManager.buildAllIndexesBlocking(readers);
 
                         //invalidate row and counter cache
-                        if (cfs.isRowCacheEnabled() || cfs.metadata.isCounter())
+                        if (cfs.isRowCacheEnabled() || cfs.metadata().isCounter())
                         {
                             List<Bounds<Token>> boundsToInvalidate = new ArrayList<>(readers.size());
                             readers.forEach(sstable -> boundsToInvalidate.add(new Bounds<Token>(sstable.first.getToken(), sstable.last.getToken())));
@@ -230,7 +227,7 @@ public class StreamReceiveTask extends StreamTask
                                                  cfs.keyspace.getName(), cfs.getTableName());
                             }
 
-                            if (cfs.metadata.isCounter())
+                            if (cfs.metadata().isCounter())
                             {
                                 int invalidatedKeys = cfs.invalidateCounterCache(nonOverlappingBounds);
                                 if (invalidatedKeys > 0)

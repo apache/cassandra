@@ -31,7 +31,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -47,11 +47,13 @@ public class UnfilteredRowIteratorsMergeTest
     }
     static DecoratedKey partitionKey = Util.dk("key");
     static DeletionTime partitionLevelDeletion = DeletionTime.LIVE;
-    static CFMetaData metadata = CFMetaData.Builder.create("UnfilteredRowIteratorsMergeTest", "Test").
-            addPartitionKey("key", AsciiType.instance).
-            addClusteringColumn("clustering", Int32Type.instance).
-            addRegularColumn("data", Int32Type.instance).
-            build();
+    static TableMetadata metadata =
+        TableMetadata.builder("UnfilteredRowIteratorsMergeTest", "Test")
+                     .addPartitionKeyColumn("key", AsciiType.instance)
+                     .addClusteringColumn("clustering", Int32Type.instance)
+                     .addRegularColumn("data", Int32Type.instance)
+                     .build();
+
     static Comparator<Clusterable> comparator = new ClusteringComparator(Int32Type.instance);
     static int nowInSec = FBUtilities.nowInSeconds();
 
@@ -424,7 +426,7 @@ public class UnfilteredRowIteratorsMergeTest
             super(UnfilteredRowIteratorsMergeTest.metadata,
                   UnfilteredRowIteratorsMergeTest.partitionKey,
                   UnfilteredRowIteratorsMergeTest.partitionLevelDeletion,
-                  UnfilteredRowIteratorsMergeTest.metadata.partitionColumns(),
+                  UnfilteredRowIteratorsMergeTest.metadata.regularAndStaticColumns(),
                   null,
                   reversed,
                   EncodingStats.NO_STATS);

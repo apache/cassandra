@@ -48,7 +48,7 @@ public class JoinTokenRingTest
         ss.joinRing();
 
         SecondaryIndexManager indexManager = ColumnFamilyStore.getIfExists("JoinTokenRingTestKeyspace7", "Indexed1").indexManager;
-        StubIndex stub = (StubIndex) indexManager.getIndexByName("value_index");
+        StubIndex stub = (StubIndex) indexManager.getIndexByName("Indexed1_value_index");
         Assert.assertTrue(stub.preJoinInvocation);
     }
 }

@@ -21,7 +21,6 @@ package org.apache.cassandra.db;
 import com.google.common.base.Charsets;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.UpdateBuilder;
@@ -48,6 +47,10 @@ import java.nio.file.Files;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
+import static org.apache.cassandra.SchemaLoader.counterCFMD;
+import static org.apache.cassandra.SchemaLoader.createKeyspace;
+import static org.apache.cassandra.SchemaLoader.loadSchema;
+import static org.apache.cassandra.SchemaLoader.standardCFMD;
 import static org.junit.Assert.fail;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
@@ -74,22 +77,22 @@ public class VerifyTest
     {
         CompressionParams compressionParameters = CompressionParams.snappy(32768);
 
-        SchemaLoader.loadSchema();
-        SchemaLoader.createKeyspace(KEYSPACE,
-                                    KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF).compression(compressionParameters),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF2).compression(compressionParameters),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF3),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF4),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CORRUPT_CF),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CORRUPT_CF2),
-                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF).compression(compressionParameters),
-                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF2).compression(compressionParameters),
-                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF3),
-                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF4),
-                                    SchemaLoader.counterCFMD(KEYSPACE, CORRUPTCOUNTER_CF),
-                                    SchemaLoader.counterCFMD(KEYSPACE, CORRUPTCOUNTER_CF2),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF_UUID, 0, UUIDType.instance));
+        loadSchema();
+        createKeyspace(KEYSPACE,
+                       KeyspaceParams.simple(1),
+                       standardCFMD(KEYSPACE, CF).compression(compressionParameters),
+                       standardCFMD(KEYSPACE, CF2).compression(compressionParameters),
+                       standardCFMD(KEYSPACE, CF3),
+                       standardCFMD(KEYSPACE, CF4),
+                       standardCFMD(KEYSPACE, CORRUPT_CF),
+                       standardCFMD(KEYSPACE, CORRUPT_CF2),
+                       counterCFMD(KEYSPACE, COUNTER_CF).compression(compressionParameters),
+                       counterCFMD(KEYSPACE, COUNTER_CF2).compression(compressionParameters),
+                       counterCFMD(KEYSPACE, COUNTER_CF3),
+                       counterCFMD(KEYSPACE, COUNTER_CF4),
+                       counterCFMD(KEYSPACE, CORRUPTCOUNTER_CF),
+                       counterCFMD(KEYSPACE, CORRUPTCOUNTER_CF2),
+                       standardCFMD(KEYSPACE, CF_UUID, 0, UUIDType.instance));
     }
 
 
@@ -352,7 +355,7 @@ public class VerifyTest
     {
         for (int i = 0; i < partitionsPerSSTable; i++)
         {
-            UpdateBuilder.create(cfs.metadata, String.valueOf(i))
+            UpdateBuilder.create(cfs.metadata(), String.valueOf(i))
                          .newRow("c1").add("val", "1")
                          .newRow("c2").add("val", "2")
                          .apply();
@@ -365,7 +368,7 @@ public class VerifyTest
     {
         for (int i = 0; i < partitionsPerSSTable; i++)
         {
-            UpdateBuilder.create(cfs.metadata, String.valueOf(i))
+            UpdateBuilder.create(cfs.metadata(), String.valueOf(i))
                          .newRow("c1").add("val", 100L)
                          .apply();
         }

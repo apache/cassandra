@@ -35,16 +35,16 @@ import com.google.common.base.Function;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import com.datastax.driver.core.*;
+import com.datastax.driver.core.TableMetadata;
 import com.datastax.driver.core.exceptions.AlreadyExistsException;
 import org.antlr.runtime.RecognitionException;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.generate.values.*;
 import org.apache.cassandra.stress.operations.userdefined.TokenRangeQuery;
@@ -300,7 +300,7 @@ public class StressProfile implements Serializable
                     throw new RuntimeException("Unable to find table " + keyspaceName + "." + tableName);
 
                 //Fill in missing column configs
-                for (ColumnMetadata col : metadata.getColumns())
+                for (com.datastax.driver.core.ColumnMetadata col : metadata.getColumns())
                 {
                     if (columnConfigs.containsKey(col.getName()))
                         continue;
@@ -393,31 +393,31 @@ public class StressProfile implements Serializable
 
     public PartitionGenerator getOfflineGenerator()
     {
-        CFMetaData cfMetaData = CFMetaData.compile(tableCql, keyspaceName);
+        org.apache.cassandra.schema.TableMetadata metadata = CreateTableStatement.parse(tableCql, keyspaceName).build();
 
         //Add missing column configs
-        Iterator<ColumnDefinition> it = cfMetaData.allColumnsInSelectOrder();
+        Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
         while (it.hasNext())
         {
-            ColumnDefinition c = it.next();
+            ColumnMetadata c = it.next();
             if (!columnConfigs.containsKey(c.name.toString()))
                 columnConfigs.put(c.name.toString(), new GeneratorConfig(seedStr + c.name.toString(), null, null, null));
         }
 
-        List<Generator> partitionColumns = cfMetaData.partitionKeyColumns().stream()
-                                                     .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
-                                                     .map(c -> c.getGenerator())
-                                                     .collect(Collectors.toList());
+        List<Generator> partitionColumns = metadata.partitionKeyColumns().stream()
+                                                   .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
+                                                   .map(c -> c.getGenerator())
+                                                   .collect(Collectors.toList());
 
-        List<Generator> clusteringColumns = cfMetaData.clusteringColumns().stream()
-                                                             .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
-                                                             .map(c -> c.getGenerator())
-                                                             .collect(Collectors.toList());
+        List<Generator> clusteringColumns = metadata.clusteringColumns().stream()
+                                                    .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
+                                                    .map(c -> c.getGenerator())
+                                                    .collect(Collectors.toList());
 
-        List<Generator> regularColumns = com.google.common.collect.Lists.newArrayList(cfMetaData.partitionColumns().selectOrderIterator()).stream()
-                                                                                                             .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
-                                                                                                             .map(c -> c.getGenerator())
-                                                                                                             .collect(Collectors.toList());
+        List<Generator> regularColumns = com.google.common.collect.Lists.newArrayList(metadata.regularAndStaticColumns().selectOrderIterator()).stream()
+                                                                        .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
+                                                                        .map(c -> c.getGenerator())
+                                                                        .collect(Collectors.toList());
 
         return new PartitionGenerator(partitionColumns, clusteringColumns, regularColumns, PartitionGenerator.Order.ARBITRARY);
     }
@@ -434,14 +434,14 @@ public class StressProfile implements Serializable
     {
         assert tableCql != null;
 
-        CFMetaData cfMetaData = CFMetaData.compile(tableCql, keyspaceName);
+        org.apache.cassandra.schema.TableMetadata metadata = CreateTableStatement.parse(tableCql, keyspaceName).build();
 
-        List<ColumnDefinition> allColumns = com.google.common.collect.Lists.newArrayList(cfMetaData.allColumnsInSelectOrder());
+        List<ColumnMetadata> allColumns = com.google.common.collect.Lists.newArrayList(metadata.allColumnsInSelectOrder());
 
         StringBuilder sb = new StringBuilder();
         sb.append("INSERT INTO ").append(quoteIdentifier(keyspaceName)).append(".").append(quoteIdentifier(tableName)).append(" (");
         StringBuilder value = new StringBuilder();
-        for (ColumnDefinition c : allColumns)
+        for (ColumnMetadata c : allColumns)
         {
             sb.append(quoteIdentifier(c.name.toString())).append(", ");
             value.append("?, ");
@@ -481,8 +481,8 @@ public class StressProfile implements Serializable
                 {
                     maybeLoadSchemaInfo(settings);
 
-                    Set<ColumnMetadata> keyColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getPrimaryKey());
-                    Set<ColumnMetadata> allColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getColumns());
+                    Set<com.datastax.driver.core.ColumnMetadata> keyColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getPrimaryKey());
+                    Set<com.datastax.driver.core.ColumnMetadata> allColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getColumns());
                     boolean isKeyOnlyTable = (keyColumns.size() == allColumns.size());
                     //With compact storage
                     if (!isKeyOnlyTable && (keyColumns.size() == (allColumns.size() - 1)))
@@ -490,7 +490,7 @@ public class StressProfile implements Serializable
                         com.google.common.collect.Sets.SetView diff = com.google.common.collect.Sets.difference(allColumns, keyColumns);
                         for (Object obj : diff)
                         {
-                            ColumnMetadata col = (ColumnMetadata)obj;
+                            com.datastax.driver.core.ColumnMetadata col = (com.datastax.driver.core.ColumnMetadata)obj;
                             isKeyOnlyTable = col.getName().isEmpty();
                             break;
                         }
@@ -507,7 +507,7 @@ public class StressProfile implements Serializable
 
                         boolean firstCol = true;
                         boolean firstPred = true;
-                        for (ColumnMetadata c : tableMetaData.getColumns()) {
+                        for (com.datastax.driver.core.ColumnMetadata c : tableMetaData.getColumns()) {
 
                             if (keyColumns.contains(c)) {
                                 if (firstPred)
@@ -545,7 +545,7 @@ public class StressProfile implements Serializable
                     {
                         sb.append("INSERT INTO ").append(quoteIdentifier(tableName)).append(" (");
                         StringBuilder value = new StringBuilder();
-                        for (ColumnMetadata c : tableMetaData.getPrimaryKey())
+                        for (com.datastax.driver.core.ColumnMetadata c : tableMetaData.getPrimaryKey())
                         {
                             sb.append(quoteIdentifier(c.getName())).append(", ");
                             value.append("?, ");
@@ -655,17 +655,17 @@ public class StressProfile implements Serializable
 
         private GeneratorFactory()
         {
-            Set<ColumnMetadata> keyColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getPrimaryKey());
+            Set<com.datastax.driver.core.ColumnMetadata> keyColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getPrimaryKey());
 
-            for (ColumnMetadata metadata : tableMetaData.getPartitionKey())
+            for (com.datastax.driver.core.ColumnMetadata metadata : tableMetaData.getPartitionKey())
                 partitionKeys.add(new ColumnInfo(metadata.getName(), metadata.getType().getName().toString(),
                                                  metadata.getType().isCollection() ? metadata.getType().getTypeArguments().get(0).getName().toString() : "",
                                                  columnConfigs.get(metadata.getName())));
-            for (ColumnMetadata metadata : tableMetaData.getClusteringColumns())
+            for (com.datastax.driver.core.ColumnMetadata metadata : tableMetaData.getClusteringColumns())
                 clusteringColumns.add(new ColumnInfo(metadata.getName(), metadata.getType().getName().toString(),
                                                      metadata.getType().isCollection() ? metadata.getType().getTypeArguments().get(0).getName().toString() : "",
                                                      columnConfigs.get(metadata.getName())));
-            for (ColumnMetadata metadata : tableMetaData.getColumns())
+            for (com.datastax.driver.core.ColumnMetadata metadata : tableMetaData.getColumns())
                 if (!keyColumns.contains(metadata))
                     valueColumns.add(new ColumnInfo(metadata.getName(), metadata.getType().getName().toString(),
                                                     metadata.getType().isCollection() ? metadata.getType().getTypeArguments().get(0).getName().toString() : "",

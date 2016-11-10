@@ -1,4 +1,5 @@
 4.0
+ * Make TableMetadata immutable, optimize Schema (CASSANDRA-9425)
  * Refactor ColumnCondition (CASSANDRA-12981)
  * Parallelize streaming of different keyspaces (CASSANDRA-4663)
  * Improved compactions metrics (CASSANDRA-13015)
@@ -29,6 +30,7 @@
  * cqlsh auto completion: refactor definition of compaction strategy options (CASSANDRA-12946)
  * Add support for arithmetic operators (CASSANDRA-11935)
  * Tables in system_distributed should not use gcgs of 0 (CASSANDRA-12954)
+
 
 3.10
  * Fix secondary index queries regression (CASSANDRA-13013)

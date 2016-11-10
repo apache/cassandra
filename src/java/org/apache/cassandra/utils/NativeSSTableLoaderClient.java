@@ -22,23 +22,20 @@ import java.util.*;
 
 import com.datastax.driver.core.*;
 
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.ColumnDefinition.ClusteringOrder;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.io.sstable.SSTableLoader;
-import org.apache.cassandra.schema.CQLTypeParser;
-import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.TableMetadata;
 
 public class NativeSSTableLoaderClient extends SSTableLoader.Client
 {
-    protected final Map<String, CFMetaData> tables;
+    protected final Map<String, TableMetadataRef> tables;
     private final Collection<InetAddress> hosts;
     private final int port;
     private final AuthProvider authProvider;
@@ -90,20 +87,20 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
             Types types = fetchTypes(keyspace, session);
 
             tables.putAll(fetchTables(keyspace, session, partitioner, types));
-            // We only need the CFMetaData for the views, so we only load that.
+            // We only need the TableMetadata for the views, so we only load that.
             tables.putAll(fetchViews(keyspace, session, partitioner, types));
         }
     }
 
-    public CFMetaData getTableMetadata(String tableName)
+    public TableMetadataRef getTableMetadata(String tableName)
     {
         return tables.get(tableName);
     }
 
     @Override
-    public void setTableMetadata(CFMetaData cfm)
+    public void setTableMetadata(TableMetadataRef cfm)
     {
-        tables.put(cfm.cfName, cfm);
+        tables.put(cfm.name, cfm);
     }
 
     private static Types fetchTypes(String keyspace, Session session)
@@ -130,9 +127,9 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
      * Note: It is not safe for this class to use static methods from SchemaKeyspace (static final fields are ok)
      * as that triggers initialization of the class, which fails in client mode.
      */
-    private static Map<String, CFMetaData> fetchTables(String keyspace, Session session, IPartitioner partitioner, Types types)
+    private static Map<String, TableMetadataRef> fetchTables(String keyspace, Session session, IPartitioner partitioner, Types types)
     {
-        Map<String, CFMetaData> tables = new HashMap<>();
+        Map<String, TableMetadataRef> tables = new HashMap<>();
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.TABLES);
 
         for (Row row : session.execute(query, keyspace))
@@ -144,12 +141,9 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         return tables;
     }
 
-    /*
-     * In the case where we are creating View CFMetaDatas, we
-     */
-    private static Map<String, CFMetaData> fetchViews(String keyspace, Session session, IPartitioner partitioner, Types types)
+    private static Map<String, TableMetadataRef> fetchViews(String keyspace, Session session, IPartitioner partitioner, Types types)
     {
-        Map<String, CFMetaData> tables = new HashMap<>();
+        Map<String, TableMetadataRef> tables = new HashMap<>();
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.VIEWS);
 
         for (Row row : session.execute(query, keyspace))
@@ -161,43 +155,31 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         return tables;
     }
 
-    private static CFMetaData createTableMetadata(String keyspace,
-                                                  Session session,
-                                                  IPartitioner partitioner,
-                                                  boolean isView,
-                                                  Row row,
-                                                  String name,
-                                                  Types types)
+    private static TableMetadataRef createTableMetadata(String keyspace,
+                                                        Session session,
+                                                        IPartitioner partitioner,
+                                                        boolean isView,
+                                                        Row row,
+                                                        String name,
+                                                        Types types)
     {
-        UUID id = row.getUUID("id");
-        Set<CFMetaData.Flag> flags = isView ? Collections.emptySet() : CFMetaData.flagsFromStrings(row.getSet("flags", String.class));
+        TableMetadata.Builder builder = TableMetadata.builder(keyspace, name, TableId.fromUUID(row.getUUID("id")))
+                                                     .partitioner(partitioner);
 
-        boolean isSuper = flags.contains(CFMetaData.Flag.SUPER);
-        boolean isCounter = flags.contains(CFMetaData.Flag.COUNTER);
-        boolean isDense = flags.contains(CFMetaData.Flag.DENSE);
-        boolean isCompound = isView || flags.contains(CFMetaData.Flag.COMPOUND);
+        if (!isView)
+            builder.flags(TableMetadata.Flag.fromStringSet(row.getSet("flags", String.class)));
 
         String columnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
                                             SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                             SchemaKeyspace.COLUMNS);
 
-        List<ColumnDefinition> defs = new ArrayList<>();
         for (Row colRow : session.execute(columnsQuery, keyspace, name))
-            defs.add(createDefinitionFromRow(colRow, keyspace, name, types));
+            builder.addColumn(createDefinitionFromRow(colRow, keyspace, name, types));
 
-        return CFMetaData.create(keyspace,
-                                 name,
-                                 id,
-                                 isDense,
-                                 isCompound,
-                                 isSuper,
-                                 isCounter,
-                                 isView,
-                                 defs,
-                                 partitioner);
+        return TableMetadataRef.forOfflineTools(builder.build());
     }
 
-    private static ColumnDefinition createDefinitionFromRow(Row row, String keyspace, String table, Types types)
+    private static ColumnMetadata createDefinitionFromRow(Row row, String keyspace, String table, Types types)
     {
         ClusteringOrder order = ClusteringOrder.valueOf(row.getString("clustering_order").toUpperCase());
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), types);
@@ -209,7 +191,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
                                                              row.getString("column_name"));
 
         int position = row.getInt("position");
-        ColumnDefinition.Kind kind = ColumnDefinition.Kind.valueOf(row.getString("kind").toUpperCase());
-        return new ColumnDefinition(keyspace, table, name, type, position, kind);
+        org.apache.cassandra.schema.ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase());
+        return new ColumnMetadata(keyspace, table, name, type, position, kind);
     }
 }

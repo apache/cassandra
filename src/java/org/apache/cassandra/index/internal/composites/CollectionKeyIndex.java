@@ -19,7 +19,7 @@ package org.apache.cassandra.index.internal.composites;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -56,7 +56,7 @@ public class CollectionKeyIndex extends CollectionKeyIndexBase
         return cell == null || !cell.isLive(nowInSec);
     }
 
-    public boolean supportsOperator(ColumnDefinition indexedColumn, Operator operator)
+    public boolean supportsOperator(ColumnMetadata indexedColumn, Operator operator)
     {
         return operator == Operator.CONTAINS_KEY ||
                operator == Operator.CONTAINS && indexedColumn.type instanceof SetType;

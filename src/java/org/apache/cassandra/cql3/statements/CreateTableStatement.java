@@ -30,11 +30,8 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.TableParams;
-import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 
@@ -61,9 +58,9 @@ public class CreateTableStatement extends SchemaAlteringStatement
     private final Set<ColumnIdentifier> staticColumns;
     private final TableParams params;
     private final boolean ifNotExists;
-    private final UUID id;
+    private final TableId id;
 
-    public CreateTableStatement(CFName name, TableParams params, boolean ifNotExists, Set<ColumnIdentifier> staticColumns, UUID id)
+    public CreateTableStatement(CFName name, TableParams params, boolean ifNotExists, Set<ColumnIdentifier> staticColumns, TableId id)
     {
         super(name);
         this.params = params;
@@ -86,7 +83,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
     {
         try
         {
-            MigrationManager.announceNewColumnFamily(getCFMetaData(), isLocalOnly);
+            MigrationManager.announceNewTable(toTableMetadata(), isLocalOnly);
             return new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
         }
         catch (AlreadyExistsException e)
@@ -113,12 +110,33 @@ public class CreateTableStatement extends SchemaAlteringStatement
         }
     }
 
-    public CFMetaData.Builder metadataBuilder()
+    /**
+     */
+    public static TableMetadata.Builder parse(String cql, String keyspace)
     {
-        CFMetaData.Builder builder = CFMetaData.Builder.create(keyspace(), columnFamily(), isDense, isCompound, hasCounters);
-        builder.withId(id);
+        CreateTableStatement.RawStatement raw = CQLFragmentParser.parseAny(CqlParser::createTableStatement, cql, "CREATE TABLE");
+        raw.prepareKeyspace(keyspace);
+        CreateTableStatement prepared = (CreateTableStatement) raw.prepare(Types.none()).statement;
+        return prepared.builder();
+    }
+
+    public TableMetadata.Builder builder()
+    {
+        TableMetadata.Builder builder = TableMetadata.builder(keyspace(), columnFamily());
+
+        if (id != null)
+            builder.id(id);
+
+        builder.isDense(isDense)
+               .isCompound(isCompound)
+               .isCounter(hasCounters)
+               .isSuper(false)
+               .isView(false)
+               .params(params);
+
         for (int i = 0; i < keyAliases.size(); i++)
-            builder.addPartitionKey(keyAliases.get(i), keyTypes.get(i));
+            builder.addPartitionKeyColumn(keyAliases.get(i), keyTypes.get(i));
+
         for (int i = 0; i < columnAliases.size(); i++)
             builder.addClusteringColumn(columnAliases.get(i), clusteringTypes.get(i));
 
@@ -136,14 +154,14 @@ public class CreateTableStatement extends SchemaAlteringStatement
         boolean isCompactTable = isDense || !isCompound;
         if (isCompactTable)
         {
-            CompactTables.DefaultNames names = CompactTables.defaultNameGenerator(builder.usedColumnNames());
+            CompactTables.DefaultNames names = CompactTables.defaultNameGenerator(builder.columnNames());
             // Compact tables always have a clustering and a single regular value.
             if (isStaticCompact)
             {
                 builder.addClusteringColumn(names.defaultClusteringName(), UTF8Type.instance);
                 builder.addRegularColumn(names.defaultCompactValueName(), hasCounters ? CounterColumnType.instance : BytesType.instance);
             }
-            else if (isDense && !builder.hasRegulars())
+            else if (isDense && !builder.hasRegularColumns())
             {
                 // Even for dense, we might not have our regular column if it wasn't part of the declaration. If
                 // that's the case, add it but with a specific EmptyType so we can recognize that case later
@@ -155,20 +173,14 @@ public class CreateTableStatement extends SchemaAlteringStatement
     }
 
     /**
-     * Returns a CFMetaData instance based on the parameters parsed from this
+     * Returns a TableMetadata instance based on the parameters parsed from this
      * {@code CREATE} statement, or defaults where applicable.
      *
-     * @return a CFMetaData instance corresponding to the values parsed from this statement
-     * @throws InvalidRequestException on failure to validate parsed parameters
+     * @return a TableMetadata instance corresponding to the values parsed from this statement
      */
-    public CFMetaData getCFMetaData()
+    public TableMetadata toTableMetadata()
     {
-        return metadataBuilder().build().params(params);
-    }
-
-    public TableParams params()
-    {
-        return params;
+        return builder().build();
     }
 
     public static class RawStatement extends CFStatement
@@ -195,7 +207,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
          */
         public ParsedStatement.Prepared prepare() throws RequestValidationException
         {
-            KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace());
+            KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace());
             if (ksm == null)
                 throw new ConfigurationException(String.format("Keyspace %s doesn't exist", keyspace()));
             return prepare(ksm.types);

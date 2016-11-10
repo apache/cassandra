@@ -20,8 +20,8 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.CBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -29,26 +29,26 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 public class TokenFct extends NativeScalarFunction
 {
-    private final CFMetaData cfm;
+    private final TableMetadata metadata;
 
-    public TokenFct(CFMetaData cfm)
+    public TokenFct(TableMetadata metadata)
     {
-        super("token", cfm.partitioner.getTokenValidator(), getKeyTypes(cfm));
-        this.cfm = cfm;
+        super("token", metadata.partitioner.getTokenValidator(), getKeyTypes(metadata));
+        this.metadata = metadata;
     }
 
-    private static AbstractType[] getKeyTypes(CFMetaData cfm)
+    private static AbstractType[] getKeyTypes(TableMetadata metadata)
     {
-        AbstractType[] types = new AbstractType[cfm.partitionKeyColumns().size()];
+        AbstractType[] types = new AbstractType[metadata.partitionKeyColumns().size()];
         int i = 0;
-        for (ColumnDefinition def : cfm.partitionKeyColumns())
+        for (ColumnMetadata def : metadata.partitionKeyColumns())
             types[i++] = def.type;
         return types;
     }
 
     public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
     {
-        CBuilder builder = CBuilder.create(cfm.getKeyValidatorAsClusteringComparator());
+        CBuilder builder = CBuilder.create(metadata.partitionKeyAsClusteringComparator());
         for (int i = 0; i < parameters.size(); i++)
         {
             ByteBuffer bb = parameters.get(i);
@@ -56,6 +56,6 @@ public class TokenFct extends NativeScalarFunction
                 return null;
             builder.add(bb);
         }
-        return cfm.partitioner.getTokenFactory().toByteArray(cfm.partitioner.getToken(CFMetaData.serializePartitionKey(builder.build())));
+        return metadata.partitioner.getTokenFactory().toByteArray(metadata.partitioner.getToken(builder.build().serializeAsPartitionKey()));
     }
 }

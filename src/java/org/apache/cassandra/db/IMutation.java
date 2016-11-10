@@ -18,15 +18,15 @@
 package org.apache.cassandra.db;
 
 import java.util.Collection;
-import java.util.UUID;
 
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.TableId;
 
 public interface IMutation
 {
     public void apply();
     public String getKeyspaceName();
-    public Collection<UUID> getColumnFamilyIds();
+    public Collection<TableId> getTableIds();
     public DecoratedKey key();
     public long getTimeout();
     public String toString(boolean shallow);

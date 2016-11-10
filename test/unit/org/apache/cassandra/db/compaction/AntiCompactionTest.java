@@ -27,12 +27,11 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import com.google.common.util.concurrent.RateLimiter;
 import org.junit.BeforeClass;
 import org.junit.After;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.EncodingStats;
@@ -63,16 +62,14 @@ public class AntiCompactionTest
 {
     private static final String KEYSPACE1 = "AntiCompactionTest";
     private static final String CF = "AntiCompactionTest";
-    private static CFMetaData cfm;
+    private static TableMetadata metadata;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
-        cfm = SchemaLoader.standardCFMD(KEYSPACE1, CF);
-        SchemaLoader.createKeyspace(KEYSPACE1,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
+        metadata = SchemaLoader.standardCFMD(KEYSPACE1, CF).build();
+        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), metadata);
     }
 
     @After
@@ -169,11 +166,11 @@ public class AntiCompactionTest
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         Descriptor desc = cfs.newSSTableDescriptor(dir);
 
-        try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, desc, 0, 0, new SerializationHeader(true, cfm, cfm.partitionColumns(), EncodingStats.NO_STATS)))
+        try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, desc, 0, 0, new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS)))
         {
             for (int i = 0; i < count; i++)
             {
-                UpdateBuilder builder = UpdateBuilder.create(cfm, ByteBufferUtil.bytes(i));
+                UpdateBuilder builder = UpdateBuilder.create(metadata, ByteBufferUtil.bytes(i));
                 for (int j = 0; j < count * 5; j++)
                     builder.newRow("c" + j).add("val", "value1");
                 writer.append(builder.build().unfilteredIterator());
@@ -191,7 +188,7 @@ public class AntiCompactionTest
         for (int i = 0; i < 10; i++)
         {
             String localSuffix = Integer.toString(i);
-            new RowUpdateBuilder(cfm, System.currentTimeMillis(), localSuffix + "-" + Suffix)
+            new RowUpdateBuilder(metadata, System.currentTimeMillis(), localSuffix + "-" + Suffix)
                     .clustering("c")
                     .add("val", "val" + localSuffix)
                     .build()
@@ -328,7 +325,7 @@ public class AntiCompactionTest
         store.disableAutoCompaction();
         for (int i = 0; i < 10; i++)
         {
-            new RowUpdateBuilder(cfm, System.currentTimeMillis(), Integer.toString(i))
+            new RowUpdateBuilder(metadata, System.currentTimeMillis(), Integer.toString(i))
                 .clustering("c")
                 .add("val", "val")
                 .build()

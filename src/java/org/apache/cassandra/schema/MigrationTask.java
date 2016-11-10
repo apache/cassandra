@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.schema;
 
 import java.net.InetAddress;
 import java.util.Collection;
@@ -36,11 +36,9 @@ import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-
-class MigrationTask extends WrappedRunnable
+final class MigrationTask extends WrappedRunnable
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationTask.class);
 
@@ -55,7 +53,7 @@ class MigrationTask extends WrappedRunnable
         this.endpoint = endpoint;
     }
 
-    public static ConcurrentLinkedQueue<CountDownLatch> getInflightTasks()
+    static ConcurrentLinkedQueue<CountDownLatch> getInflightTasks()
     {
         return inflightTasks;
     }
@@ -88,7 +86,7 @@ class MigrationTask extends WrappedRunnable
             {
                 try
                 {
-                    SchemaKeyspace.mergeSchemaAndAnnounceVersion(message.payload);
+                    Schema.instance.mergeAndAnnounceVersion(message.payload);
                 }
                 catch (ConfigurationException e)
                 {

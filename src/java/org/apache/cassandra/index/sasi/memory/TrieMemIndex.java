@@ -22,8 +22,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentSkipListSet;
 
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.disk.Token;
@@ -106,9 +106,9 @@ public class TrieMemIndex extends MemIndex
     {
         public static final SizeEstimatingNodeFactory NODE_FACTORY = new SizeEstimatingNodeFactory();
 
-        protected final ColumnDefinition definition;
+        protected final ColumnMetadata definition;
 
-        public ConcurrentTrie(ColumnDefinition column)
+        public ConcurrentTrie(ColumnMetadata column)
         {
             definition = column;
         }
@@ -162,7 +162,7 @@ public class TrieMemIndex extends MemIndex
     {
         private final ConcurrentRadixTree<ConcurrentSkipListSet<DecoratedKey>> trie;
 
-        private ConcurrentPrefixTrie(ColumnDefinition column)
+        private ConcurrentPrefixTrie(ColumnMetadata column)
         {
             super(column);
             trie = new ConcurrentRadixTree<>(NODE_FACTORY);
@@ -200,7 +200,7 @@ public class TrieMemIndex extends MemIndex
     {
         private final ConcurrentSuffixTree<ConcurrentSkipListSet<DecoratedKey>> trie;
 
-        private ConcurrentSuffixTrie(ColumnDefinition column)
+        private ConcurrentSuffixTrie(ColumnMetadata column)
         {
             super(column);
             trie = new ConcurrentSuffixTree<>(NODE_FACTORY);

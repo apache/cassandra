@@ -19,12 +19,9 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
-import org.apache.cassandra.db.KeyspaceNotDefinedException;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -36,37 +33,6 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public abstract class Validation
 {
-    /**
-     * Retrieves the metadata for the provided keyspace and table name, throwing
-     * a meaningful user exception if those doen't exist.
-     *
-     * @param keyspaceName the keyspace name.
-     * @param tableName the table name.
-     * @return the metadata for table {@code keyspaceName.tableName} if it
-     * exists (otherwise an {@code InvalidRequestException} is thrown).
-     *
-     * @throws InvalidRequestException if the table requested doesn't exist.
-     */
-    public static CFMetaData validateColumnFamily(String keyspaceName, String tableName)
-    throws InvalidRequestException
-    {
-        validateKeyspace(keyspaceName);
-        if (tableName.isEmpty())
-            throw new InvalidRequestException("non-empty table is required");
-
-        CFMetaData metadata = Schema.instance.getCFMetaData(keyspaceName, tableName);
-        if (metadata == null)
-            throw new InvalidRequestException("unconfigured table " + tableName);
-
-        return metadata;
-    }
-
-    private static void validateKeyspace(String keyspaceName)
-    throws KeyspaceNotDefinedException
-    {
-        if (!Schema.instance.getKeyspaces().contains(keyspaceName))
-            throw new KeyspaceNotDefinedException("Keyspace " + keyspaceName + " does not exist");
-    }
 
     /**
      * Validates a (full serialized) partition key.
@@ -76,8 +42,7 @@ public abstract class Validation
      *
      * @throws InvalidRequestException if the provided {@code key} is invalid.
      */
-    public static void validateKey(CFMetaData metadata, ByteBuffer key)
-    throws InvalidRequestException
+    public static void validateKey(TableMetadata metadata, ByteBuffer key)
     {
         if (key == null || key.remaining() == 0)
             throw new InvalidRequestException("Key may not be empty");
@@ -92,26 +57,11 @@ public abstract class Validation
 
         try
         {
-            metadata.getKeyValidator().validate(key);
+            metadata.partitionKeyType.validate(key);
         }
         catch (MarshalException e)
         {
             throw new InvalidRequestException(e.getMessage());
         }
-    }
-
-    /**
-     * Validates that the provided keyspace is not one of the system keyspace.
-     *
-     * @param keyspace the keyspace name to validate.
-     *
-     * @throws InvalidRequestException if {@code keyspace} is the name of a
-     * system keyspace.
-     */
-    public static void validateKeyspaceNotSystem(String keyspace)
-    throws InvalidRequestException
-    {
-        if (SchemaConstants.isSystemKeyspace(keyspace))
-            throw new InvalidRequestException(String.format("%s keyspace is not user-modifiable", keyspace));
     }
 }

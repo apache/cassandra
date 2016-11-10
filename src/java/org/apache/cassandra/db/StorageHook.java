@@ -18,22 +18,21 @@
 
 package org.apache.cassandra.db;
 
-import java.util.UUID;
-
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIteratorWithLowerBound;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 
 public interface StorageHook
 {
     public static final StorageHook instance = createHook();
 
-    public void reportWrite(UUID cfid, PartitionUpdate partitionUpdate);
-    public void reportRead(UUID cfid, DecoratedKey key);
+    public void reportWrite(TableId tableId, PartitionUpdate partitionUpdate);
+    public void reportRead(TableId tableId, DecoratedKey key);
     public UnfilteredRowIteratorWithLowerBound makeRowIteratorWithLowerBound(ColumnFamilyStore cfs,
                                                                       DecoratedKey partitionKey,
                                                                       SSTableReader sstable,
@@ -57,9 +56,9 @@ public interface StorageHook
         {
             return new StorageHook()
             {
-                public void reportWrite(UUID cfid, PartitionUpdate partitionUpdate) {}
+                public void reportWrite(TableId tableId, PartitionUpdate partitionUpdate) {}
 
-                public void reportRead(UUID cfid, DecoratedKey key) {}
+                public void reportRead(TableId tableId, DecoratedKey key) {}
 
                 public UnfilteredRowIteratorWithLowerBound makeRowIteratorWithLowerBound(ColumnFamilyStore cfs, DecoratedKey partitionKey, SSTableReader sstable, ClusteringIndexFilter filter, ColumnFilter selectedColumns)
                 {

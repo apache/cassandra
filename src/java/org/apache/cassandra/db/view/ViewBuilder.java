@@ -80,13 +80,13 @@ public class ViewBuilder extends CompactionInfo.Holder
 
         // We're rebuilding everything from what's on disk, so we read everything, consider that as new updates
         // and pretend that there is nothing pre-existing.
-        UnfilteredRowIterator empty = UnfilteredRowIterators.noRowsIterator(baseCfs.metadata, key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, false);
+        UnfilteredRowIterator empty = UnfilteredRowIterators.noRowsIterator(baseCfs.metadata(), key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, false);
 
         try (ReadExecutionController orderGroup = command.executionController();
              UnfilteredRowIterator data = UnfilteredPartitionIterators.getOnlyElement(command.executeLocally(orderGroup), command))
         {
             Iterator<Collection<Mutation>> mutations = baseCfs.keyspace.viewManager
-                                                      .forTable(baseCfs.metadata)
+                                                      .forTable(baseCfs.metadata.id)
                                                       .generateViewUpdates(Collections.singleton(view), data, empty, nowInSec, true);
 
             AtomicLong noBase = new AtomicLong(Long.MAX_VALUE);
@@ -96,9 +96,9 @@ public class ViewBuilder extends CompactionInfo.Holder
 
     public void run()
     {
-        logger.trace("Running view builder for {}.{}", baseCfs.metadata.ksName, view.name);
+        logger.trace("Running view builder for {}.{}", baseCfs.metadata.keyspace, view.name);
         UUID localHostId = SystemKeyspace.getLocalHostId();
-        String ksname = baseCfs.metadata.ksName, viewName = view.name;
+        String ksname = baseCfs.metadata.keyspace, viewName = view.name;
 
         if (SystemKeyspace.isViewBuilt(ksname, viewName))
         {
@@ -107,7 +107,7 @@ public class ViewBuilder extends CompactionInfo.Holder
             return;
         }
 
-        Iterable<Range<Token>> ranges = StorageService.instance.getLocalRanges(baseCfs.metadata.ksName);
+        Iterable<Range<Token>> ranges = StorageService.instance.getLocalRanges(baseCfs.metadata.keyspace);
         final Pair<Integer, Token> buildStatus = SystemKeyspace.getViewBuildStatus(ksname, viewName);
         Token lastToken;
         Function<org.apache.cassandra.db.lifecycle.View, Iterable<SSTableReader>> function;
@@ -222,7 +222,7 @@ public class ViewBuilder extends CompactionInfo.Holder
             if (lastToken == null || range.contains(lastToken))
                 rangesLeft = 0;
         }
-        return new CompactionInfo(baseCfs.metadata, OperationType.VIEW_BUILD, rangesLeft, rangesTotal, "ranges", compactionId);
+        return new CompactionInfo(baseCfs.metadata(), OperationType.VIEW_BUILD, rangesLeft, rangesTotal, "ranges", compactionId);
     }
 
     public void stop()

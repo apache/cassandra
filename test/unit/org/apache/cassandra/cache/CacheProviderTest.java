@@ -18,30 +18,33 @@
  */
 package org.apache.cassandra.cache;
 
-import com.github.benmanes.caffeine.cache.Weigher;
-
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.Pair;
-
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.partitions.CachedBTreePartition;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.UnfilteredRowIterators;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.utils.FBUtilities;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import com.github.benmanes.caffeine.cache.Weigher;
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.partitions.CachedBTreePartition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -59,20 +62,20 @@ public class CacheProviderTest
     private static final String KEYSPACE1 = "CacheProviderTest1";
     private static final String CF_STANDARD1 = "Standard1";
 
-    private static CFMetaData cfm;
+    private static TableMetadata cfm;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
 
-        cfm = CFMetaData.Builder.create(KEYSPACE1, CF_STANDARD1)
-                                        .addPartitionKey("pKey", AsciiType.instance)
-                                        .addRegularColumn("col1", AsciiType.instance)
-                                        .build();
-        SchemaLoader.createKeyspace(KEYSPACE1,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
+        cfm =
+            TableMetadata.builder(KEYSPACE1, CF_STANDARD1)
+                         .addPartitionKeyColumn("pKey", AsciiType.instance)
+                         .addRegularColumn("col1", AsciiType.instance)
+                         .build();
+
+        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), cfm);
     }
 
     private CachedBTreePartition createPartition()
@@ -158,16 +161,43 @@ public class CacheProviderTest
     @Test
     public void testKeys()
     {
-        Pair<String, String> ksAndCFName = Pair.create(KEYSPACE1, CF_STANDARD1);
+        TableId id1 = TableId.generate();
         byte[] b1 = {1, 2, 3, 4};
-        RowCacheKey key1 = new RowCacheKey(ksAndCFName, ByteBuffer.wrap(b1));
+        RowCacheKey key1 = new RowCacheKey(id1, null, ByteBuffer.wrap(b1));
+        TableId id2 = TableId.fromString(id1.toString());
         byte[] b2 = {1, 2, 3, 4};
-        RowCacheKey key2 = new RowCacheKey(ksAndCFName, ByteBuffer.wrap(b2));
+        RowCacheKey key2 = new RowCacheKey(id2, null, ByteBuffer.wrap(b2));
         assertEquals(key1, key2);
         assertEquals(key1.hashCode(), key2.hashCode());
 
+        TableMetadata tm = TableMetadata.builder("ks", "tab", id1)
+                                        .addPartitionKeyColumn("pk", UTF8Type.instance)
+                                        .build();
+
+        assertTrue(key1.sameTable(tm));
+
         byte[] b3 = {1, 2, 3, 5};
-        RowCacheKey key3 = new RowCacheKey(ksAndCFName, ByteBuffer.wrap(b3));
+        RowCacheKey key3 = new RowCacheKey(id1, null, ByteBuffer.wrap(b3));
+        assertNotSame(key1, key3);
+        assertNotSame(key1.hashCode(), key3.hashCode());
+
+        // with index name
+
+        key1 = new RowCacheKey(id1, "indexFoo", ByteBuffer.wrap(b1));
+        assertNotSame(key1, key2);
+        assertNotSame(key1.hashCode(), key2.hashCode());
+
+        key2 = new RowCacheKey(id2, "indexFoo", ByteBuffer.wrap(b2));
+        assertEquals(key1, key2);
+        assertEquals(key1.hashCode(), key2.hashCode());
+
+        tm = TableMetadata.builder("ks", "tab.indexFoo", id1)
+                          .addPartitionKeyColumn("pk", UTF8Type.instance)
+                          .indexes(Indexes.of(IndexMetadata.fromSchemaMetadata("indexFoo", IndexMetadata.Kind.KEYS, Collections.emptyMap())))
+                          .build();
+        assertTrue(key1.sameTable(tm));
+
+        key3 = new RowCacheKey(id1, "indexFoo", ByteBuffer.wrap(b3));
         assertNotSame(key1, key3);
         assertNotSame(key1.hashCode(), key3.hashCode());
     }

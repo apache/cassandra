@@ -18,9 +18,7 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
-import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
@@ -29,6 +27,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableId;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
@@ -89,9 +88,9 @@ public final class Hint
     {
         if (isLive())
         {
-            // filter out partition update for table that have been truncated since hint's creation
+            // filter out partition update for tables that have been truncated since hint's creation
             Mutation filtered = mutation;
-            for (UUID id : mutation.getColumnFamilyIds())
+            for (TableId id : mutation.getTableIds())
                 if (creationTime <= SystemKeyspace.getTruncatedAt(id))
                     filtered = filtered.without(id);
 

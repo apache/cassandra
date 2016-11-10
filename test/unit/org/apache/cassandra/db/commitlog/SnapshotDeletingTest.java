@@ -25,7 +25,7 @@ import static org.junit.Assert.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -90,7 +90,7 @@ public class SnapshotDeletingTest
 
     private void populate(int rowCount) {
         long timestamp = System.currentTimeMillis();
-        CFMetaData cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).metadata;
+        TableMetadata cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).metadata();
         for (int i = 0; i <= rowCount; i++)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));

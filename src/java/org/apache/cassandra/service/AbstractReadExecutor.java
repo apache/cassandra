@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
@@ -28,7 +29,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.ReadRepairDecision;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadCommand;
@@ -42,6 +42,7 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.SpeculativeRetryParam;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
@@ -145,17 +146,29 @@ public abstract class AbstractReadExecutor
         return handler.get();
     }
 
+    private static ReadRepairDecision newReadRepairDecision(TableMetadata metadata)
+    {
+        double chance = ThreadLocalRandom.current().nextDouble();
+        if (metadata.params.readRepairChance > chance)
+            return ReadRepairDecision.GLOBAL;
+
+        if (metadata.params.dcLocalReadRepairChance > chance)
+            return ReadRepairDecision.DC_LOCAL;
+
+        return ReadRepairDecision.NONE;
+    }
+
     /**
      * @return an executor appropriate for the configured speculative read policy
      */
     public static AbstractReadExecutor getReadExecutor(SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, long queryStartNanoTime) throws UnavailableException
     {
-        Keyspace keyspace = Keyspace.open(command.metadata().ksName);
+        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         List<InetAddress> allReplicas = StorageProxy.getLiveSortedEndpoints(keyspace, command.partitionKey());
         // 11980: Excluding EACH_QUORUM reads from potential RR, so that we do not miscount DC responses
         ReadRepairDecision repairDecision = consistencyLevel == ConsistencyLevel.EACH_QUORUM
                                             ? ReadRepairDecision.NONE
-                                            : command.metadata().newReadRepairDecision();
+                                            : newReadRepairDecision(command.metadata());
         List<InetAddress> targetReplicas = consistencyLevel.filterForQuery(keyspace, allReplicas, repairDecision);
 
         // Throw UAE early if we don't have enough replicas.
@@ -167,8 +180,8 @@ public abstract class AbstractReadExecutor
             ReadRepairMetrics.attempted.mark();
         }
 
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().cfId);
-        SpeculativeRetryParam retry = cfs.metadata.params.speculativeRetry;
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
+        SpeculativeRetryParam retry = cfs.metadata().params.speculativeRetry;
 
         // Speculative retry is disabled *OR* there are simply no extra replicas to speculate.
         // 11980: Disable speculative retry if using EACH_QUORUM in order to prevent miscounting DC responses

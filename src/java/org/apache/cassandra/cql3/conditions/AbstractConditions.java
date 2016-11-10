@@ -19,7 +19,7 @@ package org.apache.cassandra.cql3.conditions;
 
 import java.util.List;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
 
 /**
@@ -32,7 +32,7 @@ abstract class AbstractConditions implements Conditions
     {
     }
 
-    public Iterable<ColumnDefinition> getColumns()
+    public Iterable<ColumnMetadata> getColumns()
     {
         return null;
     }

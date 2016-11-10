@@ -36,9 +36,8 @@ import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.xxhash.XXHashFactory;
 
 import org.apache.cassandra.config.Config;
-import org.xerial.snappy.SnappyInputStream;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.UnknownColumnFamilyException;
 import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
@@ -98,9 +97,9 @@ public class IncomingTcpConnection extends FastThreadLocalThread implements Clos
             logger.trace("eof reading from socket; closing", e);
             // connection will be reset so no need to throw an exception.
         }
-        catch (UnknownColumnFamilyException e)
+        catch (UnknownTableException e)
         {
-            logger.warn("UnknownColumnFamilyException reading from socket; closing", e);
+            logger.warn("UnknownTableException reading from socket; closing", e);
         }
         catch (IOException e)
         {

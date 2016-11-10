@@ -23,10 +23,7 @@ import java.util.*;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.Constants.Value;
-import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
@@ -34,6 +31,7 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.TimeUUIDSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
@@ -52,13 +50,13 @@ public class ColumnConditionTest
     public static final ByteBuffer ONE = Int32Type.instance.fromString("1");
     public static final ByteBuffer TWO = Int32Type.instance.fromString("2");
 
-    private static Row newRow(ColumnDefinition definition, ByteBuffer value)
+    private static Row newRow(ColumnMetadata definition, ByteBuffer value)
     {
         BufferCell cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, value, null);
         return BTreeRow.singleCellRow(Clustering.EMPTY, cell);
     }
 
-    private static Row newRow(ColumnDefinition definition, List<ByteBuffer> values)
+    private static Row newRow(ColumnMetadata definition, List<ByteBuffer> values)
     {
         Row.Builder builder = BTreeRow.sortedBuilder();
         builder.newRow(Clustering.EMPTY);
@@ -82,7 +80,7 @@ public class ColumnConditionTest
         return builder.build();
     }
 
-    private static Row newRow(ColumnDefinition definition, SortedSet<ByteBuffer> values)
+    private static Row newRow(ColumnMetadata definition, SortedSet<ByteBuffer> values)
     {
         Row.Builder builder = BTreeRow.sortedBuilder();
         builder.newRow(Clustering.EMPTY);
@@ -102,7 +100,7 @@ public class ColumnConditionTest
         return builder.build();
     }
 
-    private static Row newRow(ColumnDefinition definition, Map<ByteBuffer, ByteBuffer> values)
+    private static Row newRow(ColumnMetadata definition, Map<ByteBuffer, ByteBuffer> values)
     {
         Row.Builder builder = BTreeRow.sortedBuilder();
         builder.newRow(Clustering.EMPTY);
@@ -124,7 +122,7 @@ public class ColumnConditionTest
 
     private static boolean conditionApplies(ByteBuffer rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnDefinition definition = ColumnDefinition.regularDef("ks", "cf", "c", Int32Type.instance);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", Int32Type.instance);
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
@@ -132,7 +130,7 @@ public class ColumnConditionTest
 
     private static boolean conditionApplies(List<ByteBuffer> rowValue, Operator op, List<ByteBuffer> conditionValue)
     {
-        ColumnDefinition definition = ColumnDefinition.regularDef("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true));
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true));
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Lists.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
@@ -140,7 +138,7 @@ public class ColumnConditionTest
 
     private static boolean conditionApplies(SortedSet<ByteBuffer> rowValue, Operator op, SortedSet<ByteBuffer> conditionValue)
     {
-        ColumnDefinition definition = ColumnDefinition.regularDef("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true));
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true));
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Sets.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
@@ -148,7 +146,7 @@ public class ColumnConditionTest
 
     private static boolean conditionApplies(Map<ByteBuffer, ByteBuffer> rowValue, Operator op, Map<ByteBuffer, ByteBuffer> conditionValue)
     {
-        ColumnDefinition definition = ColumnDefinition.regularDef("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
         ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Maps.Value(conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));

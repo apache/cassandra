@@ -98,11 +98,11 @@ public class RecoveryManagerMissingHeaderTest
         Keyspace keyspace2 = Keyspace.open(KEYSPACE2);
 
         DecoratedKey dk = Util.dk("keymulti");
-        UnfilteredRowIterator upd1 = Util.apply(new RowUpdateBuilder(keyspace1.getColumnFamilyStore(CF_STANDARD1).metadata, 1L, 0, "keymulti")
+        UnfilteredRowIterator upd1 = Util.apply(new RowUpdateBuilder(keyspace1.getColumnFamilyStore(CF_STANDARD1).metadata(), 1L, 0, "keymulti")
                                        .clustering("col1").add("val", "1")
                                        .build());
 
-        UnfilteredRowIterator upd2 = Util.apply(new RowUpdateBuilder(keyspace2.getColumnFamilyStore(CF_STANDARD3).metadata, 1L, 0, "keymulti")
+        UnfilteredRowIterator upd2 = Util.apply(new RowUpdateBuilder(keyspace2.getColumnFamilyStore(CF_STANDARD3).metadata(), 1L, 0, "keymulti")
                                        .clustering("col1").add("val", "1")
                                        .build());
 

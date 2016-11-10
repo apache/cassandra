@@ -17,14 +17,30 @@
  */
 package org.apache.cassandra.cache;
 
-import org.apache.cassandra.utils.Pair;
+import java.util.Objects;
+
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 
 public abstract class CacheKey implements IMeasurableMemory
 {
-    public final Pair<String, String> ksAndCFName;
+    public final TableId tableId;
+    public final String indexName;
 
-    public CacheKey(Pair<String, String> ksAndCFName)
+    protected CacheKey(TableId tableId, String indexName)
     {
-        this.ksAndCFName = ksAndCFName;
+        this.tableId = tableId;
+        this.indexName = indexName;
+    }
+
+    public CacheKey(TableMetadata metadata)
+    {
+        this(metadata.id, metadata.indexName().orElse(null));
+    }
+
+    public boolean sameTable(TableMetadata tableMetadata)
+    {
+        return tableId.equals(tableMetadata.id)
+               && Objects.equals(indexName, tableMetadata.indexName().orElse(null));
     }
 }

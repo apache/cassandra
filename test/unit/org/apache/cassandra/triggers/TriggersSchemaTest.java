@@ -21,14 +21,16 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.TriggerMetadata;
-import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.schema.Triggers;
+import org.apache.cassandra.schema.MigrationManager;
 
 import static org.junit.Assert.*;
 
@@ -49,15 +51,18 @@ public class TriggersSchemaTest
     public void newKsContainsCfWithTrigger() throws Exception
     {
         TriggerMetadata td = TriggerMetadata.create(triggerName, triggerClass);
-        CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
-        cfm1.triggers(cfm1.getTriggers().with(td));
-        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(cfm1));
+        TableMetadata tm =
+            CreateTableStatement.parse(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName)
+                                .triggers(Triggers.of(td))
+                                .build();
+
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(tm));
         MigrationManager.announceNewKeyspace(ksm);
 
-        CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName);
-        assertFalse(cfm2.getTriggers().isEmpty());
-        assertEquals(1, cfm2.getTriggers().size());
-        assertEquals(td, cfm2.getTriggers().get(triggerName).get());
+        TableMetadata tm2 = Schema.instance.getTableMetadata(ksName, cfName);
+        assertFalse(tm2.triggers.isEmpty());
+        assertEquals(1, tm2.triggers.size());
+        assertEquals(td, tm2.triggers.get(triggerName).get());
     }
 
     @Test
@@ -66,50 +71,62 @@ public class TriggersSchemaTest
         KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1));
         MigrationManager.announceNewKeyspace(ksm);
 
-        CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
-        TriggerMetadata td = TriggerMetadata.create(triggerName, triggerClass);
-        cfm1.triggers(cfm1.getTriggers().with(td));
+        TableMetadata metadata =
+            CreateTableStatement.parse(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName)
+                                .triggers(Triggers.of(TriggerMetadata.create(triggerName, triggerClass)))
+                                .build();
 
-        MigrationManager.announceNewColumnFamily(cfm1);
+        MigrationManager.announceNewTable(metadata);
 
-        CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName);
-        assertFalse(cfm2.getTriggers().isEmpty());
-        assertEquals(1, cfm2.getTriggers().size());
-        assertEquals(td, cfm2.getTriggers().get(triggerName).get());
+        metadata = Schema.instance.getTableMetadata(ksName, cfName);
+        assertFalse(metadata.triggers.isEmpty());
+        assertEquals(1, metadata.triggers.size());
+        assertEquals(TriggerMetadata.create(triggerName, triggerClass), metadata.triggers.get(triggerName).get());
     }
 
     @Test
     public void addTriggerToCf() throws Exception
     {
-        CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
-        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(cfm1));
+        TableMetadata tm1 =
+            CreateTableStatement.parse(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName)
+                                .build();
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(tm1));
         MigrationManager.announceNewKeyspace(ksm);
 
-        CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).copy();
         TriggerMetadata td = TriggerMetadata.create(triggerName, triggerClass);
-        cfm2.triggers(cfm2.getTriggers().with(td));
-        MigrationManager.announceColumnFamilyUpdate(cfm2);
+        TableMetadata tm2 =
+            Schema.instance
+                  .getTableMetadata(ksName, cfName)
+                  .unbuild()
+                  .triggers(Triggers.of(td))
+                  .build();
+        MigrationManager.announceTableUpdate(tm2);
 
-        CFMetaData cfm3 = Schema.instance.getCFMetaData(ksName, cfName);
-        assertFalse(cfm3.getTriggers().isEmpty());
-        assertEquals(1, cfm3.getTriggers().size());
-        assertEquals(td, cfm3.getTriggers().get(triggerName).get());
+        TableMetadata tm3 = Schema.instance.getTableMetadata(ksName, cfName);
+        assertFalse(tm3.triggers.isEmpty());
+        assertEquals(1, tm3.triggers.size());
+        assertEquals(td, tm3.triggers.get(triggerName).get());
     }
 
     @Test
     public void removeTriggerFromCf() throws Exception
     {
         TriggerMetadata td = TriggerMetadata.create(triggerName, triggerClass);
-        CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
-        cfm1.triggers(cfm1.getTriggers().with(td));
-        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(cfm1));
+        TableMetadata tm =
+            CreateTableStatement.parse(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName)
+                                .triggers(Triggers.of(td))
+                                .build();
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(tm));
         MigrationManager.announceNewKeyspace(ksm);
 
-        CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).copy();
-        cfm2.triggers(cfm2.getTriggers().without(triggerName));
-        MigrationManager.announceColumnFamilyUpdate(cfm2);
+        TableMetadata tm1 = Schema.instance.getTableMetadata(ksName, cfName);
+        TableMetadata tm2 =
+            tm1.unbuild()
+               .triggers(tm1.triggers.without(triggerName))
+               .build();
+        MigrationManager.announceTableUpdate(tm2);
 
-        CFMetaData cfm3 = Schema.instance.getCFMetaData(ksName, cfName).copy();
-        assertTrue(cfm3.getTriggers().isEmpty());
+        TableMetadata tm3 = Schema.instance.getTableMetadata(ksName, cfName);
+        assertTrue(tm3.triggers.isEmpty());
     }
 }

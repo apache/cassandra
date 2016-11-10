@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
 /**
@@ -30,5 +30,5 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
  */
 public interface UnfilteredPartitionIterator extends BasePartitionIterator<UnfilteredRowIterator>
 {
-    public CFMetaData metadata();
+    public TableMetadata metadata();
 }

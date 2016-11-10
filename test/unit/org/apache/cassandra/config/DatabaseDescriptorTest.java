@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.config;
 
-import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -30,20 +29,12 @@ import java.util.Enumeration;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.MigrationManager;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-
 import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
@@ -56,42 +47,6 @@ public class DatabaseDescriptorTest
     }
 
     // this came as a result of CASSANDRA-995
-    @Test
-    public void testTransKsMigration() throws ConfigurationException, IOException
-    {
-        SchemaLoader.cleanupAndLeaveDirs();
-        Schema.instance.loadFromDisk();
-        assertEquals(0, Schema.instance.getNonSystemKeyspaces().size());
-
-        Gossiper.instance.start((int)(System.currentTimeMillis() / 1000));
-        Keyspace.setInitialized();
-
-        try
-        {
-            // add a few.
-            MigrationManager.announceNewKeyspace(KeyspaceMetadata.create("ks0", KeyspaceParams.simple(3)));
-            MigrationManager.announceNewKeyspace(KeyspaceMetadata.create("ks1", KeyspaceParams.simple(3)));
-
-            assertNotNull(Schema.instance.getKSMetaData("ks0"));
-            assertNotNull(Schema.instance.getKSMetaData("ks1"));
-
-            Schema.instance.clearKeyspaceMetadata(Schema.instance.getKSMetaData("ks0"));
-            Schema.instance.clearKeyspaceMetadata(Schema.instance.getKSMetaData("ks1"));
-
-            assertNull(Schema.instance.getKSMetaData("ks0"));
-            assertNull(Schema.instance.getKSMetaData("ks1"));
-
-            Schema.instance.loadFromDisk();
-
-            assertNotNull(Schema.instance.getKSMetaData("ks0"));
-            assertNotNull(Schema.instance.getKSMetaData("ks1"));
-        }
-        finally
-        {
-            Gossiper.instance.stop();
-        }
-    }
-
     @Test
     public void testConfigurationLoader() throws Exception
     {
@@ -254,7 +209,5 @@ public class DatabaseDescriptorTest
         Collection<String> tokens = DatabaseDescriptor.tokensFromString(" a,b ,c , d, f,g,h");
         assertEquals(7, tokens.size());
         assertTrue(tokens.containsAll(Arrays.asList(new String[]{"a", "b", "c", "d", "f", "g", "h"})));
-
-        
     }
 }

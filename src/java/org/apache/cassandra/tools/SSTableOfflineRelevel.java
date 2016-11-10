@@ -34,7 +34,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.SetMultimap;
 
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
@@ -92,7 +92,7 @@ public class SSTableOfflineRelevel
         String columnfamily = args[args.length - 1];
         Schema.instance.loadFromDisk(false);
 
-        if (Schema.instance.getCFMetaData(keyspace, columnfamily) == null)
+        if (Schema.instance.getTableMetadataRef(keyspace, columnfamily) == null)
             throw new IllegalArgumentException(String.format("Unknown keyspace/columnFamily %s.%s",
                     keyspace,
                     columnfamily));

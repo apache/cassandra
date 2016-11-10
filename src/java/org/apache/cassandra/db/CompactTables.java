@@ -20,9 +20,9 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -79,11 +79,11 @@ public abstract class CompactTables
 
     private CompactTables() {}
 
-    public static ColumnDefinition getCompactValueColumn(PartitionColumns columns, boolean isSuper)
+    public static ColumnMetadata getCompactValueColumn(RegularAndStaticColumns columns, boolean isSuper)
     {
         if (isSuper)
         {
-            for (ColumnDefinition column : columns.regulars)
+            for (ColumnMetadata column : columns.regulars)
                 if (column.name.bytes.equals(SUPER_COLUMN_MAP_COLUMN))
                     return column;
             throw new AssertionError("Invalid super column table definition, no 'dynamic' map column");
@@ -92,14 +92,14 @@ public abstract class CompactTables
         return columns.regulars.getSimple(0);
     }
 
-    public static boolean hasEmptyCompactValue(CFMetaData metadata)
+    public static boolean hasEmptyCompactValue(TableMetadata metadata)
     {
-        return metadata.compactValueColumn().type instanceof EmptyType;
+        return metadata.compactValueColumn.type instanceof EmptyType;
     }
 
-    public static boolean isSuperColumnMapColumn(ColumnDefinition column)
+    public static boolean isSuperColumnMapColumn(ColumnMetadata column)
     {
-        return column.kind == ColumnDefinition.Kind.REGULAR && column.name.bytes.equals(SUPER_COLUMN_MAP_COLUMN);
+        return column.kind == ColumnMetadata.Kind.REGULAR && column.name.bytes.equals(SUPER_COLUMN_MAP_COLUMN);
     }
 
     public static DefaultNames defaultNameGenerator(Set<String> usedNames)

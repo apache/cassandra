@@ -73,7 +73,7 @@ public class Verifier implements Closeable
         this.cfs = cfs;
         this.sstable = sstable;
         this.outputHandler = outputHandler;
-        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata, sstable.descriptor.version, sstable.header);
+        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(cfs.metadata(), sstable.descriptor.version, sstable.header);
 
         this.controller = new VerifyController(cfs);
 
@@ -260,7 +260,7 @@ public class Verifier implements Closeable
         {
             try
             {
-                return new CompactionInfo(sstable.metadata,
+                return new CompactionInfo(sstable.metadata(),
                                           OperationType.VERIFY,
                                           dataFile.getFilePointer(),
                                           dataFile.length(),

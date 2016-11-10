@@ -109,8 +109,8 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                 keysPerSSTable,
                 minRepairedAt,
                 cfs.metadata,
-                new MetadataCollector(txn.originals(), cfs.metadata.comparator, currentLevel),
-                SerializationHeader.make(cfs.metadata, txn.originals()),
+                new MetadataCollector(txn.originals(), cfs.metadata().comparator, currentLevel),
+                SerializationHeader.make(cfs.metadata(), txn.originals()),
                 cfs.indexManager.listIndexes(),
                 txn));
         partitionsWritten = 0;

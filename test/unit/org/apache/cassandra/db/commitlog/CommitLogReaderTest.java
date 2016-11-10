@@ -27,8 +27,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -158,14 +158,14 @@ public class CommitLogReaderTest extends CQLTester
     }
 
     /**
-     * Since we have both cfm and non mixed into the CL, we ignore updates that aren't for the cfm the test handler
+     * Since we have both table and non mixed into the CL, we ignore updates that aren't for the table the test handler
      * is configured to check.
      * @param handler
      * @param offset integer offset of count we expect to see in record
      */
     private void confirmReadOrder(TestCLRHandler handler, int offset)
     {
-        ColumnDefinition cd = currentTableMetadata().getColumnDefinition(new ColumnIdentifier("data", false));
+        ColumnMetadata cd = currentTableMetadata().getColumn(new ColumnIdentifier("data", false));
         int i = 0;
         int j = 0;
         while (i + j < handler.seenMutationCount())
@@ -208,17 +208,17 @@ public class CommitLogReaderTest extends CQLTester
         public List<Mutation> seenMutations = new ArrayList<Mutation>();
         public boolean sawStopOnErrorCheck = false;
 
-        private final CFMetaData cfm;
+        private final TableMetadata metadata;
 
         // Accept all
         public TestCLRHandler()
         {
-            this.cfm = null;
+            this.metadata = null;
         }
 
-        public TestCLRHandler(CFMetaData cfm)
+        public TestCLRHandler(TableMetadata metadata)
         {
-            this.cfm = cfm;
+            this.metadata = metadata;
         }
 
         public boolean shouldSkipSegmentOnError(CommitLogReadException exception) throws IOException
@@ -234,7 +234,7 @@ public class CommitLogReaderTest extends CQLTester
 
         public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc)
         {
-            if ((cfm == null) || (cfm != null && m.get(cfm) != null)) {
+            if ((metadata == null) || (metadata != null && m.get(metadata) != null)) {
                 seenMutations.add(m);
             }
         }

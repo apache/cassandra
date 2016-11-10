@@ -82,7 +82,7 @@ public class LongLeveledCompactionStrategyTest
         for (int r = 0; r < rows; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            UpdateBuilder builder = UpdateBuilder.create(store.metadata, key);
+            UpdateBuilder builder = UpdateBuilder.create(store.metadata(), key);
             for (int c = 0; c < columns; c++)
                 builder.newRow("column" + c).add("val", value);
 
@@ -160,7 +160,7 @@ public class LongLeveledCompactionStrategyTest
         for (int r = 0; r < rows; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            UpdateBuilder builder = UpdateBuilder.create(store.metadata, key);
+            UpdateBuilder builder = UpdateBuilder.create(store.metadata(), key);
             for (int c = 0; c < columns; c++)
                 builder.newRow("column" + c).add("val", value);
 
@@ -179,7 +179,7 @@ public class LongLeveledCompactionStrategyTest
         for (int r = 0; r < 10; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            UpdateBuilder builder = UpdateBuilder.create(store.metadata, key);
+            UpdateBuilder builder = UpdateBuilder.create(store.metadata(), key);
             for (int c = 0; c < 10; c++)
                 builder.newRow("column" + c).add("val", value);
 

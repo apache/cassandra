@@ -28,7 +28,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.*;
@@ -108,7 +108,7 @@ public class LongCompactionsTest
             {
                 String key = String.valueOf(j);
                 // last sstable has highest timestamps
-                UpdateBuilder builder = UpdateBuilder.create(store.metadata, String.valueOf(j))
+                UpdateBuilder builder = UpdateBuilder.create(store.metadata(), String.valueOf(j))
                                                      .withTimestamp(k);
                 for (int i = 0; i < rowsPerPartition; i++)
                     builder.newRow(String.valueOf(i)).add("val", String.valueOf(i));
@@ -123,7 +123,7 @@ public class LongCompactionsTest
         Thread.sleep(1000);
 
         long start = System.nanoTime();
-        final int gcBefore = (int) (System.currentTimeMillis() / 1000) - Schema.instance.getCFMetaData(KEYSPACE1, "Standard1").params.gcGraceSeconds;
+        final int gcBefore = (int) (System.currentTimeMillis() / 1000) - Schema.instance.getTableMetadata(KEYSPACE1, "Standard1").params.gcGraceSeconds;
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.COMPACTION))
         {
             assert txn != null : "Cannot markCompacting all sstables";
@@ -146,7 +146,7 @@ public class LongCompactionsTest
         cfs.clearUnsafe();
 
         final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = cfs.metadata.params.minIndexInterval * 3 / ROWS_PER_SSTABLE;
+        final int SSTABLES = cfs.metadata().params.minIndexInterval * 3 / ROWS_PER_SSTABLE;
 
         // disable compaction while flushing
         cfs.disableAutoCompaction();
@@ -158,7 +158,7 @@ public class LongCompactionsTest
                 DecoratedKey key = Util.dk(String.valueOf(i % 2));
                 long timestamp = j * ROWS_PER_SSTABLE + i;
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
-                UpdateBuilder.create(cfs.metadata, key)
+                UpdateBuilder.create(cfs.metadata(), key)
                              .withTimestamp(timestamp)
                              .newRow(String.valueOf(i / 2)).add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                              .apply();

@@ -21,11 +21,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.AbstractMarker;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
@@ -70,7 +70,7 @@ public final class FunctionResolver
     throws InvalidRequestException
     {
         if (name.equalsNativeFunction(TOKEN_FUNCTION_NAME))
-            return new TokenFct(Schema.instance.getCFMetaData(receiverKs, receiverCf));
+            return new TokenFct(Schema.instance.getTableMetadata(receiverKs, receiverCf));
 
         // The toJson() function can accept any type of argument, so instances of it are not pre-declared.  Instead,
         // we create new instances as needed while handling selectors (which is the only place that toJson() is supported,

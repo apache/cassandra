@@ -40,7 +40,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.*;
@@ -54,12 +53,12 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.transactions.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.service.pager.SinglePartitionPager;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -140,7 +139,7 @@ public class SecondaryIndexManager implements IndexRegistry
     public void reload()
     {
         // figure out what needs to be added and dropped.
-        Indexes tableIndexes = baseCfs.metadata.getIndexes();
+        Indexes tableIndexes = baseCfs.metadata().indexes;
         indexes.keySet()
                .stream()
                .filter(indexName -> !tableIndexes.has(indexName))
@@ -214,7 +213,7 @@ public class SecondaryIndexManager implements IndexRegistry
     }
 
 
-    public Set<IndexMetadata> getDependentIndexes(ColumnDefinition column)
+    public Set<IndexMetadata> getDependentIndexes(ColumnMetadata column)
     {
         if (indexes.isEmpty())
             return Collections.emptySet();
@@ -547,11 +546,11 @@ public class SecondaryIndexManager implements IndexRegistry
     public void indexPartition(DecoratedKey key, Set<Index> indexes, int pageSize)
     {
         if (logger.isTraceEnabled())
-            logger.trace("Indexing partition {}", baseCfs.metadata.getKeyValidator().getString(key.getKey()));
+            logger.trace("Indexing partition {}", baseCfs.metadata().partitionKeyType.getString(key.getKey()));
 
         if (!indexes.isEmpty())
         {
-            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fullPartitionRead(baseCfs.metadata,
+            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fullPartitionRead(baseCfs.metadata(),
                                                                                           FBUtilities.nowInSeconds(),
                                                                                           key);
             int nowInSec = cmd.nowInSec();
@@ -562,7 +561,7 @@ public class SecondaryIndexManager implements IndexRegistry
             {
                 try (ReadExecutionController controller = cmd.executionController();
                      OpOrder.Group writeGroup = Keyspace.writeOrder.start();
-                     UnfilteredPartitionIterator page = pager.fetchPageUnfiltered(baseCfs.metadata, pageSize, controller))
+                     UnfilteredPartitionIterator page = pager.fetchPageUnfiltered(baseCfs.metadata(), pageSize, controller))
                 {
                     if (!page.hasNext())
                         break;
@@ -642,7 +641,7 @@ public class SecondaryIndexManager implements IndexRegistry
         if (meanCellsPerPartition <= 0)
             return DEFAULT_PAGE_SIZE;
 
-        int columnsPerRow = baseCfs.metadata.partitionColumns().regulars.size();
+        int columnsPerRow = baseCfs.metadata().regularColumns().size();
         if (columnsPerRow <= 0)
             return DEFAULT_PAGE_SIZE;
 
@@ -653,8 +652,8 @@ public class SecondaryIndexManager implements IndexRegistry
 
         logger.trace("Calculated page size {} for indexing {}.{} ({}/{}/{}/{})",
                      pageSize,
-                     baseCfs.metadata.ksName,
-                     baseCfs.metadata.cfName,
+                     baseCfs.metadata.keyspace,
+                     baseCfs.metadata.name,
                      meanPartitionSize,
                      meanCellsPerPartition,
                      meanRowsPerPartition,
@@ -855,25 +854,25 @@ public class SecondaryIndexManager implements IndexRegistry
      * Transaction for use when merging rows during compaction
      */
     public CompactionTransaction newCompactionTransaction(DecoratedKey key,
-                                                          PartitionColumns partitionColumns,
+                                                          RegularAndStaticColumns regularAndStaticColumns,
                                                           int versions,
                                                           int nowInSec)
     {
         // the check for whether there are any registered indexes is already done in CompactionIterator
-        return new IndexGCTransaction(key, partitionColumns, versions, nowInSec, listIndexes());
+        return new IndexGCTransaction(key, regularAndStaticColumns, versions, nowInSec, listIndexes());
     }
 
     /**
      * Transaction for use when removing partitions during cleanup
      */
     public CleanupTransaction newCleanupTransaction(DecoratedKey key,
-                                                    PartitionColumns partitionColumns,
+                                                    RegularAndStaticColumns regularAndStaticColumns,
                                                     int nowInSec)
     {
         if (!hasIndexes())
             return CleanupTransaction.NO_OP;
 
-        return new CleanupGCTransaction(key, partitionColumns, nowInSec, listIndexes());
+        return new CleanupGCTransaction(key, regularAndStaticColumns, nowInSec, listIndexes());
     }
 
     /**
@@ -935,7 +934,7 @@ public class SecondaryIndexManager implements IndexRegistry
                 {
                 }
 
-                public void onComplexDeletion(int i, Clustering clustering, ColumnDefinition column, DeletionTime merged, DeletionTime original)
+                public void onComplexDeletion(int i, Clustering clustering, ColumnMetadata column, DeletionTime merged, DeletionTime original)
                 {
                 }
 
@@ -986,7 +985,7 @@ public class SecondaryIndexManager implements IndexRegistry
     private static final class IndexGCTransaction implements CompactionTransaction
     {
         private final DecoratedKey key;
-        private final PartitionColumns columns;
+        private final RegularAndStaticColumns columns;
         private final int versions;
         private final int nowInSec;
         private final Collection<Index> indexes;
@@ -994,7 +993,7 @@ public class SecondaryIndexManager implements IndexRegistry
         private Row[] rows;
 
         private IndexGCTransaction(DecoratedKey key,
-                                   PartitionColumns columns,
+                                   RegularAndStaticColumns columns,
                                    int versions,
                                    int nowInSec,
                                    Collection<Index> indexes)
@@ -1029,7 +1028,7 @@ public class SecondaryIndexManager implements IndexRegistry
                 {
                 }
 
-                public void onComplexDeletion(int i, Clustering clustering, ColumnDefinition column, DeletionTime merged, DeletionTime original)
+                public void onComplexDeletion(int i, Clustering clustering, ColumnMetadata column, DeletionTime merged, DeletionTime original)
                 {
                 }
 
@@ -1089,7 +1088,7 @@ public class SecondaryIndexManager implements IndexRegistry
     private static final class CleanupGCTransaction implements CleanupTransaction
     {
         private final DecoratedKey key;
-        private final PartitionColumns columns;
+        private final RegularAndStaticColumns columns;
         private final int nowInSec;
         private final Collection<Index> indexes;
 
@@ -1097,7 +1096,7 @@ public class SecondaryIndexManager implements IndexRegistry
         private DeletionTime partitionDelete;
 
         private CleanupGCTransaction(DecoratedKey key,
-                                     PartitionColumns columns,
+                                     RegularAndStaticColumns columns,
                                      int nowInSec,
                                      Collection<Index> indexes)
         {

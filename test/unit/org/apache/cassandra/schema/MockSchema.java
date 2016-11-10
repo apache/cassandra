@@ -16,7 +16,7 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-package org.apache.cassandra;
+package org.apache.cassandra.schema;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -39,12 +38,14 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
-import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -64,7 +65,7 @@ public class MockSchema
 
     public static Memtable memtable(ColumnFamilyStore cfs)
     {
-        return new Memtable(cfs.metadata);
+        return new Memtable(cfs.metadata());
     }
 
     public static SSTableReader sstable(int generation, ColumnFamilyStore cfs)
@@ -115,9 +116,9 @@ public class MockSchema
                 throw new RuntimeException(e);
             }
         }
-        SerializationHeader header = SerializationHeader.make(cfs.metadata, Collections.emptyList());
-        StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata.comparator)
-                                                 .finalizeMetadata(cfs.metadata.partitioner.getClass().getCanonicalName(), 0.01f, -1, header)
+        SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
+        StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
+                                                 .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, header)
                                                  .get(MetadataType.STATS);
         SSTableReader reader = SSTableReader.internalOpen(descriptor, components, cfs.metadata,
                                                           RANDOM_ACCESS_READER_FACTORY.sharedCopy(), RANDOM_ACCESS_READER_FACTORY.sharedCopy(), indexSummary.sharedCopy(),
@@ -136,20 +137,19 @@ public class MockSchema
     public static ColumnFamilyStore newCFS(String ksname)
     {
         String cfname = "mockcf" + (id.incrementAndGet());
-        CFMetaData metadata = newCFMetaData(ksname, cfname);
-        return new ColumnFamilyStore(ks, cfname, 0, metadata, new Directories(metadata), false, false, false);
+        TableMetadata metadata = newTableMetadata(ksname, cfname);
+        return new ColumnFamilyStore(ks, cfname, 0, new TableMetadataRef(metadata), new Directories(metadata), false, false, false);
     }
 
-    public static CFMetaData newCFMetaData(String ksname, String cfname)
+    public static TableMetadata newTableMetadata(String ksname, String cfname)
     {
-        CFMetaData metadata = CFMetaData.Builder.create(ksname, cfname)
-                                                .addPartitionKey("key", UTF8Type.instance)
-                                                .addClusteringColumn("col", UTF8Type.instance)
-                                                .addRegularColumn("value", UTF8Type.instance)
-                                                .withPartitioner(Murmur3Partitioner.instance)
-                                                .build();
-        metadata.caching(CachingParams.CACHE_NOTHING);
-        return metadata;
+        return TableMetadata.builder(ksname, cfname)
+                            .partitioner(Murmur3Partitioner.instance)
+                            .addPartitionKeyColumn("key", UTF8Type.instance)
+                            .addClusteringColumn("col", UTF8Type.instance)
+                            .addRegularColumn("value", UTF8Type.instance)
+                            .caching(CachingParams.CACHE_NOTHING)
+                            .build();
     }
 
     public static BufferDecoratedKey readerBounds(int generation)

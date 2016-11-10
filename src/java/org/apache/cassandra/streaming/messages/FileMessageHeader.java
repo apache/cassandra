@@ -20,7 +20,6 @@ package org.apache.cassandra.streaming.messages;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
@@ -30,9 +29,9 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
  * StreamingFileHeader is appended before sending actual data to describe what it's sending.
@@ -41,7 +40,7 @@ public class FileMessageHeader
 {
     public static FileMessageHeaderSerializer serializer = new FileMessageHeaderSerializer();
 
-    public final UUID cfId;
+    public final TableId tableId;
     public final int sequenceNumber;
     /** SSTable version */
     public final Version version;
@@ -64,7 +63,7 @@ public class FileMessageHeader
     /* cached size value */
     private transient final long size;
 
-    public FileMessageHeader(UUID cfId,
+    public FileMessageHeader(TableId tableId,
                              int sequenceNumber,
                              Version version,
                              SSTableFormat.Type format,
@@ -75,7 +74,7 @@ public class FileMessageHeader
                              int sstableLevel,
                              SerializationHeader.Component header)
     {
-        this.cfId = cfId;
+        this.tableId = tableId;
         this.sequenceNumber = sequenceNumber;
         this.version = version;
         this.format = format;
@@ -89,7 +88,7 @@ public class FileMessageHeader
         this.size = calculateSize();
     }
 
-    public FileMessageHeader(UUID cfId,
+    public FileMessageHeader(TableId tableId,
                              int sequenceNumber,
                              Version version,
                              SSTableFormat.Type format,
@@ -100,7 +99,7 @@ public class FileMessageHeader
                              int sstableLevel,
                              SerializationHeader.Component header)
     {
-        this.cfId = cfId;
+        this.tableId = tableId;
         this.sequenceNumber = sequenceNumber;
         this.version = version;
         this.format = format;
@@ -152,7 +151,7 @@ public class FileMessageHeader
     public String toString()
     {
         final StringBuilder sb = new StringBuilder("Header (");
-        sb.append("cfId: ").append(cfId);
+        sb.append("tableId: ").append(tableId);
         sb.append(", #").append(sequenceNumber);
         sb.append(", version: ").append(version);
         sb.append(", format: ").append(format);
@@ -171,13 +170,13 @@ public class FileMessageHeader
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FileMessageHeader that = (FileMessageHeader) o;
-        return sequenceNumber == that.sequenceNumber && cfId.equals(that.cfId);
+        return sequenceNumber == that.sequenceNumber && tableId.equals(that.tableId);
     }
 
     @Override
     public int hashCode()
     {
-        int result = cfId.hashCode();
+        int result = tableId.hashCode();
         result = 31 * result + sequenceNumber;
         return result;
     }
@@ -186,7 +185,7 @@ public class FileMessageHeader
     {
         public CompressionInfo serialize(FileMessageHeader header, DataOutputPlus out, int version) throws IOException
         {
-            UUIDSerializer.serializer.serialize(header.cfId, out, version);
+            header.tableId.serialize(out);
             out.writeInt(header.sequenceNumber);
             out.writeUTF(header.version.toString());
             out.writeUTF(header.format.name);
@@ -212,7 +211,7 @@ public class FileMessageHeader
 
         public FileMessageHeader deserialize(DataInputPlus in, int version) throws IOException
         {
-            UUID cfId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
+            TableId tableId = TableId.deserialize(in);
             int sequenceNumber = in.readInt();
             Version sstableVersion = SSTableFormat.Type.current().info.getVersion(in.readUTF());
             SSTableFormat.Type format = SSTableFormat.Type.validate(in.readUTF());
@@ -227,12 +226,12 @@ public class FileMessageHeader
             int sstableLevel = in.readInt();
             SerializationHeader.Component header =  SerializationHeader.serializer.deserialize(sstableVersion, in);
 
-            return new FileMessageHeader(cfId, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, sstableLevel, header);
+            return new FileMessageHeader(tableId, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, sstableLevel, header);
         }
 
         public long serializedSize(FileMessageHeader header, int version)
         {
-            long size = UUIDSerializer.serializer.serializedSize(header.cfId, version);
+            long size = header.tableId.serializedSize();
             size += TypeSizes.sizeof(header.sequenceNumber);
             size += TypeSizes.sizeof(header.version.toString());
             size += TypeSizes.sizeof(header.format.name);

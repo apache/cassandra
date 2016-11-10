@@ -27,7 +27,7 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.SyntaxError;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 

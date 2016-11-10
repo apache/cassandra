@@ -16,17 +16,20 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.config;
+package org.apache.cassandra.schema;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import com.google.common.collect.ImmutableSet;
 
 public final class SchemaConstants
 {
+    public static final Pattern PATTERN_WORD_CHARS = Pattern.compile("\\w+");
+
     public static final String SYSTEM_KEYSPACE_NAME = "system";
     public static final String SCHEMA_KEYSPACE_NAME = "system_schema";
 
@@ -51,6 +54,11 @@ public final class SchemaConstants
 
     // 59adb24e-f3cd-3e02-97f0-5b395827453f
     public static final UUID emptyVersion;
+
+    public static boolean isValidName(String name)
+    {
+        return name != null && !name.isEmpty() && name.length() <= NAME_LENGTH && PATTERN_WORD_CHARS.matcher(name).matches();
+    }
 
     static
     {

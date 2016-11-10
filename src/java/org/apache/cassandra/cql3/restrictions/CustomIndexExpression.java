@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.cql3.restrictions;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -38,21 +38,19 @@ public class CustomIndexExpression
         this.valueRaw = value;
     }
 
-    public void prepareValue(CFMetaData cfm, AbstractType<?> expressionType, VariableSpecifications boundNames)
+    public void prepareValue(TableMetadata table, AbstractType<?> expressionType, VariableSpecifications boundNames)
     {
-        ColumnSpecification spec = new ColumnSpecification(cfm.ksName, cfm.ksName, valueColId, expressionType);
-        value = valueRaw.prepare(cfm.ksName, spec);
+        ColumnSpecification spec = new ColumnSpecification(table.keyspace, table.keyspace, valueColId, expressionType);
+        value = valueRaw.prepare(table.keyspace, spec);
         value.collectMarkerSpecification(boundNames);
     }
 
-    public void addToRowFilter(RowFilter filter,
-                               CFMetaData cfm,
-                               QueryOptions options)
+    public void addToRowFilter(RowFilter filter, TableMetadata table, QueryOptions options)
     {
-        filter.addCustomIndexExpression(cfm,
-                                        cfm.getIndexes()
-                                           .get(targetIndex.getIdx())
-                                           .orElseThrow(() -> IndexRestrictions.indexNotFound(targetIndex, cfm)),
+        filter.addCustomIndexExpression(table,
+                                        table.indexes
+                                             .get(targetIndex.getIdx())
+                                             .orElseThrow(() -> IndexRestrictions.indexNotFound(targetIndex, table)),
                                         value.bindAndGet(options));
     }
 }

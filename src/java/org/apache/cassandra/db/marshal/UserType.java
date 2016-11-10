@@ -425,4 +425,9 @@ public class UserType extends TupleType
             sb.append(")");
         return sb.toString();
     }
+
+    public String toCQLString()
+    {
+        return String.format("%s.%s", ColumnIdentifier.maybeQuote(keyspace), ColumnIdentifier.maybeQuote(getNameAsString()));
+    }
 }

@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -61,15 +60,15 @@ public final class TableAttributes extends PropertyDefinitions
     {
         if (getId() != null)
             throw new ConfigurationException("Cannot alter table id.");
-        return build(TableParams.builder(previous));
+        return build(previous.unbuild());
     }
 
-    public UUID getId() throws ConfigurationException
+    public TableId getId() throws ConfigurationException
     {
         String id = getSimple(KW_ID);
         try
         {
-            return id != null ? UUID.fromString(id) : null;
+            return id != null ? TableId.fromString(id) : null;
         }
         catch (IllegalArgumentException e)
         {

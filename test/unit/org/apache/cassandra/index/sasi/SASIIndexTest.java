@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.index.sasi;
 
-import java.io.File;
 import java.io.FileWriter;
 import java.io.Writer;
 import java.nio.ByteBuffer;
@@ -33,13 +32,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.statements.IndexTarget;
-import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -61,16 +59,10 @@ import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.QueryController;
 import org.apache.cassandra.index.sasi.plan.QueryPlan;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.schema.IndexMetadata;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -102,13 +94,13 @@ public class SASIIndexTest
     public static void loadSchema() throws ConfigurationException
     {
         SchemaLoader.loadSchema();
-        MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(KS_NAME,
-                                                                     KeyspaceParams.simpleTransient(1),
-                                                                     Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME),
-                                                                               SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_1),
-                                                                               SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_2, "location"),
-                                                                               SchemaLoader.staticSASICFMD(KS_NAME, STATIC_CF_NAME),
-                                                                               SchemaLoader.fullTextSearchSASICFMD(KS_NAME, FTS_CF_NAME))));
+        SchemaLoader.createKeyspace(KS_NAME,
+                                    KeyspaceParams.simpleTransient(1),
+                                    SchemaLoader.sasiCFMD(KS_NAME, CF_NAME),
+                                    SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_1),
+                                    SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_2, "location"),
+                                    SchemaLoader.staticSASICFMD(KS_NAME, STATIC_CF_NAME),
+                                    SchemaLoader.fullTextSearchSASICFMD(KS_NAME, FTS_CF_NAME));
     }
 
     @Before
@@ -771,25 +763,25 @@ public class SASIIndexTest
         ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
 
         Mutation rm1 = new Mutation(KS_NAME, decoratedKey(AsciiType.instance.decompose("key1")));
-        rm1.add(PartitionUpdate.singleRowUpdate(store.metadata,
+        rm1.add(PartitionUpdate.singleRowUpdate(store.metadata(),
                                                 rm1.key(),
-                                                buildRow(buildCell(store.metadata,
+                                                buildRow(buildCell(store.metadata(),
                                                                    UTF8Type.instance.decompose("/data/output/id"),
                                                                    AsciiType.instance.decompose("jason"),
                                                                    System.currentTimeMillis()))));
 
         Mutation rm2 = new Mutation(KS_NAME, decoratedKey(AsciiType.instance.decompose("key2")));
-        rm2.add(PartitionUpdate.singleRowUpdate(store.metadata,
+        rm2.add(PartitionUpdate.singleRowUpdate(store.metadata(),
                                                 rm2.key(),
-                                                buildRow(buildCell(store.metadata,
+                                                buildRow(buildCell(store.metadata(),
                                                                    UTF8Type.instance.decompose("/data/output/id"),
                                                                    AsciiType.instance.decompose("pavel"),
                                                                    System.currentTimeMillis()))));
 
         Mutation rm3 = new Mutation(KS_NAME, decoratedKey(AsciiType.instance.decompose("key3")));
-        rm3.add(PartitionUpdate.singleRowUpdate(store.metadata,
+        rm3.add(PartitionUpdate.singleRowUpdate(store.metadata(),
                                                 rm3.key(),
-                                                buildRow(buildCell(store.metadata,
+                                                buildRow(buildCell(store.metadata(),
                                                                    UTF8Type.instance.decompose("/data/output/id"),
                                                                    AsciiType.instance.decompose("Aleksey"),
                                                                    System.currentTimeMillis()))));
@@ -822,14 +814,14 @@ public class SASIIndexTest
         Assert.assertTrue(rows.toString(), rows.isEmpty());
 
         // now let's trigger index rebuild and check if we got the data back
-        store.indexManager.buildIndexBlocking(store.indexManager.getIndexByName("data_output_id"));
+        store.indexManager.buildIndexBlocking(store.indexManager.getIndexByName(store.name + "_data_output_id"));
 
         rows = getIndexed(store, 10, buildExpression(dataOutputId, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2" }, rows.toArray(new String[rows.size()])));
 
         // also let's try to build an index for column which has no data to make sure that doesn't fail
-        store.indexManager.buildIndexBlocking(store.indexManager.getIndexByName("first_name"));
-        store.indexManager.buildIndexBlocking(store.indexManager.getIndexByName("data_output_id"));
+        store.indexManager.buildIndexBlocking(store.indexManager.getIndexByName(store.name + "_first_name"));
+        store.indexManager.buildIndexBlocking(store.indexManager.getIndexByName(store.name + "_data_output_id"));
 
         rows = getIndexed(store, 10, buildExpression(dataOutputId, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2" }, rows.toArray(new String[rows.size()])));
@@ -1307,14 +1299,14 @@ public class SASIIndexTest
         ColumnFamilyStore store = loadData(data1, true);
 
         RowFilter filter = RowFilter.create();
-        filter.add(store.metadata.getColumnDefinition(firstName), Operator.LIKE_CONTAINS, AsciiType.instance.fromString("a"));
+        filter.add(store.metadata().getColumn(firstName), Operator.LIKE_CONTAINS, AsciiType.instance.fromString("a"));
 
-        ReadCommand command = new PartitionRangeReadCommand(store.metadata,
+        ReadCommand command = new PartitionRangeReadCommand(store.metadata(),
                                                             FBUtilities.nowInSeconds(),
-                                                            ColumnFilter.all(store.metadata),
+                                                            ColumnFilter.all(store.metadata()),
                                                             filter,
                                                             DataLimits.NONE,
-                                                            DataRange.allData(store.metadata.partitioner),
+                                                            DataRange.allData(store.metadata().partitioner),
                                                             Optional.empty());
 
         try
@@ -1602,7 +1594,7 @@ public class SASIIndexTest
         };
 
         // first let's check that we get 'false' for 'isLiteral' if we don't set the option with special comparator
-        ColumnDefinition columnA = ColumnDefinition.regularDef(KS_NAME, CF_NAME, "special-A", stringType);
+        ColumnMetadata columnA = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-A", stringType);
 
         ColumnIndex indexA = new ColumnIndex(UTF8Type.instance, columnA, IndexMetadata.fromSchemaMetadata("special-index-A", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
         {{
@@ -1613,7 +1605,7 @@ public class SASIIndexTest
         Assert.assertEquals(false, indexA.isLiteral());
 
         // now let's double-check that we do get 'true' when we set it
-        ColumnDefinition columnB = ColumnDefinition.regularDef(KS_NAME, CF_NAME, "special-B", stringType);
+        ColumnMetadata columnB = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-B", stringType);
 
         ColumnIndex indexB = new ColumnIndex(UTF8Type.instance, columnB, IndexMetadata.fromSchemaMetadata("special-index-B", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
         {{
@@ -1625,7 +1617,7 @@ public class SASIIndexTest
         Assert.assertEquals(true, indexB.isLiteral());
 
         // and finally we should also get a 'true' if it's built-in UTF-8/ASCII comparator
-        ColumnDefinition columnC = ColumnDefinition.regularDef(KS_NAME, CF_NAME, "special-C", UTF8Type.instance);
+        ColumnMetadata columnC = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-C", UTF8Type.instance);
 
         ColumnIndex indexC = new ColumnIndex(UTF8Type.instance, columnC, IndexMetadata.fromSchemaMetadata("special-index-C", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
         {{
@@ -1635,7 +1627,7 @@ public class SASIIndexTest
         Assert.assertEquals(true, indexC.isIndexed());
         Assert.assertEquals(true, indexC.isLiteral());
 
-        ColumnDefinition columnD = ColumnDefinition.regularDef(KS_NAME, CF_NAME, "special-D", AsciiType.instance);
+        ColumnMetadata columnD = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-D", AsciiType.instance);
 
         ColumnIndex indexD = new ColumnIndex(UTF8Type.instance, columnD, IndexMetadata.fromSchemaMetadata("special-index-D", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
         {{
@@ -1646,7 +1638,7 @@ public class SASIIndexTest
         Assert.assertEquals(true, indexD.isLiteral());
 
         // and option should supersedes the comparator type
-        ColumnDefinition columnE = ColumnDefinition.regularDef(KS_NAME, CF_NAME, "special-E", UTF8Type.instance);
+        ColumnMetadata columnE = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-E", UTF8Type.instance);
 
         ColumnIndex indexE = new ColumnIndex(UTF8Type.instance, columnE, IndexMetadata.fromSchemaMetadata("special-index-E", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
         {{
@@ -1880,7 +1872,7 @@ public class SASIIndexTest
         store.forceBlockingFlush();
 
         SSTable ssTable = store.getSSTables(SSTableSet.LIVE).iterator().next();
-        Path path = FileSystems.getDefault().getPath(ssTable.getFilename().replace("-Data", "-SI_age"));
+        Path path = FileSystems.getDefault().getPath(ssTable.getFilename().replace("-Data", "-SI_" + CLUSTERING_CF_NAME_1 + "_age"));
 
         // Overwrite index file with garbage
         Writer writer = new FileWriter(path.toFile(), false);
@@ -1892,7 +1884,7 @@ public class SASIIndexTest
         Assert.assertTrue(executeCQL(CLUSTERING_CF_NAME_1, "SELECT * FROM %s.%s WHERE age = 27 AND name = 'Pavel'").isEmpty());
 
         // Rebuld index
-        store.rebuildSecondaryIndex("age");
+        store.rebuildSecondaryIndex(CLUSTERING_CF_NAME_1 + "_age");
 
         long size2 = Files.readAttributes(path, BasicFileAttributes.class).size();
         // Make sure that garbage was overwriten
@@ -1917,7 +1909,7 @@ public class SASIIndexTest
             // invalid index mode
             SASIIndex.validateOptions(new HashMap<String, String>()
                                       {{ put("target", "address"); put("mode", "NORMAL"); }},
-                                      store.metadata);
+                                      store.metadata());
             Assert.fail();
         }
         catch (ConfigurationException e)
@@ -1930,7 +1922,7 @@ public class SASIIndexTest
             // invalid SPARSE on the literal index
             SASIIndex.validateOptions(new HashMap<String, String>()
                                       {{ put("target", "address"); put("mode", "SPARSE"); }},
-                                      store.metadata);
+                                      store.metadata());
             Assert.fail();
         }
         catch (ConfigurationException e)
@@ -1943,7 +1935,7 @@ public class SASIIndexTest
             // invalid SPARSE on the explicitly literal index
             SASIIndex.validateOptions(new HashMap<String, String>()
                                       {{ put("target", "height"); put("mode", "SPARSE"); put("is_literal", "true"); }},
-                    store.metadata);
+                                      store.metadata());
             Assert.fail();
         }
         catch (ConfigurationException e)
@@ -1956,7 +1948,7 @@ public class SASIIndexTest
             //  SPARSE with analyzer
             SASIIndex.validateOptions(new HashMap<String, String>()
                                       {{ put("target", "height"); put("mode", "SPARSE"); put("analyzed", "true"); }},
-                                      store.metadata);
+                                      store.metadata());
             Assert.fail();
         }
         catch (ConfigurationException e)
@@ -2229,12 +2221,12 @@ public class SASIIndexTest
             put("key1", Pair.create("Pavel", 14));
         }}, false);
 
-        ColumnIndex index = ((SASIIndex) store.indexManager.getIndexByName("first_name")).getIndex();
+        ColumnIndex index = ((SASIIndex) store.indexManager.getIndexByName(store.name + "_first_name")).getIndex();
         IndexMemtable beforeFlushMemtable = index.getCurrentMemtable();
 
-        PartitionRangeReadCommand command = new PartitionRangeReadCommand(store.metadata,
+        PartitionRangeReadCommand command = new PartitionRangeReadCommand(store.metadata(),
                                                                           FBUtilities.nowInSeconds(),
-                                                                          ColumnFilter.all(store.metadata),
+                                                                          ColumnFilter.all(store.metadata()),
                                                                           RowFilter.NONE,
                                                                           DataLimits.NONE,
                                                                           DataRange.allData(store.getPartitioner()),
@@ -2322,7 +2314,7 @@ public class SASIIndexTest
 
     private static Set<String> getIndexed(ColumnFamilyStore store, int maxResults, Expression... expressions)
     {
-        return getIndexed(store, ColumnFilter.all(store.metadata), maxResults, expressions);
+        return getIndexed(store, ColumnFilter.all(store.metadata()), maxResults, expressions);
     }
 
     private static Set<String> getIndexed(ColumnFamilyStore store, ColumnFilter columnFilter, int maxResults, Expression... expressions)
@@ -2341,7 +2333,7 @@ public class SASIIndexTest
         do
         {
             count = 0;
-            currentPage = getIndexed(store, ColumnFilter.all(store.metadata), lastKey, pageSize, expressions);
+            currentPage = getIndexed(store, ColumnFilter.all(store.metadata()), lastKey, pageSize, expressions);
             if (currentPage == null)
                 break;
 
@@ -2370,9 +2362,9 @@ public class SASIIndexTest
 
         RowFilter filter = RowFilter.create();
         for (Expression e : expressions)
-            filter.add(store.metadata.getColumnDefinition(e.name), e.op, e.value);
+            filter.add(store.metadata().getColumn(e.name), e.op, e.value);
 
-        ReadCommand command = new PartitionRangeReadCommand(store.metadata,
+        ReadCommand command = new PartitionRangeReadCommand(store.metadata(),
                                                             FBUtilities.nowInSeconds(),
                                                             columnFilter,
                                                             filter,
@@ -2473,13 +2465,13 @@ public class SASIIndexTest
 
     private static Cell buildCell(ByteBuffer name, ByteBuffer value, long timestamp)
     {
-        CFMetaData cfm = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME).metadata;
-        return BufferCell.live(cfm.getColumnDefinition(name), timestamp, value);
+        TableMetadata cfm = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME).metadata();
+        return BufferCell.live(cfm.getColumn(name), timestamp, value);
     }
 
-    private static Cell buildCell(CFMetaData cfm, ByteBuffer name, ByteBuffer value, long timestamp)
+    private static Cell buildCell(TableMetadata cfm, ByteBuffer name, ByteBuffer value, long timestamp)
     {
-        ColumnDefinition column = cfm.getColumnDefinition(name);
+        ColumnMetadata column = cfm.getColumn(name);
         assert column != null;
         return BufferCell.live(column, timestamp, value);
     }
@@ -2491,14 +2483,14 @@ public class SASIIndexTest
 
     private static void update(Mutation rm, ByteBuffer name, ByteBuffer value, long timestamp)
     {
-        CFMetaData metadata = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME).metadata;
+        TableMetadata metadata = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME).metadata();
         rm.add(PartitionUpdate.singleRowUpdate(metadata, rm.key(), buildRow(buildCell(metadata, name, value, timestamp))));
     }
 
 
     private static void update(Mutation rm, List<Cell> cells)
     {
-        CFMetaData metadata = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME).metadata;
+        TableMetadata metadata = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME).metadata();
         rm.add(PartitionUpdate.singleRowUpdate(metadata, rm.key(), buildRow(cells)));
     }
 

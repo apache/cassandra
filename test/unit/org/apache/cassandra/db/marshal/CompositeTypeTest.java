@@ -29,7 +29,7 @@ import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -38,7 +38,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.serializers.UTF8Serializer;
 import org.apache.cassandra.utils.*;
 
 public class CompositeTypeTest
@@ -190,13 +189,13 @@ public class CompositeTypeTest
         ByteBuffer key = ByteBufferUtil.bytes("k");
 
         long ts = FBUtilities.timestampMicros();
-        new RowUpdateBuilder(cfs.metadata, ts, key).clustering(cname5).add("val", "cname5").build().applyUnsafe();
-        new RowUpdateBuilder(cfs.metadata, ts, key).clustering(cname1).add("val", "cname1").build().applyUnsafe();
-        new RowUpdateBuilder(cfs.metadata, ts, key).clustering(cname4).add("val", "cname4").build().applyUnsafe();
-        new RowUpdateBuilder(cfs.metadata, ts, key).clustering(cname2).add("val", "cname2").build().applyUnsafe();
-        new RowUpdateBuilder(cfs.metadata, ts, key).clustering(cname3).add("val", "cname3").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), ts, key).clustering(cname5).add("val", "cname5").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), ts, key).clustering(cname1).add("val", "cname1").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), ts, key).clustering(cname4).add("val", "cname4").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), ts, key).clustering(cname2).add("val", "cname2").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), ts, key).clustering(cname3).add("val", "cname3").build().applyUnsafe();
 
-        ColumnDefinition cdef = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("val"));
+        ColumnMetadata cdef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
 
         ImmutableBTreePartition readPartition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         Iterator<Row> iter = readPartition.iterator();

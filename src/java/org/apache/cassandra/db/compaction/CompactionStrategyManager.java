@@ -25,13 +25,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.index.Index;
 import com.google.common.primitives.Ints;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Memtable;
@@ -88,8 +89,8 @@ public class CompactionStrategyManager implements INotificationConsumer
         logger.trace("{} subscribed to the data tracker.", this);
         this.cfs = cfs;
         this.compactionLogger = new CompactionLogger(cfs, this);
-        reload(cfs.metadata);
-        params = cfs.metadata.params.compaction;
+        reload(cfs.metadata());
+        params = cfs.metadata().params.compaction;
         locations = getDirectories().getWriteableLocations();
         enabled = params.isEnabled();
     }
@@ -108,7 +109,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             if (!isEnabled())
                 return null;
 
-            maybeReload(cfs.metadata);
+            maybeReload(cfs.metadata());
             List<AbstractCompactionStrategy> strategies = new ArrayList<>();
 
             strategies.addAll(repaired);
@@ -270,7 +271,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    public void maybeReload(CFMetaData metadata)
+    public void maybeReload(TableMetadata metadata)
     {
         // compare the old schema configuration to the new one, ignore any locally set changes.
         if (metadata.params.compaction.equals(schemaCompactionParams) &&
@@ -294,7 +295,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * Called after changing configuration and at startup.
      * @param metadata
      */
-    private void reload(CFMetaData metadata)
+    private void reload(TableMetadata metadata)
     {
         boolean disabledWithJMX = !enabled && shouldBeEnabled();
         if (!metadata.params.compaction.equals(schemaCompactionParams))
@@ -544,7 +545,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public void handleNotification(INotification notification, Object sender)
     {
-        maybeReload(cfs.metadata);
+        maybeReload(cfs.metadata());
         if (notification instanceof SSTableAddedNotification)
         {
             handleFlushNotification(((SSTableAddedNotification) notification).added);
@@ -691,7 +692,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, int gcBefore, long maxSSTableBytes)
     {
-        maybeReload(cfs.metadata);
+        maybeReload(cfs.metadata());
         validateForCompaction(txn.originals(), cfs, getDirectories());
         return getCompactionStrategyFor(txn.originals().iterator().next()).getCompactionTask(txn, gcBefore, maxSSTableBytes);
     }
@@ -713,7 +714,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public Collection<AbstractCompactionTask> getMaximalTasks(final int gcBefore, final boolean splitOutput)
     {
-        maybeReload(cfs.metadata);
+        maybeReload(cfs.metadata());
         // runWithCompactionsDisabled cancels active compactions and disables them, then we are able
         // to make the repaired/unrepaired strategies mark their own sstables as compacting. Once the
         // sstables are marked the compactions are re-enabled
@@ -761,7 +762,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     public List<AbstractCompactionTask> getUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
     {
-        maybeReload(cfs.metadata);
+        maybeReload(cfs.metadata());
         List<AbstractCompactionTask> ret = new ArrayList<>();
         readLock.lock();
         try
@@ -882,14 +883,14 @@ public class CompactionStrategyManager implements INotificationConsumer
             locations = cfs.getDirectories().getWriteableLocations();
             for (int i = 0; i < locations.length; i++)
             {
-                repaired.add(CFMetaData.createCompactionStrategyInstance(cfs, params));
-                unrepaired.add(CFMetaData.createCompactionStrategyInstance(cfs, params));
+                repaired.add(cfs.createCompactionStrategyInstance(params));
+                unrepaired.add(cfs.createCompactionStrategyInstance(params));
             }
         }
         else
         {
-            repaired.add(CFMetaData.createCompactionStrategyInstance(cfs, params));
-            unrepaired.add(CFMetaData.createCompactionStrategyInstance(cfs, params));
+            repaired.add(cfs.createCompactionStrategyInstance(params));
+            unrepaired.add(cfs.createCompactionStrategyInstance(params));
         }
         this.params = params;
     }

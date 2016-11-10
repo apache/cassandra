@@ -21,12 +21,12 @@ import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.service.MigrationListener;
+import org.apache.cassandra.schema.SchemaChangeListener;
 
 /**
- * MigrationListener implementation that cleans up permissions on dropped resources.
+ * SchemaChangeListener implementation that cleans up permissions on dropped resources.
  */
-public class AuthMigrationListener extends MigrationListener
+public class AuthSchemaChangeListener extends SchemaChangeListener
 {
     public void onDropKeyspace(String ksName)
     {
@@ -34,7 +34,7 @@ public class AuthMigrationListener extends MigrationListener
         DatabaseDescriptor.getAuthorizer().revokeAllOn(FunctionResource.keyspace(ksName));
     }
 
-    public void onDropColumnFamily(String ksName, String cfName)
+    public void onDropTable(String ksName, String cfName)
     {
         DatabaseDescriptor.getAuthorizer().revokeAllOn(DataResource.table(ksName, cfName));
     }

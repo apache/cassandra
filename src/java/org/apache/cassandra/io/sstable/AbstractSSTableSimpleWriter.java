@@ -27,13 +27,12 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * Base class for the sstable writers used by CQLSSTableWriter.
@@ -41,13 +40,13 @@ import org.apache.cassandra.utils.Pair;
 abstract class AbstractSSTableSimpleWriter implements Closeable
 {
     protected final File directory;
-    protected final CFMetaData metadata;
-    protected final PartitionColumns columns;
+    protected final TableMetadataRef metadata;
+    protected final RegularAndStaticColumns columns;
     protected SSTableFormat.Type formatType = SSTableFormat.Type.current();
     protected static AtomicInteger generation = new AtomicInteger(0);
     protected boolean makeRangeAware = false;
 
-    protected AbstractSSTableSimpleWriter(File directory, CFMetaData metadata, PartitionColumns columns)
+    protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
     {
         this.metadata = metadata;
         this.directory = directory;
@@ -67,13 +66,13 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
 
     protected SSTableTxnWriter createWriter()
     {
-        SerializationHeader header = new SerializationHeader(true, metadata, columns, EncodingStats.NO_STATS);
+        SerializationHeader header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
 
         if (makeRangeAware)
             return SSTableTxnWriter.createRangeAware(metadata, 0,  ActiveRepairService.UNREPAIRED_SSTABLE, formatType, 0, header);
 
         return SSTableTxnWriter.create(metadata,
-                                       createDescriptor(directory, metadata.ksName, metadata.cfName, formatType),
+                                       createDescriptor(directory, metadata.keyspace, metadata.name, formatType),
                                        0,
                                        ActiveRepairService.UNREPAIRED_SSTABLE,
                                        0,
@@ -117,7 +116,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
 
     PartitionUpdate getUpdateFor(ByteBuffer key) throws IOException
     {
-        return getUpdateFor(metadata.decorateKey(key));
+        return getUpdateFor(metadata.get().partitioner.decorateKey(key));
     }
 
     /**

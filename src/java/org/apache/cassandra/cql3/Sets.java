@@ -24,7 +24,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.*;
@@ -301,7 +301,7 @@ public abstract class Sets
 
     public static class Setter extends Operation
     {
-        public Setter(ColumnDefinition column, Term t)
+        public Setter(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -321,7 +321,7 @@ public abstract class Sets
 
     public static class Adder extends Operation
     {
-        public Adder(ColumnDefinition column, Term t)
+        public Adder(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -334,7 +334,7 @@ public abstract class Sets
                 doAdd(value, column, params);
         }
 
-        static void doAdd(Term.Terminal value, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
+        static void doAdd(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
             if (column.type.isMultiCell())
             {
@@ -363,7 +363,7 @@ public abstract class Sets
     // Note that this is reused for Map subtraction too (we subtract a set from a map)
     public static class Discarder extends Operation
     {
-        public Discarder(ColumnDefinition column, Term t)
+        public Discarder(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -388,7 +388,7 @@ public abstract class Sets
 
     public static class ElementDiscarder extends Operation
     {
-        public ElementDiscarder(ColumnDefinition column, Term k)
+        public ElementDiscarder(ColumnMetadata column, Term k)
         {
             super(column, k);
         }

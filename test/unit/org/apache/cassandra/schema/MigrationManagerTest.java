@@ -32,22 +32,20 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
-import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.throwAssert;
@@ -61,7 +59,7 @@ import static org.junit.Assert.assertTrue;
 
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class DefsTest
+public class MigrationManagerTest
 {
     private static final String KEYSPACE1 = "keyspace1";
     private static final String KEYSPACE3 = "keyspace3";
@@ -90,44 +88,42 @@ public class DefsTest
     }
 
     @Test
-    public void testCFMetaDataApply() throws ConfigurationException
+    public void testTableMetadataBuilder() throws ConfigurationException
     {
-        CFMetaData cfm = CFMetaData.Builder.create(KEYSPACE1, "TestApplyCFM_CF")
-                                           .addPartitionKey("keys", BytesType.instance)
-                                           .addClusteringColumn("col", BytesType.instance).build();
-
+        TableMetadata.Builder builder =
+            TableMetadata.builder(KEYSPACE1, "TestApplyCFM_CF")
+                         .addPartitionKeyColumn("keys", BytesType.instance)
+                         .addClusteringColumn("col", BytesType.instance)
+                         .comment("No comment")
+                         .readRepairChance(0.5)
+                         .gcGraceSeconds(100000)
+                         .compaction(CompactionParams.scts(ImmutableMap.of("min_threshold", "500", "max_threshold", "500")));
 
         for (int i = 0; i < 5; i++)
         {
             ByteBuffer name = ByteBuffer.wrap(new byte[] { (byte)i });
-            cfm.addColumnDefinition(ColumnDefinition.regularDef(cfm, name, BytesType.instance));
+            builder.addRegularColumn(ColumnIdentifier.getInterned(name, BytesType.instance), ByteType.instance);
         }
 
-        cfm.comment("No comment")
-           .readRepairChance(0.5)
-           .gcGraceSeconds(100000)
-           .compaction(CompactionParams.scts(ImmutableMap.of("min_threshold", "500",
-                                                             "max_threshold", "500")));
 
+        TableMetadata table = builder.build();
         // we'll be adding this one later. make sure it's not already there.
-        assertNull(cfm.getColumnDefinition(ByteBuffer.wrap(new byte[]{ 5 })));
-
-        CFMetaData cfNew = cfm.copy();
+        assertNull(table.getColumn(ByteBuffer.wrap(new byte[]{ 5 })));
 
         // add one.
-        ColumnDefinition addIndexDef = ColumnDefinition.regularDef(cfm, ByteBuffer.wrap(new byte[] { 5 }), BytesType.instance);
-        cfNew.addColumnDefinition(addIndexDef);
+        ColumnMetadata addIndexDef = ColumnMetadata.regularColumn(table, ByteBuffer.wrap(new byte[] { 5 }), BytesType.instance);
+        builder.addColumn(addIndexDef);
 
         // remove one.
-        ColumnDefinition removeIndexDef = ColumnDefinition.regularDef(cfm, ByteBuffer.wrap(new byte[] { 0 }), BytesType.instance);
-        assertTrue(cfNew.removeColumnDefinition(removeIndexDef));
+        ColumnMetadata removeIndexDef = ColumnMetadata.regularColumn(table, ByteBuffer.wrap(new byte[] { 0 }), BytesType.instance);
+        builder.removeRegularOrStaticColumn(removeIndexDef.name);
 
-        cfm.apply(cfNew);
+        TableMetadata table2 = builder.build();
 
-        for (int i = 1; i < cfm.allColumns().size(); i++)
-            assertNotNull(cfm.getColumnDefinition(ByteBuffer.wrap(new byte[]{ 1 })));
-        assertNull(cfm.getColumnDefinition(ByteBuffer.wrap(new byte[]{ 0 })));
-        assertNotNull(cfm.getColumnDefinition(ByteBuffer.wrap(new byte[]{ 5 })));
+        for (int i = 1; i < table2.columns().size(); i++)
+            assertNotNull(table2.getColumn(ByteBuffer.wrap(new byte[]{ 1 })));
+        assertNull(table2.getColumn(ByteBuffer.wrap(new byte[]{ 0 })));
+        assertNotNull(table2.getColumn(ByteBuffer.wrap(new byte[]{ 5 })));
     }
 
     @Test
@@ -135,20 +131,20 @@ public class DefsTest
     {
         String[] valid = {"1", "a", "_1", "b_", "__", "1_a"};
         for (String s : valid)
-            assertTrue(CFMetaData.isNameValid(s));
+            assertTrue(SchemaConstants.isValidName(s));
 
         String[] invalid = {"b@t", "dash-y", "", " ", "dot.s", ".hidden"};
         for (String s : invalid)
-            assertFalse(CFMetaData.isNameValid(s));
+            assertFalse(SchemaConstants.isValidName(s));
     }
 
     @Test
     public void addNewCfToBogusKeyspace()
     {
-        CFMetaData newCf = addTestTable("MadeUpKeyspace", "NewCF", "new cf");
+        TableMetadata newCf = addTestTable("MadeUpKeyspace", "NewCF", "new cf");
         try
         {
-            MigrationManager.announceNewColumnFamily(newCf);
+            MigrationManager.announceNewTable(newCf);
             throw new AssertionError("You shouldn't be able to do anything to a keyspace that doesn't exist.");
         }
         catch (ConfigurationException expected)
@@ -161,15 +157,15 @@ public class DefsTest
     {
         final String ksName = KEYSPACE1;
         final String tableName = "anewtable";
-        KeyspaceMetadata original = Schema.instance.getKSMetaData(ksName);
+        KeyspaceMetadata original = Schema.instance.getKeyspaceMetadata(ksName);
 
-        CFMetaData cfm = addTestTable(original.name, tableName, "A New Table");
+        TableMetadata cfm = addTestTable(original.name, tableName, "A New Table");
 
-        assertFalse(Schema.instance.getKSMetaData(ksName).tables.get(cfm.cfName).isPresent());
-        MigrationManager.announceNewColumnFamily(cfm);
+        assertFalse(Schema.instance.getKeyspaceMetadata(ksName).tables.get(cfm.name).isPresent());
+        MigrationManager.announceNewTable(cfm);
 
-        assertTrue(Schema.instance.getKSMetaData(ksName).tables.get(cfm.cfName).isPresent());
-        assertEquals(cfm, Schema.instance.getKSMetaData(ksName).tables.get(cfm.cfName).get());
+        assertTrue(Schema.instance.getKeyspaceMetadata(ksName).tables.get(cfm.name).isPresent());
+        assertEquals(cfm, Schema.instance.getKeyspaceMetadata(ksName).tables.get(cfm.name).get());
 
         // now read and write to it.
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, col, val) VALUES (?, ?, ?)",
@@ -190,9 +186,9 @@ public class DefsTest
     public void dropCf() throws ConfigurationException
     {
         // sanity
-        final KeyspaceMetadata ks = Schema.instance.getKSMetaData(KEYSPACE1);
+        final KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(KEYSPACE1);
         assertNotNull(ks);
-        final CFMetaData cfm = ks.tables.getNullable(TABLE1);
+        final TableMetadata cfm = ks.tables.getNullable(TABLE1);
         assertNotNull(cfm);
 
         // write some data, force a flush, then verify that files exist on disk.
@@ -200,14 +196,14 @@ public class DefsTest
             QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)",
                                                          KEYSPACE1, TABLE1),
                                            "dropCf", "col" + i, "anyvalue");
-        ColumnFamilyStore store = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
+        ColumnFamilyStore store = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
         assertNotNull(store);
         store.forceBlockingFlush();
         assertTrue(store.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().size() > 0);
 
-        MigrationManager.announceColumnFamilyDrop(ks.name, cfm.cfName);
+        MigrationManager.announceTableDrop(ks.name, cfm.name);
 
-        assertFalse(Schema.instance.getKSMetaData(ks.name).tables.get(cfm.cfName).isPresent());
+        assertFalse(Schema.instance.getKeyspaceMetadata(ks.name).tables.get(cfm.name).isPresent());
 
         // any write should fail.
         boolean success = true;
@@ -239,17 +235,17 @@ public class DefsTest
     @Test
     public void addNewKS() throws ConfigurationException
     {
-        CFMetaData cfm = addTestTable("newkeyspace1", "newstandard1", "A new cf for a new ks");
-        KeyspaceMetadata newKs = KeyspaceMetadata.create(cfm.ksName, KeyspaceParams.simple(5), Tables.of(cfm));
+        TableMetadata cfm = addTestTable("newkeyspace1", "newstandard1", "A new cf for a new ks");
+        KeyspaceMetadata newKs = KeyspaceMetadata.create(cfm.keyspace, KeyspaceParams.simple(5), Tables.of(cfm));
         MigrationManager.announceNewKeyspace(newKs);
 
-        assertNotNull(Schema.instance.getKSMetaData(cfm.ksName));
-        assertEquals(Schema.instance.getKSMetaData(cfm.ksName), newKs);
+        assertNotNull(Schema.instance.getKeyspaceMetadata(cfm.keyspace));
+        assertEquals(Schema.instance.getKeyspaceMetadata(cfm.keyspace), newKs);
 
         // test reads and writes.
         QueryProcessor.executeInternal("INSERT INTO newkeyspace1.newstandard1 (key, col, val) VALUES (?, ?, ?)",
                                        "key0", "col0", "val0");
-        ColumnFamilyStore store = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
+        ColumnFamilyStore store = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
         assertNotNull(store);
         store.forceBlockingFlush();
 
@@ -261,9 +257,9 @@ public class DefsTest
     public void dropKS() throws ConfigurationException
     {
         // sanity
-        final KeyspaceMetadata ks = Schema.instance.getKSMetaData(KEYSPACE1);
+        final KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(KEYSPACE1);
         assertNotNull(ks);
-        final CFMetaData cfm = ks.tables.getNullable(TABLE2);
+        final TableMetadata cfm = ks.tables.getNullable(TABLE2);
         assertNotNull(cfm);
 
         // write some data, force a flush, then verify that files exist on disk.
@@ -271,14 +267,14 @@ public class DefsTest
             QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)",
                                                          KEYSPACE1, TABLE2),
                                            "dropKs", "col" + i, "anyvalue");
-        ColumnFamilyStore cfs = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
+        ColumnFamilyStore cfs = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
         assertNotNull(cfs);
         cfs.forceBlockingFlush();
         assertTrue(!cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().isEmpty());
 
         MigrationManager.announceKeyspaceDrop(ks.name);
 
-        assertNull(Schema.instance.getKSMetaData(ks.name));
+        assertNull(Schema.instance.getKeyspaceMetadata(ks.name));
 
         // write should fail.
         boolean success = true;
@@ -311,9 +307,9 @@ public class DefsTest
     public void dropKSUnflushed() throws ConfigurationException
     {
         // sanity
-        final KeyspaceMetadata ks = Schema.instance.getKSMetaData(KEYSPACE3);
+        final KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(KEYSPACE3);
         assertNotNull(ks);
-        final CFMetaData cfm = ks.tables.getNullable(TABLE1);
+        final TableMetadata cfm = ks.tables.getNullable(TABLE1);
         assertNotNull(cfm);
 
         // write some data
@@ -324,35 +320,35 @@ public class DefsTest
 
         MigrationManager.announceKeyspaceDrop(ks.name);
 
-        assertNull(Schema.instance.getKSMetaData(ks.name));
+        assertNull(Schema.instance.getKeyspaceMetadata(ks.name));
     }
 
     @Test
     public void createEmptyKsAddNewCf() throws ConfigurationException
     {
-        assertNull(Schema.instance.getKSMetaData(EMPTY_KEYSPACE));
+        assertNull(Schema.instance.getKeyspaceMetadata(EMPTY_KEYSPACE));
         KeyspaceMetadata newKs = KeyspaceMetadata.create(EMPTY_KEYSPACE, KeyspaceParams.simple(5));
         MigrationManager.announceNewKeyspace(newKs);
-        assertNotNull(Schema.instance.getKSMetaData(EMPTY_KEYSPACE));
+        assertNotNull(Schema.instance.getKeyspaceMetadata(EMPTY_KEYSPACE));
 
         String tableName = "added_later";
-        CFMetaData newCf = addTestTable(EMPTY_KEYSPACE, tableName, "A new CF to add to an empty KS");
+        TableMetadata newCf = addTestTable(EMPTY_KEYSPACE, tableName, "A new CF to add to an empty KS");
 
         //should not exist until apply
-        assertFalse(Schema.instance.getKSMetaData(newKs.name).tables.get(newCf.cfName).isPresent());
+        assertFalse(Schema.instance.getKeyspaceMetadata(newKs.name).tables.get(newCf.name).isPresent());
 
         //add the new CF to the empty space
-        MigrationManager.announceNewColumnFamily(newCf);
+        MigrationManager.announceNewTable(newCf);
 
-        assertTrue(Schema.instance.getKSMetaData(newKs.name).tables.get(newCf.cfName).isPresent());
-        assertEquals(Schema.instance.getKSMetaData(newKs.name).tables.get(newCf.cfName).get(), newCf);
+        assertTrue(Schema.instance.getKeyspaceMetadata(newKs.name).tables.get(newCf.name).isPresent());
+        assertEquals(Schema.instance.getKeyspaceMetadata(newKs.name).tables.get(newCf.name).get(), newCf);
 
         // now read and write to it.
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, col, val) VALUES (?, ?, ?)",
                                                      EMPTY_KEYSPACE, tableName),
                                        "key0", "col0", "val0");
 
-        ColumnFamilyStore cfs = Keyspace.open(newKs.name).getColumnFamilyStore(newCf.cfName);
+        ColumnFamilyStore cfs = Keyspace.open(newKs.name).getColumnFamilyStore(newCf.name);
         assertNotNull(cfs);
         cfs.forceBlockingFlush();
 
@@ -364,16 +360,16 @@ public class DefsTest
     public void testUpdateKeyspace() throws ConfigurationException
     {
         // create a keyspace to serve as existing.
-        CFMetaData cf = addTestTable("UpdatedKeyspace", "AddedStandard1", "A new cf for a new ks");
-        KeyspaceMetadata oldKs = KeyspaceMetadata.create(cf.ksName, KeyspaceParams.simple(5), Tables.of(cf));
+        TableMetadata cf = addTestTable("UpdatedKeyspace", "AddedStandard1", "A new cf for a new ks");
+        KeyspaceMetadata oldKs = KeyspaceMetadata.create(cf.keyspace, KeyspaceParams.simple(5), Tables.of(cf));
 
         MigrationManager.announceNewKeyspace(oldKs);
 
-        assertNotNull(Schema.instance.getKSMetaData(cf.ksName));
-        assertEquals(Schema.instance.getKSMetaData(cf.ksName), oldKs);
+        assertNotNull(Schema.instance.getKeyspaceMetadata(cf.keyspace));
+        assertEquals(Schema.instance.getKeyspaceMetadata(cf.keyspace), oldKs);
 
         // names should match.
-        KeyspaceMetadata newBadKs2 = KeyspaceMetadata.create(cf.ksName + "trash", KeyspaceParams.simple(4));
+        KeyspaceMetadata newBadKs2 = KeyspaceMetadata.create(cf.keyspace + "trash", KeyspaceParams.simple(4));
         try
         {
             MigrationManager.announceKeyspaceUpdate(newBadKs2);
@@ -388,10 +384,10 @@ public class DefsTest
         replicationMap.put(ReplicationParams.CLASS, OldNetworkTopologyStrategy.class.getName());
         replicationMap.put("replication_factor", "1");
 
-        KeyspaceMetadata newKs = KeyspaceMetadata.create(cf.ksName, KeyspaceParams.create(true, replicationMap));
+        KeyspaceMetadata newKs = KeyspaceMetadata.create(cf.keyspace, KeyspaceParams.create(true, replicationMap));
         MigrationManager.announceKeyspaceUpdate(newKs);
 
-        KeyspaceMetadata newFetchedKs = Schema.instance.getKSMetaData(newKs.name);
+        KeyspaceMetadata newFetchedKs = Schema.instance.getKeyspaceMetadata(newKs.name);
         assertEquals(newFetchedKs.params.replication.klass, newKs.params.replication.klass);
         assertFalse(newFetchedKs.params.replication.klass.equals(oldKs.params.replication.klass));
     }
@@ -407,7 +403,7 @@ public class DefsTest
 
         assertNotNull(Schema.instance.getKSMetaData(cf.ksName));
         assertEquals(Schema.instance.getKSMetaData(cf.ksName), ksm);
-        assertNotNull(Schema.instance.getCFMetaData(cf.ksName, cf.cfName));
+        assertNotNull(Schema.instance.getTableMetadataRef(cf.ksName, cf.cfName));
 
         // updating certain fields should fail.
         CFMetaData newCfm = cf.copy();
@@ -417,32 +413,32 @@ public class DefsTest
 
         // test valid operations.
         newCfm.comment("Modified comment");
-        MigrationManager.announceColumnFamilyUpdate(newCfm); // doesn't get set back here.
+        MigrationManager.announceTableUpdate(newCfm); // doesn't get set back here.
 
         newCfm.readRepairChance(0.23);
-        MigrationManager.announceColumnFamilyUpdate(newCfm);
+        MigrationManager.announceTableUpdate(newCfm);
 
         newCfm.gcGraceSeconds(12);
-        MigrationManager.announceColumnFamilyUpdate(newCfm);
+        MigrationManager.announceTableUpdate(newCfm);
 
         newCfm.defaultValidator(UTF8Type.instance);
-        MigrationManager.announceColumnFamilyUpdate(newCfm);
+        MigrationManager.announceTableUpdate(newCfm);
 
         newCfm.minCompactionThreshold(3);
-        MigrationManager.announceColumnFamilyUpdate(newCfm);
+        MigrationManager.announceTableUpdate(newCfm);
 
         newCfm.maxCompactionThreshold(33);
-        MigrationManager.announceColumnFamilyUpdate(newCfm);
+        MigrationManager.announceTableUpdate(newCfm);
 
         // can't test changing the reconciler because there is only one impl.
 
         // check the cumulative affect.
-        assertEquals(Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getComment(), newCfm.getComment());
-        assertEquals(Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getReadRepairChance(), newCfm.getReadRepairChance(), 0.0001);
-        assertEquals(Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getGcGraceSeconds(), newCfm.getGcGraceSeconds());
-        assertEquals(UTF8Type.instance, Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getDefaultValidator());
+        assertEquals(Schema.instance.getTableMetadataRef(cf.ksName, cf.cfName).getComment(), newCfm.getComment());
+        assertEquals(Schema.instance.getTableMetadataRef(cf.ksName, cf.cfName).getReadRepairChance(), newCfm.getReadRepairChance(), 0.0001);
+        assertEquals(Schema.instance.getTableMetadataRef(cf.ksName, cf.cfName).getGcGraceSeconds(), newCfm.getGcGraceSeconds());
+        assertEquals(UTF8Type.instance, Schema.instance.getTableMetadataRef(cf.ksName, cf.cfName).getDefaultValidator());
 
-        // Change cfId
+        // Change tableId
         newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, cf.comparator);
         CFMetaData.copyOpts(newCfm, cf);
         try
@@ -498,9 +494,9 @@ public class DefsTest
     public void testDropIndex() throws ConfigurationException
     {
         // persist keyspace definition in the system keyspace
-        SchemaKeyspace.makeCreateKeyspaceMutation(Schema.instance.getKSMetaData(KEYSPACE6), FBUtilities.timestampMicros()).build().applyUnsafe();
+        SchemaKeyspace.makeCreateKeyspaceMutation(Schema.instance.getKeyspaceMetadata(KEYSPACE6), FBUtilities.timestampMicros()).build().applyUnsafe();
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE6).getColumnFamilyStore(TABLE1i);
-        String indexName = "birthdate_key_index";
+        String indexName = TABLE1i + "_birthdate_key_index";
 
         // insert some data.  save the sstable descriptor so we can make sure it's marked for delete after the drop
         QueryProcessor.executeInternal(String.format(
@@ -516,13 +512,12 @@ public class DefsTest
         Descriptor desc = indexCfs.getLiveSSTables().iterator().next().descriptor;
 
         // drop the index
-        CFMetaData meta = cfs.metadata.copy();
-        IndexMetadata existing = cfs.metadata.getIndexes()
-                                             .get(indexName)
-                                             .orElseThrow(throwAssert("Index not found"));
+        TableMetadata meta = cfs.metadata();
+        IndexMetadata existing = meta.indexes
+                                     .get(indexName)
+                                     .orElseThrow(throwAssert("Index not found"));
 
-        meta.indexes(meta.getIndexes().without(existing.name));
-        MigrationManager.announceColumnFamilyUpdate(meta);
+        MigrationManager.announceTableUpdate(meta.unbuild().indexes(meta.indexes.without(existing.name)).build());
 
         // check
         assertTrue(cfs.indexManager.listIndexes().isEmpty());
@@ -530,16 +525,15 @@ public class DefsTest
         assertFalse(new File(desc.filenameFor(Component.DATA)).exists());
     }
 
-    private CFMetaData addTestTable(String ks, String cf, String comment)
+    private TableMetadata addTestTable(String ks, String cf, String comment)
     {
-        CFMetaData newCFMD = CFMetaData.Builder.create(ks, cf)
-                                               .addPartitionKey("key", UTF8Type.instance)
-                                               .addClusteringColumn("col", UTF8Type.instance)
-                                               .addRegularColumn("val", UTF8Type.instance).build();
-
-        newCFMD.comment(comment)
-               .readRepairChance(0.0);
-
-        return newCFMD;
+        return
+            TableMetadata.builder(ks, cf)
+                         .addPartitionKeyColumn("key", UTF8Type.instance)
+                         .addClusteringColumn("col", UTF8Type.instance)
+                         .addRegularColumn("val", UTF8Type.instance)
+                         .comment(comment)
+                         .readRepairChance(0.0)
+                         .build();
     }
 }

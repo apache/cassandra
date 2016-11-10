@@ -25,25 +25,22 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.*;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -83,21 +80,21 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return new CQLFilter(new ArrayList<>(capacity));
     }
 
-    public SimpleExpression add(ColumnDefinition def, Operator op, ByteBuffer value)
+    public SimpleExpression add(ColumnMetadata def, Operator op, ByteBuffer value)
     {
         SimpleExpression expression = new SimpleExpression(def, op, value);
         add(expression);
         return expression;
     }
 
-    public void addMapEquality(ColumnDefinition def, ByteBuffer key, Operator op, ByteBuffer value)
+    public void addMapEquality(ColumnMetadata def, ByteBuffer key, Operator op, ByteBuffer value)
     {
         add(new MapEqualityExpression(def, key, op, value));
     }
 
-    public void addCustomIndexExpression(CFMetaData cfm, IndexMetadata targetIndex, ByteBuffer value)
+    public void addCustomIndexExpression(TableMetadata metadata, IndexMetadata targetIndex, ByteBuffer value)
     {
-        add(new CustomExpression(cfm, targetIndex, value));
+        add(new CustomExpression(metadata, targetIndex, value));
     }
 
     private void add(Expression expression)
@@ -135,7 +132,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * @param nowInSec the current time in seconds (to know what is live and what isn't).
      * @return {@code true} if {@code row} in partition {@code partitionKey} satisfies this row filter.
      */
-    public boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row, int nowInSec)
+    public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row, int nowInSec)
     {
         // We purge all tombstones as the expressions isSatisfiedBy methods expects it
         Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec);
@@ -249,7 +246,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             if (expressions.isEmpty())
                 return iter;
 
-            final CFMetaData metadata = iter.metadata();
+            final TableMetadata metadata = iter.metadata();
 
             List<Expression> partitionLevelExpressions = new ArrayList<>();
             List<Expression> rowLevelExpressions = new ArrayList<>();
@@ -323,11 +320,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         protected enum Kind { SIMPLE, MAP_EQUALITY, UNUSED1, CUSTOM, USER }
 
         protected abstract Kind kind();
-        protected final ColumnDefinition column;
+        protected final ColumnMetadata column;
         protected final Operator operator;
         protected final ByteBuffer value;
 
-        protected Expression(ColumnDefinition column, Operator operator, ByteBuffer value)
+        protected Expression(ColumnMetadata column, Operator operator, ByteBuffer value)
         {
             this.column = column;
             this.operator = operator;
@@ -344,7 +341,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             return kind() == Kind.USER;
         }
 
-        public ColumnDefinition column()
+        public ColumnMetadata column()
         {
             return column;
         }
@@ -401,19 +398,21 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         /**
          * Returns whether the provided row satisfied this expression or not.
          *
+         *
+         * @param metadata
          * @param partitionKey the partition key for row to check.
          * @param row the row to check. It should *not* contain deleted cells
          * (i.e. it should come from a RowIterator).
          * @return whether the row is satisfied by this expression.
          */
-        public abstract boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row);
+        public abstract boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row);
 
-        protected ByteBuffer getValue(CFMetaData metadata, DecoratedKey partitionKey, Row row)
+        protected ByteBuffer getValue(TableMetadata metadata, DecoratedKey partitionKey, Row row)
         {
             switch (column.kind)
             {
                 case PARTITION_KEY:
-                    return metadata.getKeyValidator() instanceof CompositeType
+                    return metadata.partitionKeyType instanceof CompositeType
                          ? CompositeType.extractComponent(partitionKey.getKey(), column.position())
                          : partitionKey.getKey();
                 case CLUSTERING:
@@ -484,7 +483,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 }
             }
 
-            public Expression deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
+            public Expression deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
             {
                 Kind kind = Kind.values()[in.readByte()];
 
@@ -501,7 +500,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
                 ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
                 Operator operator = Operator.readFrom(in);
-                ColumnDefinition column = metadata.getColumnDefinition(name);
+                ColumnMetadata column = metadata.getColumn(name);
 
                 if (!metadata.isCompactTable() && column == null)
                     throw new RuntimeException("Unknown (or dropped) column " + UTF8Type.instance.getString(name) + " during deserialization");
@@ -556,12 +555,12 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      */
     public static class SimpleExpression extends Expression
     {
-        SimpleExpression(ColumnDefinition column, Operator operator, ByteBuffer value)
+        SimpleExpression(ColumnMetadata column, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
         }
 
-        public boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row)
+        public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
         {
             // We support null conditions for LWT (in ColumnCondition) but not for RowFilter.
             // TODO: we should try to merge both code someday.
@@ -707,7 +706,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     {
         private final ByteBuffer key;
 
-        public MapEqualityExpression(ColumnDefinition column, ByteBuffer key, Operator operator, ByteBuffer value)
+        public MapEqualityExpression(ColumnMetadata column, ByteBuffer key, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
             assert column.type instanceof MapType && operator == Operator.EQ;
@@ -729,7 +728,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             return CompositeType.build(key, value);
         }
 
-        public boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row)
+        public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
         {
             assert key != null;
             // We support null conditions for LWT (in ColumnCondition) but not for RowFilter.
@@ -800,21 +799,21 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     public static final class CustomExpression extends Expression
     {
         private final IndexMetadata targetIndex;
-        private final CFMetaData cfm;
+        private final TableMetadata table;
 
-        public CustomExpression(CFMetaData cfm, IndexMetadata targetIndex, ByteBuffer value)
+        public CustomExpression(TableMetadata table, IndexMetadata targetIndex, ByteBuffer value)
         {
             // The operator is not relevant, but Expression requires it so for now we just hardcode EQ
-            super(makeDefinition(cfm, targetIndex), Operator.EQ, value);
+            super(makeDefinition(table, targetIndex), Operator.EQ, value);
             this.targetIndex = targetIndex;
-            this.cfm = cfm;
+            this.table = table;
         }
 
-        private static ColumnDefinition makeDefinition(CFMetaData cfm, IndexMetadata index)
+        private static ColumnMetadata makeDefinition(TableMetadata table, IndexMetadata index)
         {
             // Similarly to how we handle non-defined columns in thift, we create a fake column definition to
             // represent the target index. This is definitely something that can be improved though.
-            return ColumnDefinition.regularDef(cfm, ByteBuffer.wrap(index.name.getBytes()), BytesType.instance);
+            return ColumnMetadata.regularColumn(table, ByteBuffer.wrap(index.name.getBytes()), BytesType.instance);
         }
 
         public IndexMetadata getTargetIndex()
@@ -831,7 +830,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         {
             return String.format("expr(%s, %s)",
                                  targetIndex.name,
-                                 Keyspace.openAndGetStore(cfm)
+                                 Keyspace.openAndGetStore(table)
                                          .indexManager
                                          .getIndex(targetIndex)
                                          .customExpressionValueType());
@@ -843,7 +842,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         }
 
         // Filtering by custom expressions isn't supported yet, so just accept any row
-        public boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row)
+        public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
         {
             return true;
         }
@@ -900,7 +899,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         {
             protected abstract UserExpression deserialize(DataInputPlus in,
                                                           int version,
-                                                          CFMetaData metadata) throws IOException;
+                                                          TableMetadata metadata) throws IOException;
         }
 
         public static void register(Class<? extends UserExpression> expressionClass, Deserializer deserializer)
@@ -908,7 +907,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             deserializers.registerUserExpressionClass(expressionClass, deserializer);
         }
 
-        private static UserExpression deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
+        private static UserExpression deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             int id = in.readInt();
             Deserializer deserializer = deserializers.getDeserializer(id);
@@ -929,7 +928,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             return 4 + expression.serializedSize(version);
         }
 
-        protected UserExpression(ColumnDefinition column, Operator operator, ByteBuffer value)
+        protected UserExpression(ColumnMetadata column, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
         }
@@ -954,7 +953,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
         }
 
-        public RowFilter deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
+        public RowFilter deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             in.readBoolean(); // Unused
             int size = (int)in.readUnsignedVInt();

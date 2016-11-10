@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -424,7 +424,7 @@ public abstract class Constants
 
     public static class Setter extends Operation
     {
-        public Setter(ColumnDefinition column, Term t)
+        public Setter(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -441,7 +441,7 @@ public abstract class Constants
 
     public static class Adder extends Operation
     {
-        public Adder(ColumnDefinition column, Term t)
+        public Adder(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -461,7 +461,7 @@ public abstract class Constants
 
     public static class Substracter extends Operation
     {
-        public Substracter(ColumnDefinition column, Term t)
+        public Substracter(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -486,7 +486,7 @@ public abstract class Constants
     // duplicating this further
     public static class Deleter extends Operation
     {
-        public Deleter(ColumnDefinition column)
+        public Deleter(ColumnMetadata column)
         {
             super(column, null);
         }

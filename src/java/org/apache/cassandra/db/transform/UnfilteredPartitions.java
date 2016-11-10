@@ -20,7 +20,7 @@
  */
 package org.apache.cassandra.db.transform;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
@@ -32,7 +32,7 @@ final class UnfilteredPartitions extends BasePartitions<UnfilteredRowIterator, U
         super(input);
     }
 
-    public CFMetaData metadata()
+    public TableMetadata metadata()
     {
         return input.metadata();
     }

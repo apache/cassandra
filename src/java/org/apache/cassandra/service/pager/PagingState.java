@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.TypeSizes;
@@ -189,7 +189,7 @@ public class PagingState
             this.protocolVersion = protocolVersion;
         }
 
-        private static List<AbstractType<?>> makeClusteringTypes(CFMetaData metadata)
+        private static List<AbstractType<?>> makeClusteringTypes(TableMetadata metadata)
         {
             // This is the types that will be used when serializing the clustering in the paging state. We can't really use the actual clustering
             // types however because we can't guarantee that there won't be a schema change between when we send the paging state and get it back,
@@ -203,7 +203,7 @@ public class PagingState
             return l;
         }
 
-        public static RowMark create(CFMetaData metadata, Row row, ProtocolVersion protocolVersion)
+        public static RowMark create(TableMetadata metadata, Row row, ProtocolVersion protocolVersion)
         {
             ByteBuffer mark;
             if (protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3))
@@ -234,7 +234,7 @@ public class PagingState
             return new RowMark(mark, protocolVersion);
         }
 
-        public Clustering clustering(CFMetaData metadata)
+        public Clustering clustering(TableMetadata metadata)
         {
             if (mark == null)
                 return null;
@@ -245,7 +245,7 @@ public class PagingState
         }
 
         // Old (pre-3.0) encoding of cells. We need that for the protocol v3 as that is how things where encoded
-        private static ByteBuffer encodeCellName(CFMetaData metadata, Clustering clustering, ByteBuffer columnName, ByteBuffer collectionElement)
+        private static ByteBuffer encodeCellName(TableMetadata metadata, Clustering clustering, ByteBuffer columnName, ByteBuffer collectionElement)
         {
             boolean isStatic = clustering == Clustering.STATIC_CLUSTERING;
 
@@ -302,7 +302,7 @@ public class PagingState
             return CompositeType.build(isStatic, values);
         }
 
-        private static Clustering decodeClustering(CFMetaData metadata, ByteBuffer value)
+        private static Clustering decodeClustering(TableMetadata metadata, ByteBuffer value)
         {
             int csize = metadata.comparator.size();
             if (csize == 0)

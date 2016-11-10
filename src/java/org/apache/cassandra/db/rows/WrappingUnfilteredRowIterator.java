@@ -19,7 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import com.google.common.collect.UnmodifiableIterator;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 
 /**
@@ -40,12 +40,12 @@ public abstract class WrappingUnfilteredRowIterator extends UnmodifiableIterator
         this.wrapped = wrapped;
     }
 
-    public CFMetaData metadata()
+    public TableMetadata metadata()
     {
         return wrapped.metadata();
     }
 
-    public PartitionColumns columns()
+    public RegularAndStaticColumns columns()
     {
         return wrapped.columns();
     }

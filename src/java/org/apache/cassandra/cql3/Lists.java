@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
@@ -347,7 +347,7 @@ public abstract class Lists
 
     public static class Setter extends Operation
     {
-        public Setter(ColumnDefinition column, Term t)
+        public Setter(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -365,7 +365,7 @@ public abstract class Lists
         }
     }
 
-    private static int existingSize(Row row, ColumnDefinition column)
+    private static int existingSize(Row row, ColumnMetadata column)
     {
         if (row == null)
             return 0;
@@ -378,7 +378,7 @@ public abstract class Lists
     {
         private final Term idx;
 
-        public SetterByIndex(ColumnDefinition column, Term idx, Term t)
+        public SetterByIndex(ColumnMetadata column, Term idx, Term t)
         {
             super(column, t);
             this.idx = idx;
@@ -428,7 +428,7 @@ public abstract class Lists
 
     public static class Appender extends Operation
     {
-        public Appender(ColumnDefinition column, Term t)
+        public Appender(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -440,7 +440,7 @@ public abstract class Lists
             doAppend(value, column, params);
         }
 
-        static void doAppend(Term.Terminal value, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
+        static void doAppend(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
             if (column.type.isMultiCell())
             {
@@ -468,7 +468,7 @@ public abstract class Lists
 
     public static class Prepender extends Operation
     {
-        public Prepender(ColumnDefinition column, Term t)
+        public Prepender(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -494,7 +494,7 @@ public abstract class Lists
 
     public static class Discarder extends Operation
     {
-        public Discarder(ColumnDefinition column, Term t)
+        public Discarder(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -532,7 +532,7 @@ public abstract class Lists
 
     public static class DiscarderByIndex extends Operation
     {
-        public DiscarderByIndex(ColumnDefinition column, Term idx)
+        public DiscarderByIndex(ColumnMetadata column, Term idx)
         {
             super(column, idx);
         }

@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.*;
@@ -315,7 +315,7 @@ public abstract class UserTypes
 
     public static class Setter extends Operation
     {
-        public Setter(ColumnDefinition column, Term t)
+        public Setter(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -361,7 +361,7 @@ public abstract class UserTypes
     {
         private final FieldIdentifier field;
 
-        public SetterByField(ColumnDefinition column, FieldIdentifier field, Term t)
+        public SetterByField(ColumnMetadata column, FieldIdentifier field, Term t)
         {
             super(column, t);
             this.field = field;
@@ -388,7 +388,7 @@ public abstract class UserTypes
     {
         private final FieldIdentifier field;
 
-        public DeleterByField(ColumnDefinition column, FieldIdentifier field)
+        public DeleterByField(ColumnMetadata column, FieldIdentifier field)
         {
             super(column, null);
             this.field = field;

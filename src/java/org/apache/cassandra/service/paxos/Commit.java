@@ -27,7 +27,7 @@ import java.util.UUID;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -55,7 +55,7 @@ public class Commit
         this.update = update;
     }
 
-    public static Commit newPrepare(DecoratedKey key, CFMetaData metadata, UUID ballot)
+    public static Commit newPrepare(DecoratedKey key, TableMetadata metadata, UUID ballot)
     {
         return new Commit(ballot, PartitionUpdate.emptyUpdate(metadata, key));
     }
@@ -66,7 +66,7 @@ public class Commit
         return new Commit(ballot, update);
     }
 
-    public static Commit emptyCommit(DecoratedKey key, CFMetaData metadata)
+    public static Commit emptyCommit(DecoratedKey key, TableMetadata metadata)
     {
         return new Commit(UUIDGen.minTimeUUID(0), PartitionUpdate.emptyUpdate(metadata, key));
     }

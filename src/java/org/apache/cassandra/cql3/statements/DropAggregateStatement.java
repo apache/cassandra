@@ -22,16 +22,15 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Validation;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 
@@ -64,7 +63,7 @@ public final class DropAggregateStatement extends SchemaAlteringStatement
         if (!functionName.hasKeyspace())
             throw new InvalidRequestException("Functions must be fully qualified with a keyspace name if a keyspace is not set for the session");
 
-        Validation.validateKeyspaceNotSystem(functionName.keyspace);
+        Schema.validateKeyspaceNotSystem(functionName.keyspace);
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -92,7 +91,7 @@ public final class DropAggregateStatement extends SchemaAlteringStatement
         Function old = null;
         if (argsPresent)
         {
-            if (Schema.instance.getKSMetaData(functionName.keyspace) != null)
+            if (Schema.instance.getKeyspaceMetadata(functionName.keyspace) != null)
             {
                 List<AbstractType<?>> argTypes = new ArrayList<>(argRawTypes.size());
                 for (CQL3Type.Raw rawType : argRawTypes)

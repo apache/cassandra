@@ -218,7 +218,6 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
         return ByteBufferUtil.compareUnsigned(this.bytes, that.bytes);
     }
 
-    @VisibleForTesting
     public static String maybeQuote(String text)
     {
         if (UNQUOTED_IDENTIFIER.matcher(text).matches() && !ReservedKeywords.isReserved(text))

@@ -42,7 +42,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager
 
         if (state != null)
         {
-            lastReturnedKey = command.metadata().decorateKey(state.partitionKey);
+            lastReturnedKey = command.metadata().partitioner.decorateKey(state.partitionKey);
             lastReturnedRow = state.rowMark;
             restoreState(lastReturnedKey, state.remaining, state.remainingInPartition);
         }

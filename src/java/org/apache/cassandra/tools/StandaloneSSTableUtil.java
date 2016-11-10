@@ -18,9 +18,8 @@
  */
 package org.apache.cassandra.tools;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -52,7 +51,7 @@ public class StandaloneSSTableUtil
             Util.initDatabaseDescriptor();
             Schema.instance.loadFromDisk(false);
 
-            CFMetaData metadata = Schema.instance.getCFMetaData(options.keyspaceName, options.cfName);
+            TableMetadata metadata = Schema.instance.getTableMetadata(options.keyspaceName, options.cfName);
             if (metadata == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
                                                                  options.keyspaceName,
@@ -82,7 +81,7 @@ public class StandaloneSSTableUtil
         }
     }
 
-    private static void listFiles(Options options, CFMetaData metadata, OutputHandler handler) throws IOException
+    private static void listFiles(Options options, TableMetadata metadata, OutputHandler handler) throws IOException
     {
         Directories directories = new Directories(metadata, ColumnFamilyStore.getInitialDirectories());
 

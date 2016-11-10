@@ -30,12 +30,13 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
@@ -141,14 +142,17 @@ public class MoveTest
         });
 
         final TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-                tmd.clearUnsafe();
-                tmd.updateHostId(UUID.randomUUID(), InetAddress.getByName("127.0.0.1"));
-                tmd.updateHostId(UUID.randomUUID(), InetAddress.getByName("127.0.0.2"));
+
+        tmd.clearUnsafe();
+        tmd.updateHostId(UUID.randomUUID(), InetAddress.getByName("127.0.0.1"));
+        tmd.updateHostId(UUID.randomUUID(), InetAddress.getByName("127.0.0.2"));
 
         KeyspaceMetadata keyspace =  KeyspaceMetadata.create(keyspaceName,
                                                              KeyspaceParams.nts(configOptions(replicas)),
-                                                             Tables.of(CFMetaData.Builder.create(keyspaceName, "CF1")
-                                                                                         .addPartitionKey("key", BytesType.instance).build()));
+                                                             Tables.of(TableMetadata.builder(keyspaceName, "CF1")
+                                                                                    .addPartitionKeyColumn("key", BytesType.instance)
+                                                                                    .build()));
+
         MigrationManager.announceNewKeyspace(keyspace);
     }
 
@@ -1007,7 +1011,7 @@ public class MoveTest
 
     private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd)
     {
-        KeyspaceMetadata ksmd = Schema.instance.getKSMetaData(keyspaceName);
+        KeyspaceMetadata ksmd = Schema.instance.getKeyspaceMetadata(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(
                 keyspaceName,
                 ksmd.params.replication.klass,

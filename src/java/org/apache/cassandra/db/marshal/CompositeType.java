@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -72,6 +73,11 @@ public class CompositeType extends AbstractCompositeType
     public static CompositeType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
         return getInstance(parser.getTypeParameters());
+    }
+
+    public static CompositeType getInstance(Iterable<AbstractType<?>> types)
+    {
+        return getInstance(Lists.newArrayList(types));
     }
 
     public static CompositeType getInstance(AbstractType... types)

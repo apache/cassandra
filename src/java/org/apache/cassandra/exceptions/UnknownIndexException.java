@@ -15,19 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+
+package org.apache.cassandra.exceptions;
 
 import java.io.IOException;
 import java.util.UUID;
 
+import org.apache.cassandra.schema.TableMetadata;
 
-public class UnknownColumnFamilyException extends IOException
+/**
+ * Exception thrown when we read an index id from a serialized ReadCommand and no corresponding IndexMetadata
+ * can be found in the TableMetadata#indexes collection. Note that this is an internal exception and is not meant
+ * to be user facing, the node reading the ReadCommand should proceed as if no index id were present.
+ */
+public final class UnknownIndexException extends IOException
 {
-    public final UUID cfId;
-
-    public UnknownColumnFamilyException(String msg, UUID cfId)
+    public final UUID indexId;
+    public UnknownIndexException(TableMetadata metadata, UUID id)
     {
-        super(msg);
-        this.cfId = cfId;
+        super(String.format("Unknown index %s for table %s", id.toString(), metadata.toString()));
+        indexId = id;
     }
 }

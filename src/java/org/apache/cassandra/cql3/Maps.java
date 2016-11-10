@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.*;
@@ -328,7 +328,7 @@ public abstract class Maps
 
     public static class Setter extends Operation
     {
-        public Setter(ColumnDefinition column, Term t)
+        public Setter(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -350,7 +350,7 @@ public abstract class Maps
     {
         private final Term k;
 
-        public SetterByKey(ColumnDefinition column, Term k, Term t)
+        public SetterByKey(ColumnMetadata column, Term k, Term t)
         {
             super(column, t);
             this.k = k;
@@ -388,7 +388,7 @@ public abstract class Maps
 
     public static class Putter extends Operation
     {
-        public Putter(ColumnDefinition column, Term t)
+        public Putter(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -401,7 +401,7 @@ public abstract class Maps
                 doPut(value, column, params);
         }
 
-        static void doPut(Term.Terminal value, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
+        static void doPut(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
             if (column.type.isMultiCell())
             {
@@ -425,7 +425,7 @@ public abstract class Maps
 
     public static class DiscarderByKey extends Operation
     {
-        public DiscarderByKey(ColumnDefinition column, Term k)
+        public DiscarderByKey(ColumnMetadata column, Term k)
         {
             super(column, k);
         }

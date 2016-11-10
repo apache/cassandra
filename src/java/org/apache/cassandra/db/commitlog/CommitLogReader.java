@@ -29,15 +29,16 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.UnknownColumnFamilyException;
 import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadErrorReason;
 import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadException;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.SerializationHelper;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.RebufferingInputStream;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -51,7 +52,7 @@ public class CommitLogReader
     @VisibleForTesting
     public static final int ALL_MUTATIONS = -1;
     private final CRC32 checksum;
-    private final Map<UUID, AtomicInteger> invalidMutations;
+    private final Map<TableId, AtomicInteger> invalidMutations;
 
     private byte[] buffer;
 
@@ -62,7 +63,7 @@ public class CommitLogReader
         buffer = new byte[4096];
     }
 
-    public Set<Map.Entry<UUID, AtomicInteger>> getInvalidMutations()
+    public Set<Map.Entry<TableId, AtomicInteger>> getInvalidMutations()
     {
         return invalidMutations.entrySet();
     }
@@ -367,15 +368,15 @@ public class CommitLogReader
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
                 upd.validate();
         }
-        catch (UnknownColumnFamilyException ex)
+        catch (UnknownTableException ex)
         {
-            if (ex.cfId == null)
+            if (ex.id == null)
                 return;
-            AtomicInteger i = invalidMutations.get(ex.cfId);
+            AtomicInteger i = invalidMutations.get(ex.id);
             if (i == null)
             {
                 i = new AtomicInteger(1);
-                invalidMutations.put(ex.cfId, i);
+                invalidMutations.put(ex.id, i);
             }
             else
                 i.incrementAndGet();

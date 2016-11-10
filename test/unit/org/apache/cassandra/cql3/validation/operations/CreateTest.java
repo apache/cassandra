@@ -26,10 +26,11 @@ import java.util.UUID;
 
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.Mutation;
@@ -819,14 +820,14 @@ public class CreateTest extends CQLTester
 
     private void assertTriggerExists(String name)
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), currentTable()).copy();
-        assertTrue("the trigger does not exist", cfm.getTriggers().get(name).isPresent());
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), currentTable());
+        assertTrue("the trigger does not exist", metadata.triggers.get(name).isPresent());
     }
 
     private void assertTriggerDoesNotExists(String name)
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), currentTable()).copy();
-        assertFalse("the trigger exists", cfm.getTriggers().get(name).isPresent());
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), currentTable());
+        assertFalse("the trigger exists", metadata.triggers.get(name).isPresent());
     }
 
     public static class TestTrigger implements ITrigger

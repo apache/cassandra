@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -31,11 +30,16 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.DroppedColumn;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 
@@ -48,7 +52,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
     public final Type oType;
     private final TableAttributes attrs;
-    private final Map<ColumnDefinition.Raw, ColumnDefinition.Raw> renames;
+    private final Map<ColumnMetadata.Raw, ColumnMetadata.Raw> renames;
     private final List<AlterTableStatementColumn> colNameList;
     private final Long deleteTimestamp;
 
@@ -56,7 +60,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                Type type,
                                List<AlterTableStatementColumn> colDataList,
                                TableAttributes attrs,
-                               Map<ColumnDefinition.Raw, ColumnDefinition.Raw> renames,
+                               Map<ColumnMetadata.Raw, ColumnMetadata.Raw> renames,
                                Long deleteTimestamp)
     {
         super(name);
@@ -79,32 +83,33 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
     public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws RequestValidationException
     {
-        CFMetaData meta = Validation.validateColumnFamily(keyspace(), columnFamily());
-        if (meta.isView())
+        TableMetadata current = Schema.instance.validateTable(keyspace(), columnFamily());
+        if (current.isView())
             throw new InvalidRequestException("Cannot use ALTER TABLE on Materialized View");
 
-        CFMetaData cfm = meta.copy();
+        TableMetadata.Builder builder = current.unbuild();
+
         ColumnIdentifier columnName = null;
-        ColumnDefinition def = null;
+        ColumnMetadata def = null;
         CQL3Type.Raw dataType = null;
         boolean isStatic = false;
         CQL3Type validator = null;
 
-        List<ViewDefinition> viewUpdates = null;
-        Iterable<ViewDefinition> views = View.findAll(keyspace(), columnFamily());
+        List<ViewMetadata> viewUpdates = new ArrayList<>();
+        Iterable<ViewMetadata> views = View.findAll(keyspace(), columnFamily());
 
         switch (oType)
         {
             case ALTER:
                 throw new InvalidRequestException("Altering of types is not allowed");
             case ADD:
-                if (cfm.isDense())
+                if (current.isDense())
                     throw new InvalidRequestException("Cannot add new column to a COMPACT STORAGE table");
 
                 for (AlterTableStatementColumn colData : colNameList)
                 {
-                    columnName = colData.getColumnName().getIdentifier(cfm);
-                    def = cfm.getColumnDefinition(columnName);
+                    columnName = colData.getColumnName().getIdentifier(current);
+                    def = builder.getColumn(columnName);
                     dataType = colData.getColumnType();
                     assert dataType != null;
                     isStatic = colData.getStaticType();
@@ -113,9 +118,9 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
                     if (isStatic)
                     {
-                        if (!cfm.isCompound())
+                        if (!current.isCompound())
                             throw new InvalidRequestException("Static columns are not allowed in COMPACT STORAGE tables");
-                        if (cfm.clusteringColumns().isEmpty())
+                        if (current.clusteringColumns().isEmpty())
                             throw new InvalidRequestException("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
                     }
 
@@ -132,64 +137,54 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     }
 
                     // Cannot re-add a dropped counter column. See #7831.
-                    if (meta.isCounter() && meta.getDroppedColumns().containsKey(columnName.bytes))
+                    if (current.isCounter() && current.getDroppedColumn(columnName.bytes) != null)
                         throw new InvalidRequestException(String.format("Cannot re-add previously dropped counter column %s", columnName));
 
                     AbstractType<?> type = validator.getType();
                     if (type.isCollection() && type.isMultiCell())
                     {
-                        if (!cfm.isCompound())
+                        if (!current.isCompound())
                             throw new InvalidRequestException("Cannot use non-frozen collections in COMPACT STORAGE tables");
-                        if (cfm.isSuper())
+                        if (current.isSuper())
                             throw new InvalidRequestException("Cannot use non-frozen collections with super column families");
 
                         // If there used to be a non-frozen collection column with the same name (that has been dropped),
                         // we could still have some data using the old type, and so we can't allow adding a collection
                         // with the same name unless the types are compatible (see #6276).
-                        CFMetaData.DroppedColumn dropped = cfm.getDroppedColumns().get(columnName.bytes);
-                        if (dropped != null && dropped.type instanceof CollectionType
-                            && dropped.type.isMultiCell() && !type.isCompatibleWith(dropped.type))
+                        DroppedColumn dropped = current.droppedColumns.get(columnName.bytes);
+                        if (dropped != null && dropped.column.type instanceof CollectionType
+                            && dropped.column.type.isMultiCell() && !type.isCompatibleWith(dropped.column.type))
                         {
                             String message =
                                 String.format("Cannot add a collection with the name %s because a collection with the same name"
                                               + " and a different type (%s) has already been used in the past",
                                               columnName,
-                                              dropped.type.asCQL3Type());
+                                              dropped.column.type.asCQL3Type());
                             throw new InvalidRequestException(message);
                         }
                     }
 
-                    cfm.addColumnDefinition(isStatic
-                                            ? ColumnDefinition.staticDef(cfm, columnName.bytes, type)
-                                            : ColumnDefinition.regularDef(cfm, columnName.bytes, type));
+                    builder.addColumn(isStatic
+                                    ? ColumnMetadata.staticColumn(current, columnName.bytes, type)
+                                    : ColumnMetadata.regularColumn(current, columnName.bytes, type));
 
                     // Adding a column to a table which has an include all view requires the column to be added to the view
                     // as well
                     if (!isStatic)
-                    {
-                        for (ViewDefinition view : views)
-                        {
+                        for (ViewMetadata view : views)
                             if (view.includeAllColumns)
-                            {
-                                ViewDefinition viewCopy = view.copy();
-                                viewCopy.metadata.addColumnDefinition(ColumnDefinition.regularDef(viewCopy.metadata, columnName.bytes, type));
-                                if (viewUpdates == null)
-                                    viewUpdates = new ArrayList<>();
-                                viewUpdates.add(viewCopy);
-                            }
-                        }
-                    }
+                                viewUpdates.add(view.withAddedRegularColumn(ColumnMetadata.regularColumn(view.metadata, columnName.bytes, type)));
+
                 }
                 break;
-
             case DROP:
-                if (!cfm.isCQLTable())
+                if (!current.isCQLTable())
                     throw new InvalidRequestException("Cannot drop columns from a non-CQL3 table");
 
                 for (AlterTableStatementColumn colData : colNameList)
                 {
-                    columnName = colData.getColumnName().getIdentifier(cfm);
-                    def = cfm.getColumnDefinition(columnName);
+                    columnName = colData.getColumnName().getIdentifier(current);
+                    def = builder.getColumn(columnName);
 
                     if (def == null)
                         throw new InvalidRequestException(String.format("Column %s was not found in table %s", columnName, columnFamily()));
@@ -201,53 +196,45 @@ public class AlterTableStatement extends SchemaAlteringStatement
                               throw new InvalidRequestException(String.format("Cannot drop PRIMARY KEY part %s", columnName));
                          case REGULAR:
                          case STATIC:
-                              ColumnDefinition toDelete = null;
-                              for (ColumnDefinition columnDef : cfm.partitionColumns())
-                              {
-                                   if (columnDef.name.equals(columnName))
-                                   {
-                                       toDelete = columnDef;
-                                       break;
-                                   }
-                               }
-                             assert toDelete != null;
-                             cfm.removeColumnDefinition(toDelete);
-                             cfm.recordColumnDrop(toDelete, deleteTimestamp  == null ? queryState.getTimestamp() : deleteTimestamp);
+                             builder.removeRegularOrStaticColumn(def.name);
+                             builder.recordColumnDrop(def, deleteTimestamp  == null ? queryState.getTimestamp() : deleteTimestamp);
                              break;
                     }
 
                     // If the dropped column is required by any secondary indexes
                     // we reject the operation, as the indexes must be dropped first
-                    Indexes allIndexes = cfm.getIndexes();
+                    Indexes allIndexes = current.indexes;
                     if (!allIndexes.isEmpty())
                     {
-                        ColumnFamilyStore store = Keyspace.openAndGetStore(cfm);
+                        ColumnFamilyStore store = Keyspace.openAndGetStore(current);
                         Set<IndexMetadata> dependentIndexes = store.indexManager.getDependentIndexes(def);
                         if (!dependentIndexes.isEmpty())
+                        {
                             throw new InvalidRequestException(String.format("Cannot drop column %s because it has " +
                                                                             "dependent secondary indexes (%s)",
                                                                             def,
                                                                             dependentIndexes.stream()
                                                                                             .map(i -> i.name)
                                                                                             .collect(Collectors.joining(","))));
+                        }
                     }
 
                     // If a column is dropped which is included in a view, we don't allow the drop to take place.
                     boolean rejectAlter = false;
-                    StringBuilder builder = new StringBuilder();
-                    for (ViewDefinition view : views)
+                    StringBuilder viewNames = new StringBuilder();
+                    for (ViewMetadata view : views)
                     {
                         if (!view.includes(columnName)) continue;
                         if (rejectAlter)
-                            builder.append(',');
+                            viewNames.append(',');
                         rejectAlter = true;
-                        builder.append(view.viewName);
+                        viewNames.append(view.name);
                     }
                     if (rejectAlter)
                         throw new InvalidRequestException(String.format("Cannot drop column %s, depended on by materialized views (%s.{%s})",
                                                                         columnName.toString(),
                                                                         keyspace(),
-                                                                        builder.toString()));
+                                                                        viewNames.toString()));
                 }
                 break;
             case OPTS:
@@ -255,7 +242,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     throw new InvalidRequestException("ALTER TABLE WITH invoked, but no parameters found");
                 attrs.validate();
 
-                TableParams params = attrs.asAlteredTableParams(cfm.params);
+                TableParams params = attrs.asAlteredTableParams(current.params);
 
                 if (!Iterables.isEmpty(views) && params.gcGraceSeconds == 0)
                 {
@@ -266,44 +253,62 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                                       "before being replayed.");
                 }
 
-                if (meta.isCounter() && params.defaultTimeToLive > 0)
+                if (current.isCounter() && params.defaultTimeToLive > 0)
                     throw new InvalidRequestException("Cannot set default_time_to_live on a table with counters");
 
-                cfm.params(params);
+                builder.params(params);
 
                 break;
             case RENAME:
-                for (Map.Entry<ColumnDefinition.Raw, ColumnDefinition.Raw> entry : renames.entrySet())
+                for (Map.Entry<ColumnMetadata.Raw, ColumnMetadata.Raw> entry : renames.entrySet())
                 {
-                    ColumnIdentifier from = entry.getKey().getIdentifier(cfm);
-                    ColumnIdentifier to = entry.getValue().getIdentifier(cfm);
-                    cfm.renameColumn(from, to);
+                    ColumnIdentifier from = entry.getKey().getIdentifier(current);
+                    ColumnIdentifier to = entry.getValue().getIdentifier(current);
+
+                    def = current.getColumn(from);
+                    if (def == null)
+                        throw new InvalidRequestException(String.format("Cannot rename unknown column %s in table %s", from, current.name));
+
+                    if (current.getColumn(to) != null)
+                        throw new InvalidRequestException(String.format("Cannot rename column %s to %s in table %s; another column of that name already exist", from, to, current.name));
+
+                    if (!def.isPrimaryKeyColumn())
+                        throw new InvalidRequestException(String.format("Cannot rename non PRIMARY KEY part %s", from));
+
+                    if (!current.indexes.isEmpty())
+                    {
+                        ColumnFamilyStore store = Keyspace.openAndGetStore(current);
+                        Set<IndexMetadata> dependentIndexes = store.indexManager.getDependentIndexes(def);
+                        if (!dependentIndexes.isEmpty())
+                            throw new InvalidRequestException(String.format("Cannot rename column %s because it has " +
+                                                                            "dependent secondary indexes (%s)",
+                                                                            from,
+                                                                            dependentIndexes.stream()
+                                                                                            .map(i -> i.name)
+                                                                                            .collect(Collectors.joining(","))));
+                    }
+
+                    builder.renamePrimaryKeyColumn(from, to);
 
                     // If the view includes a renamed column, it must be renamed in the view table and the definition.
-                    for (ViewDefinition view : views)
+                    for (ViewMetadata view : views)
                     {
-                        if (!view.includes(from)) continue;
+                        if (!view.includes(from))
+                            continue;
 
-                        ViewDefinition viewCopy = view.copy();
-                        ColumnIdentifier viewFrom = entry.getKey().getIdentifier(viewCopy.metadata);
-                        ColumnIdentifier viewTo = entry.getValue().getIdentifier(viewCopy.metadata);
-                        viewCopy.renameColumn(viewFrom, viewTo);
-
-                        if (viewUpdates == null)
-                            viewUpdates = new ArrayList<>();
-                        viewUpdates.add(viewCopy);
+                        ColumnIdentifier viewFrom = entry.getKey().getIdentifier(view.metadata);
+                        ColumnIdentifier viewTo = entry.getValue().getIdentifier(view.metadata);
+                        viewUpdates.add(view.renamePrimaryKeyColumn(viewFrom, viewTo));
                     }
                 }
                 break;
         }
 
-        MigrationManager.announceColumnFamilyUpdate(cfm, isLocalOnly);
+        // FIXME: Should really be a single announce for the table and views.
+        MigrationManager.announceTableUpdate(builder.build(), isLocalOnly);
+        for (ViewMetadata viewUpdate : viewUpdates)
+            MigrationManager.announceViewUpdate(viewUpdate, isLocalOnly);
 
-        if (viewUpdates != null)
-        {
-            for (ViewDefinition viewUpdate : viewUpdates)
-                MigrationManager.announceViewUpdate(viewUpdate, isLocalOnly);
-        }
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 

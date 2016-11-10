@@ -114,12 +114,12 @@ public abstract class ToolsTester
 
     public void assertSchemaNotLoaded()
     {
-        assertClassNotLoaded("org.apache.cassandra.config.Schema");
+        assertClassNotLoaded("org.apache.cassandra.schema.Schema");
     }
 
     public void assertSchemaLoaded()
     {
-        assertClassLoaded("org.apache.cassandra.config.Schema");
+        assertClassLoaded("org.apache.cassandra.schema.Schema");
     }
 
     public void assertKeyspaceNotLoaded()

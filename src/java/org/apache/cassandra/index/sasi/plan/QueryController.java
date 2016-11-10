@@ -22,10 +22,15 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.SASIIndex;
@@ -39,9 +44,9 @@ import org.apache.cassandra.index.sasi.plan.Operation.OperationType;
 import org.apache.cassandra.index.sasi.utils.RangeIntersectionIterator;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Pair;
 
 public class QueryController
@@ -63,7 +68,7 @@ public class QueryController
         this.executionStart = System.nanoTime();
     }
 
-    public CFMetaData metadata()
+    public TableMetadata metadata()
     {
         return command.metadata();
     }
@@ -80,7 +85,7 @@ public class QueryController
 
     public AbstractType<?> getKeyValidator()
     {
-        return cfs.metadata.getKeyValidator();
+        return cfs.metadata().partitionKeyType;
     }
 
     public ColumnIndex getIndex(RowFilter.Expression expression)
@@ -96,7 +101,7 @@ public class QueryController
             throw new NullPointerException();
         try
         {
-            SinglePartitionReadCommand partition = SinglePartitionReadCommand.create(cfs.metadata,
+            SinglePartitionReadCommand partition = SinglePartitionReadCommand.create(cfs.metadata(),
                                                                                      command.nowInSec(),
                                                                                      command.columnFilter(),
                                                                                      command.rowFilter().withoutExpressions(),

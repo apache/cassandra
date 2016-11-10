@@ -19,7 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.security.MessageDigest;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.Clusterable;
 
 /**
@@ -53,11 +53,11 @@ public interface Unfiltered extends Clusterable
      * invalid (some value is invalid for its column type, or some field
      * is nonsensical).
      */
-    public void validateData(CFMetaData metadata);
+    public void validateData(TableMetadata metadata);
 
-    public String toString(CFMetaData metadata);
-    public String toString(CFMetaData metadata, boolean fullDetails);
-    public String toString(CFMetaData metadata, boolean includeClusterKeys, boolean fullDetails);
+    public String toString(TableMetadata metadata);
+    public String toString(TableMetadata metadata, boolean fullDetails);
+    public String toString(TableMetadata metadata, boolean includeClusterKeys, boolean fullDetails);
 
     default boolean isRow()
     {

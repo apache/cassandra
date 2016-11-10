@@ -22,7 +22,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
@@ -37,6 +37,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
 {
     protected final SSTableReader sstable;
+    // We could use sstable.metadata(), but that can change during execution so it's good hygiene to grab an immutable instance
+    protected final TableMetadata metadata;
+
     protected final DecoratedKey key;
     protected final DeletionTime partitionLevelDeletion;
     protected final ColumnFilter columns;
@@ -62,11 +65,12 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                                       FileHandle ifile)
     {
         this.sstable = sstable;
+        this.metadata = sstable.metadata();
         this.ifile = ifile;
         this.key = key;
         this.columns = columnFilter;
         this.slices = slices;
-        this.helper = new SerializationHelper(sstable.metadata, sstable.descriptor.version.correspondingMessagingVersion(), SerializationHelper.Flag.LOCAL, columnFilter);
+        this.helper = new SerializationHelper(metadata, sstable.descriptor.version.correspondingMessagingVersion(), SerializationHelper.Flag.LOCAL, columnFilter);
 
         if (indexEntry == null)
         {
@@ -178,12 +182,12 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                                 : createReaderInternal(indexEntry, file, shouldCloseFile);
     };
 
-    public CFMetaData metadata()
+    public TableMetadata metadata()
     {
-        return sstable.metadata;
+        return metadata;
     }
 
-    public PartitionColumns columns()
+    public RegularAndStaticColumns columns()
     {
         return columns.fetchedColumns();
     }
@@ -306,7 +310,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
         private void createDeserializer()
         {
             assert file != null && deserializer == null;
-            deserializer = UnfilteredDeserializer.create(sstable.metadata, file, sstable.header, helper);
+            deserializer = UnfilteredDeserializer.create(metadata, file, sstable.header, helper);
         }
 
         protected void seekToPosition(long position) throws IOException

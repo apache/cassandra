@@ -20,8 +20,8 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -35,8 +35,8 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class UpdateParameters
 {
-    public final CFMetaData metadata;
-    public final PartitionColumns updatedColumns;
+    public final TableMetadata metadata;
+    public final RegularAndStaticColumns updatedColumns;
     public final QueryOptions options;
 
     private final int nowInSec;
@@ -54,8 +54,8 @@ public class UpdateParameters
     // The builder currently in use. Will alias either staticBuilder or regularBuilder, which are themselves built lazily.
     private Row.Builder builder;
 
-    public UpdateParameters(CFMetaData metadata,
-                            PartitionColumns updatedColumns,
+    public UpdateParameters(TableMetadata metadata,
+                            RegularAndStaticColumns updatedColumns,
                             QueryOptions options,
                             long timestamp,
                             int ttl,
@@ -124,27 +124,27 @@ public class UpdateParameters
         // the "compact" one. As such, deleting the row or deleting that single cell is equivalent. We favor the later
         // for backward compatibility (thought it doesn't truly matter anymore).
         if (metadata.isCompactTable() && builder.clustering() != Clustering.STATIC_CLUSTERING)
-            addTombstone(metadata.compactValueColumn());
+            addTombstone(metadata.compactValueColumn);
         else
             builder.addRowDeletion(Row.Deletion.regular(deletionTime));
     }
 
-    public void addTombstone(ColumnDefinition column) throws InvalidRequestException
+    public void addTombstone(ColumnMetadata column) throws InvalidRequestException
     {
         addTombstone(column, null);
     }
 
-    public void addTombstone(ColumnDefinition column, CellPath path) throws InvalidRequestException
+    public void addTombstone(ColumnMetadata column, CellPath path) throws InvalidRequestException
     {
         builder.addCell(BufferCell.tombstone(column, timestamp, nowInSec, path));
     }
 
-    public void addCell(ColumnDefinition column, ByteBuffer value) throws InvalidRequestException
+    public void addCell(ColumnMetadata column, ByteBuffer value) throws InvalidRequestException
     {
         addCell(column, null, value);
     }
 
-    public void addCell(ColumnDefinition column, CellPath path, ByteBuffer value) throws InvalidRequestException
+    public void addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
         Cell cell = ttl == LivenessInfo.NO_TTL
                   ? BufferCell.live(column, timestamp, value, path)
@@ -152,7 +152,7 @@ public class UpdateParameters
         builder.addCell(cell);
     }
 
-    public void addCounter(ColumnDefinition column, long increment) throws InvalidRequestException
+    public void addCounter(ColumnMetadata column, long increment) throws InvalidRequestException
     {
         assert ttl == LivenessInfo.NO_TTL;
 
@@ -168,12 +168,12 @@ public class UpdateParameters
         builder.addCell(BufferCell.live(column, timestamp, CounterContext.instance().createLocal(increment)));
     }
 
-    public void setComplexDeletionTime(ColumnDefinition column)
+    public void setComplexDeletionTime(ColumnMetadata column)
     {
         builder.addComplexDeletion(column, deletionTime);
     }
 
-    public void setComplexDeletionTimeForOverwrite(ColumnDefinition column)
+    public void setComplexDeletionTimeForOverwrite(ColumnMetadata column)
     {
         builder.addComplexDeletion(column, new DeletionTime(deletionTime.markedForDeleteAt() - 1, deletionTime.localDeletionTime()));
     }

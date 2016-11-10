@@ -26,9 +26,6 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.*;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
@@ -40,6 +37,9 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -488,20 +488,20 @@ public class CassandraIndexTest extends CQLTester
     }
 
     // this is slightly annoying, but we cannot read rows from the methods in Util as
-    // ReadCommand#executeInternal uses metadata retrieved via the cfId, which the index
+    // ReadCommand#executeInternal uses metadata retrieved via the tableId, which the index
     // CFS inherits from the base CFS. This has the 'wrong' partitioner (the index table
     // uses LocalPartition, the base table a real one, so we cannot read from the index
     // table with executeInternal
     private void assertIndexRowTtl(ColumnFamilyStore indexCfs, int indexedValue, int ttl) throws Throwable
     {
         DecoratedKey indexKey = indexCfs.decorateKey(ByteBufferUtil.bytes(indexedValue));
-        ClusteringIndexFilter filter = new ClusteringIndexSliceFilter(Slices.with(indexCfs.metadata.comparator,
+        ClusteringIndexFilter filter = new ClusteringIndexSliceFilter(Slices.with(indexCfs.metadata().comparator,
                                                                                   Slice.ALL),
                                                                       false);
-        SinglePartitionReadCommand command = SinglePartitionReadCommand.create(indexCfs.metadata,
+        SinglePartitionReadCommand command = SinglePartitionReadCommand.create(indexCfs.metadata(),
                                                                                FBUtilities.nowInSeconds(),
                                                                                indexKey,
-                                                                               ColumnFilter.all(indexCfs.metadata),
+                                                                               ColumnFilter.all(indexCfs.metadata()),
                                                                                filter);
         try (ReadExecutionController executionController = command.executionController();
              UnfilteredRowIterator iter = command.queryMemtableAndDisk(indexCfs, executionController))
@@ -603,7 +603,7 @@ public class CassandraIndexTest extends CQLTester
             if (updateExpression != null)
                 assertNotNull(postUpdateQueryExpression);
 
-            // first, create the table as we need the CFMetaData to build the other cql statements
+            // first, create the table as we need the Tablemetadata to build the other cql statements
             createTable(tableDefinition);
 
             // now setup the cql statements the test will run through. Some are dependent on
@@ -704,7 +704,7 @@ public class CassandraIndexTest extends CQLTester
         private void assertPrimaryKeyColumnsOnly(UntypedResultSet resultSet, Object[] row)
         {
             assertFalse(resultSet.isEmpty());
-            CFMetaData cfm = getCurrentColumnFamilyStore().metadata;
+            TableMetadata cfm = getCurrentColumnFamilyStore().metadata();
             int columnCount = cfm.partitionKeyColumns().size();
             if (cfm.isCompound())
                 columnCount += cfm.clusteringColumns().size();
@@ -714,14 +714,12 @@ public class CassandraIndexTest extends CQLTester
 
         private String getInsertCql()
         {
-            CFMetaData cfm = getCurrentColumnFamilyStore().metadata;
+            TableMetadata metadata = getCurrentColumnFamilyStore().metadata();
             String columns = Joiner.on(", ")
-                                   .join(Iterators.transform(cfm.allColumnsInSelectOrder(),
+                                   .join(Iterators.transform(metadata.allColumnsInSelectOrder(),
                                                              (column) -> column.name.toString()));
-            String markers = Joiner.on(", ").join(Iterators.transform(cfm.allColumnsInSelectOrder(),
-                                                                      (column) -> {
-                                                                          return "?";
-                                                                      }));
+            String markers = Joiner.on(", ").join(Iterators.transform(metadata.allColumnsInSelectOrder(),
+                                                                      (column) -> "?"));
             return String.format("INSERT INTO %%s (%s) VALUES (%s)", columns, markers);
         }
 
@@ -740,15 +738,15 @@ public class CassandraIndexTest extends CQLTester
 
         private String getDeletePartitionCql()
         {
-            CFMetaData cfm = getCurrentColumnFamilyStore().metadata;
+            TableMetadata cfm = getCurrentColumnFamilyStore().metadata();
             return StreamSupport.stream(cfm.partitionKeyColumns().spliterator(), false)
                                 .map(column -> column.name.toString() + "=?")
                                 .collect(Collectors.joining(" AND ", "DELETE FROM %s WHERE ", ""));
         }
 
-        private Stream<ColumnDefinition> getPrimaryKeyColumns()
+        private Stream<ColumnMetadata> getPrimaryKeyColumns()
         {
-            CFMetaData cfm = getCurrentColumnFamilyStore().metadata;
+            TableMetadata cfm = getCurrentColumnFamilyStore().metadata();
             if (cfm.isCompactTable())
                 return cfm.partitionKeyColumns().stream();
             else
@@ -757,7 +755,7 @@ public class CassandraIndexTest extends CQLTester
 
         private Object[] getPrimaryKeyValues(Object[] row)
         {
-            CFMetaData cfm = getCurrentColumnFamilyStore().metadata;
+            TableMetadata cfm = getCurrentColumnFamilyStore().metadata();
             if (cfm.isCompactTable())
                 return getPartitionKeyValues(row);
 
@@ -766,7 +764,7 @@ public class CassandraIndexTest extends CQLTester
 
         private Object[] getPartitionKeyValues(Object[] row)
         {
-            CFMetaData cfm = getCurrentColumnFamilyStore().metadata;
+            TableMetadata cfm = getCurrentColumnFamilyStore().metadata();
             return copyValuesFromRow(row, cfm.partitionKeyColumns().size());
         }
 

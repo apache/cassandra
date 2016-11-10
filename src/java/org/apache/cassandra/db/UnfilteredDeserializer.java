@@ -18,19 +18,13 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.io.IOError;
-import java.util.*;
-
-import com.google.common.collect.Iterables;
-import com.google.common.collect.PeekingIterator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.cassandra.config.CFMetaData;
+
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.net.MessagingService;
 
 /**
  * Helper class to deserialize Unfiltered object from disk efficiently.
@@ -43,7 +37,7 @@ public class UnfilteredDeserializer
 {
     private static final Logger logger = LoggerFactory.getLogger(UnfilteredDeserializer.class);
 
-    protected final CFMetaData metadata;
+    protected final TableMetadata metadata;
     protected final DataInputPlus in;
     protected final SerializationHelper helper;
 
@@ -57,7 +51,7 @@ public class UnfilteredDeserializer
 
     private final Row.Builder builder;
 
-    private UnfilteredDeserializer(CFMetaData metadata,
+    private UnfilteredDeserializer(TableMetadata metadata,
                                    DataInputPlus in,
                                    SerializationHeader header,
                                    SerializationHelper helper)
@@ -70,7 +64,7 @@ public class UnfilteredDeserializer
         this.builder = BTreeRow.sortedBuilder();
     }
 
-    public static UnfilteredDeserializer create(CFMetaData metadata,
+    public static UnfilteredDeserializer create(TableMetadata metadata,
                                                 DataInputPlus in,
                                                 SerializationHeader header,
                                                 SerializationHelper helper)
