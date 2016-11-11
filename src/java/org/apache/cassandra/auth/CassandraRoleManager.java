@@ -504,7 +504,7 @@ public class CassandraRoleManager implements IRoleManager
             else
             {
                 if (legacySelectUserStatement == null)
-                    prepareLegacySelectUserStatement();
+                    legacySelectUserStatement = prepareLegacySelectUserStatement();
                 return getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE);
             }
         }
