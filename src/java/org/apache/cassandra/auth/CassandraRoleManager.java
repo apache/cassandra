@@ -163,9 +163,8 @@ public class CassandraRoleManager implements IRoleManager
         // to be added.
         if (Schema.instance.getCFMetaData(AuthKeyspace.NAME, "users") != null)
         {
-             legacySelectUserStatement = (SelectStatement) prepare("SELECT * FROM %s.%s WHERE name = ?",
-                                                                   AuthKeyspace.NAME,
-                                                                   LEGACY_USERS_TABLE);
+            legacySelectUserStatement = prepareLegacySelectUserStatement();
+
             scheduleSetupTask(() -> {
                 convertLegacyData();
                 return null;
@@ -451,6 +450,13 @@ public class CassandraRoleManager implements IRoleManager
         }
     }
 
+    private SelectStatement prepareLegacySelectUserStatement()
+    {
+        return (SelectStatement) prepare("SELECT * FROM %s.%s WHERE name = ?",
+                                         AuthKeyspace.NAME,
+                                         LEGACY_USERS_TABLE);
+    }
+
     private CQLStatement prepare(String template, String keyspace, String table)
     {
         try
@@ -492,9 +498,14 @@ public class CassandraRoleManager implements IRoleManager
             // If it exists, try the legacy users table in case the cluster
             // is in the process of being upgraded and so is running with mixed
             // versions of the authn schema.
-            return (Schema.instance.getCFMetaData(AuthKeyspace.NAME, "users") != null)
-                    ? getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE)
-                    : getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
+            if (Schema.instance.getCFMetaData(AuthKeyspace.NAME, "users") == null)
+                return getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
+            else
+            {
+                if (legacySelectUserStatement == null)
+                    prepareLegacySelectUserStatement();
+                return getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE);
+            }
         }
         catch (RequestExecutionException | RequestValidationException e)
         {
