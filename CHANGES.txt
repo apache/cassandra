@@ -1,11 +1,7 @@
-3.0.11
+3.0.10
  * Fix CommitLogSegmentManagerTest (CASSANDRA-12283)
  * Pass root cause to CorruptBlockException when uncompression failed (CASSANDRA-12889)
  * Fix partition count log during compaction (CASSANDRA-12184)
-Merged from 2.2:
-* cqlsh COPY: unprotected pk values before converting them if not using prepared statements (CASSANDRA-12863)
-
-3.0.10
  * Batch with multiple conditional updates for the same partition causes AssertionError (CASSANDRA-12867)
  * Make AbstractReplicationStrategy extendable from outside its package (CASSANDRA-12788)
  * Fix CommitLogTest.testDeleteIfNotDirty (CASSANDRA-12854)
@@ -37,6 +33,7 @@ Merged from 2.2:
  * Correct log message for statistics of offheap memtable flush (CASSANDRA-12776)
  * Explicitly set locale for string validation (CASSANDRA-12541,CASSANDRA-12542,CASSANDRA-12543,CASSANDRA-12545)
 Merged from 2.2:
+ * cqlsh COPY: unprotected pk values before converting them if not using prepared statements (CASSANDRA-12863)
  * Fix Util.spinAssertEquals (CASSANDRA-12283)
  * Fix potential NPE for compactionstats (CASSANDRA-12462)
  * Prepare legacy authenticate statement if credentials table initialised after node startup (CASSANDRA-12813)
