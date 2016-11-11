@@ -2,7 +2,8 @@
  * Fix CommitLogSegmentManagerTest (CASSANDRA-12283)
  * Pass root cause to CorruptBlockException when uncompression failed (CASSANDRA-12889)
  * Fix partition count log during compaction (CASSANDRA-12184)
-
+Merged from 2.2:
+* cqlsh COPY: unprotected pk values before converting them if not using prepared statements (CASSANDRA-12863)
 
 3.0.10
  * Batch with multiple conditional updates for the same partition causes AssertionError (CASSANDRA-12867)
