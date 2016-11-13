@@ -1791,7 +1791,8 @@ public class AggregationTest extends CQLTester
                                                        " STYPE map<text,bigint>\n" +
                                                        " INITCOND { };");
 
-            for (int i = 0; i < 1000; i++)
+            long tEnd = System.currentTimeMillis() + 150;
+            while (System.currentTimeMillis() < tEnd)
             {
                 execute("SELECT " + releasesByCountry + "(country,title) FROM %s WHERE year=1980");
             }
@@ -1814,6 +1815,7 @@ public class AggregationTest extends CQLTester
             if (turboFilter instanceof ReconfigureOnChangeFilter)
             {
                 ReconfigureOnChangeFilter reconfigureFilter = (ReconfigureOnChangeFilter) turboFilter;
+                reconfigureFilter.setContext(ctx);
                 reconfigureFilter.setRefreshPeriod(millis);
                 reconfigureFilter.stop();
                 reconfigureFilter.start(); // start() sets the next check timestammp

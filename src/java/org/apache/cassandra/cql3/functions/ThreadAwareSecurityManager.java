@@ -29,6 +29,14 @@ import java.security.ProtectionDomain;
 import java.util.Collections;
 import java.util.Enumeration;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.spi.TurboFilterList;
+import ch.qos.logback.classic.turbo.ReconfigureOnChangeFilter;
+import ch.qos.logback.classic.turbo.TurboFilter;
+
 /**
  * Custom {@link SecurityManager} and {@link Policy} implementation that only performs access checks
  * if explicitly enabled.
@@ -69,7 +77,42 @@ public final class ThreadAwareSecurityManager extends SecurityManager
         if (installed)
             return;
         System.setSecurityManager(new ThreadAwareSecurityManager());
+
+        Logger l = LoggerFactory.getLogger(ThreadAwareSecurityManager.class);
+        ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) l;
+        LoggerContext ctx = logbackLogger.getLoggerContext();
+
+        TurboFilterList turboFilterList = ctx.getTurboFilterList();
+        for (int i = 0; i < turboFilterList.size(); i++)
+        {
+            TurboFilter turboFilter = turboFilterList.get(i);
+            if (turboFilter instanceof ReconfigureOnChangeFilter)
+            {
+                ReconfigureOnChangeFilter reconfigureOnChangeFilter = (ReconfigureOnChangeFilter) turboFilter;
+                turboFilterList.set(i, new SMAwareReconfigureOnChangeFilter(reconfigureOnChangeFilter));
+                break;
+            }
+        }
+
         installed = true;
+    }
+
+    /**
+     * The purpose of this class is
+     */
+    private static class SMAwareReconfigureOnChangeFilter extends ReconfigureOnChangeFilter
+    {
+        SMAwareReconfigureOnChangeFilter(ReconfigureOnChangeFilter reconfigureOnChangeFilter)
+        {
+            setRefreshPeriod(reconfigureOnChangeFilter.getRefreshPeriod());
+        }
+
+        protected boolean changeDetected(long now)
+        {
+            if (isSecuredThread())
+                return false;
+            return super.changeDetected(now);
+        }
     }
 
     static
