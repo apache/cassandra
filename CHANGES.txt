@@ -1,3 +1,8 @@
+3.11
+Merged from 3.0:
+ * Prevent reloading of logback.xml from UDF sandbox (CASSANDRA-12535)
+
+
 3.10
  * Fix CommitLogSegmentManagerTest (CASSANDRA-12283)
  * Fix cassandra-stress truncate option (CASSANDRA-12695)
