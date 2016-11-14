@@ -1,4 +1,5 @@
 2.2.9
+ * Fail repair if participant dies during sync or anticompaction (CASSANDRA-12901)
  * cqlsh COPY: unprotected pk values before converting them if not using prepared statements (CASSANDRA-12863)
  * Fix Util.spinAssertEquals (CASSANDRA-12283)
  * Fix potential NPE for compactionstats (CASSANDRA-12462)
