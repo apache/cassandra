@@ -29,6 +29,11 @@ public class RandomPartitionerTest extends PartitionerTestCase
         partitioner = RandomPartitioner.instance;
     }
 
+    protected boolean shouldStopRecursion(Token left, Token right)
+    {
+        return left.size(right) < Math.scalb(1, -112);
+    }
+
     @Test
     public void testSplit()
     {
