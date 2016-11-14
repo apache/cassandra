@@ -7,6 +7,7 @@
 
 
 3.11
+ * Move cqlsh syntax rules into separate module and allow easier customization (CASSANDRA-12897)
 Merged from 3.0:
  * Prevent reloading of logback.xml from UDF sandbox (CASSANDRA-12535)
 
