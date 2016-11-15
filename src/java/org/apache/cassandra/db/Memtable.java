@@ -249,10 +249,6 @@ public class Memtable implements Comparable<Memtable>
                 allocator.onHeap().allocate(overhead, opGroup);
                 initialSize = 8;
             }
-            else
-            {
-                allocator.reclaimer().reclaimImmediately(cloneKey);
-            }
         }
 
         long[] pair = previous.addAllWithSizeDelta(update, opGroup, indexer);

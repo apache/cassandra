@@ -74,12 +74,6 @@ public class NativeAllocator extends MemtableAllocator
         return new NativeDecoratedKey(key.getToken(), this, writeOp, key.getKey());
     }
 
-    @Override
-    public MemtableAllocator.DataReclaimer reclaimer()
-    {
-        return NO_OP;
-    }
-
     public long allocate(int size, OpOrder.Group opGroup)
     {
         assert size >= 0;
