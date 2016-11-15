@@ -18,13 +18,14 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.Socket;
+
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * Interface that creates connection used by streaming.
  */
 public interface StreamConnectionFactory
 {
-    Socket createConnection(InetAddress peer) throws IOException;
+    Socket createConnection(InetAddressAndPort peer) throws IOException;
 }

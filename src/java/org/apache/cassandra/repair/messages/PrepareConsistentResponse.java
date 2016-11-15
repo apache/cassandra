@@ -19,24 +19,22 @@
 package org.apache.cassandra.repair.messages;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.UUID;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.serializers.InetAddressSerializer;
-import org.apache.cassandra.serializers.TypeSerializer;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 public class PrepareConsistentResponse extends RepairMessage
 {
     public final UUID parentSession;
-    public final InetAddress participant;
+    public final InetAddressAndPort participant;
     public final boolean success;
 
-    public PrepareConsistentResponse(UUID parentSession, InetAddress participant, boolean success)
+    public PrepareConsistentResponse(UUID parentSession, InetAddressAndPort participant, boolean success)
     {
         super(Type.CONSISTENT_RESPONSE, null);
         assert parentSession != null;
@@ -68,25 +66,24 @@ public class PrepareConsistentResponse extends RepairMessage
 
     public static MessageSerializer serializer = new MessageSerializer<PrepareConsistentResponse>()
     {
-        private TypeSerializer<InetAddress> inetSerializer = InetAddressSerializer.instance;
         public void serialize(PrepareConsistentResponse response, DataOutputPlus out, int version) throws IOException
         {
             UUIDSerializer.serializer.serialize(response.parentSession, out, version);
-            ByteBufferUtil.writeWithShortLength(inetSerializer.serialize(response.participant), out);
+            CompactEndpointSerializationHelper.instance.serialize(response.participant, out, version);
             out.writeBoolean(response.success);
         }
 
         public PrepareConsistentResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             return new PrepareConsistentResponse(UUIDSerializer.serializer.deserialize(in, version),
-                                                 inetSerializer.deserialize(ByteBufferUtil.readWithShortLength(in)),
+                                                 CompactEndpointSerializationHelper.instance.deserialize(in, version),
                                                  in.readBoolean());
         }
 
         public long serializedSize(PrepareConsistentResponse response, int version)
         {
             long size = UUIDSerializer.serializer.serializedSize(response.parentSession, version);
-            size += ByteBufferUtil.serializedSizeWithShortLength(inetSerializer.serialize(response.participant));
+            size += CompactEndpointSerializationHelper.instance.serializedSize(response.participant, version);
             size += TypeSizes.sizeof(response.success);
             return size;
         }

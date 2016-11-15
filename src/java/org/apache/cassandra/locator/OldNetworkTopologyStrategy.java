@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.locator;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Collection;
@@ -42,10 +41,10 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
         super(keyspaceName, tokenMetadata, snitch, configOptions);
     }
 
-    public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+    public List<InetAddressAndPort> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
         int replicas = getReplicationFactor();
-        List<InetAddress> endpoints = new ArrayList<InetAddress>(replicas);
+        List<InetAddressAndPort> endpoints = new ArrayList<>(replicas);
         ArrayList<Token> tokens = metadata.sortedTokens();
 
         if (tokens.isEmpty())

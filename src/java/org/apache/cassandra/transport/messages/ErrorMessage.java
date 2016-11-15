@@ -33,6 +33,7 @@ import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.MD5Digest;
 
@@ -88,14 +89,14 @@ public class ErrorMessage extends Message.Response
                         // The number of failures is also present in protocol v5, but used instead to specify the size of the failure map
                         int failure = body.readInt();
 
-                        Map<InetAddress, RequestFailureReason> failureReasonByEndpoint = new ConcurrentHashMap<>();
+                        Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new ConcurrentHashMap<>();
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
                             for (int i = 0; i < failure; i++)
                             {
                                 InetAddress endpoint = CBUtil.readInetAddr(body);
                                 RequestFailureReason failureReason = RequestFailureReason.fromCode(body.readUnsignedShort());
-                                failureReasonByEndpoint.put(endpoint, failureReason);
+                                failureReasonByEndpoint.put(InetAddressAndPort.getByAddress(endpoint), failureReason);
                             }
                         }
 
@@ -192,9 +193,9 @@ public class ErrorMessage extends Message.Response
 
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
-                            for (Map.Entry<InetAddress, RequestFailureReason> entry : rfe.failureReasonByEndpoint.entrySet())
+                            for (Map.Entry<InetAddressAndPort, RequestFailureReason> entry : rfe.failureReasonByEndpoint.entrySet())
                             {
-                                CBUtil.writeInetAddr(entry.getKey(), dest);
+                                CBUtil.writeInetAddr(entry.getKey().address, dest);
                                 dest.writeShort(entry.getValue().code);
                             }
                         }
@@ -257,9 +258,9 @@ public class ErrorMessage extends Message.Response
 
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
-                            for (Map.Entry<InetAddress, RequestFailureReason> entry : rfe.failureReasonByEndpoint.entrySet())
+                            for (Map.Entry<InetAddressAndPort, RequestFailureReason> entry : rfe.failureReasonByEndpoint.entrySet())
                             {
-                                size += CBUtil.sizeOfInetAddr(entry.getKey());
+                                size += CBUtil.sizeOfInetAddr(entry.getKey().address);
                                 size += 2; // RequestFailureReason code
                             }
                         }

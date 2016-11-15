@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.tracing;
 
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
@@ -36,6 +35,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -54,7 +54,7 @@ public class TraceStateImpl extends TraceState
 
     private final Set<Future<?>> pendingFutures = ConcurrentHashMap.newKeySet();
 
-    public TraceStateImpl(InetAddress coordinator, UUID sessionId, Tracing.TraceType traceType)
+    public TraceStateImpl(InetAddressAndPort coordinator, UUID sessionId, Tracing.TraceType traceType)
     {
         super(coordinator, sessionId, traceType);
     }

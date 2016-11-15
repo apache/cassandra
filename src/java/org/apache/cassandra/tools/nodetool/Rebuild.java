@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.IOException;
+
 import io.airlift.command.Arguments;
 import io.airlift.command.Command;
 import io.airlift.command.Option;
@@ -55,6 +57,17 @@ public class Rebuild extends NodeToolCmd
             throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
         }
 
+        try
+        {
+            for (String s : probe.describeRing( "ks1", true))
+            {
+                System.out.println(s);
+            }
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
         probe.rebuild(sourceDataCenterName, keyspace, tokens, specificSources);
     }
 }

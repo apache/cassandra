@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
@@ -28,6 +27,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.StreamOperation;
@@ -42,7 +42,7 @@ public class StreamInitMessage
 {
     public static IVersionedSerializer<StreamInitMessage> serializer = new StreamInitMessageSerializer();
 
-    public final InetAddress from;
+    public final InetAddressAndPort from;
     public final int sessionIndex;
     public final UUID planId;
     public final StreamOperation streamOperation;
@@ -53,7 +53,7 @@ public class StreamInitMessage
     public final UUID pendingRepair;
     public final PreviewKind previewKind;
 
-    public StreamInitMessage(InetAddress from, int sessionIndex, UUID planId, StreamOperation streamOperation, boolean isForOutgoing, boolean keepSSTableLevel, UUID pendingRepair, PreviewKind previewKind)
+    public StreamInitMessage(InetAddressAndPort from, int sessionIndex, UUID planId, StreamOperation streamOperation, boolean isForOutgoing, boolean keepSSTableLevel, UUID pendingRepair, PreviewKind previewKind)
     {
         this.from = from;
         this.sessionIndex = sessionIndex;
@@ -111,7 +111,7 @@ public class StreamInitMessage
     {
         public void serialize(StreamInitMessage message, DataOutputPlus out, int version) throws IOException
         {
-            CompactEndpointSerializationHelper.serialize(message.from, out);
+            CompactEndpointSerializationHelper.instance.serialize(message.from, out, MessagingService.VERSION_40);
             out.writeInt(message.sessionIndex);
             UUIDSerializer.serializer.serialize(message.planId, out, MessagingService.current_version);
             out.writeUTF(message.streamOperation.getDescription());
@@ -128,7 +128,7 @@ public class StreamInitMessage
 
         public StreamInitMessage deserialize(DataInputPlus in, int version) throws IOException
         {
-            InetAddress from = CompactEndpointSerializationHelper.deserialize(in);
+            InetAddressAndPort from = CompactEndpointSerializationHelper.instance.deserialize(in, MessagingService.VERSION_40);
             int sessionIndex = in.readInt();
             UUID planId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
             String description = in.readUTF();
@@ -142,7 +142,7 @@ public class StreamInitMessage
 
         public long serializedSize(StreamInitMessage message, int version)
         {
-            long size = CompactEndpointSerializationHelper.serializedSize(message.from);
+            long size = CompactEndpointSerializationHelper.instance.serializedSize(message.from, MessagingService.VERSION_40);
             size += TypeSizes.sizeof(message.sessionIndex);
             size += UUIDSerializer.serializer.serializedSize(message.planId, MessagingService.current_version);
             size += TypeSizes.sizeof(message.streamOperation.getDescription());

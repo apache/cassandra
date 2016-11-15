@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
@@ -41,6 +42,7 @@ public class IncomingStreamingConnection extends Thread implements Closeable
 
     private final int version;
     public final Socket socket;
+    public InetAddressAndPort from;
     private final Set<Closeable> group;
 
     public IncomingStreamingConnection(int version, Socket socket, Set<Closeable> group)
@@ -64,6 +66,7 @@ public class IncomingStreamingConnection extends Thread implements Closeable
 
             DataInputPlus input = new DataInputStreamPlus(socket.getInputStream());
             StreamInitMessage init = StreamInitMessage.serializer.deserialize(input, version);
+            this.from = init.from;
 
             //Set SO_TIMEOUT on follower side
             if (!init.isForOutgoing)

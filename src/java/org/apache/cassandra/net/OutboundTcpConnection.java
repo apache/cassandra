@@ -20,7 +20,6 @@ package org.apache.cassandra.net;
 import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
@@ -51,6 +50,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CoalescingStrategies;
@@ -157,7 +157,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     {
         super("MessagingService-Outgoing-" + pool.endPoint() + "-" + name);
         this.poolReference = pool;
-        cs = newCoalescingStrategy(pool.endPoint().getHostAddress());
+        cs = newCoalescingStrategy(pool.endPoint().toString());
 
         // We want to use the most precise version we know because while there is version detection on connect(),
         // the target version might be accessed by the pool (in getConnection()) before we actually connect (as we
@@ -169,10 +169,10 @@ public class OutboundTcpConnection extends FastThreadLocalThread
         targetVersion = MessagingService.instance().getVersion(pool.endPoint());
     }
 
-    private static boolean isLocalDC(InetAddress targetHost)
+    private static boolean isLocalDC(InetAddressAndPort targetHost)
     {
         String remoteDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(targetHost);
-        String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
+        String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPorts());
         return remoteDC.equals(localDC);
     }
 
@@ -320,10 +320,9 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     {
         try
         {
-            byte[] sessionBytes = qm.message.parameters.get(Tracing.TRACE_HEADER);
-            if (sessionBytes != null)
+            UUID sessionId = (UUID)qm.message.getParameter(ParameterType.TRACE_SESSION);
+            if (sessionId != null)
             {
-                UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
                 TraceState state = Tracing.instance.get(sessionId);
                 String message = String.format("Sending %s message to %s message size %d bytes", qm.message.verb,
                                                poolReference.endPoint(),
@@ -331,9 +330,9 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                 // session may have already finished; see CASSANDRA-5668
                 if (state == null)
                 {
-                    byte[] traceTypeBytes = qm.message.parameters.get(Tracing.TRACE_TYPE);
+                    byte[] traceTypeBytes = (byte[])qm.message.getParameter(ParameterType.TRACE_TYPE);
                     Tracing.TraceType traceType = traceTypeBytes == null ? Tracing.TraceType.QUERY : Tracing.TraceType.deserialize(traceTypeBytes[0]);
-                    Tracing.instance.trace(ByteBuffer.wrap(sessionBytes), message, traceType.getTTL());
+                    Tracing.instance.trace(ByteBuffer.wrap(UUIDGen.decompose(sessionId)), message, traceType.getTTL());
                 }
                 else
                 {
@@ -428,8 +427,8 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     @SuppressWarnings("resource")
     private boolean connect() throws InternodeAuthFailed
     {
-        InetAddress endpoint = poolReference.endPoint();
-        if (!DatabaseDescriptor.getInternodeAuthenticator().authenticate(endpoint, poolReference.portFor(endpoint)))
+        InetAddressAndPort endpoint = poolReference.endPoint();
+        if (!DatabaseDescriptor.getInternodeAuthenticator().authenticate(endpoint.address, endpoint.port))
         {
             throw new InternodeAuthFailed();
         }
@@ -519,7 +518,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                 }
 
                 out.writeInt(MessagingService.current_version);
-                CompactEndpointSerializationHelper.serialize(FBUtilities.getBroadcastAddress(), out);
+                CompactEndpointSerializationHelper.instance.serialize(FBUtilities.getBroadcastAddressAndPorts(), out, targetVersion);
                 if (shouldCompressConnection())
                 {
                     out.flush();

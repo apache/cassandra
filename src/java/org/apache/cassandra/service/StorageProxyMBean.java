@@ -65,7 +65,8 @@ public interface StorageProxyMBean
     public void setOtcBacklogExpirationInterval(int intervalInMillis);
 
     /** Returns each live node's schema version */
-    public Map<String, List<String>> getSchemaVersions();
+    @Deprecated public Map<String, List<String>> getSchemaVersions();
+    public Map<String, List<String>> getSchemaVersionsWithPorts();
 
     public int getNumberOfTables();
 

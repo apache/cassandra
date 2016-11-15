@@ -34,6 +34,7 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
 import org.apache.cassandra.repair.messages.FinalizePromise;
@@ -56,7 +57,7 @@ import org.apache.cassandra.tools.nodetool.RepairAdmin;
  * There are 4 stages to a consistent incremental repair.
  *
  * <h1>Repair prepare</h1>
- *  First, the normal {@link ActiveRepairService#prepareForRepair(UUID, InetAddress, Set, RepairOption, List)} stuff
+ *  First, the normal {@link ActiveRepairService#prepareForRepair(UUID, InetAddressAndPort, Set, RepairOption, List)} stuff
  *  happens, which sends out {@link PrepareMessage} and creates a {@link ActiveRepairService.ParentRepairSession}
  *  on the coordinator and each of the neighbors.
  *
@@ -69,7 +70,7 @@ import org.apache.cassandra.tools.nodetool.RepairAdmin;
  *  coordinator indicating success or failure. If the pending anti-compaction fails, the local session state is set
  *  to {@code FAILED}.
  *  <p/>
- *  (see {@link LocalSessions#handlePrepareMessage(InetAddress, PrepareConsistentRequest)}
+ *  (see {@link LocalSessions#handlePrepareMessage(InetAddressAndPort, PrepareConsistentRequest)}
  *  <p/>
  *  Once the coordinator recieves positive {@code PrepareConsistentResponse} messages from all the participants, the
  *  coordinator begins the normal repair process.
@@ -100,8 +101,8 @@ import org.apache.cassandra.tools.nodetool.RepairAdmin;
  *  & {@link CoordinatorSession#finalizeCommit(Executor)}
  *  <p/>
  *
- *  On the local session side, see {@link LocalSessions#handleFinalizeProposeMessage(InetAddress, FinalizePropose)}
- *  & {@link LocalSessions#handleFinalizeCommitMessage(InetAddress, FinalizeCommit)}
+ *  On the local session side, see {@link LocalSessions#handleFinalizeProposeMessage(InetAddressAndPort, FinalizePropose)}
+ *  & {@link LocalSessions#handleFinalizeCommitMessage(InetAddressAndPort, FinalizeCommit)}
  *
  * <h1>Failure</h1>
  *  If there are any failures or problems during the process above, the session will be failed. When a session is failed,
@@ -186,11 +187,11 @@ public abstract class ConsistentSession
 
     private volatile State state;
     public final UUID sessionID;
-    public final InetAddress coordinator;
+    public final InetAddressAndPort coordinator;
     public final ImmutableSet<TableId> tableIds;
     public final long repairedAt;
     public final ImmutableSet<Range<Token>> ranges;
-    public final ImmutableSet<InetAddress> participants;
+    public final ImmutableSet<InetAddressAndPort> participants;
 
     ConsistentSession(AbstractBuilder builder)
     {
@@ -259,11 +260,11 @@ public abstract class ConsistentSession
     {
         private State state;
         private UUID sessionID;
-        private InetAddress coordinator;
+        private InetAddressAndPort coordinator;
         private Set<TableId> ids;
         private long repairedAt;
         private Collection<Range<Token>> ranges;
-        private Set<InetAddress> participants;
+        private Set<InetAddressAndPort> participants;
 
         void withState(State state)
         {
@@ -275,7 +276,7 @@ public abstract class ConsistentSession
             this.sessionID = sessionID;
         }
 
-        void withCoordinator(InetAddress coordinator)
+        void withCoordinator(InetAddressAndPort coordinator)
         {
             this.coordinator = coordinator;
         }
@@ -300,7 +301,7 @@ public abstract class ConsistentSession
             this.ranges = ranges;
         }
 
-        void withParticipants(Set<InetAddress> peers)
+        void withParticipants(Set<InetAddressAndPort> peers)
         {
             this.participants = peers;
         }

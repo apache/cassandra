@@ -18,7 +18,6 @@
 package org.apache.cassandra.net;
 
 import java.io.*;
-import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.nio.channels.Channels;
@@ -37,6 +36,7 @@ import net.jpountz.xxhash.XXHashFactory;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.exceptions.UnknownTableException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -53,7 +53,7 @@ public class IncomingTcpConnection extends FastThreadLocalThread implements Clos
     private final boolean compressed;
     private final Socket socket;
     private final Set<Closeable> group;
-    public InetAddress from;
+    public InetAddressAndPort from;
 
     public IncomingTcpConnection(int version, boolean compressed, Socket socket, Set<Closeable> group)
     {
@@ -146,7 +146,7 @@ public class IncomingTcpConnection extends FastThreadLocalThread implements Clos
         int maxVersion = in.readInt();
         // outbound side will reconnect if necessary to upgrade version
         assert version <= MessagingService.current_version;
-        from = CompactEndpointSerializationHelper.deserialize(in);
+        from = CompactEndpointSerializationHelper.instance.deserialize(in, maxVersion < version ? maxVersion : version);
         // record the (true) version of the endpoint
         MessagingService.instance().setVersion(from, maxVersion);
         logger.trace("Set version for {} to {} (will use {})", from, maxVersion, MessagingService.instance().getVersion(from));
@@ -173,7 +173,7 @@ public class IncomingTcpConnection extends FastThreadLocalThread implements Clos
         }
     }
 
-    private InetAddress receiveMessage(DataInputPlus input, int version) throws IOException
+    private InetAddressAndPort receiveMessage(DataInputPlus input, int version) throws IOException
     {
         int id = input.readInt();
 

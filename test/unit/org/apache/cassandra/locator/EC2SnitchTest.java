@@ -20,7 +20,6 @@ package org.apache.cassandra.locator;
 
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.EnumMap;
 import java.util.Map;
@@ -76,8 +75,8 @@ public class EC2SnitchTest
     {
         az = "us-east-1d";
         Ec2Snitch snitch = new TestEC2Snitch();
-        InetAddress local = InetAddress.getByName("127.0.0.1");
-        InetAddress nonlocal = InetAddress.getByName("127.0.0.7");
+        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
+        InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
         Gossiper.instance.addSavedEndpoint(nonlocal);
         Map<ApplicationState, VersionedValue> stateMap = new EnumMap<>(ApplicationState.class);
@@ -97,7 +96,7 @@ public class EC2SnitchTest
     {
         az = "us-east-2d";
         Ec2Snitch snitch = new TestEC2Snitch();
-        InetAddress local = InetAddress.getByName("127.0.0.1");
+        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         assertEquals("us-east-2", snitch.getDatacenter(local));
         assertEquals("2d", snitch.getRack(local));
     }
@@ -105,8 +104,8 @@ public class EC2SnitchTest
     @Test
     public void testEc2MRSnitch() throws UnknownHostException
     {
-        InetAddress me = InetAddress.getByName("127.0.0.2");
-        InetAddress com_ip = InetAddress.getByName("127.0.0.3");
+        InetAddressAndPort me = InetAddressAndPort.getByName("127.0.0.2");
+        InetAddressAndPort com_ip = InetAddressAndPort.getByName("127.0.0.3");
 
         OutboundTcpConnectionPool pool = MessagingService.instance().getConnectionPool(me);
         Assert.assertEquals(me, pool.endPoint());

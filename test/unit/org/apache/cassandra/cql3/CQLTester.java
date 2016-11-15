@@ -45,6 +45,7 @@ import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.FunctionName;
@@ -141,9 +142,9 @@ public abstract class CQLTester
         // Register an EndpointSnitch which returns fixed values for test.
         DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
         {
-            @Override public String getRack(InetAddress endpoint) { return RACK1; }
-            @Override public String getDatacenter(InetAddress endpoint) { return DATA_CENTER; }
-            @Override public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2) { return 0; }
+            @Override public String getRack(InetAddressAndPort endpoint) { return RACK1; }
+            @Override public String getDatacenter(InetAddressAndPort endpoint) { return DATA_CENTER; }
+            @Override public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2) { return 0; }
         });
 
         try

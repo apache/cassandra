@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.net.InetAddress;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +34,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -57,7 +57,7 @@ public class Validator implements Runnable
     private static final Logger logger = LoggerFactory.getLogger(Validator.class);
 
     public final RepairJobDesc desc;
-    public final InetAddress initiator;
+    public final InetAddressAndPort initiator;
     public final int gcBefore;
     private final boolean evenTreeDistribution;
     public final boolean isConsistent;
@@ -74,17 +74,17 @@ public class Validator implements Runnable
 
     private final PreviewKind previewKind;
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int gcBefore, PreviewKind previewKind)
     {
         this(desc, initiator, gcBefore, false, false, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore, boolean isConsistent, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int gcBefore, boolean isConsistent, PreviewKind previewKind)
     {
         this(desc, initiator, gcBefore, false, isConsistent, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore, boolean evenTreeDistribution, boolean isConsistent, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int gcBefore, boolean evenTreeDistribution, boolean isConsistent, PreviewKind previewKind)
     {
         this.desc = desc;
         this.initiator = initiator;
@@ -287,7 +287,7 @@ public class Validator implements Runnable
     public void run()
     {
         // respond to the request that triggered this validation
-        if (!initiator.equals(FBUtilities.getBroadcastAddress()))
+        if (!initiator.equals(FBUtilities.getBroadcastAddressAndPorts()))
         {
             logger.info("{} Sending completed merkle tree to {} for {}.{}", previewKind.logPrefix(desc.sessionId), initiator, desc.keyspace, desc.columnFamily);
             Tracing.traceRepair("Sending completed merkle tree to {} for {}.{}", initiator, desc.keyspace, desc.columnFamily);

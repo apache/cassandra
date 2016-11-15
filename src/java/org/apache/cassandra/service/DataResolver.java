@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
@@ -38,6 +37,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.MoreRows;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -66,7 +66,7 @@ public class DataResolver extends ResponseResolver
         // at the beginning of this method), so grab the response count once and use that through the method.
         int count = responses.size();
         List<UnfilteredPartitionIterator> iters = new ArrayList<>(count);
-        InetAddress[] sources = new InetAddress[count];
+        InetAddressAndPort[] sources = new InetAddressAndPort[count];
         for (int i = 0; i < count; i++)
         {
             MessageIn<ReadResponse> msg = responses.get(i);
@@ -89,7 +89,7 @@ public class DataResolver extends ResponseResolver
         }
     }
 
-    private PartitionIterator mergeWithShortReadProtection(List<UnfilteredPartitionIterator> results, InetAddress[] sources, DataLimits.Counter resultCounter)
+    private PartitionIterator mergeWithShortReadProtection(List<UnfilteredPartitionIterator> results, InetAddressAndPort[] sources, DataLimits.Counter resultCounter)
     {
         // If we have only one results, there is no read repair to do and we can't get short reads
         if (results.size() == 1)
@@ -110,9 +110,9 @@ public class DataResolver extends ResponseResolver
 
     private class RepairMergeListener implements UnfilteredPartitionIterators.MergeListener
     {
-        private final InetAddress[] sources;
+        private final InetAddressAndPort[] sources;
 
-        public RepairMergeListener(InetAddress[] sources)
+        public RepairMergeListener(InetAddressAndPort[] sources)
         {
             this.sources = sources;
         }
@@ -403,12 +403,12 @@ public class DataResolver extends ResponseResolver
 
     private class ShortReadProtection extends Transformation<UnfilteredRowIterator>
     {
-        private final InetAddress source;
+        private final InetAddressAndPort source;
         private final DataLimits.Counter counter;
         private final DataLimits.Counter postReconciliationCounter;
         private final long queryStartNanoTime;
 
-        private ShortReadProtection(InetAddress source, DataLimits.Counter postReconciliationCounter, long queryStartNanoTime)
+        private ShortReadProtection(InetAddressAndPort source, DataLimits.Counter postReconciliationCounter, long queryStartNanoTime)
         {
             this.source = source;
             this.counter = command.limits().newCounter(command.nowInSec(), false).onlyCount();

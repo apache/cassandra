@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.locator;
 
-import java.net.InetAddress;
 import java.util.List;
 
 /**
@@ -27,23 +26,23 @@ import java.util.List;
  */
 public class SimpleSnitch extends AbstractEndpointSnitch
 {
-    public String getRack(InetAddress endpoint)
+    public String getRack(InetAddressAndPort endpoint)
     {
         return "rack1";
     }
 
-    public String getDatacenter(InetAddress endpoint)
+    public String getDatacenter(InetAddressAndPort endpoint)
     {
         return "datacenter1";
     }
 
     @Override
-    public void sortByProximity(final InetAddress address, List<InetAddress> addresses)
+    public void sortByProximity(final InetAddressAndPort address, List<InetAddressAndPort> addresses)
     {
         // Optimization to avoid walking the list
     }
 
-    public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2)
+    public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2)
     {
         // Making all endpoints equal ensures we won't change the original ordering (since
         // Collections.sort is guaranteed to be stable)

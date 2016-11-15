@@ -195,7 +195,7 @@ public class LeveledCompactionStrategyTest
         int gcBefore = keyspace.getColumnFamilyStore(CF_STANDARDDLEVELED).gcBefore(FBUtilities.nowInSeconds());
         UUID parentRepSession = UUID.randomUUID();
         ActiveRepairService.instance.registerParentRepairSession(parentRepSession,
-                                                                 FBUtilities.getBroadcastAddress(),
+                                                                 FBUtilities.getBroadcastAddressAndPorts(),
                                                                  Arrays.asList(cfs),
                                                                  Arrays.asList(range),
                                                                  false,
@@ -203,7 +203,7 @@ public class LeveledCompactionStrategyTest
                                                                  true,
                                                                  PreviewKind.NONE);
         RepairJobDesc desc = new RepairJobDesc(parentRepSession, UUID.randomUUID(), KEYSPACE1, CF_STANDARDDLEVELED, Arrays.asList(range));
-        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddress(), gcBefore, PreviewKind.NONE);
+        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddressAndPorts(), gcBefore, PreviewKind.NONE);
         CompactionManager.instance.submitValidation(cfs, validator).get();
     }
 

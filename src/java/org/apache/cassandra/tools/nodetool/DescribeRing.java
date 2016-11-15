@@ -39,7 +39,7 @@ public class DescribeRing extends NodeToolCmd
         System.out.println("TokenRange: ");
         try
         {
-            for (String tokenRangeString : probe.describeRing(keyspace))
+            for (String tokenRangeString : probe.describeRing(keyspace, withPorts))
             {
                 System.out.println("\t" + tokenRangeString);
             }

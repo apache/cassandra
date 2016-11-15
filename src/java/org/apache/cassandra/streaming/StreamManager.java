@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.net.InetAddress;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -36,6 +35,7 @@ import com.google.common.util.concurrent.RateLimiter;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.management.StreamEventJMXNotifier;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 
@@ -56,7 +56,7 @@ public class StreamManager implements StreamManagerMBean
      *
      * @return StreamRateLimiter with rate limit set based on peer location.
      */
-    public static StreamRateLimiter getRateLimiter(InetAddress peer)
+    public static StreamRateLimiter getRateLimiter(InetAddressAndPort peer)
     {
         return new StreamRateLimiter(peer);
     }
@@ -68,7 +68,7 @@ public class StreamManager implements StreamManagerMBean
         private static final RateLimiter interDCLimiter = RateLimiter.create(Double.MAX_VALUE);
         private final boolean isLocalDC;
 
-        public StreamRateLimiter(InetAddress peer)
+        public StreamRateLimiter(InetAddressAndPort peer)
         {
             double throughput = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec() * BYTES_PER_MEGABIT;
             mayUpdateThroughput(throughput, limiter);

@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.net.InetAddress;
 import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -43,7 +43,7 @@ public class StreamCoordinator
                                                                                                                             FBUtilities.getAvailableProcessors());
     private final boolean connectSequentially;
 
-    private Map<InetAddress, HostStreamingData> peerSessions = new HashMap<>();
+    private Map<InetAddressAndPort, HostStreamingData> peerSessions = new HashMap<>();
     private final int connectionsPerHost;
     private StreamConnectionFactory factory;
     private final boolean keepSSTableLevel;
@@ -141,24 +141,24 @@ public class StreamCoordinator
         if (sessionsToConnect.hasNext())
         {
             StreamSession next = sessionsToConnect.next();
-            logger.debug("Connecting next session {} with {}.", next.planId(), next.peer.getHostAddress());
+            logger.debug("Connecting next session {} with {}.", next.planId(), next.peer.toString());
             streamExecutor.execute(new StreamSessionConnector(next));
         }
         else
             logger.debug("Finished connecting all sessions");
     }
 
-    public synchronized Set<InetAddress> getPeers()
+    public synchronized Set<InetAddressAndPort> getPeers()
     {
         return new HashSet<>(peerSessions.keySet());
     }
 
-    public synchronized StreamSession getOrCreateNextSession(InetAddress peer, InetAddress connecting)
+    public synchronized StreamSession getOrCreateNextSession(InetAddressAndPort peer, InetAddressAndPort connecting)
     {
         return getOrCreateHostData(peer).getOrCreateNextSession(peer, connecting);
     }
 
-    public synchronized StreamSession getOrCreateSessionById(InetAddress peer, int id, InetAddress connecting)
+    public synchronized StreamSession getOrCreateSessionById(InetAddressAndPort peer, int id, InetAddressAndPort connecting)
     {
         return getOrCreateHostData(peer).getOrCreateSessionById(peer, id, connecting);
     }
@@ -184,7 +184,7 @@ public class StreamCoordinator
         return result;
     }
 
-    public synchronized void transferFiles(InetAddress to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
+    public synchronized void transferFiles(InetAddressAndPort to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
     {
         HostStreamingData sessionList = getOrCreateHostData(to);
 
@@ -232,7 +232,7 @@ public class StreamCoordinator
         return result;
     }
 
-    private HostStreamingData getHostData(InetAddress peer)
+    private HostStreamingData getHostData(InetAddressAndPort peer)
     {
         HostStreamingData data = peerSessions.get(peer);
         if (data == null)
@@ -240,7 +240,7 @@ public class StreamCoordinator
         return data;
     }
 
-    private HostStreamingData getOrCreateHostData(InetAddress peer)
+    private HostStreamingData getOrCreateHostData(InetAddressAndPort peer)
     {
         HostStreamingData data = peerSessions.get(peer);
         if (data == null)
@@ -290,7 +290,7 @@ public class StreamCoordinator
             return false;
         }
 
-        public StreamSession getOrCreateNextSession(InetAddress peer, InetAddress connecting)
+        public StreamSession getOrCreateNextSession(InetAddressAndPort peer, InetAddressAndPort connecting)
         {
             // create
             if (streamSessions.size() < connectionsPerHost)
@@ -322,7 +322,7 @@ public class StreamCoordinator
             return Collections.unmodifiableCollection(streamSessions.values());
         }
 
-        public StreamSession getOrCreateSessionById(InetAddress peer, int id, InetAddress connecting)
+        public StreamSession getOrCreateSessionById(InetAddressAndPort peer, int id, InetAddressAndPort connecting)
         {
             StreamSession session = streamSessions.get(id);
             if (session == null)

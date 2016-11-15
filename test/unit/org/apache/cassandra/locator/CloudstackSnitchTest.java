@@ -19,7 +19,6 @@
 package org.apache.cassandra.locator;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -77,8 +76,8 @@ public class CloudstackSnitchTest
     {
         az = "ch-gva-1";
         CloudstackSnitch snitch = new TestCloudstackSnitch();
-        InetAddress local = InetAddress.getByName("127.0.0.1");
-        InetAddress nonlocal = InetAddress.getByName("127.0.0.7");
+        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
+        InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
         Gossiper.instance.addSavedEndpoint(nonlocal);
         Map<ApplicationState, VersionedValue> stateMap = new EnumMap<>(ApplicationState.class);
@@ -99,7 +98,7 @@ public class CloudstackSnitchTest
     {
         az = "ch-gva-1";
         CloudstackSnitch snitch = new TestCloudstackSnitch();
-        InetAddress local = InetAddress.getByName("127.0.0.1");
+        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
 
         assertEquals("ch-gva", snitch.getDatacenter(local));
         assertEquals("1", snitch.getRack(local));

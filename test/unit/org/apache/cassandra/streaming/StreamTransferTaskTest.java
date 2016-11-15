@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -40,6 +39,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.messages.OutgoingFileMessage;
@@ -73,7 +73,7 @@ public class StreamTransferTaskTest
     @Test
     public void testScheduleTimeout() throws Exception
     {
-        InetAddress peer = FBUtilities.getBroadcastAddress();
+        InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPorts();
         StreamSession session = new StreamSession(peer, peer, null, 0, true, null, PreviewKind.NONE);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
 
@@ -119,7 +119,7 @@ public class StreamTransferTaskTest
     @Test
     public void testFailSessionDuringTransferShouldNotReleaseReferences() throws Exception
     {
-        InetAddress peer = FBUtilities.getBroadcastAddress();
+        InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPorts();
         StreamCoordinator streamCoordinator = new StreamCoordinator(1, true, null, false, null, PreviewKind.NONE);
         StreamResultFuture future = StreamResultFuture.init(UUID.randomUUID(), StreamOperation.OTHER, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
         StreamSession session = new StreamSession(peer, peer, null, 0, true, null, PreviewKind.NONE);

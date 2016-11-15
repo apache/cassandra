@@ -22,7 +22,6 @@ package org.apache.cassandra;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOError;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -39,6 +38,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -192,7 +192,7 @@ public class Util
      * Creates initial set of nodes and tokens. Nodes are added to StorageService as 'normal'
      */
     public static void createInitialRing(StorageService ss, IPartitioner partitioner, List<Token> endpointTokens,
-                                   List<Token> keyTokens, List<InetAddress> hosts, List<UUID> hostIds, int howMany)
+                                         List<Token> keyTokens, List<InetAddressAndPort> hosts, List<UUID> hostIds, int howMany)
         throws UnknownHostException
     {
         // Expand pool of host IDs as necessary
@@ -210,9 +210,12 @@ public class Util
 
         for (int i=0; i<endpointTokens.size(); i++)
         {
-            InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
+            InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + String.valueOf(i + 1));
             Gossiper.instance.initializeNodeUnsafe(ep, hostIds.get(i), 1);
             Gossiper.instance.injectApplicationState(ep, ApplicationState.TOKENS, new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(endpointTokens.get(i))));
+            ss.onChange(ep,
+                        ApplicationState.STATUS_WITH_PORTS,
+                        new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(endpointTokens.get(i))));
             ss.onChange(ep,
                         ApplicationState.STATUS,
                         new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(endpointTokens.get(i))));

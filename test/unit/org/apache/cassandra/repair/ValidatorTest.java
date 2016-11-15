@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -34,6 +33,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -95,7 +95,7 @@ public class ValidatorTest
 
         final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
 
-        InetAddress remote = InetAddress.getByName("127.0.0.2");
+        InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
 
@@ -134,7 +134,7 @@ public class ValidatorTest
 
         final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
 
-        InetAddress remote = InetAddress.getByName("127.0.0.2");
+        InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
 
         Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
         validator.fail();
@@ -189,12 +189,12 @@ public class ValidatorTest
                                                cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
                                                                                                                 sstable.last.getToken())));
 
-        ActiveRepairService.instance.registerParentRepairSession(repairSessionId, FBUtilities.getBroadcastAddress(),
+        ActiveRepairService.instance.registerParentRepairSession(repairSessionId, FBUtilities.getBroadcastAddressAndPorts(),
                                                                  Collections.singletonList(cfs), desc.ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                  false, PreviewKind.NONE);
 
         final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddress(), 0, true, false, PreviewKind.NONE);
+        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddressAndPorts(), 0, true, false, PreviewKind.NONE);
         CompactionManager.instance.submitValidation(cfs, validator);
 
         MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
@@ -218,7 +218,7 @@ public class ValidatorTest
         final CompletableFuture<MessageOut> future = new CompletableFuture<>();
         MessagingService.instance().addMessageSink(new IMessageSink()
         {
-            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to)
+            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddressAndPort to)
             {
                 future.complete(message);
                 return false;

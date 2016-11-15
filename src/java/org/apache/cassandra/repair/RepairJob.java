@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.net.InetAddress;
 import java.util.*;
 
 import com.google.common.util.concurrent.*;
@@ -26,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -69,14 +69,14 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      */
     public void run()
     {
-        List<InetAddress> allEndpoints = new ArrayList<>(session.endpoints);
-        allEndpoints.add(FBUtilities.getBroadcastAddress());
+        List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.endpoints);
+        allEndpoints.add(FBUtilities.getBroadcastAddressAndPorts());
 
         ListenableFuture<List<TreeResponse>> validations;
         // Create a snapshot at all nodes unless we're using pure parallel repairs
         if (parallelismDegree != RepairParallelism.PARALLEL)
         {
-            ListenableFuture<List<InetAddress>> allSnapshotTasks;
+            ListenableFuture<List<InetAddressAndPort>> allSnapshotTasks;
             if (isConsistent)
             {
                 // consistent repair does it's own "snapshotting"
@@ -85,8 +85,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             else
             {
                 // Request snapshot to all replica
-                List<ListenableFuture<InetAddress>> snapshotTasks = new ArrayList<>(allEndpoints.size());
-                for (InetAddress endpoint : allEndpoints)
+                List<ListenableFuture<InetAddressAndPort>> snapshotTasks = new ArrayList<>(allEndpoints.size());
+                for (InetAddressAndPort endpoint : allEndpoints)
                 {
                     SnapshotTask snapshotTask = new SnapshotTask(desc, endpoint);
                     snapshotTasks.add(snapshotTask);
@@ -96,9 +96,9 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             }
 
             // When all snapshot complete, send validation requests
-            validations = Futures.transform(allSnapshotTasks, new AsyncFunction<List<InetAddress>, List<TreeResponse>>()
+            validations = Futures.transform(allSnapshotTasks, new AsyncFunction<List<InetAddressAndPort>, List<TreeResponse>>()
             {
-                public ListenableFuture<List<TreeResponse>> apply(List<InetAddress> endpoints)
+                public ListenableFuture<List<TreeResponse>> apply(List<InetAddressAndPort> endpoints)
                 {
                     if (parallelismDegree == RepairParallelism.SEQUENTIAL)
                         return sendSequentialValidationRequest(endpoints);
@@ -118,7 +118,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         {
             public ListenableFuture<List<SyncStat>> apply(List<TreeResponse> trees)
             {
-                InetAddress local = FBUtilities.getLocalAddress();
+                InetAddressAndPort local = FBUtilities.getLocalAddressAndPorts();
 
                 List<SyncTask> syncTasks = new ArrayList<>();
                 // We need to difference all trees one against another
@@ -185,14 +185,14 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      * @param endpoints Endpoint addresses to send validation request
      * @return Future that can get all {@link TreeResponse} from replica, if all validation succeed.
      */
-    private ListenableFuture<List<TreeResponse>> sendValidationRequest(Collection<InetAddress> endpoints)
+    private ListenableFuture<List<TreeResponse>> sendValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         int gcBefore = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).gcBefore(FBUtilities.nowInSeconds());
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
-        for (InetAddress endpoint : endpoints)
+        for (InetAddressAndPort endpoint : endpoints)
         {
             ValidationTask task = new ValidationTask(desc, endpoint, gcBefore, previewKind);
             tasks.add(task);
@@ -205,7 +205,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     /**
      * Creates {@link ValidationTask} and submit them to task executor so that tasks run sequentially.
      */
-    private ListenableFuture<List<TreeResponse>> sendSequentialValidationRequest(Collection<InetAddress> endpoints)
+    private ListenableFuture<List<TreeResponse>> sendSequentialValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
@@ -213,8 +213,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         int gcBefore = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).gcBefore(FBUtilities.nowInSeconds());
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
 
-        Queue<InetAddress> requests = new LinkedList<>(endpoints);
-        InetAddress address = requests.poll();
+        Queue<InetAddressAndPort> requests = new LinkedList<>(endpoints);
+        InetAddressAndPort address = requests.poll();
         ValidationTask firstTask = new ValidationTask(desc, address, gcBefore, previewKind);
         logger.info("Validating {}", address);
         session.waitForValidation(Pair.create(desc, address), firstTask);
@@ -222,7 +222,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         ValidationTask currentTask = firstTask;
         while (requests.size() > 0)
         {
-            final InetAddress nextAddress = requests.poll();
+            final InetAddressAndPort nextAddress = requests.poll();
             final ValidationTask nextTask = new ValidationTask(desc, nextAddress, gcBefore, previewKind);
             tasks.add(nextTask);
             Futures.addCallback(currentTask, new FutureCallback<TreeResponse>()
@@ -247,7 +247,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     /**
      * Creates {@link ValidationTask} and submit them to task executor so that tasks run sequentially within each dc.
      */
-    private ListenableFuture<List<TreeResponse>> sendDCAwareValidationRequest(Collection<InetAddress> endpoints)
+    private ListenableFuture<List<TreeResponse>> sendDCAwareValidationRequest(Collection<InetAddressAndPort> endpoints)
     {
         String message = String.format("Requesting merkle trees for %s (to %s)", desc.columnFamily, endpoints);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
@@ -255,11 +255,11 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         int gcBefore = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).gcBefore(FBUtilities.nowInSeconds());
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
 
-        Map<String, Queue<InetAddress>> requestsByDatacenter = new HashMap<>();
-        for (InetAddress endpoint : endpoints)
+        Map<String, Queue<InetAddressAndPort>> requestsByDatacenter = new HashMap<>();
+        for (InetAddressAndPort endpoint : endpoints)
         {
             String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
-            Queue<InetAddress> queue = requestsByDatacenter.get(dc);
+            Queue<InetAddressAndPort> queue = requestsByDatacenter.get(dc);
             if (queue == null)
             {
                 queue = new LinkedList<>();
@@ -268,10 +268,10 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             queue.add(endpoint);
         }
 
-        for (Map.Entry<String, Queue<InetAddress>> entry : requestsByDatacenter.entrySet())
+        for (Map.Entry<String, Queue<InetAddressAndPort>> entry : requestsByDatacenter.entrySet())
         {
-            Queue<InetAddress> requests = entry.getValue();
-            InetAddress address = requests.poll();
+            Queue<InetAddressAndPort> requests = entry.getValue();
+            InetAddressAndPort address = requests.poll();
             ValidationTask firstTask = new ValidationTask(desc, address, gcBefore, previewKind);
             logger.info("Validating {}", address);
             session.waitForValidation(Pair.create(desc, address), firstTask);
@@ -279,7 +279,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             ValidationTask currentTask = firstTask;
             while (requests.size() > 0)
             {
-                final InetAddress nextAddress = requests.poll();
+                final InetAddressAndPort nextAddress = requests.poll();
                 final ValidationTask nextTask = new ValidationTask(desc, nextAddress, gcBefore, previewKind);
                 tasks.add(nextTask);
                 Futures.addCallback(currentTask, new FutureCallback<TreeResponse>()

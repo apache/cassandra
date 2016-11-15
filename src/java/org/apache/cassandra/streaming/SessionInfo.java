@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming;
 
 import java.io.Serializable;
-import java.net.InetAddress;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,6 +26,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -34,9 +34,9 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public final class SessionInfo implements Serializable
 {
-    public final InetAddress peer;
+    public final InetAddressAndPort peer;
     public final int sessionIndex;
-    public final InetAddress connecting;
+    public final InetAddressAndPort connecting;
     /** Immutable collection of receiving summaries */
     public final Collection<StreamSummary> receivingSummaries;
     /** Immutable collection of sending summaries*/
@@ -47,9 +47,9 @@ public final class SessionInfo implements Serializable
     private final Map<String, ProgressInfo> receivingFiles;
     private final Map<String, ProgressInfo> sendingFiles;
 
-    public SessionInfo(InetAddress peer,
+    public SessionInfo(InetAddressAndPort peer,
                        int sessionIndex,
-                       InetAddress connecting,
+                       InetAddressAndPort connecting,
                        Collection<StreamSummary> receivingSummaries,
                        Collection<StreamSummary> sendingSummaries,
                        StreamSession.State state)
@@ -195,6 +195,6 @@ public final class SessionInfo implements Serializable
 
     public SessionSummary createSummary()
     {
-        return new SessionSummary(FBUtilities.getBroadcastAddress(), peer, receivingSummaries, sendingSummaries);
+        return new SessionSummary(FBUtilities.getBroadcastAddressAndPorts(), peer, receivingSummaries, sendingSummaries);
     }
 }

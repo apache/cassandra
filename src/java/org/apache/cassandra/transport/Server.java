@@ -49,6 +49,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
 import org.apache.cassandra.security.SSLFactory;
@@ -456,51 +457,32 @@ public class Server implements CassandraDaemon.Server
 
         // We keep track of the latest status change events we have sent to avoid sending duplicates
         // since StorageService may send duplicate notifications (CASSANDRA-7816, CASSANDRA-8236, CASSANDRA-9156)
-        private final Map<InetAddress, LatestEvent> latestEvents = new ConcurrentHashMap<>();
+        private final Map<InetAddressAndPort, LatestEvent> latestEvents = new ConcurrentHashMap<>();
         // We also want to delay delivering a NEW_NODE notification until the new node has set its RPC ready
         // state. This tracks the endpoints which have joined, but not yet signalled they're ready for clients
-        private final Set<InetAddress> endpointsPendingJoinedNotification = ConcurrentHashMap.newKeySet();
-
-
-        private static final InetAddress bindAll;
-        static
-        {
-            try
-            {
-                bindAll = InetAddress.getByAddress(new byte[4]);
-            }
-            catch (UnknownHostException e)
-            {
-                throw new AssertionError(e);
-            }
-        }
+        private final Set<InetAddressAndPort> endpointsPendingJoinedNotification = ConcurrentHashMap.newKeySet();
 
         private EventNotifier(Server server)
         {
             this.server = server;
         }
 
-        private InetAddress getRpcAddress(InetAddress endpoint)
+        private InetAddressAndPort getNativeAddress(InetAddressAndPort endpoint)
         {
             try
             {
-                InetAddress rpcAddress = InetAddress.getByName(StorageService.instance.getRpcaddress(endpoint));
-                // If rpcAddress == 0.0.0.0 (i.e. bound on all addresses), returning that is not very helpful,
-                // so return the internal address (which is ok since "we're bound on all addresses").
-                // Note that after all nodes are running a version that includes CASSANDRA-5899, rpcAddress should
-                // never be 0.0.0.0, so this can eventually be removed.
-                return rpcAddress.equals(bindAll) ? endpoint : rpcAddress;
+                return InetAddressAndPort.getByName(StorageService.instance.getNativeaddress(endpoint, true));
             }
             catch (UnknownHostException e)
             {
                 // That should not happen, so log an error, but return the
                 // endpoint address since there's a good change this is right
                 logger.error("Problem retrieving RPC address for {}", endpoint, e);
-                return endpoint;
+                return InetAddressAndPort.getByAddressOverrideDefaults(endpoint.address, DatabaseDescriptor.getNativeTransportPort());
             }
         }
 
-        private void send(InetAddress endpoint, Event.NodeEvent event)
+        private void send(InetAddressAndPort endpoint, Event.NodeEvent event)
         {
             if (logger.isTraceEnabled())
                 logger.trace("Sending event for endpoint {}, rpc address {}", endpoint, event.nodeAddress());
@@ -510,8 +492,8 @@ public class Server implements CassandraDaemon.Server
             // then don't send the notification. This covers the case of rpc_address set to "localhost",
             // which is not useful to any driver and in fact may cauase serious problems to some drivers,
             // see CASSANDRA-10052
-            if (!endpoint.equals(FBUtilities.getBroadcastAddress()) &&
-                event.nodeAddress().equals(FBUtilities.getBroadcastRpcAddress()))
+            if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()) &&
+                event.nodeAddress().equals(FBUtilities.getJustBroadcastNativeAddress()))
                 return;
 
             send(event);
@@ -522,38 +504,38 @@ public class Server implements CassandraDaemon.Server
             server.connectionTracker.send(event);
         }
 
-        public void onJoinCluster(InetAddress endpoint)
+        public void onJoinCluster(InetAddressAndPort endpoint)
         {
             if (!StorageService.instance.isRpcReady(endpoint))
                 endpointsPendingJoinedNotification.add(endpoint);
             else
-                onTopologyChange(endpoint, Event.TopologyChange.newNode(getRpcAddress(endpoint), server.socket.getPort()));
+                onTopologyChange(endpoint, Event.TopologyChange.newNode(getNativeAddress(endpoint)));
         }
 
-        public void onLeaveCluster(InetAddress endpoint)
+        public void onLeaveCluster(InetAddressAndPort endpoint)
         {
-            onTopologyChange(endpoint, Event.TopologyChange.removedNode(getRpcAddress(endpoint), server.socket.getPort()));
+            onTopologyChange(endpoint, Event.TopologyChange.removedNode(getNativeAddress(endpoint)));
         }
 
-        public void onMove(InetAddress endpoint)
+        public void onMove(InetAddressAndPort endpoint)
         {
-            onTopologyChange(endpoint, Event.TopologyChange.movedNode(getRpcAddress(endpoint), server.socket.getPort()));
+            onTopologyChange(endpoint, Event.TopologyChange.movedNode(getNativeAddress(endpoint)));
         }
 
-        public void onUp(InetAddress endpoint)
+        public void onUp(InetAddressAndPort endpoint)
         {
             if (endpointsPendingJoinedNotification.remove(endpoint))
                 onJoinCluster(endpoint);
 
-            onStatusChange(endpoint, Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
+            onStatusChange(endpoint, Event.StatusChange.nodeUp(getNativeAddress(endpoint)));
         }
 
-        public void onDown(InetAddress endpoint)
+        public void onDown(InetAddressAndPort endpoint)
         {
-            onStatusChange(endpoint, Event.StatusChange.nodeDown(getRpcAddress(endpoint), server.socket.getPort()));
+            onStatusChange(endpoint, Event.StatusChange.nodeDown(getNativeAddress(endpoint)));
         }
 
-        private void onTopologyChange(InetAddress endpoint, Event.TopologyChange event)
+        private void onTopologyChange(InetAddressAndPort endpoint, Event.TopologyChange event)
         {
             if (logger.isTraceEnabled())
                 logger.trace("Topology changed event : {}, {}", endpoint, event.change);
@@ -567,7 +549,7 @@ public class Server implements CassandraDaemon.Server
             }
         }
 
-        private void onStatusChange(InetAddress endpoint, Event.StatusChange event)
+        private void onStatusChange(InetAddressAndPort endpoint, Event.StatusChange event)
         {
             if (logger.isTraceEnabled())
                 logger.trace("Status changed event : {}, {}", endpoint, event.status);

@@ -1,3 +1,4 @@
+//TODO update news.txt. Also validate that no existing public apis are using the new address string format or mbean interfaces were changed
 GENERAL UPGRADING ADVICE FOR ANY VERSION
 ========================================
 
@@ -55,6 +56,16 @@ Upgrading
     - Config option index_interval has been removed (it was deprecated since 2.0)
     - Deprecated repair JMX APIs are removed.
     - The version of snappy-java has been upgraded to 1.1.2.6
+    - Nodes are now identified by a combination of IP, and storage port.
+      Existing JMX APIs, nodetool, and system tables continue to work
+      and accept/return just an IP, but there is a new
+      version of each that works with the full unambiguous identifier.
+      You should prefer these over the deprecated ambiguous versions that only
+      work with an IP. This was done to support multiple instances per IP.
+      Additionally we are moving to only using a single port for encrypted and
+      unencrypted traffic and if you want multiple instances per IP you must
+      first switch encrypted traffic to the storage port and not a separate
+      encrypted port.
 
 3.11.0
 ======

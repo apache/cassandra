@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.repair.consistent;
 
-import java.net.InetAddress;
 import java.util.Set;
 import java.util.UUID;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.ActiveRepairService;
 
 /**
@@ -36,7 +36,7 @@ public class LocalSessionAccessor
         ARS.consistent.local.start();
     }
 
-    public static void prepareUnsafe(UUID sessionID, InetAddress coordinator, Set<InetAddress> peers)
+    public static void prepareUnsafe(UUID sessionID, InetAddressAndPort coordinator, Set<InetAddressAndPort> peers)
     {
         ActiveRepairService.ParentRepairSession prs = ARS.getParentRepairSession(sessionID);
         assert prs != null;

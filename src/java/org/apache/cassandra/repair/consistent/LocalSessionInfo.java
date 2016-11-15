@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.repair.consistent;
 
-import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -59,7 +59,7 @@ public class LocalSessionInfo
         m.put(STARTED, Integer.toString(session.getStartedAt()));
         m.put(LAST_UPDATE, Integer.toString(session.getLastUpdate()));
         m.put(COORDINATOR, session.coordinator.toString());
-        m.put(PARTICIPANTS, Joiner.on(',').join(Iterables.transform(session.participants, InetAddress::toString)));
+        m.put(PARTICIPANTS, Joiner.on(',').join(Iterables.transform(session.participants, InetAddressAndPort::toString)));
         m.put(TABLES, Joiner.on(',').join(Iterables.transform(session.tableIds, LocalSessionInfo::tableString)));
 
         return m;

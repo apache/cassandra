@@ -55,7 +55,7 @@ public class MockMessagingServiceTest
     public void testRequestResponse() throws InterruptedException, ExecutionException
     {
         // echo message that we like to mock as incoming reply for outgoing echo message
-        MessageIn<EchoMessage> echoMessageIn = MessageIn.create(FBUtilities.getBroadcastAddress(),
+        MessageIn<EchoMessage> echoMessageIn = MessageIn.create(FBUtilities.getBroadcastAddressAndPorts(),
                 EchoMessage.instance,
                 Collections.emptyMap(),
                 MessagingService.Verb.ECHO,
@@ -63,14 +63,14 @@ public class MockMessagingServiceTest
         MockMessagingSpy spy = MockMessagingService
                 .when(
                         all(
-                                to(FBUtilities.getBroadcastAddress()),
+                                to(FBUtilities.getBroadcastAddressAndPorts()),
                                 verb(MessagingService.Verb.ECHO)
                         )
                 )
                 .respond(echoMessageIn);
 
         MessageOut<EchoMessage> echoMessageOut = new MessageOut<>(MessagingService.Verb.ECHO, EchoMessage.instance, EchoMessage.serializer);
-        MessagingService.instance().sendRR(echoMessageOut, FBUtilities.getBroadcastAddress(), new IAsyncCallback()
+        MessagingService.instance().sendRR(echoMessageOut, FBUtilities.getBroadcastAddressAndPorts(), new IAsyncCallback()
         {
             public void response(MessageIn msg)
             {

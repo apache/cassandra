@@ -18,13 +18,13 @@
 package org.apache.cassandra.net;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService.Verb;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -167,7 +167,7 @@ public class OutboundTcpConnectionTest
 
     private OutboundTcpConnection getOutboundTcpConnectionForLocalhost() throws UnknownHostException
     {
-        InetAddress lo = InetAddress.getByName("127.0.0.1");
+        InetAddressAndPort lo = InetAddressAndPort.getByName("127.0.0.1");
         OutboundTcpConnectionPool otcPool = new OutboundTcpConnectionPool(lo, null);
         OutboundTcpConnection otc = new OutboundTcpConnection(otcPool, "lo-OutboundTcpConnectionTest");
         return otc;

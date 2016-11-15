@@ -354,7 +354,7 @@ public class UUIDGen
         * The spec says that one option is to take as many source that identify
         * this node as possible and hash them together. That's what we do here by
         * gathering all the ip of this host.
-        * Note that FBUtilities.getBroadcastAddress() should be enough to uniquely
+        * Note that FBUtilities.getJustBroadcastAddress() should be enough to uniquely
         * identify the node *in the cluster* but it triggers DatabaseDescriptor
         * instanciation and the UUID generator is used in Stress for instance,
         * where we don't want to require the yaml.

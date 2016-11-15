@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.*;
@@ -46,6 +45,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -136,12 +136,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     /**
      * Streaming endpoint.
      *
-     * Each {@code StreamSession} is identified by this InetAddress which is broadcast address of the node streaming.
+     * Each {@code StreamSession} is identified by this InetAddressAndPort which is broadcast address of the node streaming.
      */
-    public final InetAddress peer;
+    public final InetAddressAndPort peer;
     private final int index;
     /** Actual connecting address. Can be the same as {@linkplain #peer}. */
-    public final InetAddress connecting;
+    public final InetAddressAndPort connecting;
 
     // should not be null when session is started
     private StreamResultFuture streamResult;
@@ -186,7 +186,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * @param connecting Actual connecting address
      * @param factory is used for establishing connection
      */
-    public StreamSession(InetAddress peer, InetAddress connecting, StreamConnectionFactory factory, int index, boolean keepSSTableLevel, UUID pendingRepair, PreviewKind previewKind)
+    public StreamSession(InetAddressAndPort peer, InetAddressAndPort connecting, StreamConnectionFactory factory, int index, boolean keepSSTableLevel, UUID pendingRepair, PreviewKind previewKind)
     {
         this.peer = peer;
         this.connecting = connecting;
@@ -595,8 +595,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             if (isKeepAliveSupported())
                 logger.error("[Stream #{}] Did not receive response from peer {}{} for {} secs. Is peer down? " +
                              "If not, maybe try increasing streaming_keep_alive_period_in_secs.", planId(),
-                             peer.getHostAddress(),
-                             peer.equals(connecting) ? "" : " through " + connecting.getHostAddress(),
+                             peer.toString(),
+                             peer.equals(connecting) ? "" : " through " + connecting.toString(),
                              2 * DatabaseDescriptor.getStreamingKeepAlivePeriod(),
                              e);
             else
@@ -608,8 +608,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         else
         {
             logger.error("[Stream #{}] Streaming error occurred on session with peer {}{}", planId(),
-                                                                                            peer.getHostAddress(),
-                                                                                            peer.equals(connecting) ? "" : " through " + connecting.getHostAddress(),
+                                                                                            peer.toString(),
+                                                                                            peer.equals(connecting) ? "" : " through " + connecting.toString(),
                                                                                             e);
         }
     }
@@ -731,7 +731,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public synchronized void sessionFailed()
     {
-        logger.error("[Stream #{}] Remote peer {} failed stream session.", planId(), peer.getHostAddress());
+        logger.error("[Stream #{}] Remote peer {} failed stream session.", planId(), peer.toString());
         closeSession(State.FAILED);
     }
 
@@ -761,21 +761,21 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         maybeCompleted();
     }
 
-    public void onJoin(InetAddress endpoint, EndpointState epState) {}
-    public void beforeChange(InetAddress endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
-    public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value) {}
-    public void onAlive(InetAddress endpoint, EndpointState state) {}
-    public void onDead(InetAddress endpoint, EndpointState state) {}
+    public void onJoin(InetAddressAndPort endpoint, EndpointState epState) {}
+    public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
+    public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value) {}
+    public void onAlive(InetAddressAndPort endpoint, EndpointState state) {}
+    public void onDead(InetAddressAndPort endpoint, EndpointState state) {}
 
-    public void onRemove(InetAddress endpoint)
+    public void onRemove(InetAddressAndPort endpoint)
     {
-        logger.error("[Stream #{}] Session failed because remote peer {} has left.", planId(), peer.getHostAddress());
+        logger.error("[Stream #{}] Session failed because remote peer {} has left.", planId(), peer.toString());
         closeSession(State.FAILED);
     }
 
-    public void onRestart(InetAddress endpoint, EndpointState epState)
+    public void onRestart(InetAddressAndPort endpoint, EndpointState epState)
     {
-        logger.error("[Stream #{}] Session failed because remote peer {} was restarted.", planId(), peer.getHostAddress());
+        logger.error("[Stream #{}] Session failed because remote peer {} was restarted.", planId(), peer.toString());
         closeSession(State.FAILED);
     }
 

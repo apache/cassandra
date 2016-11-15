@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -27,6 +26,7 @@ import com.google.common.util.concurrent.Futures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IncomingStreamingConnection;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -102,7 +102,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
     public static synchronized StreamResultFuture initReceivingSide(int sessionIndex,
                                                                     UUID planId,
                                                                     StreamOperation streamOperation,
-                                                                    InetAddress from,
+                                                                    InetAddressAndPort from,
                                                                     IncomingStreamingConnection connection,
                                                                     boolean isForOutgoing,
                                                                     int version,
@@ -131,9 +131,9 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         return future;
     }
 
-    private void attachConnection(InetAddress from, int sessionIndex, IncomingStreamingConnection connection, boolean isForOutgoing, int version) throws IOException
+    private void attachConnection(InetAddressAndPort from, int sessionIndex, IncomingStreamingConnection connection, boolean isForOutgoing, int version) throws IOException
     {
-        StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex, connection.socket.getInetAddress());
+        StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex, connection.from);
         session.init(this);
         session.handler.initiateOnReceivingSide(connection, isForOutgoing, version);
     }

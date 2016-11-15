@@ -20,8 +20,15 @@ package org.apache.cassandra;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 import java.io.File;
+import java.net.Inet6Address;
+import java.net.UnknownHostException;
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
+import com.google.common.base.Joiner;
 
 
 public class OffsetAwareConfigurationLoader extends YamlConfigurationLoader
@@ -51,6 +58,31 @@ public class OffsetAwareConfigurationLoader extends YamlConfigurationLoader
 
         config.native_transport_port += offset;
         config.storage_port += offset;
+
+        //Rewrite the seed ports string
+        String[] hosts = config.seed_provider.parameters.get("seeds").split(",", -1);
+        String rewrittenSeeds = Joiner.on(", ").join(Arrays.stream(hosts).map(host -> {
+            StringBuilder sb = new StringBuilder();
+            try
+            {
+                InetAddressAndPort address = InetAddressAndPort.getByName(host.trim());
+                if (address.address instanceof Inet6Address)
+                {
+                     sb.append('[').append(address.address.getHostAddress()).append(']');
+                }
+                else
+                {
+                    sb.append(address.address.getHostAddress());
+                }
+                sb.append(':').append(address.port + offset);
+                return sb.toString();
+            }
+            catch (UnknownHostException e)
+            {
+                throw new ConfigurationException("Error in OffsetAwareConfigurationLoader reworking seed list", e);
+            }
+        }).collect(Collectors.toList()));
+        config.seed_provider.parameters.put("seeds", rewrittenSeeds);
 
         config.commitlog_directory += sep + offset;
         config.saved_caches_directory += sep + offset;

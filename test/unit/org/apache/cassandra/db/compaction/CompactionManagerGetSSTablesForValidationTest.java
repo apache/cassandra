@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
@@ -33,6 +32,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
@@ -58,7 +58,7 @@ public class CompactionManagerGetSSTablesForValidationTest
     private String ks;
     private static final String tbl = "tbl";
     private ColumnFamilyStore cfs;
-    private static InetAddress coordinator;
+    private static InetAddressAndPort coordinator;
 
     private static Token MT;
 
@@ -73,7 +73,7 @@ public class CompactionManagerGetSSTablesForValidationTest
     public static void setupClass() throws Exception
     {
         SchemaLoader.prepareServer();
-        coordinator = InetAddress.getByName("10.0.0.1");
+        coordinator = InetAddressAndPort.getByName("10.0.0.1");
         MT = DatabaseDescriptor.getPartitioner().getMinimumToken();
     }
 

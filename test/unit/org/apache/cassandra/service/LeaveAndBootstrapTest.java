@@ -19,7 +19,6 @@
 
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
@@ -34,6 +33,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.Util.PartitionerSwitcher;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -92,17 +92,17 @@ public class LeaveAndBootstrapTest
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
 
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
 
-        Map<Token, List<InetAddress>> expectedEndpoints = new HashMap<Token, List<InetAddress>>();
+        Map<Token, List<InetAddressAndPort>> expectedEndpoints = new HashMap<Token, List<InetAddressAndPort>>();
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             for (Token token : keyTokens)
             {
-                List<InetAddress> endpoints = new ArrayList<InetAddress>();
+                List<InetAddressAndPort> endpoints = new ArrayList<>();
                 Iterator<Token> tokenIter = TokenMetadata.ringIterator(tmd.sortedTokens(), token, false);
                 while (tokenIter.hasNext())
                 {
@@ -113,6 +113,9 @@ public class LeaveAndBootstrapTest
         }
 
         // Third node leaves
+        ss.onChange(hosts.get(LEAVING_NODE),
+                    ApplicationState.STATUS_WITH_PORTS,
+                    valueFactory.leaving(Collections.singleton(endpointTokens.get(LEAVING_NODE))));
         ss.onChange(hosts.get(LEAVING_NODE),
                 ApplicationState.STATUS,
                 valueFactory.leaving(Collections.singleton(endpointTokens.get(LEAVING_NODE))));
@@ -129,8 +132,8 @@ public class LeaveAndBootstrapTest
             {
                 int replicationFactor = strategy.getReplicationFactor();
 
-                HashSet<InetAddress> actual = new HashSet<InetAddress>(tmd.getWriteEndpoints(token, keyspaceName, strategy.calculateNaturalEndpoints(token, tmd.cloneOnlyTokenMap())));
-                HashSet<InetAddress> expected = new HashSet<InetAddress>();
+                HashSet<InetAddressAndPort> actual = new HashSet<>(tmd.getWriteEndpoints(token, keyspaceName, strategy.calculateNaturalEndpoints(token, tmd.cloneOnlyTokenMap())));
+                HashSet<InetAddressAndPort> expected = new HashSet<>();
 
                 for (int i = 0; i < replicationFactor; i++)
                 {
@@ -163,34 +166,39 @@ public class LeaveAndBootstrapTest
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring or 10 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
 
         // nodes 6, 8 and 9 leave
-        final int[] LEAVING = new int[] {6, 8, 9};
+        final int[] LEAVING = new int[]{ 6, 8, 9 };
         for (int leaving : LEAVING)
+        {
+            ss.onChange(hosts.get(leaving),
+                        ApplicationState.STATUS_WITH_PORTS,
+                        valueFactory.leaving(Collections.singleton(endpointTokens.get(leaving))));
             ss.onChange(hosts.get(leaving),
                         ApplicationState.STATUS,
                         valueFactory.leaving(Collections.singleton(endpointTokens.get(leaving))));
+        }
 
         // boot two new nodes with keyTokens.get(5) and keyTokens.get(7)
-        InetAddress boot1 = InetAddress.getByName("127.0.1.1");
+        InetAddressAndPort boot1 = InetAddressAndPort.getByName("127.0.1.1");
         Gossiper.instance.initializeNodeUnsafe(boot1, UUID.randomUUID(), 1);
         Gossiper.instance.injectApplicationState(boot1, ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(5))));
         ss.onChange(boot1,
                     ApplicationState.STATUS,
                     valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(5))));
-        InetAddress boot2 = InetAddress.getByName("127.0.1.2");
+        InetAddressAndPort boot2 = InetAddressAndPort.getByName("127.0.1.2");
         Gossiper.instance.initializeNodeUnsafe(boot2, UUID.randomUUID(), 1);
         Gossiper.instance.injectApplicationState(boot2, ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(7))));
         ss.onChange(boot2,
                     ApplicationState.STATUS,
                     valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(7))));
 
-        Collection<InetAddress> endpoints = null;
+        Collection<InetAddressAndPort> endpoints = null;
 
         /* don't require test update every time a new keyspace is added to test/conf/cassandra.yaml */
         Map<String, AbstractReplicationStrategy> keyspaceStrategyMap = new HashMap<String, AbstractReplicationStrategy>();
@@ -200,8 +208,8 @@ public class LeaveAndBootstrapTest
         }
 
         // pre-calculate the results.
-        Map<String, Multimap<Token, InetAddress>> expectedEndpoints = new HashMap<String, Multimap<Token, InetAddress>>();
-        expectedEndpoints.put(KEYSPACE1, HashMultimap.<Token, InetAddress>create());
+        Map<String, Multimap<Token, InetAddressAndPort>> expectedEndpoints = new HashMap<String, Multimap<Token, InetAddressAndPort>>();
+        expectedEndpoints.put(KEYSPACE1, HashMultimap.<Token, InetAddressAndPort>create());
         expectedEndpoints.get(KEYSPACE1).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2"));
         expectedEndpoints.get(KEYSPACE1).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3"));
         expectedEndpoints.get(KEYSPACE1).putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4"));
@@ -212,7 +220,7 @@ public class LeaveAndBootstrapTest
         expectedEndpoints.get(KEYSPACE1).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.1.2", "127.0.0.1"));
         expectedEndpoints.get(KEYSPACE1).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.10", "127.0.0.1"));
         expectedEndpoints.get(KEYSPACE1).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.1"));
-        expectedEndpoints.put(KEYSPACE2, HashMultimap.<Token, InetAddress>create());
+        expectedEndpoints.put(KEYSPACE2, HashMultimap.<Token, InetAddressAndPort>create());
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2"));
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3"));
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4"));
@@ -223,7 +231,7 @@ public class LeaveAndBootstrapTest
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.1.2", "127.0.0.1"));
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.10", "127.0.0.1"));
         expectedEndpoints.get(KEYSPACE2).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.1"));
-        expectedEndpoints.put(KEYSPACE3, HashMultimap.<Token, InetAddress>create());
+        expectedEndpoints.put(KEYSPACE3, HashMultimap.<Token, InetAddressAndPort>create());
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.0.6"));
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3", "127.0.0.4", "127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.1.1", "127.0.0.8"));
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4", "127.0.0.5", "127.0.0.6", "127.0.0.7", "127.0.0.8", "127.0.1.2", "127.0.0.1", "127.0.1.1"));
@@ -234,7 +242,7 @@ public class LeaveAndBootstrapTest
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("75"), makeAddrs("127.0.0.9", "127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.1.2", "127.0.0.4", "127.0.0.5"));
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5"));
         expectedEndpoints.get(KEYSPACE3).putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.1", "127.0.0.2", "127.0.0.3", "127.0.0.4", "127.0.0.5"));
-        expectedEndpoints.put(KEYSPACE4, HashMultimap.<Token, InetAddress>create());
+        expectedEndpoints.put(KEYSPACE4, HashMultimap.<Token, InetAddressAndPort>create());
         expectedEndpoints.get(KEYSPACE4).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2", "127.0.0.3", "127.0.0.4"));
         expectedEndpoints.get(KEYSPACE4).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3", "127.0.0.4", "127.0.0.5"));
         expectedEndpoints.get(KEYSPACE4).putAll(new BigIntegerToken("25"), makeAddrs("127.0.0.4", "127.0.0.5", "127.0.0.6"));
@@ -463,7 +471,7 @@ public class LeaveAndBootstrapTest
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring or 5 nodes
@@ -540,7 +548,7 @@ public class LeaveAndBootstrapTest
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring or 5 nodes
@@ -582,7 +590,7 @@ public class LeaveAndBootstrapTest
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring or 5 nodes
@@ -632,7 +640,7 @@ public class LeaveAndBootstrapTest
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<UUID>();
 
         // create a ring of 6 nodes
@@ -673,10 +681,10 @@ public class LeaveAndBootstrapTest
 
         // create a ring of 2 nodes
         ArrayList<Token> endpointTokens = new ArrayList<>();
-        List<InetAddress> hosts = new ArrayList<>();
+        List<InetAddressAndPort> hosts = new ArrayList<>();
         Util.createInitialRing(ss, partitioner, endpointTokens, new ArrayList<Token>(), hosts, new ArrayList<UUID>(), 2);
 
-        InetAddress toRemove = hosts.get(1);
+        InetAddressAndPort toRemove = hosts.get(1);
         SystemKeyspace.updatePeerInfo(toRemove, "data_center", "dc42");
         SystemKeyspace.updatePeerInfo(toRemove, "rack", "rack42");
         assertEquals("rack42", SystemKeyspace.loadDcRackInfo().get(toRemove).get("rack"));
@@ -698,18 +706,19 @@ public class LeaveAndBootstrapTest
         // create a ring of 1 node
         StorageService ss = StorageService.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
-        Util.createInitialRing(ss, partitioner, new ArrayList<Token>(), new ArrayList<Token>(), new ArrayList<InetAddress>(), new ArrayList<UUID>(), 1);
+        Util.createInitialRing(ss, partitioner, new ArrayList<Token>(), new ArrayList<Token>(), new ArrayList<InetAddressAndPort>(), new ArrayList<UUID>(), 1);
 
         // make a REMOVING state change on a non-member endpoint; without the CASSANDRA-6564 fix, this
         // would result in an ArrayIndexOutOfBoundsException
-        ss.onChange(InetAddress.getByName("192.168.1.42"), ApplicationState.STATUS, valueFactory.removingNonlocal(UUID.randomUUID()));
+        ss.onChange(InetAddressAndPort.getByName("192.168.1.42"), ApplicationState.STATUS_WITH_PORTS, valueFactory.removingNonlocal(UUID.randomUUID()));
+        ss.onChange(InetAddressAndPort.getByName("192.168.1.42"), ApplicationState.STATUS, valueFactory.removingNonlocal(UUID.randomUUID()));
     }
 
-    private static Collection<InetAddress> makeAddrs(String... hosts) throws UnknownHostException
+    private static Collection<InetAddressAndPort> makeAddrs(String... hosts) throws UnknownHostException
     {
-        ArrayList<InetAddress> addrs = new ArrayList<InetAddress>(hosts.length);
+        ArrayList<InetAddressAndPort> addrs = new ArrayList<>(hosts.length);
         for (String host : hosts)
-            addrs.add(InetAddress.getByName(host));
+            addrs.add(InetAddressAndPort.getByName(host));
         return addrs;
     }
 

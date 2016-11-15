@@ -19,29 +19,36 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.util.Collections;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 
 public class MessageOut<T>
 {
-    public final InetAddress from;
+    public static final int PARAMETER_TUPLE_SIZE = 2;
+    public static final int PARAMETER_TUPLE_TYPE_OFFSET = 0;
+    public static final int PARAMETER_TUPLE_PARAMETER_OFFSET = 1;
+
+    public final InetAddressAndPort from;
     public final MessagingService.Verb verb;
     public final T payload;
     public final IVersionedSerializer<T> serializer;
-    public final Map<String, byte[]> parameters;
+    //A list of pairs, first object is the ParameterType enum,
+    //the second object is the object to serialize
+    public final List<Object> parameters;
     private long payloadSize = -1;
     private int payloadSizeVersion = -1;
 
@@ -58,16 +65,16 @@ public class MessageOut<T>
              serializer,
              isTracing()
                  ? Tracing.instance.getTraceHeaders()
-                 : Collections.<String, byte[]>emptyMap());
+                 : ImmutableList.of());
     }
 
-    private MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, Map<String, byte[]> parameters)
+    private MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, List<Object> parameters)
     {
-        this(FBUtilities.getBroadcastAddress(), verb, payload, serializer, parameters);
+        this(FBUtilities.getBroadcastAddressAndPorts(), verb, payload, serializer, parameters);
     }
 
     @VisibleForTesting
-    public MessageOut(InetAddress from, MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, Map<String, byte[]> parameters)
+    public MessageOut(InetAddressAndPort from, MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, List<Object> parameters)
     {
         this.from = from;
         this.verb = verb;
@@ -76,11 +83,13 @@ public class MessageOut<T>
         this.parameters = parameters;
     }
 
-    public MessageOut<T> withParameter(String key, byte[] value)
+    public <VT> MessageOut<T> withParameter(ParameterType type, VT value)
     {
-        ImmutableMap.Builder<String, byte[]> builder = ImmutableMap.builder();
-        builder.putAll(parameters).put(key, value);
-        return new MessageOut<T>(verb, payload, serializer, builder.build());
+        List<Object> newParameters = new ArrayList<>(parameters.size() + 3);
+        newParameters.addAll(parameters);
+        newParameters.add(type);
+        newParameters.add(value);
+        return new MessageOut<T>(verb, payload, serializer, newParameters);
     }
 
     public Stage getStage()
@@ -102,15 +111,19 @@ public class MessageOut<T>
 
     public void serialize(DataOutputPlus out, int version) throws IOException
     {
-        CompactEndpointSerializationHelper.serialize(from, out);
+        CompactEndpointSerializationHelper.instance.serialize(from, out, version);
 
         out.writeInt(verb.getId());
-        out.writeInt(parameters.size());
-        for (Map.Entry<String, byte[]> entry : parameters.entrySet())
+        assert parameters.size() % PARAMETER_TUPLE_SIZE == 0;
+        out.writeInt(parameters.size() / PARAMETER_TUPLE_SIZE);
+        for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
         {
-            out.writeUTF(entry.getKey());
-            out.writeInt(entry.getValue().length);
-            out.write(entry.getValue());
+            ParameterType type = (ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET);
+            out.writeUTF(type.key());
+            IVersionedSerializer serializer = type.serializer;
+            Object parameter = parameters.get(ii + PARAMETER_TUPLE_PARAMETER_OFFSET);
+            out.writeInt(Ints.checkedCast(serializer.serializedSize(parameter, version)));
+            serializer.serialize(parameter, out, version);
         }
 
         if (payload != null)
@@ -132,15 +145,19 @@ public class MessageOut<T>
 
     public int serializedSize(int version)
     {
-        int size = CompactEndpointSerializationHelper.serializedSize(from);
+        int size = 0;
+        size += CompactEndpointSerializationHelper.instance.serializedSize(from, version);
 
         size += TypeSizes.sizeof(verb.getId());
         size += TypeSizes.sizeof(parameters.size());
-        for (Map.Entry<String, byte[]> entry : parameters.entrySet())
+        for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
         {
-            size += TypeSizes.sizeof(entry.getKey());
-            size += TypeSizes.sizeof(entry.getValue().length);
-            size += entry.getValue().length;
+            ParameterType type = (ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET);
+            size += TypeSizes.sizeof(type.name());
+            size += 4;//length prefix
+            IVersionedSerializer serializer = type.serializer;
+            Object parameter = parameters.get(ii + PARAMETER_TUPLE_PARAMETER_OFFSET);
+            size += serializer.serializedSize(parameter, version);
         }
 
         long longSize = payloadSize(version);
@@ -176,5 +193,17 @@ public class MessageOut<T>
             return payload == null ? 0 : serializer.serializedSize(payload, version);
         }
         return payloadSize;
+    }
+
+    public Object getParameter(ParameterType type)
+    {
+        for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
+        {
+            if (((ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET)).equals(type))
+            {
+                return parameters.get(ii + PARAMETER_TUPLE_PARAMETER_OFFSET);
+            }
+        }
+        return null;
     }
 }

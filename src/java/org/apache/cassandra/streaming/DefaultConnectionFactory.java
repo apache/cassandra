@@ -18,13 +18,13 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.Socket;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.OutboundTcpConnectionPool;
 
 public class DefaultConnectionFactory implements StreamConnectionFactory
@@ -42,7 +42,7 @@ public class DefaultConnectionFactory implements StreamConnectionFactory
      *
      * @throws IOException when connection failed.
      */
-    public Socket createConnection(InetAddress peer) throws IOException
+    public Socket createConnection(InetAddressAndPort peer) throws IOException
     {
         int attempts = 0;
         while (true)

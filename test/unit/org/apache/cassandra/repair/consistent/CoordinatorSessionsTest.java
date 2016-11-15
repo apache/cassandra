@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair.consistent;
 
-import java.net.InetAddress;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -30,6 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -56,9 +56,9 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         }
 
         int prepareResponseCalls = 0;
-        InetAddress preparePeer = null;
+        InetAddressAndPort preparePeer = null;
         boolean prepareSuccess = false;
-        public synchronized void handlePrepareResponse(InetAddress participant, boolean success)
+        public synchronized void handlePrepareResponse(InetAddressAndPort participant, boolean success)
         {
             prepareResponseCalls++;
             preparePeer = participant;
@@ -66,9 +66,9 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         }
 
         int finalizePromiseCalls = 0;
-        InetAddress promisePeer = null;
+        InetAddressAndPort promisePeer = null;
         boolean promiseSuccess = false;
-        public synchronized void handleFinalizePromise(InetAddress participant, boolean success)
+        public synchronized void handleFinalizePromise(InetAddressAndPort participant, boolean success)
         {
             finalizePromiseCalls++;
             promisePeer = participant;
@@ -94,7 +94,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
             return (InstrumentedCoordinatorSession) super.getSession(sessionId);
         }
 
-        public InstrumentedCoordinatorSession registerSession(UUID sessionId, Set<InetAddress> peers)
+        public InstrumentedCoordinatorSession registerSession(UUID sessionId, Set<InetAddressAndPort> peers)
         {
             return (InstrumentedCoordinatorSession) super.registerSession(sessionId, peers);
         }
