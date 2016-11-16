@@ -97,7 +97,7 @@ public class SplitterTest
             start = end;
         }
         // when we dont need to keep around full ranges, the difference is small between the partitions
-        BigDecimal delta = splitIndividualRanges ? BigDecimal.valueOf(0.001) : BigDecimal.valueOf(0.2);
+        BigDecimal delta = splitIndividualRanges ? BigDecimal.valueOf(0.001) : BigDecimal.valueOf(0.25);
         boolean allBalanced = true;
         for (BigInteger b : splits)
         {
