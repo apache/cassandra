@@ -61,7 +61,6 @@ public class ConnectionHandler
     private static final Logger logger = LoggerFactory.getLogger(ConnectionHandler.class);
 
     private final StreamSession session;
-    private int incomingSocketTimeout;
 
     private IncomingMessageHandler incoming;
     private OutgoingMessageHandler outgoing;
@@ -86,12 +85,10 @@ public class ConnectionHandler
         logger.debug("[Stream #{}] Sending stream init for incoming stream", session.planId());
         Socket incomingSocket = session.createConnection();
         incoming.start(incomingSocket, StreamMessage.CURRENT_VERSION, true);
-        incomingSocket.shutdownOutput();
 
         logger.debug("[Stream #{}] Sending stream init for outgoing stream", session.planId());
         Socket outgoingSocket = session.createConnection();
         outgoing.start(outgoingSocket, StreamMessage.CURRENT_VERSION, true);
-        outgoingSocket.shutdownInput();
     }
 
     /**
@@ -104,15 +101,9 @@ public class ConnectionHandler
     public void initiateOnReceivingSide(IncomingStreamingConnection connection, boolean isForOutgoing, int version) throws IOException
     {
         if (isForOutgoing)
-        {
             outgoing.start(connection, version);
-            outgoing.socket.shutdownInput();
-        }
         else
-        {
             incoming.start(connection, version);
-            incoming.socket.shutdownOutput();
-        }
     }
 
     public ListenableFuture<?> close()
