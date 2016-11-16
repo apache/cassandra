@@ -159,6 +159,7 @@ Merged from 3.0:
  * Correct log message for statistics of offheap memtable flush (CASSANDRA-12776)
  * Explicitly set locale for string validation (CASSANDRA-12541,CASSANDRA-12542,CASSANDRA-12543,CASSANDRA-12545)
 Merged from 2.2:
+ * Fail repair if participant dies during sync or anticompaction (CASSANDRA-12901)
  * cqlsh COPY: unprotected pk values before converting them if not using prepared statements (CASSANDRA-12863)
  * Fix Util.spinAssertEquals (CASSANDRA-12283)
  * Fix potential NPE for compactionstats (CASSANDRA-12462)

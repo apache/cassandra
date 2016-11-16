@@ -28,6 +28,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -147,10 +148,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         sessions.put(session.getId(), session);
         // register listeners
-        gossiper.register(session);
-        failureDetector.registerFailureDetectionEventListener(session);
+        registerOnFdAndGossip(session);
 
-        // unregister listeners at completion
+        // remove session at completion
         session.addListener(new Runnable()
         {
             /**
@@ -158,13 +158,32 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
              */
             public void run()
             {
-                failureDetector.unregisterFailureDetectionEventListener(session);
-                gossiper.unregister(session);
                 sessions.remove(session.getId());
             }
         }, MoreExecutors.directExecutor());
         session.start(executor);
         return session;
+    }
+
+    private <T extends AbstractFuture &
+               IEndpointStateChangeSubscriber &
+               IFailureDetectionEventListener> void registerOnFdAndGossip(final T task)
+    {
+        gossiper.register(task);
+        failureDetector.registerFailureDetectionEventListener(task);
+
+        // unregister listeners at completion
+        task.addListener(new Runnable()
+        {
+            /**
+             * When repair finished, do clean up
+             */
+            public void run()
+            {
+                failureDetector.unregisterFailureDetectionEventListener(task);
+                gossiper.unregister(task);
+            }
+        }, MoreExecutors.sameThreadExecutor());
     }
 
     public synchronized void terminateSessions()
@@ -364,6 +383,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         for (InetAddress neighbor : neighbors)
         {
             AnticompactionTask task = new AnticompactionTask(parentSession, neighbor, successfulRanges);
+            registerOnFdAndGossip(task);
             tasks.add(task);
             task.run(); // 'run' is just sending message
         }
