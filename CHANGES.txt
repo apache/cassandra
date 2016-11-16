@@ -1,5 +1,7 @@
-3.0.10
+3.0.11
  * Prevent reloading of logback.xml from UDF sandbox (CASSANDRA-12535)
+
+3.0.10
  * Disallow offheap_buffers memtable allocation (CASSANDRA-11039)
  * Fix CommitLogSegmentManagerTest (CASSANDRA-12283)
  * Pass root cause to CorruptBlockException when uncompression failed (CASSANDRA-12889)
