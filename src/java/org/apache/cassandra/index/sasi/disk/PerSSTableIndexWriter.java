@@ -109,7 +109,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         currentKeyPosition = curPosition;
     }
 
-    public void nextUnfilteredCluster(Unfiltered unfiltered, long currentRowOffset)
+    public void nextUnfilteredCluster(Unfiltered unfiltered)
     {
         if (!unfiltered.isRow())
             return;
@@ -129,13 +129,8 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             if (index == null)
                 indexes.put(column, (index = newIndex(columnIndex)));
 
-            index.add(value.duplicate(), currentKey, currentKeyPosition, currentRowOffset);
+            index.add(value.duplicate(), currentKey, currentKeyPosition);
         });
-    }
-
-    public void nextUnfilteredCluster(Unfiltered unfilteredCluster)
-    {
-        throw new UnsupportedOperationException("SASI Index does not support direct row access.");
     }
 
     public void complete()
@@ -202,7 +197,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             this.currentBuilder = newIndexBuilder();
         }
 
-        public void add(ByteBuffer term, DecoratedKey key, long partitoinOffset, long rowOffset)
+        public void add(ByteBuffer term, DecoratedKey key, long keyPosition)
         {
             if (term.remaining() == 0)
                 return;
@@ -240,7 +235,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                     }
                 }
 
-                currentBuilder.add(token, key, partitoinOffset, rowOffset);
+                currentBuilder.add(token, key, keyPosition);
                 isAdded = true;
             }
 

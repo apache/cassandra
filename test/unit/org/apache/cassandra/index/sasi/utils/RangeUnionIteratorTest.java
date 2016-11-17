@@ -31,23 +31,6 @@ import static org.apache.cassandra.index.sasi.utils.LongIterator.convert;
 public class RangeUnionIteratorTest
 {
     @Test
-    public void mergingOfEqualTokensTest()
-    {
-        RangeUnionIterator.Builder<Long, Token> builder = RangeUnionIterator.builder();
-
-        int size = 1000000;
-        final long[] arr = new long[size];
-        for (int i = 0; i < size; i++)
-            arr[i] = i;
-
-        builder.add(new LongIterator(arr));
-        builder.add(new LongIterator(arr));
-
-        Assert.assertEquals(convert(arr), convert(builder.build()));
-    }
-
-
-    @Test
     public void testNoOverlappingValues()
     {
         RangeUnionIterator.Builder<Long, Token> builder = RangeUnionIterator.builder();

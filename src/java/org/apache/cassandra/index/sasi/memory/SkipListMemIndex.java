@@ -22,8 +22,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
-import org.apache.cassandra.index.sasi.disk.*;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
@@ -34,7 +34,7 @@ public class SkipListMemIndex extends MemIndex
 {
     public static final int CSLM_OVERHEAD = 128; // average overhead of CSLM
 
-    private final ConcurrentSkipListMap<ByteBuffer, ConcurrentSkipListSet<RowKey>> index;
+    private final ConcurrentSkipListMap<ByteBuffer, ConcurrentSkipListSet<DecoratedKey>> index;
 
     public SkipListMemIndex(AbstractType<?> keyValidator, ColumnIndex columnIndex)
     {
@@ -42,14 +42,14 @@ public class SkipListMemIndex extends MemIndex
         index = new ConcurrentSkipListMap<>(columnIndex.getValidator());
     }
 
-    public long add(RowKey key, ByteBuffer value)
+    public long add(DecoratedKey key, ByteBuffer value)
     {
         long overhead = CSLM_OVERHEAD; // DKs are shared
-        ConcurrentSkipListSet<RowKey> keys = index.get(value);
+        ConcurrentSkipListSet<DecoratedKey> keys = index.get(value);
 
         if (keys == null)
         {
-            ConcurrentSkipListSet<RowKey> newKeys = new ConcurrentSkipListSet<>();
+            ConcurrentSkipListSet<DecoratedKey> newKeys = new ConcurrentSkipListSet<>(DecoratedKey.comparator);
             keys = index.putIfAbsent(value, newKeys);
             if (keys == null)
             {
@@ -68,7 +68,7 @@ public class SkipListMemIndex extends MemIndex
         ByteBuffer min = expression.lower == null ? null : expression.lower.value;
         ByteBuffer max = expression.upper == null ? null : expression.upper.value;
 
-        SortedMap<ByteBuffer, ConcurrentSkipListSet<RowKey>> search;
+        SortedMap<ByteBuffer, ConcurrentSkipListSet<DecoratedKey>> search;
 
         if (min == null && max == null)
         {

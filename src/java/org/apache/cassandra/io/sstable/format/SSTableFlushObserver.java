@@ -46,11 +46,6 @@ public interface SSTableFlushObserver
      *
      * @param unfilteredCluster The unfiltered cluster being added to SSTable.
      */
-    default void nextUnfilteredCluster(Unfiltered unfilteredCluster, long position)
-    {
-        nextUnfilteredCluster(unfilteredCluster);
-    }
-
     void nextUnfilteredCluster(Unfiltered unfilteredCluster);
 
     /**
