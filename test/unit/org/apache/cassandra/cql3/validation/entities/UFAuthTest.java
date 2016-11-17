@@ -449,6 +449,31 @@ public class UFAuthTest extends CQLTester
         getStatement(cql).checkAccess(clientState);
     }
 
+    @Test
+    public void grantAndRevokeSyntaxRequiresExplicitKeyspace() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
+        String functionName = shortFunctionName(createSimpleFunction());
+        assertRequiresKeyspace(String.format("GRANT EXECUTE ON FUNCTION %s() TO %s",
+                                             functionName,
+                                             role.getRoleName()));
+        assertRequiresKeyspace(String.format("REVOKE EXECUTE ON FUNCTION %s() FROM %s",
+                                             functionName,
+                                             role.getRoleName()));
+    }
+
+    private void assertRequiresKeyspace(String cql) throws Throwable
+    {
+        try
+        {
+            getStatement(cql);
+        }
+        catch (InvalidRequestException e)
+        {
+            assertEquals("In this context function name must be explictly qualified by a keyspace", e.getMessage());
+        }
+    }
+
     private void assertPermissionsOnNestedFunctions(String innerFunction, String outerFunction) throws Throwable
     {
         String cql = String.format("SELECT k, %s FROM %s WHERE k=0",
