@@ -27,10 +27,11 @@ import org.apache.cassandra.db.CachedHashDecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public class LocalPartitioner implements IPartitioner
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new LocalPartitioner(null).new LocalToken(null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new LocalPartitioner(null).new LocalToken());
 
     final AbstractType<?> comparator;   // package-private to avoid access workarounds in embedded LocalToken.
 
@@ -121,9 +122,14 @@ public class LocalPartitioner implements IPartitioner
     {
         static final long serialVersionUID = 8437543776403014875L;
 
+        private LocalToken()
+        {
+            super(null);
+        }
+
         public LocalToken(ByteBuffer token)
         {
-            super(token);
+            super(HeapAllocator.instance.clone(token));
         }
 
         @Override
