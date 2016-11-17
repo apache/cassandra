@@ -94,23 +94,16 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
                         {
                             RowIndexEntry indexEntry = sstable.getPosition(key, SSTableReader.Operator.EQ);
                             dataFile.seek(indexEntry.position);
-                            int staticOffset = ByteBufferUtil.readWithShortLength(dataFile).remaining(); // key
+                            ByteBufferUtil.readWithShortLength(dataFile); // key
 
                             try (SSTableIdentityIterator partition = SSTableIdentityIterator.create(sstable, dataFile, key))
                             {
                                 // if the row has statics attached, it has to be indexed separately
                                 if (cfs.metadata.hasStaticColumns())
-                                {
-                                    long staticPosition = indexEntry.position + staticOffset;
-                                    indexWriter.nextUnfilteredCluster(partition.staticRow(), staticPosition);
-                                }
+                                    indexWriter.nextUnfilteredCluster(partition.staticRow());
 
-                                long position = dataFile.getPosition();
                                 while (partition.hasNext())
-                                {
-                                    indexWriter.nextUnfilteredCluster(partition.next(), position);
-                                    position = dataFile.getPosition();
-                                }
+                                    indexWriter.nextUnfilteredCluster(partition.next());
                             }
                         }
                         catch (IOException ex)

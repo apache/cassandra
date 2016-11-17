@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.dht.*;
 import org.apache.cassandra.index.sasi.plan.Expression.Op;
 import org.apache.cassandra.index.sasi.sa.IndexedTerm;
 import org.apache.cassandra.index.sasi.sa.IntegralSA;
@@ -38,6 +37,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import com.carrotsearch.hppc.LongArrayList;
+import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.hppc.ShortArrayList;
 import com.google.common.annotations.VisibleForTesting;
 
@@ -163,7 +163,7 @@ public class OnDiskIndexBuilder
         this.marksPartials = marksPartials;
     }
 
-    public OnDiskIndexBuilder add(ByteBuffer term, DecoratedKey key, long partitionOffset, long rowOffset)
+    public OnDiskIndexBuilder add(ByteBuffer term, DecoratedKey key, long keyPosition)
     {
         if (term.remaining() >= MAX_TERM_SIZE)
         {
@@ -183,16 +183,16 @@ public class OnDiskIndexBuilder
             estimatedBytes += 64 + 48 + term.remaining();
         }
 
-        tokens.add((Long) key.getToken().getTokenValue(), partitionOffset, rowOffset);
+        tokens.add((Long) key.getToken().getTokenValue(), keyPosition);
 
         // calculate key range (based on actual key values) for current index
         minKey = (minKey == null || keyComparator.compare(minKey, key.getKey()) > 0) ? key.getKey() : minKey;
         maxKey = (maxKey == null || keyComparator.compare(maxKey, key.getKey()) < 0) ? key.getKey() : maxKey;
 
-        // 84 ((boolean(1)*4) + (long(8)*4) + 24 + 24) bytes for the LongObjectOpenHashMap<long[]> created
-        // when the keyPosition was added + 40 bytes for the TreeMap.Entry + 8 bytes for the token (key).
+        // 60 ((boolean(1)*4) + (long(8)*4) + 24) bytes for the LongOpenHashSet created when the keyPosition was added
+        // + 40 bytes for the TreeMap.Entry + 8 bytes for the token (key).
         // in the case of hash collision for the token we may overestimate but this is extremely rare
-        estimatedBytes += 84 + 40 + 8;
+        estimatedBytes += 60 + 40 + 8;
 
         return this;
     }
@@ -569,7 +569,7 @@ public class OnDiskIndexBuilder
         }
     }
 
-    private class MutableDataBlock extends MutableBlock<InMemoryDataTerm>
+    private static class MutableDataBlock extends MutableBlock<InMemoryDataTerm>
     {
         private static final int MAX_KEYS_SPARSE = 5;
 
@@ -651,7 +651,7 @@ public class OnDiskIndexBuilder
         {
             term.serialize(buffer);
             buffer.writeByte((byte) keys.getTokenCount());
-            for (Pair<Long, KeyOffsets> key : keys)
+            for (Pair<Long, LongSet> key : keys)
                 buffer.writeLong(key.left);
         }
 

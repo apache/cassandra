@@ -20,14 +20,17 @@ package org.apache.cassandra.index.sasi.disk;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.carrotsearch.hppc.cursors.LongObjectCursor;
-import org.apache.cassandra.dht.*;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.Pair;
+
+import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongSet;
+import com.carrotsearch.hppc.cursors.LongCursor;
 
 public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
 {
+    private final SortedMap<Long, LongSet> tokens = new TreeMap<>();
 
-    private final SortedMap<Long, KeyOffsets> tokens = new TreeMap<>();
 
     public DynamicTokenTreeBuilder()
     {}
@@ -37,52 +40,54 @@ public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
         add(data);
     }
 
-    public DynamicTokenTreeBuilder(SortedMap<Long, KeyOffsets> data)
+    public DynamicTokenTreeBuilder(SortedMap<Long, LongSet> data)
     {
         add(data);
     }
 
-    public void add(Long token, long partitionOffset, long rowOffset)
+    public void add(Long token, long keyPosition)
     {
-        KeyOffsets found = tokens.get(token);
+        LongSet found = tokens.get(token);
         if (found == null)
-            tokens.put(token, (found = new KeyOffsets(2)));
+            tokens.put(token, (found = new LongOpenHashSet(2)));
 
-        found.put(partitionOffset, rowOffset);
+        found.add(keyPosition);
     }
 
-    public void add(Iterator<Pair<Long, KeyOffsets>> data)
+    public void add(Iterator<Pair<Long, LongSet>> data)
     {
         while (data.hasNext())
         {
-            Pair<Long, KeyOffsets> entry = data.next();
-            for (LongObjectCursor<long[]> cursor : entry.right)
-                for (long l : cursor.value)
-                    add(entry.left, cursor.key, l);
+            Pair<Long, LongSet> entry = data.next();
+            for (LongCursor l : entry.right)
+                add(entry.left, l.value);
         }
     }
 
-    public void add(SortedMap<Long, KeyOffsets> data)
+    public void add(SortedMap<Long, LongSet> data)
     {
-        for (Map.Entry<Long, KeyOffsets> newEntry : data.entrySet())
+        for (Map.Entry<Long, LongSet> newEntry : data.entrySet())
         {
-            for (LongObjectCursor<long[]> cursor : newEntry.getValue())
-                for (long l : cursor.value)
-                    add(newEntry.getKey(), cursor.key, l);
+            LongSet found = tokens.get(newEntry.getKey());
+            if (found == null)
+                tokens.put(newEntry.getKey(), (found = new LongOpenHashSet(4)));
+
+            for (LongCursor offset : newEntry.getValue())
+                found.add(offset.value);
         }
     }
 
-    public Iterator<Pair<Long, KeyOffsets>> iterator()
+    public Iterator<Pair<Long, LongSet>> iterator()
     {
-        final Iterator<Map.Entry<Long, KeyOffsets>> iterator = tokens.entrySet().iterator();
-        return new AbstractIterator<Pair<Long, KeyOffsets>>()
+        final Iterator<Map.Entry<Long, LongSet>> iterator = tokens.entrySet().iterator();
+        return new AbstractIterator<Pair<Long, LongSet>>()
         {
-            protected Pair<Long, KeyOffsets> computeNext()
+            protected Pair<Long, LongSet> computeNext()
             {
                 if (!iterator.hasNext())
                     return endOfData();
 
-                Map.Entry<Long, KeyOffsets> entry = iterator.next();
+                Map.Entry<Long, LongSet> entry = iterator.next();
                 return Pair.create(entry.getKey(), entry.getValue());
             }
         };
@@ -156,9 +161,9 @@ public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
 
     private class DynamicLeaf extends Leaf
     {
-        private final SortedMap<Long, KeyOffsets> tokens;
+        private final SortedMap<Long, LongSet> tokens;
 
-        DynamicLeaf(SortedMap<Long, KeyOffsets> data)
+        DynamicLeaf(SortedMap<Long, LongSet> data)
         {
             super(data.firstKey(), data.lastKey());
             tokens = data;
@@ -176,7 +181,7 @@ public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
 
         protected void serializeData(ByteBuffer buf)
         {
-            for (Map.Entry<Long, KeyOffsets> entry : tokens.entrySet())
+            for (Map.Entry<Long, LongSet> entry : tokens.entrySet())
                 createEntry(entry.getKey(), entry.getValue()).serialize(buf);
         }
 

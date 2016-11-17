@@ -21,7 +21,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -161,9 +163,7 @@ public class BigTableWriter extends SSTableWriter
             return null;
 
         long startPosition = beforeAppend(key);
-        observers.forEach((o) -> {
-            o.startPartition(key, iwriter.indexFile.position());
-        });
+        observers.forEach((o) -> o.startPartition(key, iwriter.indexFile.position()));
 
         //Reuse the writer for each row
         columnIndexWriter.reset();

@@ -18,27 +18,28 @@
 package org.apache.cassandra.index.sasi.memory;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Iterator;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentSkipListSet;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.index.sasi.disk.*;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.utils.AbstractIterator;
 import org.apache.cassandra.index.sasi.utils.CombinedValue;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 
+import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongSet;
 import com.google.common.collect.PeekingIterator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class KeyRangeIterator extends RangeIterator<Long, Token>
 {
     private final DKIterator iterator;
 
-    public KeyRangeIterator(ConcurrentSkipListSet<RowKey> keys)
+    public KeyRangeIterator(ConcurrentSkipListSet<DecoratedKey> keys)
     {
-        super((Long) keys.first().decoratedKey.getToken().getTokenValue(), (Long) keys.last().decoratedKey.getToken().getTokenValue(), keys.size());
+        super((Long) keys.first().getToken().getTokenValue(), (Long) keys.last().getToken().getTokenValue(), keys.size());
         this.iterator = new DKIterator(keys.iterator());
     }
 
@@ -51,8 +52,8 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
     {
         while (iterator.hasNext())
         {
-            RowKey key = iterator.peek();
-            if (Long.compare((Long) key.decoratedKey.getToken().getTokenValue(), nextToken) >= 0)
+            DecoratedKey key = iterator.peek();
+            if (Long.compare((long) key.getToken().getTokenValue(), nextToken) >= 0)
                 break;
 
             // consume smaller key
@@ -63,16 +64,16 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
     public void close() throws IOException
     {}
 
-    private static class DKIterator extends AbstractIterator<RowKey> implements PeekingIterator<RowKey>
+    private static class DKIterator extends AbstractIterator<DecoratedKey> implements PeekingIterator<DecoratedKey>
     {
-        private final Iterator<RowKey> keys;
+        private final Iterator<DecoratedKey> keys;
 
-        public DKIterator(Iterator<RowKey> keys)
+        public DKIterator(Iterator<DecoratedKey> keys)
         {
             this.keys = keys;
         }
 
-        protected RowKey computeNext()
+        protected DecoratedKey computeNext()
         {
             return keys.hasNext() ? keys.next() : endOfData();
         }
@@ -80,21 +81,25 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
 
     private static class DKToken extends Token
     {
-        private final SortedSet<RowKey> keys;
+        private final SortedSet<DecoratedKey> keys;
 
-        public DKToken(RowKey key)
+        public DKToken(final DecoratedKey key)
         {
-            super((Long) key.decoratedKey.getToken().getTokenValue());
+            super((long) key.getToken().getTokenValue());
 
-            keys = new TreeSet<RowKey>(RowKey.COMPARATOR)
+            keys = new TreeSet<DecoratedKey>(DecoratedKey.comparator)
             {{
                 add(key);
             }};
         }
 
-        public KeyOffsets getOffsets()
+        public LongSet getOffsets()
         {
-            throw new IllegalStateException("DecoratedKey tokens are used in memtables and do not have on-disk offsets");
+            LongSet offsets = new LongOpenHashSet(4);
+            for (DecoratedKey key : keys)
+                offsets.add((long) key.getToken().getTokenValue());
+
+            return offsets;
         }
 
         public void merge(CombinedValue<Long> other)
@@ -111,12 +116,12 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
             }
             else
             {
-                for (RowKey key : o)
+                for (DecoratedKey key : o)
                     keys.add(key);
             }
         }
 
-        public Iterator<RowKey> iterator()
+        public Iterator<DecoratedKey> iterator()
         {
             return keys.iterator();
         }

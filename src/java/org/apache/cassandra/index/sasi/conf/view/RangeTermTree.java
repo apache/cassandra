@@ -19,7 +19,6 @@ package org.apache.cassandra.index.sasi.conf.view;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -47,9 +46,6 @@ public class RangeTermTree implements TermTree
 
     public Set<SSTableIndex> search(Expression e)
     {
-        if (e == null)
-            return Collections.emptySet();
-
         ByteBuffer minTerm = e.lower == null ? min : e.lower.value;
         ByteBuffer maxTerm = e.upper == null ? max : e.upper.value;
 

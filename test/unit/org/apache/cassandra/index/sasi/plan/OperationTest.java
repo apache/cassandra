@@ -47,7 +47,7 @@ import org.junit.*;
 
 public class OperationTest extends SchemaLoader
 {
-    private static final String KS_NAME = "operation_test";
+    private static final String KS_NAME = "sasi";
     private static final String CF_NAME = "test_cf";
     private static final String CLUSTERING_CF_NAME = "clustering_test_cf";
     private static final String STATIC_CF_NAME = "static_sasi_test_cf";
