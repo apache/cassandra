@@ -15,6 +15,7 @@
 .. limitations under the License.
 
 .. highlight:: none
+.. _patches:
 
 Contributing Code Changes
 *************************
