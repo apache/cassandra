@@ -94,8 +94,8 @@ public class CompactionsPurgeTest
         {
             RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 0, key);
             builder.clustering(String.valueOf(i))
-                    .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
-                    .build().applyUnsafe();
+                   .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+                   .build().applyUnsafe();
         }
 
         cfs.forceBlockingFlush();
@@ -110,13 +110,143 @@ public class CompactionsPurgeTest
         // resurrect one column
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 2, key);
         builder.clustering(String.valueOf(5))
-                .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
-                .build().applyUnsafe();
+               .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+               .build().applyUnsafe();
 
         cfs.forceBlockingFlush();
 
         // major compact and test that all columns but the resurrected one is completely gone
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+        cfs.invalidateCachedPartition(dk(key));
+
+        ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
+        assertEquals(1, partition.rowCount());
+    }
+
+    @Test
+    public void testMajorCompactionPurgeTombstonesWithMaxTimestamp()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        String cfName = "Standard1";
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+
+        String key = "key1";
+
+        // inserts
+        for (int i = 0; i < 10; i++)
+        {
+            RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 0, key);
+            builder.clustering(String.valueOf(i))
+                   .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+                   .build().applyUnsafe();
+        }
+        cfs.forceBlockingFlush();
+
+        // deletes
+        for (int i = 0; i < 10; i++)
+        {
+            RowUpdateBuilder.deleteRow(cfs.metadata, Long.MAX_VALUE, key, String.valueOf(i)).applyUnsafe();
+        }
+        cfs.forceBlockingFlush();
+
+        // major compact - tombstones should be purged
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+
+        // resurrect one column
+        RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 2, key);
+        builder.clustering(String.valueOf(5))
+               .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+               .build().applyUnsafe();
+
+        cfs.forceBlockingFlush();
+
+        cfs.invalidateCachedPartition(dk(key));
+
+        ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
+        assertEquals(1, partition.rowCount());
+    }
+
+    @Test
+    public void testMajorCompactionPurgeTopLevelTombstoneWithMaxTimestamp()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        String cfName = "Standard1";
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+
+        String key = "key1";
+
+        // inserts
+        for (int i = 0; i < 10; i++)
+        {
+            RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 0, key);
+            builder.clustering(String.valueOf(i))
+                   .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+                   .build().applyUnsafe();
+        }
+        cfs.forceBlockingFlush();
+
+        new Mutation(KEYSPACE1, dk(key))
+            .add(PartitionUpdate.fullPartitionDelete(cfs.metadata, dk(key), Long.MAX_VALUE, FBUtilities.nowInSeconds()))
+            .applyUnsafe();
+        cfs.forceBlockingFlush();
+
+        // major compact - tombstones should be purged
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+
+        // resurrect one column
+        RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 2, key);
+        builder.clustering(String.valueOf(5))
+               .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+               .build().applyUnsafe();
+
+        cfs.forceBlockingFlush();
+
+        cfs.invalidateCachedPartition(dk(key));
+
+        ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
+        assertEquals(1, partition.rowCount());
+    }
+
+    @Test
+    public void testMajorCompactionPurgeRangeTombstoneWithMaxTimestamp()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        String cfName = "Standard1";
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+
+        String key = "key1";
+
+        // inserts
+        for (int i = 0; i < 10; i++)
+        {
+            RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 0, key);
+            builder.clustering(String.valueOf(i))
+                   .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+                   .build().applyUnsafe();
+        }
+        cfs.forceBlockingFlush();
+
+        new RowUpdateBuilder(cfs.metadata, Long.MAX_VALUE, dk(key))
+            .addRangeTombstone(String.valueOf(0), String.valueOf(9)).build().applyUnsafe();
+        cfs.forceBlockingFlush();
+
+        // major compact - tombstones should be purged
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+
+        // resurrect one column
+        RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 2, key);
+        builder.clustering(String.valueOf(5))
+               .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+               .build().applyUnsafe();
+
+        cfs.forceBlockingFlush();
+
         cfs.invalidateCachedPartition(dk(key));
 
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
