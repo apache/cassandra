@@ -665,17 +665,20 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            TokenMetadata allLeftMetadata = cloneOnlyTokenMap();
-
-            for (InetAddress endpoint : leavingEndpoints)
-                allLeftMetadata.removeEndpoint(endpoint);
-
-            return allLeftMetadata;
+            return removeEndpoints(cloneOnlyTokenMap(), leavingEndpoints);
         }
         finally
         {
             lock.readLock().unlock();
         }
+    }
+
+    private static TokenMetadata removeEndpoints(TokenMetadata allLeftMetadata, Set<InetAddress> leavingEndpoints)
+    {
+        for (InetAddress endpoint : leavingEndpoints)
+            allLeftMetadata.removeEndpoint(endpoint);
+
+        return allLeftMetadata;
     }
 
     /**
@@ -803,118 +806,154 @@ public class TokenMetadata
      */
     public void calculatePendingRanges(AbstractReplicationStrategy strategy, String keyspaceName)
     {
-        lock.readLock().lock();
-        try
+        // avoid race between both branches - do not use a lock here as this will block any other unrelated operations!
+        synchronized (pendingRanges)
         {
-            PendingRangeMaps newPendingRanges = new PendingRangeMaps();
-
             if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty())
             {
                 if (logger.isTraceEnabled())
                     logger.trace("No bootstrapping, leaving or moving nodes -> empty pending ranges for {}", keyspaceName);
 
-                pendingRanges.put(keyspaceName, newPendingRanges);
-                return;
+                pendingRanges.put(keyspaceName, new PendingRangeMaps());
+            }
+            else
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("Starting pending range calculation for {}", keyspaceName);
+
+                long startedAt = System.currentTimeMillis();
+
+                // create clone of current state
+                BiMultiValMap<Token, InetAddress> bootstrapTokens = new BiMultiValMap<>();
+                Set<InetAddress> leavingEndpoints = new HashSet<>();
+                Set<Pair<Token, InetAddress>> movingEndpoints = new HashSet<>();
+                TokenMetadata metadata;
+
+                lock.readLock().lock();
+                try
+                {
+                    bootstrapTokens.putAll(this.bootstrapTokens);
+                    leavingEndpoints.addAll(this.leavingEndpoints);
+                    movingEndpoints.addAll(this.movingEndpoints);
+                    metadata = this.cloneOnlyTokenMap();
+                }
+                finally
+                {
+                    lock.readLock().unlock();
+                }
+
+                pendingRanges.put(keyspaceName, calculatePendingRanges(strategy, metadata, bootstrapTokens,
+                                                                       leavingEndpoints, movingEndpoints));
+                long took = System.currentTimeMillis() - startedAt;
+
+                if (logger.isDebugEnabled())
+                    logger.debug("Pending range calculation for {} completed (took: {}ms)", keyspaceName, took);
+                if (logger.isTraceEnabled())
+                    logger.trace("Calculated pending ranges for {}:\n{}", keyspaceName, (pendingRanges.isEmpty() ? "<empty>" : printPendingRanges()));
+            }
+        }
+    }
+
+    /**
+     * @see TokenMetadata#calculatePendingRanges(AbstractReplicationStrategy, String)
+     */
+    private static PendingRangeMaps calculatePendingRanges(AbstractReplicationStrategy strategy,
+                                                           TokenMetadata metadata,
+                                                           BiMultiValMap<Token, InetAddress> bootstrapTokens,
+                                                           Set<InetAddress> leavingEndpoints,
+                                                           Set<Pair<Token, InetAddress>> movingEndpoints)
+    {
+        PendingRangeMaps newPendingRanges = new PendingRangeMaps();
+
+        Multimap<InetAddress, Range<Token>> addressRanges = strategy.getAddressRanges(metadata);
+
+        // Copy of metadata reflecting the situation after all leave operations are finished.
+        TokenMetadata allLeftMetadata = removeEndpoints(metadata.cloneOnlyTokenMap(), leavingEndpoints);
+
+        // get all ranges that will be affected by leaving nodes
+        Set<Range<Token>> affectedRanges = new HashSet<Range<Token>>();
+        for (InetAddress endpoint : leavingEndpoints)
+            affectedRanges.addAll(addressRanges.get(endpoint));
+
+        // for each of those ranges, find what new nodes will be responsible for the range when
+        // all leaving nodes are gone.
+        for (Range<Token> range : affectedRanges)
+        {
+            Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, metadata));
+            Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, allLeftMetadata));
+            for (InetAddress address : Sets.difference(newEndpoints, currentEndpoints))
+            {
+                newPendingRanges.addPendingRange(range, address);
+            }
+        }
+
+        // At this stage newPendingRanges has been updated according to leave operations. We can
+        // now continue the calculation by checking bootstrapping nodes.
+
+        // For each of the bootstrapping nodes, simply add and remove them one by one to
+        // allLeftMetadata and check in between what their ranges would be.
+        Multimap<InetAddress, Token> bootstrapAddresses = bootstrapTokens.inverse();
+        for (InetAddress endpoint : bootstrapAddresses.keySet())
+        {
+            Collection<Token> tokens = bootstrapAddresses.get(endpoint);
+
+            allLeftMetadata.updateNormalTokens(tokens, endpoint);
+            for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+            {
+                newPendingRanges.addPendingRange(range, endpoint);
+            }
+            allLeftMetadata.removeEndpoint(endpoint);
+        }
+
+        // At this stage newPendingRanges has been updated according to leaving and bootstrapping nodes.
+        // We can now finish the calculation by checking moving nodes.
+
+        // For each of the moving nodes, we do the same thing we did for bootstrapping:
+        // simply add and remove them one by one to allLeftMetadata and check in between what their ranges would be.
+        for (Pair<Token, InetAddress> moving : movingEndpoints)
+        {
+            //Calculate all the ranges which will could be affected. This will include the ranges before and after the move.
+            Set<Range<Token>> moveAffectedRanges = new HashSet<>();
+            InetAddress endpoint = moving.right; // address of the moving node
+            //Add ranges before the move
+            for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+            {
+                moveAffectedRanges.add(range);
             }
 
-            Multimap<InetAddress, Range<Token>> addressRanges = strategy.getAddressRanges();
+            allLeftMetadata.updateNormalToken(moving.left, endpoint);
+            //Add ranges after the move
+            for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+            {
+                moveAffectedRanges.add(range);
+            }
 
-            // Copy of metadata reflecting the situation after all leave operations are finished.
-            TokenMetadata allLeftMetadata = cloneAfterAllLeft();
-
-            // get all ranges that will be affected by leaving nodes
-            Set<Range<Token>> affectedRanges = new HashSet<Range<Token>>();
-            for (InetAddress endpoint : leavingEndpoints)
-                affectedRanges.addAll(addressRanges.get(endpoint));
-
-            // for each of those ranges, find what new nodes will be responsible for the range when
-            // all leaving nodes are gone.
-            TokenMetadata metadata = cloneOnlyTokenMap(); // don't do this in the loop! #7758
-            for (Range<Token> range : affectedRanges)
+            for(Range<Token> range : moveAffectedRanges)
             {
                 Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, metadata));
                 Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, allLeftMetadata));
-                for (InetAddress address : Sets.difference(newEndpoints, currentEndpoints))
+                Set<InetAddress> difference = Sets.difference(newEndpoints, currentEndpoints);
+                for(final InetAddress address : difference)
                 {
-                    newPendingRanges.addPendingRange(range, address);
-                }
-            }
+                    Collection<Range<Token>> newRanges = strategy.getAddressRanges(allLeftMetadata).get(address);
+                    Collection<Range<Token>> oldRanges = strategy.getAddressRanges(metadata).get(address);
+                    //We want to get rid of any ranges which the node is currently getting.
+                    newRanges.removeAll(oldRanges);
 
-            // At this stage newPendingRanges has been updated according to leave operations. We can
-            // now continue the calculation by checking bootstrapping nodes.
-
-            // For each of the bootstrapping nodes, simply add and remove them one by one to
-            // allLeftMetadata and check in between what their ranges would be.
-            Multimap<InetAddress, Token> bootstrapAddresses = bootstrapTokens.inverse();
-            for (InetAddress endpoint : bootstrapAddresses.keySet())
-            {
-                Collection<Token> tokens = bootstrapAddresses.get(endpoint);
-
-                allLeftMetadata.updateNormalTokens(tokens, endpoint);
-                for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
-                {
-                    newPendingRanges.addPendingRange(range, endpoint);
-                }
-                allLeftMetadata.removeEndpoint(endpoint);
-            }
-
-            // At this stage newPendingRanges has been updated according to leaving and bootstrapping nodes.
-            // We can now finish the calculation by checking moving nodes.
-
-            // For each of the moving nodes, we do the same thing we did for bootstrapping:
-            // simply add and remove them one by one to allLeftMetadata and check in between what their ranges would be.
-            for (Pair<Token, InetAddress> moving : movingEndpoints)
-            {
-                //Calculate all the ranges which will could be affected. This will include the ranges before and after the move.
-                Set<Range<Token>> moveAffectedRanges = new HashSet<>();
-                InetAddress endpoint = moving.right; // address of the moving node
-                //Add ranges before the move
-                for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
-                {
-                    moveAffectedRanges.add(range);
-                }
-
-                allLeftMetadata.updateNormalToken(moving.left, endpoint);
-                //Add ranges after the move
-                for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
-                {
-                    moveAffectedRanges.add(range);
-                }
-
-                for(Range<Token> range : moveAffectedRanges)
-                {
-                    Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, metadata));
-                    Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, allLeftMetadata));
-                    Set<InetAddress> difference = Sets.difference(newEndpoints, currentEndpoints);
-                    for(final InetAddress address : difference)
+                    for(Range<Token> newRange : newRanges)
                     {
-                        Collection<Range<Token>> newRanges = strategy.getAddressRanges(allLeftMetadata).get(address);
-                        Collection<Range<Token>> oldRanges = strategy.getAddressRanges(metadata).get(address);
-                        //We want to get rid of any ranges which the node is currently getting.
-                        newRanges.removeAll(oldRanges);
-
-                        for(Range<Token> newRange : newRanges)
+                        for(Range<Token> pendingRange : newRange.subtractAll(oldRanges))
                         {
-                            for(Range<Token> pendingRange : newRange.subtractAll(oldRanges))
-                            {
-                                newPendingRanges.addPendingRange(pendingRange, address);
-                            }
+                            newPendingRanges.addPendingRange(pendingRange, address);
                         }
                     }
                 }
-
-                allLeftMetadata.removeEndpoint(endpoint);
             }
 
-            pendingRanges.put(keyspaceName, newPendingRanges);
+            allLeftMetadata.removeEndpoint(endpoint);
+        }
 
-            if (logger.isTraceEnabled())
-                logger.trace("Pending ranges:\n{}", (pendingRanges.isEmpty() ? "<empty>" : printPendingRanges()));
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
+        return newPendingRanges;
     }
 
     public Token getPredecessor(Token token)
