@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.Predicate;
 
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -535,9 +536,9 @@ public abstract class ReadCommand implements ReadQuery
                 super(isForThrift, nowInSec(), cfs.gcBefore(nowInSec()), oldestUnrepairedTombstone(), cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones());
             }
 
-            protected long getMaxPurgeableTimestamp()
+            protected Predicate<Long> getPurgeEvaluator()
             {
-                return Long.MAX_VALUE;
+                return time -> true;
             }
         }
         return Transformation.apply(iterator, new WithoutPurgeableTombstones());

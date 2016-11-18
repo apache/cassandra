@@ -42,6 +42,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.Predicate;
 
 public class Verifier implements Closeable
 {
@@ -281,9 +282,9 @@ public class Verifier implements Closeable
         }
 
         @Override
-        public long maxPurgeableTimestamp(DecoratedKey key)
+        public Predicate<Long> getPurgeEvaluator(DecoratedKey key)
         {
-            return Long.MIN_VALUE;
+            return time -> false;
         }
     }
 }

@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db.partitions;
 
+import java.util.function.Predicate;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
@@ -35,10 +37,10 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
         this.purger = (timestamp, localDeletionTime) ->
                       !(onlyPurgeRepairedTombstones && localDeletionTime >= oldestUnrepairedTombstone)
                       && localDeletionTime < gcBefore
-                      && timestamp < getMaxPurgeableTimestamp();
+                      && getPurgeEvaluator().test(timestamp);
     }
 
-    protected abstract long getMaxPurgeableTimestamp();
+    protected abstract Predicate<Long> getPurgeEvaluator();
 
     // Called at the beginning of each new partition
     protected void onNewPartition(DecoratedKey partitionKey)

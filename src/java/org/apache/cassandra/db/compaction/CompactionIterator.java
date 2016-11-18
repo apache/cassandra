@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -259,8 +260,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         private final CompactionController controller;
 
         private DecoratedKey currentKey;
-        private long maxPurgeableTimestamp;
-        private boolean hasCalculatedMaxPurgeableTimestamp;
+        private Predicate<Long> purgeEvaluator;
 
         private long compactedUnfiltered;
 
@@ -281,7 +281,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         protected void onNewPartition(DecoratedKey key)
         {
             currentKey = key;
-            hasCalculatedMaxPurgeableTimestamp = false;
+            purgeEvaluator = null;
         }
 
         @Override
@@ -292,18 +292,18 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
 
         /*
-         * Tombstones with a localDeletionTime before this can be purged. This is the minimum timestamp for any sstable
-         * containing `currentKey` outside of the set of sstables involved in this compaction. This is computed lazily
-         * on demand as we only need this if there is tombstones and this a bit expensive (see #8914).
+         * Evaluates whether a tombstone with the given deletion timestamp can be purged. This is the minimum
+         * timestamp for any sstable containing `currentKey` outside of the set of sstables involved in this compaction.
+         * This is computed lazily on demand as we only need this if there is tombstones and this a bit expensive
+         * (see #8914).
          */
-        protected long getMaxPurgeableTimestamp()
+        protected Predicate<Long> getPurgeEvaluator()
         {
-            if (!hasCalculatedMaxPurgeableTimestamp)
+            if (purgeEvaluator == null)
             {
-                hasCalculatedMaxPurgeableTimestamp = true;
-                maxPurgeableTimestamp = controller.maxPurgeableTimestamp(currentKey);
+                purgeEvaluator = controller.getPurgeEvaluator(currentKey);
             }
-            return maxPurgeableTimestamp;
+            return purgeEvaluator;
         }
     }
 }
