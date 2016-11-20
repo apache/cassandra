@@ -194,6 +194,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /** This method updates the local token on disk  */
     public void setTokens(Collection<Token> tokens)
     {
+        assert tokens != null && !tokens.isEmpty() : "Node needs at least one token.";
         if (logger.isDebugEnabled())
             logger.debug("Setting tokens to {}", tokens);
         SystemKeyspace.updateTokens(tokens);
@@ -907,7 +908,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             if (dataAvailable)
             {
-                finishJoiningRing();
+                finishJoiningRing(bootstrapTokens);
 
                 // remove the existing info about the replaced node.
                 if (!current.isEmpty())
@@ -959,15 +960,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             isSurveyMode = false;
             logger.info("Leaving write survey mode and joining ring at operator request");
-            finishJoiningRing();
+            finishJoiningRing(SystemKeyspace.getSavedTokens());
         }
     }
 
-    private void finishJoiningRing()
+    private void finishJoiningRing(Collection<Token> tokens)
     {
         // start participating in the ring.
         SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
-        setTokens(bootstrapTokens);
+        setTokens(tokens);
 
         assert tokenMetadata.sortedTokens().size() > 0;
         doAuthSetup();
