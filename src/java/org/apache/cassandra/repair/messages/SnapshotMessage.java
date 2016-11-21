@@ -18,6 +18,7 @@
 package org.apache.cassandra.repair.messages;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -30,6 +31,21 @@ public class SnapshotMessage extends RepairMessage
     public SnapshotMessage(RepairJobDesc desc)
     {
         super(Type.SNAPSHOT, desc);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (!(o instanceof SnapshotMessage))
+            return false;
+        SnapshotMessage other = (SnapshotMessage) o;
+        return messageType == other.messageType;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(messageType);
     }
 
     public static class SnapshotMessageSerializer implements MessageSerializer<SnapshotMessage>
