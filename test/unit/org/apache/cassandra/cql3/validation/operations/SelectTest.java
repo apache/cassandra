@@ -4478,4 +4478,14 @@ public class SelectTest extends CQLTester
             });
         }
     }
+
+    @Test
+    public void testWithDistinctAndJsonAsColumnName() throws Throwable
+    {
+        createTable("CREATE TABLE %s (distinct int, json int, value int, PRIMARY KEY(distinct, json))");
+        execute("INSERT INTO %s (distinct, json, value) VALUES (0, 0, 0)");
+
+        assertRows(execute("SELECT distinct, json FROM %s"), row(0, 0));
+        assertRows(execute("SELECT distinct distinct FROM %s"), row(0));
+    }
 }

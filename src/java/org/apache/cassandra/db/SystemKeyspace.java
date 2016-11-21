@@ -477,6 +477,7 @@ public final class SystemKeyspace
                         .add(BytesConversionFcts.all())
                         .add(AggregateFcts.all())
                         .add(CastFcts.all())
+                        .add(OperationFcts.all())
                         .build();
     }
 

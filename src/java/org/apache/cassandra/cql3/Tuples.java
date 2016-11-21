@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
  * Static helper methods and classes for tuples.
@@ -65,7 +68,12 @@ public class Tuples
 
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            validateAssignableTo(keyspace, receiver);
+            // The parser cannot differentiate between a tuple with one element and a term between parenthesis.
+            // By consequence, we need to wait until we know the target type to determine which one it is.
+            if (elements.size() == 1 && !(receiver.type instanceof TupleType))
+                return elements.get(0).prepare(keyspace, receiver);
+
+            validateTupleAssignableTo(receiver, elements);
 
             List<Term> values = new ArrayList<>(elements.size());
             boolean allTerminal = true;
@@ -102,38 +110,14 @@ public class Tuples
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
-        private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
-        {
-            if (!(receiver.type instanceof TupleType))
-                throw new InvalidRequestException(String.format("Invalid tuple type literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
-
-            TupleType tt = (TupleType)receiver.type;
-            for (int i = 0; i < elements.size(); i++)
-            {
-                if (i >= tt.size())
-                {
-                    throw new InvalidRequestException(String.format("Invalid tuple literal for %s: too many elements. Type %s expects %d but got %d",
-                            receiver.name, tt.asCQL3Type(), tt.size(), elements.size()));
-                }
-
-                Term.Raw value = elements.get(i);
-                ColumnSpecification spec = componentSpecOf(receiver, i);
-                if (!value.testAssignment(keyspace, spec).isAssignable())
-                    throw new InvalidRequestException(String.format("Invalid tuple literal for %s: component %d is not of type %s", receiver.name, i, spec.type.asCQL3Type()));
-            }
-        }
-
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            try
-            {
-                validateAssignableTo(keyspace, receiver);
-                return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
-            }
-            catch (InvalidRequestException e)
-            {
-                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
-            }
+            // The parser cannot differentiate between a tuple with one element and a term between parenthesis.
+            // By consequence, we need to wait until we know the target type to determine which one it is.
+            if (elements.size() == 1 && !(receiver.type instanceof TupleType))
+                return elements.get(0).testAssignment(keyspace, receiver);
+
+            return testTupleAssignment(receiver, elements);
         }
 
         @Override
@@ -152,7 +136,7 @@ public class Tuples
 
         public String getText()
         {
-            return elements.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "(", ")"));
+            return tupleToString(elements, Term.Raw::getText);
         }
     }
 
@@ -436,17 +420,100 @@ public class Tuples
         }
     }
 
-    public static String tupleToString(List<?> items)
+    /**
+     * Create a <code>String</code> representation of the tuple containing the specified elements.
+     *
+     * @param elements the tuple elements
+     * @return a <code>String</code> representation of the tuple
+     */
+    public static String tupleToString(List<?> elements)
     {
+        return tupleToString(elements, Object::toString);
+    }
 
-        StringBuilder sb = new StringBuilder("(");
-        for (int i = 0; i < items.size(); i++)
+    /**
+     * Create a <code>String</code> representation of the tuple from the specified items associated to
+     * the tuples elements.
+     *
+     * @param items items associated to the tuple elements
+     * @param mapper the mapper used to map the items to the <code>String</code> representation of the tuple elements
+     * @return a <code>String</code> representation of the tuple
+     */
+    public static <T> String tupleToString(Iterable<T> items, java.util.function.Function<T, String> mapper)
+    {
+        return StreamSupport.stream(items.spliterator(), false)
+                            .map(e -> mapper.apply(e))
+                            .collect(Collectors.joining(", ", "(", ")"));
+    }
+
+    /**
+     * Returns the exact TupleType from the items if it can be known.
+     *
+     * @param items the items mapped to the tuple elements
+     * @param mapper the mapper used to retrieve the element types from the  items
+     * @return the exact TupleType from the items if it can be known or <code>null</code>
+     */
+    public static <T> AbstractType<?> getExactTupleTypeIfKnown(List<T> items,
+                                                               java.util.function.Function<T, AbstractType<?>> mapper)
+    {
+        List<AbstractType<?>> types = new ArrayList<>(items.size());
+        for (T item : items)
         {
-            sb.append(items.get(i));
-            if (i < items.size() - 1)
-                sb.append(", ");
+            AbstractType<?> type = mapper.apply(item);
+            if (type == null)
+                return null;
+            types.add(type);
         }
-        sb.append(')');
-        return sb.toString();
+        return new TupleType(types);
+    }
+
+    /**
+     * Checks if the tuple with the specified elements can be assigned to the specified column.
+     *
+     * @param receiver the receiving column
+     * @param elements the tuple elements
+     * @throws InvalidRequestException if the tuple cannot be assigned to the specified column.
+     */
+    public static void validateTupleAssignableTo(ColumnSpecification receiver,
+                                                 List<? extends AssignmentTestable> elements)
+    {
+        if (!(receiver.type instanceof TupleType))
+            throw invalidRequest("Invalid tuple type literal for %s of type %s", receiver.name, receiver.type.asCQL3Type());
+
+        TupleType tt = (TupleType)receiver.type;
+        for (int i = 0; i < elements.size(); i++)
+        {
+            if (i >= tt.size())
+            {
+                throw invalidRequest("Invalid tuple literal for %s: too many elements. Type %s expects %d but got %d",
+                                     receiver.name, tt.asCQL3Type(), tt.size(), elements.size());
+            }
+
+            AssignmentTestable value = elements.get(i);
+            ColumnSpecification spec = componentSpecOf(receiver, i);
+            if (!value.testAssignment(receiver.ksName, spec).isAssignable())
+                throw invalidRequest("Invalid tuple literal for %s: component %d is not of type %s",
+                                     receiver.name, i, spec.type.asCQL3Type());
+        }
+    }
+
+    /**
+     * Tests that the tuple with the specified elements can be assigned to the specified column.
+     *
+     * @param receiver the receiving column
+     * @param elements the tuple elements
+     */
+    public static AssignmentTestable.TestResult testTupleAssignment(ColumnSpecification receiver,
+                                                                    List<? extends AssignmentTestable> elements)
+    {
+        try
+        {
+            validateTupleAssignableTo(receiver, elements);
+            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+        }
+        catch (InvalidRequestException e)
+        {
+            return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+        }
     }
 }

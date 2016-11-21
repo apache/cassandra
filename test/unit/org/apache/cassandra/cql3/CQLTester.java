@@ -1432,7 +1432,7 @@ public abstract class CQLTester
         return s;
     }
 
-    private static ByteBuffer makeByteBuffer(Object value, AbstractType type)
+    protected static ByteBuffer makeByteBuffer(Object value, AbstractType type)
     {
         if (value == null)
             return null;
@@ -1463,7 +1463,7 @@ public abstract class CQLTester
         return type.getString(bb);
     }
 
-    protected Object tuple(Object...values)
+    protected TupleValue tuple(Object...values)
     {
         return new TupleValue(values);
     }

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.marshal;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
@@ -29,7 +30,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public final class IntegerType extends AbstractType<BigInteger>
+public final class IntegerType extends NumberType<BigInteger>
 {
     public static final IntegerType instance = new IntegerType();
 
@@ -183,5 +184,71 @@ public final class IntegerType extends AbstractType<BigInteger>
     public TypeSerializer<BigInteger> getSerializer()
     {
         return IntegerSerializer.instance;
+    }
+
+    @Override
+    protected int toInt(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected float toFloat(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected long toLong(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected double toDouble(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected BigInteger toBigInteger(ByteBuffer value)
+    {
+        return compose(value);
+    }
+
+    @Override
+    protected BigDecimal toBigDecimal(ByteBuffer value)
+    {
+        return new BigDecimal(compose(value));
+    }
+
+    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigInteger(left).add(rightType.toBigInteger(right)));
+    }
+
+    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigInteger(left).subtract(rightType.toBigInteger(right)));
+    }
+
+    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigInteger(left).multiply(rightType.toBigInteger(right)));
+    }
+
+    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigInteger(left).divide(rightType.toBigInteger(right)));
+    }
+
+    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigInteger(left).remainder(rightType.toBigInteger(right)));
+    }
+
+    public ByteBuffer negate(ByteBuffer input)
+    {
+        return decompose(toBigInteger(input).negate());
     }
 }

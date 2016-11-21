@@ -28,7 +28,7 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class ShortType extends AbstractType<Short>
+public class ShortType extends NumberType<Short>
 {
     public static final ShortType instance = new ShortType();
 
@@ -90,5 +90,54 @@ public class ShortType extends AbstractType<Short>
     public TypeSerializer<Short> getSerializer()
     {
         return ShortSerializer.instance;
+    }
+
+    @Override
+    public int valueLengthIfFixed()
+    {
+        return 2;
+    }
+
+    @Override
+    public short toShort(ByteBuffer value)
+    {
+        return ByteBufferUtil.toShort(value);
+    }
+
+    @Override
+    public int toInt(ByteBuffer value)
+    {
+        return toShort(value);
+    }
+
+    @Override
+    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((short) (leftType.toShort(left) + rightType.toShort(right)));
+    }
+
+    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((short) (leftType.toShort(left) - rightType.toShort(right)));
+    }
+
+    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((short) (leftType.toShort(left) * rightType.toShort(right)));
+    }
+
+    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((short) (leftType.toShort(left) / rightType.toShort(right)));
+    }
+
+    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((short) (leftType.toShort(left) % rightType.toShort(right)));
+    }
+
+    public ByteBuffer negate(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes((short) -toShort(input));
     }
 }

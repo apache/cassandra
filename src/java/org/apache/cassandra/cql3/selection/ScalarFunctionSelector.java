@@ -28,15 +28,6 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFunction>
 {
-    public boolean isAggregate()
-    {
-        // We cannot just return true as it is possible to have a scalar function wrapping an aggregation function
-        if (argSelectors.isEmpty())
-            return false;
-
-        return argSelectors.get(0).isAggregate();
-    }
-
     public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
         for (int i = 0, m = argSelectors.size(); i < m; i++)

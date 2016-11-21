@@ -1,3 +1,6 @@
+3.12
+ * Add support for arithmetic operators (CASSANDRA-11935)
+
 3.11
  * AnticompactionRequestSerializer serializedSize is incorrect (CASSANDRA-12934)
 

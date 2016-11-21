@@ -28,7 +28,7 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class ByteType extends AbstractType<Byte>
+public class ByteType extends NumberType<Byte>
 {
     public static final ByteType instance = new ByteType();
 
@@ -84,8 +84,62 @@ public class ByteType extends AbstractType<Byte>
     }
 
     @Override
+    public int valueLengthIfFixed()
+    {
+        return 1;
+    }
+
+    @Override
     public TypeSerializer<Byte> getSerializer()
     {
         return ByteSerializer.instance;
+    }
+
+    @Override
+    public byte toByte(ByteBuffer value)
+    {
+        return ByteBufferUtil.toByte(value);
+    }
+
+    @Override
+    public short toShort(ByteBuffer value)
+    {
+        return toByte(value);
+    }
+
+    @Override
+    protected int toInt(ByteBuffer value)
+    {
+        return toByte(value);
+    }
+
+    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((byte) (leftType.toByte(left) + rightType.toByte(right)));
+    }
+
+    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((byte) (leftType.toByte(left) - rightType.toByte(right)));
+    }
+
+    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((byte) (leftType.toByte(left) * rightType.toByte(right)));
+    }
+
+    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((byte) (leftType.toByte(left) / rightType.toByte(right)));
+    }
+
+    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((byte) (leftType.toByte(left) % rightType.toByte(right)));
+    }
+
+    public ByteBuffer negate(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes((byte) -toByte(input));
     }
 }

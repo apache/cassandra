@@ -130,7 +130,7 @@ public class TimeUUIDType extends AbstractType<UUID>
     }
 
     @Override
-    protected int valueLengthIfFixed()
+    public int valueLengthIfFixed()
     {
         return 16;
     }

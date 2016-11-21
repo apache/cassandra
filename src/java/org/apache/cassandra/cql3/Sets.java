@@ -22,6 +22,7 @@ import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
@@ -43,7 +44,73 @@ public abstract class Sets
 
     public static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((SetType)column.type).getElementsType());
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((SetType<?>)column.type).getElementsType());
+    }
+
+    /**
+     * Tests that the set with the specified elements can be assigned to the specified column.
+     *
+     * @param receiver the receiving column
+     * @param elements the set elements
+     */
+    public static AssignmentTestable.TestResult testSetAssignment(ColumnSpecification receiver,
+                                                                  List<? extends AssignmentTestable> elements)
+    {
+        if (!(receiver.type instanceof SetType))
+        {
+            // We've parsed empty maps as a set literal to break the ambiguity so handle that case now
+            if (receiver.type instanceof MapType && elements.isEmpty())
+                return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+
+            return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+        }
+
+        // If there is no elements, we can't say it's an exact match (an empty set if fundamentally polymorphic).
+        if (elements.isEmpty())
+            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+
+        ColumnSpecification valueSpec = valueSpecOf(receiver);
+        return AssignmentTestable.TestResult.testAll(receiver.ksName, valueSpec, elements);
+    }
+
+    /**
+     * Create a <code>String</code> representation of the set containing the specified elements.
+     *
+     * @param elements the set elements
+     * @return a <code>String</code> representation of the set
+     */
+    public static String setToString(List<?> elements)
+    {
+        return setToString(elements, Object::toString);
+    }
+
+    /**
+     * Create a <code>String</code> representation of the set from the specified items associated to
+     * the set elements.
+     *
+     * @param items items associated to the set elements
+     * @param mapper the mapper used to map the items to the <code>String</code> representation of the set elements
+     * @return a <code>String</code> representation of the set
+     */
+    public static <T> String setToString(Iterable<T> items, java.util.function.Function<T, String> mapper)
+    {
+        return StreamSupport.stream(items.spliterator(), false)
+                            .map(e -> mapper.apply(e))
+                            .collect(Collectors.joining(", ", "{", "}"));
+    }
+
+    /**
+     * Returns the exact SetType from the items if it can be known.
+     *
+     * @param items the items mapped to the set elements
+     * @param mapper the mapper used to retrieve the element types from the items
+     * @return the exact SetType from the items if it can be known or <code>null</code>
+     */
+    public static <T> AbstractType<?> getExactSetTypeIfKnown(List<T> items,
+                                                             java.util.function.Function<T, AbstractType<?>> mapper)
+    {
+        Optional<AbstractType<?>> type = items.stream().map(mapper).filter(Objects::nonNull).findFirst();
+        return type.isPresent() ? SetType.getInstance(type.get(), false) : null;
     }
 
     public static class Literal extends Term.Raw
@@ -105,38 +172,18 @@ public abstract class Sets
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            if (!(receiver.type instanceof SetType))
-            {
-                // We've parsed empty maps as a set literal to break the ambiguity so handle that case now
-                if (receiver.type instanceof MapType && elements.isEmpty())
-                    return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
-
-                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
-            }
-
-            // If there is no elements, we can't say it's an exact match (an empty set if fundamentally polymorphic).
-            if (elements.isEmpty())
-                return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
-
-            ColumnSpecification valueSpec = Sets.valueSpecOf(receiver);
-            return AssignmentTestable.TestResult.testAll(keyspace, valueSpec, elements);
+            return testSetAssignment(receiver, elements);
         }
 
         @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            for (Term.Raw term : elements)
-            {
-                AbstractType<?> type = term.getExactTypeIfKnown(keyspace);
-                if (type != null)
-                    return SetType.getInstance(type, false);
-            }
-            return null;
+            return getExactSetTypeIfKnown(elements, p -> p.getExactTypeIfKnown(keyspace));
         }
 
         public String getText()
         {
-            return elements.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "{", "}"));
+            return setToString(elements, Term.Raw::getText);
         }
     }
 
