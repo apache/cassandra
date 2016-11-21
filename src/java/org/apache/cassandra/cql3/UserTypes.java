@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
@@ -45,6 +46,78 @@ public abstract class UserTypes
                                        column.cfName,
                                        new ColumnIdentifier(column.name + "." + ut.fieldName(field), true),
                                        ut.fieldType(field));
+    }
+
+    public static <T extends AssignmentTestable> void validateUserTypeAssignableTo(ColumnSpecification receiver,
+                                                                                   Map<FieldIdentifier, T> entries)
+    {
+        if (!receiver.type.isUDT())
+            throw new InvalidRequestException(String.format("Invalid user type literal for %s of type %s", receiver, receiver.type.asCQL3Type()));
+
+        UserType ut = (UserType) receiver.type;
+        for (int i = 0; i < ut.size(); i++)
+        {
+            FieldIdentifier field = ut.fieldName(i);
+            T value = entries.get(field);
+            if (value == null)
+                continue;
+
+            ColumnSpecification fieldSpec = fieldSpecOf(receiver, i);
+            if (!value.testAssignment(receiver.ksName, fieldSpec).isAssignable())
+            {
+                throw new InvalidRequestException(String.format("Invalid user type literal for %s: field %s is not of type %s",
+                        receiver, field, fieldSpec.type.asCQL3Type()));
+            }
+        }
+    }
+
+    /**
+     * Tests that the map with the specified entries can be assigned to the specified column.
+     *
+     * @param receiver the receiving column
+     * @param entries the map entries
+     */
+    public static <T extends AssignmentTestable> AssignmentTestable.TestResult testUserTypeAssignment(ColumnSpecification receiver,
+                                                                                                      Map<FieldIdentifier, T> entries)
+    {
+        try
+        {
+            validateUserTypeAssignableTo(receiver, entries);
+            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+        }
+        catch (InvalidRequestException e)
+        {
+            return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+        }
+    }
+
+    /**
+     * Create a {@code String} representation of the user type from the specified items associated to
+     * the user type entries.
+     *
+     * @param items items associated to the user type entries
+     * @param mapper the mapper used to user type the items to the {@code String} representation of the map entries
+     * @return a {@code String} representation of the user type
+     */
+    public static <T> String userTypeToString(Map<FieldIdentifier, T> items)
+    {
+        return userTypeToString(items, Object::toString);
+    }
+
+    /**
+     * Create a {@code String} representation of the user type from the specified items associated to
+     * the user type entries.
+     *
+     * @param items items associated to the user type entries
+     * @return a {@code String} representation of the user type
+     */
+    public static <T> String userTypeToString(Map<FieldIdentifier, T> items,
+                                              java.util.function.Function<T, String> mapper)
+    {
+        return items.entrySet()
+                    .stream()
+                    .map(p -> String.format("%s: %s", p.getKey(), mapper.apply(p.getValue())))
+                    .collect(Collectors.joining(", ", "{", "}"));
     }
 
     public static class Literal extends Term.Raw
@@ -95,37 +168,12 @@ public abstract class UserTypes
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!receiver.type.isUDT())
-                throw new InvalidRequestException(String.format("Invalid user type literal for %s of type %s", receiver, receiver.type.asCQL3Type()));
-
-            UserType ut = (UserType)receiver.type;
-            for (int i = 0; i < ut.size(); i++)
-            {
-                FieldIdentifier field = ut.fieldName(i);
-                Term.Raw value = entries.get(field);
-                if (value == null)
-                    continue;
-
-                ColumnSpecification fieldSpec = fieldSpecOf(receiver, i);
-                if (!value.testAssignment(keyspace, fieldSpec).isAssignable())
-                {
-                    throw new InvalidRequestException(String.format("Invalid user type literal for %s: field %s is not of type %s",
-                            receiver, field, fieldSpec.type.asCQL3Type()));
-                }
-            }
+            validateUserTypeAssignableTo(receiver, entries);
         }
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            try
-            {
-                validateAssignableTo(keyspace, receiver);
-                return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
-            }
-            catch (InvalidRequestException e)
-            {
-                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
-            }
+            return testUserTypeAssignment(receiver, entries);
         }
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
@@ -135,18 +183,7 @@ public abstract class UserTypes
 
         public String getText()
         {
-            StringBuilder sb = new StringBuilder();
-            sb.append("{");
-            Iterator<Map.Entry<FieldIdentifier, Term.Raw>> iter = entries.entrySet().iterator();
-            while (iter.hasNext())
-            {
-                Map.Entry<FieldIdentifier, Term.Raw> entry = iter.next();
-                sb.append(entry.getKey()).append(": ").append(entry.getValue().getText());
-                if (iter.hasNext())
-                    sb.append(", ");
-            }
-            sb.append("}");
-            return sb.toString();
+            return userTypeToString(entries, Term.Raw::getText);
         }
     }
 

@@ -172,17 +172,6 @@ public abstract class Selector
     public abstract AbstractType<?> getType();
 
     /**
-     * Checks if this <code>Selector</code> is creating aggregates.
-     *
-     * @return <code>true</code> if this <code>Selector</code> is creating aggregates <code>false</code>
-     * otherwise.
-     */
-    public boolean isAggregate()
-    {
-        return false;
-    }
-
-    /**
      * Reset the internal state of this <code>Selector</code>.
      */
     public abstract void reset();

@@ -319,6 +319,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
+    public boolean isTuple()
+    {
+        return false;
+    }
+
     public boolean isMultiCell()
     {
         return false;
@@ -384,7 +389,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     /**
      * The length of values for this type if all values are of fixed length, -1 otherwise.
      */
-    protected int valueLengthIfFixed()
+    public int valueLengthIfFixed()
     {
         return -1;
     }
@@ -487,9 +492,13 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public final AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
     {
+        return testAssignment(receiver.type);
+    }
+
+    public final AssignmentTestable.TestResult testAssignment(AbstractType<?> receiverType)
+    {
         // We should ignore the fact that the output type is frozen in our comparison as functions do not support
         // frozen types for arguments
-        AbstractType<?> receiverType = receiver.type;
         if (isFreezable() && !isMultiCell())
             receiverType = receiverType.freeze();
 

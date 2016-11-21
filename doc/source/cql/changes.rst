@@ -27,8 +27,8 @@ The following describes the changes in each version of CQL.
 - Adds a new ``duration `` :ref:`data types <data-types>` (:jira:`11873`).
 - Support for ``GROUP BY`` (:jira:`10707`).
 - Adds a ``DEFAULT UNSET`` option for ``INSERT JSON`` to ignore omitted columns (:jira:`11424`).
-- Allows ``null`` as a legal value for TTL on insert and update. It will be treated as equivalent to
-inserting a 0 (:jira:`12216`).
+- Allows ``null`` as a legal value for TTL on insert and update. It will be treated as equivalent to inserting a 0 (:jira:`12216`).
+- Adds support for arithmetic operators (:jira:`11935`)
 
 3.4.2
 ^^^^^

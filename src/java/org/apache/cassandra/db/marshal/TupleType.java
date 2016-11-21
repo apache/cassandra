@@ -101,6 +101,11 @@ public class TupleType extends AbstractType<ByteBuffer>
         return types;
     }
 
+    public boolean isTuple()
+    {
+        return true;
+    }
+
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
         if (!o1.hasRemaining() || !o2.hasRemaining())

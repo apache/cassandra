@@ -22,11 +22,15 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.AbstractMarker;
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static java.util.stream.Collectors.joining;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 public final class FunctionResolver
 {
@@ -112,31 +116,81 @@ public final class FunctionResolver
         List<Function> compatibles = null;
         for (Function toTest : candidates)
         {
-            AssignmentTestable.TestResult r = matchAguments(keyspace, toTest, providedArgs, receiverKs, receiverCf);
-            switch (r)
+            if (matchReturnType(toTest, receiverType))
             {
-                case EXACT_MATCH:
-                    // We always favor exact matches
-                    return toTest;
-                case WEAKLY_ASSIGNABLE:
-                    if (compatibles == null)
-                        compatibles = new ArrayList<>();
-                    compatibles.add(toTest);
-                    break;
+                AssignmentTestable.TestResult r = matchAguments(keyspace, toTest, providedArgs, receiverKs, receiverCf);
+                switch (r)
+                {
+                    case EXACT_MATCH:
+                        // We always favor exact matches
+                        return toTest;
+                    case WEAKLY_ASSIGNABLE:
+                        if (compatibles == null)
+                            compatibles = new ArrayList<>();
+                        compatibles.add(toTest);
+                        break;
+                }
             }
         }
 
         if (compatibles == null)
         {
-            throw new InvalidRequestException(String.format("Invalid call to function %s, none of its type signatures match (known type signatures: %s)",
-                                                            name, format(candidates)));
+            if (OperationFcts.isOperation(name))
+                throw invalidRequest("the '%s' operation is not supported between %s and %s",
+                                     OperationFcts.getOperator(name), providedArgs.get(0), providedArgs.get(1));
+
+            throw invalidRequest("Invalid call to function %s, none of its type signatures match (known type signatures: %s)",
+                                 name, format(candidates));
         }
 
         if (compatibles.size() > 1)
-            throw new InvalidRequestException(String.format("Ambiguous call to function %s (can be matched by following signatures: %s): use type casts to disambiguate",
-                        name, format(compatibles)));
+        {
+            if (OperationFcts.isOperation(name))
+            {
+                if (receiverType != null && !containsMarkers(providedArgs))
+                {
+                    for (Function toTest : compatibles)
+                    {
+                        List<AbstractType<?>> argTypes = toTest.argTypes();
+                        if (receiverType.equals(argTypes.get(0)) && receiverType.equals(argTypes.get(1)))
+                            return toTest;
+                    }
+                }
+                throw invalidRequest("Ambiguous '%s' operation: use type casts to disambiguate",
+                                     OperationFcts.getOperator(name), providedArgs.get(0), providedArgs.get(1));
+            }
 
+            if (OperationFcts.isNegation(name))
+                throw invalidRequest("Ambiguous negation: use type casts to disambiguate");
+
+            throw invalidRequest("Ambiguous call to function %s (can be matched by following signatures: %s): use type casts to disambiguate",
+                                 name, format(compatibles));
+        }
         return compatibles.get(0);
+    }
+
+    /**
+     * Checks if at least one of the specified arguments is a marker.
+     *
+     * @param args the arguments to check
+     * @return {@code true} if if at least one of the specified arguments is a marker, {@code false} otherwise
+     */
+    private static boolean containsMarkers(List<? extends AssignmentTestable> args)
+    {
+        return args.stream().anyMatch(AbstractMarker.Raw.class::isInstance);
+    }
+
+    /**
+     * Checks that the return type of the specified function can be assigned to the specified receiver.
+     *
+     * @param fun the function to check
+     * @param receiverType the receiver type
+     * @return {@code true} if the return type of the specified function can be assigned to the specified receiver,
+     * {@code false} otherwise.
+     */
+    private static boolean matchReturnType(Function fun, AbstractType<?> receiverType)
+    {
+        return receiverType == null || fun.returnType().testAssignment(receiverType).isAssignable();
     }
 
     // This method and matchArguments are somewhat duplicate, but this method allows us to provide more precise errors in the common
@@ -146,10 +200,10 @@ public final class FunctionResolver
                                       List<? extends AssignmentTestable> providedArgs,
                                       String receiverKs,
                                       String receiverCf)
-    throws InvalidRequestException
     {
         if (providedArgs.size() != fun.argTypes().size())
-            throw new InvalidRequestException(String.format("Invalid number of arguments in call to function %s: %d required but %d provided", fun.name(), fun.argTypes().size(), providedArgs.size()));
+            throw invalidRequest("Invalid number of arguments in call to function %s: %d required but %d provided",
+                                 fun.name(), fun.argTypes().size(), providedArgs.size());
 
         for (int i = 0; i < providedArgs.size(); i++)
         {
@@ -162,7 +216,8 @@ public final class FunctionResolver
 
             ColumnSpecification expected = makeArgSpec(receiverKs, receiverCf, fun, i);
             if (!provided.testAssignment(keyspace, expected).isAssignable())
-                throw new InvalidRequestException(String.format("Type error: %s cannot be passed as argument %d of function %s of type %s", provided, i, fun.name(), expected.type.asCQL3Type()));
+                throw invalidRequest("Type error: %s cannot be passed as argument %d of function %s of type %s",
+                                     provided, i, fun.name(), expected.type.asCQL3Type());
         }
     }
 

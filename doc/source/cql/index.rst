@@ -38,6 +38,7 @@ thrift API (and earlier version 1 and 2 of CQL).
    mvs
    security
    functions
+   operators
    json
    triggers
    appendices

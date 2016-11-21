@@ -5,6 +5,11 @@
  * Reject invalid replication settings when creating or altering a keyspace (CASSANDRA-12681)
  * Clean up the SSTableReader#getScanner API wrt removal of RateLimiter (CASSANDRA-12422)
 
+3.12
+ * Add support for arithmetic operators (CASSANDRA-11935)
+
+3.11
+ * AnticompactionRequestSerializer serializedSize is incorrect (CASSANDRA-12934)
 
 3.10
  * Don't shut down socket input/output on StreamSession (CASSANDRA-12903)
