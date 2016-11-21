@@ -58,6 +58,7 @@ public class Validator implements Runnable
     public final RepairJobDesc desc;
     public final InetAddress initiator;
     public final int gcBefore;
+    private final boolean evenTreeDistribution;
 
     // null when all rows with the min token have been consumed
     private long validated;
@@ -71,19 +72,25 @@ public class Validator implements Runnable
 
     public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore)
     {
+        this(desc, initiator, gcBefore, false);
+    }
+
+    public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore, boolean evenTreeDistribution)
+    {
         this.desc = desc;
         this.initiator = initiator;
         this.gcBefore = gcBefore;
         validated = 0;
         range = null;
         ranges = null;
+        this.evenTreeDistribution = evenTreeDistribution;
     }
 
     public void prepare(ColumnFamilyStore cfs, MerkleTrees tree)
     {
         this.trees = tree;
 
-        if (!tree.partitioner().preservesOrder())
+        if (!tree.partitioner().preservesOrder() || evenTreeDistribution)
         {
             // You can't beat an even tree distribution for md5
             tree.init();

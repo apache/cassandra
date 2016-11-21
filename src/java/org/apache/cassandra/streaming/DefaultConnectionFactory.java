@@ -47,15 +47,20 @@ public class DefaultConnectionFactory implements StreamConnectionFactory
         int attempts = 0;
         while (true)
         {
+            Socket socket = null;
             try
             {
-                Socket socket = OutboundTcpConnectionPool.newSocket(peer);
+                socket = OutboundTcpConnectionPool.newSocket(peer);
                 socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
                 socket.setKeepAlive(true);
                 return socket;
             }
             catch (IOException e)
             {
+                if (socket != null)
+                {
+                    socket.close();
+                }
                 if (++attempts >= MAX_CONNECT_ATTEMPTS)
                     throw e;
 

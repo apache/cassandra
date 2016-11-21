@@ -13,7 +13,8 @@ final class Filter extends Transformation
         this.nowInSec = nowInSec;
     }
 
-    public RowIterator applyToPartition(BaseRowIterator iterator)
+    @Override
+    protected RowIterator applyToPartition(BaseRowIterator iterator)
     {
         RowIterator filtered = iterator instanceof UnfilteredRows
                                ? new FilteredRows(this, (UnfilteredRows) iterator)
@@ -25,7 +26,8 @@ final class Filter extends Transformation
         return filtered;
     }
 
-    public Row applyToStatic(Row row)
+    @Override
+    protected Row applyToStatic(Row row)
     {
         if (row.isEmpty())
             return Rows.EMPTY_STATIC_ROW;
@@ -34,12 +36,14 @@ final class Filter extends Transformation
         return row == null ? Rows.EMPTY_STATIC_ROW : row;
     }
 
-    public Row applyToRow(Row row)
+    @Override
+    protected Row applyToRow(Row row)
     {
         return row.purge(DeletionPurger.PURGE_ALL, nowInSec);
     }
 
-    public RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
+    @Override
+    protected RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
     {
         return null;
     }

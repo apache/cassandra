@@ -1,7 +1,14 @@
 3.7
  * Support multiple folders for user defined compaction tasks (CASSANDRA-11765)
  * Fix race in CompactionStrategyManager's pause/resume (CASSANDRA-11922)
+Merged from 3.x:
+ * Don't try to get sstables for non-repairing column families (CASSANDRA-12077)
+ * Avoid sstable corrupt exception due to dropped static column (CASSANDRA-12582)
+ * NullPointerException during compaction on table with static columns (CASSANDRA-12336)
+ * NullPointerExpception when reading/compacting table (CASSANDRA-11988)
 Merged from 3.0:
+ * Correct log message for statistics of offheap memtable flush (CASSANDRA-12776)
+ * Fix potential socket leak (CASSANDRA-12329, CASSANDRA-12330)
  * Fix legacy serialization of Thrift-generated non-compound range tombstones
    when communicating with 2.x nodes (CASSANDRA-11930)
  * Fix Directories instantiations where CFS.initialDirectories should be used (CASSANDRA-11849)
@@ -22,6 +29,7 @@ Merged from 3.0:
  * AssertionError with MVs on updating a row that isn't indexed due to a null value (CASSANDRA-12247)
  * Fix potential race in schema during new table creation (CASSANDRA-12083)
 Merged from 2.2:
+ * Fix merkle tree depth calculation (CASSANDRA-12580)
  * Persist local metadata earlier in startup sequence (CASSANDRA-11742)
  * cqlsh: fix tab completion for case-sensitive identifiers (CASSANDRA-11664)
  * Avoid showing estimated key as -1 in tablestats (CASSANDRA-11587)
@@ -34,7 +42,9 @@ Merged from 2.2:
  * cqlsh: correctly handle non-ascii chars in error messages (CASSANDRA-11626)
  * Release sstables of failed stream sessions only when outgoing transfers are finished (CASSANDRA-11345)
  * StorageService shutdown hook should use a volatile variable (CASSANDRA-11984)
+ * Split consistent range movement flag correction (CASSANDRA-12786)
 Merged from 2.1:
+ * Don't skip sstables based on maxLocalDeletionTime (CASSANDRA-12765)
  * Run CommitLog tests with different compression settings (CASSANDRA-9039)
  * cqlsh: apply current keyspace to source command (CASSANDRA-11152)
  * Clear out parent repair session if repair coordinator dies (CASSANDRA-11824)
