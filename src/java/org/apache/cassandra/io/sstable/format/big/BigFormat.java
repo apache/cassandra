@@ -30,7 +30,6 @@ import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ChecksumType;
 
 /**
  * Legacy bigtable format
@@ -74,7 +73,7 @@ public class BigFormat implements SSTableFormat
     @Override
     public RowIndexEntry.IndexSerializer getIndexSerializer(CFMetaData metadata, Version version, SerializationHeader header)
     {
-        return new RowIndexEntry.Serializer(metadata, version, header);
+        return new RowIndexEntry.Serializer(version, header);
     }
 
     static class WriterFactory extends SSTableWriter.Factory

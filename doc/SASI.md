@@ -19,8 +19,7 @@ implementation.
 ## Using SASI
 
 The examples below walk through creating a table and indexes on its
-columns, and performing queries on some inserted data. The patchset in
-this repository includes support for the Thrift and CQL3 interfaces.
+columns, and performing queries on some inserted data.
 
 The examples below assume the `demo` keyspace has been created and is
 in use.

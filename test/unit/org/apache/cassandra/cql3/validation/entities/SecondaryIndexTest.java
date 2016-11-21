@@ -1029,16 +1029,13 @@ public class SecondaryIndexTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY ((a), b))");
         createIndex("CREATE INDEX c_idx ON %s(c)");
-        MD5Digest cqlId = prepareStatement("SELECT * FROM %s.%s WHERE c=?", false).statementId;
-        Integer thriftId = prepareStatement("SELECT * FROM %s.%s WHERE c=?", true).toThriftPreparedResult().getItemId();
+        MD5Digest cqlId = prepareStatement("SELECT * FROM %s.%s WHERE c=?").statementId;
 
         assertNotNull(QueryProcessor.instance.getPrepared(cqlId));
-        assertNotNull(QueryProcessor.instance.getPreparedForThrift(thriftId));
 
         dropIndex("DROP INDEX %s.c_idx");
 
         assertNull(QueryProcessor.instance.getPrepared(cqlId));
-        assertNull(QueryProcessor.instance.getPreparedForThrift(thriftId));
     }
 
     // See CASSANDRA-11021
@@ -1289,11 +1286,10 @@ public class SecondaryIndexTest extends CQLTester
         });
     }
 
-    private ResultMessage.Prepared prepareStatement(String cql, boolean forThrift)
+    private ResultMessage.Prepared prepareStatement(String cql)
     {
         return QueryProcessor.prepare(String.format(cql, KEYSPACE, currentTable()),
-                                      ClientState.forInternalCalls(),
-                                      forThrift);
+                                      ClientState.forInternalCalls());
     }
 
     private void validateCell(Cell cell, ColumnDefinition def, ByteBuffer val, long timestamp)

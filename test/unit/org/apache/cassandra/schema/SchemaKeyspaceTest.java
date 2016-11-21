@@ -46,10 +46,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.ColumnDef;
-import org.apache.cassandra.thrift.IndexType;
-import org.apache.cassandra.thrift.ThriftConversion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -61,19 +57,6 @@ public class SchemaKeyspaceTest
     private static final String KEYSPACE1 = "CFMetaDataTest1";
     private static final String CF_STANDARD1 = "Standard1";
 
-    private static final List<ColumnDef> columnDefs = new ArrayList<>();
-
-    static
-    {
-        columnDefs.add(new ColumnDef(ByteBufferUtil.bytes("col1"), AsciiType.class.getCanonicalName())
-                                    .setIndex_name("col1Index")
-                                    .setIndex_type(IndexType.KEYS));
-
-        columnDefs.add(new ColumnDef(ByteBufferUtil.bytes("col2"), UTF8Type.class.getCanonicalName())
-                                    .setIndex_name("col2Index")
-                                    .setIndex_type(IndexType.KEYS));
-    }
-
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
@@ -84,43 +67,6 @@ public class SchemaKeyspaceTest
     }
 
     @Test
-    public void testThriftConversion() throws Exception
-    {
-        CfDef cfDef = new CfDef().setDefault_validation_class(AsciiType.class.getCanonicalName())
-                                 .setComment("Test comment")
-                                 .setColumn_metadata(columnDefs)
-                                 .setKeyspace(KEYSPACE1)
-                                 .setName(CF_STANDARD1);
-
-        // convert Thrift to CFMetaData
-        CFMetaData cfMetaData = ThriftConversion.fromThrift(cfDef);
-
-        CfDef thriftCfDef = new CfDef();
-        thriftCfDef.keyspace = KEYSPACE1;
-        thriftCfDef.name = CF_STANDARD1;
-        thriftCfDef.default_validation_class = cfDef.default_validation_class;
-        thriftCfDef.comment = cfDef.comment;
-        thriftCfDef.column_metadata = new ArrayList<>();
-        for (ColumnDef columnDef : columnDefs)
-        {
-            ColumnDef c = new ColumnDef();
-            c.name = ByteBufferUtil.clone(columnDef.name);
-            c.validation_class = columnDef.getValidation_class();
-            c.index_name = columnDef.getIndex_name();
-            c.index_type = IndexType.KEYS;
-            thriftCfDef.column_metadata.add(c);
-        }
-
-        CfDef converted = ThriftConversion.toThrift(cfMetaData);
-
-        assertEquals(thriftCfDef.keyspace, converted.keyspace);
-        assertEquals(thriftCfDef.name, converted.name);
-        assertEquals(thriftCfDef.default_validation_class, converted.default_validation_class);
-        assertEquals(thriftCfDef.comment, converted.comment);
-        assertEquals(new HashSet<>(thriftCfDef.column_metadata), new HashSet<>(converted.column_metadata));
-    }
-
-    @Test
     public void testConversionsInverses() throws Exception
     {
         for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
@@ -128,9 +74,6 @@ public class SchemaKeyspaceTest
             for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
             {
                 CFMetaData cfm = cfs.metadata;
-                if (!cfm.isThriftCompatible())
-                    continue;
-
                 checkInverses(cfm);
 
                 // Testing with compression to catch #3558
@@ -181,11 +124,6 @@ public class SchemaKeyspaceTest
     private static void checkInverses(CFMetaData cfm) throws Exception
     {
         KeyspaceMetadata keyspace = Schema.instance.getKSMetaData(cfm.ksName);
-
-        // Test thrift conversion
-        CFMetaData before = cfm;
-        CFMetaData after = ThriftConversion.fromThriftForUpdate(ThriftConversion.toThrift(before), before);
-        assert before.equals(after) : String.format("%n%s%n!=%n%s", before, after);
 
         // Test schema conversion
         Mutation rm = SchemaKeyspace.makeCreateTableMutation(keyspace, cfm, FBUtilities.timestampMicros()).build();

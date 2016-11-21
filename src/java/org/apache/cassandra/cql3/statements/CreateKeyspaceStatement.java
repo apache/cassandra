@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.auth.*;
+import org.apache.cassandra.cql3.Validation;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.exceptions.*;
@@ -27,7 +28,6 @@ import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.*;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
 /** A <code>CREATE KEYSPACE</code> statement parsed from a CQL query. */
@@ -74,7 +74,7 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
      */
     public void validate(ClientState state) throws RequestValidationException
     {
-        ThriftValidation.validateKeyspaceNotSystem(name);
+        Validation.validateKeyspaceNotSystem(name);
 
         // keyspace name
         if (!PATTERN_WORD_CHARS.matcher(name).matches())

@@ -44,12 +44,9 @@
     <property name="build.test.dir" value="${build.dir}/test"/>
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
-    <property name="build.classes.thrift" value="${build.classes}/thrift" />
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="javadoc.jars.dir" value="${build.dir}/javadocs"/>
     <property name="interface.dir" value="${basedir}/interface"/>
-    <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
-    <property name="interface.thrift.gen-java" value="${interface.thrift.dir}/gen-java"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.lib" value="${build.dir}/test/lib"/>
@@ -154,7 +151,6 @@
     <path id="maven-ant-tasks.classpath" path="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
     <path id="cassandra.classpath">
         <pathelement location="${build.classes.main}" />
-        <pathelement location="${build.classes.thrift}" />
         <fileset dir="${build.lib}">
             <include name="**/*.jar" />
             <exclude name="**/*-sources.jar"/>
@@ -186,7 +182,6 @@
         <fail unless="is.source.artifact"
             message="Not a source artifact, stopping here." />
         <mkdir dir="${build.classes.main}"/>
-        <mkdir dir="${build.classes.thrift}"/>
         <mkdir dir="${test.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${stress.test.classes}"/>
@@ -387,14 +382,7 @@
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="0.3.0"/>
 	
-          <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.7">
-            <exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
-            <exclusion groupId="junit" artifactId="junit"/>
-          </dependency>
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.11"/>
-          <dependency groupId="org.apache.thrift" artifactId="libthrift" version="0.9.2">
-	         <exclusion groupId="commons-logging" artifactId="commons-logging"/>
-          </dependency>
           <dependency groupId="junit" artifactId="junit" version="4.6" />
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
@@ -423,7 +411,6 @@
           <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.13"/>
 
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
-          <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.0" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-jvm" version="3.1.0" />
           <dependency groupId="com.addthis.metrics" artifactId="reporter-config3" version="3.0.3" />
@@ -585,14 +572,10 @@
         <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core"/>
         <dependency groupId="io.dropwizard.metrics" artifactId="metrics-jvm"/>
         <dependency groupId="com.addthis.metrics" artifactId="reporter-config3"/>
-        <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server"/>
         <dependency groupId="com.clearspring.analytics" artifactId="stream"/>
 
         <dependency groupId="ch.qos.logback" artifactId="logback-core"/>
         <dependency groupId="ch.qos.logback" artifactId="logback-classic"/>
-
-        <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
-        <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift"/>
 
         <!-- don't need hadoop classes to run, but if you use the hadoop stuff -->
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" optional="true"/>
@@ -619,25 +602,6 @@
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
 	<dependency groupId="com.github.ben-manes.caffeine" artifactId="caffeine" />
 	<dependency groupId="org.jctools" artifactId="jctools-core"/>
-      </artifact:pom>
-      <artifact:pom id="thrift-pom"
-                    artifactId="cassandra-thrift"
-                    url="http://cassandra.apache.org"
-                    name="Apache Cassandra">
-        <parent groupId="org.apache.cassandra"
-                artifactId="cassandra-parent"
-                version="${version}"/>
-        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
-        <dependency groupId="org.apache.commons" artifactId="commons-lang3"/>
-        <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
-        <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j"/>
-        <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j"/>
-        <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
-        <dependency groupId="com.carrotsearch" artifactId="hppc" version="0.5.4" />
-        <dependency groupId="de.jflex" artifactId="jflex" version="1.6.0" />
-        <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" version="1.3.0.581.1" />
-        <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
-
       </artifact:pom>
       <artifact:pom id="dist-pom"
                     artifactId="apache-cassandra"
@@ -720,54 +684,6 @@
         <echo message="${base.version}" />
     </target>
 
-    <!--
-       Generate thrift code.  We have targets to build java because
-       Cassandra depends on it, and python because that is what the system
-       tests run.
-    -->
-    <target name="check-gen-thrift-java">
-      <uptodate property="thriftUpToDate" srcfile="${interface.dir}/cassandra.thrift"
-            targetfile="${interface.thrift.gen-java}/org/apache/cassandra/thrift/Cassandra.java" />
-    </target>
-    <target name="gen-thrift-java" unless="thriftUpToDate" depends="check-gen-thrift-java"
-            description="Generate Thrift Java artifacts">
-      <echo>Generating Thrift Java code from ${basedir}/interface/cassandra.thrift...</echo>
-      <exec executable="thrift" dir="${basedir}/interface" failonerror="true">
-        <arg line="--gen java:hashcode" />
-        <arg line="-o ${interface.thrift.dir}" />
-        <arg line="cassandra.thrift" />
-      </exec>
-      <antcall target="write-java-license-headers" />
-    </target>
-
-    <target name="_write-java-license-headers" depends="rat-init">
-      <java classname="org.apache.rat.Report" fork="true"
-            output="${build.dir}/rat-report.log">
-        <classpath refid="rat.classpath" />
-        <arg value="-a" />
-        <arg value="--force" />
-        <arg value="interface/thrift" />
-      </java>
-    </target>
-
-    <target name="write-java-license-headers" unless="without.rat" description="Add missing java license headers">
-      <antcall target="_write-java-license-headers" />
-    </target>
-
-    <target name="gen-thrift-py" description="Generate Thrift Python artifacts">
-      <echo>Generating Thrift Python code from ${basedir}/interface/cassandra.thrift...</echo>
-      <exec executable="thrift" dir="${basedir}/interface" failonerror="true">
-        <arg line="--gen py" />
-        <arg line="-o ${interface.thrift.dir}" />
-        <arg line="cassandra.thrift" />
-      </exec>
-      <exec executable="thrift" dir="${basedir}/interface" failonerror="true">
-        <arg line="--gen py:twisted" />
-        <arg line="-o ${interface.thrift.dir}" />
-        <arg line="cassandra.thrift" />
-      </exec>
-    </target>
-
     <!-- create properties file with C version -->
     <target name="createVersionPropFile">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
@@ -803,13 +719,6 @@
         <!-- Order matters! -->
         <javac fork="true"
                debug="true" debuglevel="${debuglevel}" encoding="utf-8"
-               destdir="${build.classes.thrift}" includeantruntime="false" source="${source.version}" target="${target.version}"
-               memorymaximumsize="512M">
-            <src path="${interface.thrift.dir}/gen-java"/>
-            <classpath refid="cassandra.classpath"/>
-        </javac>
-        <javac fork="true"
-               debug="true" debuglevel="${debuglevel}" encoding="utf-8"
                destdir="${build.classes.main}" includeantruntime="false" source="${source.version}" target="${target.version}"
                memorymaximumsize="512M">
             <src path="${build.src.java}"/>
@@ -833,7 +742,6 @@
 	<property name="stress.manifest" value="${stress.build.classes}/MANIFEST.MF" />
     <path id="cassandra.classes">
         <pathelement location="${basedir}/build/classes/main" />
-        <pathelement location="${basedir}/build/classes/thrift" />
     </path>
 
     <target name="stress-build-test" depends="stress-build" description="Compile stress tests">
@@ -876,8 +784,6 @@
 
 	<target name="_write-poms" depends="maven-declare-dependencies">
 	    <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
-	    <artifact:writepom pomRefId="thrift-pom"
-	                       file="${build.dir}/${ant.project.name}-thrift-${version}.pom"/>
 	    <artifact:writepom pomRefId="all-pom" file="${build.dir}/${final.name}.pom"/>
 	</target>
 
@@ -892,35 +798,14 @@
             depends="build, build-test, stress-build, write-poms"
             description="Assemble Cassandra JAR files">
       <mkdir dir="${build.classes.main}/META-INF" />
-      <mkdir dir="${build.classes.thrift}/META-INF" />
       <copy file="LICENSE.txt"
             tofile="${build.classes.main}/META-INF/LICENSE.txt"/>
-      <copy file="LICENSE.txt"
-            tofile="${build.classes.thrift}/META-INF/LICENSE.txt"/>
       <copy file="NOTICE.txt"
             tofile="${build.classes.main}/META-INF/NOTICE.txt"/>
-      <copy file="NOTICE.txt"
-            tofile="${build.classes.thrift}/META-INF/NOTICE.txt"/>
-
-      <!-- Thrift Jar -->
-      <jar jarfile="${build.dir}/${ant.project.name}-thrift-${version}.jar"
-           basedir="${build.classes.thrift}">
-        <fileset dir="${build.classes.main}">
-          <include name="org/apache/cassandra/thrift/ITransportFactory*.class" />
-          <include name="org/apache/cassandra/thrift/TFramedTransportFactory*.class" />
-        </fileset>
-        <manifest>
-          <attribute name="Implementation-Title" value="Cassandra"/>
-          <attribute name="Implementation-Version" value="${version}"/>
-          <attribute name="Implementation-Vendor" value="Apache"/>
-        </manifest>
-      </jar>
 
       <!-- Main Jar -->
       <jar jarfile="${build.dir}/${final.name}.jar">
         <fileset dir="${build.classes.main}">
-          <exclude name="org/apache/cassandra/thrift/ITransportFactory*.class" />
-          <exclude name="org/apache/cassandra/thrift/TFramedTransportFactory*.class" />
         </fileset>
         <manifest>
         <!-- <section name="org/apache/cassandra/infrastructure"> -->
@@ -929,8 +814,6 @@
           <attribute name="Implementation-Vendor" value="Apache"/>
           <attribute name="Premain-Class"
                      value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
-          <attribute name="Class-Path"
-                     value="${ant.project.name}-thrift-${version}.jar" />
         <!-- </section> -->
         </manifest>
       </jar>
@@ -952,16 +835,6 @@
     -->
     <target name="javadoc-jar" description="Assemble Cassandra JavaDoc JAR file">
       <mkdir dir="${javadoc.jars.dir}"/>
-      <create-javadoc destdir="${javadoc.jars.dir}/thrift">
-        <filesets>
-          <fileset dir="${interface.thrift.dir}/gen-java" defaultexcludes="yes">
-            <include name="org/apache/**/*.java"/>
-          </fileset>
-        </filesets>
-      </create-javadoc>
-      <jar jarfile="${build.dir}/${ant.project.name}-thrift-${version}-javadoc.jar"
-           basedir="${javadoc.jars.dir}/thrift"/>
-
       <create-javadoc destdir="${javadoc.jars.dir}/main">
         <filesets>
           <fileset dir="${build.src.java}" defaultexcludes="yes">
@@ -984,11 +857,6 @@
         The sources-jar target makes cassandra-sources.jar output required for publishing to Maven central repository.
     -->
     <target name="sources-jar" depends="init" description="Assemble Cassandra Sources JAR file">
-      <jar jarfile="${build.dir}/${ant.project.name}-thrift-${version}-sources.jar">
-        <fileset dir="${interface.thrift.dir}/gen-java" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
-      </jar>
       <jar jarfile="${build.dir}/${final.name}-sources.jar">
         <fileset dir="${build.src.java}" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>
@@ -1011,7 +879,6 @@
         <fileset dir="${build.lib}"/>
         <fileset dir="${build.dir}">
           <include name="${final.name}.jar" />
-          <include name="${ant.project.name}-thrift-${version}.jar" />
         </fileset>
       </copy>
       <copy todir="${dist.dir}/javadoc">
@@ -1033,11 +900,6 @@
       </copy>
       <copy todir="${dist.dir}/conf">
         <fileset dir="conf"/>
-      </copy>
-      <copy todir="${dist.dir}/interface">
-        <fileset dir="interface">
-          <include name="**/*.thrift" />
-        </fileset>
       </copy>
       <copy todir="${dist.dir}/pylib">
         <fileset dir="pylib">
@@ -1594,14 +1456,9 @@
 
   <target name="javadoc" depends="init" description="Create javadoc" unless="no-javadoc">
     <create-javadoc destdir="${javadoc.dir}">
-      <filesets>
       <fileset dir="${build.src.java}" defaultexcludes="yes">
         <include name="org/apache/**/*.java"/>
       </fileset>
-      <fileset dir="${interface.thrift.gen-java}" defaultexcludes="yes">
-        <include name="org/apache/**/*.java"/>
-      </fileset>
-      </filesets>
     </create-javadoc>
    </target>
 
@@ -1779,7 +1636,6 @@
   <classpathentry kind="src" path="src/resources"/>
   <classpathentry kind="src" path="src/gen-java"/>
   <classpathentry kind="src" path="conf" including="hotspot_compiler"/>
-  <classpathentry kind="src" path="interface/thrift/gen-java"/>
   <classpathentry kind="src" output="build/test/classes" path="test/unit"/>
   <classpathentry kind="src" output="build/test/classes" path="test/long"/>
   <classpathentry kind="src" output="build/test/classes" path="test/resources" />
@@ -1787,7 +1643,6 @@
   <classpathentry kind="src" output="build/test/stress-classes" path="tools/stress/test/unit" />
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/eclipse"/>
-  <classpathentry kind="lib" path="build/classes/thrift" sourcepath="interface/thrift/gen-java/"/>
   <classpathentry kind="lib" path="test/conf"/>
   <classpathentry kind="lib" path="${java.home}/../lib/tools.jar"/>
 ]]>
@@ -1900,16 +1755,6 @@
              packaging="tar.gz"
              classifier="src"/>
           
-    <!-- the cassandra-thrift jar -->  
-    <install pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
-             file="${build.dir}/${ant.project.name}-thrift-${version}.jar"/>
-    <install pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
-             file="${build.dir}/${ant.project.name}-thrift-${version}-sources.jar"
-             classifier="sources"/>
-    <install pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
-             file="${build.dir}/${ant.project.name}-thrift-${version}-javadoc.jar"
-             classifier="javadoc"/>
-
     <!-- the cassandra-all jar -->
     <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}.jar"/>
@@ -1944,16 +1789,6 @@
             packaging="tar.gz"
             classifier="src"/>
           
-    <!-- the cassandra-thrift jar -->  
-    <deploy pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
-            file="${build.dir}/${ant.project.name}-thrift-${version}.jar"/>
-    <deploy pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
-            file="${build.dir}/${ant.project.name}-thrift-${version}-sources.jar"
-            classifier="sources"/>
-    <deploy pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
-            file="${build.dir}/${ant.project.name}-thrift-${version}-javadoc.jar"
-            classifier="javadoc"/>
-
     <!-- the cassandra-all jar -->
     <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}.jar"/>

@@ -39,7 +39,6 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.ThriftConversion;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -54,34 +53,6 @@ public class DatabaseDescriptorTest
     public static void setupDatabaseDescriptor()
     {
         DatabaseDescriptor.daemonInitialization();
-    }
-
-    @Test
-    public void testCFMetaDataSerialization() throws ConfigurationException, InvalidRequestException
-    {
-        // test serialization of all defined test CFs.
-        for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
-        {
-            for (CFMetaData cfm : Schema.instance.getTablesAndViews(keyspaceName))
-            {
-                CFMetaData cfmDupe = ThriftConversion.fromThrift(ThriftConversion.toThrift(cfm));
-                assertNotNull(cfmDupe);
-                assertEquals(cfm, cfmDupe);
-            }
-        }
-    }
-
-    @Test
-    public void testKSMetaDataSerialization() throws ConfigurationException
-    {
-        for (String ks : Schema.instance.getNonSystemKeyspaces())
-        {
-            // Not testing round-trip on the KsDef via serDe() because maps
-            KeyspaceMetadata ksm = Schema.instance.getKSMetaData(ks);
-            KeyspaceMetadata ksmDupe = ThriftConversion.fromThrift(ThriftConversion.toThrift(ksm));
-            assertNotNull(ksmDupe);
-            assertEquals(ksm, ksmDupe);
-        }
     }
 
     // this came as a result of CASSANDRA-995

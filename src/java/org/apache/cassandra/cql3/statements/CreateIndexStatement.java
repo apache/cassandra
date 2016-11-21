@@ -33,6 +33,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.IndexName;
+import org.apache.cassandra.cql3.Validation;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -41,7 +42,6 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
 /** A <code>CREATE INDEX</code> statement parsed from a CQL query. */
@@ -74,7 +74,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
     public void validate(ClientState state) throws RequestValidationException
     {
-        CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+        CFMetaData cfm = Validation.validateColumnFamily(keyspace(), columnFamily());
 
         if (cfm.isCounter())
             throw new InvalidRequestException("Secondary indexes are not supported on counter tables");

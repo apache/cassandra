@@ -74,7 +74,6 @@ public class SettingsNode implements Serializable
         Set<String> r = new HashSet<>();
         switch (settings.mode.api)
         {
-            case THRIFT_SMART:
             case JAVA_DRIVER_NATIVE:
                 if (!isWhiteList)
                 {
@@ -82,7 +81,6 @@ public class SettingsNode implements Serializable
                         r.add(host.getAddress().getHostName());
                     break;
                 }
-            case THRIFT:
             case SIMPLE_NATIVE:
                 for (InetAddress address : resolveAllSpecified())
                     r.add(address.getHostName());

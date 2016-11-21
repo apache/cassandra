@@ -44,7 +44,7 @@ goto :eof
 :okClasspath
 
 REM Include the build\classes\main directory so it works in development
-set CASSANDRA_CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes\main";%CASSANDRA_CONF%;"%CASSANDRA_HOME%\build\classes\thrift"
+set CASSANDRA_CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes\main";%CASSANDRA_CONF%
 
 REM Add the default storage location.  Can be overridden in conf\cassandra.yaml
 set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% "-Dcassandra.storagedir=%CASSANDRA_HOME%\data"

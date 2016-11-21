@@ -131,21 +131,11 @@ public class Config
     public boolean listen_on_broadcast_address = false;
     public String internode_authenticator;
 
-    /* intentionally left set to true, despite being set to false in stock 2.2 cassandra.yaml
-       we don't want to surprise Thrift users who have the setting blank in the yaml during 2.1->2.2 upgrade */
-    public boolean start_rpc = true;
     public String rpc_address;
     public String rpc_interface;
     public boolean rpc_interface_prefer_ipv6 = false;
     public String broadcast_rpc_address;
-    public int rpc_port = 9160;
-    public int rpc_listen_backlog = 50;
-    public String rpc_server_type = "sync";
     public boolean rpc_keepalive = true;
-    public int rpc_min_threads = 16;
-    public int rpc_max_threads = Integer.MAX_VALUE;
-    public Integer rpc_send_buff_size_in_bytes;
-    public Integer rpc_recv_buff_size_in_bytes;
     public int internode_send_buff_size_in_bytes = 0;
     public int internode_recv_buff_size_in_bytes = 0;
 
@@ -157,8 +147,6 @@ public class Config
     public volatile long native_transport_max_concurrent_connections = -1L;
     public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
 
-    @Deprecated
-    public int thrift_max_message_length_in_mb = 16;
     /**
      * Max size of values in SSTables, in MegaBytes.
      * Default is the same as the native protocol frame limit: 256Mb.
@@ -166,7 +154,6 @@ public class Config
      */
     public int max_value_size_in_mb = 256;
 
-    public int thrift_framed_transport_size_in_mb = 15;
     public boolean snapshot_before_compaction = false;
     public boolean auto_snapshot = true;
 
@@ -221,10 +208,6 @@ public class Config
     public int dynamic_snitch_update_interval_in_ms = 100;
     public int dynamic_snitch_reset_interval_in_ms = 600000;
     public double dynamic_snitch_badness_threshold = 0.1;
-
-    public String request_scheduler;
-    public RequestSchedulerId request_scheduler_id;
-    public RequestSchedulerOptions request_scheduler_options;
 
     public EncryptionOptions.ServerEncryptionOptions server_encryption_options = new EncryptionOptions.ServerEncryptionOptions();
     public EncryptionOptions.ClientEncryptionOptions client_encryption_options = new EncryptionOptions.ClientEncryptionOptions();
@@ -313,11 +296,6 @@ public class Config
      * Defaults to 1/256th of the heap size or 10MB, whichever is greater.
      */
     public Long prepared_statements_cache_size_mb = null;
-    /**
-     * Size of the Thrift prepared statements cache in MB.
-     * Defaults to 1/256th of the heap size or 10MB, whichever is greater.
-     */
-    public Long thrift_prepared_statements_cache_size_mb = null;
 
     public boolean enable_user_defined_functions = false;
     public boolean enable_scripted_user_defined_functions = false;
@@ -424,11 +402,6 @@ public class Config
         ignore,
         die,
         die_immediate
-    }
-
-    public enum RequestSchedulerId
-    {
-        keyspace
     }
 
     public enum DiskOptimizationStrategy

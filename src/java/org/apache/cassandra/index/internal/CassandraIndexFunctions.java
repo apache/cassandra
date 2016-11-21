@@ -59,7 +59,7 @@ public interface CassandraIndexFunctions
      *   *other* clustering values in the index - the indexed value being the index table's partition key
      * * When the indexed value is a collection value, in which case we also need to capture the cell path from the base
      *   table
-     * * In a KEYS index (for thrift/compact storage/static column indexes), where only the base partition key is
+     * * In a KEYS index (for compact storage/static column indexes), where only the base partition key is
      *   held in the index table.
      *
      * Called from indexCfsMetadata

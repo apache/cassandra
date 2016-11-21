@@ -64,7 +64,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 
@@ -150,7 +149,6 @@ public class CassandraDaemon
 
     static final CassandraDaemon instance = new CassandraDaemon();
 
-    public Server thriftServer;
     private NativeTransportService nativeTransportService;
     private JMXConnectorServer jmxServer;
 
@@ -396,12 +394,6 @@ public class CassandraDaemon
         if (sizeRecorderInterval > 0)
             ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, sizeRecorderInterval, TimeUnit.SECONDS);
 
-        // Thrift
-        InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();
-        int rpcPort = DatabaseDescriptor.getRpcPort();
-        int listenBacklog = DatabaseDescriptor.getRpcListenBacklog();
-        thriftServer = new ThriftServer(rpcAddr, rpcPort, listenBacklog);
-
         // Native transport
         nativeTransportService = new NativeTransportService();
 
@@ -492,12 +484,6 @@ public class CassandraDaemon
         }
         else
             logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
-
-        String rpcFlag = System.getProperty("cassandra.start_rpc");
-        if ((rpcFlag != null && Boolean.parseBoolean(rpcFlag)) || (rpcFlag == null && DatabaseDescriptor.startRpc()))
-            thriftServer.start();
-        else
-            logger.info("Not starting RPC server as requested. Use JMX (StorageService->startRPCServer()) or nodetool (enablethrift) to start it");
     }
 
     /**
@@ -510,8 +496,6 @@ public class CassandraDaemon
         // On linux, this doesn't entirely shut down Cassandra, just the RPC server.
         // jsvc takes care of taking the rest down
         logger.info("Cassandra shutting down...");
-        if (thriftServer != null)
-            thriftServer.stop();
         if (nativeTransportService != null)
             nativeTransportService.destroy();
         StorageService.instance.setRpcReady(false);

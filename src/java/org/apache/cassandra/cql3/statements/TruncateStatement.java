@@ -30,7 +30,6 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.thrift.ThriftValidation;
 
 public class TruncateStatement extends CFStatement implements CQLStatement
 {
@@ -56,7 +55,7 @@ public class TruncateStatement extends CFStatement implements CQLStatement
 
     public void validate(ClientState state) throws InvalidRequestException
     {
-        ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+        Validation.validateColumnFamily(keyspace(), columnFamily());
     }
 
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws InvalidRequestException, TruncateException

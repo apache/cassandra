@@ -62,13 +62,11 @@ have nodetool && have cqlsh &&
             disablebinary
             disablegossip
             disablehandoff
-            disablethrift
             drain
             enablebackup
             enablebinary
             enablegossip
             enablehandoff
-            enablethrift
             getcompactionthroughput
             getlogginglevels
             getstreamthroughput
@@ -89,7 +87,6 @@ have nodetool && have cqlsh &&
             setlogginglevel
             status
             statusbinary
-            statusthrift
             stopdaemon
             tpstats
             version

@@ -39,18 +39,16 @@ import org.apache.cassandra.stress.util.JavaDriverClient;
 public abstract class SchemaStatement extends PartitionOperation
 {
     final PreparedStatement statement;
-    final Integer thriftId;
     final ConsistencyLevel cl;
     final int[] argumentIndex;
     final Object[] bindBuffer;
     final ColumnDefinitions definitions;
 
     public SchemaStatement(Timer timer, StressSettings settings, DataSpec spec,
-                           PreparedStatement statement, List<String> bindNames, Integer thriftId, ConsistencyLevel cl)
+                           PreparedStatement statement, List<String> bindNames, ConsistencyLevel cl)
     {
         super(timer, settings, spec);
         this.statement = statement;
-        this.thriftId = thriftId;
         this.cl = cl;
         argumentIndex = new int[bindNames.size()];
         bindBuffer = new Object[argumentIndex.length];
@@ -82,11 +80,12 @@ public abstract class SchemaStatement extends PartitionOperation
         return statement.bind(bindBuffer);
     }
 
-    List<ByteBuffer> thriftRowArgs(Row row)
+    List<ByteBuffer> rowArgs(Row row)
     {
         List<ByteBuffer> args = new ArrayList<>();
         for (int i : argumentIndex)
-            args.add(spec.partitionGenerator.convert(i, row.get(i)));
+            args.add(spec.partitionGenerator.convert(i,
+                        row.get(i)));
         return args;
     }
 

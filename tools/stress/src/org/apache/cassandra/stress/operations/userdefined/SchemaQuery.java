@@ -36,9 +36,6 @@ import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
-import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.ThriftConversion;
 
 public class SchemaQuery extends SchemaStatement
 {
@@ -52,10 +49,10 @@ public class SchemaQuery extends SchemaStatement
     final Object[][] randomBuffer;
     final Random random = new Random();
 
-    public SchemaQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, Integer thriftId, PreparedStatement statement, ConsistencyLevel cl, ArgSelect argSelect)
+    public SchemaQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, PreparedStatement statement, ConsistencyLevel cl, ArgSelect argSelect)
     {
         super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), settings.insert.rowPopulationRatio.get(), argSelect == ArgSelect.MULTIROW ? statement.getVariables().size() : 1), statement,
-              statement.getVariables().asList().stream().map(d -> d.getName()).collect(Collectors.toList()), thriftId, cl);
+              statement.getVariables().asList().stream().map(d -> d.getName()).collect(Collectors.toList()), cl);
         this.argSelect = argSelect;
         randomBuffer = new Object[argumentIndex.length][argumentIndex.length];
     }
@@ -73,24 +70,6 @@ public class SchemaQuery extends SchemaStatement
         {
             ResultSet rs = client.getSession().execute(bindArgs());
             rowCount = rs.all().size();
-            partitionCount = Math.min(1, rowCount);
-            return true;
-        }
-    }
-
-    private class ThriftRun extends Runner
-    {
-        final ThriftClient client;
-
-        private ThriftRun(ThriftClient client)
-        {
-            this.client = client;
-        }
-
-        public boolean run() throws Exception
-        {
-            CqlResult rs = client.execute_prepared_cql3_query(thriftId, partitions.get(0).getToken(), thriftArgs(), ThriftConversion.toThrift(cl));
-            rowCount = rs.getRowsSize();
             partitionCount = Math.min(1, rowCount);
             return true;
         }
@@ -132,36 +111,9 @@ public class SchemaQuery extends SchemaStatement
         }
     }
 
-    List<ByteBuffer> thriftArgs()
-    {
-        switch (argSelect)
-        {
-            case MULTIROW:
-                List<ByteBuffer> args = new ArrayList<>();
-                int c = fillRandom();
-                for (int i = 0 ; i < argumentIndex.length ; i++)
-                {
-                    int argIndex = argumentIndex[i];
-                    args.add(spec.partitionGenerator.convert(argIndex, randomBuffer[argIndex < 0 ? 0 : random.nextInt(c)][i]));
-                }
-                return args;
-            case SAMEROW:
-                return thriftRowArgs(partitions.get(0).next());
-            default:
-                throw new IllegalStateException();
-        }
-    }
-
     @Override
     public void run(JavaDriverClient client) throws IOException
     {
         timeWithRetry(new JavaDriverRun(client));
     }
-
-    @Override
-    public void run(ThriftClient client) throws IOException
-    {
-        timeWithRetry(new ThriftRun(client));
-    }
-
 }

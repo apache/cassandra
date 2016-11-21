@@ -396,15 +396,14 @@ Compact tables
 
 .. warning:: Since Cassandra 3.0, compact tables have the exact same layout internally than non compact ones (for the
    same schema obviously), and declaring a table compact **only** creates artificial limitations on the table definition
-   and usage that are necessary to ensure backward compatibility with the deprecated Thrift API. And as ``COMPACT
+   and usage. It only exists for historical reason and is preserved for backward compatibility And as ``COMPACT
    STORAGE`` cannot, as of Cassandra |version|, be removed, it is strongly discouraged to create new table with the
    ``COMPACT STORAGE`` option.
 
-A *compact* table is one defined with the ``COMPACT STORAGE`` option. This option is mainly targeted towards backward
-compatibility for definitions created before CQL version 3 (see `www.datastax.com/dev/blog/thrift-to-cql3
-<http://www.datastax.com/dev/blog/thrift-to-cql3>`__ for more details) and shouldn't be used for new tables. Declaring a
-table with this option creates limitations for the table which are largely arbitrary but necessary for backward
-compatibility with the (deprecated) Thrift API. Amongst those limitation:
+A *compact* table is one defined with the ``COMPACT STORAGE`` option. This option is only maintained for backward
+compatibility for definitions created before CQL version 3 and shouldn't be used for new tables. Declaring a
+table with this option creates limitations for the table which are largely arbitrary (and exists for historical
+reasons). Amongst those limitation:
 
 - a compact table cannot use collections nor static columns.
 - if a compact table has at least one clustering column, then it must have *exactly* one column outside of the primary

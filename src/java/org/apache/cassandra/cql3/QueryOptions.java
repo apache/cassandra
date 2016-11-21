@@ -52,11 +52,6 @@ public abstract class QueryOptions
     // A cache of bind values parsed as JSON, see getJsonColumnValue for details.
     private List<Map<ColumnIdentifier, Term>> jsonValuesCache;
 
-    public static QueryOptions fromThrift(ConsistencyLevel consistency, List<ByteBuffer> values)
-    {
-        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
-    }
-
     public static QueryOptions forInternalCalls(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
         return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
@@ -178,8 +173,7 @@ public abstract class QueryOptions
     }
 
     /**
-     * The protocol version for the query. Will be 3 if the object don't come from
-     * a native protocol request (i.e. it's been allocated locally or by CQL-over-thrift).
+     * The protocol version for the query.
      */
     public abstract ProtocolVersion getProtocolVersion();
 

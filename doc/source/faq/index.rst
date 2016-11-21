@@ -58,7 +58,7 @@ What ports does Cassandra use?
 ------------------------------
 
 By default, Cassandra uses 7000 for cluster communication (7001 if SSL is enabled),  9042 for native protocol clients,
-and 7199 for JMX (and 9160 for the deprecated Thrift interface). The internode communication and native protocol ports
+and 7199 for JMX. The internode communication and native protocol ports
 are configurable in the :ref:`cassandra-yaml`. The JMX port is configurable in ``cassandra-env.sh`` (through JVM
 options). All ports are TCP.
 

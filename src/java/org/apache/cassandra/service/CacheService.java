@@ -40,7 +40,6 @@ import org.apache.cassandra.cache.*;
 import org.apache.cassandra.cache.AutoSavingCache.CacheSerializer;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
@@ -50,7 +49,6 @@ import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -357,58 +355,25 @@ public class CacheService implements CacheServiceMBean
         {
             assert(cfs.metadata.isCounter());
             out.write(cfs.metadata.ksAndCFBytes);
-            ByteBufferUtil.writeWithLength(key.partitionKey, out);
-            ByteBufferUtil.writeWithLength(key.cellName, out);
+            key.write(out);
         }
 
         public Future<Pair<CounterCacheKey, ClockAndCount>> deserialize(DataInputPlus in, final ColumnFamilyStore cfs) throws IOException
         {
             //Keyspace and CF name are deserialized by AutoSaving cache and used to fetch the CFS provided as a
             //parameter so they aren't deserialized here, even though they are serialized by this serializer
-            final ByteBuffer partitionKey = ByteBufferUtil.readWithLength(in);
-            final ByteBuffer cellName = ByteBufferUtil.readWithLength(in);
+            final CounterCacheKey cacheKey = CounterCacheKey.read(cfs.metadata.ksAndCFName, in);
             if (cfs == null || !cfs.metadata.isCounter() || !cfs.isCounterCacheEnabled())
                 return null;
-            assert(cfs.metadata.isCounter());
+
             return StageManager.getStage(Stage.READ).submit(new Callable<Pair<CounterCacheKey, ClockAndCount>>()
             {
                 public Pair<CounterCacheKey, ClockAndCount> call() throws Exception
                 {
-                    DecoratedKey key = cfs.decorateKey(partitionKey);
-                    LegacyLayout.LegacyCellName name = LegacyLayout.decodeCellName(cfs.metadata, cellName);
-                    ColumnDefinition column = name.column;
-                    CellPath path = name.collectionElement == null ? null : CellPath.create(name.collectionElement);
-
-                    int nowInSec = FBUtilities.nowInSeconds();
-                    ColumnFilter.Builder builder = ColumnFilter.selectionBuilder();
-                    if (path == null)
-                        builder.add(column);
-                    else
-                        builder.select(column, path);
-
-                    ClusteringIndexFilter filter = new ClusteringIndexNamesFilter(FBUtilities.<Clustering>singleton(name.clustering, cfs.metadata.comparator), false);
-                    SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(cfs.metadata, nowInSec, key, builder.build(), filter);
-                    try (ReadExecutionController controller = cmd.executionController();
-                         RowIterator iter = UnfilteredRowIterators.filter(cmd.queryMemtableAndDisk(cfs, controller), nowInSec))
-                    {
-                        Cell cell;
-                        if (column.isStatic())
-                        {
-                            cell = iter.staticRow().getCell(column);
-                        }
-                        else
-                        {
-                            if (!iter.hasNext())
-                                return null;
-                            cell = iter.next().getCell(column);
-                        }
-
-                        if (cell == null)
-                            return null;
-
-                        ClockAndCount clockAndCount = CounterContext.instance().getLocalClockAndCount(cell.value());
-                        return Pair.create(CounterCacheKey.create(cfs.metadata.ksAndCFName, partitionKey, name.clustering, column, path), clockAndCount);
-                    }
+                    ByteBuffer value = cacheKey.readCounterValue(cfs);
+                    return value == null
+                         ? null
+                         : Pair.create(cacheKey, CounterContext.instance().getLocalClockAndCount(value));
                 }
             });
         }
@@ -487,7 +452,7 @@ public class CacheService implements CacheServiceMBean
                 // wrong is during upgrade, in which case we fail at deserialization. This is not a huge deal however since 1) this is unlikely enough that
                 // this won't affect many users (if any) and only once, 2) this doesn't prevent the node from starting and 3) CASSANDRA-10219 shows that this
                 // part of the code has been broken for a while without anyone noticing (it is, btw, still broken until CASSANDRA-10219 is fixed).
-                RowIndexEntry.Serializer.skipForCache(input, BigFormat.instance.getLatestVersion());
+                RowIndexEntry.Serializer.skipForCache(input);
                 return null;
             }
             RowIndexEntry.IndexSerializer<?> indexSerializer = reader.descriptor.getFormat().getIndexSerializer(reader.metadata,

@@ -43,10 +43,9 @@ public class SSTableIterator extends AbstractSSTableIterator
                            RowIndexEntry indexEntry,
                            Slices slices,
                            ColumnFilter columns,
-                           boolean isForThrift,
                            FileHandle ifile)
     {
-        super(sstable, file, key, indexEntry, slices, columns, isForThrift, ifile);
+        super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
     protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)

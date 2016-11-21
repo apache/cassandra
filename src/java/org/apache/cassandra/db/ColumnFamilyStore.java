@@ -1730,7 +1730,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                  keyIter.hasNext(); )
             {
                 CounterCacheKey key = keyIter.next();
-                DecoratedKey dk = decorateKey(ByteBuffer.wrap(key.partitionKey));
+                DecoratedKey dk = decorateKey(key.partitionKey());
                 if (key.ksAndCFName.equals(metadata.ksAndCFName) && !Range.isInRanges(dk.getToken(), ranges))
                     CacheService.instance.counterCache.remove(key);
             }
@@ -2006,7 +2006,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
              keyIter.hasNext(); )
         {
             CounterCacheKey key = keyIter.next();
-            DecoratedKey dk = decorateKey(ByteBuffer.wrap(key.partitionKey));
+            DecoratedKey dk = decorateKey(key.partitionKey());
             if (key.ksAndCFName.equals(metadata.ksAndCFName) && Bounds.isInBounds(dk.getToken(), boundsToInvalidate))
             {
                 CacheService.instance.counterCache.remove(key);

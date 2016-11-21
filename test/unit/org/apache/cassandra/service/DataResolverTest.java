@@ -330,7 +330,7 @@ public class DataResolverTest
                                                                                                        .add("c2", "v2")
                                                                                                        .buildUpdate())));
         InetAddress peer2 = peer();
-        resolver.preprocess(readResponseMessage(peer2, EmptyIterators.unfilteredPartition(cfm, false)));
+        resolver.preprocess(readResponseMessage(peer2, EmptyIterators.unfilteredPartition(cfm)));
 
         try(PartitionIterator data = resolver.resolve();
             RowIterator rows = Iterators.getOnlyElement(data))
@@ -352,8 +352,8 @@ public class DataResolverTest
     public void testResolveWithBothEmpty()
     {
         DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
-        resolver.preprocess(readResponseMessage(peer(), EmptyIterators.unfilteredPartition(cfm, false)));
-        resolver.preprocess(readResponseMessage(peer(), EmptyIterators.unfilteredPartition(cfm, false)));
+        resolver.preprocess(readResponseMessage(peer(), EmptyIterators.unfilteredPartition(cfm)));
+        resolver.preprocess(readResponseMessage(peer(), EmptyIterators.unfilteredPartition(cfm)));
 
         try(PartitionIterator data = resolver.resolve())
         {
@@ -848,7 +848,7 @@ public class DataResolverTest
 
     private UnfilteredPartitionIterator fullPartitionDelete(CFMetaData cfm, DecoratedKey dk, long timestamp, int nowInSec)
     {
-        return new SingletonUnfilteredPartitionIterator(PartitionUpdate.fullPartitionDelete(cfm, dk, timestamp, nowInSec).unfilteredIterator(), false);
+        return new SingletonUnfilteredPartitionIterator(PartitionUpdate.fullPartitionDelete(cfm, dk, timestamp, nowInSec).unfilteredIterator());
     }
 
     private static class MessageRecorder implements IMessageSink
@@ -868,6 +868,6 @@ public class DataResolverTest
 
     private UnfilteredPartitionIterator iter(PartitionUpdate update)
     {
-        return new SingletonUnfilteredPartitionIterator(update.unfilteredIterator(), false);
+        return new SingletonUnfilteredPartitionIterator(update.unfilteredIterator());
     }
 }

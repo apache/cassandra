@@ -1896,9 +1896,10 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
-     * Estimate the number of result rows (either cql3 rows or "thrift" rows, as called for by the command) per
-     * range in the ring based on our local data.  This assumes that ranges are uniformly distributed across the cluster
-     * and that the queried data is also uniformly distributed.
+     * Estimate the number of result rows per range in the ring based on our local data.
+     * <p>
+     * This assumes that ranges are uniformly distributed across the cluster and
+     * that the queried data is also uniformly distributed.
      */
     private static float estimateResultsPerRange(PartitionRangeReadCommand command, Keyspace keyspace)
     {

@@ -1,4 +1,5 @@
 4.0
+ * Thrift removal (CASSANDRA-11115)
  * Remove pre-3.0 compatibility code for 4.0 (CASSANDRA-12716)
  * Add column definition kind to dropped columns in schema (CASSANDRA-12705)
  * Add (automate) Nodetool Documentation (CASSANDRA-12672)

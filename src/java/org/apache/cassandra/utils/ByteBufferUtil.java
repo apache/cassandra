@@ -411,6 +411,15 @@ public class ByteBufferUtil
         return bytes;
     }
 
+    public static byte[] readBytesWithLength(DataInput in) throws IOException
+    {
+        int length = in.readInt();
+        if (length < 0)
+            throw new IOException("Corrupt (negative) value length encountered");
+
+        return readBytes(in, length);
+    }
+
     /**
      * Convert a byte buffer to an integer.
      * Does not change the byte buffer position.

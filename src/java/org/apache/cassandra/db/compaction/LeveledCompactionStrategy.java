@@ -402,12 +402,6 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             return filtered;
         }
 
-
-        public boolean isForThrift()
-        {
-            return false;
-        }
-
         public CFMetaData metadata()
         {
             return sstables.get(0).metadata; // The ctor checks we have at least one sstable

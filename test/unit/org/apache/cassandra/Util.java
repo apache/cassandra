@@ -680,7 +680,6 @@ public class Util
         {
             super(original.isDigestQuery(),
                   original.digestVersion(),
-                  original.isForThrift(),
                   original.metadata(),
                   original.nowInSec(),
                   original.columnFilter(),

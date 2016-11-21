@@ -45,8 +45,6 @@ install: build
 	# Copy in the jar and symlink to something stable
 	dh_install build/apache-cassandra-$(VERSION).jar \
 		usr/share/cassandra
-	dh_install build/apache-cassandra-thrift-$(VERSION).jar \
-		usr/share/cassandra
 
 	# Copy stress jars
 	dh_install build/tools/lib/stress.jar \

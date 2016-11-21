@@ -34,13 +34,13 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.Validation;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -148,7 +148,7 @@ public class ClientState
     }
 
     /**
-     * @return a ClientState object for external clients (thrift/native protocol users).
+     * @return a ClientState object for external clients (native protocol users).
      */
     public static ClientState forExternalCalls(SocketAddress remoteAddress)
     {
@@ -290,7 +290,7 @@ public class ClientState
     public void hasColumnFamilyAccess(String keyspace, String columnFamily, Permission perm)
     throws UnauthorizedException, InvalidRequestException
     {
-        ThriftValidation.validateColumnFamily(keyspace, columnFamily);
+        Validation.validateColumnFamily(keyspace, columnFamily);
         hasAccess(keyspace, perm, DataResource.table(keyspace, columnFamily));
     }
 

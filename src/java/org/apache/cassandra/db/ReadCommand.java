@@ -84,11 +84,10 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     private boolean isDigestQuery;
     // if a digest query, the version for which the digest is expected. Ignored if not a digest.
     private int digestVersion;
-    private final boolean isForThrift;
 
     protected static abstract class SelectionDeserializer
     {
-        public abstract ReadCommand deserialize(DataInputPlus in, int version, boolean isDigest, int digestVersion, boolean isForThrift, CFMetaData metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits, Optional<IndexMetadata> index) throws IOException;
+        public abstract ReadCommand deserialize(DataInputPlus in, int version, boolean isDigest, int digestVersion, CFMetaData metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits, Optional<IndexMetadata> index) throws IOException;
     }
 
     protected enum Kind
@@ -107,7 +106,6 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     protected ReadCommand(Kind kind,
                           boolean isDigestQuery,
                           int digestVersion,
-                          boolean isForThrift,
                           CFMetaData metadata,
                           int nowInSec,
                           ColumnFilter columnFilter,
@@ -117,7 +115,6 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
         this.kind = kind;
         this.isDigestQuery = isDigestQuery;
         this.digestVersion = digestVersion;
-        this.isForThrift = isForThrift;
         this.metadata = metadata;
         this.nowInSec = nowInSec;
         this.columnFilter = columnFilter;
@@ -251,16 +248,6 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     {
         this.digestVersion = digestVersion;
         return this;
-    }
-
-    /**
-     * Whether this query is for thrift or not.
-     *
-     * @return whether this query is for thrift.
-     */
-    public boolean isForThrift()
-    {
-        return isForThrift;
     }
 
     /**
@@ -551,12 +538,11 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     // are to some extend an artefact of compaction lagging behind and hence counting them is somewhat unintuitive).
     protected UnfilteredPartitionIterator withoutPurgeableTombstones(UnfilteredPartitionIterator iterator, ColumnFamilyStore cfs)
     {
-        final boolean isForThrift = iterator.isForThrift();
         class WithoutPurgeableTombstones extends PurgeFunction
         {
             public WithoutPurgeableTombstones()
             {
-                super(isForThrift, nowInSec(), cfs.gcBefore(nowInSec()), oldestUnrepairedTombstone(), cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones());
+                super(nowInSec(), cfs.gcBefore(nowInSec()), oldestUnrepairedTombstone(), cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones());
             }
 
             protected Predicate<Long> getPurgeEvaluator()
@@ -606,11 +592,11 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             return (flags & 0x01) != 0;
         }
 
-        private static int thriftFlag(boolean isForThrift)
-        {
-            return isForThrift ? 0x02 : 0;
-        }
-
+        // We don't set this flag anymore, but still look if we receive a
+        // command with it set in case someone is using thrift a mixed 3.0/4.0+
+        // cluster (which is unsupported). This is also a reminder for not
+        // re-using this flag until we drop 3.0/3.X compatibility (since it's
+        // used by these release for thrift and would thus confuse things)
         private static boolean isForThrift(int flags)
         {
             return (flags & 0x02) != 0;
@@ -629,7 +615,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
         public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
         {
             out.writeByte(command.kind.ordinal());
-            out.writeByte(digestFlag(command.isDigestQuery()) | thriftFlag(command.isForThrift()) | indexFlag(command.index.isPresent()));
+            out.writeByte(digestFlag(command.isDigestQuery()) | indexFlag(command.index.isPresent()));
             if (command.isDigestQuery())
                 out.writeUnsignedVInt(command.digestVersion());
             CFMetaData.serializer.serialize(command.metadata(), out, version);
@@ -648,7 +634,14 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             Kind kind = Kind.values()[in.readByte()];
             int flags = in.readByte();
             boolean isDigest = isDigest(flags);
-            boolean isForThrift = isForThrift(flags);
+            // Shouldn't happen or it's a user error (see comment above) but
+            // better complain loudly than doing the wrong thing.
+            if (isForThrift(flags))
+                throw new IllegalStateException("Received a command with the thrift flag set. "
+                                              + "This means thrift is in use in a mixed 3.0/3.X and 4.0+ cluster, "
+                                              + "which is unsupported. Make sure to stop using thrift before "
+                                              + "upgrading to 4.0");
+
             boolean hasIndex = hasIndex(flags);
             int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
             CFMetaData metadata = CFMetaData.serializer.deserialize(in, version);
@@ -660,7 +653,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
                                           ? deserializeIndexMetadata(in, version, metadata)
                                           : Optional.empty();
 
-            return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, index);
+            return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, metadata, nowInSec, columnFilter, rowFilter, limits, index);
         }
 
         private Optional<IndexMetadata> deserializeIndexMetadata(DataInputPlus in, int version, CFMetaData cfm) throws IOException

@@ -60,7 +60,6 @@ public class BigTableScanner implements ISSTableScanner
     private final ColumnFilter columns;
     private final DataRange dataRange;
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
-    private final boolean isForThrift;
     private long startScan = -1;
     private long bytesScanned = 0;
 
@@ -69,12 +68,12 @@ public class BigTableScanner implements ISSTableScanner
     // Full scan of the sstables
     public static ISSTableScanner getScanner(SSTableReader sstable)
     {
-        return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata), null, false, Iterators.singletonIterator(fullRange(sstable)));
+        return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata), null, Iterators.singletonIterator(fullRange(sstable)));
     }
 
-    public static ISSTableScanner getScanner(SSTableReader sstable, ColumnFilter columns, DataRange dataRange, boolean isForThrift)
+    public static ISSTableScanner getScanner(SSTableReader sstable, ColumnFilter columns, DataRange dataRange)
     {
-        return new BigTableScanner(sstable, columns, dataRange, isForThrift, makeBounds(sstable, dataRange).iterator());
+        return new BigTableScanner(sstable, columns, dataRange, makeBounds(sstable, dataRange).iterator());
     }
 
     public static ISSTableScanner getScanner(SSTableReader sstable, Collection<Range<Token>> tokenRanges)
@@ -84,15 +83,15 @@ public class BigTableScanner implements ISSTableScanner
         if (positions.isEmpty())
             return new EmptySSTableScanner(sstable);
 
-        return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata), null, false, makeBounds(sstable, tokenRanges).iterator());
+        return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata), null, makeBounds(sstable, tokenRanges).iterator());
     }
 
     public static ISSTableScanner getScanner(SSTableReader sstable, Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
     {
-        return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata), null, false, rangeIterator);
+        return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata), null, rangeIterator);
     }
 
-    private BigTableScanner(SSTableReader sstable, ColumnFilter columns, DataRange dataRange, boolean isForThrift, Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
+    private BigTableScanner(SSTableReader sstable, ColumnFilter columns, DataRange dataRange, Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
     {
         assert sstable != null;
 
@@ -104,7 +103,6 @@ public class BigTableScanner implements ISSTableScanner
         this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata,
                                                                                                         sstable.descriptor.version,
                                                                                                         sstable.header);
-        this.isForThrift = isForThrift;
         this.rangeIterator = rangeIterator;
     }
 
@@ -182,7 +180,7 @@ public class BigTableScanner implements ISSTableScanner
                 if (indexDecoratedKey.compareTo(currentRange.left) > 0 || currentRange.contains(indexDecoratedKey))
                 {
                     // Found, just read the dataPosition and seek into index and data files
-                    long dataPosition = RowIndexEntry.Serializer.readPosition(ifile, sstable.descriptor.version);
+                    long dataPosition = RowIndexEntry.Serializer.readPosition(ifile);
                     ifile.seek(indexPosition);
                     dfile.seek(dataPosition);
                     break;
@@ -237,11 +235,6 @@ public class BigTableScanner implements ISSTableScanner
     public String getBackingFiles()
     {
         return sstable.toString();
-    }
-
-    public boolean isForThrift()
-    {
-        return isForThrift;
     }
 
     public CFMetaData metadata()
@@ -359,7 +352,7 @@ public class BigTableScanner implements ISSTableScanner
                             }
 
                             ClusteringIndexFilter filter = dataRange.clusteringIndexFilter(partitionKey());
-                            return sstable.iterator(dfile, partitionKey(), currentEntry, filter.getSlices(BigTableScanner.this.metadata()), columns, filter.isReversed(), isForThrift);
+                            return sstable.iterator(dfile, partitionKey(), currentEntry, filter.getSlices(BigTableScanner.this.metadata()), columns, filter.isReversed());
                         }
                         catch (CorruptSSTableException | IOException e)
                         {
@@ -419,11 +412,6 @@ public class BigTableScanner implements ISSTableScanner
         public String getBackingFiles()
         {
             return sstable.getFilename();
-        }
-
-        public boolean isForThrift()
-        {
-            return false;
         }
 
         public CFMetaData metadata()

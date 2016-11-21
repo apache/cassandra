@@ -46,13 +46,6 @@ Written by Adrien Grand.
 Contains bindings to the C LZ4 implementation (http://code.google.com/p/lz4/)
 Copyright (C) 2011-2012, Yann Collet.
 
-Alternative Disruptor backed thrift server from https://github.com/xedin/disruptor_thrift_server
-Written by Pavel Yaskevich.
-
-LMAX Disruptor
-(http://lmax-exchange.github.io/disruptor/)
-Copyright 2011 LMAX Ltd.
-
 Airline
 (https://github.com/airlift/airline)
 Copyright 2011, Dain Sundstrom dain@iq80.com

@@ -52,7 +52,7 @@ public final class FilteredPartitions extends BasePartitions<RowIterator, BasePa
      */
     public static PartitionIterator filter(UnfilteredPartitionIterator iterator, int nowInSecs)
     {
-        Filter filter = new Filter(!iterator.isForThrift(), nowInSecs);
+        Filter filter = new Filter(true, nowInSecs);
         if (iterator instanceof UnfilteredPartitions)
             return new FilteredPartitions(filter, (UnfilteredPartitions) iterator);
         return new FilteredPartitions(iterator, filter);

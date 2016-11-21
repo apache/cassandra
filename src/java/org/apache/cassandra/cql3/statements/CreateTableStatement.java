@@ -292,11 +292,11 @@ public class CreateTableStatement extends SchemaAlteringStatement
             }
 
             boolean useCompactStorage = properties.useCompactStorage;
-            // Dense means that on the thrift side, no part of the "thrift column name" stores a "CQL/metadata column name".
-            // This means COMPACT STORAGE with at least one clustering type (otherwise it's a thrift "static" CF).
+            // Dense meant, back with thrift, that no part of the "thrift column name" stores a "CQL/metadata column name".
+            // This means COMPACT STORAGE with at least one clustering type (otherwise it's a "static" CF).
             stmt.isDense = useCompactStorage && !stmt.clusteringTypes.isEmpty();
-            // Compound means that on the thrift side, the "thrift column name" is a composite one. It's the case unless
-            // we use compact storage COMPACT STORAGE and we have either no clustering columns (thrift "static" CF) or
+            // Compound meant the "thrift column name" was a composite one. It's the case unless
+            // we use compact storage COMPACT STORAGE and we have either no clustering columns ("static" CF) or
             // only one of them (if more than one, it's a "dense composite").
             stmt.isCompound = !(useCompactStorage && stmt.clusteringTypes.size() <= 1);
 

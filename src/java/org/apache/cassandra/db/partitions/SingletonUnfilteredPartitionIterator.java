@@ -25,18 +25,11 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 public class SingletonUnfilteredPartitionIterator implements UnfilteredPartitionIterator
 {
     private final UnfilteredRowIterator iter;
-    private final boolean isForThrift;
     private boolean returned;
 
-    public SingletonUnfilteredPartitionIterator(UnfilteredRowIterator iter, boolean isForThrift)
+    public SingletonUnfilteredPartitionIterator(UnfilteredRowIterator iter)
     {
         this.iter = iter;
-        this.isForThrift = isForThrift;
-    }
-
-    public boolean isForThrift()
-    {
-        return isForThrift;
     }
 
     public CFMetaData metadata()

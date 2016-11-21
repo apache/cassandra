@@ -141,7 +141,7 @@ public class RowIndexEntryTest extends CQLTester
         SerializationHeader header = new SerializationHeader(true, cfMeta, cfMeta.partitionColumns(), EncodingStats.NO_STATS);
 
         // create C-11206 + old serializer instances
-        RowIndexEntry.IndexSerializer rieSerializer = new RowIndexEntry.Serializer(cfMeta, version, header);
+        RowIndexEntry.IndexSerializer rieSerializer = new RowIndexEntry.Serializer(version, header);
         Pre_C_11206_RowIndexEntry.Serializer oldSerializer = new Pre_C_11206_RowIndexEntry.Serializer(cfMeta, version, header);
 
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" })

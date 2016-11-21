@@ -153,11 +153,6 @@ public class QueryPlan
             }
         }
 
-        public boolean isForThrift()
-        {
-            return controller.isForThrift();
-        }
-
         public CFMetaData metadata()
         {
             return controller.metadata();

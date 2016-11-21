@@ -289,11 +289,8 @@
         <filter targetName="maven-ant-tasks-retrieve-build" isVisible="false" />
         <filter targetName="maven-ant-tasks-retrieve-test" isVisible="false" />
         <filter targetName="maven-ant-tasks-retrieve-pig-test" isVisible="false" />
-        <filter targetName="check-gen-thrift-java" isVisible="false" />
-        <filter targetName="gen-thrift-java" isVisible="true" />
         <filter targetName="_write-java-license-headers" isVisible="false" />
         <filter targetName="write-java-license-headers" isVisible="true" />
-        <filter targetName="gen-thrift-py" isVisible="true" />
         <filter targetName="createVersionPropFile" isVisible="false" />
         <filter targetName="test-run" isVisible="true" />
         <filter targetName="build" isVisible="true" />

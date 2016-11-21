@@ -43,7 +43,6 @@ import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
 public class CreateViewStatement extends SchemaAlteringStatement
@@ -133,7 +132,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
         if (!baseName.getKeyspace().equals(keyspace()))
             throw new InvalidRequestException("Cannot create a materialized view on a table in a separate keyspace");
 
-        CFMetaData cfm = ThriftValidation.validateColumnFamily(baseName.getKeyspace(), baseName.getColumnFamily());
+        CFMetaData cfm = Validation.validateColumnFamily(baseName.getKeyspace(), baseName.getColumnFamily());
 
         if (cfm.isCounter())
             throw new InvalidRequestException("Materialized views are not supported on counter tables");

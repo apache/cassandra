@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import com.codahale.metrics.Histogram;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.ISerializer;
@@ -173,16 +172,6 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * The length of the row header (partition key, partition deletion and static row).
-     * This value is only provided for indexed entries and this method will throw
-     * {@code UnsupportedOperationException} if {@code !isIndexed()}.
-     */
-    public long headerLength()
-    {
-        throw new UnsupportedOperationException();
-    }
-
     public int columnsIndexCount()
     {
         return 0;
@@ -251,7 +240,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         private final IndexInfo.Serializer idxInfoSerializer;
         private final Version version;
 
-        public Serializer(CFMetaData metadata, Version version, SerializationHeader header)
+        public Serializer(Version version, SerializationHeader header)
         {
             this.idxInfoSerializer = IndexInfo.serializer(version, header);
             this.version = version;
@@ -289,7 +278,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             }
         }
 
-        public static void skipForCache(DataInputPlus in, Version version) throws IOException
+        public static void skipForCache(DataInputPlus in) throws IOException
         {
             /* long position = */in.readUnsignedVInt();
             switch (in.readByte())
@@ -351,18 +340,18 @@ public class RowIndexEntry<T> implements IMeasurableMemory
          * of reading an entry, so this is only useful if you know what you are doing and in most case 'deserialize'
          * should be used instead.
          */
-        public static long readPosition(DataInputPlus in, Version version) throws IOException
+        public static long readPosition(DataInputPlus in) throws IOException
         {
             return in.readUnsignedVInt();
         }
 
         public static void skip(DataInputPlus in, Version version) throws IOException
         {
-            readPosition(in, version);
-            skipPromotedIndex(in, version);
+            readPosition(in);
+            skipPromotedIndex(in);
         }
 
-        private static void skipPromotedIndex(DataInputPlus in, Version version) throws IOException
+        private static void skipPromotedIndex(DataInputPlus in) throws IOException
         {
             int size = (int)in.readUnsignedVInt();
             if (size <= 0)
@@ -483,36 +472,6 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             this.idxInfoSerializer = idxInfoSerializer;
         }
 
-        /**
-         * Constructor called from {@link LegacyShallowIndexedEntry#deserialize(org.apache.cassandra.io.util.DataInputPlus, long, org.apache.cassandra.io.sstable.IndexInfo.Serializer)}.
-         * Only for legacy sstables.
-         */
-        private IndexedEntry(long dataFilePosition, DataInputPlus in, IndexInfo.Serializer idxInfoSerializer) throws IOException
-        {
-            super(dataFilePosition);
-
-            long headerLength = 0;
-            this.deletionTime = DeletionTime.serializer.deserialize(in);
-            int columnsIndexCount = in.readInt();
-
-            TrackedDataInputPlus trackedIn = new TrackedDataInputPlus(in);
-
-            this.columnsIndex = new IndexInfo[columnsIndexCount];
-            for (int i = 0; i < columnsIndexCount; i++)
-            {
-                this.columnsIndex[i] = idxInfoSerializer.deserialize(trackedIn);
-                if (i == 0)
-                    headerLength = this.columnsIndex[i].offset;
-            }
-            this.headerLength = headerLength;
-
-            this.offsets = null;
-
-            this.indexedPartSize = (int) trackedIn.getBytesRead();
-
-            this.idxInfoSerializer = idxInfoSerializer;
-        }
-
         @Override
         public boolean indexOnHeap()
         {
@@ -529,12 +488,6 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         public DeletionTime deletionTime()
         {
             return deletionTime;
-        }
-
-        @Override
-        public long headerLength()
-        {
-            return headerLength;
         }
 
         @Override
@@ -693,12 +646,6 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         public DeletionTime deletionTime()
         {
             return deletionTime;
-        }
-
-        @Override
-        public long headerLength()
-        {
-            return headerLength;
         }
 
         @Override

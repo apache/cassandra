@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
+import org.apache.cassandra.cql3.Validation;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -31,7 +32,6 @@ import org.apache.cassandra.schema.TriggerMetadata;
 import org.apache.cassandra.schema.Triggers;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.triggers.TriggerExecutor;
 
@@ -58,7 +58,7 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
 
     public void validate(ClientState state) throws RequestValidationException
     {
-        CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+        CFMetaData cfm = Validation.validateColumnFamily(keyspace(), columnFamily());
         if (cfm.isView())
             throw new InvalidRequestException("Cannot CREATE TRIGGER against a materialized view");
 

@@ -54,9 +54,6 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
      * those parts of the clustering columns and amongst the others, regular and
      * static ones.
      *
-     * Note that thrift only knows about definitions of type REGULAR (and
-     * the ones whose position == NO_POSITION (-1)).
-     *
      * IMPORTANT: this enum is serialized as toString() and deserialized by calling
      * Kind.valueOf(), so do not override toString() or rename existing values.
      */
@@ -311,23 +308,6 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
     }
 
     /**
-     * Whether the name of this definition is serialized in the cell nane, i.e. whether
-     * it's not just a non-stored CQL metadata.
-     */
-    public boolean isPartOfCellName(boolean isCQL3Table, boolean isSuper)
-    {
-        // When converting CQL3 tables to thrift, any regular or static column ends up in the cell name.
-        // When it's a compact table however, the REGULAR definition is the name for the cell value of "dynamic"
-        // column (so it's not part of the cell name) and it's static columns that ends up in the cell name.
-        if (isCQL3Table)
-            return kind == Kind.REGULAR || kind == Kind.STATIC;
-        else if (isSuper)
-            return kind == Kind.REGULAR;
-        else
-            return kind == Kind.STATIC;
-    }
-
-    /**
      * Converts the specified column definitions into column identifiers.
      *
      * @param definitions the column definitions to convert.
@@ -463,7 +443,7 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
     }
 
     /**
-     * Because Thrift-created tables may have a non-text comparator, we cannot determine the proper 'key' until
+     * Because legacy-created tables may have a non-text comparator, we cannot determine the proper 'key' until
      * we know the comparator. ColumnDefinition.Raw is a placeholder that can be converted to a real ColumnIdentifier
      * once the comparator is known with prepare(). This should only be used with identifiers that are actual
      * column names. See CASSANDRA-8178 for more background.
@@ -543,19 +523,19 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
                 if (!cfm.isStaticCompactTable())
                     return ColumnIdentifier.getInterned(text, true);
 
-                AbstractType<?> thriftColumnNameType = cfm.thriftColumnNameType();
-                if (thriftColumnNameType instanceof UTF8Type)
+                AbstractType<?> columnNameType = cfm.staticCompactOrSuperTableColumnNameType();
+                if (columnNameType instanceof UTF8Type)
                     return ColumnIdentifier.getInterned(text, true);
 
-                // We have a Thrift-created table with a non-text comparator. Check if we have a match column, otherwise assume we should use
-                // thriftColumnNameType
+                // We have a legacy-created table with a non-text comparator. Check if we have a matching column, otherwise assume we should use
+                // columnNameType
                 ByteBuffer bufferName = ByteBufferUtil.bytes(text);
                 for (ColumnDefinition def : cfm.allColumns())
                 {
                     if (def.name.bytes.equals(bufferName))
                         return def.name;
                 }
-                return ColumnIdentifier.getInterned(thriftColumnNameType, thriftColumnNameType.fromString(text), text);
+                return ColumnIdentifier.getInterned(columnNameType, columnNameType.fromString(text), text);
             }
 
             public ColumnDefinition prepare(CFMetaData cfm)
@@ -563,19 +543,19 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
                 if (!cfm.isStaticCompactTable())
                     return find(cfm);
 
-                AbstractType<?> thriftColumnNameType = cfm.thriftColumnNameType();
-                if (thriftColumnNameType instanceof UTF8Type)
+                AbstractType<?> columnNameType = cfm.staticCompactOrSuperTableColumnNameType();
+                if (columnNameType instanceof UTF8Type)
                     return find(cfm);
 
-                // We have a Thrift-created table with a non-text comparator. Check if we have a match column, otherwise assume we should use
-                // thriftColumnNameType
+                // We have a legacy-created table with a non-text comparator. Check if we have a match column, otherwise assume we should use
+                // columnNameType
                 ByteBuffer bufferName = ByteBufferUtil.bytes(text);
                 for (ColumnDefinition def : cfm.allColumns())
                 {
                     if (def.name.bytes.equals(bufferName))
                         return def;
                 }
-                return find(thriftColumnNameType.fromString(text), cfm);
+                return find(columnNameType.fromString(text), cfm);
             }
 
             private ColumnDefinition find(CFMetaData cfm)

@@ -44,7 +44,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.paxos.Commit;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
@@ -650,7 +649,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                            queryStartNanoTime);
             for (ByteBuffer key : keys)
             {
-                ThriftValidation.validateKey(cfm, key);
+                Validation.validateKey(cfm, key);
                 DecoratedKey dk = cfm.decorateKey(key);
 
                 PartitionUpdate upd = collector.getPartitionUpdate(cfm, dk, options.getConsistency());
@@ -667,7 +666,7 @@ public abstract class ModificationStatement implements CQLStatement
 
             for (ByteBuffer key : keys)
             {
-                ThriftValidation.validateKey(cfm, key);
+                Validation.validateKey(cfm, key);
                 DecoratedKey dk = cfm.decorateKey(key);
 
                 PartitionUpdate upd = collector.getPartitionUpdate(cfm, dk, options.getConsistency());
@@ -789,13 +788,13 @@ public abstract class ModificationStatement implements CQLStatement
         {
             VariableSpecifications boundNames = getBoundVariables();
             ModificationStatement statement = prepare(boundNames);
-            CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+            CFMetaData cfm = Validation.validateColumnFamily(keyspace(), columnFamily());
             return new ParsedStatement.Prepared(statement, boundNames, boundNames.getPartitionKeyBindIndexes(cfm));
         }
 
         public ModificationStatement prepare(VariableSpecifications boundNames)
         {
-            CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+            CFMetaData metadata = Validation.validateColumnFamily(keyspace(), columnFamily());
 
             Attributes preparedAttributes = attrs.prepare(keyspace(), columnFamily());
             preparedAttributes.collectMarkerSpecification(boundNames);

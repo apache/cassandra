@@ -210,7 +210,7 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
             for (int i = 0; i < numberOfPks; i++)
             {
                 DecoratedKey dk = Util.dk(String.format("pkvalue_%07d", i));
-                try (UnfilteredRowIterator rowIter = sstable.iterator(dk, Slices.ALL, ColumnFilter.all(cfs.metadata), false, false))
+                try (UnfilteredRowIterator rowIter = sstable.iterator(dk, Slices.ALL, ColumnFilter.all(cfs.metadata), false))
                 {
                     while (rowIter.hasNext())
                     {

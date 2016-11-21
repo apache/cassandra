@@ -55,19 +55,19 @@ public class BigTableReader extends SSTableReader
         super(desc, components, metadata, maxDataAge, sstableMetadata, openReason, header);
     }
 
-    public UnfilteredRowIterator iterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
+    public UnfilteredRowIterator iterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed)
     {
         RowIndexEntry rie = getPosition(key, SSTableReader.Operator.EQ);
-        return iterator(null, key, rie, slices, selectedColumns, reversed, isForThrift);
+        return iterator(null, key, rie, slices, selectedColumns, reversed);
     }
 
-    public UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
+    public UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
     {
         if (indexEntry == null)
             return UnfilteredRowIterators.noRowsIterator(metadata, key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, reversed);
         return reversed
-             ? new SSTableReversedIterator(this, file, key, indexEntry, slices, selectedColumns, isForThrift, ifile)
-             : new SSTableIterator(this, file, key, indexEntry, slices, selectedColumns, isForThrift, ifile);
+             ? new SSTableReversedIterator(this, file, key, indexEntry, slices, selectedColumns, ifile)
+             : new SSTableIterator(this, file, key, indexEntry, slices, selectedColumns, ifile);
     }
 
     /**
@@ -75,9 +75,9 @@ public class BigTableReader extends SSTableReader
      * @param dataRange filter to use when reading the columns
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, boolean isForThrift)
+    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange)
     {
-        return BigTableScanner.getScanner(this, columns, dataRange, isForThrift);
+        return BigTableScanner.getScanner(this, columns, dataRange);
     }
 
     /**

@@ -75,12 +75,9 @@ public class UpdateStatement extends ModificationStatement
 
             List<Operation> updates = getRegularOperations();
 
-            // For compact table, when we translate it to thrift, we don't have a row marker. So we don't accept an insert/update
-            // that only sets the PK unless the is no declared non-PK columns (in the latter we just set the value empty).
-
-            // For a dense layout, when we translate it to thrift, we don't have a row marker. So we don't accept an insert/update
-            // that only sets the PK unless the is no declared non-PK columns (which we recognize because in that case the compact
-            // value is of type "EmptyType").
+            // For compact table, we don't accept an insert/update that only sets the PK unless the is no
+            // declared non-PK columns (which we recognize because in that case
+            // the compact value is of type "EmptyType").
             if (cfm.isCompactTable() && updates.isEmpty())
             {
                 checkTrue(CompactTables.hasEmptyCompactValue(cfm),

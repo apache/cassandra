@@ -120,7 +120,7 @@ public class SinglePartitionSliceCommandTest
 
         ColumnFilter columnFilter = ColumnFilter.selection(PartitionColumns.of(s));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.NONE, false);
-        ReadCommand cmd = new SinglePartitionReadCommand(false, MessagingService.VERSION_30, true, cfm,
+        ReadCommand cmd = new SinglePartitionReadCommand(false, MessagingService.VERSION_30, cfm,
                                                          FBUtilities.nowInSeconds(),
                                                          columnFilter,
                                                          RowFilter.NONE,
@@ -178,7 +178,7 @@ public class SinglePartitionSliceCommandTest
         ColumnFilter columnFilter = ColumnFilter.selection(PartitionColumns.of(s));
         Slice slice = Slice.make(ClusteringBound.BOTTOM, ClusteringBound.inclusiveEndOf(ByteBufferUtil.bytes("i1")));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.with(cfm.comparator, slice), false);
-        ReadCommand cmd = new SinglePartitionReadCommand(false, MessagingService.VERSION_30, true, cfm,
+        ReadCommand cmd = new SinglePartitionReadCommand(false, MessagingService.VERSION_30, cfm,
                                                          FBUtilities.nowInSeconds(),
                                                          columnFilter,
                                                          RowFilter.NONE,

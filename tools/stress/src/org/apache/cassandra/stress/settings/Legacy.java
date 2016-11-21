@@ -51,7 +51,6 @@ public class Legacy implements Serializable
         availableOptions.addOption("s",  "stdev",                true,   "Standard Deviation for gaussian read key generation, default:0.1");
         availableOptions.addOption("r",  "random",               false,  "Use random key generator for read key generation (STDEV will have no effect), default:false");
         availableOptions.addOption("f",  "file",                 true,   "Write output to given file");
-        availableOptions.addOption("p",  "port",                 true,   "Thrift port, default:9160");
         availableOptions.addOption("o",  "operation",            true,   "Operation to perform (WRITE, READ, READWRITE, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTERWRITE, COUNTER_GET), default:WRITE");
         availableOptions.addOption("u",  "supercolumns",         true,   "Number of super columns per key, default:1");
         availableOptions.addOption("y",  "family-type",          true,   "Column Family Type (Super, Standard), default:Standard");
@@ -60,8 +59,6 @@ public class Legacy implements Serializable
         availableOptions.addOption("i",  "progress-interval",    true,   "Progress Report Interval (seconds), default:10");
         availableOptions.addOption("g",  "keys-per-call",        true,   "Number of keys to get_range_slices or multiget per call, default:1000");
         availableOptions.addOption("l",  "replication-factor",   true,   "Replication Factor to use when creating needed column families, default:1");
-        availableOptions.addOption("L3", "enable-cql3",          false,  "Perform queries using CQL3 (Cassandra Query Language v 3.0.0)");
-        availableOptions.addOption("b",  "enable-native-protocol",  false,  "Use the binary native protocol (only work along with -L3)");
         availableOptions.addOption("P",  "use-prepared-statements", false, "Perform queries using prepared statements (only applicable to CQL).");
         availableOptions.addOption("e",  "consistency-level",    true,   "Consistency Level to use (ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL, ANY), default:ONE");
         availableOptions.addOption("x",  "create-index",         true,   "Type of index to create on needed column families (KEYS)");
@@ -73,7 +70,6 @@ public class Legacy implements Serializable
         availableOptions.addOption("Q",  "query-names",          true,   "Comma-separated list of column names to retrieve from each row.");
         availableOptions.addOption("Z",  "compaction-strategy",  true,   "CompactionStrategy to use.");
         availableOptions.addOption("U",  "comparator",           true,   "Column Comparator to use. Currently supported types are: TimeUUIDType, AsciiType, UTF8Type.");
-        availableOptions.addOption("tf", "transport-factory",    true,   "Fully-qualified TTransportFactory class name for creating a connection. Note: For Thrift over SSL, use org.apache.cassandra.stress.SSLTransportFactory.");
         availableOptions.addOption("ns", "no-statistics",        false,  "Turn off the aggegate statistics that is normally output after completion.");
         availableOptions.addOption("ts", SSL_TRUSTSTORE,         true, "SSL: full path to truststore");
         availableOptions.addOption("tspw", SSL_TRUSTSTORE_PW,    true, "SSL: full path to truststore");
@@ -231,10 +227,7 @@ public class Legacy implements Serializable
                 r.add("-schema", "replication(" + rep + ")");
             }
 
-            if (cmd.hasOption("L3"))
-                r.add("-mode", (cmd.hasOption("P") ? "prepared" : "") + (cmd.hasOption("b") ? "native" : "") +  "cql3");
-            else
-                r.add("-mode", "thrift");
+            r.add("-mode", (cmd.hasOption("P") ? "prepared" : "") + "native" +  "cql3");
 
             if (cmd.hasOption("I"))
                 r.add("-schema", "compression=" + cmd.getOptionValue("I"));
@@ -254,9 +247,6 @@ public class Legacy implements Serializable
 
             if (cmd.hasOption("ns"))
                 r.add("-log", "no-summary");
-
-            if (cmd.hasOption("tf"))
-                r.add("-transport", "factory=" + cmd.getOptionValue("tf"));
 
             if(cmd.hasOption(SSL_TRUSTSTORE))
                 r.add("-transport", "truststore=" + cmd.getOptionValue(SSL_TRUSTSTORE));

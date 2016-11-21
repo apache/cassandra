@@ -663,7 +663,7 @@ public interface CQL3Type
                 if (!frozen && values.supportsFreezing() && !values.frozen)
                     throwNestedNonFrozenError(values);
 
-                // we represent Thrift supercolumns as maps, internally, and we do allow counters in supercolumns. Thus,
+                // we represent supercolumns as maps, internally, and we do allow counters in supercolumns. Thus,
                 // for internal type parsing (think schema) we have to make an exception and allow counters as (map) values
                 if (values.isCounter() && !isInternal)
                     throw new InvalidRequestException("Counters are not allowed inside collections: " + this);

@@ -53,17 +53,11 @@
 # before joining the ring.
 #-Dcassandra.ring_delay_ms=ms
 
-# Set the port for the Thrift RPC service, which is used for client connections. (Default: 9160)
-#-Dcassandra.rpc_port=port
-
 # Set the SSL port for encrypted communication. (Default: 7001)
 #-Dcassandra.ssl_storage_port=port
 
 # Enable or disable the native transport server. See start_native_transport in cassandra.yaml.
 # cassandra.start_native_transport=true|false
-
-# Enable or disable the Thrift RPC server. (Default: true)
-#-Dcassandra.start_rpc=true/false
 
 # Set the port for inter-node communication. (Default: 7000)
 #-Dcassandra.storage_port=port

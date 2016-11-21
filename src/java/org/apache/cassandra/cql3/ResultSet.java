@@ -25,11 +25,6 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.CqlMetadata;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.CqlResultType;
-import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.service.pager.PagingState;
 
@@ -93,44 +88,6 @@ public class ResultSet
             for (int i = 0; i < toRemove; i++)
                 rows.remove(rows.size() - 1);
         }
-    }
-
-    public CqlResult toThriftResult()
-    {
-        assert metadata.names != null;
-
-        String UTF8 = "UTF8Type";
-        CqlMetadata schema = new CqlMetadata(new HashMap<ByteBuffer, String>(),
-                new HashMap<ByteBuffer, String>(),
-                // The 2 following ones shouldn't be needed in CQL3
-                UTF8, UTF8);
-
-        for (int i = 0; i < metadata.columnCount; i++)
-        {
-            ColumnSpecification spec = metadata.names.get(i);
-            ByteBuffer colName = ByteBufferUtil.bytes(spec.name.toString());
-            schema.name_types.put(colName, UTF8);
-            AbstractType<?> normalizedType = spec.type instanceof ReversedType ? ((ReversedType)spec.type).baseType : spec.type;
-            schema.value_types.put(colName, normalizedType.toString());
-
-        }
-
-        List<CqlRow> cqlRows = new ArrayList<CqlRow>(rows.size());
-        for (List<ByteBuffer> row : rows)
-        {
-            List<Column> thriftCols = new ArrayList<Column>(metadata.columnCount);
-            for (int i = 0; i < metadata.columnCount; i++)
-            {
-                Column col = new Column(ByteBufferUtil.bytes(metadata.names.get(i).name.toString()));
-                col.setValue(row.get(i));
-                thriftCols.add(col);
-            }
-            // The key of CqlRow shoudn't be needed in CQL3
-            cqlRows.add(new CqlRow(ByteBufferUtil.EMPTY_BYTE_BUFFER, thriftCols));
-        }
-        CqlResult res = new CqlResult(CqlResultType.ROWS);
-        res.setRows(cqlRows).setSchema(schema);
-        return res;
     }
 
     @Override

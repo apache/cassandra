@@ -38,6 +38,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.UTF8Serializer;
 import org.apache.cassandra.utils.*;
 
 public class CompositeTypeTest
@@ -261,13 +262,14 @@ public class CompositeTypeTest
             new String[]{ "foo!", "b:ar" },
         };
 
+
         for (String[] input : inputs)
         {
-            CompositeType.Builder builder = new CompositeType.Builder(comp);
-            for (String part : input)
-                builder.add(UTF8Type.instance.fromString(part));
+            ByteBuffer[] bbs = new ByteBuffer[input.length];
+            for (int i = 0; i < input.length; i++)
+                bbs[i] = UTF8Type.instance.fromString(input[i]);
 
-            ByteBuffer value = comp.fromString(comp.getString(builder.build()));
+            ByteBuffer value = comp.fromString(comp.getString(CompositeType.build(bbs)));
             ByteBuffer[] splitted = comp.split(value);
             for (int i = 0; i < splitted.length; i++)
                 assertEquals(input[i], UTF8Type.instance.getString(splitted[i]));

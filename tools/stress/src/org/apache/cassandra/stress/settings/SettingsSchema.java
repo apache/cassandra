@@ -28,7 +28,6 @@ import java.util.*;
 import com.datastax.driver.core.exceptions.AlreadyExistsException;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
-import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SettingsSchema implements Serializable
@@ -58,22 +57,10 @@ public class SettingsSchema implements Serializable
         compactionStrategyOptions = options.compaction.getOptions();
     }
 
-    public void createKeySpaces(StressSettings settings)
-    {
-        if (settings.mode.api != ConnectionAPI.JAVA_DRIVER_NATIVE)
-        {
-            createKeySpacesThrift(settings);
-        }
-        else
-        {
-            createKeySpacesNative(settings);
-        }
-    }
-
     /**
      * Create Keyspace with Standard and Super/Counter column families
      */
-    public void createKeySpacesNative(StressSettings settings)
+    public void createKeySpaces(StressSettings settings)
     {
 
         JavaDriverClient client  = settings.getJavaDriverClient(false);
@@ -213,75 +200,6 @@ public class SettingsSchema implements Serializable
 
         return b.toString();
     }
-
-    /**
-     * Create Keyspace with Standard and Super/Counter column families
-     */
-    public void createKeySpacesThrift(StressSettings settings)
-    {
-        KsDef ksdef = new KsDef();
-
-        // column family for standard columns
-        CfDef standardCfDef = new CfDef(keyspace, "standard1");
-        Map<String, String> compressionOptions = new HashMap<>();
-        if (compression != null)
-            compressionOptions.put("sstable_compression", compression);
-
-        String comparator = settings.columns.comparator;
-        standardCfDef.setComparator_type(comparator)
-                .setDefault_validation_class(DEFAULT_VALIDATOR)
-                .setCompression_options(compressionOptions);
-
-        for (int i = 0; i < settings.columns.names.size(); i++)
-            standardCfDef.addToColumn_metadata(new ColumnDef(settings.columns.names.get(i), "BytesType"));
-
-        // column family for standard counters
-        CfDef counterCfDef = new CfDef(keyspace, "counter1")
-                .setComparator_type(comparator)
-                .setDefault_validation_class("CounterColumnType")
-                .setCompression_options(compressionOptions);
-
-        ksdef.setName(keyspace);
-        ksdef.setStrategy_class(replicationStrategy);
-
-        if (!replicationStrategyOptions.isEmpty())
-        {
-            ksdef.setStrategy_options(replicationStrategyOptions);
-        }
-
-        if (compactionStrategy != null)
-        {
-            standardCfDef.setCompaction_strategy(compactionStrategy);
-            counterCfDef.setCompaction_strategy(compactionStrategy);
-            if (!compactionStrategyOptions.isEmpty())
-            {
-                standardCfDef.setCompaction_strategy_options(compactionStrategyOptions);
-                counterCfDef.setCompaction_strategy_options(compactionStrategyOptions);
-            }
-        }
-
-        ksdef.setCf_defs(new ArrayList<>(Arrays.asList(standardCfDef, counterCfDef)));
-
-        Cassandra.Client client = settings.getRawThriftClient(false);
-
-        try
-        {
-            client.system_add_keyspace(ksdef);
-            client.set_keyspace(keyspace);
-
-            System.out.println(String.format("Created keyspaces. Sleeping %ss for propagation.", settings.node.nodes.size()));
-            Thread.sleep(settings.node.nodes.size() * 1000L); // seconds
-        }
-        catch (InvalidRequestException e)
-        {
-            System.err.println("Unable to create stress keyspace: " + e.getWhy());
-        }
-        catch (Exception e)
-        {
-            System.err.println("!!!! " + e.getMessage());
-        }
-    }
-
 
     // Option Declarations
 

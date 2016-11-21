@@ -298,9 +298,8 @@ Function VerifyPortsAreAvailable
     #   storage_port
     #   ssl_storage_port
     #   native_transport_port
-    #   rpc_port, which we'll match to rpc_address
     # and from env: JMX_PORT which we cache in our environment during SetCassandraEnvironment for this check
-    $yamlRegex = "storage_port:|ssl_storage_port:|native_transport_port:|rpc_port"
+    $yamlRegex = "storage_port:|ssl_storage_port:|native_transport_port:"
     $yaml = Get-Content "$env:CASSANDRA_CONF\cassandra.yaml"
     $portRegex = ":$env:JMX_PORT |"
 

@@ -70,7 +70,6 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -2377,7 +2376,7 @@ public class SASIIndexTest
                                                             FBUtilities.nowInSeconds(),
                                                             columnFilter,
                                                             filter,
-                                                            DataLimits.thriftLimits(maxResults, DataLimits.NO_LIMIT),
+                                                            DataLimits.cqlLimits(maxResults),
                                                             range,
                                                             Optional.empty());
 
@@ -2438,18 +2437,11 @@ public class SASIIndexTest
 
     private Set<String> executeCQLWithKeys(String rawStatement) throws Exception
     {
-        SelectStatement statement = (SelectStatement) QueryProcessor.parseStatement(rawStatement).prepare().statement;
-        ResultMessage.Rows cqlRows = statement.executeInternal(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
-
         Set<String> results = new TreeSet<>();
-        for (CqlRow row : cqlRows.toThriftResult().getRows())
+        for (UntypedResultSet.Row row : QueryProcessor.executeOnceInternal(rawStatement))
         {
-            for (org.apache.cassandra.thrift.Column col : row.columns)
-            {
-                String columnName = UTF8Type.instance.getString(col.bufferForName());
-                if (columnName.equals("id"))
-                    results.add(AsciiType.instance.getString(col.bufferForValue()));
-            }
+            if (row.has("id"))
+                results.add(row.getString("id"));
         }
 
         return results;

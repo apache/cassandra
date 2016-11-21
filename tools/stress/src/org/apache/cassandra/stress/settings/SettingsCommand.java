@@ -32,7 +32,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
-import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.db.ConsistencyLevel;
 
 // Generic command settings - common to read/write/etc
 public abstract class SettingsCommand implements Serializable

@@ -51,13 +51,6 @@ import static org.junit.Assert.assertEquals;
 public class CreateTest extends CQLTester
 {
     @Test
-    public void testCQL3PartitionKeyOnlyTable()
-    {
-        createTable("CREATE TABLE %s (id text PRIMARY KEY);");
-        assertFalse(currentTableMetadata().isThriftCompatible());
-    }
-
-    @Test
     public void testCreateTableWithSmallintColumns() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b smallint, c smallint, primary key (a, b));");

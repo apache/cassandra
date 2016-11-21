@@ -23,10 +23,11 @@ import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.LegacyLayout;
+import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -216,12 +217,12 @@ public class PagingState
                     // If the last returned row has no cell, this means in 2.1/2.2 terms that we stopped on the row
                     // marker. Note that this shouldn't happen if the table is COMPACT.
                     assert !metadata.isCompactTable();
-                    mark = LegacyLayout.encodeCellName(metadata, row.clustering(), ByteBufferUtil.EMPTY_BYTE_BUFFER, null);
+                    mark = encodeCellName(metadata, row.clustering(), ByteBufferUtil.EMPTY_BYTE_BUFFER, null);
                 }
                 else
                 {
                     Cell cell = cells.next();
-                    mark = LegacyLayout.encodeCellName(metadata, row.clustering(), cell.column().name.bytes, cell.column().isComplex() ? cell.path().get(0) : null);
+                    mark = encodeCellName(metadata, row.clustering(), cell.column().name.bytes, cell.column().isComplex() ? cell.path().get(0) : null);
                 }
             }
             else
@@ -239,8 +240,82 @@ public class PagingState
                 return null;
 
             return protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3)
-                 ? LegacyLayout.decodeClustering(metadata, mark)
+                 ? decodeClustering(metadata, mark)
                  : Clustering.serializer.deserialize(mark, MessagingService.VERSION_30, makeClusteringTypes(metadata));
+        }
+
+        // Old (pre-3.0) encoding of cells. We need that for the protocol v3 as that is how things where encoded
+        private static ByteBuffer encodeCellName(CFMetaData metadata, Clustering clustering, ByteBuffer columnName, ByteBuffer collectionElement)
+        {
+            boolean isStatic = clustering == Clustering.STATIC_CLUSTERING;
+
+            if (!metadata.isCompound())
+            {
+                if (isStatic)
+                    return columnName;
+
+                assert clustering.size() == 1 : "Expected clustering size to be 1, but was " + clustering.size();
+                return clustering.get(0);
+            }
+
+            // We use comparator.size() rather than clustering.size() because of static clusterings
+            int clusteringSize = metadata.comparator.size();
+            int size = clusteringSize + (metadata.isDense() ? 0 : 1) + (collectionElement == null ? 0 : 1);
+            if (metadata.isSuper())
+                size = clusteringSize + 1;
+            ByteBuffer[] values = new ByteBuffer[size];
+            for (int i = 0; i < clusteringSize; i++)
+            {
+                if (isStatic)
+                {
+                    values[i] = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+                    continue;
+                }
+
+                ByteBuffer v = clustering.get(i);
+                // we can have null (only for dense compound tables for backward compatibility reasons) but that
+                // means we're done and should stop there as far as building the composite is concerned.
+                if (v == null)
+                    return CompositeType.build(Arrays.copyOfRange(values, 0, i));
+
+                values[i] = v;
+            }
+
+            if (metadata.isSuper())
+            {
+                // We need to set the "column" (in thrift terms) name, i.e. the value corresponding to the subcomparator.
+                // What it is depends if this a cell for a declared "static" column or a "dynamic" column part of the
+                // super-column internal map.
+                assert columnName != null; // This should never be null for supercolumns, see decodeForSuperColumn() above
+                values[clusteringSize] = columnName.equals(CompactTables.SUPER_COLUMN_MAP_COLUMN)
+                                         ? collectionElement
+                                         : columnName;
+            }
+            else
+            {
+                if (!metadata.isDense())
+                    values[clusteringSize] = columnName;
+                if (collectionElement != null)
+                    values[clusteringSize + 1] = collectionElement;
+            }
+
+            return CompositeType.build(isStatic, values);
+        }
+
+        private static Clustering decodeClustering(CFMetaData metadata, ByteBuffer value)
+        {
+            int csize = metadata.comparator.size();
+            if (csize == 0)
+                return Clustering.EMPTY;
+
+            if (metadata.isCompound() && CompositeType.isStaticName(value))
+                return Clustering.STATIC_CLUSTERING;
+
+            List<ByteBuffer> components = metadata.isCompound()
+                                          ? CompositeType.splitName(value)
+                                          : Collections.singletonList(value);
+
+            return Clustering.make(components.subList(0, Math.min(csize, components.size())).toArray(new ByteBuffer[csize]));
         }
 
         @Override

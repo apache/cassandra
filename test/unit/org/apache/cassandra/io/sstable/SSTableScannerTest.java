@@ -182,7 +182,7 @@ public class SSTableScannerTest
         assert boundaries.length % 2 == 0;
         for (DataRange range : dataRanges(sstable.metadata, scanStart, scanEnd))
         {
-            try(ISSTableScanner scanner = sstable.getScanner(ColumnFilter.all(sstable.metadata), range, false))
+            try(ISSTableScanner scanner = sstable.getScanner(ColumnFilter.all(sstable.metadata), range))
             {
                 for (int b = 0; b < boundaries.length; b += 2)
                     for (int i = boundaries[b]; i <= boundaries[b + 1]; i++)

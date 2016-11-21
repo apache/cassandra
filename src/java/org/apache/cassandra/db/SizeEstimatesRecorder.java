@@ -40,8 +40,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 /**
  * A very simplistic/crude partition count/size estimator.
  *
- * Exposing per-primary-range estimated partitions count and size in CQL form,
- * as a direct CQL alternative to Thrift's describe_splits_ex().
+ * Exposing per-primary-range estimated partitions count and size in CQL form.
  *
  * Estimates (per primary range) are calculated and dumped into a system table (system.size_estimates) every 5 minutes.
  *

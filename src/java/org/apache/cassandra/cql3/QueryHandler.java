@@ -42,8 +42,6 @@ public interface QueryHandler
 
     ParsedStatement.Prepared getPrepared(MD5Digest id);
 
-    ParsedStatement.Prepared getPreparedForThrift(Integer id);
-
     ResultMessage processPrepared(CQLStatement statement,
                                   QueryState state,
                                   QueryOptions options,

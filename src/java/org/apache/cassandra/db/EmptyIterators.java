@@ -53,17 +53,10 @@ public class EmptyIterators
     private static class EmptyUnfilteredPartitionIterator extends EmptyBasePartitionIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
     {
         final CFMetaData metadata;
-        final boolean isForThrift;
 
-        public EmptyUnfilteredPartitionIterator(CFMetaData metadata, boolean isForThrift)
+        public EmptyUnfilteredPartitionIterator(CFMetaData metadata)
         {
             this.metadata = metadata;
-            this.isForThrift = isForThrift;
-        }
-
-        public boolean isForThrift()
-        {
-            return isForThrift;
         }
 
         public CFMetaData metadata()
@@ -177,9 +170,9 @@ public class EmptyIterators
         }
     }
 
-    public static UnfilteredPartitionIterator unfilteredPartition(CFMetaData metadata, boolean isForThrift)
+    public static UnfilteredPartitionIterator unfilteredPartition(CFMetaData metadata)
     {
-        return new EmptyUnfilteredPartitionIterator(metadata, isForThrift);
+        return new EmptyUnfilteredPartitionIterator(metadata);
     }
 
     public static PartitionIterator partition()

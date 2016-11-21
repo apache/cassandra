@@ -69,11 +69,6 @@ public class CompositesSearcher extends CassandraIndexSearcher
 
             private UnfilteredRowIterator next;
 
-            public boolean isForThrift()
-            {
-                return command.isForThrift();
-            }
-
             public CFMetaData metadata()
             {
                 return command.metadata();

@@ -339,12 +339,6 @@ public class CompactionIteratorTest
         }
 
         @Override
-        public boolean isForThrift()
-        {
-            return false;
-        }
-
-        @Override
         public CFMetaData metadata()
         {
             return metadata;

@@ -47,7 +47,6 @@ public class Info extends NodeToolCmd
 
         System.out.printf("%-23s: %s%n", "ID", probe.getLocalHostId());
         System.out.printf("%-23s: %s%n", "Gossip active", gossipInitialized);
-        System.out.printf("%-23s: %s%n", "Thrift active", probe.isThriftServerRunning());
         System.out.printf("%-23s: %s%n", "Native Transport active", probe.isNativeTransportRunning());
         System.out.printf("%-23s: %s%n", "Load", probe.getLoadString());
         if (gossipInitialized)

@@ -84,8 +84,7 @@ public class UpdateParameters
     {
         if (metadata.isDense() && !metadata.isCompound())
         {
-            // If it's a COMPACT STORAGE table with a single clustering column, the clustering value is
-            // translated in Thrift to the full Thrift column name, and for backward compatibility we
+            // If it's a COMPACT STORAGE table with a single clustering column and for backward compatibility we
             // don't want to allow that to be empty (even though this would be fine for the storage engine).
             assert clustering.size() == 1;
             ByteBuffer value = clustering.get(0);
@@ -122,9 +121,8 @@ public class UpdateParameters
     public void addRowDeletion()
     {
         // For compact tables, at the exclusion of the static row (of static compact tables), each row ever has a single column,
-        // the "compact" one. As such, deleting the row or deleting that single cell is equivalent. We favor the later however
-        // because that makes it easier when translating back to the old format layout (for thrift and pre-3.0 backward
-        // compatibility) as we don't have to special case for the row deletion. This is also in line with what we used to do pre-3.0.
+        // the "compact" one. As such, deleting the row or deleting that single cell is equivalent. We favor the later
+        // for backward compatibility (thought it doesn't truly matter anymore).
         if (metadata.isCompactTable() && builder.clustering() != Clustering.STATIC_CLUSTERING)
             addTombstone(metadata.compactValueColumn());
         else
