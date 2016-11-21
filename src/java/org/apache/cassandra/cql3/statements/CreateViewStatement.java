@@ -275,12 +275,21 @@ public class CreateViewStatement extends SchemaAlteringStatement
         if (targetClusteringColumns.isEmpty())
             throw new InvalidRequestException("No columns are defined for Materialized View other than primary key");
 
+        TableParams params = properties.properties.asNewTableParams();
+
+        if (params.defaultTimeToLive > 0)
+        {
+            throw new InvalidRequestException("Cannot set default_time_to_live for a materialized view. " +
+                                              "Data in a materialized view always expire at the same time than " +
+                                              "the corresponding data in the parent table.");
+        }
+
         CFMetaData.Builder cfmBuilder = CFMetaData.Builder.createView(keyspace(), columnFamily());
         add(cfm, targetPartitionKeys, cfmBuilder::addPartitionKey);
         add(cfm, targetClusteringColumns, cfmBuilder::addClusteringColumn);
         add(cfm, includedColumns, cfmBuilder::addRegularColumn);
         cfmBuilder.withId(properties.properties.getId());
-        TableParams params = properties.properties.asNewTableParams();
+
         CFMetaData viewCfm = cfmBuilder.build().params(params);
         ViewDefinition definition = new ViewDefinition(keyspace(),
                                                        columnFamily(),

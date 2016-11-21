@@ -335,6 +335,52 @@ public class ViewTest extends CQLTester
     }
 
     @Test
+    public void testCreateMvWithTTL() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                "k int PRIMARY KEY, " +
+                "c int, " +
+                "val int) WITH default_time_to_live = 60");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        // Must NOT include "default_time_to_live" for Materialized View creation
+        try
+        {
+            createView("mv_ttl1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c) WITH default_time_to_live = 30");
+            Assert.fail("Should fail if TTL is provided for materialized view");
+        }
+        catch (Exception e)
+        {
+        }
+    }
+
+    @Test
+    public void testAlterMvWithTTL() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "k int PRIMARY KEY, " +
+                    "c int, " +
+                    "val int) WITH default_time_to_live = 60");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv_ttl2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c)");
+
+        // Must NOT include "default_time_to_live" on alter Materialized View
+        try
+        {
+            executeNet(protocolVersion, "ALTER MATERIALIZED VIEW %s WITH default_time_to_live = 30");
+            Assert.fail("Should fail if TTL is provided while altering materialized view");
+        }
+        catch (Exception e)
+        {
+        }
+    }
+
+    @Test
     public void complexTimestampUpdateTestWithFlush() throws Throwable
     {
         complexTimestampUpdateTest(true);
