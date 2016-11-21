@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.index.sasi.plan;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -32,6 +35,8 @@ import org.apache.cassandra.utils.AbstractIterator;
 
 public class QueryPlan
 {
+    private static final Logger logger = LoggerFactory.getLogger(QueryPlan.class);
+
     private final QueryController controller;
 
     public QueryPlan(ColumnFamilyStore cfs, ReadCommand command, long executionQuotaMs)
@@ -52,9 +57,13 @@ public class QueryPlan
     {
         try
         {
+            logger.trace("Analyzing {} {}",
+                controller.metadata(), controller.getExpressions());
             Operation.Builder and = new Operation.Builder(OperationType.AND, controller);
             controller.getExpressions().forEach(and::add);
-            return and.complete();
+            Operation op = and.complete();
+            logger.trace("done");
+            return op;
         }
         catch (Exception | Error e)
         {

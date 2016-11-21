@@ -22,6 +22,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sasi.Term;
 import org.apache.cassandra.index.sasi.plan.Expression;
@@ -46,6 +49,8 @@ import static org.apache.cassandra.index.sasi.disk.OnDiskBlock.SearchResult;
 
 public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 {
+    private static final Logger logger = LoggerFactory.getLogger(OnDiskIndex.class);
+
     public enum IteratorOrder
     {
         DESC(1), ASC(-1);
@@ -115,6 +120,8 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
     protected final ByteBuffer minTerm, maxTerm, minKey, maxKey;
 
+    protected final long estimatedResultRows;
+
     @SuppressWarnings("resource")
     public OnDiskIndex(File index, AbstractType<?> cmp, Function<Long, DecoratedKey> keyReader)
     {
@@ -147,17 +154,30 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
             // start of the levels
             indexFile.position(indexFile.getLong(indexSize - 8));
 
+            logger.trace("Index: {}", index);
             int numLevels = indexFile.getInt();
+            int pointBlockcount = 0;
             levels = new PointerLevel[numLevels];
             for (int i = 0; i < levels.length; i++)
             {
                 int blockCount = indexFile.getInt();
+                logger.trace("PointerLevel: {} blocks", blockCount);
                 levels[i] = new PointerLevel(indexFile.position(), blockCount);
                 indexFile.position(indexFile.position() + blockCount * 8);
+
+                pointBlockcount += blockCount;
             }
 
             int blockCount = indexFile.getInt();
             dataLevel = new DataLevel(indexFile.position(), blockCount);
+            logger.trace("DataLevel: {} blocks, {} bytes per term, {} bytes total",
+                    blockCount, termSize, indexSize);
+
+            // This isn't really related to the number of tokens
+            // in this index but should still be a good indicator
+            // of the cardinality of the index.
+            // Instead we should add a field containing the number of tokens in this index.
+            estimatedResultRows = pointBlockcount + blockCount;
         }
         catch (IOException e)
         {
@@ -194,10 +214,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
         return minKey;
     }
 
-    public ByteBuffer maxKey()
-    {
-        return maxKey;
-    }
+    public ByteBuffer maxKey() { return maxKey; }
 
     public DataTerm min()
     {
@@ -208,6 +225,10 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
     {
         DataBlock block = dataLevel.getBlock(dataLevel.blockCount - 1);
         return block.getTerm(block.termCount() - 1);
+    }
+
+    public long getEstimatedResultRows() {
+        return estimatedResultRows;
     }
 
     /**
