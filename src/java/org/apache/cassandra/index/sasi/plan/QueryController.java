@@ -17,8 +17,12 @@
  */
 package org.apache.cassandra.index.sasi.plan;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import static java.lang.Long.min;
 
 import com.google.common.collect.Sets;
 
@@ -26,6 +30,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.SASIIndex;
@@ -39,15 +44,21 @@ import org.apache.cassandra.index.sasi.plan.Operation.OperationType;
 import org.apache.cassandra.index.sasi.utils.RangeIntersectionIterator;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
 
+
+
 public class QueryController
 {
+    private static final Logger logger = LoggerFactory.getLogger(QueryController.class);
+
     private final long executionQuota;
     private final long executionStart;
+
+    private final long indexIgnoreTokenCountThreshold;
+    private final double indexIgnoreTokenRatioThreshold = 0.1d;
 
     private final ColumnFamilyStore cfs;
     private final PartitionRangeReadCommand command;
@@ -61,6 +72,10 @@ public class QueryController
         this.range = command.dataRange();
         this.executionQuota = TimeUnit.MILLISECONDS.toNanos(timeQuotaMs);
         this.executionStart = System.nanoTime();
+        if (command.limits().count() != DataLimits.NO_LIMIT)
+            this.indexIgnoreTokenCountThreshold = min(command.limits().count(), 10000);
+        else
+            this.indexIgnoreTokenCountThreshold = 10000;
     }
 
     public boolean isForThrift()
@@ -133,25 +148,68 @@ public class QueryController
         if (resources.containsKey(expressions))
             throw new IllegalArgumentException("Can't process the same expressions multiple times.");
 
-        RangeIterator.Builder<Long, Token> builder = op == OperationType.OR
-                                                ? RangeUnionIterator.<Long, Token>builder()
-                                                : RangeIntersectionIterator.<Long, Token>builder();
+        List<RangeIterator<Long, Token>> indexes = new ArrayList<>();
+        long minCount = Long.MAX_VALUE;
 
-        List<RangeIterator<Long, Token>> perIndexUnions = new ArrayList<>();
-
-        for (Map.Entry<Expression, Set<SSTableIndex>> e : getView(op, expressions).entrySet())
+        // First execute the search on every index.
+        for (Pair<Expression, Set<SSTableIndex>> e : getWeightedViews(op, expressions))
         {
+            logger.trace("Searching {}", e);
+
             @SuppressWarnings("resource") // RangeIterators are closed by releaseIndexes
-            RangeIterator<Long, Token> index = TermIterator.build(e.getKey(), e.getValue());
+            RangeIterator<Long, Token> index = TermIterator.build(e.left, e.right);
+            logger.trace("Found {} tokens", index == null ? 0 : index.getCount());
 
-            if (index == null)
+            if (index == null) {
+                minCount = 0;
                 continue;
+            }
 
-            builder.add(index);
-            perIndexUnions.add(index);
+            // Keep track of the index that returned the least amount of results.
+            if (index.getCount() < minCount)
+                minCount = index.getCount();
+
+            indexes.add(index);
+
+            // If we found an index that already returned less results than the user
+            // specified limit, it's probably faster to stop here because we already
+            // ordered the expressions by cardinality.
+            logger.trace("{} {} {}", e, command.limits(), index.getCount());
+            if (op == OperationType.AND &&
+                    command.limits().count() != DataLimits.NO_LIMIT &&
+                    index.getCount() < command.limits().count()) {
+                logger.trace("We found less than {} tokens. Stopping.",
+			     command.limits().count());
+                break;
+            }
         }
 
-        resources.put(expressions, perIndexUnions);
+        RangeIterator.Builder<Long, Token> builder = op == OperationType.OR
+                ? RangeUnionIterator.<Long, Token>builder()
+                : RangeIntersectionIterator.<Long, Token>builder();
+
+
+        for (RangeIterator<Long, Token> index : indexes) {
+            if (op == OperationType.AND) {
+                long tokenCount = index == null ? 0 : index.getCount();
+                float ratio = minCount == 0 ? 0 : (float) minCount / tokenCount;
+                // If we are doing intersections between indexes we can enable some
+                // additional optimizations.
+
+                // See CASSANDRA-12915 for details. OnDiskIndexIterator can be rather
+                // inefficient and in some cases it is faster to rely on post-filtering.
+                logger.trace("count: {}, ratio: {}, threshold: {}",
+                        tokenCount, ratio, indexIgnoreTokenCountThreshold);
+                if (tokenCount > indexIgnoreTokenCountThreshold && ratio < indexIgnoreTokenRatioThreshold) {
+                    logger.trace("Skipping");
+                    continue;
+                }
+            }
+            if (index != null)
+                builder.add(index);
+        }
+
+        resources.put(expressions, indexes);
         return builder;
     }
 
@@ -180,12 +238,55 @@ public class QueryController
         resources.values().forEach(this::releaseIndexes);
     }
 
+    /**
+     * Returns a list of Pair<Expression, Set<SSTableIndex>> ordered by guessed cardinality. The first
+     * element of this list is likely to have a higher cardinality and be able to filter out more elements.
+     * @param op
+     * @param expressions
+     * @return A sorted list of expression and associated sstables.
+     */
+    private List<Pair<Expression, Set<SSTableIndex>>> getWeightedViews(OperationType op,
+                                                                       Collection<Expression> expressions) {
+        Map<Expression, Set<SSTableIndex>> views = getView(op, expressions);
+
+        // Generate a list of expression sorted by score.
+        List<Pair<Expression, Long>> expressionScores = new ArrayList<>();
+        for (Map.Entry<Expression, Set<SSTableIndex>> e : views.entrySet()) {
+            Expression expression = e.getKey();
+
+            long estimatedRowCount = 0;
+
+            // Prioritize operations that are likely to make a good use of the index.
+            if (expression.getOp() == Expression.Op.EQ
+                || expression.getOp() == Expression.Op.PREFIX) {
+                for (SSTableIndex index : e.getValue())
+                    estimatedRowCount += index.getEstimatedResultRows();
+            }
+            // Let's assume that prefix will return way more values so let's reduce its score.
+            if (expression.getOp() == Expression.Op.PREFIX)
+                estimatedRowCount = (long)Math.sqrt((double)estimatedRowCount);
+
+            expressionScores.add(Pair.create(expression, estimatedRowCount));
+            logger.trace("Estimated row count for {}: {}", expression.toString(), estimatedRowCount);
+        }
+        expressionScores.sort(((a, b) -> b.right.compareTo(a.right)));
+
+        // Now move that back in something more useful to the caller.
+        List<Pair<Expression, Set<SSTableIndex>>> sortedViews = new ArrayList<>();
+        for (Pair<Expression, Long> e : expressionScores)
+            sortedViews.add(Pair.create(e.left, views.get(e.left)));
+
+        return sortedViews;
+    }
+
     private Map<Expression, Set<SSTableIndex>> getView(OperationType op, Collection<Expression> expressions)
     {
         // first let's determine the primary expression if op is AND
         Pair<Expression, Set<SSTableIndex>> primary = (op == OperationType.AND) ? calculatePrimary(expressions) : null;
 
         Map<Expression, Set<SSTableIndex>> indexes = new HashMap<>();
+
+        logger.trace("Expressions: {}, Op: {}", expressions.toString(), op);
         for (Expression e : expressions)
         {
             // NO_EQ and non-index column query should only act as FILTER BY for satisfiedBy(Row) method
@@ -217,6 +318,7 @@ public class QueryController
 
             indexes.put(e, readers);
         }
+        logger.trace("Final view: {}", indexes);
 
         return indexes;
     }
