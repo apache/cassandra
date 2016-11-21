@@ -111,6 +111,7 @@
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Properly record CAS contention (CASSANDRA-12626)
 Merged from 3.0:
+ * AnticompactionRequestSerializer serializedSize is incorrect (CASSANDRA-12934)
  * Prevent reloading of logback.xml from UDF sandbox (CASSANDRA-12535)
  * Pass root cause to CorruptBlockException when uncompression failed (CASSANDRA-12889)
  * Batch with multiple conditional updates for the same partition causes AssertionError (CASSANDRA-12867)

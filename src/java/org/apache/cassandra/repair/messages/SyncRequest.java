@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -55,6 +56,26 @@ public class SyncRequest extends RepairMessage
         this.src = src;
         this.dst = dst;
         this.ranges = ranges;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (!(o instanceof SyncRequest))
+            return false;
+        SyncRequest req = (SyncRequest)o;
+        return messageType == req.messageType &&
+               desc.equals(req.desc) &&
+               initiator.equals(req.initiator) &&
+               src.equals(req.src) &&
+               dst.equals(req.dst) &&
+               ranges.equals(ranges);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(messageType, desc, initiator, src, dst, ranges);
     }
 
     public static class SyncRequestSerializer implements MessageSerializer<SyncRequest>

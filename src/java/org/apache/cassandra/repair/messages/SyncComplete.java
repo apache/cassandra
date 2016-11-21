@@ -19,6 +19,7 @@ package org.apache.cassandra.repair.messages;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -51,6 +52,24 @@ public class SyncComplete extends RepairMessage
         super(Type.SYNC_COMPLETE, desc);
         this.nodes = new NodePair(endpoint1, endpoint2);
         this.success = success;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (!(o instanceof SyncComplete))
+            return false;
+        SyncComplete other = (SyncComplete)o;
+        return messageType == other.messageType &&
+               desc.equals(other.desc) &&
+               success == other.success &&
+               nodes.equals(other.nodes);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(messageType, desc, success, nodes);
     }
 
     private static class SyncCompleteSerializer implements MessageSerializer<SyncComplete>
