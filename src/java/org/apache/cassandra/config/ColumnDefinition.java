@@ -384,12 +384,30 @@ public class ColumnDefinition extends ColumnSpecification implements Selectable,
         return CollectionType.cellPathSerializer;
     }
 
-    public void validateCellValue(ByteBuffer value)
+    public void validateCell(Cell cell)
     {
-        type.validateCellValue(value);
+        if (cell.isTombstone())
+        {
+            if (cell.value().hasRemaining())
+                throw new MarshalException("A tombstone should not have a value");
+            if (cell.path() != null)
+                validateCellPath(cell.path());
+        }
+        else if(type.isUDT())
+        {
+            // To validate a non-frozen UDT field, both the path and the value
+            // are needed, the path being an index into an array of value types.
+            ((UserType)type).validateCell(cell);
+        }
+        else
+        {
+            type.validateCellValue(cell.value());
+            if (cell.path() != null)
+                validateCellPath(cell.path());
+        }
     }
 
-    public void validateCellPath(CellPath path)
+    private void validateCellPath(CellPath path)
     {
         if (!isComplex())
             throw new MarshalException("Only complex cells should have a cell path");
