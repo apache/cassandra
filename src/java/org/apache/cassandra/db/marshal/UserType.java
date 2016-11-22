@@ -169,6 +169,21 @@ public class UserType extends TupleType
         return TupleType.buildValue(components);
     }
 
+    public void validateCell(Cell cell) throws MarshalException
+    {
+        if (isMultiCell)
+        {
+            ByteBuffer path = cell.path().get(0);
+            nameComparator().validate(path);
+            Short fieldPosition = nameComparator().getSerializer().deserialize(path);
+            fieldType(fieldPosition).validate(cell.value());
+        }
+        else
+        {
+            validate(cell.value());
+        }
+    }
+
     // Note: the only reason we override this is to provide nicer error message, but since that's not that much code...
     @Override
     public void validate(ByteBuffer bytes) throws MarshalException

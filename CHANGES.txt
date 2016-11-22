@@ -1,4 +1,5 @@
 3.11
+ * Fix validation of non-frozen UDT cells (CASSANDRA-12916)
  * AnticompactionRequestSerializer serializedSize is incorrect (CASSANDRA-12934)
 
 3.10
