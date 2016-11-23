@@ -69,7 +69,7 @@ public class SyncRequest extends RepairMessage
                initiator.equals(req.initiator) &&
                src.equals(req.src) &&
                dst.equals(req.dst) &&
-               ranges.equals(ranges);
+               ranges.equals(req.ranges);
     }
 
     @Override
