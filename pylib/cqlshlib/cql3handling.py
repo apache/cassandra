@@ -79,6 +79,33 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'SERIAL'
     )
 
+    size_tiered_compaction_strategy_options = (
+        'min_sstable_size',
+        'min_threshold',
+        'bucket_high',
+        'bucket_low'
+    )
+
+    leveled_compaction_strategy_options = (
+        'sstable_size_in_mb',
+        'fanout_size'
+    )
+
+    date_tiered_compaction_strategy_options = (
+        'base_time_seconds',
+        'max_sstable_age_days',
+        'min_threshold',
+        'max_window_size_seconds',
+        'timestamp_resolution'
+    )
+
+    time_window_compaction_strategy_options = (
+        'compaction_window_unit',
+        'compaction_window_size',
+        'min_threshold',
+        'timestamp_resolution'
+    )
+
     @classmethod
     def escape_value(cls, value):
         if value is None:
@@ -506,25 +533,13 @@ def cf_prop_val_mapkey_completer(ctxt, cass):
             return ["'class'"]
         csc = csc.split('.')[-1]
         if csc == 'SizeTieredCompactionStrategy':
-            opts.add('min_sstable_size')
-            opts.add('min_threshold')
-            opts.add('bucket_high')
-            opts.add('bucket_low')
+            opts = opts.union(set(CqlRuleSet.size_tiered_compaction_strategy_options))
         elif csc == 'LeveledCompactionStrategy':
-            opts.add('sstable_size_in_mb')
-            opts.add('fanout_size')
+            opts = opts.union(set(CqlRuleSet.leveled_compaction_strategy_options))
         elif csc == 'DateTieredCompactionStrategy':
-            opts.add('base_time_seconds')
-            opts.add('max_sstable_age_days')
-            opts.add('min_threshold')
-            opts.add('max_window_size_seconds')
-            opts.add('timestamp_resolution')
+            opts = opts.union(set(CqlRuleSet.date_tiered_compaction_strategy_options))
         elif csc == 'TimeWindowCompactionStrategy':
-            opts.add('compaction_window_unit')
-            opts.add('compaction_window_size')
-            opts.add('min_threshold')
-            opts.add('max_threshold')
-            opts.add('timestamp_resolution')
+            opts = opts.union(set(CqlRuleSet.time_window_compaction_strategy_options))
 
         return map(escape_value, opts)
     return ()

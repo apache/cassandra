@@ -1,4 +1,5 @@
 3.12
+ * cqlsh auto completion: refactor definition of compaction strategy options (CASSANDRA-12946)
  * Add support for arithmetic operators (CASSANDRA-11935)
 
 3.11
