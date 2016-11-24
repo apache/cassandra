@@ -169,8 +169,12 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
                                                  ut.fieldType(fId).getString(cell.value()));
                         };
                     }
+                    else
+                    {
+                        transform = cell -> "";
+                    }
                     sb.append(StreamSupport.stream(complexData.spliterator(), false)
-                                           .map(transform != null ? transform : cell -> "")
+                                           .map(transform)
                                            .collect(Collectors.joining(", ", "{", "}")));
                 }
             }
