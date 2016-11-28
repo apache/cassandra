@@ -2,6 +2,7 @@
  * AnticompactionRequestSerializer serializedSize is incorrect (CASSANDRA-12934)
  * Prevent reloading of logback.xml from UDF sandbox (CASSANDRA-12535)
 Merged from 2.2:
+ * Fix leak on skipped SSTables in sstableupgrade (CASSANDRA-12899)
  * Avoid blocking gossip during pending range calculation (CASSANDRA-12281)
 
 
