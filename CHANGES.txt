@@ -2,6 +2,8 @@
  * Fix inconsistencies in cassandra-stress load balancing policy (CASSANDRA-12919)
  * Fix validation of non-frozen UDT cells (CASSANDRA-12916)
  * AnticompactionRequestSerializer serializedSize is incorrect (CASSANDRA-12934)
+Merged from 2.2:
+ * Fix leak on skipped SSTables in sstableupgrade (CASSANDRA-12899)
 
 3.10
  * Don't shut down socket input/output on StreamSession (CASSANDRA-12903)
