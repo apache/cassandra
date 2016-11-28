@@ -124,10 +124,8 @@ public class MessageIn<T>
         return MessageIn.create(from, payload, parameters, verb, version, constructionTime);
     }
 
-    public static long readConstructionTime(InetAddress from, DataInputPlus input) throws IOException
+    public static long readConstructionTime(InetAddress from, DataInputPlus input, long currentTime) throws IOException
     {
-        long currentTime = ApproximateTime.currentTimeMillis();
-
         // Reconstruct the message construction time sent by the remote host (we sent only the lower 4 bytes, assuming the
         // higher 4 bytes wouldn't change between the sender and receiver)
         int partial = input.readInt(); // make sure to readInt, even if cross_node_to is not enabled
