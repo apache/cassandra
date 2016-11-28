@@ -21,6 +21,9 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.googlecode.concurrenttrees.common.Iterables;
 
 import org.apache.cassandra.config.*;
@@ -59,6 +62,8 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class SASIIndex implements Index, INotificationConsumer
 {
+    private static final Logger logger = LoggerFactory.getLogger(SASIIndex.class);
+
     private static class SASIIndexBuildingSupport implements IndexBuildingSupport
     {
         public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs,
@@ -85,6 +90,7 @@ public class SASIIndex implements Index, INotificationConsumer
                                         });
                    });
 
+            // logger
             return new SASIIndexBuilder(cfs, sstables);
         }
     }
@@ -109,8 +115,10 @@ public class SASIIndex implements Index, INotificationConsumer
         SortedMap<SSTableReader, Map<ColumnDefinition, ColumnIndex>> toRebuild = new TreeMap<>((a, b)
                                                 -> Integer.compare(a.descriptor.generation, b.descriptor.generation));
 
+        logger.debug("index: {}, base {}, tracker {}", config, baseCfs, tracker);
         for (SSTableReader sstable : index.init(tracker.getView().liveSSTables()))
         {
+            logger.debug("to rebuild: index: {}, sstable: {}", sstable, index);
             Map<ColumnDefinition, ColumnIndex> perSSTable = toRebuild.get(sstable);
             if (perSSTable == null)
                 toRebuild.put(sstable, (perSSTable = new HashMap<>()));
@@ -118,6 +126,7 @@ public class SASIIndex implements Index, INotificationConsumer
             perSSTable.put(index.getDefinition(), index);
         }
 
+        logger.debug("Rebuilding SASI Indexes: {}", toRebuild);
         CompactionManager.instance.submitIndexBuild(new SASIIndexBuilder(baseCfs, toRebuild));
     }
 
