@@ -1318,12 +1318,10 @@ class Shell(cmd.Cmd):
                 name = protect_name(ksmeta.name)
                 print 'Keyspace %s' % (name,)
                 print '---------%s' % ('-' * len(name))
-                cmd.Cmd.columnize(self, protect_names(ksmeta.functions.keys()))
-                print
+                self._columnize_unicode(ksmeta.functions.keys())
         else:
             ksmeta = self.get_keyspace_meta(ksname)
-            cmd.Cmd.columnize(self, protect_names(ksmeta.functions.keys()))
-            print
+            self._columnize_unicode(ksmeta.functions.keys())
 
     def describe_function(self, ksname, functionname):
         if ksname is None:
@@ -1345,12 +1343,10 @@ class Shell(cmd.Cmd):
                 name = protect_name(ksmeta.name)
                 print 'Keyspace %s' % (name,)
                 print '---------%s' % ('-' * len(name))
-                cmd.Cmd.columnize(self, protect_names(ksmeta.aggregates.keys()))
-                print
+                self._columnize_unicode(ksmeta.aggregates.keys())
         else:
             ksmeta = self.get_keyspace_meta(ksname)
-            cmd.Cmd.columnize(self, protect_names(ksmeta.aggregates.keys()))
-            print
+            self._columnize_unicode(ksmeta.aggregates.keys())
 
     def describe_aggregate(self, ksname, aggregatename):
         if ksname is None:
@@ -1372,12 +1368,10 @@ class Shell(cmd.Cmd):
                 name = protect_name(ksmeta.name)
                 print 'Keyspace %s' % (name,)
                 print '---------%s' % ('-' * len(name))
-                cmd.Cmd.columnize(self, protect_names(ksmeta.user_types.keys()))
-                print
+                self._columnize_unicode(ksmeta.user_types.keys(), quote=True)
         else:
             ksmeta = self.get_keyspace_meta(ksname)
-            cmd.Cmd.columnize(self, protect_names(ksmeta.user_types.keys()))
-            print
+            self._columnize_unicode(ksmeta.user_types.keys(), quote=True)
 
     def describe_usertype(self, ksname, typename):
         if ksname is None:
@@ -1391,6 +1385,16 @@ class Shell(cmd.Cmd):
         except KeyError:
             raise UserTypeNotFound("User type %r not found" % typename)
         print usertype.export_as_string()
+
+    def _columnize_unicode(self, name_list, quote=False):
+        """
+        Used when columnizing identifiers that may contain unicode
+        """
+        names = [n.encode('utf-8') for n in name_list]
+        if quote:
+            names = protect_names(names)
+        cmd.Cmd.columnize(self, names)
+        print
 
     def describe_cluster(self):
         print '\nCluster: %s' % self.get_cluster_name()
