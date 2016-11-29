@@ -1,11 +1,7 @@
-3.11
+3.10
  * Fix inconsistencies in cassandra-stress load balancing policy (CASSANDRA-12919)
  * Fix validation of non-frozen UDT cells (CASSANDRA-12916)
  * AnticompactionRequestSerializer serializedSize is incorrect (CASSANDRA-12934)
-Merged from 2.2:
- * Fix leak on skipped SSTables in sstableupgrade (CASSANDRA-12899)
-
-3.10
  * Don't shut down socket input/output on StreamSession (CASSANDRA-12903)
  * Fix Murmur3PartitionerTest (CASSANDRA-12858)
  * Move cqlsh syntax rules into separate module and allow easier customization (CASSANDRA-12897)
@@ -157,6 +153,7 @@ Merged from 3.0:
  * Correct log message for statistics of offheap memtable flush (CASSANDRA-12776)
  * Explicitly set locale for string validation (CASSANDRA-12541,CASSANDRA-12542,CASSANDRA-12543,CASSANDRA-12545)
 Merged from 2.2:
+ * Fix leak on skipped SSTables in sstableupgrade (CASSANDRA-12899)
  * Avoid blocking gossip during pending range calculation (CASSANDRA-12281)
  * Fix purgeability of tombstones with max timestamp (CASSANDRA-12792)
  * Fail repair if participant dies during sync or anticompaction (CASSANDRA-12901)
