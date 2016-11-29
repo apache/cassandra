@@ -48,6 +48,7 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.DiskAwareRunnable;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -317,7 +318,7 @@ public class Memtable implements Comparable<Memtable>
         return partitions.get(key);
     }
 
-    public Collection<SSTableReader> flush()
+    public SSTableTxnWriter flush()
     {
         long estimatedSize = estimatedSize();
         Directories.DataDirectory dataDirectory = cfs.getDirectories().getWriteableLocation(estimatedSize);
@@ -357,64 +358,52 @@ public class Memtable implements Comparable<Memtable>
                        * 1.2); // bloom filter and row index overhead
     }
 
-    private Collection<SSTableReader> writeSortedContents(File sstableDirectory)
+    private SSTableTxnWriter writeSortedContents(File sstableDirectory)
     {
         boolean isBatchLogTable = cfs.name.equals(SystemKeyspace.BATCHES) && cfs.keyspace.getName().equals(SystemKeyspace.NAME);
 
         logger.debug("Writing {}", Memtable.this.toString());
 
-        Collection<SSTableReader> ssTables;
-        try (SSTableTxnWriter writer = createFlushWriter(cfs.getSSTablePath(sstableDirectory), columnsCollector.get(), statsCollector.get()))
+        SSTableTxnWriter writer = createFlushWriter(cfs.getSSTablePath(sstableDirectory), columnsCollector.get(), statsCollector.get());
+        boolean trackContention = logger.isTraceEnabled();
+        int heavilyContendedRowCount = 0;
+        // (we can't clear out the map as-we-go to free up memory,
+        //  since the memtable is being used for queries in the "pending flush" category)
+        for (AtomicBTreePartition partition : partitions.values())
         {
-            boolean trackContention = logger.isTraceEnabled();
-            int heavilyContendedRowCount = 0;
-            // (we can't clear out the map as-we-go to free up memory,
-            //  since the memtable is being used for queries in the "pending flush" category)
-            for (AtomicBTreePartition partition : partitions.values())
+            // Each batchlog partition is a separate entry in the log. And for an entry, we only do 2
+            // operations: 1) we insert the entry and 2) we delete it. Further, BL data is strictly local,
+            // we don't need to preserve tombstones for repair. So if both operation are in this
+            // memtable (which will almost always be the case if there is no ongoing failure), we can
+            // just skip the entry (CASSANDRA-4667).
+            if (isBatchLogTable && !partition.partitionLevelDeletion().isLive() && partition.hasRows())
+                continue;
+
+            if (trackContention && partition.usePessimisticLocking())
+                heavilyContendedRowCount++;
+
+            if (!partition.isEmpty())
             {
-                // Each batchlog partition is a separate entry in the log. And for an entry, we only do 2
-                // operations: 1) we insert the entry and 2) we delete it. Further, BL data is strictly local,
-                // we don't need to preserve tombstones for repair. So if both operation are in this
-                // memtable (which will almost always be the case if there is no ongoing failure), we can
-                // just skip the entry (CASSANDRA-4667).
-                if (isBatchLogTable && !partition.partitionLevelDeletion().isLive() && partition.hasRows())
-                    continue;
-
-                if (trackContention && partition.usePessimisticLocking())
-                    heavilyContendedRowCount++;
-
-                if (!partition.isEmpty())
+                try (UnfilteredRowIterator iter = partition.unfilteredIterator())
                 {
-                    try (UnfilteredRowIterator iter = partition.unfilteredIterator())
-                    {
-                        writer.append(iter);
-                    }
+                    writer.append(iter);
                 }
             }
-
-            if (writer.getFilePointer() > 0)
-            {
-                logger.debug(String.format("Completed flushing %s (%s) for commitlog position %s",
-                                           writer.getFilename(),
-                                           FBUtilities.prettyPrintMemory(writer.getFilePointer()),
-                                           commitLogUpperBound));
-
-                // sstables should contain non-repaired data.
-                ssTables = writer.finish(true);
-            }
-            else
-            {
-                logger.debug("Completed flushing {}; nothing needed to be retained.  Commitlog position was {}",
-                             writer.getFilename(), commitLogUpperBound);
-                writer.abort();
-                ssTables = Collections.emptyList();
-            }
-
-            if (heavilyContendedRowCount > 0)
-                logger.trace(String.format("High update contention in %d/%d partitions of %s ", heavilyContendedRowCount, partitions.size(), Memtable.this.toString()));
-
-            return ssTables;
         }
+
+        if (writer.getFilePointer() > 0)
+            logger.debug(String.format("Completed flushing %s (%s) for commitlog position %s",
+                                       writer.getFilename(),
+                                       FBUtilities.prettyPrintMemory(writer.getFilePointer()),
+                                       commitLogUpperBound));
+        else
+            logger.debug("Completed flushing {}; nothing needed to be retained.  Commitlog position was {}",
+                         writer.getFilename(), commitLogUpperBound);
+
+        if (heavilyContendedRowCount > 0)
+            logger.trace(String.format("High update contention in %d/%d partitions of %s ", heavilyContendedRowCount, partitions.size(), Memtable.this.toString()));
+
+        return writer;
     }
 
     @SuppressWarnings("resource") // log and writer closed by SSTableTxnWriter
