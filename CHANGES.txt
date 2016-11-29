@@ -1,4 +1,5 @@
 2.2.9
+ * cqlsh: fix DESC TYPES errors (CASSANDRA-12914)
  * Fix leak on skipped SSTables in sstableupgrade (CASSANDRA-12899)
  * Avoid blocking gossip during pending range calculation (CASSANDRA-12281)
  * Fix purgeability of tombstones with max timestamp (CASSANDRA-12792)
