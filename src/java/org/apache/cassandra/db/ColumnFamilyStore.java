@@ -919,34 +919,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     private final class PostFlush implements Callable<ReplayPosition>
     {
-        final boolean flushSecondaryIndexes;
-        final OpOrder.Barrier writeBarrier;
         final CountDownLatch latch = new CountDownLatch(1);
-        volatile FSWriteError flushFailure = null;
+        volatile Throwable flushFailure = null;
         final List<Memtable> memtables;
 
-        private PostFlush(boolean flushSecondaryIndexes, OpOrder.Barrier writeBarrier,
-                          List<Memtable> memtables)
+        private PostFlush(List<Memtable> memtables)
         {
-            this.writeBarrier = writeBarrier;
-            this.flushSecondaryIndexes = flushSecondaryIndexes;
             this.memtables = memtables;
         }
 
         public ReplayPosition call()
         {
-            writeBarrier.await();
-
-            /**
-             * we can flush 2is as soon as the barrier completes, as they will be consistent with (or ahead of) the
-             * flushed memtables and CL position, which is as good as we can guarantee.
-             * TODO: SecondaryIndex should support setBarrier(), so custom implementations can co-ordinate exactly
-             * with CL as we do with memtables/CFS-backed SecondaryIndexes.
-             */
-
-            if (flushSecondaryIndexes)
-                indexManager.flushAllNonCFSBackedIndexesBlocking();
-
             try
             {
                 // we wait on the latch for the commitLogUpperBound to be set, and so that waiters
@@ -970,7 +953,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             metric.pendingFlushes.dec();
 
             if (flushFailure != null)
-                throw flushFailure;
+                Throwables.propagate(flushFailure);
 
             return commitLogUpperBound;
         }
@@ -1029,7 +1012,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // since this happens after wiring up the commitLogUpperBound, we also know all operations with earlier
             // replay positions have also completed, i.e. the memtables are done and ready to flush
             writeBarrier.issue();
-            postFlush = new PostFlush(!truncate, writeBarrier, memtables);
+            postFlush = new PostFlush(memtables);
         }
 
         public void run()
@@ -1047,24 +1030,36 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             try
             {
+                boolean flushNonCf2i = true;
                 for (Memtable memtable : memtables)
                 {
                     Collection<SSTableReader> readers = Collections.emptyList();
                     if (!memtable.isClean() && !truncate)
+                    {
+                        // TODO: SecondaryIndex should support setBarrier(), so custom implementations can co-ordinate exactly
+                        // with CL as we do with memtables/CFS-backed SecondaryIndexes.
+                        if (flushNonCf2i)
+                        {
+                            indexManager.flushAllNonCFSBackedIndexesBlocking();
+                            flushNonCf2i = false;
+                        }
                         readers = memtable.flush();
+                    }
                     memtable.cfs.replaceFlushed(memtable, readers);
                     reclaim(memtable);
                 }
             }
-            catch (FSWriteError e)
+            catch (Throwable e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
                 // If we weren't killed, try to continue work but do not allow CommitLog to be discarded.
                 postFlush.flushFailure = e;
             }
-
-            // signal the post-flush we've done our work
-            postFlush.latch.countDown();
+            finally
+            {
+                // signal the post-flush we've done our work
+                postFlush.latch.countDown();
+            }
         }
 
         private void reclaim(final Memtable memtable)
