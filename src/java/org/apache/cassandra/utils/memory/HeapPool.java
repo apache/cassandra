@@ -18,6 +18,10 @@
  */
 package org.apache.cassandra.utils.memory;
 
+import java.nio.ByteBuffer;
+
+import org.apache.cassandra.utils.concurrent.OpOrder;
+
 public class HeapPool extends MemtablePool
 {
     public HeapPool(long maxOnHeapMemory, float cleanupThreshold, Runnable cleaner)
@@ -27,66 +31,26 @@ public class HeapPool extends MemtablePool
 
     public MemtableAllocator newAllocator()
     {
-        // TODO
-        throw new UnsupportedOperationException();
-        //return new Allocator(this);
+        return new Allocator(this);
     }
 
-    // TODO
-    //public static class Allocator extends MemtableBufferAllocator
-    //{
-    //    Allocator(HeapPool pool)
-    //    {
-    //        super(pool.onHeap.newAllocator(), pool.offHeap.newAllocator());
-    //    }
+    private static class Allocator extends MemtableBufferAllocator
+    {
+        private static final EnsureOnHeap ENSURE_NOOP = new EnsureOnHeap.NoOp();
+        Allocator(HeapPool pool)
+        {
+            super(pool.onHeap.newAllocator(), pool.offHeap.newAllocator());
+        }
 
-    //    public ByteBuffer allocate(int size, OpOrder.Group opGroup)
-    //    {
-    //        super.onHeap().allocate(size, opGroup);
-    //        return ByteBuffer.allocate(size);
-    //    }
+        public ByteBuffer allocate(int size, OpOrder.Group opGroup)
+        {
+            super.onHeap().allocate(size, opGroup);
+            return ByteBuffer.allocate(size);
+        }
 
-    //    public DataReclaimer reclaimer()
-    //    {
-    //        return new Reclaimer();
-    //    }
-
-    //    private class Reclaimer implements DataReclaimer
-    //    {
-    //        List<Cell> delayed;
-
-    //        public Reclaimer reclaim(Cell cell)
-    //        {
-    //            if (delayed == null)
-    //                delayed = new ArrayList<>();
-    //            delayed.add(cell);
-    //            return this;
-    //        }
-
-    //        public Reclaimer reclaimImmediately(Cell cell)
-    //        {
-    //            onHeap().release(cell.name().dataSize() + cell.value().remaining());
-    //            return this;
-    //        }
-
-    //        public Reclaimer reclaimImmediately(DecoratedKey key)
-    //        {
-    //            onHeap().release(key.getKey().remaining());
-    //            return this;
-    //        }
-
-    //        public void cancel()
-    //        {
-    //            if (delayed != null)
-    //                delayed.clear();
-    //        }
-
-    //        public void commit()
-    //        {
-    //            if (delayed != null)
-    //                for (Cell cell : delayed)
-    //                    reclaimImmediately(cell);
-    //        }
-    //    }
-    //}
+        public EnsureOnHeap ensureOnHeap()
+        {
+            return ENSURE_NOOP;
+        }
+    }
 }

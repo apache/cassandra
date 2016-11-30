@@ -304,7 +304,6 @@ public class AtomicBTreePartition extends AbstractBTreePartition
         long dataSize;
         long heapSize;
         long colUpdateTimeDelta = Long.MAX_VALUE;
-        final MemtableAllocator.DataReclaimer reclaimer;
         List<Row> inserted; // TODO: replace with walk of aborted BTree
 
         private RowUpdater(AtomicBTreePartition updating, MemtableAllocator allocator, OpOrder.Group writeOp, UpdateTransaction indexer)
@@ -314,7 +313,6 @@ public class AtomicBTreePartition extends AbstractBTreePartition
             this.writeOp = writeOp;
             this.indexer = indexer;
             this.nowInSec = FBUtilities.nowInSeconds();
-            this.reclaimer = allocator.reclaimer();
         }
 
         private Row.Builder builder(Clustering clustering)
@@ -356,7 +354,6 @@ public class AtomicBTreePartition extends AbstractBTreePartition
             if (inserted == null)
                 inserted = new ArrayList<>();
             inserted.add(reconciled);
-            discard(existing);
 
             return reconciled;
         }
@@ -366,24 +363,8 @@ public class AtomicBTreePartition extends AbstractBTreePartition
             this.dataSize = 0;
             this.heapSize = 0;
             if (inserted != null)
-            {
-                for (Row row : inserted)
-                    abort(row);
                 inserted.clear();
-            }
-            reclaimer.cancel();
         }
-
-        protected void abort(Row abort)
-        {
-            reclaimer.reclaimImmediately(abort);
-        }
-
-        protected void discard(Row discard)
-        {
-            reclaimer.reclaim(discard);
-        }
-
         public boolean abortEarly()
         {
             return updating.ref != ref;
@@ -397,7 +378,6 @@ public class AtomicBTreePartition extends AbstractBTreePartition
         protected void finish()
         {
             allocator.onHeap().adjust(heapSize, writeOp);
-            reclaimer.commit();
         }
     }
 }

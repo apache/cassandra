@@ -51,7 +51,7 @@ public abstract class ToolsTester
     private static List<ThreadInfo> initialThreads;
 
     static final String[] EXPECTED_THREADS_WITH_SCHEMA = {
-    "NativePoolCleaner",
+    "(NativePool|SlabPool|HeapPool)Cleaner",
     "COMMIT-LOG-ALLOCATOR",
     "COMMIT-LOG-WRITER",
     "PerDiskMemtableFlushWriter_0:[1-9]",

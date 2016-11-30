@@ -125,6 +125,7 @@ Merged from 3.0:
  * LocalToken ensures token values are cloned on heap (CASSANDRA-12651)
  * AnticompactionRequestSerializer serializedSize is incorrect (CASSANDRA-12934)
  * Prevent reloading of logback.xml from UDF sandbox (CASSANDRA-12535)
+ * Reenable HeapPool (CASSANDRA-12900)
  * Pass root cause to CorruptBlockException when uncompression failed (CASSANDRA-12889)
  * Batch with multiple conditional updates for the same partition causes AssertionError (CASSANDRA-12867)
  * Make AbstractReplicationStrategy extendable from outside its package (CASSANDRA-12788)
