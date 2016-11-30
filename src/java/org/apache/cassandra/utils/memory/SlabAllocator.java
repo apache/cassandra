@@ -113,11 +113,6 @@ public class SlabAllocator extends MemtableBufferAllocator
         }
     }
 
-    public DataReclaimer reclaimer()
-    {
-        return NO_OP;
-    }
-
     public void setDiscarded()
     {
         for (Region region : offHeapRegions)

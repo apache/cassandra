@@ -60,7 +60,6 @@ public abstract class MemtableAllocator
 
     public abstract Row.Builder rowBuilder(OpOrder.Group opGroup);
     public abstract DecoratedKey clone(DecoratedKey key, OpOrder.Group opGroup);
-    public abstract DataReclaimer reclaimer();
     public abstract EnsureOnHeap ensureOnHeap();
 
     public SubAllocator onHeap()
@@ -101,41 +100,6 @@ public abstract class MemtableAllocator
     {
         return state == LifeCycle.LIVE;
     }
-
-    public static interface DataReclaimer
-    {
-        public DataReclaimer reclaim(Row row);
-        public DataReclaimer reclaimImmediately(Row row);
-        public DataReclaimer reclaimImmediately(DecoratedKey key);
-        public void cancel();
-        public void commit();
-    }
-
-    public static final DataReclaimer NO_OP = new DataReclaimer()
-    {
-        public DataReclaimer reclaim(Row update)
-        {
-            return this;
-        }
-
-        public DataReclaimer reclaimImmediately(Row update)
-        {
-            return this;
-        }
-
-        public DataReclaimer reclaimImmediately(DecoratedKey key)
-        {
-            return this;
-        }
-
-        @Override
-        public void cancel()
-        {}
-
-        @Override
-        public void commit()
-        {}
-    };
 
     /** Mark the BB as unused, permitting it to be reclaimed */
     public static final class SubAllocator
