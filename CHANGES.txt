@@ -1,4 +1,5 @@
 3.12
+ * Expose time spent waiting in thread pool queue (CASSANDRA-8398)
  * Conditionally update index built status to avoid unnecessary flushes (CASSANDRA-12969)
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
  * cqlsh auto completion: refactor definition of compaction strategy options (CASSANDRA-12946)

@@ -1354,6 +1354,20 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    public CassandraMetricsRegistry.JmxTimerMBean getMessagingQueueWaitMetrics(String verb)
+    {
+        try
+        {
+            return JMX.newMBeanProxy(mbeanServerConn,
+                                     new ObjectName("org.apache.cassandra.metrics:name=" + verb + "-WaitLatency,type=Messaging"),
+                                     CassandraMetricsRegistry.JmxTimerMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     /**
      * Retrieve Proxy metrics
      * @param metricName CompletedTasks, PendingTasks, BytesCompacted or TotalCompactionsCompleted.

@@ -129,6 +129,37 @@ public class MessagingServiceTest
     }
 
     @Test
+    public void testQueueWaitLatency() throws Exception
+    {
+        int latency = 100;
+        String verb = MessagingService.Verb.MUTATION.toString();
+
+        ConcurrentHashMap<String, Timer> queueWaitLatency = MessagingService.instance().metrics.queueWaitLatency;
+        queueWaitLatency.clear();
+
+        assertNull(queueWaitLatency.get(verb));
+        MessagingService.instance().metrics.addQueueWaitTime(verb, latency);
+        assertNotNull(queueWaitLatency.get(verb));
+        assertEquals(1, queueWaitLatency.get(verb).getCount());
+        long expectedBucket = bucketOffsets[Math.abs(Arrays.binarySearch(bucketOffsets, TimeUnit.MILLISECONDS.toNanos(latency))) - 1];
+        assertEquals(expectedBucket, queueWaitLatency.get(verb).getSnapshot().getMax());
+    }
+
+    @Test
+    public void testNegativeQueueWaitLatency() throws Exception
+    {
+        int latency = -100;
+        String verb = MessagingService.Verb.MUTATION.toString();
+
+        ConcurrentHashMap<String, Timer> queueWaitLatency = MessagingService.instance().metrics.queueWaitLatency;
+        queueWaitLatency.clear();
+
+        assertNull(queueWaitLatency.get(verb));
+        MessagingService.instance().metrics.addQueueWaitTime(verb, latency);
+        assertNull(queueWaitLatency.get(verb));
+    }
+
+    @Test
     public void testUpdatesBackPressureOnSendWhenEnabledAndWithSupportedCallback() throws UnknownHostException
     {
         MockBackPressureStrategy.MockBackPressureState backPressureState = (MockBackPressureStrategy.MockBackPressureState) messagingService.getConnectionPool(InetAddress.getByName("127.0.0.2")).getBackPressureState();
