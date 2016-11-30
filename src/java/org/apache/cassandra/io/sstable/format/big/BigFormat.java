@@ -132,8 +132,7 @@ public class BigFormat implements SSTableFormat
             isLatestVersion = version.compareTo(current_version) == 0;
             correspondingMessagingVersion = MessagingService.VERSION_30;
 
-            hasCommitLogLowerBound = (version.compareTo("lb") >= 0 && version.compareTo("ma") < 0)
-                                     || version.compareTo("mb") >= 0;
+            hasCommitLogLowerBound = version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
         }
 
