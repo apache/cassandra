@@ -624,11 +624,6 @@ public final class StatementRestrictions
      */
     private ByteBuffer getPartitionKeyBound(Bound b, QueryOptions options)
     {
-        // Deal with unrestricted partition key components (special-casing is required to deal with 2i queries on the
-        // first component of a composite partition key) queries that filter on the partition key.
-        if (partitionKeyRestrictions.needFiltering(cfm))
-            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-
         // We deal with IN queries for keys in other places, so we know buildBound will return only one result
         return partitionKeyRestrictions.bounds(b, options).get(0);
     }
@@ -654,6 +649,11 @@ public final class StatementRestrictions
     private AbstractBounds<PartitionPosition> getPartitionKeyBounds(IPartitioner p,
                                                                     QueryOptions options)
     {
+        // Deal with unrestricted partition key components (special-casing is required to deal with 2i queries on the
+        // first component of a composite partition key) queries that filter on the partition key.
+        if (partitionKeyRestrictions.needFiltering(cfm))
+            return new Range<>(p.getMinimumToken().minKeyBound(), p.getMinimumToken().maxKeyBound());
+
         ByteBuffer startKeyBytes = getPartitionKeyBound(Bound.START, options);
         ByteBuffer finishKeyBytes = getPartitionKeyBound(Bound.END, options);
 

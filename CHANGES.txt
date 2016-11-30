@@ -4,6 +4,7 @@
 
 
 3.10
+ * Use correct bounds for all-data range when filtering (CASSANDRA-12666)
  * Remove timing window in test case (CASSANDRA-12875)
  * Resolve unit testing without JCE security libraries installed (CASSANDRA-12945)
  * Fix inconsistencies in cassandra-stress load balancing policy (CASSANDRA-12919)
