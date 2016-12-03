@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -105,6 +106,16 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         try
         {
             Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
+
+            if (ConfigHelper.getOutputKeyspaceUserName(conf) != null)
+            {
+                Map<String, String> credentials = new HashMap<String, String>();
+                credentials.put(IAuthenticator.USERNAME_KEY, ConfigHelper.getOutputKeyspaceUserName(conf));
+                credentials.put(IAuthenticator.PASSWORD_KEY, ConfigHelper.getOutputKeyspacePassword(conf));
+                AuthenticationRequest authRequest = new AuthenticationRequest(credentials);
+                client.login(authRequest);
+            }
+
             retrievePartitionKeyValidator(client);
             String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
             if (cqlQuery.toLowerCase().startsWith("insert"))
