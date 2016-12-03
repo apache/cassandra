@@ -70,9 +70,41 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     private final Map<Range, RangeClient> clients;
 
     // host to prepared statement id mappings
-    private ConcurrentHashMap<Cassandra.Client, Integer> preparedStatements = new ConcurrentHashMap<Cassandra.Client, Integer>();
+    private ConcurrentHashMap<PreparedStatementKey, Integer> preparedStatements = new ConcurrentHashMap<PreparedStatementKey, Integer>();
+
+    private static class PreparedStatementKey {
+        final Cassandra.Client client;
+        final boolean[] usedColumns;
+
+        private PreparedStatementKey(Cassandra.Client client, boolean[] usedColumns) {
+            this.client = client;
+            this.usedColumns = usedColumns;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            PreparedStatementKey that = (PreparedStatementKey) o;
+
+            if (!client.equals(that.client)) return false;
+            if (!Arrays.equals(usedColumns, that.usedColumns)) return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = client.hashCode();
+            result = 31 * result + Arrays.hashCode(usedColumns);
+            return result;
+        }
+    }
 
     private final String cql;
+    private final String[] columns;
+    private final boolean skipNullColumns;
 
     private AbstractType<?> keyValidator;
     private String [] partitionKeyColumns;
@@ -109,7 +141,15 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
             if (cqlQuery.toLowerCase().startsWith("insert"))
                 throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
-            cql = appendKeyWhereClauses(cqlQuery);
+            cql = cqlQuery;
+
+            final String[] cqlColumns = conf.getStrings("cassandra.output.cqlColumns");
+            if (cqlColumns == null) {
+                throw new IllegalArgumentException("cassandra.output.cqlColumns cannot be null");
+            }
+            this.columns = cqlColumns;
+
+            this.skipNullColumns = conf.getBoolean("cassandra.output.skipNullColumns", false);
 
             if (client != null)
             {
@@ -209,6 +249,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             while (run || !queue.isEmpty())
             {
                 List<ByteBuffer> bindVariables;
+                List<ByteBuffer> notNullBindVariables = new ArrayList<ByteBuffer>();
                 try
                 {
                     bindVariables = queue.take();
@@ -226,10 +267,18 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
                     try
                     {
                         int i = 0;
-                        int itemId = preparedStatement(client);
                         while (bindVariables != null)
                         {
-                            client.execute_prepared_cql3_query(itemId, bindVariables, ConsistencyLevel.ONE);
+                            int itemId = preparedStatement(client, bindVariables);
+
+                            notNullBindVariables.clear();
+                            for (ByteBuffer byteBuffer : bindVariables) {
+                                if (byteBuffer != null) {
+                                    notNullBindVariables.add(byteBuffer);
+                                }
+                            }
+
+                            client.execute_prepared_cql3_query(itemId, notNullBindVariables, ConsistencyLevel.ONE);
                             i++;
                             
                             if (i >= batchThreshold)
@@ -274,29 +323,65 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         }
 
         /** get prepared statement id from cache, otherwise prepare it from Cassandra server*/
-        private int preparedStatement(Cassandra.Client client)
+        private int preparedStatement(Cassandra.Client client, List<ByteBuffer> bindVariables)
         {
-            Integer itemId = preparedStatements.get(client);
+            boolean[] usedColumns = new boolean[bindVariables.size()];
+            {
+                int i = 0;
+                for (ByteBuffer var : bindVariables) {
+                    usedColumns[i++] = var != null;
+                }
+            }
+
+            PreparedStatementKey preparedStatementKey = new PreparedStatementKey(client, usedColumns);
+
+            Integer itemId = preparedStatements.get(preparedStatementKey);
             if (itemId == null)
             {
+                String fullCql = buildCql(usedColumns);
                 CqlPreparedResult result;
                 try
                 {
-                    result = client.prepare_cql3_query(ByteBufferUtil.bytes(cql), Compression.NONE);
+                    result = client.prepare_cql3_query(ByteBufferUtil.bytes(fullCql), Compression.NONE);
                 }
                 catch (InvalidRequestException e)
                 {
-                    throw new RuntimeException("failed to prepare cql query " + cql, e);
+                    throw new RuntimeException("failed to prepare cql query " + fullCql, e);
                 }
                 catch (TException e)
                 {
-                    throw new RuntimeException("failed to prepare cql query " + cql, e);
+                    throw new RuntimeException("failed to prepare cql query " + fullCql, e);
                 }
 
-                Integer previousId = preparedStatements.putIfAbsent(client, Integer.valueOf(result.itemId));
+                Integer previousId = preparedStatements.putIfAbsent(preparedStatementKey, Integer.valueOf(result.itemId));
                 itemId = previousId == null ? result.itemId : previousId;
             }
             return itemId;
+        }
+
+        private String buildCql(boolean[] usedColumns) {
+            StringBuilder fullCqlSB = new StringBuilder(cql);
+
+            fullCqlSB.append(" SET ");
+
+            boolean first = true;
+            for (int i = 0; i < columns.length; i++) {
+                if (usedColumns[i]) {
+                    if (!first) {
+                        fullCqlSB.append(", ");
+                    }
+                    fullCqlSB.append(columns[i]).append(" = ?");
+                    first = false;
+                } else if (!skipNullColumns) {
+                    if (!first) {
+                        fullCqlSB.append(", ");
+                    }
+                    fullCqlSB.append(columns[i]).append(" = null");
+                    first = false;
+                }
+            }
+
+            return appendKeyWhereClauses(fullCqlSB.toString());
         }
     }
 
