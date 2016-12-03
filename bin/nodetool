@@ -58,7 +58,9 @@ fi
 # Run cassandra-env.sh to pick up JMX_PORT
 if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
     JVM_OPTS_SAVE=$JVM_OPTS
+    MAX_HEAP_SIZE_SAVE=$MAX_HEAP_SIZE
     . "$CASSANDRA_CONF/cassandra-env.sh"
+    MAX_HEAP_SIZE=$MAX_HEAP_SIZE_SAVE
     JVM_OPTS=$JVM_OPTS_SAVE
 fi
 
