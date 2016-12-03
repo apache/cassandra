@@ -135,8 +135,8 @@ Timeuuid functions
 ``now``
 #######
 
-The ``now`` function takes no arguments and generates, on the coordinator node, a new unique timeuuid (at the time where
-the statement using it is executed). Note that this method is useful for insertion but is largely non-sensical in
+The ``now`` function takes no arguments and generates, on the coordinator node, a new unique timeuuid at the 
+time the function is invoked. Note that this method is useful for insertion but is largely non-sensical in
 ``WHERE`` clauses. For instance, a query of the form::
 
     SELECT * FROM myTable WHERE t = now()
