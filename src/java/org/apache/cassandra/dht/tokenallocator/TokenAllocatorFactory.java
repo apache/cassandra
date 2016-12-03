@@ -21,17 +21,25 @@ package org.apache.cassandra.dht.tokenallocator;
 import java.net.InetAddress;
 import java.util.NavigableMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 
 public class TokenAllocatorFactory
 {
+    private static final Logger logger = LoggerFactory.getLogger(TokenAllocatorFactory.class);
     public static TokenAllocator<InetAddress> createTokenAllocator(NavigableMap<Token, InetAddress> sortedTokens,
                                                      ReplicationStrategy<InetAddress> strategy,
                                                      IPartitioner partitioner)
     {
-        if(strategy.replicas() == 1)
+        if(strategy.replicas() == 1 || strategy.replicas() == 0)
+        {
+            logger.info("Using NoReplicationTokenAllocator.");
             return new NoReplicationTokenAllocator<>(sortedTokens, strategy, partitioner);
+        }
+        logger.info("Using ReplicationAwareTokenAllocator.");
         return new ReplicationAwareTokenAllocator<>(sortedTokens, strategy, partitioner);
     }
 }

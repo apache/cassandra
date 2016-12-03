@@ -8,6 +8,7 @@
 
 
 3.12
+ * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
  * cqlsh auto completion: refactor definition of compaction strategy options (CASSANDRA-12946)
  * Add support for arithmetic operators (CASSANDRA-11935)
 
