@@ -34,7 +34,7 @@ public class TokenAllocatorFactory
                                                      ReplicationStrategy<InetAddress> strategy,
                                                      IPartitioner partitioner)
     {
-        if(strategy.replicas() == 1 || strategy.replicas() == 0)
+        if(strategy.replicas() == 1)
         {
             logger.info("Using NoReplicationTokenAllocator.");
             return new NoReplicationTokenAllocator<>(sortedTokens, strategy, partitioner);
