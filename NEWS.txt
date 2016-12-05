@@ -13,6 +13,15 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+3.11
+====
+
+Upgrading
+---------
+   - Specifying the default_time_to_live option when creating or altering a
+     materialized view was erroneously accepted (and ignored). It is now
+     properly rejected.
+
 3.10
 ====
 

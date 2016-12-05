@@ -1,3 +1,7 @@
+3.11
+Merged from 3.0:
+ * Reject default_time_to_live option when creating or altering MVs (CASSANDRA-12868)
+
 3.10
  * Use correct bounds for all-data range when filtering (CASSANDRA-12666)
  * Remove timing window in test case (CASSANDRA-12875)
