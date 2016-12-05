@@ -1,4 +1,5 @@
 3.12
+ * add method to get size of endpoints to TokenMetadata (CASSANDRA-12999)
  * Fix primary index calculation for SASI (CASSANDRA-12910)
  * Expose time spent waiting in thread pool queue (CASSANDRA-8398)
  * Conditionally update index built status to avoid unnecessary flushes (CASSANDRA-12969)

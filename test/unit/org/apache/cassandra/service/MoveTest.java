@@ -978,7 +978,7 @@ public class MoveTest
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(newToken)));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(newToken)));
 
-        assertTrue(tmd.getMovingEndpoints().isEmpty());
+        assertTrue(tmd.getSizeOfMovingEndpoints() == 0);
         assertEquals(newToken, tmd.getToken(hosts.get(2)));
 
         newToken = positionToken(8);
@@ -988,7 +988,7 @@ public class MoveTest
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(newToken)));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
-        assertTrue(tmd.getMovingEndpoints().isEmpty());
+        assertTrue(tmd.getSizeOfMovingEndpoints() == 0);
         assertEquals(newToken, tmd.getToken(hosts.get(2)));
     }
 
