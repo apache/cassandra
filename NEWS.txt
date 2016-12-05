@@ -30,6 +30,15 @@ Upgrading
       CREATE keyspace replication policies using that datacenter. Existing keyspaces will continue to operate, 
       but CREATE and ALTER will validate that all datacenters specified exist in the cluster. 
 
+3.11
+====
+
+Upgrading
+---------
+   - Specifying the default_time_to_live option when creating or altering a
+     materialized view was erroneously accepted (and ignored). It is now
+     properly rejected.
+
 3.10
 ====
 

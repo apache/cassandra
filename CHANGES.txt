@@ -13,6 +13,9 @@
  * Add support for arithmetic operators (CASSANDRA-11935)
  * Tables in system_distributed should not use gcgs of 0 (CASSANDRA-12954)
 
+3.11
+Merged from 3.0:
+ * Reject default_time_to_live option when creating or altering MVs (CASSANDRA-12868)
 
 3.10
  * Use correct bounds for all-data range when filtering (CASSANDRA-12666)
