@@ -882,7 +882,7 @@ public final class SystemKeyspace
 
     public static void setIndexBuilt(String keyspaceName, String indexName)
     {
-        String req = "INSERT INTO %s.\"%s\" (table_name, index_name) VALUES (?, ?)";
+        String req = "INSERT INTO %s.\"%s\" (table_name, index_name) VALUES (?, ?) IF NOT EXISTS;";
         executeInternal(String.format(req, SchemaConstants.SYSTEM_KEYSPACE_NAME, BUILT_INDEXES), keyspaceName, indexName);
         forceBlockingFlush(BUILT_INDEXES);
     }
