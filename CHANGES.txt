@@ -6,6 +6,7 @@
  * Prevent reloading of logback.xml from UDF sandbox (CASSANDRA-12535)
  * Reenable HeapPool (CASSANDRA-12900)
 Merged from 2.2:
+ * Use saved tokens when setting local tokens on StorageService.joinRing (CASSANDRA-12935)
  * cqlsh: fix DESC TYPES errors (CASSANDRA-12914)
  * Fix leak on skipped SSTables in sstableupgrade (CASSANDRA-12899)
  * Avoid blocking gossip during pending range calculation (CASSANDRA-12281)
