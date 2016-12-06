@@ -30,6 +30,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 
 public class CreateTypeStatement extends SchemaAlteringStatement
@@ -112,7 +113,7 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         return new UserType(name.getKeyspace(), name.getUserTypeName(), names, types);
     }
 
-    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(name.getKeyspace());
         assert ksm != null; // should haven't validate otherwise
