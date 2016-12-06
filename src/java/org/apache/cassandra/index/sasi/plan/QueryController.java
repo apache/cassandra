@@ -236,7 +236,7 @@ public class QueryController
                 continue;
 
             Set<SSTableIndex> indexes = applyScope(view.match(e));
-            if (primaryIndexes.size() > indexes.size())
+            if (expression == null || primaryIndexes.size() > indexes.size())
             {
                 primaryIndexes = indexes;
                 expression = e;
