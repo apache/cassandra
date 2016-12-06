@@ -331,13 +331,12 @@ public class CompactionTask extends AbstractCompactionTask
             long estimatedSSTables = Math.max(1, expectedWriteSize / strategy.getMaxSSTableBytes());
 
             // assuming our first set of sstables space isn't > disk space, we can continue with the compaction
-
             if(getDirectories().hasAvailableDiskSpace(estimatedSSTables, expectedWriteSize)) {
                 break;
             }
+
             // otherwise we have to reduce scope and try again
             // if we can't reduce scope, bail out
-
             if(!reduceScopeForLimitedSpace(expectedWriteSize)) {
                 throw new RuntimeException(String.format("Not enough space for compaction, estimated sstables = %d, expected write size = %d", estimatedSSTables, expectedWriteSize));
             }
