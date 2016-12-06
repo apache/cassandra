@@ -39,6 +39,7 @@ public class TpStatsHolder implements StatsHolder
         HashMap<String, Object> result = new HashMap<>();
         HashMap<String, Map<String, Object>> threadPools = new HashMap<>();
         HashMap<String, Object> droppedMessage = new HashMap<>();
+        HashMap<String, double[]> waitLatencies = new HashMap<>();
 
         for (Map.Entry<String, String> tp : probe.getThreadPools().entries())
         {
@@ -53,8 +54,20 @@ public class TpStatsHolder implements StatsHolder
         result.put("ThreadPools", threadPools);
 
         for (Map.Entry<String, Integer> entry : probe.getDroppedMessages().entrySet())
+        {
             droppedMessage.put(entry.getKey(), entry.getValue());
+            try
+            {
+                waitLatencies.put(entry.getKey(), probe.metricPercentilesAsArray(probe.getMessagingQueueWaitMetrics(entry.getKey())));
+            }
+            catch (RuntimeException e)
+            {
+                // ignore the exceptions when fetching metrics
+            }
+        }
+
         result.put("DroppedMessage", droppedMessage);
+        result.put("WaitLatencies", waitLatencies);
 
         return result;
     }
