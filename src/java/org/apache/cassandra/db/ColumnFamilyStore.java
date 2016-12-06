@@ -962,35 +962,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     private final class PostFlush implements Callable<CommitLogPosition>
     {
-        final boolean flushSecondaryIndexes;
-        final OpOrder.Barrier writeBarrier;
         final CountDownLatch latch = new CountDownLatch(1);
-        volatile Throwable flushFailure = null;
         final List<Memtable> memtables;
+        volatile Throwable flushFailure = null;
 
-        private PostFlush(boolean flushSecondaryIndexes,
-                          OpOrder.Barrier writeBarrier,
-                          List<Memtable> memtables)
+        private PostFlush(List<Memtable> memtables)
         {
-            this.writeBarrier = writeBarrier;
-            this.flushSecondaryIndexes = flushSecondaryIndexes;
             this.memtables = memtables;
         }
 
         public CommitLogPosition call()
         {
-            writeBarrier.await();
-
-            /**
-             * we can flush 2is as soon as the barrier completes, as they will be consistent with (or ahead of) the
-             * flushed memtables and CL position, which is as good as we can guarantee.
-             * TODO: SecondaryIndex should support setBarrier(), so custom implementations can co-ordinate exactly
-             * with CL as we do with memtables/CFS-backed SecondaryIndexes.
-             */
-
-            if (flushSecondaryIndexes)
-                indexManager.flushAllNonCFSBackedIndexesBlocking();
-
             try
             {
                 // we wait on the latch for the commitLogUpperBound to be set, and so that waiters
@@ -1074,7 +1056,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // since this happens after wiring up the commitLogUpperBound, we also know all operations with earlier
             // commit log segment position have also completed, i.e. the memtables are done and ready to flush
             writeBarrier.issue();
-            postFlush = new PostFlush(!truncate, writeBarrier, memtables);
+            postFlush = new PostFlush(memtables);
             postFlushTask = ListenableFutureTask.create(postFlush);
         }
 
@@ -1093,8 +1075,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             try
             {
-                for (Memtable memtable : memtables)
-                    flushMemtable(memtable);
+                // Flush "data" memtable with non-cf 2i first;
+                flushMemtable(memtables.get(0), true);
+                for (int i = 1; i < memtables.size(); i++)
+                    flushMemtable(memtables.get(i), false);
             }
             catch (Throwable t)
             {
@@ -1105,7 +1089,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             postFlush.latch.countDown();
         }
 
-        public Collection<SSTableReader> flushMemtable(Memtable memtable)
+        public Collection<SSTableReader> flushMemtable(Memtable memtable, boolean flushNonCf2i)
         {
             if (memtable.isClean() || truncate)
             {
@@ -1131,6 +1115,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                     for (int i = 0; i < flushRunnables.size(); i++)
                         futures.add(perDiskflushExecutors[i].submit(flushRunnables.get(i)));
+
+                    /**
+                     * we can flush 2is as soon as the barrier completes, as they will be consistent with (or ahead of) the
+                     * flushed memtables and CL position, which is as good as we can guarantee.
+                     * TODO: SecondaryIndex should support setBarrier(), so custom implementations can co-ordinate exactly
+                     * with CL as we do with memtables/CFS-backed SecondaryIndexes.
+                     */
+                    if (flushNonCf2i)
+                        indexManager.flushAllNonCFSBackedIndexesBlocking();
 
                     flushResults = Lists.newArrayList(FBUtilities.waitOnFutures(futures));
                 }
