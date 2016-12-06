@@ -1,10 +1,12 @@
 3.12
+ * Fix primary index calculation for SASI (CASSANDRA-12910)
  * Expose time spent waiting in thread pool queue (CASSANDRA-8398)
  * Conditionally update index built status to avoid unnecessary flushes (CASSANDRA-12969)
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
  * cqlsh auto completion: refactor definition of compaction strategy options (CASSANDRA-12946)
  * Add support for arithmetic operators (CASSANDRA-11935)
  * Tables in system_distributed should not use gcgs of 0 (CASSANDRA-12954)
+
 
 3.10
  * Use correct bounds for all-data range when filtering (CASSANDRA-12666)
