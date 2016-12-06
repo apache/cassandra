@@ -63,7 +63,6 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
-import org.apache.cassandra.io.sstable.SSTableTxnWriter;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -82,7 +81,6 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;
-import static org.apache.cassandra.utils.Throwables.merge;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -126,8 +124,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
-    @VisibleForTesting
-    public static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
+    private static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
                                                                                           StageManager.KEEPALIVE,
                                                                                           TimeUnit.SECONDS,
                                                                                           new LinkedBlockingQueue<Runnable>(),
@@ -924,9 +921,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         final boolean flushSecondaryIndexes;
         final OpOrder.Barrier writeBarrier;
-        final CountDownLatch memtablesFlushLatch = new CountDownLatch(1);
-        final CountDownLatch secondaryIndexFlushLatch = new CountDownLatch(1);
-        volatile Throwable flushFailure = null;
+        final CountDownLatch latch = new CountDownLatch(1);
+        volatile FSWriteError flushFailure = null;
         final List<Memtable> memtables;
 
         private PostFlush(boolean flushSecondaryIndexes, OpOrder.Barrier writeBarrier,
@@ -947,27 +943,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
              * TODO: SecondaryIndex should support setBarrier(), so custom implementations can co-ordinate exactly
              * with CL as we do with memtables/CFS-backed SecondaryIndexes.
              */
-            try
-            {
-                if (flushSecondaryIndexes)
-                {
-                    indexManager.flushAllNonCFSBackedIndexesBlocking();
-                }
-            }
-            catch (Throwable e)
-            {
-                flushFailure = merge(flushFailure, e);
-            }
-            finally
-            {
-                secondaryIndexFlushLatch.countDown();
-            }
+
+            if (flushSecondaryIndexes)
+                indexManager.flushAllNonCFSBackedIndexesBlocking();
 
             try
             {
                 // we wait on the latch for the commitLogUpperBound to be set, and so that waiters
                 // on this task can rely on all prior flushes being complete
-                memtablesFlushLatch.await();
+                latch.await();
             }
             catch (InterruptedException e)
             {
@@ -986,7 +970,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             metric.pendingFlushes.dec();
 
             if (flushFailure != null)
-                Throwables.propagate(flushFailure);
+                throw flushFailure;
 
             return commitLogUpperBound;
         }
@@ -1064,9 +1048,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             try
             {
                 for (Memtable memtable : memtables)
-                    flushMemtable(memtable);
+                {
+                    Collection<SSTableReader> readers = Collections.emptyList();
+                    if (!memtable.isClean() && !truncate)
+                        readers = memtable.flush();
+                    memtable.cfs.replaceFlushed(memtable, readers);
+                    reclaim(memtable);
+                }
             }
-            catch (Throwable e)
+            catch (FSWriteError e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
                 // If we weren't killed, try to continue work but do not allow CommitLog to be discarded.
@@ -1074,40 +1064,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             // signal the post-flush we've done our work
-            postFlush.memtablesFlushLatch.countDown();
-        }
-
-        public Collection<SSTableReader> flushMemtable(Memtable memtable)
-        {
-            if (memtable.isClean() || truncate)
-            {
-                memtable.cfs.replaceFlushed(memtable, Collections.emptyList());
-                reclaim(memtable);
-                return Collections.emptyList();
-            }
-
-            Collection<SSTableReader> readers = Collections.emptyList();
-            try (SSTableTxnWriter writer = memtable.flush())
-            {
-                try
-                {
-                    postFlush.secondaryIndexFlushLatch.await();
-                }
-                catch (InterruptedException e)
-                {
-                    postFlush.flushFailure = merge(postFlush.flushFailure, e);
-                }
-
-                if (postFlush.flushFailure == null && writer.getFilePointer() > 0)
-                    // sstables should contain non-repaired data.
-                    readers = writer.finish(true);
-                else
-                    maybeFail(writer.abort(postFlush.flushFailure));
-            }
-
-            memtable.cfs.replaceFlushed(memtable, readers);
-            reclaim(memtable);
-            return readers;
+            postFlush.latch.countDown();
         }
 
         private void reclaim(final Memtable memtable)
