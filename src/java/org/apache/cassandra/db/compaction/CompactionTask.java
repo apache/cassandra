@@ -86,12 +86,13 @@ public class CompactionTask extends AbstractCompactionTask
         return transaction.originals().size();
     }
 
-    public boolean reduceScopeForLimitedSpace()
+    public boolean reduceScopeForLimitedSpace(long expectedWriteSize)
     {
         if (partialCompactionsAcceptable() && transaction.originals().size() > 1)
         {
             // Try again w/o the largest one.
-            logger.warn("Insufficient space to compact all requested files {}", StringUtils.join(transaction.originals(), ", "));
+            float estimateInMB = (float) expectedWriteSize / (1024 * 1024);
+            logger.warn("Insufficient space to compact all requested files ({}MB required) {}", estimateInMB, StringUtils.join(transaction.originals(), ", "));
             // Note that we have removed files that are still marked as compacting.
             // This suboptimal but ok since the caller will unmark all the sstables at the end.
             SSTableReader removedSSTable = cfs.getMaxSizeFile(transaction.originals());
@@ -124,9 +125,8 @@ public class CompactionTask extends AbstractCompactionTask
 
         // note that we need to do a rough estimate early if we can fit the compaction on disk - this is pessimistic, but
         // since we might remove sstables from the compaction in checkAvailableDiskSpace it needs to be done here
-        long expectedWriteSize = cfs.getExpectedCompactedFileSize(transaction.originals(), compactionType);
-        long earlySSTableEstimate = Math.max(1, expectedWriteSize / strategy.getMaxSSTableBytes());
-        checkAvailableDiskSpace(earlySSTableEstimate, expectedWriteSize);
+
+        checkAvailableDiskSpace();
 
         // sanity check: all sstables must belong to the same cfs
         assert !Iterables.any(transaction.originals(), new Predicate<SSTableReader>()
@@ -314,18 +314,33 @@ public class CompactionTask extends AbstractCompactionTask
         return minRepairedAt;
     }
 
-    protected void checkAvailableDiskSpace(long estimatedSSTables, long expectedWriteSize)
+    protected void checkAvailableDiskSpace()
     {
+
         if(!cfs.isCompactionDiskSpaceCheckEnabled() && compactionType == OperationType.COMPACTION)
         {
             logger.info("Compaction space check is disabled");
             return;
         }
 
-        while (!getDirectories().hasAvailableDiskSpace(estimatedSSTables, expectedWriteSize))
-        {
-            if (!reduceScopeForLimitedSpace())
+        CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
+
+        while(true) {
+            // we need to do this at least once
+            long expectedWriteSize = cfs.getExpectedCompactedFileSize(transaction.originals(), compactionType);
+            long estimatedSSTables = Math.max(1, expectedWriteSize / strategy.getMaxSSTableBytes());
+
+            // assuming our first set of sstables space isn't > disk space, we can continue with the compaction
+
+            if(getDirectories().hasAvailableDiskSpace(estimatedSSTables, expectedWriteSize)) {
+                break;
+            }
+            // otherwise we have to reduce scope and try again
+            // if we can't reduce scope, bail out
+
+            if(!reduceScopeForLimitedSpace(expectedWriteSize)) {
                 throw new RuntimeException(String.format("Not enough space for compaction, estimated sstables = %d, expected write size = %d", estimatedSSTables, expectedWriteSize));
+            }
         }
     }
 
