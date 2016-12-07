@@ -971,14 +971,6 @@ public final class SystemKeyspace
             return new PaxosState(key, metadata);
         UntypedResultSet.Row row = results.one();
 
-        // Note: Pre-3.0, we used to not store the versions at which things were serialized. As 3.0 is a mandatory
-        // upgrade to 4.0+ and the paxos table is TTLed, it's _very_ unlikely we'll ever read a proposal or MRC without
-        // a version. But if we do (say gc_grace, on which the TTL is based, happens to be super large), we consider
-        // the commit too old and ignore it.
-        if (!row.has("proposal_version") || !row.has("most_recent_commit_version"))
-            return new PaxosState(key, metadata);
-
-
         Commit promised = row.has("in_progress_ballot")
                         ? new Commit(row.getUUID("in_progress_ballot"), new PartitionUpdate(metadata, key, metadata.partitionColumns(), 1))
                         : Commit.emptyCommit(key, metadata);
