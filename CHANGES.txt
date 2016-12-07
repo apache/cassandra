@@ -1,4 +1,5 @@
 4.0
+ * Parallelize streaming of different keyspaces (4663)
  * Improved compactions metrics (CASSANDRA-13015)
  * Speed-up start-up sequence by avoiding un-needed flushes (CASSANDRA-13031)
  * Use Caffeine (W-TinyLFU) for on-heap caches (CASSANDRA-10855)
