@@ -213,7 +213,7 @@ public class ReadCommandTest
 
         List<ByteBuffer> buffers = new ArrayList<>(groups.length);
         int nowInSeconds = FBUtilities.nowInSeconds();
-        ColumnFilter columnFilter = ColumnFilter.allColumnsBuilder(cfs.metadata).build();
+        ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata).build();
         RowFilter rowFilter = RowFilter.create();
         Slice slice = Slice.make(ClusteringBound.BOTTOM, ClusteringBound.TOP);
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.with(cfs.metadata.comparator, slice), false);
