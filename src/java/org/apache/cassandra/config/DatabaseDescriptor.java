@@ -1752,6 +1752,11 @@ public class DatabaseDescriptor
         }
     }
 
+    public static boolean getOutboundBindAny()
+    {
+        return Config.outboundBindAny || conf.listen_on_broadcast_address;
+    }
+
     public static int getIndexSummaryResizeIntervalInMinutes()
     {
         return conf.index_summary_resize_interval_in_minutes;

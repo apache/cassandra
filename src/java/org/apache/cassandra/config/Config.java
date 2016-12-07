@@ -250,7 +250,11 @@ public class Config
 
     public MemtableAllocationType memtable_allocation_type = MemtableAllocationType.heap_buffers;
 
-    private static boolean outboundBindAny = false;
+    /**
+     * @deprecated No longer needed for streaming protocol. See CASSANDRA-12673 for details.
+     */
+    @Deprecated
+    protected static boolean outboundBindAny = false;
 
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;

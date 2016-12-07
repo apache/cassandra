@@ -1,4 +1,5 @@
 2.2.9
+ * Do not specify local address on outgoing connection when listen_on_broadcast_address is set (CASSANDRA-12673)
  * Use saved tokens when setting local tokens on StorageService.joinRing (CASSANDRA-12935)
  * cqlsh: fix DESC TYPES errors (CASSANDRA-12914)
  * Fix leak on skipped SSTables in sstableupgrade (CASSANDRA-12899)
