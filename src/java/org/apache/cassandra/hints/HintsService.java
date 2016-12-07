@@ -159,8 +159,7 @@ public final class HintsService implements HintsServiceMBean
         // we have to make sure that the HintsStore instances get properly initialized - otherwise dispatch will not trigger
         catalog.maybeLoadStores(hostIds);
 
-        if (hint.isLive())
-            bufferPool.write(hostIds, hint);
+        bufferPool.write(hostIds, hint);
 
         StorageMetrics.totalHints.inc(size(hostIds));
     }
