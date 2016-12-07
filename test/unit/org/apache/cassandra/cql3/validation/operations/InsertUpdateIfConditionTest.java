@@ -186,6 +186,10 @@ public class InsertUpdateIfConditionTest extends CQLTester
         execute("INSERT INTO %s (k, s, i, v) VALUES ('k', 's', 0, 'v')");
         assertRows(execute("DELETE v FROM %s WHERE k='k' AND i=0 IF EXISTS"), row(true));
         assertRows(execute("DELETE FROM %s WHERE k='k' AND i=0 IF EXISTS"), row(true));
+        assertRows(execute("SELECT * FROM %s"), row("k", null, "s", null));
+        assertRows(execute("DELETE v FROM %s WHERE k='k' AND i=0 IF s = 'z'"), row(false, "s"));
+        assertRows(execute("DELETE v FROM %s WHERE k='k' AND i=0 IF v = 'z'"), row(false));
+        assertRows(execute("DELETE v FROM %s WHERE k='k' AND i=0 IF v = 'z' AND s = 'z'"), row(false, null, "s"));
         assertRows(execute("DELETE v FROM %s WHERE k='k' AND i=0 IF EXISTS"), row(false));
         assertRows(execute("DELETE FROM %s WHERE k='k' AND i=0 IF EXISTS"), row(false));
 
@@ -220,6 +224,28 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertRows(execute("DELETE FROM %s WHERE k = 1 AND i = 2 IF s = 1"), row(true));
         assertEmpty(execute("SELECT * FROM %s WHERE k = 1 AND i = 2"));
         assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, null, 1, null));
+
+        createTable("CREATE TABLE %s (k int, i int, v1 int, v2 int, s int static, PRIMARY KEY (k, i))");
+        execute("INSERT INTO %s (k, i, v1, v2, s) VALUES (?, ?, ?, ?, ?)",
+                1, 1, 1, 1, 1);
+        assertRows(execute("DELETE v1 FROM %s WHERE k = 1 AND i = 1 IF EXISTS"),
+                   row(true));
+        assertRows(execute("DELETE v2 FROM %s WHERE k = 1 AND i = 1 IF EXISTS"),
+                   row(true));
+        assertRows(execute("DELETE FROM %s WHERE k = 1 AND i = 1 IF EXISTS"),
+                   row(true));
+        assertRows(execute("select * from %s"),
+                   row(1, null, 1, null, null));
+        assertRows(execute("DELETE v1 FROM %s WHERE k = 1 AND i = 1 IF EXISTS"),
+                   row(false));
+        assertRows(execute("DELETE v1 FROM %s WHERE k = 1 AND i = 1 IF s = 5"),
+                   row(false, 1));
+        assertRows(execute("DELETE v1 FROM %s WHERE k = 1 AND i = 1 IF v1 = 1 AND v2 = 1"),
+                   row(false));
+        assertRows(execute("DELETE v1 FROM %s WHERE k = 1 AND i = 1 IF v1 = 1 AND v2 = 1 AND s = 1"),
+                   row(false, null, null, 1));
+        assertRows(execute("DELETE v1 FROM %s WHERE k = 1 AND i = 5 IF s = 1"),
+                   row(true));
     }
 
     /**
@@ -249,13 +275,17 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertRows(execute("UPDATE %s SET v='bar', version=2 WHERE id=0 AND k='k2' IF version = 1"), row(true));
         assertRows(execute("SELECT * FROM %s"), row(0, "k1", 2, "foo"), row(0, "k2", 2, "bar"));
 
+        // Batch output is slightly different from non-batch CAS, since a full PK is included to disambiguate
+        // cases when conditions span across multiple rows.
+        assertRows(execute("UPDATE %1$s SET version=3 WHERE id=0 IF version=1; "),
+                   row(false, 2));
         // Testing batches
         assertRows(execute("BEGIN BATCH " +
                            "UPDATE %1$s SET v='foobar' WHERE id=0 AND k='k1'; " +
                            "UPDATE %1$s SET v='barfoo' WHERE id=0 AND k='k2'; " +
                            "UPDATE %1$s SET version=3 WHERE id=0 IF version=1; " +
                            "APPLY BATCH "),
-                   row(false, 0, null, 2));
+                   row(false, 0, "k1", 2));
 
         assertRows(execute("BEGIN BATCH " +
                            "UPDATE %1$s SET v = 'foobar' WHERE id = 0 AND k = 'k1'; " +

@@ -20,8 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
+import com.google.common.collect.*;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.*;
@@ -179,19 +178,22 @@ public class CQL3CasRequest implements CASRequest
     {
         assert staticConditions != null || !conditions.isEmpty();
 
+        // Fetch all columns, but query only the selected ones
+        ColumnFilter columnFilter = ColumnFilter.selection(cfm, columnsToRead());
+
         // With only a static condition, we still want to make the distinction between a non-existing partition and one
         // that exists (has some live data) but has not static content. So we query the first live row of the partition.
         if (conditions.isEmpty())
             return SinglePartitionReadCommand.create(cfm,
                                                      nowInSec,
-                                                     ColumnFilter.selection(columnsToRead()),
+                                                     columnFilter,
                                                      RowFilter.NONE,
                                                      DataLimits.cqlLimits(1),
                                                      key,
                                                      new ClusteringIndexSliceFilter(Slices.ALL, false));
 
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(conditions.navigableKeySet(), false);
-        return SinglePartitionReadCommand.create(cfm, nowInSec, key, ColumnFilter.selection(columnsToRead()), filter);
+        return SinglePartitionReadCommand.create(cfm, nowInSec, key, columnFilter, filter);
     }
 
     /**

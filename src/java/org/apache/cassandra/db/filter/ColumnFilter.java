@@ -95,6 +95,15 @@ public class ColumnFilter
         return new ColumnFilter(false, null, columns, null);
     }
 
+	/**
+     * A filter that fetches all columns for the provided table, but returns
+     * only the queried ones.
+     */
+    public static ColumnFilter selection(CFMetaData metadata, PartitionColumns queried)
+    {
+        return new ColumnFilter(true, metadata, queried, null);
+    }
+
     /**
      * The columns that needs to be fetched internally for this selection.
      * <p>
