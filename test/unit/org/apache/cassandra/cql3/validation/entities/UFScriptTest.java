@@ -39,7 +39,7 @@ import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.utils.UUIDGen;
 
-public class UFPureScriptTest extends CQLTester
+public class UFScriptTest extends CQLTester
 {
     // Just JavaScript UDFs to check how UDF - especially security/class-loading/sandboxing stuff -
     // behaves, if no Java UDF has been executed before.
@@ -283,23 +283,23 @@ public class UFPureScriptTest extends CQLTester
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
 
         Object[][] variations = {
-                                new Object[]    {   "true",     "boolean",  true    },
-                                new Object[]    {   "false",    "boolean",  false   },
-                                new Object[]    {   "100",      "tinyint",  (byte)100 },
-                                new Object[]    {   "100.",     "tinyint",  (byte)100 },
-                                new Object[]    {   "100",      "smallint", (short)100 },
-                                new Object[]    {   "100.",     "smallint", (short)100 },
-                                new Object[]    {   "100",      "int",      100     },
-                                new Object[]    {   "100.",     "int",      100     },
-                                new Object[]    {   "100",      "double",   100d    },
-                                new Object[]    {   "100.",     "double",   100d    },
-                                new Object[]    {   "100",      "bigint",   100L    },
-                                new Object[]    {   "100.",     "bigint",   100L    },
-                                new Object[]    {   "100",      "varint",   BigInteger.valueOf(100L)    },
-                                new Object[]    {   "100.",     "varint",   BigInteger.valueOf(100L)    },
-                                new Object[]    {   "parseInt(\"100\");", "decimal",  BigDecimal.valueOf(100d)    },
-                                new Object[]    {   "100.",     "decimal",  BigDecimal.valueOf(100d)    },
-                                };
+        new Object[]    {   "true",     "boolean",  true    },
+        new Object[]    {   "false",    "boolean",  false   },
+        new Object[]    {   "100",      "tinyint",  (byte)100 },
+        new Object[]    {   "100.",     "tinyint",  (byte)100 },
+        new Object[]    {   "100",      "smallint", (short)100 },
+        new Object[]    {   "100.",     "smallint", (short)100 },
+        new Object[]    {   "100",      "int",      100     },
+        new Object[]    {   "100.",     "int",      100     },
+        new Object[]    {   "100",      "double",   100d    },
+        new Object[]    {   "100.",     "double",   100d    },
+        new Object[]    {   "100",      "bigint",   100L    },
+        new Object[]    {   "100.",     "bigint",   100L    },
+        new Object[]    { "100", "varint", BigInteger.valueOf(100L)    },
+        new Object[]    {   "100.",     "varint",   BigInteger.valueOf(100L)    },
+        new Object[]    { "parseInt(\"100\");", "decimal", BigDecimal.valueOf(100d)    },
+        new Object[]    {   "100.",     "decimal",  BigDecimal.valueOf(100d)    },
+        };
 
         for (Object[] variation : variations)
         {
@@ -332,16 +332,16 @@ public class UFPureScriptTest extends CQLTester
                 (byte)1, (short)1, 1, 1L, 1f, 1d, BigInteger.valueOf(1L), BigDecimal.valueOf(1d), 1L, Integer.MAX_VALUE, new Date(1), ruuid, tuuid);
 
         Object[][] variations = {
-                                new Object[] {  "tinyint",  "tival",    (byte)1,                (byte)2  },
-                                new Object[] {  "smallint", "sival",    (short)1,               (short)2  },
-                                new Object[] {  "int",      "ival",     1,                      2  },
-                                new Object[] {  "bigint",   "lval",     1L,                     2L  },
-                                new Object[] {  "float",    "fval",     1f,                     2f  },
-                                new Object[] {  "double",   "dval",     1d,                     2d  },
-                                new Object[] {  "varint",   "vval",     BigInteger.valueOf(1L), BigInteger.valueOf(2L)  },
-                                new Object[] {  "decimal",  "ddval",    BigDecimal.valueOf(1d), BigDecimal.valueOf(2d)  },
-                                new Object[] {  "time",     "timval",   1L,                     2L  },
-                                };
+        new Object[] {  "tinyint",  "tival",    (byte)1,                (byte)2  },
+        new Object[] {  "smallint", "sival",    (short)1,               (short)2  },
+        new Object[] {  "int",      "ival",     1,                      2  },
+        new Object[] {  "bigint",   "lval",     1L,                     2L  },
+        new Object[] {  "float",    "fval",     1f,                     2f  },
+        new Object[] {  "double",   "dval",     1d,                     2d  },
+        new Object[] {  "varint",   "vval",     BigInteger.valueOf(1L), BigInteger.valueOf(2L)  },
+        new Object[] {  "decimal",  "ddval",    BigDecimal.valueOf(1d), BigDecimal.valueOf(2d)  },
+        new Object[] {  "time",     "timval",   1L,                     2L  },
+        };
 
         for (Object[] variation : variations)
         {
@@ -350,20 +350,20 @@ public class UFPureScriptTest extends CQLTester
             Object expected1 = variation[2];
             Object expected2 = variation[3];
             String fName = createFunction(KEYSPACE, type.toString(),
-                           "CREATE OR REPLACE FUNCTION %s(val " + type + ") " +
-                           "RETURNS NULL ON NULL INPUT " +
-                           "RETURNS " + type + ' ' +
-                           "LANGUAGE javascript " +
-                           "AS 'val+1;';");
+                                          "CREATE OR REPLACE FUNCTION %s(val " + type + ") " +
+                                          "RETURNS NULL ON NULL INPUT " +
+                                          "RETURNS " + type + ' ' +
+                                          "LANGUAGE javascript " +
+                                          "AS 'val+1;';");
             assertRows(execute("SELECT key, " + col + ", " + fName + '(' + col + ") FROM %s"),
                        row(1, expected1, expected2));
         }
 
         variations = new Object[][] {
-                     new Object[] {  "timestamp","tsval",    new Date(1),            new Date(1)  },
-                     new Object[] {  "uuid",     "uval",     ruuid,                  ruuid  },
-                     new Object[] {  "timeuuid", "tuval",    tuuid,                  tuuid  },
-                     new Object[] {  "date",     "dtval",    Integer.MAX_VALUE,      Integer.MAX_VALUE },
+        new Object[] {  "timestamp","tsval",    new Date(1),            new Date(1)  },
+        new Object[] {  "uuid",     "uval",     ruuid,                  ruuid  },
+        new Object[] {  "timeuuid", "tuval",    tuuid,                  tuuid  },
+        new Object[] {  "date",     "dtval",    Integer.MAX_VALUE,      Integer.MAX_VALUE },
         };
 
         for (Object[] variation : variations)
@@ -402,5 +402,27 @@ public class UFPureScriptTest extends CQLTester
         {
             DatabaseDescriptor.enableScriptedUserDefinedFunctions(true);
         }
+    }
+
+    @Test
+    public void testJavascriptCompileFailure() throws Throwable
+    {
+        assertInvalidMessage("Failed to compile function 'cql_test_keyspace.scrinv'",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".scrinv(val double) " +
+                             "RETURNS NULL ON NULL INPUT " +
+                             "RETURNS double " +
+                             "LANGUAGE javascript\n" +
+                             "AS 'foo bar';");
+    }
+
+    @Test
+    public void testScriptInvalidLanguage() throws Throwable
+    {
+        assertInvalidMessage("Invalid language 'artificial_intelligence' for function 'cql_test_keyspace.scrinv'",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".scrinv(val double) " +
+                             "RETURNS NULL ON NULL INPUT " +
+                             "RETURNS double " +
+                             "LANGUAGE artificial_intelligence\n" +
+                             "AS 'question for 42?';");
     }
 }
