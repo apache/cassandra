@@ -129,7 +129,7 @@ public class OutboundTcpConnectionPool
         // zero means 'bind on any available port.'
         if (isEncryptedChannel(endpoint))
         {
-            if (Config.getOutboundBindAny())
+            if (DatabaseDescriptor.getOutboundBindAny())
                 return SSLFactory.getSocket(DatabaseDescriptor.getServerEncryptionOptions(), endpoint, DatabaseDescriptor.getSSLStoragePort());
             else
                 return SSLFactory.getSocket(DatabaseDescriptor.getServerEncryptionOptions(), endpoint, DatabaseDescriptor.getSSLStoragePort(), FBUtilities.getLocalAddress(), 0);
@@ -137,7 +137,7 @@ public class OutboundTcpConnectionPool
         else
         {
             SocketChannel channel = SocketChannel.open();
-            if (!Config.getOutboundBindAny())
+            if (!DatabaseDescriptor.getOutboundBindAny())
                 channel.bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
             channel.connect(new InetSocketAddress(endpoint, DatabaseDescriptor.getStoragePort()));
             return channel.socket();
