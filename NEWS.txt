@@ -21,6 +21,9 @@ Upgrading
    - Specifying the default_time_to_live option when creating or altering a
      materialized view was erroneously accepted (and ignored). It is now
      properly rejected.
+   - Only Java and JavaScript are now supported UDF languages.
+     The sandbox in 3.0 already prevented the use of script languages except Java
+     and JavaScript.
 
 3.10
 ====
