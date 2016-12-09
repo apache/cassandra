@@ -101,7 +101,6 @@ public final class BulkRecordWriter extends RecordWriter<ByteBuffer, List<Mutati
 
     BulkRecordWriter(Configuration conf)
     {
-        Config.setOutboundBindAny(true);
         this.conf = conf;
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(Integer.parseInt(conf.get(STREAM_THROTTLE_MBITS, "0")));
         maxFailures = Integer.parseInt(conf.get(MAX_FAILED_HOSTS, "0"));
