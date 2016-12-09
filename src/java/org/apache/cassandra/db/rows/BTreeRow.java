@@ -263,7 +263,7 @@ public class BTreeRow extends AbstractRow
     {
         Map<ByteBuffer, CFMetaData.DroppedColumn> droppedColumns = metadata.getDroppedColumns();
 
-        boolean mayFilterColumns = !filter.fetchesAllColumns() || !filter.allFetchedColumnsAreQueried();
+        boolean mayFilterColumns = !filter.fetchesAllColumns(isStatic());
         boolean mayHaveShadowed = activeDeletion.supersedes(deletion.time());
 
         if (!mayFilterColumns && !mayHaveShadowed && droppedColumns.isEmpty())
