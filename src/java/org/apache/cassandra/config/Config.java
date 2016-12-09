@@ -277,8 +277,6 @@ public class Config
 
     public MemtableAllocationType memtable_allocation_type = MemtableAllocationType.heap_buffers;
 
-    private static boolean outboundBindAny = false;
-
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
@@ -356,16 +354,6 @@ public class Config
 
     public volatile boolean back_pressure_enabled = false;
     public volatile ParameterizedClass back_pressure_strategy;
-
-    public static boolean getOutboundBindAny()
-    {
-        return outboundBindAny;
-    }
-
-    public static void setOutboundBindAny(boolean value)
-    {
-        outboundBindAny = value;
-    }
 
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}

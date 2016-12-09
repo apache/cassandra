@@ -9,6 +9,7 @@
 
 
 3.10
+ * Remove outboundBindAny configuration property (CASSANDRA-12673)
  * Use correct bounds for all-data range when filtering (CASSANDRA-12666)
  * Remove timing window in test case (CASSANDRA-12875)
  * Resolve unit testing without JCE security libraries installed (CASSANDRA-12945)

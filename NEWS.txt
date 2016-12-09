@@ -78,6 +78,7 @@ New features
    - Add support to "unset" JSON fields in prepared statements by specifying DEFAULT UNSET.
      See CASSANDRA-11424 for details
    - Allow TTL with null value on insert and update. It will be treated as equivalent to inserting a 0.
+   - Removed outboundBindAny configuration property. See CASSANDRA-12673 for details.
 
 Upgrading
 ---------
