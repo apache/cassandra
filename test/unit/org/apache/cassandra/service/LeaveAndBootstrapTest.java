@@ -556,7 +556,7 @@ public class LeaveAndBootstrapTest
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(2))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(2))));
 
-        assertTrue(tmd.getLeavingEndpoints().isEmpty());
+        assertTrue(tmd.getSizeOfLeavingEndpoints() == 0);
         assertEquals(keyTokens.get(2), tmd.getToken(hosts.get(2)));
 
         // node 3 goes through leave and left and then jumps to normal at its new token
@@ -567,7 +567,7 @@ public class LeaveAndBootstrapTest
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(4))));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
-        assertTrue(tmd.getLeavingEndpoints().isEmpty());
+        assertTrue(tmd.getSizeOfLeavingEndpoints() == 0);
         assertEquals(keyTokens.get(4), tmd.getToken(hosts.get(2)));
     }
 

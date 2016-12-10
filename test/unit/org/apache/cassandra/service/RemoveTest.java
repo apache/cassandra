@@ -163,7 +163,7 @@ public class RemoveTest
         Thread.sleep(1000); // make sure removal is waiting for confirmation
 
         assertTrue(tmd.isLeaving(removalhost));
-        assertEquals(1, tmd.getLeavingEndpoints().size());
+        assertEquals(1, tmd.getSizeOfLeavingEndpoints());
 
         for (InetAddress host : hosts)
         {
@@ -174,6 +174,6 @@ public class RemoveTest
         remover.join();
 
         assertTrue(success.get());
-        assertTrue(tmd.getLeavingEndpoints().isEmpty());
+        assertTrue(tmd.getSizeOfLeavingEndpoints() == 0);
     }
 }

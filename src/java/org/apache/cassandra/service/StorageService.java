@@ -883,8 +883,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (useStrictConsistency && !allowSimultaneousMoves() &&
                     (
                         tokenMetadata.getBootstrapTokens().valueSet().size() > 0 ||
-                        tokenMetadata.getLeavingEndpoints().size() > 0 ||
-                        tokenMetadata.getMovingEndpoints().size() > 0
+                        tokenMetadata.getSizeOfLeavingEndpoints() > 0 ||
+                        tokenMetadata.getSizeOfMovingEndpoints() > 0
                     ))
             {
                 throw new UnsupportedOperationException("Other bootstrapping/leaving/moving nodes detected, cannot bootstrap while cassandra.consistent.rangemovement is true");
@@ -4210,7 +4210,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void forceRemoveCompletion()
     {
-        if (!replicatingNodes.isEmpty()  || !tokenMetadata.getLeavingEndpoints().isEmpty())
+        if (!replicatingNodes.isEmpty()  || tokenMetadata.getSizeOfLeavingEndpoints() > 0)
         {
             logger.warn("Removal not confirmed for for {}", StringUtils.join(this.replicatingNodes, ","));
             for (InetAddress endpoint : tokenMetadata.getLeavingEndpoints())

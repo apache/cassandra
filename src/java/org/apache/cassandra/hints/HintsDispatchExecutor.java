@@ -199,7 +199,7 @@ final class HintsDispatchExecutor
             // the goal is to bound maximum hints traffic going towards a particular node from the rest of the cluster,
             // not total outgoing hints traffic from this node - this is why the rate limiter is not shared between
             // all the dispatch tasks (as there will be at most one dispatch task for a particular host id at a time).
-            int nodesCount = Math.max(1, StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
+            int nodesCount = Math.max(1, StorageService.instance.getTokenMetadata().getSizeOfAllEndpoints() - 1);
             int throttleInKB = DatabaseDescriptor.getHintedHandoffThrottleInKB() / nodesCount;
             this.rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
         }
