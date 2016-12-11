@@ -1,5 +1,6 @@
 3.11.0
  * Move to FastThreadLocalThread and FastThreadLocal (CASSANDRA-13034)
+ * nodetool stopdaemon errors out (CASSANDRA-13030)
 Merged from 3.0:
  * Fix handling of partition with partition-level deletion plus
    live rows in sstabledump (CASSANDRA-13177)
