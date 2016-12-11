@@ -575,6 +575,9 @@ public final class SystemKeyspace
 
     public static void setViewBuilt(String keyspaceName, String viewName, boolean replicated)
     {
+        if (isViewBuilt(keyspaceName, viewName) && isViewStatusReplicated(keyspaceName, viewName) == replicated)
+            return;
+
         String req = "INSERT INTO %s.\"%s\" (keyspace_name, view_name, status_replicated) VALUES (?, ?, ?)";
         executeInternal(String.format(req, SchemaConstants.SYSTEM_KEYSPACE_NAME, BUILT_VIEWS), keyspaceName, viewName, replicated);
         forceBlockingFlush(BUILT_VIEWS);
@@ -582,11 +585,11 @@ public final class SystemKeyspace
 
     public static void setViewRemoved(String keyspaceName, String viewName)
     {
-        String buildReq = "DELETE FROM %S.%s WHERE keyspace_name = ? AND view_name = ?";
+        String buildReq = "DELETE FROM %S.%s WHERE keyspace_name = ? AND view_name = ? IF EXISTS";
         executeInternal(String.format(buildReq, SchemaConstants.SYSTEM_KEYSPACE_NAME, VIEWS_BUILDS_IN_PROGRESS), keyspaceName, viewName);
         forceBlockingFlush(VIEWS_BUILDS_IN_PROGRESS);
 
-        String builtReq = "DELETE FROM %s.\"%s\" WHERE keyspace_name = ? AND view_name = ?";
+        String builtReq = "DELETE FROM %s.\"%s\" WHERE keyspace_name = ? AND view_name = ? IF EXISTS";
         executeInternal(String.format(builtReq, SchemaConstants.SYSTEM_KEYSPACE_NAME, BUILT_VIEWS), keyspaceName, viewName);
         forceBlockingFlush(BUILT_VIEWS);
     }
@@ -607,7 +610,7 @@ public final class SystemKeyspace
         // Also, if writing to the built_view succeeds, but the view_builds_in_progress deletion fails, we will be able
         // to skip the view build next boot.
         setViewBuilt(ksname, viewName, false);
-        executeInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ? AND view_name = ?", VIEWS_BUILDS_IN_PROGRESS), ksname, viewName);
+        executeInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ? AND view_name = ? IF EXISTS", VIEWS_BUILDS_IN_PROGRESS), ksname, viewName);
         forceBlockingFlush(VIEWS_BUILDS_IN_PROGRESS);
     }
 
@@ -658,6 +661,10 @@ public final class SystemKeyspace
      */
     public static synchronized void removeTruncationRecord(UUID cfId)
     {
+        Pair<CommitLogPosition, Long> truncationRecord = getTruncationRecord(cfId);
+        if (truncationRecord == null)
+            return;
+
         String req = "DELETE truncated_at[?] from system.%s WHERE key = '%s'";
         executeInternal(String.format(req, LOCAL, LOCAL), cfId);
         truncationRecords = null;
@@ -739,6 +746,9 @@ public final class SystemKeyspace
 
     public static synchronized void updatePreferredIP(InetAddress ep, InetAddress preferred_ip)
     {
+        if (getPreferredIP(ep) == preferred_ip)
+            return;
+
         String req = "INSERT INTO system.%s (peer, preferred_ip) VALUES (?, ?)";
         executeInternal(String.format(req, PEERS), ep, preferred_ip);
         forceBlockingFlush(PEERS);
@@ -802,6 +812,11 @@ public final class SystemKeyspace
     public static synchronized void updateTokens(Collection<Token> tokens)
     {
         assert !tokens.isEmpty() : "removeEndpoint should be used instead";
+
+        Collection<Token> savedTokens = getSavedTokens();
+        if (tokens.containsAll(savedTokens) && tokens.size() == savedTokens.size())
+            return;
+
         String req = "INSERT INTO system.%s (key, tokens) VALUES ('%s', ?)";
         executeInternal(String.format(req, LOCAL, LOCAL), tokensAsSet(tokens));
         forceBlockingFlush(LOCAL);
@@ -1029,6 +1044,9 @@ public final class SystemKeyspace
 
     public static void setBootstrapState(BootstrapState state)
     {
+        if (getBootstrapState() == state)
+            return;
+
         String req = "INSERT INTO system.%s (key, bootstrapped) VALUES ('%s', ?)";
         executeInternal(String.format(req, LOCAL, LOCAL), state.name());
         forceBlockingFlush(LOCAL);
@@ -1050,7 +1068,7 @@ public final class SystemKeyspace
 
     public static void setIndexRemoved(String keyspaceName, String indexName)
     {
-        String req = "DELETE FROM %s.\"%s\" WHERE table_name = ? AND index_name = ?";
+        String req = "DELETE FROM %s.\"%s\" WHERE table_name = ? AND index_name = ? IF EXISTS";
         executeInternal(String.format(req, SchemaConstants.SYSTEM_KEYSPACE_NAME, BUILT_INDEXES), keyspaceName, indexName);
         forceBlockingFlush(BUILT_INDEXES);
     }
