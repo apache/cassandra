@@ -1,4 +1,5 @@
 3.12
+ * Add timeUnit Days for cassandra-stress (CASSANDRA-13029)
  * Add mutation size and batch metrics (CASSANDRA-12649)
  * Add method to get size of endpoints to TokenMetadata (CASSANDRA-12999)
  * Fix primary index calculation for SASI (CASSANDRA-12910)
