@@ -359,7 +359,7 @@ instance, given::
         a int,
         b int,
         c int,
-        PRIMARY KEY (a, c, d)
+        PRIMARY KEY (a, b, c)
     );
 
     SELECT * FROM t;
