@@ -20,6 +20,7 @@ package org.apache.cassandra.concurrent;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import io.netty.util.concurrent.FastThreadLocalThread;
 
 /**
@@ -56,12 +57,29 @@ public class NamedThreadFactory implements ThreadFactory
 
     public Thread newThread(Runnable runnable)
     {
-        String name = id + ":" + n.getAndIncrement();
-        Thread thread = new FastThreadLocalThread(threadGroup, runnable, name);
+        String name = id + ':' + n.getAndIncrement();
+        Thread thread = new FastThreadLocalThread(threadGroup, threadLocalDeallocator(runnable), name);
         thread.setPriority(priority);
         thread.setDaemon(true);
         if (contextClassLoader != null)
             thread.setContextClassLoader(contextClassLoader);
         return thread;
+    }
+
+    /**
+     * Ensures that {@link FastThreadLocal#remove() FastThreadLocal.remove()} is called when the {@link Runnable#run()}
+     * method of the given {@link Runnable} instance completes to ensure cleanup of {@link FastThreadLocal} instances.
+     * This is especially important for direct byte buffers allocated locally for a thread.
+     */
+    public static Runnable threadLocalDeallocator(Runnable r)
+    {
+        return () ->
+        {
+            try {
+                r.run();
+            } finally {
+                FastThreadLocal.removeAll();
+            }
+        };
     }
 }

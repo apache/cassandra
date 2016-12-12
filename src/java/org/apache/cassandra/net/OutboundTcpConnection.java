@@ -46,6 +46,7 @@ import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.xxhash.XXHashFactory;
 
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
@@ -502,31 +503,28 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     {
         final AtomicInteger version = new AtomicInteger(NO_VERSION);
         final CountDownLatch versionLatch = new CountDownLatch(1);
-        new Thread("HANDSHAKE-" + poolReference.endPoint())
+        Runnable r = () ->
         {
-            @Override
-            public void run()
+            try
             {
-                try
-                {
-                    logger.info("Handshaking version with {}", poolReference.endPoint());
-                    version.set(inputStream.readInt());
-                }
-                catch (IOException ex)
-                {
-                    final String msg = "Cannot handshake version with " + poolReference.endPoint();
-                    if (logger.isTraceEnabled())
-                        logger.trace(msg, ex);
-                    else
-                        logger.info(msg);
-                }
-                finally
-                {
-                    //unblock the waiting thread on either success or fail
-                    versionLatch.countDown();
-                }
+                logger.info("Handshaking version with {}", poolReference.endPoint());
+                version.set(inputStream.readInt());
             }
-        }.start();
+            catch (IOException ex)
+            {
+                final String msg = "Cannot handshake version with " + poolReference.endPoint();
+                if (logger.isTraceEnabled())
+                    logger.trace(msg, ex);
+                else
+                    logger.info(msg);
+            }
+            finally
+            {
+                //unblock the waiting thread on either success or fail
+                versionLatch.countDown();
+            }
+        };
+        new Thread(NamedThreadFactory.threadLocalDeallocator(r), "HANDSHAKE-" + poolReference.endPoint()).start();
 
         try
         {

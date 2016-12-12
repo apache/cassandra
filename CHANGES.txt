@@ -109,6 +109,7 @@
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Properly report LWT contention (CASSANDRA-12626)
 Merged from 3.0:
+ * Thread local pools never cleaned up (CASSANDRA-13033)
  * Set RPC_READY to false when draining or if a node is marked as shutdown (CASSANDRA-12781)
  * CQL often queries static columns unnecessarily (CASSANDRA-12768)
  * Make sure sstables only get committed when it's safe to discard commit log records (CASSANDRA-12956)
