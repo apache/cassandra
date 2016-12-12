@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.slf4j.*;
@@ -159,7 +160,7 @@ public abstract class AbstractCommitLogService
             }
         };
 
-        thread = new Thread(runnable, name);
+        thread = new Thread(NamedThreadFactory.threadLocalDeallocator(runnable), name);
         thread.start();
     }
 

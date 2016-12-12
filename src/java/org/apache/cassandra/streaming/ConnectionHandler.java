@@ -37,6 +37,8 @@ import com.google.common.util.concurrent.SettableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
@@ -214,7 +216,7 @@ public class ConnectionHandler
             this.socket = socket;
             this.protocolVersion = protocolVersion;
 
-            new Thread(this, name() + "-" + session.peer).start();
+            new Thread(NamedThreadFactory.threadLocalDeallocator(this), name() + "-" + session.peer).start();
         }
 
         public ListenableFuture<?> close()

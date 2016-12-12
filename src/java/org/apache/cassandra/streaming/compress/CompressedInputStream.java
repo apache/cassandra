@@ -33,6 +33,7 @@ import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -91,7 +92,7 @@ public class CompressedInputStream extends InputStream
         this.dataBuffer = new ArrayBlockingQueue<>(Math.min(info.chunks.length, 1024));
         this.crcCheckChanceSupplier = crcCheckChanceSupplier;
 
-        new Thread(new Reader(source, info, dataBuffer)).start();
+        new Thread(NamedThreadFactory.threadLocalDeallocator(new Reader(source, info, dataBuffer))).start();
     }
 
     public int read() throws IOException

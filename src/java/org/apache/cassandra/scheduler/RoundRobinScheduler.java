@@ -25,6 +25,7 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.RequestSchedulerOptions;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -69,7 +70,7 @@ public class RoundRobinScheduler implements IRequestScheduler
                 }
             }
         };
-        Thread scheduler = new Thread(runnable, "REQUEST-SCHEDULER");
+        Thread scheduler = new Thread(NamedThreadFactory.threadLocalDeallocator(runnable), "REQUEST-SCHEDULER");
         scheduler.start();
         logger.info("Started the RoundRobin Request Scheduler");
     }
