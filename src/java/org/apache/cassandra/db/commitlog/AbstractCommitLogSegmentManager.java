@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
@@ -146,7 +147,7 @@ public abstract class AbstractCommitLogSegmentManager
         };
 
         shutdown = false;
-        managerThread = new Thread(runnable, "COMMIT-LOG-ALLOCATOR");
+        managerThread = new Thread(NamedThreadFactory.threadLocalDeallocator(runnable), "COMMIT-LOG-ALLOCATOR");
         managerThread.start();
 
         // for simplicity, ensure the first segment is allocated before continuing
