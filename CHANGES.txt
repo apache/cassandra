@@ -8,6 +8,7 @@
 
 
 3.12
+ * nodetool stopdaemon errors out (CASSANDRA-13030)
  * Log message size in trace message in OutboundTcpConnection (CASSANDRA-13028)
  * Add timeUnit Days for cassandra-stress (CASSANDRA-13029)
  * Add mutation size and batch metrics (CASSANDRA-12649)
