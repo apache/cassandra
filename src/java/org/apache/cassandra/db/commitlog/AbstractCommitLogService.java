@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Timer.Context;
 
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
@@ -149,7 +150,7 @@ public abstract class AbstractCommitLogService
         };
 
         shutdown = false;
-        thread = new Thread(runnable, name);
+        thread = new Thread(NamedThreadFactory.threadLocalDeallocator(runnable), name);
         thread.start();
     }
 

@@ -56,6 +56,7 @@ import org.apache.cassandra.auth.AuthMigrationListener;
 import org.apache.cassandra.batchlog.BatchRemoveVerbHandler;
 import org.apache.cassandra.batchlog.BatchStoreVerbHandler;
 import org.apache.cassandra.batchlog.BatchlogManager;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -634,7 +635,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         // daemon threads, like our executors', continue to run while shutdown hooks are invoked
-        drainOnShutdown = new Thread(new WrappedRunnable()
+        drainOnShutdown = new Thread(NamedThreadFactory.threadLocalDeallocator(new WrappedRunnable()
         {
             @Override
             public void runMayThrow() throws InterruptedException, ExecutionException, IOException
@@ -649,7 +650,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logbackHook.setContext((LoggerContext)LoggerFactory.getILoggerFactory());
                 logbackHook.run();
             }
-        }, "StorageServiceShutdownHook");
+        }), "StorageServiceShutdownHook");
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
 
         replacing = isReplacing();
@@ -3532,7 +3533,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return 0;
 
         int cmd = nextRepairCommand.incrementAndGet();
-        new Thread(createRepairTask(cmd, keyspace, options, legacy)).start();
+        new Thread(NamedThreadFactory.threadLocalDeallocator(createRepairTask(cmd, keyspace, options, legacy))).start();
         return cmd;
     }
 
