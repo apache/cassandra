@@ -31,4 +31,20 @@ public interface IMutation
     public long getTimeout();
     public String toString(boolean shallow);
     public Collection<PartitionUpdate> getPartitionUpdates();
+
+    /**
+     * Computes the total data size of the specified mutations.
+     * @param mutations the mutations
+     * @return the total data size of the specified mutations
+     */
+    public static long dataSize(Collection<? extends IMutation> mutations)
+    {
+        long size = 0;
+        for (IMutation mutation : mutations)
+        {
+            for (PartitionUpdate update : mutation.getPartitionUpdates())
+                size += update.dataSize();
+        }
+        return size;
+    }
 }

@@ -23,23 +23,30 @@ import com.codahale.metrics.Histogram;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-public class CASClientRequestMetrics extends ClientRequestMetrics
+/**
+ * Metrics for tracking information about CAS write requests.
+ *
+ */
+public class CASClientWriteRequestMetrics extends CASClientRequestMetrics
 {
-    public final Histogram contention;
+    /**
+     * Metric for tracking the mutation sizes in bytes.
+     */
+    public final Histogram mutationSize;
 
-    public final Counter unfinishedCommit;
+    public final Counter conditionNotMet;
 
-    public CASClientRequestMetrics(String scope) 
+    public CASClientWriteRequestMetrics(String scope)
     {
         super(scope);
-        contention = Metrics.histogram(factory.createMetricName("ContentionHistogram"), false);
-        unfinishedCommit =  Metrics.counter(factory.createMetricName("UnfinishedCommit"));
+        mutationSize = Metrics.histogram(factory.createMetricName("MutationSizeHistogram"), false);
+        conditionNotMet =  Metrics.counter(factory.createMetricName("ConditionNotMet"));
     }
 
     public void release()
     {
         super.release();
-        Metrics.remove(factory.createMetricName("ContentionHistogram"));
-        Metrics.remove(factory.createMetricName("UnfinishedCommit"));
+        Metrics.remove(factory.createMetricName("ConditionNotMet"));
+        Metrics.remove(factory.createMetricName("MutationSizeHistogram"));
     }
 }
