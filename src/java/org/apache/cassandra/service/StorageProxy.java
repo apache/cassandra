@@ -98,12 +98,12 @@ public class StorageProxy implements StorageProxyMBean
     };
     private static final ClientRequestMetrics readMetrics = new ClientRequestMetrics("Read");
     private static final ClientRequestMetrics rangeMetrics = new ClientRequestMetrics("RangeSlice");
-    private static final ClientRequestMetrics writeMetrics = new ClientRequestMetrics("Write");
-    private static final CASClientRequestMetrics casWriteMetrics = new CASClientRequestMetrics("CASWrite");
+    private static final ClientWriteRequestMetrics writeMetrics = new ClientWriteRequestMetrics("Write");
+    private static final CASClientWriteRequestMetrics casWriteMetrics = new CASClientWriteRequestMetrics("CASWrite");
     private static final CASClientRequestMetrics casReadMetrics = new CASClientRequestMetrics("CASRead");
     private static final ViewWriteMetrics viewWriteMetrics = new ViewWriteMetrics("ViewWrite");
     private static final Map<ConsistencyLevel, ClientRequestMetrics> readMetricsMap = new EnumMap<>(ConsistencyLevel.class);
-    private static final Map<ConsistencyLevel, ClientRequestMetrics> writeMetricsMap = new EnumMap<>(ConsistencyLevel.class);
+    private static final Map<ConsistencyLevel, ClientWriteRequestMetrics> writeMetricsMap = new EnumMap<>(ConsistencyLevel.class);
 
     private static final double CONCURRENT_SUBREQUESTS_MARGIN = 0.10;
 
@@ -174,7 +174,7 @@ public class StorageProxy implements StorageProxyMBean
         for(ConsistencyLevel level : ConsistencyLevel.values())
         {
             readMetricsMap.put(level, new ClientRequestMetrics("Read-" + level.name()));
-            writeMetricsMap.put(level, new ClientRequestMetrics("Write-" + level.name()));
+            writeMetricsMap.put(level, new ClientWriteRequestMetrics("Write-" + level.name()));
         }
     }
 
@@ -271,6 +271,10 @@ public class StorageProxy implements StorageProxyMBean
                 // finish the paxos round w/ the desired updates
                 // TODO turn null updates into delete?
                 PartitionUpdate updates = request.makeUpdates(current);
+
+                long size = updates.dataSize();
+                casWriteMetrics.mutationSize.update(size);
+                writeMetricsMap.get(consistencyForPaxos).mutationSize.update(size);
 
                 // Apply triggers to cas updates. A consideration here is that
                 // triggers emit Mutations, and so a given trigger implementation
@@ -857,6 +861,10 @@ public class StorageProxy implements StorageProxyMBean
         boolean updatesView = Keyspace.open(mutations.iterator().next().getKeyspaceName())
                               .viewManager
                               .updatesAffectView(mutations, true);
+
+        long size = IMutation.dataSize(mutations);
+        writeMetrics.mutationSize.update(size);
+        writeMetricsMap.get(consistencyLevel).mutationSize.update(size);
 
         if (augmented != null)
             mutateAtomically(augmented, consistencyLevel, updatesView, queryStartNanoTime);

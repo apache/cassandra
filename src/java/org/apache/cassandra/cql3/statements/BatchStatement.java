@@ -35,6 +35,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.metrics.BatchMetrics;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -78,6 +79,8 @@ public class BatchStatement implements CQLStatement
                                                                 "batchlog entries, so setting gc_grace_seconds too low on " +
                                                                 "tables involved in an atomic batch might cause batchlog " +
                                                                 "entries to expire before being replayed.";
+
+    public static final BatchMetrics metrics = new BatchMetrics();
 
     /**
      * Creates a new BatchStatement from a list of statements and a
@@ -259,7 +262,7 @@ public class BatchStatement implements CQLStatement
     /**
      * Checks batch size to ensure threshold is met. If not, a warning is logged.
      *
-     * @param updates - the batch mutations.
+     * @param mutations - the batch mutations.
      */
     private static void verifyBatchSize(Collection<? extends IMutation> mutations) throws InvalidRequestException
     {
@@ -267,14 +270,8 @@ public class BatchStatement implements CQLStatement
         if (mutations.size() <= 1)
             return;
 
-        long size = 0;
         long warnThreshold = DatabaseDescriptor.getBatchSizeWarnThreshold();
-
-        for (IMutation mutation : mutations)
-        {
-            for (PartitionUpdate update : mutation.getPartitionUpdates())
-                size += update.dataSize();
-        }
+        long size = IMutation.dataSize(mutations);
 
         if (size > warnThreshold)
         {
@@ -369,8 +366,21 @@ public class BatchStatement implements CQLStatement
         verifyBatchSize(mutations);
         verifyBatchType(mutations);
 
+        updatePartitionsPerBatchMetrics(mutations.size());
+
         boolean mutateAtomic = (isLogged() && mutations.size() > 1);
         StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, queryStartNanoTime);
+    }
+
+    private void updatePartitionsPerBatchMetrics(int updatedPartitions)
+    {
+        if (isLogged()) {
+            metrics.partitionsPerLoggedBatch.update(updatedPartitions);
+        } else if (isCounter()) {
+            metrics.partitionsPerCounterBatch.update(updatedPartitions);
+        } else {
+            metrics.partitionsPerUnloggedBatch.update(updatedPartitions);
+        }
     }
 
     private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state, long queryStartNanoTime)
@@ -392,10 +402,15 @@ public class BatchStatement implements CQLStatement
                                                    state.getClientState(),
                                                    queryStartNanoTime))
         {
-            return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(ksName, tableName, result, columnsWithConditions, true, options.forStatement(0)));
+
+            return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(ksName,
+                                                                                  tableName,
+                                                                                  result,
+                                                                                  columnsWithConditions,
+                                                                                  true,
+                                                                                  options.forStatement(0)));
         }
     }
-
 
     private Pair<CQL3CasRequest,Set<ColumnDefinition>> makeCasRequest(BatchQueryOptions options, QueryState state)
     {

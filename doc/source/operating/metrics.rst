@@ -249,6 +249,7 @@ Reported name format:
     UnfinishedCommit      Counter        Number of transactions that were committed on write.
     ConditionNotMet       Counter        Number of transaction preconditions did not match current values.
     ContentionHistogram   Histogram      How many contended writes were encountered
+    MutationSizeHistogram Histogram      Total size in bytes of the requests mutations.
     ===================== ============== =============================================================
 
 
@@ -286,6 +287,7 @@ Reported name format:
     Failures              Counter        Number of write failures encountered.
     |nbsp|                Latency        Write latency.
     Unavailables          Counter        Number of unavailable exceptions encountered.
+    MutationSizeHistogram Histogram      Total size in bytes of the requests mutations.
     ===================== ============== =============================================================
 
 
@@ -584,6 +586,29 @@ Name                        Type           Description
 connectedNativeClients      Counter        Number of clients connected to this nodes native protocol server
 connectedThriftClients      Counter        Number of clients connected to this nodes thrift protocol server
 =========================== ============== ===========
+
+
+Batch Metrics
+^^^^^^^^^^^^^
+
+Metrics specifc to batch statements.
+
+Reported name format:
+
+**Metric Name**
+    ``org.apache.cassandra.metrics.Batch.<MetricName>``
+
+**JMX MBean**
+    ``org.apache.cassandra.metrics:type=Batch name=<MetricName>``
+
+=========================== ============== ===========
+Name                        Type           Description
+=========================== ============== ===========
+PartitionsPerCounterBatch   Histogram      Distribution of the number of partitions processed per counter batch
+PartitionsPerLoggedBatch    Histogram      Distribution of the number of partitions processed per logged batch
+PartitionsPerUnloggedBatch  Histogram      Distribution of the number of partitions processed per unlogged batch
+=========================== ============== ===========
+
 
 JVM Metrics
 ^^^^^^^^^^^
