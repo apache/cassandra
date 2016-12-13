@@ -18,14 +18,11 @@
 
 package org.apache.cassandra.test.microbench;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.AbstractExecutorService;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import io.netty.util.concurrent.FastThreadLocalThread;
+import io.netty.util.concurrent.DefaultThreadFactory;
 
 /**
  * Created to test perf of FastThreadLocal
@@ -33,64 +30,10 @@ import io.netty.util.concurrent.FastThreadLocalThread;
  * Used in MutationBench via:
  * jvmArgsAppend = {"-Djmh.executor=CUSTOM", "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor"}
  */
-public class FastThreadExecutor extends AbstractExecutorService
+public class FastThreadExecutor extends ThreadPoolExecutor
 {
-    final FastThreadLocalThread thread;
-    final LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
-    final CountDownLatch shutdown = new CountDownLatch(1);
-
     public FastThreadExecutor(int size, String name)
     {
-        assert size == 1;
-
-        thread = new FastThreadLocalThread(() -> {
-            Runnable work = null;
-            try
-            {
-                while ((work = queue.take()) != null)
-                    work.run();
-            }
-            catch (InterruptedException e)
-            {
-                shutdown.countDown();
-            }
-        });
-
-        thread.setName(name + "-1");
-        thread.setDaemon(true);
-
-        thread.start();
-    }
-
-
-    public void shutdown()
-    {
-        thread.interrupt();
-    }
-
-    public List<Runnable> shutdownNow()
-    {
-        thread.interrupt();
-        return Collections.emptyList();
-    }
-
-    public boolean isShutdown()
-    {
-        return shutdown.getCount() == 0;
-    }
-
-    public boolean isTerminated()
-    {
-        return shutdown.getCount() == 0;
-    }
-
-    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException
-    {
-        return shutdown.await(timeout, unit);
-    }
-
-    public void execute(Runnable command)
-    {
-        while(!queue.add(command));
+        super(size, size, 10, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), new DefaultThreadFactory(name, true));
     }
 }

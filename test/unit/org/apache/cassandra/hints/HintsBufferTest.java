@@ -28,6 +28,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Mutation;
@@ -114,7 +115,7 @@ public class HintsBufferTest
         // create HINT_THREADS_COUNT, start them, and wait for them to finish
         List<Thread> threads = new ArrayList<>(HINT_THREADS_COUNT);
         for (int i = 0; i < HINT_THREADS_COUNT; i ++)
-            threads.add(new Thread(new Writer(buffer, load, hintSize, i, baseTimestamp)));
+            threads.add(NamedThreadFactory.createThread(new Writer(buffer, load, hintSize, i, baseTimestamp)));
         threads.forEach(java.lang.Thread::start);
         for (Thread thread : threads)
             thread.join();

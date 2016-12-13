@@ -36,6 +36,7 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.TurboFilterList;
 import ch.qos.logback.classic.turbo.ReconfigureOnChangeFilter;
 import ch.qos.logback.classic.turbo.TurboFilter;
+import io.netty.util.concurrent.FastThreadLocal;
 
 /**
  * Custom {@link SecurityManager} and {@link Policy} implementation that only performs access checks
@@ -175,7 +176,7 @@ public final class ThreadAwareSecurityManager extends SecurityManager
         });
     }
 
-    private static final ThreadLocal<Boolean> initializedThread = new ThreadLocal<>();
+    private static final FastThreadLocal<Boolean> initializedThread = new FastThreadLocal<>();
 
     private ThreadAwareSecurityManager()
     {
