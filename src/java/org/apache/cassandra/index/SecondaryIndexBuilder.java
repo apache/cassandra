@@ -17,13 +17,11 @@
  */
 package org.apache.cassandra.index;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.UUID;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -61,12 +59,13 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
     {
         try
         {
+            int pageSize = cfs.indexManager.calculateIndexingPageSize();
             while (iter.hasNext())
             {
                 if (isStopRequested())
                     throw new CompactionInterruptedException(getCompactionInfo());
                 DecoratedKey key = iter.next();
-                Keyspace.indexPartition(key, cfs, indexers);
+                cfs.indexManager.indexPartition(key, indexers, pageSize);
             }
         }
         finally
