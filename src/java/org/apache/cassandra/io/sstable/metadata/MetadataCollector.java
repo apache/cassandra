@@ -205,7 +205,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
     private void updateLocalDeletionTime(int newLocalDeletionTime)
     {
         localDeletionTimeTracker.update(newLocalDeletionTime);
-        estimatedTombstoneDropTime.update(newLocalDeletionTime);
+        if (newLocalDeletionTime != Cell.NO_DELETION_TIME)
+            estimatedTombstoneDropTime.update(newLocalDeletionTime);
     }
 
     private void updateTTL(int newTTL)
