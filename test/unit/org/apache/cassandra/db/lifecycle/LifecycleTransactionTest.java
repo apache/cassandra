@@ -20,6 +20,7 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.After;
 import org.junit.Before;
@@ -30,6 +31,8 @@ import junit.framework.Assert;
 import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction.ReaderState;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction.ReaderState.Action;
@@ -268,7 +271,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
 
         private static Tracker tracker(ColumnFamilyStore cfs, List<SSTableReader> readers)
         {
-            Tracker tracker = new Tracker(cfs, false);
+            Tracker tracker = new Tracker(new Memtable(new AtomicReference<>(CommitLogPosition.NONE), cfs), false);
             tracker.addInitialSSTables(readers);
             return tracker;
         }
