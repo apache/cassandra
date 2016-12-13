@@ -28,6 +28,7 @@ import javax.crypto.ShortBufferException;
 
 import com.google.common.base.Preconditions;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.commitlog.EncryptedSegment;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
@@ -45,7 +46,7 @@ public class EncryptionUtils
     public static final int COMPRESSED_BLOCK_HEADER_SIZE = 4;
     public static final int ENCRYPTED_BLOCK_HEADER_SIZE = 8;
 
-    private static final ThreadLocal<ByteBuffer> reusableBuffers = new ThreadLocal<ByteBuffer>()
+    private static final FastThreadLocal<ByteBuffer> reusableBuffers = new FastThreadLocal<ByteBuffer>()
     {
         protected ByteBuffer initialValue()
         {

@@ -38,6 +38,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
@@ -87,20 +88,12 @@ public class FBUtilities
             return Runtime.getRuntime().availableProcessors();
     }
 
-    private static final ThreadLocal<MessageDigest> localMD5Digest = new ThreadLocal<MessageDigest>()
+    private static final FastThreadLocal<MessageDigest> localMD5Digest = new FastThreadLocal<MessageDigest>()
     {
         @Override
         protected MessageDigest initialValue()
         {
             return newMessageDigest("MD5");
-        }
-
-        @Override
-        public MessageDigest get()
-        {
-            MessageDigest digest = super.get();
-            digest.reset();
-            return digest;
         }
     };
 
@@ -108,7 +101,9 @@ public class FBUtilities
 
     public static MessageDigest threadLocalMD5Digest()
     {
-        return localMD5Digest.get();
+        MessageDigest md = localMD5Digest.get();
+        md.reset();
+        return md;
     }
 
     public static MessageDigest newMessageDigest(String algorithm)
