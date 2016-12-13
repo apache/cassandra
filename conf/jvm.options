@@ -80,6 +80,11 @@
 # and will require a restart for new values to take effect.
 #-Dcassandra.disable_auth_caches_remote_configuration=true
 
+# To disable dynamic calculation of the page size used when indexing an entire partition (during
+# initial index build/rebuild). If set to true, the page size will be fixed to the default of
+# 10000 rows per page.
+#-Dcassandra.force_default_indexing_page_size=true
+
 ########################
 # GENERAL JVM SETTINGS #
 ########################
