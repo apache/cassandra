@@ -317,7 +317,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
         public void run()
         {
-            SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
+            if (tracker != null && !tracker.isDummy())
+                SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
 
             try
             {
