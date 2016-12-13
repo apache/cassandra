@@ -41,6 +41,7 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -385,7 +386,8 @@ public class SecondaryIndexManager implements IndexRegistry
     public void markIndexBuilt(String indexName)
     {
         builtIndexes.add(indexName);
-        SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), indexName);
+        if (DatabaseDescriptor.isDaemonInitialized())
+            SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), indexName);
     }
 
     /**

@@ -102,6 +102,18 @@ public class DatabaseDescriptor
     private static Comparator<InetAddress> localComparator;
     private static boolean hasLoggedConfig;
 
+    private static boolean daemonInitialized;
+
+    public static boolean isDaemonInitialized()
+    {
+        return daemonInitialized;
+    }
+
+    public static void setDaemonInitialized()
+    {
+        daemonInitialized = true;
+    }
+
     public static void forceStaticInitialization() {}
     static
     {

@@ -168,6 +168,7 @@ public abstract class CQLTester
 
         ThreadAwareSecurityManager.install();
 
+        DatabaseDescriptor.setDaemonInitialized();
         Keyspace.setInitialized();
         isServerPrepared = true;
     }

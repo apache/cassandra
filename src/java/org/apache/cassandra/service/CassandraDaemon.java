@@ -541,6 +541,7 @@ public class CassandraDaemon
             try
             {
                 DatabaseDescriptor.forceStaticInitialization();
+                DatabaseDescriptor.setDaemonInitialized();
             }
             catch (ExceptionInInitializerError e)
             {
