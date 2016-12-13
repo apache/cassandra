@@ -37,7 +37,6 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.view.ViewManager;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
@@ -632,28 +631,6 @@ public class Keyspace
     public AbstractReplicationStrategy getReplicationStrategy()
     {
         return replicationStrategy;
-    }
-
-    /**
-     * @param key row to index
-     * @param cfs ColumnFamily to index partition in
-     * @param indexes the indexes to submit the row to
-     */
-    public static void indexPartition(DecoratedKey key, ColumnFamilyStore cfs, Set<Index> indexes)
-    {
-        if (logger.isTraceEnabled())
-            logger.trace("Indexing partition {} ", cfs.metadata.getKeyValidator().getString(key.getKey()));
-
-        SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fullPartitionRead(cfs.metadata,
-                                                                                      FBUtilities.nowInSeconds(),
-                                                                                      key);
-
-        try (ReadExecutionController controller = cmd.executionController();
-             UnfilteredRowIterator partition = cmd.queryMemtableAndDisk(cfs, controller);
-             OpOrder.Group writeGroup = cfs.keyspace.writeOrder.start())
-        {
-            cfs.indexManager.indexPartition(partition, writeGroup, indexes, cmd.nowInSec());
-        }
     }
 
     public List<Future<?>> flush()

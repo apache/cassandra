@@ -180,6 +180,7 @@ Merged from 3.0:
  * Correct log message for statistics of offheap memtable flush (CASSANDRA-12776)
  * Explicitly set locale for string validation (CASSANDRA-12541,CASSANDRA-12542,CASSANDRA-12543,CASSANDRA-12545)
 Merged from 2.2:
+ * Reduce granuality of OpOrder.Group during index build (CASSANDRA-12796)
  * Test bind parameters and unset parameters in InsertUpdateIfConditionTest (CASSANDRA-12980)
  * Use saved tokens when setting local tokens on StorageService.joinRing (CASSANDRA-12935)
  * cqlsh: fix DESC TYPES errors (CASSANDRA-12914)
