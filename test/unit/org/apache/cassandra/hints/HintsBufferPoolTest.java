@@ -64,7 +64,7 @@ public class HintsBufferPoolTest
         });
         blocked.start();
 
-        Util.spinAssertEquals(State.WAITING, () -> blocked.getState(), 1);
+        Util.spinAssertEquals(true, () -> blockedOnBackpressure, 60);
 
         while (blocked.isAlive())
             if (!returnedBuffers.isEmpty())
