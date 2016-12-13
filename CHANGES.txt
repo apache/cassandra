@@ -134,6 +134,7 @@
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Properly record CAS contention (CASSANDRA-12626)
 Merged from 3.0:
+ * Estimated TS drop-time histogram updated with Cell.NO_DELETION_TIME (CASSANDRA-13040)
  * Nodetool compactionstats fails with NullPointerException (CASSANDRA-13021)
  * Thread local pools never cleaned up (CASSANDRA-13033)
  * Set RPC_READY to false when draining or if a node is marked as shutdown (CASSANDRA-12781)
