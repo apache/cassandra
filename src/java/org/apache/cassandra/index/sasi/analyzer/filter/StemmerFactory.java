@@ -25,9 +25,9 @@ import java.util.Map;
 import org.tartarus.snowball.SnowballStemmer;
 import org.tartarus.snowball.ext.*;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.CacheLoader;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
 public class StemmerFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(StemmerFactory.class);
-    private static final LoadingCache<Class, Constructor<?>> STEMMER_CONSTRUCTOR_CACHE = CacheBuilder.newBuilder()
+    private static final LoadingCache<Class, Constructor<?>> STEMMER_CONSTRUCTOR_CACHE = Caffeine.newBuilder()
             .build(new CacheLoader<Class, Constructor<?>>()
             {
                 public Constructor<?> load(Class aClass) throws Exception

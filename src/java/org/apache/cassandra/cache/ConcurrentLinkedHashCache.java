@@ -22,8 +22,13 @@ import java.util.Iterator;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 
-/** Wrapper so CLHM can implement ICache interface.
- *  (this is what you get for making library classes final.) */
+/**
+ * Wrapper so CLHM can implement ICache interface.
+ * (this is what you get for making library classes final.)
+ *
+ * @deprecated Scheduled for removal; see CaffeineCache.
+ */
+@Deprecated
 public class ConcurrentLinkedHashCache<K extends IMeasurableMemory, V extends IMeasurableMemory> implements ICache<K, V>
 {
     public static final int DEFAULT_CONCURENCY_LEVEL = 64;

@@ -21,14 +21,14 @@ import java.net.InetAddress;
 import java.util.Map.Entry;
 
 import com.codahale.metrics.Counter;
+import com.github.benmanes.caffeine.cache.CacheLoader;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
+
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.utils.UUIDGen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -42,7 +42,7 @@ public class HintedHandoffMetrics
     private static final MetricNameFactory factory = new DefaultNameFactory("HintedHandOffManager");
 
     /** Total number of hints which are not stored, This is not a cache. */
-    private final LoadingCache<InetAddress, DifferencingCounter> notStored = CacheBuilder.newBuilder().build(new CacheLoader<InetAddress, DifferencingCounter>()
+    private final LoadingCache<InetAddress, DifferencingCounter> notStored = Caffeine.newBuilder().build(new CacheLoader<InetAddress, DifferencingCounter>()
     {
         public DifferencingCounter load(InetAddress address)
         {
@@ -51,7 +51,7 @@ public class HintedHandoffMetrics
     });
 
     /** Total number of hints that have been created, This is not a cache. */
-    private final LoadingCache<InetAddress, Counter> createdHintCounts = CacheBuilder.newBuilder().build(new CacheLoader<InetAddress, Counter>()
+    private final LoadingCache<InetAddress, Counter> createdHintCounts = Caffeine.newBuilder().build(new CacheLoader<InetAddress, Counter>()
     {
         public Counter load(InetAddress address)
         {
@@ -61,12 +61,12 @@ public class HintedHandoffMetrics
 
     public void incrCreatedHints(InetAddress address)
     {
-        createdHintCounts.getUnchecked(address).inc();
+        createdHintCounts.get(address).inc();
     }
 
     public void incrPastWindow(InetAddress address)
     {
-        notStored.getUnchecked(address).mark();
+        notStored.get(address).mark();
     }
 
     public void log()
