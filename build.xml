@@ -1456,9 +1456,11 @@
 
   <target name="javadoc" depends="init" description="Create javadoc" unless="no-javadoc">
     <create-javadoc destdir="${javadoc.dir}">
-      <fileset dir="${build.src.java}" defaultexcludes="yes">
-        <include name="org/apache/**/*.java"/>
-      </fileset>
+      <filesets>
+        <fileset dir="${build.src.java}" defaultexcludes="yes">
+          <include name="org/apache/**/*.java"/>
+        </fileset>
+      </filesets>
     </create-javadoc>
    </target>
 
