@@ -32,6 +32,7 @@ import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -141,23 +142,20 @@ public class RemoveTest
     {
         // start removal in background and send replication confirmations
         final AtomicBoolean success = new AtomicBoolean(false);
-        Thread remover = new Thread()
+        Thread remover = NamedThreadFactory.createThread(() ->
         {
-            public void run()
+            try
             {
-                try
-                {
-                    ss.removeNode(removalId.toString());
-                }
-                catch (Exception e)
-                {
-                    System.err.println(e);
-                    e.printStackTrace();
-                    return;
-                }
-                success.set(true);
+                ss.removeNode(removalId.toString());
             }
-        };
+            catch (Exception e)
+            {
+                System.err.println(e);
+                e.printStackTrace();
+                return;
+            }
+            success.set(true);
+        });
         remover.start();
 
         Thread.sleep(1000); // make sure removal is waiting for confirmation

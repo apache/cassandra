@@ -67,7 +67,7 @@ public class RoundRobinScheduler implements IRequestScheduler
                 schedule();
             }
         };
-        Thread scheduler = new Thread(NamedThreadFactory.threadLocalDeallocator(runnable), "REQUEST-SCHEDULER");
+        Thread scheduler = NamedThreadFactory.createThread(runnable, "REQUEST-SCHEDULER");
         scheduler.start();
         logger.info("Started the RoundRobin Request Scheduler");
     }

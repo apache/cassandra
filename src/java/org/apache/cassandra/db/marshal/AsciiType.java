@@ -23,6 +23,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CharacterCodingException;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Json;
 
@@ -40,7 +41,7 @@ public class AsciiType extends AbstractType<String>
 
     AsciiType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
-    private final ThreadLocal<CharsetEncoder> encoder = new ThreadLocal<CharsetEncoder>()
+    private final FastThreadLocal<CharsetEncoder> encoder = new FastThreadLocal<CharsetEncoder>()
     {
         @Override
         protected CharsetEncoder initialValue()
