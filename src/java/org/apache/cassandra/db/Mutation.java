@@ -78,6 +78,8 @@ public class Mutation implements IMutation
         this.keyspaceName = keyspaceName;
         this.key = key;
         this.modifications = modifications;
+        for (PartitionUpdate pu : modifications.values())
+            cdcEnabled |= pu.metadata().params.cdc;
     }
 
     public Mutation copy()
@@ -92,6 +94,11 @@ public class Mutation implements IMutation
 
         Mutation copy = copy();
         copy.modifications.keySet().removeAll(cfIds);
+
+        copy.cdcEnabled = false;
+        for (PartitionUpdate pu : modifications.values())
+            copy.cdcEnabled |= pu.metadata().params.cdc;
+
         return copy;
     }
 
