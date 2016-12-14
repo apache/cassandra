@@ -364,7 +364,6 @@ public class StressProfile implements Serializable
                     JavaDriverClient jclient = settings.getJavaDriverClient();
 
                     Map<String, PreparedStatement> stmts = new HashMap<>();
-                    Map<String, Integer> tids = new HashMap<>();
                     Map<String, SchemaQuery.ArgSelect> args = new HashMap<>();
                     for (Map.Entry<String, StressYaml.QueryDef> e : queries.entrySet())
                     {
