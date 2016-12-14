@@ -428,6 +428,7 @@ public class CommitLogSegment
         discardUnusedTail();
         waitForModifications();
         lastSyncedOffset = buffer.capacity();
+        syncComplete.signalAll();
         internalClose();
     }
 
