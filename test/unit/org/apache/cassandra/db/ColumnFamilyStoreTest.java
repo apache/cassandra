@@ -120,6 +120,7 @@ public class ColumnFamilyStoreTest
     public static final String CF_STANDARD3 = "Standard3";
     public static final String CF_STANDARD4 = "Standard4";
     public static final String CF_STANDARD5 = "Standard5";
+    public static final String CF_STANDARD6 = "Standard6";
     public static final String CF_STANDARDINT = "StandardInteger1";
     public static final String CF_SUPER1 = "Super1";
     public static final String CF_SUPER6 = "Super6";
@@ -148,6 +149,7 @@ public class ColumnFamilyStoreTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD3),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD4),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD5),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD6),
                                     SchemaLoader.indexCFMD(KEYSPACE1, CF_INDEX1, true),
                                     SchemaLoader.indexCFMD(KEYSPACE1, CF_INDEX2, false),
                                     SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER1, LongType.instance),
@@ -1137,7 +1139,7 @@ public class ColumnFamilyStoreTest
     public void testSliceByNamesCommandOldMetadata() throws Throwable
     {
         String keyspaceName = KEYSPACE1;
-        String cfName= CF_STANDARD1;
+        String cfName= CF_STANDARD6;
         DecoratedKey key = Util.dk("slice-name-old-metadata");
         CellName cname = cellname("c1");
         Keyspace keyspace = Keyspace.open(keyspaceName);
@@ -1154,7 +1156,11 @@ public class ColumnFamilyStoreTest
         cfs.clearUnsafe();
         assertEquals(0, cfs.getSSTables().size());
 
-        new File(ssTables.iterator().next().descriptor.filenameFor(Component.STATS)).delete();
+        SSTableReader sstable = ssTables.iterator().next();
+        File statsFile = new File(sstable.descriptor.filenameFor(Component.STATS));
+        assert statsFile.exists();
+        boolean deleted = statsFile.delete();
+        assert deleted : "Cannot delete " + statsFile;
         cfs.loadNewSSTables();
 
         // Add another cell with a lower timestamp

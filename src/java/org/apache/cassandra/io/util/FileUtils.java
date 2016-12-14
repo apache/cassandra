@@ -168,7 +168,7 @@ public final class FileUtils
 
     public static void renameWithConfirm(File from, File to)
     {
-        assert from.exists();
+        assert from.exists() : from + " should exist";
         if (logger.isTraceEnabled())
             logger.trace((String.format("Renaming %s to %s", from.getPath(), to.getPath())));
         // this is not FSWE because usually when we see it it's because we didn't close the file before renaming it,
