@@ -1194,7 +1194,10 @@ public abstract class LegacyLayout
             {
                 // It's the row marker
                 assert !cell.value.hasRemaining();
-                builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(cell.timestamp, cell.ttl, cell.localDeletionTime));
+                // In 2.1, the row marker expired cell might have been converted into a deleted one by compaction. So,
+                // we need to set the primary key liveness info only if the cell is not a deleted one.
+                if (!cell.isTombstone())
+                    builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(cell.timestamp, cell.ttl, cell.localDeletionTime));
             }
             else
             {
