@@ -581,4 +581,74 @@ public class UpdateTest extends CQLTester
                              "UPDATE %s USING TTL ? SET v = ? WHERE k = ?",
                              Attributes.MAX_TTL + 1, 1, 1);
     }
+
+    /**
+     * Test for CASSANDRA-12829
+     */
+    @Test
+    public void testUpdateWithEmptyInRestriction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a,b))");
+        execute("INSERT INTO %s (a,b,c) VALUES (?,?,?)",1,1,1);
+        execute("INSERT INTO %s (a,b,c) VALUES (?,?,?)",1,2,2);
+        execute("INSERT INTO %s (a,b,c) VALUES (?,?,?)",1,3,3);
+
+        assertInvalidMessage("Some clustering keys are missing: b",
+                             "UPDATE %s SET c = 100 WHERE a IN ();");
+        execute("UPDATE %s SET c = 100 WHERE a IN () AND b IN ();");
+        execute("UPDATE %s SET c = 100 WHERE a IN () AND b = 1;");
+        execute("UPDATE %s SET c = 100 WHERE a = 1 AND b IN ();");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1,1,1),
+                   row(1,2,2),
+                   row(1,3,3));
+
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, s int static, PRIMARY KEY ((a,b), c))");
+        execute("INSERT INTO %s (a,b,c,d,s) VALUES (?,?,?,?,?)",1,1,1,1,1);
+        execute("INSERT INTO %s (a,b,c,d,s) VALUES (?,?,?,?,?)",1,1,2,2,1);
+        execute("INSERT INTO %s (a,b,c,d,s) VALUES (?,?,?,?,?)",1,1,3,3,1);
+
+        execute("UPDATE %s SET d = 100 WHERE a = 1 AND b = 1 AND c IN ();");
+        execute("UPDATE %s SET d = 100 WHERE a = 1 AND b IN () AND c IN ();");
+        execute("UPDATE %s SET d = 100 WHERE a IN () AND b IN () AND c IN ();");
+        execute("UPDATE %s SET d = 100 WHERE a IN () AND b IN () AND c = 1;");
+        execute("UPDATE %s SET d = 100 WHERE a IN () AND b = 1 AND c IN ();");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1,1,1,1,1),
+                   row(1,1,2,1,2),
+                   row(1,1,3,1,3));
+
+        // No clustering keys restricted, update whole partition
+        execute("UPDATE %s set s = 100 where a = 1 AND b = 1;");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1,1,1,100,1),
+                   row(1,1,2,100,2),
+                   row(1,1,3,100,3));
+
+        execute("UPDATE %s set s = 200 where a = 1 AND b IN ();");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1,1,1,100,1),
+                   row(1,1,2,100,2),
+                   row(1,1,3,100,3));
+
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY ((a,b), c, d))");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (?,?,?,?,?)",1,1,1,1,1);
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (?,?,?,?,?)",1,1,1,2,2);
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (?,?,?,?,?)",1,1,1,3,3);
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (?,?,?,?,?)",1,1,1,4,4);
+
+        execute("UPDATE %s SET e = 100 WHERE a = 1 AND b = 1 AND c = 1 AND d IN ();");
+        execute("UPDATE %s SET e = 100 WHERE a = 1 AND b = 1 AND c IN () AND d IN ();");
+        execute("UPDATE %s SET e = 100 WHERE a = 1 AND b IN () AND c IN () AND d IN ();");
+        execute("UPDATE %s SET e = 100 WHERE a IN () AND b IN () AND c IN () AND d IN ();");
+        execute("UPDATE %s SET e = 100 WHERE a IN () AND b IN () AND c IN () AND d = 1;");
+        execute("UPDATE %s SET e = 100 WHERE a IN () AND b IN () AND c = 1 AND d = 1;");
+        execute("UPDATE %s SET e = 100 WHERE a IN () AND b IN () AND c = 1 AND d IN ();");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1,1,1,1,1),
+                   row(1,1,1,2,2),
+                   row(1,1,1,3,3),
+                   row(1,1,1,4,4));
+    }
+
 }

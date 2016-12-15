@@ -471,6 +471,17 @@ public final class StatementRestrictions
     }
 
     /**
+     * Checks if restrictions on the clustering key have IN restrictions.
+     *
+     * @return <code>true</code> if the restrictions on the clustering key have IN restrictions,
+     * <code>false</code> otherwise.
+     */
+    public boolean clusteringKeyRestrictionsHasIN()
+    {
+        return clusteringColumnsRestrictions.hasIN();
+    }
+
+    /**
      * Processes the clustering column restrictions.
      *
      * @param hasQueriableIndex <code>true</code> if some of the queried data are indexed, <code>false</code> otherwise
