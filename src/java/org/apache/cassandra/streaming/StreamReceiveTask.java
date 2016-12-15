@@ -178,14 +178,15 @@ public class StreamReceiveTask extends StreamTask
                     {
                         for (SSTableReader reader : readers)
                         {
+                            Keyspace ks = Keyspace.open(reader.getKeyspaceName());
                             try (ISSTableScanner scanner = reader.getScanner())
                             {
                                 while (scanner.hasNext())
                                 {
                                     try (UnfilteredRowIterator rowIterator = scanner.next())
                                     {
-                                        //Apply unsafe (we will flush below before transaction is done)
-                                        new Mutation(PartitionUpdate.fromIterator(rowIterator)).applyUnsafe();
+                                        // MV *can* be applied unsafe as we flush below before transaction is done.
+                                        ks.apply(new Mutation(PartitionUpdate.fromIterator(rowIterator)), false, true, false);
                                     }
                                 }
                             }

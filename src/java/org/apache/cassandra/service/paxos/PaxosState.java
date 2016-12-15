@@ -147,14 +147,7 @@ public class PaxosState
             {
                 Tracing.trace("Committing proposal {}", proposal);
                 Mutation mutation = proposal.makeMutation();
-                try
-                {
-                    Uninterruptibles.getUninterruptibly(Keyspace.open(mutation.getKeyspaceName()).applyNotDeferrable(mutation, true));
-                }
-                catch (ExecutionException e)
-                {
-                    throw Throwables.propagate(e.getCause());
-                }
+                Keyspace.open(mutation.getKeyspaceName()).apply(mutation, true);
             }
             else
             {
