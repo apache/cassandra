@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -99,7 +100,8 @@ public class AntiCompactionTest
             if (txn == null)
                 throw new IllegalStateException();
             long repairedAt = 1000;
-            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, repairedAt);
+            UUID parentRepairSession = UUID.randomUUID();
+            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, repairedAt, parentRepairSession);
         }
 
         assertEquals(2, store.getLiveSSTables().size());
@@ -144,10 +146,11 @@ public class AntiCompactionTest
         long origSize = s.bytesOnDisk();
         Range<Token> range = new Range<Token>(new BytesToken(ByteBufferUtil.bytes(0)), new BytesToken(ByteBufferUtil.bytes(500)));
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
+        UUID parentRepairSession = UUID.randomUUID();
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
-            CompactionManager.instance.performAnticompaction(cfs, Arrays.asList(range), refs, txn, 12345);
+            CompactionManager.instance.performAnticompaction(cfs, Arrays.asList(range), refs, txn, 12345, parentRepairSession);
         }
         long sum = 0;
         long rows = 0;
@@ -226,10 +229,11 @@ public class AntiCompactionTest
         List<Range<Token>> ranges = Arrays.asList(range);
 
         long repairedAt = 1000;
+        UUID parentRepairSession = UUID.randomUUID();
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
-            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, repairedAt);
+            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, repairedAt, parentRepairSession);
         }
         /*
         Anticompaction will be anti-compacting 10 SSTables but will be doing this two at a time
@@ -274,11 +278,12 @@ public class AntiCompactionTest
         assertEquals(store.getLiveSSTables().size(), sstables.size());
         Range<Token> range = new Range<Token>(new BytesToken("0".getBytes()), new BytesToken("9999".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
+        UUID parentRepairSession = UUID.randomUUID();
 
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
-            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, 1);
+            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, 1, parentRepairSession);
         }
 
         assertThat(store.getLiveSSTables().size(), is(1));
@@ -304,12 +309,12 @@ public class AntiCompactionTest
 
         Range<Token> range = new Range<Token>(new BytesToken("-1".getBytes()), new BytesToken("-10".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
-
+        UUID parentRepairSession = UUID.randomUUID();
 
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
-            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, 1);
+            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, 1, parentRepairSession);
         }
 
         assertThat(store.getLiveSSTables().size(), is(10));

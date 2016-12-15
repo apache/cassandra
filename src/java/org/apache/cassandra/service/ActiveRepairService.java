@@ -437,7 +437,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         //in addition to other scenarios such as repairs not involving all DCs or hosts
         if (!prs.isGlobal)
         {
-            logger.info("Not a global repair, will not do anticompaction");
+            logger.info("[repair #{}] Not a global repair, will not do anticompaction", parentRepairSession);
             removeParentRepairSession(parentRepairSession);
             return Futures.immediateFuture(Collections.emptyList());
         }
@@ -451,7 +451,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             {
                 Refs<SSTableReader> sstables = prs.getActiveRepairedSSTableRefsForAntiCompaction(columnFamilyStoreEntry.getKey(), parentRepairSession);
                 ColumnFamilyStore cfs = columnFamilyStoreEntry.getValue();
-                futures.add(CompactionManager.instance.submitAntiCompaction(cfs, successfulRanges, sstables, prs.repairedAt));
+                futures.add(CompactionManager.instance.submitAntiCompaction(cfs, successfulRanges, sstables, prs.repairedAt, parentRepairSession));
             }
         }
 
