@@ -119,6 +119,8 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
         createTable(" CREATE TABLE %s (k int, c int, v1 text, PRIMARY KEY(k, c))");
         assertInvalidMessage("IN on the clustering key columns is not supported with conditional updates",
+                             "UPDATE %s SET v1 = 'A' WHERE k = 0 AND c IN () IF EXISTS");
+        assertInvalidMessage("IN on the clustering key columns is not supported with conditional updates",
                              "UPDATE %s SET v1 = 'A' WHERE k = 0 AND c IN (1, 2) IF EXISTS");
     }
 
@@ -227,7 +229,11 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertInvalidMessage("IN on the clustering key columns is not supported with conditional deletions",
                              "DELETE FROM %s WHERE k = 'k' AND i IN (0, 1) IF v = 'foo'");
         assertInvalidMessage("IN on the clustering key columns is not supported with conditional deletions",
+                             "DELETE FROM %s WHERE k = 'k' AND i IN () IF v = 'foo'");
+        assertInvalidMessage("IN on the clustering key columns is not supported with conditional deletions",
                              "DELETE FROM %s WHERE k = 'k' AND i IN (0, 1) IF EXISTS");
+        assertInvalidMessage("IN on the clustering key columns is not supported with conditional deletions",
+                             "DELETE FROM %s WHERE k = 'k' AND i IN () IF EXISTS");
 
         assertInvalidMessage("Invalid 'unset' value in condition",
                              "DELETE FROM %s WHERE k = 'k' AND i = 0 IF v = ?", unset());

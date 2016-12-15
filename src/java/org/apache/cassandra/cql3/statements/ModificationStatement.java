@@ -139,6 +139,11 @@ public abstract class ModificationStatement implements CQLStatement
         this.requiresRead = requiresReadBuilder.build();
     }
 
+    public StatementRestrictions getRestrictions()
+    {
+        return restrictions;
+    }
+
     public Iterable<Function> getFunctions()
     {
         List<Function> functions = new ArrayList<>();
@@ -445,20 +450,18 @@ public abstract class ModificationStatement implements CQLStatement
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options);
         // We don't support IN for CAS operation so far
-        checkFalse(keys.size() > 1,
+        checkFalse(restrictions.keyIsInRelation(),
                    "IN on the partition key is not supported with conditional %s",
                    type.isUpdate()? "updates" : "deletions");
 
         DecoratedKey key = cfm.decorateKey(keys.get(0));
         long now = options.getTimestamp(queryState);
-        SortedSet<Clustering> clusterings = createClustering(options);
 
-        checkFalse(clusterings.size() > 1,
+        checkFalse(restrictions.clusteringKeyRestrictionsHasIN(),
                    "IN on the clustering key columns is not supported with conditional %s",
                     type.isUpdate()? "updates" : "deletions");
 
-        Clustering clustering = Iterables.getOnlyElement(clusterings);
-
+        Clustering clustering = Iterables.getOnlyElement(createClustering(options));
         CQL3CasRequest request = new CQL3CasRequest(cfm, key, false, conditionColumns(), updatesRegularRows(), updatesStaticRow());
 
         addConditions(clustering, request, options);
@@ -663,7 +666,7 @@ public abstract class ModificationStatement implements CQLStatement
 
                 PartitionUpdate upd = collector.getPartitionUpdate(cfm, dk, options.getConsistency());
 
-                if (clusterings.isEmpty())
+                if (!restrictions.hasClusteringColumnsRestriction())
                 {
                     addUpdateForKey(upd, Clustering.EMPTY, params);
                 }

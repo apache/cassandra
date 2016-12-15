@@ -382,6 +382,13 @@ public abstract class CQLTester
             store.forceBlockingFlush();
     }
 
+
+    public void flush(boolean forceFlush)
+    {
+        if (forceFlush)
+            flush();
+    }
+
     @FunctionalInterface
     public interface CheckedFunction {
         void apply() throws Throwable;
