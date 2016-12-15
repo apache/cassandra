@@ -199,4 +199,44 @@ public class BatchTest extends CQLTester
         assertRows(execute(String.format("SELECT * FROM %s", tbl1)), row(0, 1, 2));
         assertRows(execute(String.format("SELECT * FROM %s", tbl2)), row(0, 3, 4));
     }
+
+    @Test
+    public void testBatchWithInRestriction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a,b))");
+        execute("INSERT INTO %s (a,b,c) VALUES (?,?,?)",1,1,1);
+        execute("INSERT INTO %s (a,b,c) VALUES (?,?,?)",1,2,2);
+        execute("INSERT INTO %s (a,b,c) VALUES (?,?,?)",1,3,3);
+
+        for (String inClause : new String[] { "()", "(1, 2)"})
+        {
+            assertInvalidMessage("IN on the clustering key columns is not supported with conditional updates",
+                                 "BEGIN BATCH " +
+                                 "UPDATE %1$s SET c = 100 WHERE a = 1 AND b = 1 IF c = 1;" +
+                                 "UPDATE %1$s SET c = 200 WHERE a = 1 AND b IN " + inClause + " IF c = 1;" +
+                                 "APPLY BATCH");
+
+            assertInvalidMessage("IN on the clustering key columns is not supported with conditional deletions",
+                                 "BEGIN BATCH " +
+                                 "UPDATE %1$s SET c = 100 WHERE a = 1 AND b = 1 IF c = 1;" +
+                                 "DELETE FROM %1$s WHERE a = 1 AND b IN " + inClause + " IF c = 1;" +
+                                 "APPLY BATCH");
+
+            assertInvalidMessage("Batch with conditions cannot span multiple partitions (you cannot use IN on the partition key)",
+                                 "BEGIN BATCH " +
+                                 "UPDATE %1$s SET c = 100 WHERE a = 1 AND b = 1 IF c = 1;" +
+                                 "UPDATE %1$s SET c = 200 WHERE a IN " + inClause + " AND b = 1 IF c = 1;" +
+                                 "APPLY BATCH");
+
+            assertInvalidMessage("Batch with conditions cannot span multiple partitions (you cannot use IN on the partition key)",
+                                 "BEGIN BATCH " +
+                                 "UPDATE %1$s SET c = 100 WHERE a = 1 AND b = 1 IF c = 1;" +
+                                 "DELETE FROM %1$s WHERE a IN " + inClause + " AND b = 1 IF c = 1;" +
+                                 "APPLY BATCH");
+        }
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1,1,1),
+                   row(1,2,2),
+                   row(1,3,3));
+    }
 }
