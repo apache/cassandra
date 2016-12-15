@@ -224,15 +224,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                     {
                         assert !newMutation.isEmpty();
 
-                        try
-                        {
-                            Uninterruptibles.getUninterruptibly(Keyspace.open(newMutation.getKeyspaceName()).applyFromCommitLog(newMutation));
-                        }
-                        catch (ExecutionException e)
-                        {
-                            throw Throwables.propagate(e.getCause());
-                        }
-
+                        Keyspace.open(newMutation.getKeyspaceName()).apply(newMutation, false, true, false);
                         commitLogReplayer.keyspacesReplayed.add(keyspace);
                     }
                 }

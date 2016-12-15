@@ -88,10 +88,8 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         else
         {
             // the common path - the node is both the destination and a valid replica for the hint.
-            hint.apply();
+            hint.applyFuture().thenAccept(o -> reply(id, message.from)).exceptionally(e -> {logger.debug("Failed to apply hint", e); return null;});
         }
-
-        reply(id, message.from);
     }
 
     private static void reply(int id, InetAddress to)
