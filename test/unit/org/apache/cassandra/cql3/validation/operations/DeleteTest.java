@@ -1244,4 +1244,61 @@ public class DeleteTest extends CQLTester
                        row(bytes("foo123"), bytes("1"), bytes("2"), bytes("3")));
         }
     }
+
+    /**
+     * Test for CASSANDRA-12829
+     */
+    @Test
+    public void testDeleteWithEmptyInRestriction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a,b))");
+        execute("INSERT INTO %s (a,b,c) VALUES (?,?,?)", 1, 1, 1);
+        execute("INSERT INTO %s (a,b,c) VALUES (?,?,?)", 1, 2, 2);
+        execute("INSERT INTO %s (a,b,c) VALUES (?,?,?)", 1, 3, 3);
+
+        execute("DELETE FROM %s WHERE a IN ();");
+        execute("DELETE FROM %s WHERE a IN () AND b IN ();");
+        execute("DELETE FROM %s WHERE a IN () AND b = 1;");
+        execute("DELETE FROM %s WHERE a = 1 AND b IN ();");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, 1, 1),
+                   row(1, 2, 2),
+                   row(1, 3, 3));
+
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, s int static, PRIMARY KEY ((a,b), c))");
+        execute("INSERT INTO %s (a,b,c,d,s) VALUES (?,?,?,?,?)", 1, 1, 1, 1, 1);
+        execute("INSERT INTO %s (a,b,c,d,s) VALUES (?,?,?,?,?)", 1, 1, 2, 2, 1);
+        execute("INSERT INTO %s (a,b,c,d,s) VALUES (?,?,?,?,?)", 1, 1, 3, 3, 1);
+
+        execute("DELETE FROM %s WHERE a = 1 AND b = 1 AND c IN ();");
+        execute("DELETE FROM %s WHERE a = 1 AND b IN () AND c IN ();");
+        execute("DELETE FROM %s WHERE a IN () AND b IN () AND c IN ();");
+        execute("DELETE FROM %s WHERE a IN () AND b = 1 AND c IN ();");
+        execute("DELETE FROM %s WHERE a IN () AND b IN () AND c = 1;");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, 1, 1, 1, 1),
+                   row(1, 1, 2, 1, 2),
+                   row(1, 1, 3, 1, 3));
+
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY ((a,b), c, d))");
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (?,?,?,?,?)", 1, 1, 1, 1, 1);
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (?,?,?,?,?)", 1, 1, 1, 2, 2);
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (?,?,?,?,?)", 1, 1, 1, 3, 3);
+        execute("INSERT INTO %s (a,b,c,d,e) VALUES (?,?,?,?,?)", 1, 1, 1, 4, 4);
+
+        execute("DELETE FROM %s WHERE a = 1 AND b = 1 AND c IN ();");
+        execute("DELETE FROM %s WHERE a = 1 AND b = 1 AND c = 1 AND d IN ();");
+        execute("DELETE FROM %s WHERE a = 1 AND b = 1 AND c IN () AND d IN ();");
+        execute("DELETE FROM %s WHERE a = 1 AND b IN () AND c IN () AND d IN ();");
+        execute("DELETE FROM %s WHERE a IN () AND b IN () AND c IN () AND d IN ();");
+        execute("DELETE FROM %s WHERE a IN () AND b IN () AND c IN () AND d = 1;");
+        execute("DELETE FROM %s WHERE a IN () AND b IN () AND c = 1 AND d = 1;");
+        execute("DELETE FROM %s WHERE a IN () AND b IN () AND c = 1 AND d IN ();");
+        execute("DELETE FROM %s WHERE a IN () AND b = 1");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, 1, 1, 1, 1),
+                   row(1, 1, 1, 2, 2),
+                   row(1, 1, 1, 3, 3),
+                   row(1, 1, 1, 4, 4));
+    }
 }
