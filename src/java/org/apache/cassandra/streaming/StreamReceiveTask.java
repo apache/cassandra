@@ -186,6 +186,7 @@ public class StreamReceiveTask extends StreamTask
                     {
                         for (SSTableReader reader : readers)
                         {
+                            Keyspace ks = Keyspace.open(reader.getKeyspaceName());
                             try (ISSTableScanner scanner = reader.getScanner())
                             {
                                 while (scanner.hasNext())
@@ -199,10 +200,7 @@ public class StreamReceiveTask extends StreamTask
                                         //
                                         // If the CFS has CDC, however, these updates need to be written to the CommitLog
                                         // so they get archived into the cdc_raw folder
-                                        if (hasCDC)
-                                            m.apply();
-                                        else
-                                            m.applyUnsafe();
+                                        ks.apply(m, hasCDC, true, false);
                                     }
                                 }
                             }
