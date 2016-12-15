@@ -60,7 +60,7 @@ public class Keyspace
 
     private static final String TEST_FAIL_WRITES_KS = System.getProperty("cassandra.test.fail_writes_ks", "");
     private static final boolean TEST_FAIL_WRITES = !TEST_FAIL_WRITES_KS.isEmpty();
-    private static int TEST_FAIL_MV_LOCKS_COUNT = Integer.getInteger(System.getProperty("cassandra.test.fail_mv_locks_count", "0"), 0);
+    private static int TEST_FAIL_MV_LOCKS_COUNT = Integer.getInteger("cassandra.test.fail_mv_locks_count", 0);
 
     public final KeyspaceMetrics metric;
 
@@ -420,42 +420,40 @@ public class Keyspace
         }
     }
 
-    public CompletableFuture<?> apply(Mutation mutation, boolean writeCommitLog)
+    public CompletableFuture<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        return apply(mutation, writeCommitLog, true, false, null);
+        return apply(mutation, writeCommitLog, updateIndexes, true, true, null);
+    }
+
+    public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
+    {
+        apply(mutation, writeCommitLog, updateIndexes, true);
+    }
+
+    public void apply(final Mutation mutation,
+                      final boolean writeCommitLog)
+    {
+        apply(mutation, writeCommitLog, true, true);
     }
 
     /**
-     * Should be used if caller is blocking and runs in mutation stage.
+     * If apply is blocking, apply must not be deferred
      * Otherwise there is a race condition where ALL mutation workers are beeing blocked ending
      * in a complete deadlock of the mutation stage. See CASSANDRA-12689.
      *
-     * @param mutation
-     * @param writeCommitLog
-     * @return
+     * @param mutation       the row to write.  Must not be modified after calling apply, since commitlog append
+     *                       may happen concurrently, depending on the CL Executor type.
+     * @param writeCommitLog false to disable commitlog append entirely
+     * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
+     * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout_in_ms
+     * @throws ExecutionException
      */
-    public CompletableFuture<?> applyNotDeferrable(Mutation mutation, boolean writeCommitLog)
+    public void apply(final Mutation mutation,
+                      final boolean writeCommitLog,
+                      boolean updateIndexes,
+                      boolean isDroppable)
     {
-        return apply(mutation, writeCommitLog, true, false, false, null);
-    }
-
-    public CompletableFuture<?> apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
-    {
-        return apply(mutation, writeCommitLog, updateIndexes, false, null);
-    }
-
-    public CompletableFuture<?> applyFromCommitLog(Mutation mutation)
-    {
-        return apply(mutation, false, true, true, null);
-    }
-
-    public CompletableFuture<?> apply(final Mutation mutation,
-                                      final boolean writeCommitLog,
-                                      boolean updateIndexes,
-                                      boolean isClReplay,
-                                      CompletableFuture<?> future)
-    {
-        return apply(mutation, writeCommitLog, updateIndexes, isClReplay, true, future);
+        apply(mutation, writeCommitLog, updateIndexes, isDroppable, false, null);
     }
 
     /**
@@ -465,13 +463,13 @@ public class Keyspace
      *                       may happen concurrently, depending on the CL Executor type.
      * @param writeCommitLog false to disable commitlog append entirely
      * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
-     * @param isClReplay     true if caller is the commitlog replayer
+     * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout_in_ms
      * @param isDeferrable   true if caller is not waiting for future to complete, so that future may be deferred
      */
-    public CompletableFuture<?> apply(final Mutation mutation,
+    private CompletableFuture<?> apply(final Mutation mutation,
                                       final boolean writeCommitLog,
                                       boolean updateIndexes,
-                                      boolean isClReplay,
+                                      boolean isDroppable,
                                       boolean isDeferrable,
                                       CompletableFuture<?> future)
     {
@@ -481,7 +479,11 @@ public class Keyspace
         Lock[] locks = null;
 
         boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(Collections.singleton(mutation), false);
-        final CompletableFuture<?> mark = future == null ? new CompletableFuture<>() : future;
+
+        // If apply is not deferrable, no future is required, returns always null
+        if (isDeferrable && future == null) {
+            future = new CompletableFuture<>();
+        }
 
         if (requiresViewUpdate)
         {
@@ -507,8 +509,8 @@ public class Keyspace
 
                     if (lock == null)
                     {
-                        // avoid throwing a WTE during commitlog replay
-                        if (!isClReplay && (System.currentTimeMillis() - mutation.createdAt) > DatabaseDescriptor.getWriteRpcTimeout())
+                        //throw WTE only if request is droppable
+                        if (isDroppable && (System.currentTimeMillis() - mutation.createdAt) > DatabaseDescriptor.getWriteRpcTimeout())
                         {
                             for (int j = 0; j < i; j++)
                                 locks[j].unlock();
@@ -518,7 +520,7 @@ public class Keyspace
                             if (future != null)
                             {
                                 future.completeExceptionally(new WriteTimeoutException(WriteType.VIEW, ConsistencyLevel.LOCAL_ONE, 0, 1));
-                                return mark;
+                                return future;
                             }
                             else
                                 throw new WriteTimeoutException(WriteType.VIEW, ConsistencyLevel.LOCAL_ONE, 0, 1);
@@ -530,11 +532,11 @@ public class Keyspace
 
                             // This view update can't happen right now. so rather than keep this thread busy
                             // we will re-apply ourself to the queue and try again later
+                            final CompletableFuture<?> mark = future;
                             StageManager.getStage(Stage.MUTATION).execute(() ->
-                                                                          apply(mutation, writeCommitLog, true, isClReplay, mark)
+                                                                          apply(mutation, writeCommitLog, true, isDroppable, true, mark)
                             );
-
-                            return mark;
+                            return future;
                         }
                         else
                         {
@@ -563,7 +565,9 @@ public class Keyspace
             }
 
             long acquireTime = System.currentTimeMillis() - mutation.viewLockAcquireStart.get();
-            if (!isClReplay)
+            // Metrics are only collected for droppable write operations
+            // Bulk non-droppable operations (e.g. commitlog replay, hint delivery) are not measured
+            if (isDroppable)
             {
                 for(UUID cfid : columnFamilyIds)
                     columnFamilyStores.get(cfid).metric.viewLockAcquireTime.update(acquireTime, TimeUnit.MILLISECONDS);
@@ -595,7 +599,7 @@ public class Keyspace
                     try
                     {
                         Tracing.trace("Creating materialized view mutations from base table replica");
-                        viewManager.forTable(upd.metadata()).pushViewReplicaUpdates(upd, writeCommitLog && !isClReplay, baseComplete);
+                        viewManager.forTable(upd.metadata()).pushViewReplicaUpdates(upd, writeCommitLog, baseComplete);
                     }
                     catch (Throwable t)
                     {
@@ -614,8 +618,11 @@ public class Keyspace
                 if (requiresViewUpdate)
                     baseComplete.set(System.currentTimeMillis());
             }
-            mark.complete(null);
-            return mark;
+
+            if (future != null) {
+                future.complete(null);
+            }
+            return future;
         }
         finally
         {
