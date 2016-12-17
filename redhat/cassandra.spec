@@ -99,9 +99,8 @@ mv bin/cassandra %{buildroot}/usr/sbin/
 cp -p bin/* %{buildroot}/usr/bin/
 cp -p tools/bin/* %{buildroot}/usr/bin/
 
-# copy cassandra, thrift jars
+# copy cassandra jar
 cp build/apache-cassandra-%{version}.jar %{buildroot}/usr/share/%{username}/
-cp build/apache-cassandra-thrift-%{version}.jar %{buildroot}/usr/share/%{username}/
 
 %clean
 %{__rm} -rf %{buildroot}
