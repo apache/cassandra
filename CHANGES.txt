@@ -9,6 +9,7 @@
 
 
 3.12
+ * Allow IN restrictions on column families with collections (CASSANDRA-12654)
  * Move to FastThreadLocalThread and FastThreadLocal (CASSANDRA-13034)
  * nodetool stopdaemon errors out (CASSANDRA-13030)
  * Log message size in trace message in OutboundTcpConnection (CASSANDRA-13028)
