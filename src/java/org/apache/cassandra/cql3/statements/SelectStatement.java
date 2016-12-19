@@ -995,7 +995,6 @@ public class SelectStatement implements CQLStatement
                                              whereClause,
                                              boundNames,
                                              selection.containsOnlyStaticColumns(),
-                                             selection.containsAComplexColumn(),
                                              parameters.allowFiltering,
                                              forView);
         }

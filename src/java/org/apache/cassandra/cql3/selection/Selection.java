@@ -116,20 +116,6 @@ public abstract class Selection
         return true;
     }
 
-    /**
-     * Checks if this selection contains a complex column.
-     *
-     * @return <code>true</code> if this selection contains a multicell collection or UDT, <code>false</code> otherwise.
-     */
-    public boolean containsAComplexColumn()
-    {
-        for (ColumnDefinition def : getColumns())
-            if (def.isComplex())
-                return true;
-
-        return false;
-    }
-
     public ResultSet.ResultMetadata getResultMetadata(boolean isJson)
     {
         if (!isJson)

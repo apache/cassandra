@@ -36,7 +36,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -122,7 +121,6 @@ public final class StatementRestrictions
                                  WhereClause whereClause,
                                  VariableSpecifications boundNames,
                                  boolean selectsOnlyStaticColumns,
-                                 boolean selectsComplexColumn,
                                  boolean allowFiltering,
                                  boolean forView)
     {
@@ -218,7 +216,6 @@ public final class StatementRestrictions
 
         processClusteringColumnsRestrictions(hasQueriableIndex,
                                              selectsOnlyStaticColumns,
-                                             selectsComplexColumn,
                                              forView,
                                              allowFiltering);
 
@@ -487,11 +484,9 @@ public final class StatementRestrictions
      * @param hasQueriableIndex <code>true</code> if some of the queried data are indexed, <code>false</code> otherwise
      * @param selectsOnlyStaticColumns <code>true</code> if the selected or modified columns are all statics,
      * <code>false</code> otherwise.
-     * @param selectsComplexColumn <code>true</code> if the query should return a collection column
      */
     private void processClusteringColumnsRestrictions(boolean hasQueriableIndex,
                                                       boolean selectsOnlyStaticColumns,
-                                                      boolean selectsComplexColumn,
                                                       boolean forView,
                                                       boolean allowFiltering)
     {
@@ -507,8 +502,6 @@ public final class StatementRestrictions
         }
         else
         {
-            checkFalse(clusteringColumnsRestrictions.hasIN() && selectsComplexColumn,
-                       "Cannot restrict clustering columns by IN relations when a collection is selected by the query");
             checkFalse(clusteringColumnsRestrictions.hasContains() && !hasQueriableIndex && !allowFiltering,
 
                        "Clustering columns can only be restricted with CONTAINS with a secondary index or filtering");

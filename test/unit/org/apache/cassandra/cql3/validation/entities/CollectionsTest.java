@@ -564,16 +564,53 @@ public class CollectionsTest extends CQLTester
         assertInvalid("SELECT writetime(l) FROM %s WHERE k = 0");
     }
 
-    /**
-     * Migrated from cql_tests.py:TestCQL.bug_5376()
-     */
     @Test
-    public void testInClauseWithCollections() throws Throwable
+    public void testInRestrictionWithCollection() throws Throwable
     {
-        createTable("CREATE TABLE %s (key text, c bigint, v text, x set < text >, PRIMARY KEY(key, c) )");
+        for (boolean frozen : new boolean[]{true, false})
+        {
+            createTable(frozen ? "CREATE TABLE %s (a int, b int, c int, d frozen<list<int>>, e frozen<map<int, int>>, f frozen<set<int>>, PRIMARY KEY (a, b, c))"
+                    : "CREATE TABLE %s (a int, b int, c int, d list<int>, e map<int, int>, f set<int>, PRIMARY KEY (a, b, c))");
 
-        assertInvalid("select * from %s where key = 'foo' and c in (1,3,4)");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 1, 1, [1, 2], {1: 2}, {1, 2})");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 1, 2, [1, 3], {1: 3}, {1, 3})");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 1, 3, [1, 4], {1: 4}, {1, 4})");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 2, 3, [1, 3], {1: 3}, {1, 3})");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 2, 4, [1, 3], {1: 3}, {1, 3})");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (2, 1, 1, [1, 2], {2: 2}, {1, 2})");
+
+            beforeAndAfterFlush(() -> {
+                assertRows(execute("SELECT * FROM %s WHERE a in (1,2)"),
+                           row(1, 1, 1, list(1, 2), map(1, 2), set(1, 2)),
+                           row(1, 1, 2, list(1, 3), map(1, 3), set(1, 3)),
+                           row(1, 1, 3, list(1, 4), map(1, 4), set(1, 4)),
+                           row(1, 2, 3, list(1, 3), map(1, 3), set(1, 3)),
+                           row(1, 2, 4, list(1, 3), map(1, 3), set(1, 3)),
+                           row(2, 1, 1, list(1, 2), map(2, 2), set(1, 2)));
+
+                assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b IN (1,2)"),
+                           row(1, 1, 1, list(1, 2), map(1, 2), set(1, 2)),
+                           row(1, 1, 2, list(1, 3), map(1, 3), set(1, 3)),
+                           row(1, 1, 3, list(1, 4), map(1, 4), set(1, 4)),
+                           row(1, 2, 3, list(1, 3), map(1, 3), set(1, 3)),
+                           row(1, 2, 4, list(1, 3), map(1, 3), set(1, 3)));
+
+                assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b = 1 AND c in (1,2)"),
+                           row(1, 1, 1, list(1, 2), map(1, 2), set(1, 2)),
+                           row(1, 1, 2, list(1, 3), map(1, 3), set(1, 3)));
+
+                assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b IN (1, 2) AND c in (1,2,3)"),
+                           row(1, 1, 1, list(1, 2), map(1, 2), set(1, 2)),
+                           row(1, 1, 2, list(1, 3), map(1, 3), set(1, 3)),
+                           row(1, 1, 3, list(1, 4), map(1, 4), set(1, 4)),
+                           row(1, 2, 3, list(1, 3), map(1, 3), set(1, 3)));
+
+                assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b IN (1, 2) AND c in (1,2,3) AND d CONTAINS 4 ALLOW FILTERING"),
+                           row(1, 1, 3, list(1, 4), map(1, 4), set(1, 4)));
+            });
+        }
     }
+
 
     /**
      * Test for bug #5795,

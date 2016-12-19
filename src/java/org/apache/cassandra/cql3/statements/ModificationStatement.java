@@ -887,7 +887,7 @@ public abstract class ModificationStatement implements CQLStatement
                 throw new InvalidRequestException(CUSTOM_EXPRESSIONS_NOT_ALLOWED);
 
             boolean applyOnlyToStaticColumns = appliesOnlyToStaticColumns(operations, conditions);
-            return new StatementRestrictions(type, cfm, where, boundNames, applyOnlyToStaticColumns, false, false, false);
+            return new StatementRestrictions(type, cfm, where, boundNames, applyOnlyToStaticColumns, false, false);
         }
 
         /**
