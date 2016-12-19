@@ -321,8 +321,7 @@ public class SerDeserTest
                                                    5000,
                                                    Util.makeSomePagingState(version),
                                                    ConsistencyLevel.SERIAL,
-                                                   version,
-                                                   null
+                                                   version
                                                    );
 
         ByteBuf buf = Unpooled.buffer(QueryOptions.codec.encodedSize(options, version));

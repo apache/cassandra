@@ -136,12 +136,12 @@ public class Client extends SimpleClient
                     return null;
                 }
             }
-            return new QueryMessage(query, QueryOptions.create(ConsistencyLevel.ONE, Collections.<ByteBuffer>emptyList(), false, pageSize, null, null, version, null));
+            return new QueryMessage(query, QueryOptions.create(ConsistencyLevel.ONE, Collections.<ByteBuffer>emptyList(), false, pageSize, null, null, version));
         }
         else if (msgType.equals("PREPARE"))
         {
             String query = line.substring(8);
-            return new PrepareMessage(query, null);
+            return new PrepareMessage(query);
         }
         else if (msgType.equals("EXECUTE"))
         {
