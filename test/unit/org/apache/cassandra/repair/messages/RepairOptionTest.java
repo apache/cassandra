@@ -122,7 +122,7 @@ public class RepairOptionTest
     @Test
     public void testIncrementalRepairWithSubrangesIsNotGlobal() throws Exception
     {
-        RepairOption ro = RepairOption.parse(ImmutableMap.of(RepairOption.INCREMENTAL_KEY, "true", RepairOption.RANGES_KEY, "42:42"),
+        RepairOption ro = RepairOption.parse(ImmutableMap.of(RepairOption.INCREMENTAL_KEY, "true", RepairOption.RANGES_KEY, "41:42"),
                            Murmur3Partitioner.instance);
         assertFalse(ro.isGlobal());
         ro = RepairOption.parse(ImmutableMap.of(RepairOption.INCREMENTAL_KEY, "true", RepairOption.RANGES_KEY, ""),
