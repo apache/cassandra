@@ -422,7 +422,13 @@ public class Keyspace
 
     public CompletableFuture<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        return apply(mutation, writeCommitLog, updateIndexes, true, true, null);
+        return applyInternal(mutation, writeCommitLog, updateIndexes, true, true, null);
+    }
+
+    public CompletableFuture<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes, boolean isDroppable,
+                                            boolean isDeferrable)
+    {
+        return applyInternal(mutation, writeCommitLog, updateIndexes, isDroppable, isDeferrable, null);
     }
 
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
@@ -453,7 +459,7 @@ public class Keyspace
                       boolean updateIndexes,
                       boolean isDroppable)
     {
-        apply(mutation, writeCommitLog, updateIndexes, isDroppable, false, null);
+        applyInternal(mutation, writeCommitLog, updateIndexes, isDroppable, false, null);
     }
 
     /**
@@ -466,12 +472,12 @@ public class Keyspace
      * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout_in_ms
      * @param isDeferrable   true if caller is not waiting for future to complete, so that future may be deferred
      */
-    private CompletableFuture<?> apply(final Mutation mutation,
-                                      final boolean writeCommitLog,
-                                      boolean updateIndexes,
-                                      boolean isDroppable,
-                                      boolean isDeferrable,
-                                      CompletableFuture<?> future)
+    private CompletableFuture<?> applyInternal(final Mutation mutation,
+                                               final boolean writeCommitLog,
+                                               boolean updateIndexes,
+                                               boolean isDroppable,
+                                               boolean isDeferrable,
+                                               CompletableFuture<?> future)
     {
         if (TEST_FAIL_WRITES && metadata.name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
@@ -534,7 +540,7 @@ public class Keyspace
                             // we will re-apply ourself to the queue and try again later
                             final CompletableFuture<?> mark = future;
                             StageManager.getStage(Stage.MUTATION).execute(() ->
-                                                                          apply(mutation, writeCommitLog, true, isDroppable, true, mark)
+                                                                          applyInternal(mutation, writeCommitLog, true, isDroppable, true, mark)
                             );
                             return future;
                         }
