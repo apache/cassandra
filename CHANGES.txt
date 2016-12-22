@@ -25,6 +25,8 @@ Merged from 2.2:
  * cqlsh: fix DESC TYPES errors (CASSANDRA-12914)
  * Fix leak on skipped SSTables in sstableupgrade (CASSANDRA-12899)
  * Avoid blocking gossip during pending range calculation (CASSANDRA-12281)
+Merged from 2.1:
+ * cqlsh copy-from: sort user type fields in csv (CASSANDRA-12959)
 
 
 3.0.10
