@@ -1817,9 +1817,10 @@ class ImportConversion(object):
         # these functions are used for non-prepared statements to protect values with quotes if required
         self.protectors = [self._get_protector(t) for t in self.coltypes]
 
-    def _get_protector(self, t):
+    @staticmethod
+    def _get_protector(t):
         if t in ('ascii', 'text', 'timestamp', 'date', 'time', 'inet'):
-            return lambda v: unicode(protect_value(v), self.encoding)
+            return lambda v: protect_value(v)
         else:
             return lambda v: v
 
@@ -2237,7 +2238,7 @@ class ImportProcess(ChildProcess):
         ChildProcess.__init__(self, params=params, target=self.run)
 
         self.skip_columns = params['skip_columns']
-        self.valid_columns = params['valid_columns']
+        self.valid_columns = [c.encode(self.encoding) for c in params['valid_columns']]
         self.skip_column_indexes = [i for i, c in enumerate(self.columns) if c in self.skip_columns]
 
         options = params['options']
