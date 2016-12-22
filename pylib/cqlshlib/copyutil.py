@@ -1997,10 +1997,15 @@ class ImportConversion(object):
             an attribute, so we are using named tuples. It must also be hashable,
             so we cannot use dictionaries. Maybe there is a way to instantiate ct
             directly but I could not work it out.
+            Also note that it is possible that the subfield names in the csv are in the
+            wrong order, so we must sort them according to ct.fieldnames, see CASSANDRA-12959.
             """
             vals = [v for v in [split('{%s}' % vv, sep=':') for vv in split(val)]]
-            ret_type = namedtuple(ct.typename, [unprotect(v[0]) for v in vals])
-            return ret_type(*tuple(convert(t, v[1]) for t, v in zip(ct.subtypes, vals)))
+            dict_vals = dict((unprotect(v[0]), v[1]) for v in vals)
+            sorted_converted_vals = [(n, convert(t, dict_vals[n]) if n in dict_vals else self.get_null_val())
+                                     for n, t in zip(ct.fieldnames, ct.subtypes)]
+            ret_type = namedtuple(ct.typename, [v[0] for v in sorted_converted_vals])
+            return ret_type(*tuple(v[1] for v in sorted_converted_vals))
 
         def convert_single_subtype(val, ct=cql_type):
             return converters.get(ct.subtypes[0].typename, convert_unknown)(val, ct=ct.subtypes[0])
