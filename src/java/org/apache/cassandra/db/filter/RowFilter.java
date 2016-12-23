@@ -274,10 +274,19 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     // Short-circuit all partitions that won't match based on static and partition keys
                     for (Expression e : partitionLevelExpressions)
                         if (!e.isSatisfiedBy(metadata, partition.partitionKey(), partition.staticRow()))
+                        {
+                            partition.close();
                             return null;
+                        }
 
                     UnfilteredRowIterator iterator = Transformation.apply(partition, this);
-                    return (filterNonStaticColumns && !iterator.hasNext()) ? null : iterator;
+                    if (filterNonStaticColumns && !iterator.hasNext())
+                    {
+                        iterator.close();
+                        return null;
+                    }
+
+                    return iterator;
                 }
 
                 public Row applyToRow(Row row)

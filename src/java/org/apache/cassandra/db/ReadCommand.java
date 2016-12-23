@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.db.monitoring.MonitorableImpl;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
@@ -477,9 +478,11 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
         return Transformation.apply(iter, new MetricRecording());
     }
 
-    protected class CheckForAbort extends StoppingTransformation<BaseRowIterator<?>>
+    protected class CheckForAbort extends StoppingTransformation<UnfilteredRowIterator>
     {
-        protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
+        long lastChecked = 0;
+
+        protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
         {
             if (maybeAbort())
             {
@@ -487,18 +490,28 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
                 return null;
             }
 
-            return partition;
+            return Transformation.apply(partition, this);
         }
 
         protected Row applyToRow(Row row)
         {
+            if (TEST_ITERATION_DELAY_MILLIS > 0)
+                maybeDelayForTesting();
+
             return maybeAbort() ? null : row;
         }
 
         private boolean maybeAbort()
         {
-            if (TEST_ITERATION_DELAY_MILLIS > 0)
-                maybeDelayForTesting();
+            /**
+             * The value returned by ApproximateTime.currentTimeMillis() is updated only every
+             * {@link ApproximateTime.CHECK_INTERVAL_MS}, by default 10 millis. Since MonitorableImpl
+             * relies on ApproximateTime, we don't need to check unless the approximate time has elapsed.
+             */
+            if (lastChecked == ApproximateTime.currentTimeMillis())
+                return false;
+
+            lastChecked = ApproximateTime.currentTimeMillis();
 
             if (isAborted())
             {
@@ -508,22 +521,17 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
             return false;
         }
+
+        private void maybeDelayForTesting()
+        {
+            if (!metadata.ksName.startsWith("system"))
+                FBUtilities.sleepQuietly(TEST_ITERATION_DELAY_MILLIS);
+        }
     }
 
     protected UnfilteredPartitionIterator withStateTracking(UnfilteredPartitionIterator iter)
     {
         return Transformation.apply(iter, new CheckForAbort());
-    }
-
-    protected UnfilteredRowIterator withStateTracking(UnfilteredRowIterator iter)
-    {
-        return Transformation.apply(iter, new CheckForAbort());
-    }
-
-    private void maybeDelayForTesting()
-    {
-        if (!metadata.ksName.startsWith("system"))
-            FBUtilities.sleepQuietly(TEST_ITERATION_DELAY_MILLIS);
     }
 
     /**

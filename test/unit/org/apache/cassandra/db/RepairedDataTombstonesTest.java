@@ -182,9 +182,11 @@ public class RepairedDataTombstonesTest extends CQLTester
             while (iterator.hasNext())
             {
                 partitionsFound++;
-                UnfilteredRowIterator rowIter = iterator.next();
-                int val = ByteBufferUtil.toInt(rowIter.partitionKey().getKey());
-                assertTrue("val=" + val, val >= 10 && val < 20);
+                try (UnfilteredRowIterator rowIter = iterator.next())
+                {
+                    int val = ByteBufferUtil.toInt(rowIter.partitionKey().getKey());
+                    assertTrue("val=" + val, val >= 10 && val < 20);
+                }
             }
         }
         assertEquals(10, partitionsFound);
