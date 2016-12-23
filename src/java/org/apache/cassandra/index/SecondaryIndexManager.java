@@ -426,7 +426,7 @@ public class SecondaryIndexManager implements IndexRegistry
             {
                 Class<? extends Index> indexClass = FBUtilities.classForName(className, "Index");
                 Constructor<? extends Index> ctor = indexClass.getConstructor(ColumnFamilyStore.class, IndexMetadata.class);
-                newIndex = (Index)ctor.newInstance(baseCfs, indexDef);
+                newIndex = ctor.newInstance(baseCfs, indexDef);
             }
             catch (Exception e)
             {
@@ -615,7 +615,7 @@ public class SecondaryIndexManager implements IndexRegistry
             return DEFAULT_PAGE_SIZE;
 
         int columnsPerRow = baseCfs.metadata.partitionColumns().regulars.size();
-        if (meanCellsPerPartition <= 0)
+        if (columnsPerRow <= 0)
             return DEFAULT_PAGE_SIZE;
 
         int meanRowsPerPartition = meanCellsPerPartition / columnsPerRow;
