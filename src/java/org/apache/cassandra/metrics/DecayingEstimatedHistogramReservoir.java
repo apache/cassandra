@@ -190,7 +190,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     private double forwardDecayWeight(long now)
     {
-        return Math.exp(((now - decayLandmark) / 1000L) / MEAN_LIFETIME_IN_S);
+        return Math.exp(((now - decayLandmark) / 1000.0) / MEAN_LIFETIME_IN_S);
     }
 
     /**
