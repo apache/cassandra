@@ -99,7 +99,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                     // Note that this needs to be called after file != null and after the partitionDeletion has been set, but before readStaticRow
                     // (since it uses it) so we can't move that up (but we'll be able to simplify as soon as we drop support for the old file format).
                     this.reader = createReader(indexEntry, file, shouldCloseFile);
-                    this.staticRow = readStaticRow(sstable, file, helper, columns.fetchedColumns().statics, reader.deserializer);
+                    this.staticRow = readStaticRow(sstable, file, helper, columns.fetchedColumns().statics);
                 }
                 else
                 {
@@ -154,8 +154,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
     private static Row readStaticRow(SSTableReader sstable,
                                      FileDataInput file,
                                      SerializationHelper helper,
-                                     Columns statics,
-                                     UnfilteredDeserializer deserializer) throws IOException
+                                     Columns statics) throws IOException
     {
         if (!sstable.header.hasStatic())
             return Rows.EMPTY_STATIC_ROW;
