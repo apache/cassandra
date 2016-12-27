@@ -1,5 +1,6 @@
 3.12
- * Avoid byte-array copy when key cache is disabled (CASANDRA-13084)
+ * Use new token allocation for non bootstrap case as well (CASSANDRA-13080)
+ * Avoid byte-array copy when key cache is disabled (CASSANDRA-13084)
  * More fixes to the TokenAllocator (CASSANDRA-12990)
  * Require forceful decommission if number of nodes is less than replication factor (CASSANDRA-12510)
  * Allow IN restrictions on column families with collections (CASSANDRA-12654)

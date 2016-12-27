@@ -224,7 +224,7 @@ public class BootStrapperTest
     private void allocateTokensForNode(int vn, String ks, TokenMetadata tm, InetAddress addr)
     {
         SummaryStatistics os = TokenAllocation.replicatedOwnershipStats(tm.cloneOnlyTokenMap(), Keyspace.open(ks).getReplicationStrategy(), addr);
-        Collection<Token> tokens = BootStrapper.allocateTokens(tm, addr, ks, vn);
+        Collection<Token> tokens = BootStrapper.allocateTokens(tm, addr, ks, vn, 0);
         assertEquals(vn, tokens.size());
         tm.updateNormalTokens(tokens, addr);
         SummaryStatistics ns = TokenAllocation.replicatedOwnershipStats(tm.cloneOnlyTokenMap(), Keyspace.open(ks).getReplicationStrategy(), addr);
