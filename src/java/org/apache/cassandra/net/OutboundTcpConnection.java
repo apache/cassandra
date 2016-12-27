@@ -122,10 +122,11 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
     public static final int WAIT_FOR_VERSION_MAX_TIME = 5000;
     private static final int NO_VERSION = Integer.MIN_VALUE;
+    private static final int BACKLOG_SIZE = 16 * 1024;
 
     static final int LZ4_HASH_SEED = 0x9747b28c;
 
-    private final BlockingQueue<QueuedMessage> backlog = new LinkedBlockingQueue<>();
+    private final BlockingQueue<QueuedMessage> backlog = new LinkedBlockingQueue<>(BACKLOG_SIZE);
 
     private final OutboundTcpConnectionPool poolReference;
 

@@ -4373,8 +4373,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ExecutorService counterMutationStage = StageManager.getStage(Stage.COUNTER_MUTATION);
         ExecutorService viewMutationStage = StageManager.getStage(Stage.VIEW_MUTATION);
         ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
+        ExecutorService internationMutationStage = StageManager.getStage(Stage.INTERNAL_MUTATION);
 
         if (mutationStage.isTerminated()
+            && internationMutationStage.isTerminated()
             && counterMutationStage.isTerminated()
             && viewMutationStage.isTerminated())
         {
