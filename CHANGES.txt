@@ -1,4 +1,5 @@
 3.11.2
+ * Backport CASSANDRA-13080: Use new token allocation for non bootstrap case as well (CASSANDRA-14212)
  * Remove dependencies on JVM internal classes from JMXServerUtils (CASSANDRA-14173) 
  * Add DEFAULT, UNSET, MBEAN and MBEANS to `ReservedKeywords` (CASSANDRA-14205)
  * Add Unittest for schema migration fix (CASSANDRA-14140)
