@@ -333,13 +333,13 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         catch (InterruptedException e)
         {
             removeParentRepairSession(parentRepairSession);
-            throw new RuntimeException("Did not get replies from all endpoints. List of failed endpoint(s): " + failedNodes.toString(), e);
+            throw new RuntimeException("Did not get replies from all endpoints. List of failed endpoint(s): " + failedNodes, e);
         }
 
         if (!status.get())
         {
             removeParentRepairSession(parentRepairSession);
-            throw new RuntimeException("Did not get positive replies from all endpoints. List of failed endpoint(s): " + failedNodes.toString());
+            throw new RuntimeException("Did not get positive replies from all endpoints. List of failed endpoint(s): " + failedNodes);
         }
 
         return parentRepairSession;

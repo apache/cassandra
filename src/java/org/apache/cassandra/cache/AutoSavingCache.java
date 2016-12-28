@@ -201,7 +201,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 UUID schemaVersion = new UUID(in.readLong(), in.readLong());
                 if (!schemaVersion.equals(Schema.instance.getVersion()))
                     throw new RuntimeException("Cache schema version "
-                                              + schemaVersion.toString()
+                                              + schemaVersion
                                               + " does not match current schema version "
                                               + Schema.instance.getVersion());
 

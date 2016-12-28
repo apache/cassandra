@@ -289,7 +289,7 @@ public class ChunkCache
         @Override
         public String toString()
         {
-            return "CachingRebufferer:" + source.toString();
+            return "CachingRebufferer:" + source;
         }
     }
 
