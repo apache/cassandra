@@ -205,8 +205,12 @@ public class MetadataCollector implements PartitionStatisticsCollector
     private void updateLocalDeletionTime(int newLocalDeletionTime)
     {
         localDeletionTimeTracker.update(newLocalDeletionTime);
-        if (newLocalDeletionTime != Cell.NO_DELETION_TIME)
-            estimatedTombstoneDropTime.update(newLocalDeletionTime);
+        if (newLocalDeletionTime != Cell.NO_DELETION_TIME) {
+            // See CASSANDRA-13038. This can be removed once StreamingHistrogram
+            // is fixed to be more efficient.
+            int deletionTime = roundUp(newLocalDeletionTime, 3600);
+            estimatedTombstoneDropTime.update(deletionTime);
+        }
     }
 
     private void updateTTL(int newTTL)
@@ -312,6 +316,12 @@ public class MetadataCollector implements PartitionStatisticsCollector
             else
                 l.add(values[i]);
         return l;
+    }
+
+    private static int roundUp(int size, int unit)
+    {
+        int mask = unit - 1;
+        return (size + mask) & ~mask;
     }
 
     public static class MinMaxLongTracker

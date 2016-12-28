@@ -28,6 +28,7 @@ public enum Stage
     MUTATION,
     COUNTER_MUTATION,
     VIEW_MUTATION,
+    INTERNAL_MUTATION,
     GOSSIP,
     REQUEST_RESPONSE,
     ANTI_ENTROPY,
@@ -62,6 +63,7 @@ public enum Stage
             case MUTATION:
             case COUNTER_MUTATION:
             case VIEW_MUTATION:
+            case INTERNAL_MUTATION:
             case READ:
             case REQUEST_RESPONSE:
             case READ_REPAIR:

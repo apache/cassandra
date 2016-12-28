@@ -256,7 +256,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public static final EnumMap<MessagingService.Verb, Stage> verbStages = new EnumMap<MessagingService.Verb, Stage>(MessagingService.Verb.class)
     {{
-        put(Verb.MUTATION, Stage.MUTATION);
+        put(Verb.MUTATION, Stage.INTERNAL_MUTATION);
         put(Verb.COUNTER_MUTATION, Stage.COUNTER_MUTATION);
         put(Verb.READ_REPAIR, Stage.MUTATION);
         put(Verb.HINT, Stage.MUTATION);

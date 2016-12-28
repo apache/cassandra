@@ -1180,7 +1180,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                        useStrictConsistency && !replacing,
                                                        DatabaseDescriptor.getEndpointSnitch(),
                                                        streamStateStore,
-                                                       false);
+                                                       false,
+                                                       DatabaseDescriptor.getStreamingConnectionsPerHost());
             streamer.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
             if (sourceDc != null)
                 streamer.addSourceFilter(new RangeStreamer.SingleDatacenterFilter(DatabaseDescriptor.getEndpointSnitch(), sourceDc));
@@ -4451,8 +4452,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ExecutorService counterMutationStage = StageManager.getStage(Stage.COUNTER_MUTATION);
         ExecutorService viewMutationStage = StageManager.getStage(Stage.VIEW_MUTATION);
         ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
+        ExecutorService internationMutationStage = StageManager.getStage(Stage.INTERNAL_MUTATION);
 
         if (mutationStage.isTerminated()
+            && internationMutationStage.isTerminated()
             && counterMutationStage.isTerminated()
             && viewMutationStage.isTerminated())
         {

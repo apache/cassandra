@@ -93,10 +93,9 @@ public class SSTableIndex
         return index.minKey();
     }
 
-    public ByteBuffer maxKey()
-    {
-        return index.maxKey();
-    }
+    public ByteBuffer maxKey() { return index.maxKey(); }
+
+    public long getEstimatedResultRows() { return index.getEstimatedResultRows(); }
 
     public RangeIterator<Long, Token> search(Expression expression)
     {
