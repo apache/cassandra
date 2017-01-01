@@ -20,7 +20,6 @@ package org.apache.cassandra.auth;
 
 import java.lang.management.ManagementFactory;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -29,15 +28,12 @@ import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListenableFutureTask;
+import com.google.common.util.concurrent.MoreExecutors;
+
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 
 public class AuthCache<K, V> implements AuthCacheMBean
 {
@@ -46,7 +42,6 @@ public class AuthCache<K, V> implements AuthCacheMBean
     private static final String MBEAN_NAME_BASE = "org.apache.cassandra.auth:type=";
 
     private volatile LoadingCache<K, V> cache;
-    private ThreadPoolExecutor cacheRefreshExecutor;
 
     private final String name;
     private final Consumer<Integer> setValidityDelegate;
@@ -82,7 +77,6 @@ public class AuthCache<K, V> implements AuthCacheMBean
 
     protected void init()
     {
-        this.cacheRefreshExecutor = new DebuggableThreadPoolExecutor(name + "Refresh", Thread.NORM_PRIORITY);
         this.cache = initCache(null);
         try
         {
@@ -172,36 +166,22 @@ public class AuthCache<K, V> implements AuthCacheMBean
         logger.info("(Re)initializing {} (validity period/update interval/max entries) ({}/{}/{})",
                     name, getValidity(), getUpdateInterval(), getMaxEntries());
 
-        LoadingCache<K, V> newcache = CacheBuilder.newBuilder()
-                           .refreshAfterWrite(getUpdateInterval(), TimeUnit.MILLISECONDS)
-                           .expireAfterWrite(getValidity(), TimeUnit.MILLISECONDS)
-                           .maximumSize(getMaxEntries())
-                           .build(new CacheLoader<K, V>()
-                           {
-                               public V load(K k)
-                               {
-                                   return loadFunction.apply(k);
-                               }
+        if (existing == null) {
+          return Caffeine.newBuilder()
+              .refreshAfterWrite(getUpdateInterval(), TimeUnit.MILLISECONDS)
+              .expireAfterWrite(getValidity(), TimeUnit.MILLISECONDS)
+              .maximumSize(getMaxEntries())
+              .executor(MoreExecutors.directExecutor())
+              .build(loadFunction::apply);
+        }
 
-                               public ListenableFuture<V> reload(final K k, final V oldV)
-                               {
-                                   ListenableFutureTask<V> task = ListenableFutureTask.create(() -> {
-                                       try
-                                       {
-                                           return loadFunction.apply(k);
-                                       }
-                                       catch (Exception e)
-                                       {
-                                           logger.trace("Error performing async refresh of auth data in {}", name, e);
-                                           throw e;
-                                       }
-                                   });
-                                   cacheRefreshExecutor.execute(task);
-                                   return task;
-                               }
-                           });
-        if (existing != null)
-            newcache.putAll(existing.asMap());
-        return newcache;
+        // Always set as manditory
+        cache.policy().refreshAfterWrite().ifPresent(policy ->
+            policy.setExpiresAfter(getUpdateInterval(), TimeUnit.MILLISECONDS));
+        cache.policy().expireAfterWrite().ifPresent(policy ->
+            policy.setExpiresAfter(getValidity(), TimeUnit.MILLISECONDS));
+        cache.policy().eviction().ifPresent(policy ->
+            policy.setMaximum(getMaxEntries()));
+        return cache;
     }
 }

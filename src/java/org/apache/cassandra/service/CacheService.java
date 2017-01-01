@@ -114,7 +114,7 @@ public class CacheService implements CacheServiceMBean
         // as values are constant size we can use singleton weigher
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
         ICache<KeyCacheKey, RowIndexEntry> kc;
-        kc = ConcurrentLinkedHashCache.create(keyCacheInMemoryCapacity);
+        kc = CaffeineCache.create(keyCacheInMemoryCapacity);
         AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = new AutoSavingCache<>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer());
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
@@ -163,7 +163,7 @@ public class CacheService implements CacheServiceMBean
         long capacity = DatabaseDescriptor.getCounterCacheSizeInMB() * 1024 * 1024;
 
         AutoSavingCache<CounterCacheKey, ClockAndCount> cache =
-            new AutoSavingCache<>(ConcurrentLinkedHashCache.<CounterCacheKey, ClockAndCount>create(capacity),
+            new AutoSavingCache<>(CaffeineCache.create(capacity),
                                   CacheType.COUNTER_CACHE,
                                   new CounterCacheSerializer());
 

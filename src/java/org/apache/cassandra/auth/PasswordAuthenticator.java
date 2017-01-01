@@ -26,7 +26,6 @@ import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.UncheckedExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,24 +91,13 @@ public class PasswordAuthenticator implements IAuthenticator
 
             return new AuthenticatedUser(username);
         }
-        catch (ExecutionException | UncheckedExecutionException e)
+        catch (ExecutionException e)
         {
-            // the credentials were somehow invalid - either a non-existent role, or one without a defined password
-            if (e.getCause() instanceof NoSuchCredentialsException)
-                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
-
-            // an unanticipated exception occured whilst querying the credentials table
-            if (e.getCause() instanceof RequestExecutionException)
-            {
-                logger.trace("Error performing internal authentication", e);
-                throw new AuthenticationException(String.format("Error during authentication of user %s : %s", username, e.getMessage()));
-            }
-
             throw new RuntimeException(e);
         }
     }
 
-    private String queryHashedPassword(String username) throws NoSuchCredentialsException
+    private String queryHashedPassword(String username)
     {
         try
         {
@@ -125,18 +113,17 @@ public class PasswordAuthenticator implements IAuthenticator
             // were found for that role we don't want to cache the result so we throw
             // a specific, but unchecked, exception to keep LoadingCache happy.
             if (rows.result.isEmpty())
-                throw new NoSuchCredentialsException();
+                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
             UntypedResultSet result = UntypedResultSet.create(rows.result);
             if (!result.one().has(SALTED_HASH))
-                throw new NoSuchCredentialsException();
+                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
             return result.one().getString(SALTED_HASH);
         }
         catch (RequestExecutionException e)
         {
-            logger.trace("Error performing internal authentication", e);
-            throw e;
+            throw new AuthenticationException(String.format("Error performing internal authentication of user %s : %s", username, e.getMessage()));
         }
     }
 
@@ -304,11 +291,5 @@ public class PasswordAuthenticator implements IAuthenticator
     public static interface CredentialsCacheMBean extends AuthCacheMBean
     {
         public void invalidateCredentials(String roleName);
-    }
-
-    // Just a marker so we can identify that invalid credentials were the
-    // cause of a loading exception from the cache
-    private static final class NoSuchCredentialsException extends RuntimeException
-    {
     }
 }
