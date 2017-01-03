@@ -233,7 +233,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         {
             Double score = scores.get(inet);
             if (score == null)
-                return;
+                continue;
             subsnitchOrderedScores.add(score);
         }
 
@@ -263,13 +263,11 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         if (scored1 == null)
         {
             scored1 = 0.0;
-            receiveTiming(a1, 0);
         }
 
         if (scored2 == null)
         {
             scored2 = 0.0;
-            receiveTiming(a2, 0);
         }
 
         if (scored1.equals(scored2))
