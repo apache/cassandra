@@ -1484,12 +1484,16 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public RowIndexEntry getCachedPosition(DecoratedKey key, boolean updateStats)
     {
-        return getCachedPosition(new KeyCacheKey(metadata.ksAndCFName, descriptor, key.getKey()), updateStats);
+        if (keyCacheEnabled())
+        {
+            return getCachedPosition(getCacheKey(key), updateStats);
+        }
+        return null;
     }
 
     protected RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
     {
-        if (keyCache != null && keyCache.getCapacity() > 0 && metadata.params.caching.cacheKeys())
+        if (keyCacheEnabled())
         {
             if (updateStats)
             {
@@ -1508,6 +1512,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             }
         }
         return null;
+    }
+
+    private boolean keyCacheEnabled()
+    {
+        return keyCache != null && keyCache.getCapacity() > 0 && metadata.params.caching.cacheKeys();
     }
 
     /**
