@@ -62,6 +62,7 @@ public class DynamicEndpointSnitchTest
         InetAddress host1 = InetAddress.getByName("127.0.0.2");
         InetAddress host2 = InetAddress.getByName("127.0.0.3");
         InetAddress host3 = InetAddress.getByName("127.0.0.4");
+        InetAddress host4 = InetAddress.getByName("127.0.0.5");
         List<InetAddress> hosts = Arrays.asList(host1, host2, host3);
 
         // first, make all hosts equal
@@ -95,5 +96,12 @@ public class DynamicEndpointSnitchTest
         setScores(dsnitch, 20, hosts, 10, 70, 20);
         order = Arrays.asList(host1, host3, host2);
         assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3)));
+
+        order = Arrays.asList(host4, host1, host3, host2);
+        assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3, host4)));
+
+        setScores(dsnitch, 20, hosts, 10, 10, 10);
+        order = Arrays.asList(host1, host2, host3, host4);
+        assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3, host4)));
     }
 }
