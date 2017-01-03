@@ -1,4 +1,5 @@
 2.1.17
+ * Fix race causing infinite loop if Thrift server is stopped before it starts listening (CASSANDRA-12856)
  * cqlsh copy-from: sort user type fields in csv (CASSANDRA-12959)
  * Fix missed signal when commit log segments are recycled (CASSANDRA-13037)
  * Fix RecoveryManagerTruncateTest (CASSANDRA-12802)
