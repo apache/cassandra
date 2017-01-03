@@ -381,13 +381,13 @@ public class Keyspace
 
     public CompletableFuture<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        return applyInternal(mutation, writeCommitLog, updateIndexes, true, true, null);
+        return applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new CompletableFuture<>());
     }
 
     public CompletableFuture<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes, boolean isDroppable,
                                             boolean isDeferrable)
     {
-        return applyInternal(mutation, writeCommitLog, updateIndexes, isDroppable, isDeferrable, null);
+        return applyInternal(mutation, writeCommitLog, updateIndexes, isDroppable, isDeferrable, new CompletableFuture<>());
     }
 
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
@@ -433,7 +433,7 @@ public class Keyspace
                                        boolean isDeferrable,
                                        CompletableFuture<?> future)
     {
-        return applyInternal(mutation, writeCommitLog, updateIndexes, !isClReplay, isDeferrable, future);
+        return applyInternal(mutation, writeCommitLog, updateIndexes, !isClReplay, isDeferrable, future != null? future : new CompletableFuture<>());
     }
 
     /**
@@ -457,11 +457,6 @@ public class Keyspace
             throw new RuntimeException("Testing write failures");
 
         boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(Collections.singleton(mutation), false);
-
-        // If apply is not deferrable, no future is required, returns always null
-        if (isDeferrable && future == null) {
-            future = new CompletableFuture<>();
-        }
 
         Lock lock = null;
         if (requiresViewUpdate)
