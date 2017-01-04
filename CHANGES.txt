@@ -24,6 +24,7 @@
  * Make Collections deserialization more robust (CASSANDRA-12618)
  * Better handle invalid system roles table (CASSANDRA-12700)
  * Split consistent range movement flag correction (CASSANDRA-12786)
+ * CompactionTasks now correctly drops sstables out of compaction when not enough disk space is available (CASSANDRA-12979)
 Merged from 2.1:
  * cqlsh copy-from: sort user type fields in csv (CASSANDRA-12959)
  * Don't skip sstables based on maxLocalDeletionTime (CASSANDRA-12765)
