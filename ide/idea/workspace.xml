@@ -281,7 +281,6 @@
         <filter targetName="realclean" isVisible="true" />
         <filter targetName="check-gen-cql3-grammar" isVisible="false" />
         <filter targetName="gen-cql3-grammar" isVisible="false" />
-        <filter targetName="generate-cql-html" isVisible="true" />
         <filter targetName="maven-ant-tasks-localrepo" isVisible="true" />
         <filter targetName="maven-ant-tasks-download" isVisible="true" />
         <filter targetName="maven-ant-tasks-init" isVisible="true" />

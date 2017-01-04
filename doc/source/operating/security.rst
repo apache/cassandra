@@ -196,7 +196,7 @@ The following assumes that authentication has already been enabled via the proce
 
     cqlsh -u dba -p super
 
-4. Configure the appropriate access privileges for your clients using `GRANT PERMISSION <cql.html#grant-permission>`_
+4. Configure the appropriate access privileges for your clients using :ref:`GRANT PERMISSION <grant-permission-statement>`
    statements. On the other nodes, until configuration is updated and the node restarted, this will have no effect so
    disruption to clients is avoided.
 
@@ -207,7 +207,7 @@ The following assumes that authentication has already been enabled via the proce
 5. Once all the necessary permissions have been granted, repeat steps 1 and 2 for each node in turn. As each node
    restarts and clients reconnect, the enforcement of the granted permissions will begin.
 
-See also: :ref:`GRANT PERMISSION <grant-permission-statement>`, `GRANT ALL <grant-all>` and :ref:`REVOKE PERMISSION
+See also: :ref:`GRANT PERMISSION <grant-permission-statement>`, :ref:`GRANT ALL <grant-all>` and :ref:`REVOKE PERMISSION
 <revoke-permission-statement>`
 
 Caching
