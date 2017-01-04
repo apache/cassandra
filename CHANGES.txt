@@ -1,4 +1,5 @@
 4.0
+ * Remove pre-3.0 streaming compatibility code for 4.0 (CASSANDRA-13081)
  * Add support for + and - operations on dates (CASSANDRA-11936)
  * Fix consistency of incrementally repaired data (CASSANDRA-9143)
  * Increase commitlog version (CASSANDRA-13161)

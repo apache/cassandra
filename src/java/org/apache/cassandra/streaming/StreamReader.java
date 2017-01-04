@@ -40,7 +40,6 @@ import org.apache.cassandra.io.sstable.SSTableSimpleIterator;
 import org.apache.cassandra.io.sstable.format.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.util.RewindableDataInputStreamPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.streaming.messages.FileMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -118,19 +117,13 @@ public class StreamReader
         }
         catch (Throwable e)
         {
-            if (deserializer != null)
-                logger.warn("[Stream {}] Error while reading partition {} from stream on ks='{}' and table='{}'.",
-                            session.planId(), deserializer.partitionKey(), cfs.keyspace.getName(), cfs.getTableName(), e);
+            logger.warn("[Stream {}] Error while reading partition {} from stream on ks='{}' and table='{}'.",
+                        session.planId(), deserializer.partitionKey(), cfs.keyspace.getName(), cfs.getTableName(), e);
             if (writer != null)
             {
                 writer.abort(e);
             }
             throw Throwables.propagate(e);
-        }
-        finally
-        {
-            if (deserializer != null)
-                deserializer.cleanup();
         }
     }
 
@@ -166,13 +159,6 @@ public class StreamReader
 
     public static class StreamDeserializer extends UnmodifiableIterator<Unfiltered> implements UnfilteredRowIterator
     {
-        public static final int INITIAL_MEM_BUFFER_SIZE = Integer.getInteger("cassandra.streamdes.initial_mem_buffer_size", 32768);
-        public static final int MAX_MEM_BUFFER_SIZE = Integer.getInteger("cassandra.streamdes.max_mem_buffer_size", 1048576);
-        public static final int MAX_SPILL_FILE_SIZE = Integer.getInteger("cassandra.streamdes.max_spill_file_size", Integer.MAX_VALUE);
-
-        public static final String BUFFER_FILE_PREFIX = "buf";
-        public static final String BUFFER_FILE_SUFFIX = "dat";
-
         private final TableMetadata metadata;
         private final DataInputPlus in;
         private final SerializationHeader header;
@@ -278,25 +264,6 @@ public class StreamReader
 
         public void close()
         {
-        }
-
-        /* We have a separate cleanup method because sometimes close is called before exhausting the
-           StreamDeserializer (for instance, when enclosed in an try-with-resources wrapper, such as in
-           BigTableWriter.append()).
-         */
-        public void cleanup()
-        {
-            if (in instanceof RewindableDataInputStreamPlus)
-            {
-                try
-                {
-                    ((RewindableDataInputStreamPlus) in).close(false);
-                }
-                catch (IOException e)
-                {
-                    logger.warn("Error while closing RewindableDataInputStreamPlus.", e);
-                }
-            }
         }
     }
 }

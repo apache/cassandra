@@ -110,9 +110,8 @@ public class CompressedStreamReader extends StreamReader
         }
         catch (Throwable e)
         {
-            if (deserializer != null)
-                logger.warn("[Stream {}] Error while reading partition {} from stream on ks='{}' and table='{}'.",
-                            session.planId(), deserializer.partitionKey(), cfs.keyspace.getName(), cfs.getTableName());
+            logger.warn("[Stream {}] Error while reading partition {} from stream on ks='{}' and table='{}'.",
+                        session.planId(), deserializer.partitionKey(), cfs.keyspace.getName(), cfs.getTableName());
             if (writer != null)
             {
                 writer.abort(e);
@@ -120,11 +119,6 @@ public class CompressedStreamReader extends StreamReader
             if (extractIOExceptionCause(e).isPresent())
                 throw e;
             throw Throwables.propagate(e);
-        }
-        finally
-        {
-            if (deserializer != null)
-                deserializer.cleanup();
         }
     }
 
