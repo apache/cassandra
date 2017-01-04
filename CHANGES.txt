@@ -18,6 +18,7 @@
  * AnticompactionRequestSerializer serializedSize is incorrect (CASSANDRA-12934)
  * Prevent reloading of logback.xml from UDF sandbox (CASSANDRA-12535)
  * Reenable HeapPool (CASSANDRA-12900)
+ * CompactionTasks now correctly drops sstables out of compaction when not enough disk space is available (CASSANDRA-12979)
 Merged from 2.2:
  * Remove support for non-JavaScript UDFs (CASSANDRA-12883)
  * Fix DynamicEndpointSnitch noop in multi-datacenter situations (CASSANDRA-13074)
@@ -32,6 +33,7 @@ Merged from 2.2:
  * Avoid blocking gossip during pending range calculation (CASSANDRA-12281)
 Merged from 2.1:
  * cqlsh copy-from: sort user type fields in csv (CASSANDRA-12959)
+
 
 
 3.0.10
