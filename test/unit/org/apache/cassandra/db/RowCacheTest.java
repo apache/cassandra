@@ -64,6 +64,7 @@ public class RowCacheTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        System.setProperty("org.caffinitas.ohc.segmentCount", "16");
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE_CACHED,
                                     KeyspaceParams.simple(1),
