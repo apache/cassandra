@@ -53,6 +53,8 @@ case "$1" in
     start)
         # Cassandra startup
         echo -n "Starting Cassandra: "
+        [ -d `dirname "$pid_file"` ] || \
+            install -m 755 -o $CASSANDRA_OWNR -g $CASSANDRA_OWNR -d `dirname $pid_file`
         su $CASSANDRA_OWNR -c "$CASSANDRA_PROG -p $pid_file" > $log_file 2>&1
         retval=$?
         [ $retval -eq 0 ] && touch $lock_file
