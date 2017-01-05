@@ -1977,7 +1977,7 @@ SELECT AVG(players) FROM plays;
 
 h2(#udfs). User-Defined Functions
 
-User-defined functions allow execution of user-provided code in Cassandra. By default, Cassandra supports defining functions in _Java_ and _JavaScript_. Support for other JSR 223 compliant scripting languages (such as Python, Ruby, and Scala) can be added by adding a JAR to the classpath.
+User-defined functions allow execution of user-provided code in Cassandra. By default, Cassandra supports defining functions in _Java_ and _JavaScript_. Support for other JSR 223 compliant scripting languages (such as Python, Ruby, and Scala) has been removed in 3.0.11.
 
 UDFs are part of the Cassandra schema.  As such, they are automatically propagated to all nodes in the cluster.
 

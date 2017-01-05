@@ -391,8 +391,7 @@ public class UFScriptTest extends CQLTester
         DatabaseDescriptor.enableScriptedUserDefinedFunctions(false);
         try
         {
-            assertInvalid("double",
-                          "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".assertNotEnabled(val double) " +
+            assertInvalid("CREATE OR REPLACE FUNCTION " + KEYSPACE + ".assertNotEnabled(val double) " +
                           "RETURNS NULL ON NULL INPUT " +
                           "RETURNS double " +
                           "LANGUAGE javascript\n" +
