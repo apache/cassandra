@@ -13,6 +13,19 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+2.2.9
+=====
+
+Deprecation
+-----------
+
+(See note about the new feature User-Defined-Functions in 2.2.0.)
+
+Since the security manager added in 3.0 only allows Java and JavaScript
+UDFs to be run, UDFs for other languages are deprecated and support for
+non-Java and non-JavaScript UDFs is deprecated in 2.2 and has been removed
+in version 3.0.11.
+
 2.2.8
 =====
 
@@ -230,6 +243,9 @@ New features
      3.0.  This will inherently be backwards-incompatible with any 2.2
      UDF that perform insecure operations such as opening a socket or
      writing to the filesystem.
+
+     Per the previous note about adding a security manager in 3.0, this security manager
+     means that non JavaScipt UDF's won't run, there for their use is deprecated.
      ************************************************************************
    - Row-cache is now fully off-heap.
    - jemalloc is now automatically preloaded and used on Linux and OS-X if

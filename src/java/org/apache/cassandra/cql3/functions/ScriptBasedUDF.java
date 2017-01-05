@@ -73,6 +73,11 @@ public class ScriptBasedUDF extends UDFunction
     {
         super(name, argNames, argTypes, returnType, calledOnNullInput, language, body);
 
+        if (!"JavaScript".equalsIgnoreCase(language))
+            logger.warn("Support for UDFs using '" + language + "' has been deprecated and removed in 3.0. If '" +
+                        language + "' actually is JavaScript, change the language used in CREATE/ALTER FUNCTION to " +
+                        "'javascript'.");
+
         Compilable scriptEngine = scriptEngines.get(language);
         if (scriptEngine == null)
             throw new InvalidRequestException(String.format("Invalid language '%s' for function '%s'", language, name));

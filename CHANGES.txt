@@ -1,4 +1,5 @@
 2.2.9
+ * Remove support for non-JavaScript UDFs (CASSANDRA-12883)
  * Fix DynamicEndpointSnitch noop in multi-datacenter situations (CASSANDRA-13074)
  * cqlsh copy-from: encode column names to avoid primary key parsing errors (CASSANDRA-12909)
  * Temporarily fix bug that creates commit log when running offline tools (CASSANDRA-8616)
