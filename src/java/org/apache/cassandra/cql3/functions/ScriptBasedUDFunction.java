@@ -28,6 +28,9 @@ import java.util.concurrent.ExecutorService;
 import javax.script.*;
 
 import jdk.nashorn.api.scripting.AbstractJSObject;
+import jdk.nashorn.api.scripting.ClassFilter;
+import jdk.nashorn.api.scripting.NashornScriptEngine;
+import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -36,8 +39,6 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 final class ScriptBasedUDFunction extends UDFunction
 {
-    static final Map<String, Compilable> scriptEngines = new HashMap<>();
-
     private static final ProtectionDomain protectionDomain;
     private static final AccessControlContext accessControlContext;
 
@@ -93,23 +94,17 @@ final class ScriptBasedUDFunction extends UDFunction
                                                                               UDFunction::initializeThread)),
                                "userscripts");
 
+    private static final ClassFilter classFilter = clsName -> secureResource(clsName.replace('.', '/') + ".class");
+
+    private static final NashornScriptEngine scriptEngine;
+
+
     static
     {
         ScriptEngineManager scriptEngineManager = new ScriptEngineManager();
-        for (ScriptEngineFactory scriptEngineFactory : scriptEngineManager.getEngineFactories())
-        {
-            ScriptEngine scriptEngine = scriptEngineFactory.getScriptEngine();
-            boolean compilable = scriptEngine instanceof Compilable;
-            if (compilable)
-            {
-                logger.info("Found scripting engine {} {} - {} {} - language names: {}",
-                            scriptEngineFactory.getEngineName(), scriptEngineFactory.getEngineVersion(),
-                            scriptEngineFactory.getLanguageName(), scriptEngineFactory.getLanguageVersion(),
-                            scriptEngineFactory.getNames());
-                for (String name : scriptEngineFactory.getNames())
-                    scriptEngines.put(name, (Compilable) scriptEngine);
-            }
-        }
+        ScriptEngine engine = scriptEngineManager.getEngineByName("nashorn");
+        NashornScriptEngineFactory factory = engine != null ? (NashornScriptEngineFactory) engine.getFactory() : null;
+        scriptEngine = factory != null ? (NashornScriptEngine) factory.getScriptEngine(new String[]{}, udfClassLoader, classFilter) : null;
 
         try
         {
@@ -141,8 +136,7 @@ final class ScriptBasedUDFunction extends UDFunction
     {
         super(name, argNames, argTypes, returnType, calledOnNullInput, language, body);
 
-        Compilable scriptEngine = scriptEngines.get(language);
-        if (scriptEngine == null)
+        if (!"JavaScript".equalsIgnoreCase(language) || scriptEngine == null)
             throw new InvalidRequestException(String.format("Invalid language '%s' for function '%s'", language, name));
 
         // execute compilation with no-permissions to prevent evil code e.g. via "static code blocks" / "class initialization"
@@ -161,10 +155,7 @@ final class ScriptBasedUDFunction extends UDFunction
 
         // It's not always possible to simply pass a plain Java object as a binding to Nashorn and
         // let the script execute methods on it.
-        udfContextBinding =
-            ("Oracle Nashorn".equals(((ScriptEngine) scriptEngine).getFactory().getEngineName()))
-                ? new UDFContextWrapper()
-                : udfContext;
+        udfContextBinding = new UDFContextWrapper();
     }
 
     protected ExecutorService executor()

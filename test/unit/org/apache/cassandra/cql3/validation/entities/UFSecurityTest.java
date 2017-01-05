@@ -149,7 +149,6 @@ public class UFSecurityTest extends CQLTester
         "new java.net.ServerSocket().bind(null); 0;",
         "var thread = new java.lang.Thread(); thread.start(); 0;",
         "java.lang.System.getProperty(\"foo.bar.baz\"); 0;",
-        "java.lang.Class.forName(\"java.lang.System\"); 0;",
         "java.lang.Runtime.getRuntime().exec(\"/tmp/foo\"); 0;",
         "java.lang.Runtime.getRuntime().loadLibrary(\"foobar\"); 0;",
         "java.lang.Runtime.getRuntime().loadLibrary(\"foobar\"); 0;",
@@ -177,6 +176,17 @@ public class UFSecurityTest extends CQLTester
                 assertAccessControlException(script, e);
             }
         }
+
+        String script = "java.lang.Class.forName(\"java.lang.System\"); 0;";
+        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                                      "CREATE OR REPLACE FUNCTION %s(val double) " +
+                                      "RETURNS NULL ON NULL INPUT " +
+                                      "RETURNS double " +
+                                      "LANGUAGE javascript\n" +
+                                      "AS '" + script + "';");
+        assertInvalidThrowMessage("Java reflection not supported when class filter is present",
+                                  FunctionExecutionException.class,
+                                  "SELECT " + fName + "(dval) FROM %s WHERE key=1");
     }
 
     private static void assertAccessControlException(String script, FunctionExecutionException e)

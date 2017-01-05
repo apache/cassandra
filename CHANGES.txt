@@ -28,6 +28,8 @@
  * cqlsh auto completion: refactor definition of compaction strategy options (CASSANDRA-12946)
  * Add support for arithmetic operators (CASSANDRA-11935)
  * Tables in system_distributed should not use gcgs of 0 (CASSANDRA-12954)
+Merged from 3.0:
+ * Remove support for non-JavaScript UDFs (CASSANDRA-12883)
 
 
 3.10
