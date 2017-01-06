@@ -144,6 +144,7 @@ Merged from 3.0:
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Properly record CAS contention (CASSANDRA-12626)
 Merged from 3.0:
+ * Replace empty strings with null values if they cannot be converted (CASSANDRA-12794)
  * Fix deserialization of 2.x DeletedCells (CASSANDRA-12620)
  * Add parent repair session id to anticompaction log message (CASSANDRA-12186)
  * Improve contention handling on failure to acquire MV lock for streaming and hints (CASSANDRA-12905)
