@@ -639,7 +639,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
                 if (isAlreadyRepairing(cfId, parentSessionId, snapshottedSSTables))
                 {
-                    columnFamilyStores.get(cfId).clearSnapshot(parentSessionId.toString());
+                    columnFamilyStores.get(cfId).clearSnapshot(snapshotName);
                     logger.error("Cannot start multiple repair sessions over the same sstables");
                     throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
                 }
