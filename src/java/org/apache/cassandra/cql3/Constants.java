@@ -68,7 +68,7 @@ public abstract class Constants
                 // We only try to determine the smallest possible type between double and BigDecimal
                 BigDecimal b = new BigDecimal(text);
 
-                if (b.equals(BigDecimal.valueOf(b.doubleValue())))
+                if (b.compareTo(BigDecimal.valueOf(b.doubleValue())) == 0)
                     return DoubleType.instance;
 
                 return DecimalType.instance;
