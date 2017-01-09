@@ -1,4 +1,5 @@
 2.2.9
+ * Coalescing strategy sleeps too much and shouldn't be enabled by default (CASSANDRA-13090)
  * Fix negative mean latency metric (CASSANDRA-12876)
  * Use only one file pointer when creating commitlog segments (CASSANDRA-12539)
  * Fix speculative retry bugs (CASSANDRA-13009)
