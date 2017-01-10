@@ -24,6 +24,9 @@ Upgrading
    - Only Java and JavaScript are now supported UDF languages.
      The sandbox in 3.0 already prevented the use of script languages except Java
      and JavaScript.
+   - Compaction now correctly drops sstables out of CompactionTask when there
+     isn't enough disk space to perform the full compaction.  This should reduce
+     pending compaction tasks on systems with little remaining disk space.
 
 3.10
 ====
