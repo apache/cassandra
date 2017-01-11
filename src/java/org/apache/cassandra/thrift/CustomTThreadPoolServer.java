@@ -75,13 +75,15 @@ public class CustomTThreadPoolServer extends TServer
     private final TThreadPoolServer.Args args;
 
     //Track and Limit the number of connected clients
-    private final AtomicInteger activeClients = new AtomicInteger(0);
+    private final AtomicInteger activeClients;
 
 
     public CustomTThreadPoolServer(TThreadPoolServer.Args args, ExecutorService executorService) {
         super(args);
         this.executorService = executorService;
+        this.stopped = false;
         this.args = args;
+        this.activeClients = new AtomicInteger(0);
     }
 
     @SuppressWarnings("resource")
@@ -97,7 +99,6 @@ public class CustomTThreadPoolServer extends TServer
             return;
         }
 
-        stopped = false;
         while (!stopped)
         {
             // block until we are under max clients
