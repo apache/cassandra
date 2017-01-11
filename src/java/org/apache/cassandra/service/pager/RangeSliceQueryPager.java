@@ -74,7 +74,8 @@ public class RangeSliceQueryPager extends AbstractQueryPager
     {
         SliceQueryFilter sf = (SliceQueryFilter)columnFilter;
         AbstractBounds<RowPosition> keyRange = lastReturnedKey == null ? command.keyRange : makeIncludingKeyBounds(lastReturnedKey);
-        Composite start = lastReturnedName == null ? sf.start() : lastReturnedName;
+        // For DISTINCT queries we can and must ignore the lastReturnedName (see CASSANDRA-13017)
+        Composite start = lastReturnedName == null || isDistinct() ? sf.start() : lastReturnedName;
         PagedRangeCommand pageCmd = new PagedRangeCommand(command.keyspace,
                                                           command.columnFamily,
                                                           command.timestamp,
