@@ -814,8 +814,8 @@
                memorymaximumsize="512M">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
-        	<compilerarg value="-XDignore.symbol.file"/>
-                <compilerarg value="-Xbootclasspath/p:${build.src.jdkoverride}"/>
+            <compilerarg value="-XDignore.symbol.file"/>
+            <compilerarg value="-Xbootclasspath/p:${build.src.jdkoverride}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
         <antcall target="createVersionPropFile"/>
@@ -1184,7 +1184,7 @@
      <classpath>
         <path refid="cassandra.classpath"/>
      </classpath>
-	 <compilerarg value="-XDignore.symbol.file"/>
+     <compilerarg value="-XDignore.symbol.file"/>
      <src path="${test.unit.src}"/>
      <src path="${test.long.src}"/>
      <src path="${test.burn.src}"/>
