@@ -55,6 +55,16 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
     /** Total number of bytes compacted since server [re]start */
     public final Counter bytesCompacted;
 
+
+    /** Total number of compactions that have had sstables drop out of them */
+    public final Counter compactionsReduced;
+
+    /** Total number of sstables that have been dropped out */
+    public final Counter sstablesDropppedFromCompactions;
+
+    /** Total number of compactions which have outright failed due to lack of disk space */
+    public final Counter compactionsAborted;
+
     public CompactionMetrics(final ThreadPoolExecutor... collectors)
     {
         pendingTasks = Metrics.register(factory.createMetricName("PendingTasks"), new Gauge<Integer>()
@@ -137,6 +147,11 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
         });
         totalCompactionsCompleted = Metrics.meter(factory.createMetricName("TotalCompactionsCompleted"));
         bytesCompacted = Metrics.counter(factory.createMetricName("BytesCompacted"));
+
+        // compaction failure metrics
+        compactionsReduced = Metrics.counter(factory.createMetricName("CompactionsReduced"));
+        sstablesDropppedFromCompactions = Metrics.counter(factory.createMetricName("SSTablesDroppedFromCompaction"));
+        compactionsAborted = Metrics.counter(factory.createMetricName("CompactionsAborted"));
     }
 
     public void beginCompaction(CompactionInfo.Holder ci)
