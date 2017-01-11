@@ -110,7 +110,6 @@
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Properly report LWT contention (CASSANDRA-12626)
 Merged from 3.0:
- * CompactionTasks now correctly drops sstables out of compaction when not enough disk space is available (CASSANDRA-12979)
  * Replace empty strings with null values if they cannot be converted (CASSANDRA-12794)
  * Fix deserialization of 2.x DeletedCells (CASSANDRA-12620)
  * Add parent repair session id to anticompaction log message (CASSANDRA-12186)
@@ -177,6 +176,8 @@ Merged from 3.0:
  * Correct log message for statistics of offheap memtable flush (CASSANDRA-12776)
  * Explicitly set locale for string validation (CASSANDRA-12541,CASSANDRA-12542,CASSANDRA-12543,CASSANDRA-12545)
 Merged from 2.2:
+ * Fix race causing infinite loop if Thrift server is stopped before it starts listening (CASSANDRA-12856)
+ * CompactionTasks now correctly drops sstables out of compaction when not enough disk space is available (CASSANDRA-12979)
  * Remove support for non-JavaScript UDFs (CASSANDRA-12883)
  * Fix DynamicEndpointSnitch noop in multi-datacenter situations (CASSANDRA-13074)
  * cqlsh copy-from: encode column names to avoid primary key parsing errors (CASSANDRA-12909)
