@@ -108,14 +108,18 @@ public class CommitLogSegmentManager
         {
             public void runMayThrow() throws Exception
             {
-                while (run)
+                while (true)
                 {
                     try
                     {
                         Runnable task = segmentManagementTasks.poll();
                         if (task == null)
                         {
-                            // if we have no more work to do, check if we should create a new segment
+                            // if we have no more work to do, check if we were requested to exit before starting background tasks
+                            if (!run)
+                                return;
+
+                            // check if we should create a new segment
                             if (!atSegmentLimit() && availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
                             {
                                 logger.trace("No segments in reserve; creating a fresh one");
