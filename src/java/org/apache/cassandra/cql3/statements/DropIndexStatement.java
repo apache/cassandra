@@ -66,11 +66,11 @@ public class DropIndexStatement extends SchemaAlteringStatement
     @Override
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws RequestValidationException
     {
-        Event.SchemaChange ce = announceMigration(false);
+        Event.SchemaChange ce = announceMigration(state, false);
         return ce == null ? null : new ResultMessage.SchemaChange(ce);
     }
 
-    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         CFMetaData cfm = lookupIndexedTable();
         if (cfm == null)

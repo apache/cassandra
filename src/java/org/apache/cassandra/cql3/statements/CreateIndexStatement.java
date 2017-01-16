@@ -42,6 +42,7 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 
 /** A <code>CREATE INDEX</code> statement parsed from a CQL query. */
@@ -180,7 +181,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("Duplicate column " + target.column + " in index target list");
     }
 
-    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws RequestValidationException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
         List<IndexTarget> targets = new ArrayList<>(rawTargets.size());

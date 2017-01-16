@@ -138,7 +138,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
             throw new InvalidRequestException(String.format("Cannot add function '%s' to non existing keyspace '%s'.", functionName.name, functionName.keyspace));
     }
 
-    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws RequestValidationException
     {
         Function old = Schema.instance.findFunction(functionName, argTypes).orElse(null);
         boolean replaced = old != null;
