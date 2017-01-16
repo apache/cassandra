@@ -31,6 +31,7 @@ import org.apache.cassandra.schema.TriggerMetadata;
 import org.apache.cassandra.schema.Triggers;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.triggers.TriggerExecutor;
@@ -72,7 +73,7 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
         }
     }
 
-    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws ConfigurationException, InvalidRequestException
+    public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws ConfigurationException, InvalidRequestException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
         Triggers triggers = cfm.getTriggers();
