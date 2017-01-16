@@ -96,7 +96,7 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
             throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
     }
 
-    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws RequestValidationException
     {
         KeyspaceMetadata ksm = KeyspaceMetadata.create(name, attrs.asNewKeyspaceParams());
         try

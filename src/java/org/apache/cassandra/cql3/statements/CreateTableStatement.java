@@ -82,7 +82,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
         // validated in announceMigration()
     }
 
-    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws RequestValidationException
     {
         try
         {
