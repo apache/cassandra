@@ -78,12 +78,14 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
             // the node is not the final destination of the hint (must have gotten it from a decommissioning node),
             // so just store it locally, to be delivered later.
             HintsService.instance.write(hostId, hint);
+            reply(id, message.from);
         }
         else if (!StorageProxy.instance.appliesLocally(hint.mutation))
         {
             // the topology has changed, and we are no longer a replica of the mutation - since we don't know which node(s)
             // it has been handed over to, re-address the hint to all replicas; see CASSANDRA-5902.
             HintsService.instance.writeForAllReplicas(hint);
+            reply(id, message.from);
         }
         else
         {

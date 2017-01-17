@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.concurrent.SimpleCondition;
  */
 final class HintsDispatcher implements AutoCloseable
 {
-    private enum Action { CONTINUE, ABORT, RETRY }
+    private enum Action { CONTINUE, ABORT }
 
     private final HintsReader reader;
     private final UUID hostId;
@@ -116,10 +116,7 @@ final class HintsDispatcher implements AutoCloseable
     // retry in case of a timeout; stop in case of a failure, host going down, or delivery paused
     private Action dispatch(HintsReader.Page page)
     {
-        Action action = sendHintsAndAwait(page);
-        return action == Action.RETRY
-             ? dispatch(page)
-             : action;
+        return sendHintsAndAwait(page);
     }
 
     private Action sendHintsAndAwait(HintsReader.Page page)
@@ -142,7 +139,7 @@ final class HintsDispatcher implements AutoCloseable
 
         for (Callback cb : callbacks)
             if (cb.await() != Callback.Outcome.SUCCESS)
-                return Action.RETRY;
+                return Action.ABORT;
 
         return Action.CONTINUE;
     }
