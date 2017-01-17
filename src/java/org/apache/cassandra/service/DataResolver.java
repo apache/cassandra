@@ -19,9 +19,9 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
-import com.google.common.annotations.VisibleForTesting;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -40,18 +40,26 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 public class DataResolver extends ResponseResolver
 {
-    @VisibleForTesting
-    final List<AsyncOneResponse> repairResults = Collections.synchronizedList(new ArrayList<>());
+    private final Map<AsyncOneResponse, Pair<MessageOut, InetAddress>> repairResponseRequestMap = new HashMap<>();
     private final long queryStartNanoTime;
+    private Optional<InetAddress> spareReadRepairNode;
+    private int responseCntSnapshot;
 
     public DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, int maxResponseCount, long queryStartNanoTime)
     {
         super(keyspace, command, consistency, maxResponseCount);
         this.queryStartNanoTime = queryStartNanoTime;
+        this.spareReadRepairNode = Optional.empty();
+    }
+
+    public DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, int maxResponseCount, long queryStartNanoTime, Optional<InetAddress> spareReadRepairNode)
+    {
+        this(keyspace, command, consistency, maxResponseCount, queryStartNanoTime);
+        this.spareReadRepairNode = spareReadRepairNode;
     }
 
     public PartitionIterator getData()
@@ -65,6 +73,12 @@ public class DataResolver extends ResponseResolver
         // We could get more responses while this method runs, which is ok (we're happy to ignore any response not here
         // at the beginning of this method), so grab the response count once and use that through the method.
         int count = responses.size();
+
+        // we need to capture this count and save to this data resolver. All return results is based on this many
+        // reponse count and below "responseCntSnapshot" is used to calculate whether read repair is ok or not
+        // since response list can get more response later, but we only iterator "responseCntSnapshot" for any future
+        // operations including read repair retry. So we have to save this count in current state.
+        responseCntSnapshot = count;
         List<UnfilteredPartitionIterator> iters = new ArrayList<>(count);
         InetAddress[] sources = new InetAddress[count];
         for (int i = 0; i < count; i++)
@@ -153,11 +167,12 @@ public class DataResolver extends ResponseResolver
             return false;
         }
 
+        // it will be invoked when finishing all partition iterators
         public void close()
         {
             try
             {
-                FBUtilities.waitOnFutures(repairResults, DatabaseDescriptor.getWriteRpcTimeout());
+                waitRepairToFinishWithPossibleRetry();
             }
             catch (TimeoutException ex)
             {
@@ -165,11 +180,129 @@ public class DataResolver extends ResponseResolver
                 int blockFor = consistency.blockFor(keyspace);
                 if (Tracing.isTracing())
                     Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
-                else
-                    logger.debug("Timeout while read-repairing after receiving all {} data and digest responses", blockFor);
-
+                logger.debug("Timeout while read-repairing after receiving all {} data and digest responses with exception {]", blockFor, ex);
                 throw new ReadTimeoutException(consistency, blockFor-1, blockFor, true);
             }
+        }
+
+        /**
+         * This method will wait for read repair response to come back. Based on consistency level requirement, if read
+         * repair response takes more than sampleLatencyNanos, it will send the diff to a different node say retryNode no matter whether
+         * this retryNode contains latest data or not. If we can get the response back from retryNode, we know we can gurantee consistency
+         * level requirement for sure. Right now it only handles one read repair slowness(it can also handle more than one if speculative read retry
+         * kicks in).
+         * Below code also try to check read repair response again if the retryNode is slow also to hopefully previous slow read repair response get
+         * back.
+         * The reason why we have to block until we get enough read repair repsonse back is we need to garantee "monotonic quorum reads"
+         * Detailed explanation can be seen at CASSANDRA-10726
+         *
+         * @throws TimeoutException
+         */
+
+        private void waitRepairToFinishWithPossibleRetry() throws TimeoutException
+        {
+            if (repairResponseRequestMap.isEmpty()) return;
+
+            if (!consistency.satisfiesQuorumFor(keyspace))
+            {
+                //if not majority, there is no point to block since even we
+                //block, there is also no guarantee for "monotonic read". So just return
+                return;
+            }
+
+            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
+            long waitTimeNanos = cfs.sampleLatencyNanos;
+
+            // no latency information, or we're overloaded
+            if (waitTimeNanos > TimeUnit.MILLISECONDS.toNanos(command.getTimeout()) || waitTimeNanos == 0)
+            {
+                // try to choose a default value
+                waitTimeNanos = TimeUnit.MILLISECONDS.toNanos((long)(DatabaseDescriptor.getReadRpcTimeout() / 4.0));
+            }
+
+            List<AsyncOneResponse> timeOuts = awaitRepairResponses(repairResponseRequestMap.keySet().stream().collect(Collectors.toList()), waitTimeNanos);
+
+            int blockFor = consistency.blockFor(keyspace);
+            long timeOutHostsCnt = distinctHostNum(timeOuts);
+            if (responseCntSnapshot - timeOutHostsCnt >= blockFor)
+            {
+                //it's guaranteed to have at least blockFor replicas succeeded, then we don't need to worry about whether
+                //read repair is done or not. "monotonic read" is already guaranteed
+                return;
+            }
+
+            if (!spareReadRepairNode.isPresent())
+            {
+                throw new TimeoutException("read repair timeout and there is no retry");
+            }
+
+            // we only do extra read repair if we only need to do one more read repair to satisfy blockFor
+            if (responseCntSnapshot - timeOutHostsCnt == blockFor - 1)
+            {
+                List<AsyncOneResponse> repairRetryResponses = new ArrayList<>();
+                for(AsyncOneResponse response : timeOuts)
+                {
+                    Tracing.trace("retry read-repair-mutation to {}", spareReadRepairNode.get());
+                    repairRetryResponses.add(MessagingService.instance().sendRR(repairResponseRequestMap.get(response).left,
+                                                                                spareReadRepairNode.get()));
+                }
+
+                List<AsyncOneResponse> retryTimeOut = awaitRepairResponses(repairRetryResponses, waitTimeNanos);
+                if (retryTimeOut.isEmpty()) return;
+
+                //retry can not help, let's try previous repairResponse again to see whether there is one more done.
+                if (timeOutHostsCnt - distinctHostNum(awaitRepairResponses(repairResponseRequestMap.keySet().stream().collect(Collectors.toList()), waitTimeNanos)) >= 1)
+                {
+                    return;
+                }
+                throw new TimeoutException("one more read repair can not help and check previous repair response again can not help either");
+            } else {
+                throw new TimeoutException("read repair timeout and will not retry read repair, diff count = " + (responseCntSnapshot - timeOutHostsCnt));
+            }
+        }
+
+        /**
+         * When doing the read repair, the mutation is per partition key, so it's possible we will repair multiple
+         * partitions into different hosts. let's say RF = 5, we need to read partition p1, p2, p3, p4 from three nodes,
+         * n1, n2, n3. If n1 contains latest data, n2 is missing p1 and p2, n2 is missing p3 and p4. So we need to run
+         * repair for n2 by sending p1 and p2 partitions and run repair for n3 by sending p3 and p4 partitions. it's
+         * possible p1 and p3 repair is slow, so beloew distinctHostNum will return 2. In this case, I will not retry
+         * a new node for read repair since this read repair retry will only handle one slow host. If p3 and p4 is fast,
+         * p1 and p2 repair is slow or just p1 repair is slow, below distinctHostNum will return 1, in this case, I will
+         * retry 1 extra node and send p1, p2 to extra node or just p1 if only p1 read repair times out.
+         * In same host, we can have multiple partition read repair and we can only handle one host slowness, so we should
+         * get distinct host from read repair response future.
+         * @param responses
+         * @return
+         */
+        private long distinctHostNum(final List<AsyncOneResponse> responses)
+        {
+            return responses.stream().map(response -> repairResponseRequestMap.get(response).right).distinct().count();
+        }
+
+        /**
+         *
+         * @param responses
+         * @param timeToWaitNanos
+         * @return a list of response which have not responded in timeToWaitNanos window
+         */
+        private List<AsyncOneResponse> awaitRepairResponses(final List<AsyncOneResponse> responses, final long timeToWaitNanos)
+        {
+            List<AsyncOneResponse> ret = new ArrayList<>();
+            long start = System.nanoTime();
+            for(final AsyncOneResponse repairResponse : responses)
+            {
+                try
+                {
+                    long alreadyPassedNanos = System.nanoTime() - start ;
+                    repairResponse.get(timeToWaitNanos - alreadyPassedNanos > 0 ? timeToWaitNanos - alreadyPassedNanos : 0,
+                                       TimeUnit.NANOSECONDS);
+                } catch (final TimeoutException e)
+                {
+                    ret.add(repairResponse);
+                }
+            }
+            return ret;
         }
 
         private class MergeListener implements UnfilteredRowIterators.MergeListener
@@ -384,6 +517,7 @@ public class DataResolver extends ResponseResolver
                 markerToRepair[i] = null;
             }
 
+            // it will be invoked after finish this row iterator
             public void close()
             {
                 for (int i = 0; i < repairs.length; i++)
@@ -395,10 +529,11 @@ public class DataResolver extends ResponseResolver
                     // on-timeout behavior that a "real" mutation gets
                     Tracing.trace("Sending read-repair-mutation to {}", sources[i]);
                     MessageOut<Mutation> msg = new Mutation(repairs[i]).createMessage(MessagingService.Verb.READ_REPAIR);
-                    repairResults.add(MessagingService.instance().sendRR(msg, sources[i]));
+                    repairResponseRequestMap.put(MessagingService.instance().sendRR(msg, sources[i]), Pair.create(msg, sources[i]));
                 }
             }
         }
+
     }
 
     private class ShortReadProtection extends Transformation<UnfilteredRowIterator>
@@ -544,5 +679,10 @@ public class DataResolver extends ResponseResolver
     public boolean isDataPresent()
     {
         return !responses.isEmpty();
+    }
+
+    public Map<AsyncOneResponse, Pair<MessageOut, InetAddress>> getRepairResponseRequestMap()
+    {
+        return new HashMap<>(repairResponseRequestMap);
     }
 }

@@ -1773,11 +1773,13 @@ public class StorageProxy implements StorageProxyMBean
                 ReadRepairMetrics.repairedBlocking.mark();
 
                 // Do a full data read to resolve the correct response (and repair node that need be)
+
                 Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-                DataResolver resolver = new DataResolver(keyspace, command, ConsistencyLevel.ALL, executor.handler.endpoints.size(), queryStartNanoTime);
+                DataResolver resolver = new DataResolver(keyspace, command, consistency, executor.handler.endpoints.size(), queryStartNanoTime, executor.spareReadRepairNode);
+                // we don't need to block for all replicas to reply no matter whether it's in read repair chance or speculative retry
                 repairHandler = new ReadCallback(resolver,
-                                                 ConsistencyLevel.ALL,
-                                                 executor.getContactedReplicas().size(),
+                                                 consistency,
+                                                 consistency.blockFor(keyspace),
                                                  command,
                                                  keyspace,
                                                  executor.handler.endpoints,

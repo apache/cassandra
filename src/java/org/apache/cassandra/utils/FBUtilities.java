@@ -411,7 +411,6 @@ public class FBUtilities
         for (AsyncOneResponse result : results)
             result.get(ms, TimeUnit.MILLISECONDS);
     }
-
     /**
      * Create a new instance of a partitioner defined in an SSTable Descriptor
      * @param desc Descriptor of an sstable

@@ -21,40 +21,85 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Optional;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringBoundary;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
+import org.apache.cassandra.db.rows.RangeTombstoneBoundaryMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.net.*;
+import org.apache.cassandra.net.AsyncOneResponse;
+import org.apache.cassandra.net.IMessageSink;
+import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.assertClustering;
 import static org.apache.cassandra.Util.assertColumn;
 import static org.apache.cassandra.Util.assertColumns;
+import static org.apache.cassandra.db.ClusteringBound.Kind;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.apache.cassandra.db.ClusteringBound.Kind;
 
 public class DataResolverTest
 {
@@ -97,7 +142,7 @@ public class DataResolverTest
                          .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true));
 
         SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), builder1, builder2);
+        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(2), builder1, builder2);
     }
 
     @Before
@@ -138,11 +183,11 @@ public class DataResolverTest
      */
     private void assertRepairFuture(DataResolver resolver, int expectedRepairs)
     {
-        assertEquals(expectedRepairs, resolver.repairResults.size());
+        assertEquals(expectedRepairs, resolver.getRepairResponseRequestMap().size());
 
         // Signal all future. We pass a completely fake response message, but it doesn't matter as we just want
         // AsyncOneResponse to signal success, and it only cares about a non-null MessageIn (it collects the payload).
-        for (AsyncOneResponse<?> future : resolver.repairResults)
+        for (AsyncOneResponse<?> future : resolver.getRepairResponseRequestMap().keySet())
             future.response(MessageIn.create(null, null, null, null, -1));
     }
 
@@ -855,6 +900,120 @@ public class DataResolverTest
 
         Assert.assertNull(messageRecorder.sent.get(peer2));
     }
+
+    @Test
+    public void testResolveOneReadRepairRetry()
+    {
+        InetAddress peer1 = peer();
+        InetAddress peer2 = peer();
+        InetAddress peer3 = peer();
+        InetAddress peer4 = peer();
+
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.QUORUM, 3, System.nanoTime(), Optional.of(peer4));
+
+        resolver.preprocess(readResponseMessage(peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
+                                                                                                       .add("c1", "v1")
+                                                                                                       .buildUpdate())));
+        resolver.preprocess(readResponseMessage(peer2, iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).clustering("1")
+                                                                                                       .add("c1", "v2")
+                                                                                                       .buildUpdate())));
+        resolver.preprocess(readResponseMessage(peer3, iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).clustering("1")
+                                                                                                       .add("c1", "v2")
+                                                                                                       .buildUpdate())));
+        try(PartitionIterator data = resolver.resolve())
+        {
+            try (RowIterator rows = Iterators.getOnlyElement(data))
+            {
+                Row row = Iterators.getOnlyElement(rows);
+                assertColumns(row, "c1");
+                assertColumn(cfm, row, "c1", "v2", 1);
+            }
+        } catch (final Throwable e)
+        {
+            assertRepairFuture(resolver, 1);
+            // msg sent to peer1 and peer4
+            assertEquals(2, messageRecorder.sent.size());
+            //retry will send to peer4
+            MessageOut msg = getSentMessage(peer4);
+            assertRepairMetadata(msg);
+            assertRepairContainsColumn(msg, "1", "c1", "v2", 1);
+        }
+    }
+
+    @Test
+    public void testResolveWithoutReadRepairRetry()
+    {
+        InetAddress peer1 = peer();
+        InetAddress peer2 = peer();
+        InetAddress peer3 = peer();
+        InetAddress peer4 = peer();
+
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.QUORUM, 3, System.nanoTime(), Optional.of(peer4));
+
+        resolver.preprocess(readResponseMessage(peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
+                                                                                                       .add("c1", "v1")
+                                                                                                       .buildUpdate())));
+        resolver.preprocess(readResponseMessage(peer2, iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).clustering("1")
+                                                                                                       .add("c1", "v2")
+                                                                                                       .buildUpdate())));
+        resolver.preprocess(readResponseMessage(peer3, iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).clustering("1")
+                                                                                                       .add("c1", "v2")
+                                                                                                       .buildUpdate())));
+        try(PartitionIterator data = resolver.resolve())
+        {
+            try (RowIterator rows = Iterators.getOnlyElement(data))
+            {
+                Row row = Iterators.getOnlyElement(rows);
+                assertColumns(row, "c1");
+                assertColumn(cfm, row, "c1", "v2", 1);
+            }
+            // there is no timeout, read repair just returned
+            assertRepairFuture(resolver, 1);
+        }
+        assertEquals(1, messageRecorder.sent.size());
+        //retry will send to peer4
+        MessageOut msg = getSentMessage(peer1);
+        assertRepairMetadata(msg);
+        assertRepairContainsColumn(msg, "1", "c1", "v2", 1);
+    }
+
+
+    @Test
+    public void testResolveGiveUpReadRepairRetry()
+    {
+        InetAddress peer1 = peer();
+        InetAddress peer2 = peer();
+        InetAddress peer3 = peer();
+        InetAddress peer4 = peer();
+
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 3, System.nanoTime(), Optional.of(peer4));
+
+        resolver.preprocess(readResponseMessage(peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
+                                                                                                       .add("c1", "v1")
+                                                                                                       .buildUpdate())));
+        resolver.preprocess(readResponseMessage(peer2, iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).clustering("1")
+                                                                                                       .add("c1", "v2")
+                                                                                                       .buildUpdate())));
+        resolver.preprocess(readResponseMessage(peer3, iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).clustering("1")
+                                                                                                       .add("c1", "v2")
+                                                                                                       .buildUpdate())));
+        try(PartitionIterator data = resolver.resolve())
+        {
+            try (RowIterator rows = Iterators.getOnlyElement(data))
+            {
+                Row row = Iterators.getOnlyElement(rows);
+                assertColumns(row, "c1");
+                assertColumn(cfm, row, "c1", "v2", 1);
+            }
+        } catch (final Throwable e)
+        {
+            assertRepairFuture(resolver, 1);
+            // msg sent to peer1 there is no msg sent to peer4 since one read repair retry is not enough.
+            // give up read repair retry
+            assertEquals(1, messageRecorder.sent.size());
+        }
+    }
+
 
     private InetAddress peer()
     {
