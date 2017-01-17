@@ -273,7 +273,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
     /**
      * Record any tracing data, if enabled on this message.
      */
-    public void traceOutgoingMessage(Message<?> message, InetAddressAndPort sendTo)
+    public void traceOutgoingMessage(Message<?> message, int serializedSize, InetAddressAndPort sendTo)
     {
         try
         {
@@ -281,7 +281,8 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
             if (sessionId == null)
                 return;
 
-            String logMessage = String.format("Sending %s message to %s", message.verb(), sendTo);
+            String logMessage = String.format("Sending %s message to %s message size %d bytes", message.verb(), sendTo,
+                                              serializedSize);
 
             TraceState state = get(sessionId);
             if (state == null) // session may have already finished; see CASSANDRA-5668

@@ -795,7 +795,7 @@ public class OutboundConnection
                             out = new DataOutputBufferFixed(sending.buffer);
                         }
 
-                        Tracing.instance.traceOutgoingMessage(next, settings.connectTo);
+                        Tracing.instance.traceOutgoingMessage(next, messageSize, settings.connectTo);
                         Message.serializer.serialize(next, out, messagingVersion);
 
                         if (sending.length() != sendingBytes + messageSize)
@@ -963,7 +963,7 @@ public class OutboundConnection
                 if (messageSize > DatabaseDescriptor.getInternodeMaxMessageSizeInBytes())
                     throw new Message.OversizedMessageException(messageSize);
 
-                Tracing.instance.traceOutgoingMessage(send, established.settings.connectTo);
+                Tracing.instance.traceOutgoingMessage(send, messageSize, established.settings.connectTo);
                 Message.serializer.serialize(send, out, established.messagingVersion);
 
                 if (out.position() != messageSize)
