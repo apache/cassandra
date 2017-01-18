@@ -1,4 +1,5 @@
 4.0
+ * Speed-up start-up sequence by avoiding un-needed flushes (CASSANDRA-13031)
  * Use Caffeine (W-TinyLFU) for on-heap caches (CASSANDRA-10855)
  * Thrift removal (CASSANDRA-11115)
  * Remove pre-3.0 compatibility code for 4.0 (CASSANDRA-12716)
