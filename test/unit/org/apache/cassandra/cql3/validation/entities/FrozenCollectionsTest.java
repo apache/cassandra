@@ -511,20 +511,6 @@ public class FrozenCollectionsTest extends CQLTester
         }
     }
 
-    private void assertInvalidAlterWithMessage(String createTableStatement, String errorMessage) throws Throwable
-    {
-        try
-        {
-            alterTableMayThrow(createTableStatement);
-            Assert.fail("Expected CREATE TABLE statement to error: " + createTableStatement);
-        }
-        catch (InvalidRequestException | ConfigurationException ex)
-        {
-            Assert.assertTrue("Expected error message to contain '" + errorMessage + "', but got '" + ex.getMessage() + "'",
-                    ex.getMessage().contains(errorMessage));
-        }
-    }
-
     @Test
     public void testInvalidOperations() throws Throwable
     {
@@ -555,34 +541,6 @@ public class FrozenCollectionsTest extends CQLTester
 
         assertInvalidCreateWithMessage("CREATE TABLE %s (k int PRIMARY KEY, t frozen<text>)",
                 "frozen<> is only allowed on collections, tuples, and user-defined types");
-    }
-
-    @Test
-    public void testAltering() throws Throwable
-    {
-        createTable("CREATE TABLE %s (a int, b frozen<list<int>>, c frozen<list<int>>, PRIMARY KEY (a, b))");
-
-        alterTable("ALTER TABLE %s ALTER c TYPE frozen<list<blob>>");
-
-        assertInvalidAlterWithMessage("ALTER TABLE %s ALTER b TYPE frozen<list<blob>>",
-                                      "types are not order-compatible");
-
-        assertInvalidAlterWithMessage("ALTER TABLE %s ALTER b TYPE list<int>",
-                                      "types are not order-compatible");
-
-        assertInvalidAlterWithMessage("ALTER TABLE %s ALTER c TYPE list<blob>",
-                                      "types are incompatible");
-
-        alterTable("ALTER TABLE %s DROP c");
-        alterTable("ALTER TABLE %s ADD c frozen<set<int>>");
-        assertInvalidAlterWithMessage("ALTER TABLE %s ALTER c TYPE frozen<set<blob>>",
-                                      "types are incompatible");
-
-        alterTable("ALTER TABLE %s DROP c");
-        alterTable("ALTER TABLE %s ADD c frozen<map<int, int>>");
-        assertInvalidAlterWithMessage("ALTER TABLE %s ALTER c TYPE frozen<map<blob, int>>",
-                                      "types are incompatible");
-        alterTable("ALTER TABLE %s ALTER c TYPE frozen<map<int, blob>>");
     }
 
     private void assertInvalidIndexCreationWithMessage(String statement, String errorMessage) throws Throwable

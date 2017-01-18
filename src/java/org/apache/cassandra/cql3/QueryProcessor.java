@@ -60,7 +60,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 public class QueryProcessor implements QueryHandler
 {
-    public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.3");
+    public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.4");
 
     public static final QueryProcessor instance = new QueryProcessor();
 

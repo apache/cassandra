@@ -21,6 +21,12 @@ Changes
 
 The following describes the changes in each version of CQL.
 
+3.4.4
+^^^^^
+
+- ``ALTER TABLE`` ``ALTER`` has been removed; a column's type may not be changed after creation (:jira:`12443`).
+- ``ALTER TYPE`` ``ALTER`` has been removed; a field's type may not be changed after creation (:jira:`12443`).
+
 3.4.3
 ^^^^^
 

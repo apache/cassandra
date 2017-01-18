@@ -54,12 +54,12 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
 
     public static AlterTypeStatement addition(UTName name, FieldIdentifier fieldName, CQL3Type.Raw type)
     {
-        return new AddOrAlter(name, true, fieldName, type);
+        return new Add(name, fieldName, type);
     }
 
     public static AlterTypeStatement alter(UTName name, FieldIdentifier fieldName, CQL3Type.Raw type)
     {
-        return new AddOrAlter(name, false, fieldName, type);
+        throw new InvalidRequestException("Altering of types is not allowed");
     }
 
     public static AlterTypeStatement renames(UTName name, Map<FieldIdentifier, FieldIdentifier> renames)
@@ -237,21 +237,19 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
                      });
     }
 
-    private static class AddOrAlter extends AlterTypeStatement
+    private static class Add extends AlterTypeStatement
     {
-        private final boolean isAdd;
         private final FieldIdentifier fieldName;
         private final CQL3Type.Raw type;
 
-        public AddOrAlter(UTName name, boolean isAdd, FieldIdentifier fieldName, CQL3Type.Raw type)
+        public Add(UTName name, FieldIdentifier fieldName, CQL3Type.Raw type)
         {
             super(name);
-            this.isAdd = isAdd;
             this.fieldName = fieldName;
             this.type = type;
         }
 
-        private UserType doAdd(UserType toUpdate) throws InvalidRequestException
+        protected UserType makeUpdatedType(UserType toUpdate, KeyspaceMetadata ksm) throws InvalidRequestException
         {
             if (toUpdate.fieldPosition(fieldName) >= 0)
                 throw new InvalidRequestException(String.format("Cannot add new field %s to type %s: a field of the same name already exists", fieldName, name));
@@ -269,30 +267,6 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             newTypes.add(addType);
 
             return new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes, toUpdate.isMultiCell());
-        }
-
-        private UserType doAlter(UserType toUpdate, KeyspaceMetadata ksm) throws InvalidRequestException
-        {
-            checkTypeNotUsedByAggregate(ksm);
-
-            int idx = toUpdate.fieldPosition(fieldName);
-            if (idx < 0)
-                throw new InvalidRequestException(String.format("Unknown field %s in type %s", fieldName, name));
-
-            AbstractType<?> previous = toUpdate.fieldType(idx);
-            if (!type.prepare(keyspace()).getType().isCompatibleWith(previous))
-                throw new InvalidRequestException(String.format("Type %s is incompatible with previous type %s of field %s in user type %s", type, previous.asCQL3Type(), fieldName, name));
-
-            List<FieldIdentifier> newNames = new ArrayList<>(toUpdate.fieldNames());
-            List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.fieldTypes());
-            newTypes.set(idx, type.prepare(keyspace()).getType());
-
-            return new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes, toUpdate.isMultiCell());
-        }
-
-        protected UserType makeUpdatedType(UserType toUpdate, KeyspaceMetadata ksm) throws InvalidRequestException
-        {
-            return isAdd ? doAdd(toUpdate) : doAlter(toUpdate, ksm);
         }
     }
 
