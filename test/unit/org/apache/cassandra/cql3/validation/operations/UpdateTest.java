@@ -28,38 +28,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class UpdateTest extends CQLTester
 {
-    /**
-     * Test altering the type of a column, including the one in the primary key (#4041)
-     * migrated from cql_tests.py:TestCQL.update_type_test()
-     */
-    @Test
-    public void testUpdateColumnType() throws Throwable
-    {
-        createTable("CREATE TABLE %s (k text, c text, s set <text>, v text, PRIMARY KEY(k, c))");
-
-        // using utf8 character so that we can see the transition to BytesType
-        execute("INSERT INTO %s (k, c, v, s) VALUES ('ɸ', 'ɸ', 'ɸ', {'ɸ'})");
-
-        assertRows(execute("SELECT * FROM %s"),
-                   row("ɸ", "ɸ", set("ɸ"), "ɸ"));
-
-        execute("ALTER TABLE %s ALTER v TYPE blob");
-        assertRows(execute("SELECT * FROM %s"),
-                   row("ɸ", "ɸ", set("ɸ"), ByteBufferUtil.bytes("ɸ")));
-
-        execute("ALTER TABLE %s ALTER k TYPE blob");
-        assertRows(execute("SELECT * FROM %s"),
-                   row(ByteBufferUtil.bytes("ɸ"), "ɸ", set("ɸ"), ByteBufferUtil.bytes("ɸ")));
-
-        execute("ALTER TABLE %s ALTER c TYPE blob");
-        assertRows(execute("SELECT * FROM %s"),
-                   row(ByteBufferUtil.bytes("ɸ"), ByteBufferUtil.bytes("ɸ"), set("ɸ"), ByteBufferUtil.bytes("ɸ")));
-
-        execute("ALTER TABLE %s ALTER s TYPE set<blob>");
-        assertRows(execute("SELECT * FROM %s"),
-                   row(ByteBufferUtil.bytes("ɸ"), ByteBufferUtil.bytes("ɸ"), set(ByteBufferUtil.bytes("ɸ")), ByteBufferUtil.bytes("ɸ")));
-    }
-
     @Test
     public void testTypeCasts() throws Throwable
     {

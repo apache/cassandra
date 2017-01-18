@@ -343,37 +343,6 @@ public class AlterTest extends CQLTester
                                            "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_kb' : 32 , 'chunk_length_in_kb' : 32 };");
     }
 
-    @Test
-    public void testAlterType() throws Throwable
-    {
-        createTable("CREATE TABLE %s (id text PRIMARY KEY, content text);");
-        alterTable("ALTER TABLE %s ALTER content TYPE blob");
-
-        createTable("CREATE TABLE %s (pk int, ck text, value blob, PRIMARY KEY (pk, ck)) WITH CLUSTERING ORDER BY (ck DESC)");
-        alterTable("ALTER TABLE %s ALTER ck TYPE blob");
-
-        createTable("CREATE TABLE %s (pk int, ck int, value blob, PRIMARY KEY (pk, ck))");
-        assertThrowsConfigurationException("Cannot change value from type blob to type text: types are incompatible.",
-                                           "ALTER TABLE %s ALTER value TYPE TEXT;");
-    }
-
-    /**
-     * tests CASSANDRA-10027
-     */
-    @Test
-    public void testAlterColumnTypeToDate() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key int PRIMARY KEY, c1 int);");
-        execute("INSERT INTO %s (key, c1) VALUES (1,1);");
-        execute("ALTER TABLE %s ALTER c1 TYPE date;");
-        assertRows(execute("SELECT * FROM %s"), row(1, 1));
-
-        createTable("CREATE TABLE %s (key int PRIMARY KEY, c1 varint);");
-        execute("INSERT INTO %s (key, c1) VALUES (1,1);");
-        assertInvalidMessage("Cannot change c1 from type varint to type date: types are incompatible.",
-                             "ALTER TABLE %s ALTER c1 TYPE date;");
-    }
-
     private void assertThrowsConfigurationException(String errorMsg, String alterStmt) throws Throwable
     {
         try
@@ -385,28 +354,5 @@ public class AlterTest extends CQLTester
         {
             assertEquals(errorMsg, e.getMessage());
         }
-    }
-
-    @Test // tests CASSANDRA-8879
-    public void testAlterClusteringColumnTypeInCompactTable() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key blob, column1 blob, value blob, PRIMARY KEY ((key), column1)) WITH COMPACT STORAGE");
-        assertInvalidThrow(InvalidRequestException.class, "ALTER TABLE %s ALTER column1 TYPE ascii");
-    }
-
-    @Test
-    public void testAlterToBlob() throws Throwable
-    {
-        // This tests for the bug from #11820 in particular
-
-        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int)");
-
-        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
-
-        executeNet(Server.CURRENT_VERSION, "ALTER TABLE %s ALTER b TYPE BLOB");
-
-        assertRowsNet(Server.CURRENT_VERSION, executeNet(Server.CURRENT_VERSION, "SELECT * FROM %s WHERE a = 1"),
-            row(1, ByteBufferUtil.bytes(1))
-        );
     }
 }
