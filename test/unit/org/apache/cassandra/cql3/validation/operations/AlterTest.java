@@ -17,19 +17,16 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-import org.junit.Assert;
-import org.junit.Test;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
@@ -386,37 +383,6 @@ public class AlterTest extends CQLTester
                                            "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_kb' : 32 , 'chunk_length_in_kb' : 32 };");
     }
 
-    @Test
-    public void testAlterType() throws Throwable
-    {
-        createTable("CREATE TABLE %s (id text PRIMARY KEY, content text);");
-        alterTable("ALTER TABLE %s ALTER content TYPE blob");
-
-        createTable("CREATE TABLE %s (pk int, ck text, value blob, PRIMARY KEY (pk, ck)) WITH CLUSTERING ORDER BY (ck DESC)");
-        alterTable("ALTER TABLE %s ALTER ck TYPE blob");
-
-        createTable("CREATE TABLE %s (pk int, ck int, value blob, PRIMARY KEY (pk, ck))");
-        assertThrowsConfigurationException("Cannot change value from type blob to type text: types are incompatible.",
-                                           "ALTER TABLE %s ALTER value TYPE TEXT;");
-    }
-
-    /**
-     * tests CASSANDRA-10027
-     */
-    @Test
-    public void testAlterColumnTypeToDate() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key int PRIMARY KEY, c1 int);");
-        execute("INSERT INTO %s (key, c1) VALUES (1,1);");
-        execute("ALTER TABLE %s ALTER c1 TYPE date;");
-        assertRows(execute("SELECT * FROM %s"), row(1, 1));
-
-        createTable("CREATE TABLE %s (key int PRIMARY KEY, c1 varint);");
-        execute("INSERT INTO %s (key, c1) VALUES (1,1);");
-        assertInvalidMessage("Cannot change c1 from type varint to type date: types are incompatible.",
-                             "ALTER TABLE %s ALTER c1 TYPE date;");
-    }
-
     private void assertThrowsConfigurationException(String errorMsg, String alterStmt) throws Throwable
     {
         try
@@ -428,109 +394,5 @@ public class AlterTest extends CQLTester
         {
             assertEquals(errorMsg, e.getMessage());
         }
-    }
-
-    @Test // tests CASSANDRA-8879
-    public void testAlterClusteringColumnTypeInCompactTable() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key blob, column1 blob, value blob, PRIMARY KEY ((key), column1)) WITH COMPACT STORAGE");
-        assertInvalidThrow(InvalidRequestException.class, "ALTER TABLE %s ALTER column1 TYPE ascii");
-    }
-
-    /*
-     * Test case to check addition of one column
-    */
-    @Test
-    public void testAlterAddOneColumn() throws Throwable
-    {
-        createTable("CREATE TABLE IF NOT EXISTS %s (id int, name text, PRIMARY KEY (id))");
-        alterTable("ALTER TABLE %s add mail text;");
-
-        assertColumnNames(execute("SELECT * FROM %s"), "id", "mail", "name");
-    }
-
-    /*
-     * Test case to check addition of more than one column
-     */
-    @Test
-    public void testAlterAddMultiColumn() throws Throwable
-    {
-        createTable("CREATE TABLE IF NOT EXISTS %s (id int, yearofbirth int, PRIMARY KEY (id))");
-        alterTable("ALTER TABLE %s add (firstname text, password blob, lastname text, \"SOME escaped col\" bigint)");
-
-        assertColumnNames(execute("SELECT * FROM %s"), "id", "SOME escaped col", "firstname", "lastname", "password", "yearofbirth");
-    }
-
-    /*
-     *  Should throw SyntaxException if multiple columns are added using wrong syntax.
-     *  Expected Syntax : Alter table T1 add (C1 datatype,C2 datatype,C3 datatype)
-     */
-    @Test(expected = SyntaxException.class)
-    public void testAlterAddMultiColumnWithoutBraces() throws Throwable
-    {
-        execute("ALTER TABLE %s.users add lastname text, password blob, yearofbirth int;");
-    }
-
-    /*
-     *  Test case to check deletion of one column
-     */
-    @Test
-    public void testAlterDropOneColumn() throws Throwable
-    {
-        createTable("CREATE TABLE IF NOT EXISTS %s (id text, telephone int, yearofbirth int, PRIMARY KEY (id))");
-        alterTable("ALTER TABLE %s drop telephone");
-
-        assertColumnNames(execute("SELECT * FROM %s"), "id", "yearofbirth");
-    }
-
-    @Test
-    /*
-     * Test case to check deletion of more than one column
-     */
-    public void testAlterDropMultiColumn() throws Throwable
-    {
-        createTable("CREATE TABLE IF NOT EXISTS %s (id text, address text, telephone int, yearofbirth int, \"SOME escaped col\" bigint, PRIMARY KEY (id))");
-        alterTable("ALTER TABLE %s drop (address, telephone, \"SOME escaped col\");");
-
-        assertColumnNames(execute("SELECT * FROM %s"), "id", "yearofbirth");
-    }
-
-    /*
-     *  Should throw SyntaxException if multiple columns are dropped using wrong syntax.
-     */
-    @Test(expected = SyntaxException.class)
-    public void testAlterDeletionColumnWithoutBraces() throws Throwable
-    {
-        execute("ALTER TABLE %s.users drop name,address;");
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void testAlterAddDuplicateColumn() throws Throwable
-    {
-        createTable("CREATE TABLE IF NOT EXISTS %s (id text, address text, telephone int, yearofbirth int, PRIMARY KEY (id))");
-        execute("ALTER TABLE %s add (salary int, salary int);");
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void testAlterDropDuplicateColumn() throws Throwable
-    {
-        createTable("CREATE TABLE IF NOT EXISTS %s (id text, address text, telephone int, yearofbirth int, PRIMARY KEY (id))");
-        execute("ALTER TABLE %s drop (address, address);");
-    }
-
-    @Test
-    public void testAlterToBlob() throws Throwable
-    {
-        // This tests for the bug from #11820 in particular
-
-        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int)");
-
-        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
-
-        executeNet(ProtocolVersion.CURRENT, "ALTER TABLE %s ALTER b TYPE BLOB");
-
-        assertRowsNet(ProtocolVersion.CURRENT, executeNet(ProtocolVersion.CURRENT, "SELECT * FROM %s WHERE a = 1"),
-            row(1, ByteBufferUtil.bytes(1))
-        );
     }
 }

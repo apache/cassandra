@@ -558,14 +558,11 @@ Altering an existing table uses the ``ALTER TABLE`` statement:
 
 .. productionlist::
    alter_table_statement: ALTER TABLE `table_name` `alter_table_instruction`
-   alter_table_instruction: ALTER `column_name` TYPE `cql_type`
-                          : | ADD `column_name` `cql_type` ( ',' `column_name` `cql_type` )*
+   alter_table_instruction: ADD `column_name` `cql_type` ( ',' `column_name` `cql_type` )*
                           : | DROP `column_name` ( `column_name` )*
                           : | WITH `options`
 
 For instance::
-
-    ALTER TABLE addamsFamily ALTER lastKnownLocation TYPE uuid;
 
     ALTER TABLE addamsFamily ADD gravesite varchar;
 
@@ -575,11 +572,6 @@ For instance::
 
 The ``ALTER TABLE`` statement can:
 
-- Change the type of one of the column in the table (through the ``ALTER`` instruction). Note that the type of a column
-  cannot be changed arbitrarily. The change of type should be such that any value of the previous type should be a valid
-  value of the new type. Further, for :ref:`clustering columns <clustering-columns>` and columns on which a secondary
-  index is defined, the new type must sort values in the same way the previous type does. See the :ref:`type
-  compatibility table <alter-table-type-compatibility>` below for detail on which type changes are accepted.
 - Add new column(s) to the table (through the ``ADD`` instruction). Note that the primary key of a table cannot be
   changed and thus newly added column will, by extension, never be part of the primary key. Also note that :ref:`compact
   tables <compact-tables>` have restrictions regarding column addition. Note that this is constant (in the amount of
@@ -602,48 +594,6 @@ The ``ALTER TABLE`` statement can:
 .. warning:: Once a column is dropped, it is allowed to re-add a column with the same name than the dropped one
    **unless** the type of the dropped column was a (non-frozen) column (due to an internal technical limitation).
 
-.. _alter-table-type-compatibility:
-
-CQL type compatibility:
-~~~~~~~~~~~~~~~~~~~~~~~
-
-CQL data types may be converted only as the following table.
-
-+-------------------------------------------------------+--------------------+
-| Existing type                                         | Can be altered to: |
-+=======================================================+====================+
-| timestamp                                             | bigint             |
-+-------------------------------------------------------+--------------------+
-| ascii, bigint, boolean, date, decimal, double, float, | blob               |
-| inet, int, smallint, text, time, timestamp, timeuuid, |                    |
-| tinyint, uuid, varchar, varint                        |                    |
-+-------------------------------------------------------+--------------------+
-| int                                                   | date               |
-+-------------------------------------------------------+--------------------+
-| ascii, varchar                                        | text               |
-+-------------------------------------------------------+--------------------+
-| bigint                                                | time               |
-+-------------------------------------------------------+--------------------+
-| bigint                                                | timestamp          |
-+-------------------------------------------------------+--------------------+
-| timeuuid                                              | uuid               |
-+-------------------------------------------------------+--------------------+
-| ascii, text                                           | varchar            |
-+-------------------------------------------------------+--------------------+
-| bigint, int, timestamp                                | varint             |
-+-------------------------------------------------------+--------------------+
-
-Clustering columns have stricter requirements, only the following conversions are allowed:
-
-+------------------------+----------------------+
-| Existing type          | Can be altered to    |
-+========================+======================+
-| ascii, text, varchar   | blob                 |
-+------------------------+----------------------+
-| ascii, varchar         | text                 |
-+------------------------+----------------------+
-| ascii, text            | varchar              |
-+------------------------+----------------------+
 
 .. _drop-table-statement:
 

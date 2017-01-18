@@ -36,21 +36,6 @@ Upgrading
       will continue to operate, but CREATE and ALTER will validate that all
       datacenters specified exist in the cluster. 
 
-3.11
-====
-
-Upgrading
----------
-   - Specifying the default_time_to_live option when creating or altering a
-     materialized view was erroneously accepted (and ignored). It is now
-     properly rejected.
-   - Only Java and JavaScript are now supported UDF languages.
-     The sandbox in 3.0 already prevented the use of script languages except Java
-     and JavaScript.
-   - Compaction now correctly drops sstables out of CompactionTask when there
-     isn't enough disk space to perform the full compaction.  This should reduce
-     pending compaction tasks on systems with little remaining disk space.
-
 3.10
 ====
 
@@ -111,6 +96,18 @@ New features
 
 Upgrading
 ---------
+    - Support for alter types of already defined tables and of UDTs fields has been disabled.
+      If it is necessary to return a different type, please use casting instead. See
+      CASSANDRA-12443 for more details.
+    - Specifying the default_time_to_live option when creating or altering a
+      materialized view was erroneously accepted (and ignored). It is now
+      properly rejected.
+    - Only Java and JavaScript are now supported UDF languages.
+      The sandbox in 3.0 already prevented the use of script languages except Java
+      and JavaScript.
+    - Compaction now correctly drops sstables out of CompactionTask when there
+      isn't enough disk space to perform the full compaction.  This should reduce
+      pending compaction tasks on systems with little remaining disk space.
     - Request timeouts in cassandra.yaml (read_request_timeout_in_ms, etc) now apply to the
       "full" request time on the coordinator.  Previously, they only covered the time from
       when the coordinator sent a message to a replica until the time that the replica

@@ -487,14 +487,11 @@ An existing user-defined type can be modified using an ``ALTER TYPE`` statement:
 
 .. productionlist::
    alter_type_statement: ALTER TYPE `udt_name` `alter_type_modification`
-   alter_type_modification: ALTER `identifier` TYPE `cql_type`
-                          : | ADD `field_definition`
+   alter_type_modification: ADD `field_definition`
                           : | RENAME `identifier` TO `identifier` ( `identifier` TO `identifier` )*
 
 You can:
 
-- modify the type of particular field (``ALTER TYPE address ALTER zip TYPE bigint``). The restrictions for such change
-  are the same than when :ref:`altering the type of column <alter-table-statement>`.
 - add a new field to the type (``ALTER TYPE address ADD country text``). That new field will be ``null`` for any values
   of the type created before the addition.
 - rename the fields of the type (``ALTER TYPE address RENAME zip TO zipcode``).
