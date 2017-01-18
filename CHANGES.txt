@@ -140,6 +140,7 @@
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Properly record CAS contention (CASSANDRA-12626)
 Merged from 3.0:
+ * Stress daemon help is incorrect (CASSANDRA-12563)
  * Replace empty strings with null values if they cannot be converted (CASSANDRA-12794)
  * Remove support for non-JavaScript UDFs (CASSANDRA-12883)
  * Fix deserialization of 2.x DeletedCells (CASSANDRA-12620)
