@@ -46,6 +46,8 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  */
 public class StubIndex implements Index
 {
+    public volatile int beginCalls;
+    public volatile int finishCalls;
     public List<DeletionTime> partitionDeletions = new ArrayList<>();
     public List<RangeTombstone> rangeTombstones = new ArrayList<>();
     public List<Row> rowsInserted = new ArrayList<>();
@@ -105,6 +107,7 @@ public class StubIndex implements Index
         {
             public void begin()
             {
+                beginCalls++;
             }
 
             public void partitionDelete(DeletionTime deletionTime)
@@ -134,6 +137,7 @@ public class StubIndex implements Index
 
             public void finish()
             {
+                finishCalls++;
             }
         };
     }

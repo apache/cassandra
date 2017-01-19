@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.pager;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
@@ -62,8 +63,7 @@ abstract class AbstractQueryPager implements QueryPager
             return EmptyIterators.partition();
 
         pageSize = Math.min(pageSize, remaining);
-        Pager pager = new Pager(limits.forPaging(pageSize), command.nowInSec());
-
+        Pager pager = new RowPager(limits.forPaging(pageSize), command.nowInSec());
         return Transformation.apply(nextPageReadCommand(pageSize).execute(consistency, clientState, queryStartNanoTime), pager);
     }
 
@@ -73,15 +73,53 @@ abstract class AbstractQueryPager implements QueryPager
             return EmptyIterators.partition();
 
         pageSize = Math.min(pageSize, remaining);
-        Pager pager = new Pager(limits.forPaging(pageSize), command.nowInSec());
-
+        RowPager pager = new RowPager(limits.forPaging(pageSize), command.nowInSec());
         return Transformation.apply(nextPageReadCommand(pageSize).executeInternal(executionController), pager);
     }
 
-    private class Pager extends Transformation<RowIterator>
+    public UnfilteredPartitionIterator fetchPageUnfiltered(CFMetaData cfm, int pageSize, ReadExecutionController executionController)
+    {
+        if (isExhausted())
+            return EmptyIterators.unfilteredPartition(cfm);
+
+        pageSize = Math.min(pageSize, remaining);
+        UnfilteredPager pager = new UnfilteredPager(limits.forPaging(pageSize), command.nowInSec());
+
+        return Transformation.apply(nextPageReadCommand(pageSize).executeLocally(executionController), pager);
+    }
+
+    private class UnfilteredPager extends Pager<Unfiltered>
+    {
+
+        private UnfilteredPager(DataLimits pageLimits, int nowInSec)
+        {
+            super(pageLimits, nowInSec);
+        }
+
+        protected BaseRowIterator<Unfiltered> apply(BaseRowIterator<Unfiltered> partition)
+        {
+            return Transformation.apply(counter.applyTo((UnfilteredRowIterator) partition), this);
+        }
+    }
+
+    private class RowPager extends Pager<Row>
+    {
+
+        private RowPager(DataLimits pageLimits, int nowInSec)
+        {
+            super(pageLimits, nowInSec);
+        }
+
+        protected BaseRowIterator<Row> apply(BaseRowIterator<Row> partition)
+        {
+            return Transformation.apply(counter.applyTo((RowIterator) partition), this);
+        }
+    }
+
+    private abstract class Pager<T extends Unfiltered> extends Transformation<BaseRowIterator<T>>
     {
         private final DataLimits pageLimits;
-        private final DataLimits.Counter counter;
+        protected final DataLimits.Counter counter;
         private DecoratedKey currentKey;
         private Row lastRow;
         private boolean isFirstPartition = true;
@@ -93,7 +131,7 @@ abstract class AbstractQueryPager implements QueryPager
         }
 
         @Override
-        public RowIterator applyToPartition(RowIterator partition)
+        public BaseRowIterator<T> applyToPartition(BaseRowIterator<T> partition)
         {
             currentKey = partition.partitionKey();
 
@@ -112,8 +150,10 @@ abstract class AbstractQueryPager implements QueryPager
                 }
             }
 
-            return Transformation.apply(counter.applyTo(partition), this);
+            return apply(partition);
         }
+
+        protected abstract BaseRowIterator<T> apply(BaseRowIterator<T> partition);
 
         @Override
         public void onClose()
