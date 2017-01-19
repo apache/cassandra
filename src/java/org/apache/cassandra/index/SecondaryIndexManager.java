@@ -48,8 +48,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.db.partitions.PartitionIterators;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.internal.CassandraIndex;
@@ -543,35 +542,64 @@ public class SecondaryIndexManager implements IndexRegistry
             {
                 try (ReadOrderGroup readGroup = cmd.startOrderGroup();
                      OpOrder.Group writeGroup = Keyspace.writeOrder.start();
-                     RowIterator partition =
-                        PartitionIterators.getOnlyElement(pager.fetchPageInternal(pageSize,readGroup),
-                                                          cmd))
+                     UnfilteredPartitionIterator page = pager.fetchPageUnfiltered(baseCfs.metadata, pageSize, readGroup))
                 {
-                    Set<Index.Indexer> indexers = indexes.stream()
-                                                         .map(index -> index.indexerFor(key,
-                                                                                        partition.columns(),
-                                                                                        nowInSec,
-                                                                                        writeGroup,
-                                                                                        IndexTransaction.Type.UPDATE))
-                                                         .filter(Objects::nonNull)
-                                                         .collect(Collectors.toSet());
+                    if (!page.hasNext())
+                        break;
 
-                    indexers.forEach(Index.Indexer::begin);
+                    try (UnfilteredRowIterator partition = page.next()) {
+                        Set<Index.Indexer> indexers = indexes.stream()
+                                                             .map(index -> index.indexerFor(key,
+                                                                                            partition.columns(),
+                                                                                            nowInSec,
+                                                                                            writeGroup,
+                                                                                            IndexTransaction.Type.UPDATE))
+                                                             .filter(Objects::nonNull)
+                                                             .collect(Collectors.toSet());
 
-                    // only process the static row once per partition
-                    if (!readStatic && !partition.staticRow().isEmpty())
-                    {
-                        indexers.forEach(indexer -> indexer.insertRow(partition.staticRow()));
-                        readStatic = true;
+                        // Short-circuit empty partitions if static row is processed or isn't read
+                        if (!readStatic && partition.isEmpty() && partition.staticRow().isEmpty())
+                            break;
+
+                        indexers.forEach(Index.Indexer::begin);
+
+                        if (!readStatic)
+                        {
+                            if (!partition.staticRow().isEmpty())
+                                indexers.forEach(indexer -> indexer.insertRow(partition.staticRow()));
+                            indexers.forEach((Index.Indexer i) -> i.partitionDelete(partition.partitionLevelDeletion()));
+                            readStatic = true;
+                        }
+
+                        MutableDeletionInfo.Builder deletionBuilder = MutableDeletionInfo.builder(partition.partitionLevelDeletion(), baseCfs.getComparator(), false);
+
+                        while (partition.hasNext())
+                        {
+                            Unfiltered unfilteredRow = partition.next();
+
+                            if (unfilteredRow.isRow())
+                            {
+                                Row row = (Row) unfilteredRow;
+                                indexers.forEach(indexer -> indexer.insertRow(row));
+                            }
+                            else
+                            {
+                                assert unfilteredRow.isRangeTombstoneMarker();
+                                RangeTombstoneMarker marker = (RangeTombstoneMarker) unfilteredRow;
+                                deletionBuilder.add(marker);
+                            }
+                        }
+
+                        MutableDeletionInfo deletionInfo = deletionBuilder.build();
+                        if (deletionInfo.hasRanges())
+                        {
+                            Iterator<RangeTombstone> iter = deletionInfo.rangeIterator(false);
+                            while (iter.hasNext())
+                                indexers.forEach(indexer -> indexer.rangeTombstone(iter.next()));
+                        }
+
+                        indexers.forEach(Index.Indexer::finish);
                     }
-
-                    while (partition.hasNext())
-                    {
-                        Row row = partition.next();
-                        indexers.forEach(indexer -> indexer.insertRow(row));
-                    }
-
-                    indexers.forEach(Index.Indexer::finish);
                 }
             }
         }

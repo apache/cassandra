@@ -686,6 +686,112 @@ public class CustomIndexTest extends CQLTester
         index.barriers.forEach(OpOrder.Barrier::allPriorOpsAreFinished);
     }
 
+    @Test
+    public void partitionIndexTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s(k int, c int, v int, s int static, PRIMARY KEY(k,c))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 1, 1, 1);
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 1, 2, 2);
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 1, 3, 3);
+
+        execute("INSERT INTO %s (k, c) VALUES (?, ?)", 2, 2);
+
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 3, 1, 1);
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 3, 2, 2);
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 3, 3, 3);
+        execute("DELETE FROM %s WHERE k = ? AND c >= ?", 3, 3);
+        execute("DELETE FROM %s WHERE k = ? AND c <= ?", 3, 1);
+
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 4, 1, 1);
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 4, 2, 2);
+        execute("DELETE FROM %s WHERE k = ? AND c = ?", 4, 1);
+
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 5, 1, 1);
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 5, 2, 2);
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 5, 3, 3);
+        execute("DELETE FROM %s WHERE k = ?", 5);
+
+        cfs.forceBlockingFlush();
+
+        String indexName = "partition_index_test_idx";
+        createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(v) USING '%s'",
+                                  indexName, StubIndex.class.getName()));
+
+        SecondaryIndexManager indexManager = cfs.indexManager;
+        StubIndex index = (StubIndex) indexManager.getIndexByName(indexName);
+
+        DecoratedKey targetKey;
+        for (int pageSize = 1; pageSize <= 5; pageSize++)
+        {
+            targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(1));
+            indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
+            assertEquals(3, index.rowsInserted.size());
+            assertEquals(0, index.rangeTombstones.size());
+            assertTrue(index.partitionDeletions.get(0).isLive());
+            index.reset();
+        }
+
+        for (int pageSize = 1; pageSize <= 5; pageSize++)
+        {
+            targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(2));
+            indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
+            assertEquals(1, index.rowsInserted.size());
+            assertEquals(0, index.rangeTombstones.size());
+            assertTrue(index.partitionDeletions.get(0).isLive());
+            index.reset();
+        }
+
+        for (int pageSize = 1; pageSize <= 5; pageSize++)
+        {
+            targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(3));
+            indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
+            assertEquals(1, index.rowsInserted.size());
+            assertEquals(2, index.rangeTombstones.size());
+            assertTrue(index.partitionDeletions.get(0).isLive());
+            index.reset();
+        }
+
+        for (int pageSize = 1; pageSize <= 5; pageSize++)
+        {
+            targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(5));
+            indexManager.indexPartition(targetKey, Collections.singleton(index), pageSize);
+            assertEquals(1, index.partitionDeletions.size());
+            assertFalse(index.partitionDeletions.get(0).isLive());
+            index.reset();
+        }
+    }
+
+    @Test
+    public void partitionIsNotOverIndexed() throws Throwable
+    {
+        createTable("CREATE TABLE %s(k int, c int, v int, PRIMARY KEY(k,c))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SecondaryIndexManager indexManager = cfs.indexManager;
+
+        int totalRows = 1;
+
+        // Insert a single row partition to be indexed
+        for (int i = 0; i < totalRows; i++)
+            execute("INSERT INTO %s (k, c, v) VALUES (0, ?, ?)", i, i);
+        cfs.forceBlockingFlush();
+
+        // Create the index, which won't automatically start building
+        String indexName = "partition_overindex_test_idx";
+        createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(v) USING '%s'",
+                                  indexName, StubIndex.class.getName()));
+        StubIndex index = (StubIndex) indexManager.getIndexByName(indexName);
+
+        // Index the partition
+        DecoratedKey targetKey = getCurrentColumnFamilyStore().decorateKey(ByteBufferUtil.bytes(0));
+        indexManager.indexPartition(targetKey, Collections.singleton(index), totalRows);
+
+        // Assert only one partition is counted
+        assertEquals(1, index.beginCalls);
+        assertEquals(1, index.finishCalls);
+    }
+
     // Used for index creation above
     public static class BrokenCustom2I extends StubIndex
     {
