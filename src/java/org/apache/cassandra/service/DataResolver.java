@@ -21,6 +21,8 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
@@ -42,7 +44,8 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class DataResolver extends ResponseResolver
 {
-    private final List<AsyncOneResponse> repairResults = Collections.synchronizedList(new ArrayList<>());
+    @VisibleForTesting
+    final List<AsyncOneResponse> repairResults = Collections.synchronizedList(new ArrayList<>());
     private final long queryStartNanoTime;
 
     public DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, int maxResponseCount, long queryStartNanoTime)
@@ -75,6 +78,15 @@ public class DataResolver extends ResponseResolver
         // so ensure we're respecting the limit.
         DataLimits.Counter counter = command.limits().newCounter(command.nowInSec(), true);
         return counter.applyTo(mergeWithShortReadProtection(iters, sources, counter));
+    }
+
+    public void compareResponses()
+    {
+        // We need to fully consume the results to trigger read repairs if appropriate
+        try (PartitionIterator iterator = resolve())
+        {
+            PartitionIterators.consume(iterator);
+        }
     }
 
     private PartitionIterator mergeWithShortReadProtection(List<UnfilteredPartitionIterator> results, InetAddress[] sources, DataLimits.Counter resultCounter)

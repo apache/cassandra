@@ -47,6 +47,18 @@ public abstract class ResponseResolver
     public abstract PartitionIterator getData();
     public abstract PartitionIterator resolve() throws DigestMismatchException;
 
+    /**
+     * Compares received responses, potentially triggering a digest mismatch (for a digest resolver) and read-repairs
+     * (for a data resolver).
+     * <p>
+     * This is functionally equivalent to calling {@link #resolve()} and consuming the result, but can be slightly more
+     * efficient in some case due to the fact that we don't care about the result itself. This is used when doing
+     * asynchronous read-repairs.
+     *
+     * @throws DigestMismatchException if it's a digest resolver and the responses don't match.
+     */
+    public abstract void compareResponses() throws DigestMismatchException;
+
     public abstract boolean isDataPresent();
 
     public void preprocess(MessageIn<ReadResponse> message)
