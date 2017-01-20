@@ -84,9 +84,9 @@ public final class CFMetaData
     private final boolean isView;
     private final boolean isIndex;
 
-    public final ClusteringComparator comparator;  // bytes, long, timeuuid, utf8, etc. This is built directly from clusteringColumns
+    public volatile ClusteringComparator comparator;  // bytes, long, timeuuid, utf8, etc. This is built directly from clusteringColumns
     public final IPartitioner partitioner;            // partitioner the table uses
-    private final AbstractType<?> keyValidator;
+    private volatile AbstractType<?> keyValidator;
 
     private final Serializers serializers;
 
@@ -285,10 +285,6 @@ public final class CFMetaData
 
         this.serializers = new Serializers(this);
 
-        this.comparator = new ClusteringComparator(extractTypes(clusteringColumns));
-        List<AbstractType<?>> keyTypes = extractTypes(partitionKeyColumns);
-        this.keyValidator = keyTypes.size() == 1 ? keyTypes.get(0) : CompositeType.getInstance(keyTypes);
-
         rebuild();
     }
 
@@ -296,6 +292,8 @@ public final class CFMetaData
     // are kept because they are often useful in a different format.
     private void rebuild()
     {
+        this.comparator = new ClusteringComparator(extractTypes(clusteringColumns));
+
         Map<ByteBuffer, ColumnDefinition> newColumnMetadata = new HashMap<>();
         for (ColumnDefinition def : partitionKeyColumns)
             newColumnMetadata.put(def.name.bytes, def);
@@ -305,6 +303,9 @@ public final class CFMetaData
             newColumnMetadata.put(def.name.bytes, def);
 
         this.columnMetadata = newColumnMetadata;
+
+        List<AbstractType<?>> keyTypes = extractTypes(partitionKeyColumns);
+        this.keyValidator = keyTypes.size() == 1 ? keyTypes.get(0) : CompositeType.getInstance(keyTypes);
 
         if (isCompactTable())
             this.compactValueColumn = CompactTables.getCompactValueColumn(partitionColumns, isSuper());
