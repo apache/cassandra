@@ -1,4 +1,5 @@
 3.10
+ * Fix flaky GcCompactionTest (CASSANDRA-12664)
  * Fix TestHintedHandoff.hintedhandoff_decom_test (CASSANDRA-13058)
  * Fixed query monitoring for range queries (CASSANDRA-13050)
  * Remove outboundBindAny configuration property (CASSANDRA-12673)
