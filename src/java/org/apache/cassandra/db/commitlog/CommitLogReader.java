@@ -105,7 +105,7 @@ public class CommitLogReader
      * Reads mutations from file, handing them off to handler
      * @param handler Handler that will take action based on deserialized Mutations
      * @param file CommitLogSegment file to read
-     * @param minPosition Optional minimum CommitLogPosition - all segments with id > or matching w/greater position will be read
+     * @param minPosition Optional minimum CommitLogPosition - all segments with id larger or matching w/greater position will be read
      * @param mutationLimit Optional limit on # of mutations to replay. Local ALL_MUTATIONS serves as marker to play all.
      * @param tolerateTruncation Whether or not we should allow truncation of this file or throw if EOF found
      *

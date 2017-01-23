@@ -2016,7 +2016,7 @@ public class DatabaseDescriptor
     }
 
     /**
-     * @deprecated use {@link this#getStreamingKeepAlivePeriod()} instead
+     * @deprecated use {@link #getStreamingKeepAlivePeriod()} instead
      * @return streaming_socket_timeout_in_ms property
      */
     @Deprecated

@@ -96,7 +96,6 @@ public abstract class UserTypes
      * the user type entries.
      *
      * @param items items associated to the user type entries
-     * @param mapper the mapper used to user type the items to the {@code String} representation of the map entries
      * @return a {@code String} representation of the user type
      */
     public static <T> String userTypeToString(Map<FieldIdentifier, T> items)

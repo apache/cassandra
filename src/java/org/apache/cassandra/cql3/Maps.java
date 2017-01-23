@@ -81,7 +81,7 @@ public abstract class Maps
     /**
      * Create a <code>String</code> representation of the list containing the specified elements.
      *
-     * @param elements the list elements
+     * @param entries the list elements
      * @return a <code>String</code> representation of the list
      */
     public static <T> String mapToString(List<Pair<T, T>> entries)

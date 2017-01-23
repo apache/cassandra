@@ -452,7 +452,6 @@ public class Keyspace
      * @param writeCommitLog false to disable commitlog append entirely
      * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
      * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout_in_ms
-     * @throws ExecutionException
      */
     public void apply(final Mutation mutation,
                       final boolean writeCommitLog,

@@ -114,7 +114,7 @@ public interface ReadQuery
      * Execute the query locally. This is similar to {@link ReadQuery#executeInternal(ReadExecutionController)}
      * but it returns an unfiltered partition iterator that can be merged later on.
      *
-     * @param controller the {@code ReadExecutionController} protecting the read.
+     * @param executionController the {@code ReadExecutionController} protecting the read.
      * @return the result of the read query.
      */
     public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController);

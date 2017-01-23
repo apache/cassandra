@@ -23,9 +23,10 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Back-pressure algorithm interface.
- * <br/>
+ * <p>
  * For experts usage only. Implementors must provide a constructor accepting a single {@code Map<String, Object>} argument,
  * representing any parameters eventually required by the specific implementation.
+ * </p>
  */
 public interface BackPressureStrategy<S extends BackPressureState>
 {

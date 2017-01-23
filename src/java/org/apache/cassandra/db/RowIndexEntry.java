@@ -109,9 +109,6 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  *     <li>{@link ShallowIndexedEntry} is for index entries with index samples
  *     that exceed {@link org.apache.cassandra.config.Config#column_index_cache_size_in_kb}
  *     for sstables with an offset table to the index samples.</li>
- *     <li>{@link LegacyShallowIndexedEntry} is for index entries with index samples
- *     that exceed {@link org.apache.cassandra.config.Config#column_index_cache_size_in_kb}
- *     but for legacy sstables.</li>
  * </ul>
  * <p>
  *     Since access to index samples on disk (obviously) requires some file
@@ -138,7 +135,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
     static final Histogram indexEntrySizeHistogram;
     static final Histogram indexInfoCountHistogram;
     static final Histogram indexInfoGetsHistogram;
-    static 
+    static
     {
         MetricNameFactory factory = new DefaultNameFactory("Index", "RowIndexEntry");
         indexEntrySizeHistogram = Metrics.histogram(factory.createMetricName("IndexedEntrySize"), false);
