@@ -47,7 +47,7 @@ import org.apache.cassandra.utils.UUIDSerializer;
 public final class IndexMetadata
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexMetadata.class);
-    
+
     private static final Pattern PATTERN_NON_WORD_CHAR = Pattern.compile("\\W");
     private static final Pattern PATTERN_WORD_CHARS = Pattern.compile("\\w+");
 
@@ -74,42 +74,6 @@ public final class IndexMetadata
         this.name = name;
         this.options = options == null ? ImmutableMap.of() : ImmutableMap.copyOf(options);
         this.kind = kind;
-    }
-
-    public static IndexMetadata fromLegacyMetadata(CFMetaData cfm,
-                                                   ColumnDefinition column,
-                                                   String name,
-                                                   Kind kind,
-                                                   Map<String, String> options)
-    {
-        Map<String, String> newOptions = new HashMap<>();
-        if (options != null)
-            newOptions.putAll(options);
-
-        IndexTarget target;
-        if (newOptions.containsKey(IndexTarget.INDEX_KEYS_OPTION_NAME))
-        {
-            newOptions.remove(IndexTarget.INDEX_KEYS_OPTION_NAME);
-            target = new IndexTarget(column.name, IndexTarget.Type.KEYS);
-        }
-        else if (newOptions.containsKey(IndexTarget.INDEX_ENTRIES_OPTION_NAME))
-        {
-            newOptions.remove(IndexTarget.INDEX_KEYS_OPTION_NAME);
-            target = new IndexTarget(column.name, IndexTarget.Type.KEYS_AND_VALUES);
-        }
-        else
-        {
-            if (column.type.isCollection() && !column.type.isMultiCell())
-            {
-                target = new IndexTarget(column.name, IndexTarget.Type.FULL);
-            }
-            else
-            {
-                target = new IndexTarget(column.name, IndexTarget.Type.VALUES);
-            }
-        }
-        newOptions.put(IndexTarget.TARGET_OPTION_NAME, target.asCqlString(cfm));
-        return new IndexMetadata(name, newOptions, kind);
     }
 
     public static IndexMetadata fromSchemaMetadata(String name, Kind kind, Map<String, String> options)
