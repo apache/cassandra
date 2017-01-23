@@ -178,12 +178,12 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
     {
         final SearchIterator<Clustering, Row> searcher = partition.searchIterator(columnFilter, reversed);
         return new AbstractUnfilteredRowIterator(partition.metadata(),
-                                                 partition.partitionKey(),
-                                                 partition.partitionLevelDeletion(),
-                                                 columnFilter.fetchedColumns(),
-                                                 searcher.next(Clustering.STATIC_CLUSTERING),
-                                                 reversed,
-                                                 partition.stats())
+                                        partition.partitionKey(),
+                                        partition.partitionLevelDeletion(),
+                                        columnFilter.fetchedColumns(),
+                                        searcher.next(Clustering.STATIC_CLUSTERING),
+                                        reversed,
+                                        partition.stats())
         {
             private final Iterator<Clustering> clusteringIter = clusteringsInQueryOrder.iterator();
 

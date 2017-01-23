@@ -37,8 +37,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  * by a query.
  *
  * In practice, this class cover 2 main cases:
- *   1) most user queries have to internally query all (regular) columns, because the CQL semantic requires us to know
- *      if a row is live or not even if it has no values for the columns requested by the user (see #6588 for more
+ *   1) most user queries have to internally query all columns, because the CQL semantic requires us to know if
+ *      a row is live or not even if it has no values for the columns requested by the user (see #6588for more
  *      details). However, while we need to know for columns if it has live values, we can actually save from
  *      sending the values for those columns that will not be returned to the user.
  *   2) for some internal queries (and for queries using #6588 if we introduce it), we're actually fine only
@@ -51,11 +51,8 @@ public class ColumnFilter
 {
     public static final Serializer serializer = new Serializer();
 
-    // Distinguish between the 2 cases described above: if 'isFetchAll' is true, then all regular columns will be
-    // retrieved by the query. If selection is also null, then all static columns will be fetched too. If 'isFetchAll'
-    // is true and selection is not null, then 1) for static columns, only the ones in selection are read and 2) for
-    // regular columns, while all are fetches, the values for column/cells not selected by 'selection' and
-    // 'subSelections' will be skipped.
+    // Distinguish between the 2 cases described above: if 'isFetchAll' is true, then all columns will be retrieved
+    // by the query, but the values for column/cells not selected by 'selection' and 'subSelections' will be skipped.
     // Otherwise, only the column/cells returned by 'selection' and 'subSelections' will be returned at all.
     private final boolean isFetchAll;
 
@@ -114,21 +111,12 @@ public class ColumnFilter
      */
     public PartitionColumns fetchedColumns()
     {
-        if (!isFetchAll)
-            return selection;
-
-        // We always fetch all regulars, but only fetch the statics in selection. Unless selection is null, in which
-        // case it's a wildcard and we fetch everything.
-        PartitionColumns all = metadata.partitionColumns();
-        return selection == null || all.statics.isEmpty()
-             ? all
-             : new PartitionColumns(selection.statics, all.regulars);
+        return isFetchAll ? metadata.partitionColumns() : selection;
     }
 
-    public boolean includesAllColumns(boolean isStatic)
+    public boolean includesAllColumns()
     {
-        // Static columns are never all included, unless selection == null
-        return isStatic ? selection == null : isFetchAll;
+        return isFetchAll;
     }
 
     /**
@@ -136,11 +124,6 @@ public class ColumnFilter
      */
     public boolean includes(ColumnDefinition column)
     {
-        // For statics, it is included only if it's part of selection, or if selection is null (wildcard query).
-        if (column.isStatic())
-            return selection == null || selection.contains(column);
-
-        // For regulars, if 'isFetchAll', then it's included automatically. Otherwise, it depends on 'selection'.
         return isFetchAll || selection.contains(column);
     }
 
@@ -192,13 +175,8 @@ public class ColumnFilter
     }
 
     /**
-     * Creates a new {@code Tester} to efficiently test the inclusion of cells
-     * of an included complex column.
-     *
-     * @param column the complex column, which *must* be included by this
-     * filter (that is, we must have {@code this.includes(column)}).
-     * @retun the created tester or {@code null} if all the cells from {@code
-     * column} are included.
+     * Creates a new {@code Tester} to efficiently test the inclusion of cells of complex column
+     * {@code column}.
      */
     public Tester newTester(ColumnDefinition column)
     {
@@ -209,15 +187,14 @@ public class ColumnFilter
         if (s.isEmpty())
             return null;
 
-        // isFetchAll only imply everything if fetches for regular
-        return new Tester(isFetchAll && !column.isStatic(), s.iterator());
+        return new Tester(isFetchAll, s.iterator());
     }
 
     /**
      * Returns a {@code ColumnFilter}} builder that includes all columns (so the selections
      * added to the builder are the columns/cells for which we shouldn't skip the values).
      */
-    public static Builder allRegularColumnsBuilder(CFMetaData metadata)
+    public static Builder allColumnsBuilder(CFMetaData metadata)
     {
         return new Builder(metadata);
     }
@@ -233,36 +210,24 @@ public class ColumnFilter
 
     public static class Tester
     {
-        private final boolean isFetched; // if true, all cells are included
+        private final boolean isFetchAll;
         private ColumnSubselection current;
         private final Iterator<ColumnSubselection> iterator;
 
-        private Tester(boolean isFetched, Iterator<ColumnSubselection> iterator)
+        private Tester(boolean isFetchAll, Iterator<ColumnSubselection> iterator)
         {
-            this.isFetched = isFetched;
+            this.isFetchAll = isFetchAll;
             this.iterator = iterator;
         }
 
         public boolean includes(CellPath path)
         {
-            // It's included if either all cells are fetched (because it's a
-            // regular column and the filter has 'isFetchAll == true'), or if
-            // it's explicitely selected.
-            return isFetched || includedBySubselection(path);
+            return isFetchAll || includedBySubselection(path);
         }
 
-        /**
-         * Must only be called if {@code includes(path) == true}.
-         */
         public boolean canSkipValue(CellPath path)
         {
-            // We can skip the value of an included column only if it's a
-            // regular column included due to the 'isFetchAll' flag, but which
-            // isn't explicitely selected. In practice, it's enough to not have
-            // the path explicitly selected as it implies the column was
-            // included due to 'isFetchAll' (since we require includes(path) to
-            // be called first).
-            return !includedBySubselection(path);
+            return isFetchAll && !includedBySubselection(path);
         }
 
         private boolean includedBySubselection(CellPath path)
