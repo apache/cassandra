@@ -34,6 +34,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
  * IResource implementation representing functions.
@@ -146,6 +147,9 @@ public class FunctionResource implements IResource
      */
     public static FunctionResource functionFromCql(String keyspace, String name, List<CQL3Type.Raw> argTypes)
     {
+        if (keyspace == null)
+            throw new InvalidRequestException("In this context function name must be " +
+                                              "explictly qualified by a keyspace");
         List<AbstractType<?>> abstractTypes = new ArrayList<>();
         for (CQL3Type.Raw cqlType : argTypes)
             abstractTypes.add(cqlType.prepare(keyspace).getType());
