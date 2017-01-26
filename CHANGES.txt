@@ -1,4 +1,5 @@
 3.0.11
+ * Use keyspace replication settings on system.size_estimates table (CASSANDRA-9639)
  * Add vm.max_map_count StartupCheck (CASSANDRA-13008)
  * Hint related logging should include the IP address of the destination in addition to 
    host ID (CASSANDRA-13205)

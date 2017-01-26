@@ -69,12 +69,10 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
 
         logger.trace("Recording size estimates");
 
-        // find primary token ranges for the local node.
-        Collection<Token> localTokens = StorageService.instance.getLocalTokens();
-        Collection<Range<Token>> localRanges = metadata.getPrimaryRangesFor(localTokens);
-
         for (Keyspace keyspace : Keyspace.nonLocalStrategy())
         {
+            Collection<Range<Token>> localRanges = StorageService.instance.getPrimaryRangesForEndpoint(keyspace.getName(),
+                    FBUtilities.getBroadcastAddress());
             for (ColumnFamilyStore table : keyspace.getColumnFamilyStores())
             {
                 long start = System.nanoTime();
@@ -91,37 +89,39 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
     @SuppressWarnings("resource")
     private void recordSizeEstimates(ColumnFamilyStore table, Collection<Range<Token>> localRanges)
     {
-        List<Range<Token>> unwrappedRanges = Range.normalize(localRanges);
         // for each local primary range, estimate (crudely) mean partition size and partitions count.
         Map<Range<Token>, Pair<Long, Long>> estimates = new HashMap<>(localRanges.size());
-        for (Range<Token> range : unwrappedRanges)
+        for (Range<Token> localRange : localRanges)
         {
-            // filter sstables that have partitions in this range.
-            Refs<SSTableReader> refs = null;
-            long partitionsCount, meanPartitionSize;
-
-            try
+            for (Range<Token> unwrappedRange : localRange.unwrap())
             {
-                while (refs == null)
+                // filter sstables that have partitions in this range.
+                Refs<SSTableReader> refs = null;
+                long partitionsCount, meanPartitionSize;
+
+                try
                 {
-                    Iterable<SSTableReader> sstables = table.getTracker().getView().select(SSTableSet.CANONICAL);
-                    SSTableIntervalTree tree = SSTableIntervalTree.build(sstables);
-                    Range<PartitionPosition> r = Range.makeRowRange(range);
-                    Iterable<SSTableReader> canonicalSSTables = View.sstablesInBounds(r.left, r.right, tree);
-                    refs = Refs.tryRef(canonicalSSTables);
+                    while (refs == null)
+                    {
+                        Iterable<SSTableReader> sstables = table.getTracker().getView().select(SSTableSet.CANONICAL);
+                        SSTableIntervalTree tree = SSTableIntervalTree.build(sstables);
+                        Range<PartitionPosition> r = Range.makeRowRange(unwrappedRange);
+                        Iterable<SSTableReader> canonicalSSTables = View.sstablesInBounds(r.left, r.right, tree);
+                        refs = Refs.tryRef(canonicalSSTables);
+                    }
+
+                    // calculate the estimates.
+                    partitionsCount = estimatePartitionsCount(refs, unwrappedRange);
+                    meanPartitionSize = estimateMeanPartitionSize(refs);
+                }
+                finally
+                {
+                    if (refs != null)
+                        refs.release();
                 }
 
-                // calculate the estimates.
-                partitionsCount = estimatePartitionsCount(refs, range);
-                meanPartitionSize = estimateMeanPartitionSize(refs);
+                estimates.put(unwrappedRange, Pair.create(partitionsCount, meanPartitionSize));
             }
-            finally
-            {
-                if (refs != null)
-                    refs.release();
-            }
-
-            estimates.put(range, Pair.create(partitionsCount, meanPartitionSize));
         }
 
         // atomically update the estimates.
