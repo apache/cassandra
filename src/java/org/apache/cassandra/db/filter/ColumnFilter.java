@@ -20,6 +20,7 @@ package org.apache.cassandra.db.filter;
 import java.io.IOException;
 import java.util.*;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.SortedSetMultimap;
 import com.google.common.collect.TreeMultimap;
 
@@ -30,6 +31,7 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 
 /**
  * Represents which (non-PK) columns (and optionally which sub-part of a column for complex columns) are selected
@@ -62,7 +64,7 @@ public class ColumnFilter
 {
     public static final Serializer serializer = new Serializer();
 
-    // True if _fetched_ includes all regular columns (an any static in _queried_), in which case metadata must not be
+    // True if _fetched_ includes all regular columns (and any static in _queried_), in which case metadata must not be
     // null. If false, then _fetched_ == _queried_ and we only store _queried_.
     private final boolean fetchAllRegulars;
 
@@ -429,19 +431,42 @@ public class ColumnFilter
 
     public static class Serializer
     {
-        private static final int IS_FETCH_ALL_MASK       = 0x01;
+        private static final int FETCH_ALL_MASK       = 0x01;
         private static final int HAS_QUERIED_MASK      = 0x02;
         private static final int HAS_SUB_SELECTIONS_MASK = 0x04;
 
         private static int makeHeaderByte(ColumnFilter selection)
         {
-            return (selection.fetchAllRegulars ? IS_FETCH_ALL_MASK : 0)
+            return (selection.fetchAllRegulars ? FETCH_ALL_MASK : 0)
                  | (selection.queried != null ? HAS_QUERIED_MASK : 0)
                  | (selection.subSelections != null ? HAS_SUB_SELECTIONS_MASK : 0);
         }
 
+        private static ColumnFilter maybeUpdateForBackwardCompatility(ColumnFilter selection, int version)
+        {
+            if (version > MessagingService.VERSION_30 || !selection.fetchAllRegulars || selection.queried == null)
+                return selection;
+
+            // The meaning of fetchAllRegulars changed (at least when queried != null) due to CASSANDRA-12768: in
+            // pre-4.0 it means that *all* columns are fetched, not just the regular ones, and so 3.0/3.X nodes
+            // would send us more than we'd like. So instead recreating a filter that correspond to what we
+            // actually want (it's a tiny bit less efficient as we include all columns manually and will mark as
+            // queried some columns that are actually only fetched, but it's fine during upgrade).
+            // More concretely, we replace our filter by a non-fetch-all one that queries every columns that our
+            // current filter fetches.
+            Columns allRegulars = selection.metadata.partitionColumns().regulars;
+            Set<ColumnDefinition> queriedStatic = new HashSet<>();
+            Iterables.addAll(queriedStatic, Iterables.filter(selection.queried, ColumnDefinition::isStatic));
+            return new ColumnFilter(false,
+                                    null,
+                                    new PartitionColumns(Columns.from(queriedStatic), allRegulars),
+                                    selection.subSelections);
+        }
+
         public void serialize(ColumnFilter selection, DataOutputPlus out, int version) throws IOException
         {
+            selection = maybeUpdateForBackwardCompatility(selection, version);
+
             out.writeByte(makeHeaderByte(selection));
 
             if (selection.queried != null)
@@ -461,7 +486,7 @@ public class ColumnFilter
         public ColumnFilter deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
         {
             int header = in.readUnsignedByte();
-            boolean isFetchAll = (header & IS_FETCH_ALL_MASK) != 0;
+            boolean isFetchAll = (header & FETCH_ALL_MASK) != 0;
             boolean hasQueried = (header & HAS_QUERIED_MASK) != 0;
             boolean hasSubSelections = (header & HAS_SUB_SELECTIONS_MASK) != 0;
 
@@ -485,11 +510,22 @@ public class ColumnFilter
                 }
             }
 
+            // Same concern than in serialize/serializedSize: we should be wary of the change in meaning for isFetchAll.
+            // If we get a filter with isFetchAll from 3.0/3.x, it actually expects all static columns to be fetched,
+            // make sure we do that (note that if queried == null, that's already what we do).
+            // Note that here again this will make us do a bit more work that necessary, namely we'll _query_ all
+            // statics even though we only care about _fetching_ them all, but that's a minor inefficiency, so fine
+            // during upgrade.
+            if (version <= MessagingService.VERSION_30 && isFetchAll && queried != null)
+                queried = new PartitionColumns(metadata.partitionColumns().statics, queried.regulars);
+
             return new ColumnFilter(isFetchAll, isFetchAll ? metadata : null, queried, subSelections);
         }
 
         public long serializedSize(ColumnFilter selection, int version)
         {
+            selection = maybeUpdateForBackwardCompatility(selection, version);
+
             long size = 1; // header byte
 
             if (selection.queried != null)
