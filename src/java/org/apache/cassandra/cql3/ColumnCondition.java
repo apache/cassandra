@@ -23,6 +23,7 @@ import java.util.*;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
@@ -247,12 +248,26 @@ public class ColumnCondition
             assert !(column.type instanceof CollectionType) && condition.collectionElement == null;
             assert condition.operator == Operator.IN;
             if (condition.inValues == null)
-                this.inValues = ((Lists.Value) condition.value.bind(options)).getElements();
+            {
+                Terminal terminal = condition.value.bind(options);
+
+                if (terminal == null)
+                    throw new InvalidRequestException("Invalid null list in IN condition");
+
+                if (terminal == Constants.UNSET_VALUE)
+                    throw new InvalidRequestException("Invalid 'unset' value in condition");
+
+                this.inValues = ((Lists.Value) terminal).getElements();
+            }
             else
             {
                 this.inValues = new ArrayList<>(condition.inValues.size());
                 for (Term value : condition.inValues)
-                    this.inValues.add(value.bindAndGet(options));
+                {
+                    ByteBuffer buffer = value.bindAndGet(options);
+                    if (buffer != ByteBufferUtil.UNSET_BYTE_BUFFER)
+                        this.inValues.add(value.bindAndGet(options));
+                }
             }
         }
 
@@ -354,12 +369,22 @@ public class ColumnCondition
             this.collectionElement = condition.collectionElement.bindAndGet(options);
 
             if (condition.inValues == null)
-                this.inValues = ((Lists.Value) condition.value.bind(options)).getElements();
+            {
+                Terminal terminal = condition.value.bind(options);
+                if (terminal == Constants.UNSET_VALUE)
+                    throw new InvalidRequestException("Invalid 'unset' value in condition");
+                this.inValues = ((Lists.Value) terminal).getElements();
+            }
             else
             {
                 this.inValues = new ArrayList<>(condition.inValues.size());
                 for (Term value : condition.inValues)
-                    this.inValues.add(value.bindAndGet(options));
+                {
+                    ByteBuffer buffer = value.bindAndGet(options);
+                    // We want to ignore unset values
+                    if (buffer != ByteBufferUtil.UNSET_BYTE_BUFFER)
+                        this.inValues.add(buffer);
+                }
             }
         }
 
@@ -614,11 +639,22 @@ public class ColumnCondition
                 // We have a list of serialized collections that need to be deserialized for later comparisons
                 CollectionType collectionType = (CollectionType) column.type;
                 Lists.Marker inValuesMarker = (Lists.Marker) condition.value;
+                Terminal terminal = inValuesMarker.bind(options);
+
+                if (terminal == null)
+                    throw new InvalidRequestException("Invalid null list in IN condition");
+
+                if (terminal == Constants.UNSET_VALUE)
+                    throw new InvalidRequestException("Invalid 'unset' value in condition");
+
                 if (column.type instanceof ListType)
                 {
                     ListType deserializer = ListType.getInstance(collectionType.valueComparator(), false);
-                    for (ByteBuffer buffer : ((Lists.Value)inValuesMarker.bind(options)).elements)
+                    for (ByteBuffer buffer : ((Lists.Value) terminal).elements)
                     {
+                        if (buffer == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                            continue;
+
                         if (buffer == null)
                             this.inValues.add(null);
                         else
@@ -628,8 +664,11 @@ public class ColumnCondition
                 else if (column.type instanceof MapType)
                 {
                     MapType deserializer = MapType.getInstance(collectionType.nameComparator(), collectionType.valueComparator(), false);
-                    for (ByteBuffer buffer : ((Lists.Value)inValuesMarker.bind(options)).elements)
+                    for (ByteBuffer buffer : ((Lists.Value) terminal).elements)
                     {
+                        if (buffer == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                            continue;
+
                         if (buffer == null)
                             this.inValues.add(null);
                         else
@@ -639,8 +678,11 @@ public class ColumnCondition
                 else if (column.type instanceof SetType)
                 {
                     SetType deserializer = SetType.getInstance(collectionType.valueComparator(), false);
-                    for (ByteBuffer buffer : ((Lists.Value)inValuesMarker.bind(options)).elements)
+                    for (ByteBuffer buffer : ((Lists.Value) terminal).elements)
                     {
+                        if (buffer == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                            continue;
+
                         if (buffer == null)
                             this.inValues.add(null);
                         else
@@ -651,7 +693,11 @@ public class ColumnCondition
             else
             {
                 for (Term value : condition.inValues)
-                    this.inValues.add(value.bind(options));
+                {
+                    Terminal terminal = value.bind(options);
+                    if (terminal != Constants.UNSET_VALUE)
+                        this.inValues.add(terminal);
+                }
             }
         }
 
