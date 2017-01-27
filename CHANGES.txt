@@ -1,4 +1,5 @@
 3.10
+ * Fix secondary index queries regression (CASSANDRA-13013)
  * Add duration type to the protocol V5 (CASSANDRA-12850)
  * Fix duration type validation (CASSANDRA-13143)
  * Fix flaky GcCompactionTest (CASSANDRA-12664)

@@ -796,7 +796,7 @@ public class SelectStatement implements CQLStatement
         // we want to include static columns and we're done.
         if (!partition.hasNext())
         {
-            if (!staticRow.isEmpty() && (!restrictions.hasClusteringColumnsRestriction() || cfm.isStaticCompactTable()))
+            if (!staticRow.isEmpty() && (queriesFullPartitions() || cfm.isStaticCompactTable()))
             {
                 result.newRow(partition.partitionKey(), staticRow.clustering());
                 for (ColumnDefinition def : selection.getColumns())
@@ -841,6 +841,15 @@ public class SelectStatement implements CQLStatement
                 }
             }
         }
+    }
+
+    /**
+     * Checks if the query is a full partitions selection.
+     * @return {@code true} if the query is a full partitions selection, {@code false} otherwise.
+     */
+    private boolean queriesFullPartitions()
+    {
+        return !restrictions.hasClusteringColumnsRestrictions() && !restrictions.hasRegularColumnsRestrictions();
     }
 
     private static void addValue(Selection.ResultSetBuilder result, ColumnDefinition def, Row row, int nowInSec, ProtocolVersion protocolVersion)
@@ -1007,7 +1016,7 @@ public class SelectStatement implements CQLStatement
                                                       StatementRestrictions restrictions)
                                                       throws InvalidRequestException
         {
-            checkFalse(restrictions.hasClusteringColumnsRestriction() ||
+            checkFalse(restrictions.hasClusteringColumnsRestrictions() ||
                        (restrictions.hasNonPrimaryKeyRestrictions() && !restrictions.nonPKRestrictedColumns(true).stream().allMatch(ColumnDefinition::isStatic)),
                        "SELECT DISTINCT with WHERE clause only supports restriction by partition key and/or static columns.");
 

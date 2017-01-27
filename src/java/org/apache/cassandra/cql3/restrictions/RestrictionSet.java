@@ -72,14 +72,14 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     }
 
     @Override
-    public final void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexManager, QueryOptions options) throws InvalidRequestException
+    public void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexManager, QueryOptions options) throws InvalidRequestException
     {
         for (Restriction restriction : restrictions.values())
             restriction.addRowFilterTo(filter, indexManager, options);
     }
 
     @Override
-    public final List<ColumnDefinition> getColumnDefs()
+    public List<ColumnDefinition> getColumnDefs()
     {
         return new ArrayList<>(restrictions.keySet());
     }
@@ -92,15 +92,30 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     }
 
     @Override
-    public final boolean isEmpty()
+    public boolean isEmpty()
     {
         return restrictions.isEmpty();
     }
 
     @Override
-    public final int size()
+    public int size()
     {
         return restrictions.size();
+    }
+
+    /**
+     * Checks if one of the restrictions applies to a column of the specific kind.
+     * @param kind the column kind
+     * @return {@code true} if one of the restrictions applies to a column of the specific kind, {@code false} otherwise.
+     */
+    public boolean hasRestrictionFor(ColumnDefinition.Kind kind)
+    {
+        for (ColumnDefinition column : restrictions.keySet())
+        {
+            if (column.kind == kind)
+                return true;
+        }
+        return false;
     }
 
     /**
