@@ -18,6 +18,8 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.net.InetAddress;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
@@ -36,6 +38,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.triggers.ITrigger;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -118,6 +121,8 @@ public class CreateTest extends CQLTester
         execute("INSERT INTO %s (a, b, c) VALUES (1, 18, P1Y3MT2H10M)");
         execute("INSERT INTO %s (a, b, c) VALUES (1, 19, P0000-00-00T30:20:00)");
         execute("INSERT INTO %s (a, b, c) VALUES (1, 20, P0001-03-00T02:10:00)");
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 21, duration(12, 10, 0));
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 22, duration(-12, -10, 0));
 
         assertRows(execute("SELECT * FROM %s"),
                    row(1, 1, Duration.newInstance(14, 0, 0)),
@@ -139,7 +144,9 @@ public class CreateTest extends CQLTester
                    row(1, 17, Duration.newInstance(0, 14, 0)),
                    row(1, 18, Duration.newInstance(15, 0, 130 * NANOS_PER_MINUTE)),
                    row(1, 19, Duration.newInstance(0, 0, 30 * NANOS_PER_HOUR + 20 * NANOS_PER_MINUTE)),
-                   row(1, 20, Duration.newInstance(15, 0, 130 * NANOS_PER_MINUTE)));
+                   row(1, 20, Duration.newInstance(15, 0, 130 * NANOS_PER_MINUTE)),
+                   row(1, 21, Duration.newInstance(12, 10, 0)),
+                   row(1, 22, Duration.newInstance(-12, -10, 0)));
 
         assertInvalidMessage("Slice restriction are not supported on duration columns",
                              "SELECT * FROM %s WHERE c > 1y ALLOW FILTERING");
@@ -153,6 +160,12 @@ public class CreateTest extends CQLTester
                              "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, ByteBufferUtil.EMPTY_BYTE_BUFFER);
         assertInvalidMessage("Invalid duration. The total number of days must be less or equal to 2147483647",
                              "INSERT INTO %s (a, b, c) VALUES (1, 2, " + Long.MAX_VALUE + "d)");
+
+        assertInvalidMessage("The duration months, days and nanoseconds must be all of the same sign (2, -2, 0)",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(2, -2, 0));
+
+        assertInvalidMessage("The duration months, days and nanoseconds must be all of the same sign (-2, 0, 2000000)",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(-2, 0, 2000000));
 
         // Test with duration column name
         createTable("CREATE TABLE %s (a text PRIMARY KEY, duration duration);");
@@ -211,6 +224,17 @@ public class CreateTest extends CQLTester
         // Test duration with several level of depth
         assertInvalidMessage("duration type is not supported for PRIMARY KEY part m",
                 "CREATE TABLE %s(pk int, m frozen<map<text, list<tuple<int, duration>>>>, v int, PRIMARY KEY (pk, m))");
+    }
+
+    private ByteBuffer duration(int months, int days, long nanoseconds) throws IOException
+    {
+        try(DataOutputBuffer output = new DataOutputBuffer())
+        {
+            output.writeVInt(months);
+            output.writeVInt(days);
+            output.writeVInt(nanoseconds);
+            return output.buffer();
+        }
     }
 
     /**
