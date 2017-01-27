@@ -80,6 +80,22 @@ public final class DurationSerializer implements TypeSerializer<Duration>
     {
         if (bytes.remaining() < 3)
             throw new MarshalException(String.format("Expected at least 3 bytes for a duration (%d)", bytes.remaining()));
+
+        try (DataInputBuffer in = new DataInputBuffer(bytes, true))
+        {
+            int months = (int) in.readVInt();
+            int days = (int) in.readVInt();
+            long nanoseconds = in.readVInt();
+
+            if (!((months >= 0 && days >= 0 && nanoseconds >= 0) || (months <= 0 && days <=0 && nanoseconds <=0)))
+                throw new MarshalException(String.format("The duration months, days and nanoseconds must be all of the same sign (%d, %d, %d)",
+                                                         months, days, nanoseconds));
+        }
+        catch (IOException e)
+        {
+            // this should never happen with a DataInputBuffer
+            throw new AssertionError("Unexpected error", e);
+        }
     }
 
     public String toString(Duration duration)
