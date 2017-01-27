@@ -30,6 +30,7 @@
  * Tables in system_distributed should not use gcgs of 0 (CASSANDRA-12954)
 
 3.10
+ * Add duration type to the protocol V5 (CASSANDRA-12850)
  * Fix duration type validation (CASSANDRA-13143)
  * Fix flaky GcCompactionTest (CASSANDRA-12664)
  * Fix TestHintedHandoff.hintedhandoff_decom_test (CASSANDRA-13058)

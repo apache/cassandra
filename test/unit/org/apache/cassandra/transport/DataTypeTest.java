@@ -26,10 +26,13 @@ import java.util.Map;
 import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
 
@@ -43,7 +46,7 @@ public class DataTypeTest
             if (isComplexType(type))
                 continue;
 
-            Map<DataType, Object> options = Collections.singletonMap(type, (Object)type.toString());
+            Pair<DataType, Object> options = Pair.create(type, (Object)type.toString());
             for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
                 testEncodeDecode(type, options, version);
         }
@@ -53,7 +56,7 @@ public class DataTypeTest
     public void TestListDataTypeSerialization()
     {
         DataType type = DataType.LIST;
-        Map<DataType, Object> options =  Collections.singletonMap(type, (Object)LongType.instance);
+        Pair<DataType, Object> options = Pair.create(type, (Object)LongType.instance);
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             testEncodeDecode(type, options, version);
     }
@@ -65,41 +68,41 @@ public class DataTypeTest
         List<AbstractType> value = new ArrayList<>();
         value.add(LongType.instance);
         value.add(AsciiType.instance);
-        Map<DataType, Object> options = Collections.singletonMap(type, (Object)value);
+        Pair<DataType, Object> options = Pair.create(type, (Object)value);
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             testEncodeDecode(type, options, version);
     }
 
-    private void testEncodeDecode(DataType type, Map<DataType, Object> options, ProtocolVersion version)
+    private void testEncodeDecode(DataType type, Pair<DataType, Object> options, ProtocolVersion version)
     {
-        ByteBuf dest = type.codec.encode(options, version);
-        Map<DataType, Object> results = type.codec.decode(dest, version);
+        int optLength = DataType.codec.oneSerializedSize(options, version);
+        ByteBuf dest = Unpooled.buffer(optLength);
+        DataType.codec.writeOne(options, dest, version);
+        Pair<DataType, Object> result = DataType.codec.decodeOne(dest, version);
 
-        for (DataType key : results.keySet())
+        System.out.println(result + "version " + version);
+        int ssize = type.serializedValueSize(result.right, version);
+        int esize = version.isSmallerThan(type.getProtocolVersion()) ? 2 + TypeSizes.encodedUTF8Length(result.right.toString()) : 0;
+        switch (type)
         {
-            int ssize = type.serializedValueSize(results.get(key), version);
-            int esize = version.isSmallerThan(type.getProtocolVersion()) ? 2 + TypeSizes.encodedUTF8Length(results.get(key).toString()) : 0;
-            switch (type)
-            {
-                case LIST:
-                case SET:
-                    esize += 2;
-                    break;
-                case MAP:
-                    esize += 4;
-                    break;
-                case CUSTOM:
-                    esize = 8;
-                    break;
-            }
-            assertEquals(esize, ssize);
-
-            DataType expected = version.isSmallerThan(type.getProtocolVersion())
-                ? DataType.CUSTOM
-                : type;
-            assertEquals(expected, key);
+            case LIST:
+            case SET:
+                esize += 2;
+                break;
+            case MAP:
+                esize += 4;
+                break;
+            case CUSTOM:
+                esize = 8;
+                break;
         }
-    }
+        assertEquals(esize, ssize);
+
+        DataType expected = version.isSmallerThan(type.getProtocolVersion())
+            ? DataType.CUSTOM
+            : type;
+        assertEquals(expected, result.left);
+   }
 
     private boolean isComplexType(DataType type)
     {
