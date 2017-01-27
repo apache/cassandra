@@ -44,7 +44,7 @@ public class UpgradeSSTable extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        List<String> keyspaces = parseOptionalKeyspace(args, probe);
+        List<String> keyspaces = parseOptionalKeyspace(args, probe, true);
         String[] cfnames = parseOptionalColumnFamilies(args);
 
         for (String keyspace : keyspaces)
