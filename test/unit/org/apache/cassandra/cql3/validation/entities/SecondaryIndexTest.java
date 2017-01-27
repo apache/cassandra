@@ -1286,6 +1286,50 @@ public class SecondaryIndexTest extends CQLTester
         });
     }
 
+    @Test
+    public void testIndexOnStaticColumnWithPartitionWithoutRows() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c int, s int static, v int, PRIMARY KEY(pk, c))");
+        createIndex("CREATE INDEX ON %s (s)");
+
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?)", 1, 1, 9, 1);
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?)", 1, 2, 9, 2);
+        execute("INSERT INTO %s (pk, s) VALUES (?, ?)", 2, 9);
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?)", 3, 1, 9, 1);
+        flush();
+
+        assertRows(execute("SELECT * FROM %s WHERE s = ?", 9),
+                   row(1, 1, 9, 1),
+                   row(1, 2, 9, 2),
+                   row(2, null, 9, null),
+                   row(3, 1, 9, 1));
+
+        execute("DELETE FROM %s WHERE pk = ?", 3);
+
+        assertRows(execute("SELECT * FROM %s WHERE s = ?", 9),
+                   row(1, 1, 9, 1),
+                   row(1, 2, 9, 2),
+                   row(2, null, 9, null));
+    }
+
+    @Test
+    public void testIndexOnRegularColumnWithPartitionWithoutRows() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c int, s int static, v int, PRIMARY KEY(pk, c))");
+        createIndex("CREATE INDEX ON %s (v)");
+
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?)", 1, 1, 9, 1);
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?)", 1, 2, 9, 2);
+        execute("INSERT INTO %s (pk, s) VALUES (?, ?)", 2, 9);
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?)", 3, 1, 9, 1);
+        flush();
+
+        execute("DELETE FROM %s WHERE pk = ? and c = ?", 3, 1);
+
+        assertRows(execute("SELECT * FROM %s WHERE v = ?", 1),
+                   row(1, 1, 9, 1));
+    }
+
     private ResultMessage.Prepared prepareStatement(String cql)
     {
         return QueryProcessor.prepare(String.format(cql, KEYSPACE, currentTable()),

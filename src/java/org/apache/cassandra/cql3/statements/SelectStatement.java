@@ -791,12 +791,12 @@ public class SelectStatement implements CQLStatement
     // result set row with null for all other regular columns.)
     private boolean returnStaticContentOnPartitionWithNoRows()
     {
-        // The general rational is that if some rows are specifically selected by the query (have a clustering columns
-        // restrictions), we ignore partitions that are empty outside of static content, but if it's a full partition
+        // The general rational is that if some rows are specifically selected by the query (have clustering or
+        // regular columns restrictions), we ignore partitions that are empty outside of static content, but if it's a full partition
         // query, then we include that content.
         // We make an exception for "static compact" table are from a CQL standpoint we always want to show their static
         // content for backward compatiblity.
-        return !restrictions.hasClusteringColumnsRestriction() || cfm.isStaticCompactTable();
+        return queriesFullPartitions() || cfm.isStaticCompactTable();
     }
 
     // Used by ModificationStatement for CAS operations
@@ -856,6 +856,15 @@ public class SelectStatement implements CQLStatement
                 }
             }
         }
+    }
+
+    /**
+     * Checks if the query is a full partitions selection.
+     * @return {@code true} if the query is a full partitions selection, {@code false} otherwise.
+     */
+    private boolean queriesFullPartitions()
+    {
+        return !restrictions.hasClusteringColumnsRestrictions() && !restrictions.hasRegularColumnsRestrictions();
     }
 
     private static void addValue(Selection.ResultSetBuilder result, ColumnDefinition def, Row row, int nowInSec, ProtocolVersion protocolVersion)
@@ -1021,7 +1030,7 @@ public class SelectStatement implements CQLStatement
                                                       StatementRestrictions restrictions)
                                                       throws InvalidRequestException
         {
-            checkFalse(restrictions.hasClusteringColumnsRestriction() ||
+            checkFalse(restrictions.hasClusteringColumnsRestrictions() ||
                        (restrictions.hasNonPrimaryKeyRestrictions() && !restrictions.nonPKRestrictedColumns(true).stream().allMatch(ColumnDefinition::isStatic)),
                        "SELECT DISTINCT with WHERE clause only supports restriction by partition key and/or static columns.");
 
