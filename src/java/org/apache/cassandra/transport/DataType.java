@@ -33,7 +33,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.utils.Pair;
 
-public enum DataType implements OptionCodec.Codecable<DataType>
+public enum DataType
 {
     CUSTOM   (0,  null, ProtocolVersion.V1),
     ASCII    (1,  AsciiType.instance, ProtocolVersion.V1),
@@ -56,13 +56,14 @@ public enum DataType implements OptionCodec.Codecable<DataType>
     TIME     (18, TimeType.instance, ProtocolVersion.V4),
     SMALLINT (19, ShortType.instance, ProtocolVersion.V4),
     BYTE     (20, ByteType.instance, ProtocolVersion.V4),
+    DURATION (21, DurationType.instance, ProtocolVersion.V5),
     LIST     (32, null, ProtocolVersion.V1),
     MAP      (33, null, ProtocolVersion.V1),
     SET      (34, null, ProtocolVersion.V1),
     UDT      (48, null, ProtocolVersion.V3),
     TUPLE    (49, null, ProtocolVersion.V3);
 
-    public static final OptionCodec<DataType> codec = new OptionCodec<DataType>(DataType.class);
+    public static final Codec codec = new Codec();
 
     private final int id;
     private final ProtocolVersion protocolVersion;
@@ -301,5 +302,62 @@ public enum DataType implements OptionCodec.Codecable<DataType>
     public ProtocolVersion getProtocolVersion()
     {
         return protocolVersion;
+    }
+
+    public static final class Codec
+    {
+        private final DataType[] ids;
+
+        public Codec()
+        {
+            DataType[] values = DataType.values();
+            ids = new DataType[getMaxId(values) + 1];
+            for (DataType opt : values)
+            {
+                int id = opt.getId(opt.getProtocolVersion());
+                DataType existingType = ids[id];
+                if (existingType != null)
+                    throw new IllegalStateException(String.format("Duplicate option id %d", id));
+                ids[id] = opt;
+            }
+        }
+
+        private int getMaxId(DataType[] values)
+        {
+            int maxId = -1;
+            for (DataType opt : values)
+                maxId = Math.max(maxId, opt.getId(ProtocolVersion.CURRENT));
+            return maxId;
+        }
+
+        private DataType fromId(int id)
+        {
+            DataType opt = ids[id];
+            if (opt == null)
+                throw new ProtocolException(String.format("Unknown option id %d", id));
+            return opt;
+        }
+
+        public Pair<DataType, Object> decodeOne(ByteBuf body, ProtocolVersion version)
+        {
+            DataType opt = fromId(body.readUnsignedShort());
+            Object value = opt.readValue(body, version);
+            return Pair.create(opt, value);
+        }
+
+        public void writeOne(Pair<DataType, Object> option, ByteBuf dest, ProtocolVersion version)
+        {
+            DataType opt = option.left;
+            Object obj = option.right;
+            dest.writeShort(opt.getId(version));
+            opt.writeValue(obj, dest, version);
+        }
+
+        public int oneSerializedSize(Pair<DataType, Object> option, ProtocolVersion version)
+        {
+            DataType opt = option.left;
+            Object obj = option.right;
+            return 2 + opt.serializedValueSize(obj, version);
+        }
     }
 }
