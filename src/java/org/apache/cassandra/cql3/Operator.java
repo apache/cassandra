@@ -37,6 +37,12 @@ public enum Operator
         {
             return "=";
         }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return type.compareForCQL(leftOperand, rightOperand) == 0;
+        }
     },
     LT(4)
     {
@@ -44,6 +50,12 @@ public enum Operator
         public String toString()
         {
             return "<";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return type.compareForCQL(leftOperand, rightOperand) < 0;
         }
     },
     LTE(3)
@@ -53,6 +65,12 @@ public enum Operator
         {
             return "<=";
         }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return type.compareForCQL(leftOperand, rightOperand) <= 0;
+        }
     },
     GTE(1)
     {
@@ -60,6 +78,12 @@ public enum Operator
         public String toString()
         {
             return ">=";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return type.compareForCQL(leftOperand, rightOperand) >= 0;
         }
     },
     GT(2)
@@ -69,12 +93,56 @@ public enum Operator
         {
             return ">";
         }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return type.compareForCQL(leftOperand, rightOperand) > 0;
+        }
     },
     IN(7)
     {
+        @Override
+        public String toString()
+        {
+            return "IN";
+        }
+
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            List<?> inValues = ListType.getInstance(type, false).getSerializer().deserialize(rightOperand);
+            return inValues.contains(type.getSerializer().deserialize(leftOperand));
+        }
     },
     CONTAINS(5)
     {
+        @Override
+        public String toString()
+        {
+            return "CONTAINS";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            switch(((CollectionType<?>) type).kind)
+            {
+                case LIST :
+                    ListType<?> listType = (ListType<?>) type;
+                    List<?> list = listType.getSerializer().deserialize(leftOperand);
+                    return list.contains(listType.getElementsType().getSerializer().deserialize(rightOperand));
+                case SET:
+                    SetType<?> setType = (SetType<?>) type;
+                    Set<?> set = setType.getSerializer().deserialize(leftOperand);
+                    return set.contains(setType.getElementsType().getSerializer().deserialize(rightOperand));
+                case MAP:
+                    MapType<?, ?> mapType = (MapType<?, ?>) type;
+                    Map<?, ?> map = mapType.getSerializer().deserialize(leftOperand);
+                    return map.containsValue(mapType.getValuesType().getSerializer().deserialize(rightOperand));
+                default:
+                    throw new AssertionError();
+            }
+        }
     },
     CONTAINS_KEY(6)
     {
@@ -82,6 +150,14 @@ public enum Operator
         public String toString()
         {
             return "CONTAINS KEY";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            MapType<?, ?> mapType = (MapType<?, ?>) type;
+            Map<?, ?> map = mapType.getSerializer().deserialize(leftOperand);
+            return map.containsKey(mapType.getKeysType().getSerializer().deserialize(rightOperand));
         }
     },
     NEQ(8)
@@ -91,6 +167,13 @@ public enum Operator
         {
             return "!=";
         }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return type.compareForCQL(leftOperand, rightOperand) != 0;
+
+        }
     },
     IS_NOT(9)
     {
@@ -98,6 +181,12 @@ public enum Operator
         public String toString()
         {
             return "IS NOT";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            throw new UnsupportedOperationException();
         }
     },
     LIKE_PREFIX(10)
@@ -107,6 +196,12 @@ public enum Operator
         {
             return "LIKE '<term>%'";
         }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return ByteBufferUtil.startsWith(leftOperand, rightOperand);
+        }
     },
     LIKE_SUFFIX(11)
     {
@@ -114,6 +209,12 @@ public enum Operator
         public String toString()
         {
             return "LIKE '%<term>'";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return ByteBufferUtil.endsWith(leftOperand, rightOperand);
         }
     },
     LIKE_CONTAINS(12)
@@ -123,6 +224,12 @@ public enum Operator
         {
             return "LIKE '%<term>%'";
         }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return ByteBufferUtil.contains(leftOperand, rightOperand);
+        }
     },
     LIKE_MATCHES(13)
     {
@@ -131,6 +238,11 @@ public enum Operator
         {
             return "LIKE '<term>'";
         }
+
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return ByteBufferUtil.contains(leftOperand, rightOperand);
+        }
     },
     LIKE(14)
     {
@@ -138,6 +250,12 @@ public enum Operator
         public String toString()
         {
             return "LIKE";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            throw new UnsupportedOperationException();
         }
     };
 
@@ -190,59 +308,8 @@ public enum Operator
 
     /**
      * Whether 2 values satisfy this operator (given the type they should be compared with).
-     *
-     * @throws AssertionError for CONTAINS and CONTAINS_KEY as this doesn't support those operators yet
      */
-    public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
-    {
-        switch (this)
-        {
-            case EQ:
-                return type.compareForCQL(leftOperand, rightOperand) == 0;
-            case LT:
-                return type.compareForCQL(leftOperand, rightOperand) < 0;
-            case LTE:
-                return type.compareForCQL(leftOperand, rightOperand) <= 0;
-            case GT:
-                return type.compareForCQL(leftOperand, rightOperand) > 0;
-            case GTE:
-                return type.compareForCQL(leftOperand, rightOperand) >= 0;
-            case NEQ:
-                return type.compareForCQL(leftOperand, rightOperand) != 0;
-            case IN:
-                List inValues = ((List) ListType.getInstance(type, false).getSerializer().deserialize(rightOperand));
-                return inValues.contains(type.getSerializer().deserialize(leftOperand));
-            case CONTAINS:
-                if (type instanceof ListType)
-                {
-                    List list = (List) type.getSerializer().deserialize(leftOperand);
-                    return list.contains(((ListType) type).getElementsType().getSerializer().deserialize(rightOperand));
-                }
-                else if (type instanceof SetType)
-                {
-                    Set set = (Set) type.getSerializer().deserialize(leftOperand);
-                    return set.contains(((SetType) type).getElementsType().getSerializer().deserialize(rightOperand));
-                }
-                else  // MapType
-                {
-                    Map map = (Map) type.getSerializer().deserialize(leftOperand);
-                    return map.containsValue(((MapType) type).getValuesType().getSerializer().deserialize(rightOperand));
-                }
-            case CONTAINS_KEY:
-                Map map = (Map) type.getSerializer().deserialize(leftOperand);
-                return map.containsKey(((MapType) type).getKeysType().getSerializer().deserialize(rightOperand));
-            case LIKE_PREFIX:
-                return ByteBufferUtil.startsWith(leftOperand, rightOperand);
-            case LIKE_SUFFIX:
-                return ByteBufferUtil.endsWith(leftOperand, rightOperand);
-            case LIKE_MATCHES:
-            case LIKE_CONTAINS:
-                return ByteBufferUtil.contains(leftOperand, rightOperand);
-            default:
-                // we shouldn't get LIKE, CONTAINS, CONTAINS KEY, or IS NOT here
-                throw new AssertionError();
-        }
-    }
+    public abstract boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand);
 
     public int serializedSize()
     {
@@ -253,5 +320,14 @@ public enum Operator
     public String toString()
     {
          return this.name();
+    }
+
+    /**
+     * Checks if this operator is an IN operator.
+     * @return {@code true} if this operator is an IN operator, {@code false} otherwise.
+     */
+    public boolean isIN()
+    {
+        return this == IN;
     }
 }

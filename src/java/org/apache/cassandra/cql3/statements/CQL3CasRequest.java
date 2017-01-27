@@ -24,6 +24,7 @@ import com.google.common.collect.*;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.rows.Row;

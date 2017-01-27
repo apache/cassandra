@@ -46,6 +46,7 @@ import Parser,Lexer;
     import org.apache.cassandra.cql3.statements.*;
     import org.apache.cassandra.cql3.selection.*;
     import org.apache.cassandra.cql3.functions.*;
+    import org.apache.cassandra.cql3.conditions.*;
     import org.apache.cassandra.db.marshal.CollectionType;
     import org.apache.cassandra.exceptions.ConfigurationException;
     import org.apache.cassandra.exceptions.InvalidRequestException;

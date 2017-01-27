@@ -15,22 +15,50 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.conditions;
 
-import org.apache.cassandra.cql3.statements.CQL3CasRequest;
-import org.apache.cassandra.db.Clustering;
+import java.util.List;
 
-final class IfNotExistsCondition extends AbstractConditions
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.functions.Function;
+
+/**
+ * Base class for <code>Conditions</code> classes.
+ *
+ */
+abstract class AbstractConditions implements Conditions
 {
-    @Override
-    public void addConditionsTo(CQL3CasRequest request, Clustering clustering, QueryOptions options)
+    public void addFunctionsTo(List<Function> functions)
     {
-        request.addNotExist(clustering);
     }
 
-    @Override
+    public Iterable<ColumnDefinition> getColumns()
+    {
+        return null;
+    }
+
+    public boolean isEmpty()
+    {
+        return false;
+    }
+
+    public boolean appliesToStaticColumns()
+    {
+        return false;
+    }
+
+    public boolean appliesToRegularColumns()
+    {
+        return false;
+    }
+
+    public boolean isIfExists()
+    {
+        return false;
+    }
+
     public boolean isIfNotExists()
     {
-        return true;
+        return false;
     }
 }
