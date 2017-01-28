@@ -73,7 +73,7 @@ public final class Views implements Iterable<ViewMetadata>
 
     public Iterable<ViewMetadata> forTable(UUID tableId)
     {
-        return Iterables.filter(this, v -> v.baseTableId.equals(tableId));
+        return Iterables.filter(this, v -> v.baseTableId.asUUID().equals(tableId));
     }
 
     /**
