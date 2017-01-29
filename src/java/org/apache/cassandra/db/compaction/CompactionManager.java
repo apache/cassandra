@@ -1557,7 +1557,7 @@ public class CompactionManager implements CompactionManagerMBean
             logger.trace("Repaired {} keys out of {} for {}/{} in {}", repairedKeyCount,
                                                                        repairedKeyCount + unrepairedKeyCount,
                                                                        cfs.keyspace.getName(),
-                                                                       cfs.getColumnFamilyName(),
+                                                                       cfs.getTableName(),
                                                                        anticompactionGroup);
             return anticompactedSSTables.size();
         }

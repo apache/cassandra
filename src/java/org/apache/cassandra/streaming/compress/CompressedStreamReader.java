@@ -74,14 +74,13 @@ public class CompressedStreamReader extends StreamReader
 
         logger.debug("[Stream #{}] Start receiving file #{} from {}, repairedAt = {}, size = {}, ks = '{}', table = '{}'.",
                      session.planId(), fileSeqNum, session.peer, repairedAt, totalSize, cfs.keyspace.getName(),
-                     cfs.getColumnFamilyName());
+                     cfs.getTableName());
 
         CompressedInputStream cis = new CompressedInputStream(Channels.newInputStream(channel), compressionInfo,
                                                               ChecksumType.CRC32, cfs::getCrcCheckChance);
         TrackedInputStream in = new TrackedInputStream(cis);
 
-        StreamDeserializer deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()),
-                                                                 totalSize, session.planId());
+        StreamDeserializer deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
         SSTableMultiWriter writer = null;
         try
         {

@@ -185,7 +185,7 @@ public class ValidatorTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         UUID repairSessionId = UUIDGen.getTimeUUID();
         final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
-                                               cfs.getColumnFamilyName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
+                                               cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
                                                                                                                 sstable.last.getToken())));
 
         ActiveRepairService.instance.registerParentRepairSession(repairSessionId, FBUtilities.getBroadcastAddress(),

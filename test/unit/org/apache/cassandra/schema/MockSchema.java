@@ -87,7 +87,7 @@ public class MockSchema
     {
         Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
                                                cfs.keyspace.getName(),
-                                               cfs.getColumnFamilyName(),
+                                               cfs.getTableName(),
                                                generation, SSTableFormat.Type.BIG);
         Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
         for (Component component : components)

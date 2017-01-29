@@ -173,7 +173,7 @@ public class Info extends NodeToolCmd
         {
             Entry<String, ColumnFamilyStoreMBean> entry = cfamilies.next();
             String keyspaceName = entry.getKey();
-            String cfName = entry.getValue().getColumnFamilyName();
+            String cfName = entry.getValue().getTableName();
 
             offHeapMemUsedInBytes += (Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableOffHeapSize");
             offHeapMemUsedInBytes += (Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "BloomFilterOffHeapMemoryUsed");

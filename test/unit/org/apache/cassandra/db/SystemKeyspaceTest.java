@@ -167,7 +167,7 @@ public class SystemKeyspaceTest
         for (ColumnFamilyStore cfs : Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStores())
         {
             if (!cfs.getSnapshotDetails().isEmpty())
-                snapshottedTableNames.add(cfs.getColumnFamilyName());
+                snapshottedTableNames.add(cfs.getTableName());
         }
         return snapshottedTableNames;
     }

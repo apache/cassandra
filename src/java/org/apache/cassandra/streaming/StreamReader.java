@@ -21,7 +21,6 @@ import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Collection;
-import java.util.UUID;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.UnmodifiableIterator;
@@ -98,11 +97,10 @@ public class StreamReader
 
         logger.debug("[Stream #{}] Start receiving file #{} from {}, repairedAt = {}, size = {}, ks = '{}', table = '{}'.",
                      session.planId(), fileSeqNum, session.peer, repairedAt, totalSize, cfs.keyspace.getName(),
-                     cfs.getColumnFamilyName());
+                     cfs.getTableName());
 
         TrackedInputStream in = new TrackedInputStream(new LZFInputStream(Channels.newInputStream(channel)));
-        StreamDeserializer deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()),
-                                                                 totalSize, session.planId());
+        StreamDeserializer deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
         SSTableMultiWriter writer = null;
         try
         {
@@ -185,8 +183,7 @@ public class StreamReader
         private Row staticRow;
         private IOException exception;
 
-        public StreamDeserializer(TableMetadata metadata, InputStream in, Version version, SerializationHeader header,
-                                  long totalSize, UUID sessionId) throws IOException
+        public StreamDeserializer(TableMetadata metadata, InputStream in, Version version, SerializationHeader header) throws IOException
         {
             this.metadata = metadata;
             this.in = new DataInputPlus.DataInputStreamPlus(in);
@@ -299,23 +296,6 @@ public class StreamReader
                     logger.warn("Error while closing RewindableDataInputStreamPlus.", e);
                 }
             }
-        }
-
-        private static File getTempBufferFile(TableMetadata metadata, long totalSize, UUID sessionId) throws IOException
-        {
-            ColumnFamilyStore cfs = Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name);
-            if (cfs == null)
-            {
-                // schema was dropped during streaming
-                throw new RuntimeException(String.format("Table %s was dropped during streaming", metadata.toString()));
-            }
-
-            long maxSize = Math.min(MAX_SPILL_FILE_SIZE, totalSize);
-            File tmpDir = cfs.getDirectories().getTemporaryWriteableDirectoryAsFile(maxSize);
-            if (tmpDir == null)
-                throw new IOException(String.format("No sufficient disk space to stream legacy sstable from {}.{}. " +
-                                                         "Required disk space: %s.", FBUtilities.prettyPrintMemory(maxSize)));
-            return new File(tmpDir, String.format("%s-%s.%s", BUFFER_FILE_PREFIX, sessionId, BUFFER_FILE_SUFFIX));
         }
     }
 }
