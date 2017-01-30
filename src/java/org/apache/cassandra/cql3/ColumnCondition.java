@@ -884,7 +884,14 @@ public class ColumnCondition
             if (condition.inValues == null)
             {
                 Lists.Marker inValuesMarker = (Lists.Marker) condition.value;
-                for (ByteBuffer buffer : ((Lists.Value)inValuesMarker.bind(options)).elements)
+                Terminal terminal = inValuesMarker.bind(options);
+                if (terminal == null)
+                    throw new InvalidRequestException("Invalid null list in IN condition");
+
+                if (terminal == Constants.UNSET_VALUE)
+                    throw new InvalidRequestException("Invalid 'unset' value in condition");
+
+                for (ByteBuffer buffer : ((Lists.Value)terminal).elements)
                     this.inValues.add(buffer);
             }
             else

@@ -1969,31 +1969,31 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
             createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<" + myType + "> )");
 
-            Object v = userType(0, "abc");
+            Object v = userType("a", 0, "b", "abc");
             execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, v);
 
             // Does not apply
-            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType(1, "abc"), userType(0, "ac")),
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType("a", 1, "b", "abc"), userType("a", 0, "b", "ac")),
                        row(false, v));
-            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType(1, "abc"), null),
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType("a", 1, "b", "abc"), null),
                        row(false, v));
-            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType(1, "abc"), unset()),
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType("a", 1, "b", "abc"), unset()),
                        row(false, v));
             assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", null, null),
                        row(false, v));
             assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", unset(), unset()),
                        row(false, v));
-            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN ?", list(userType(1, "abc"), userType(0, "ac"))),
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN ?", list(userType("a", 1, "b", "abc"), userType("a", 0, "b", "ac"))),
                        row(false, v));
 
             // Does apply
-            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType(0, "abc"), userType(0, "ac")),
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType("a", 0, "b", "abc"), userType("a", 0, "b", "ac")),
                        row(true));
-            assertRows(execute("UPDATE %s SET v = {a: 1, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType(0, "bc"), null),
+            assertRows(execute("UPDATE %s SET v = {a: 1, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType("a", 0, "b", "bc"), null),
                        row(true));
-            assertRows(execute("UPDATE %s SET v = {a: 1, b: 'ac'} WHERE k = 0 IF v IN (?, ?, ?)", userType(0, "bc"), unset(), userType(1, "bc")),
+            assertRows(execute("UPDATE %s SET v = {a: 1, b: 'ac'} WHERE k = 0 IF v IN (?, ?, ?)", userType("a", 0, "b", "bc"), unset(), userType("a", 1, "b", "bc")),
                        row(true));
-            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'abc'} WHERE k = 0 IF v IN ?", list(userType(1, "ac"), userType(0, "ac"))),
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'abc'} WHERE k = 0 IF v IN ?", list(userType("a", 1, "b", "ac"), userType("a", 0, "b", "ac"))),
                        row(true));
 
             assertInvalidMessage("Invalid null list in IN condition",
