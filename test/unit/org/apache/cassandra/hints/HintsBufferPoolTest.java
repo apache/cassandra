@@ -28,7 +28,6 @@ import com.google.common.collect.ImmutableList;
 
 import static junit.framework.Assert.*;
 
-import java.lang.Thread.State;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;

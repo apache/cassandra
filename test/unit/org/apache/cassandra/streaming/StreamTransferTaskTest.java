@@ -45,7 +45,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.messages.OutgoingFileMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Ref;
-import org.hsqldb.Table;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;

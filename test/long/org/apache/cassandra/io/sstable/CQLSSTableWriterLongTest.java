@@ -25,11 +25,9 @@ import java.util.Random;
 
 import com.google.common.io.Files;
 
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.service.StorageService;
 
 public class CQLSSTableWriterLongTest

@@ -19,7 +19,6 @@ package org.apache.cassandra.io.sstable.format;
 
 import java.util.regex.Pattern;
 
-import org.apache.cassandra.utils.ChecksumType;
 
 /**
  * A set of feature flags associated with a SSTable format

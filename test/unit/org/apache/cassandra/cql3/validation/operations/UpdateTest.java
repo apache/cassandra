@@ -29,7 +29,6 @@ import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class UpdateTest extends CQLTester
 {

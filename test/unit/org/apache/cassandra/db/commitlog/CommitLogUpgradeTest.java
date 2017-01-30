@@ -51,7 +51,6 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.security.EncryptionContextGenerator;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
-import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayException;
 
 /**
  * Note: if you are looking to create new test cases for this test, check out

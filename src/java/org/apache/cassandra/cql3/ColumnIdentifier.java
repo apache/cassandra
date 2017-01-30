@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.MapMaker;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
@@ -41,7 +40,7 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
 {
     private static final Pattern PATTERN_DOUBLE_QUOTE = Pattern.compile("\"", Pattern.LITERAL);
     private static final String ESCAPED_DOUBLE_QUOTE = Matcher.quoteReplacement("\"\"");
-    
+
     public final ByteBuffer bytes;
     private final String text;
     /**

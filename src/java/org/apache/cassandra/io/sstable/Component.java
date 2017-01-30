@@ -17,14 +17,10 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.util.EnumSet;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Objects;
-
-import org.apache.cassandra.utils.ChecksumType;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * SSTables are made up of multiple components in separate files. Components are
@@ -62,7 +58,7 @@ public class Component
         SECONDARY_INDEX("SI_.*.db"),
         // custom component, used by e.g. custom compaction strategy
         CUSTOM(null);
-        
+
         final String repr;
         Type(String repr)
         {

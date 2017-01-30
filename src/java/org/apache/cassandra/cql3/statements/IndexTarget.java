@@ -17,11 +17,6 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.regex.Pattern;
-
-import com.google.common.collect.Iterables;
-
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;

@@ -20,8 +20,6 @@
  */
 package org.apache.cassandra.hadoop;
 
-import java.io.IOException;
-import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +27,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 
@@ -395,17 +392,5 @@ public class ConfigHelper
     public static void setOutputLocalDCOnly(Configuration conf, boolean localDCOnly)
     {
         conf.set(OUTPUT_LOCAL_DC_ONLY, Boolean.toString(localDCOnly));
-    }
-
-    private static Map<String, String> getOptions(Configuration conf, Set<String> supportedOptions)
-    {
-        Map<String, String> options = new HashMap<>();
-        for (String optionKey : supportedOptions)
-        {
-            String optionValue = conf.get(optionKey);
-            if (optionValue != null)
-                options.put(optionKey, optionValue);
-        }
-        return options;
     }
 }

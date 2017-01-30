@@ -25,8 +25,6 @@ import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.service.ActiveRepairService;

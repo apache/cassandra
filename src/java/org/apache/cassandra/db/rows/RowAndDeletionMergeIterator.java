@@ -21,7 +21,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 

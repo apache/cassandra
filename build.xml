@@ -617,6 +617,7 @@
       <!-- retrieve artifacts -->
       <artifact:dependencies pomRefId="build-deps-pom"
                              filesetId="build-dependency-jars"
+      	                     sourcesFilesetId="build-dependency-sources-jars"
                              cacheDependencyRefs="true"
                              dependencyRefsBuildFile="${build.dir}/build-dependencies.xml">
           <remoteRepository refid="central"/>

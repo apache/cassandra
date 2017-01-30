@@ -19,7 +19,6 @@ package org.apache.cassandra.streaming;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.UUID;
 
 import com.google.common.base.Objects;
 
@@ -27,9 +26,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
  * Summary of streaming.

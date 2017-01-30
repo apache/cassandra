@@ -20,7 +20,6 @@ package org.apache.cassandra.streaming.messages;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.util.Optional;
 
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -32,7 +31,6 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.CompressedStreamReader;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
 
 /**
  * IncomingFileMessage is used to receive the part(or whole) of a SSTable data file.
