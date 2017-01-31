@@ -501,6 +501,7 @@ Note that:
   resolution procedure in the case of `timestamp ties <http://wiki.apache.org/cassandra/FAQ#clocktie>`__, operations may
   be applied in an order that is different from the order they are listed in the ``BATCH`` statement. To force a
   particular operation ordering, you must specify per-operation timestamps.
+- A LOGGED batch to a single partition will be converted to an UNLOGGED batch as an optimization.
 
 .. _unlogged-batches:
 
