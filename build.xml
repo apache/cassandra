@@ -1032,6 +1032,9 @@
       </jar>
   </target>
 
+    <!-- use https://github.com/krummas/jstackjunit to get thread dumps when unit tests time out -->
+  <taskdef name="junit" classname="org.krummas.junit.JStackJUnitTask" classpath="lib/jstackjunit-0.0.1.jar"/>
+
   <target name="build-test" depends="build" description="Compile test classes">
     <javac
      compiler="modern"

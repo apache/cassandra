@@ -149,6 +149,7 @@
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Properly record CAS contention (CASSANDRA-12626)
 Merged from 3.0:
+ * Dump threads when unit tests time out (CASSANDRA-13117)
  * Better error when modifying function permissions without explicit keyspace (CASSANDRA-12925)
  * Indexer is not correctly invoked when building indexes over sstables (CASSANDRA-13075)
  * Stress daemon help is incorrect (CASSANDRA-12563)
