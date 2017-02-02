@@ -1,4 +1,5 @@
 2.2.9
+ * Fix speculative retry bugs (CASSANDRA-13009)
  * Fix handling of nulls and unsets in IN conditions (CASSANDRA-12981) 
  * Remove support for non-JavaScript UDFs (CASSANDRA-12883)
  * Fix DynamicEndpointSnitch noop in multi-datacenter situations (CASSANDRA-13074)
