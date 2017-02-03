@@ -384,7 +384,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         viewManager = keyspace.viewManager.forTable(metadata);
         metric = new TableMetrics(this);
         fileIndexGenerator.set(generation);
-        sampleLatencyNanos = DatabaseDescriptor.getReadRpcTimeout() / 2;
+        sampleLatencyNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getReadRpcTimeout() / 2);
 
         logger.info("Initializing {}.{}", keyspace.getName(), name);
 
@@ -448,7 +448,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         case PERCENTILE:
                             // get percentile in nanos
-                            sampleLatencyNanos = (long) (metric.coordinatorReadLatency.getSnapshot().getValue(retryPolicy.threshold()) * 1000d);
+                            sampleLatencyNanos = (long) (metric.coordinatorReadLatency.getSnapshot().getValue(retryPolicy.threshold()));
                             break;
                         case CUSTOM:
                             sampleLatencyNanos = (long) retryPolicy.threshold();
