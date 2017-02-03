@@ -226,7 +226,8 @@ Merged from 3.0:
  * Correct log message for statistics of offheap memtable flush (CASSANDRA-12776)
  * Explicitly set locale for string validation (CASSANDRA-12541,CASSANDRA-12542,CASSANDRA-12543,CASSANDRA-12545)
 Merged from 2.2:
- * Fix handling of nulls and unsets in IN conditions (CASSANDRA-12981) 
+ * Fix speculative retry bugs (CASSANDRA-13009)
+ * Fix handling of nulls and unsets in IN conditions (CASSANDRA-12981)
  * Fix race causing infinite loop if Thrift server is stopped before it starts listening (CASSANDRA-12856)
  * CompactionTasks now correctly drops sstables out of compaction when not enough disk space is available (CASSANDRA-12979)
  * Fix DynamicEndpointSnitch noop in multi-datacenter situations (CASSANDRA-13074)
@@ -363,6 +364,22 @@ Merged from 2.2:
  * Use dedicated thread for JMX notifications (CASSANDRA-12146)
  * Improve streaming synchronization and fault tolerance (CASSANDRA-11414)
  * MemoryUtil.getShort() should return an unsigned short also for architectures not supporting unaligned memory accesses (CASSANDRA-11973)
+Merged from 2.1:
+ * Fix queries with empty ByteBuffer values in clustering column restrictions (CASSANDRA-12127)
+ * Disable passing control to post-flush after flush failure to prevent data loss (CASSANDRA-11828)
+ * Allow STCS-in-L0 compactions to reduce scope with LCS (CASSANDRA-12040)
+ * cannot use cql since upgrading python to 2.7.11+ (CASSANDRA-11850)
+ * Fix filtering on clustering columns when 2i is used (CASSANDRA-11907)
+
+
+3.0.8
+ * Fix potential race in schema during new table creation (CASSANDRA-12083)
+ * cqlsh: fix error handling in rare COPY FROM failure scenario (CASSANDRA-12070)
+ * Disable autocompaction during drain (CASSANDRA-11878)
+ * Add a metrics timer to MemtablePool and use it to track time spent blocked on memory in MemtableAllocator (CASSANDRA-11327)
+ * Fix upgrading schema with super columns with non-text subcomparators (CASSANDRA-12023)
+ * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
+Merged from 2.2:
  * Allow nodetool info to run with readonly JMX access (CASSANDRA-11755)
  * Validate bloom_filter_fp_chance against lowest supported
    value when the table is created (CASSANDRA-11920)
@@ -370,7 +387,7 @@ Merged from 2.2:
  * StorageService shutdown hook should use a volatile variable (CASSANDRA-11984)
 Merged from 2.1:
  * Add system property to set the max number of native transport requests in queue (CASSANDRA-11363)
- * Fix queries with empty ByteBuffer values in clustering column restrictions (CASSANDRA-12127) 
+ * Fix queries with empty ByteBuffer values in clustering column restrictions (CASSANDRA-12127)
  * Disable passing control to post-flush after flush failure to prevent data loss (CASSANDRA-11828)
  * Allow STCS-in-L0 compactions to reduce scope with LCS (CASSANDRA-12040)
  * cannot use cql since upgrading python to 2.7.11+ (CASSANDRA-11850)
