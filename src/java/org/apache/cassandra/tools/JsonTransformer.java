@@ -187,20 +187,18 @@ public final class JsonTransformer
             json.writeNumberField("position", this.currentScanner.getCurrentPosition());
 
             if (!partition.partitionLevelDeletion().isLive())
-            {
                 serializeDeletion(partition.partitionLevelDeletion());
-                json.writeEndObject();
-            }
-            else
+
+            json.writeEndObject();
+
+            if (partition.hasNext() || partition.staticRow() != null)
             {
-                json.writeEndObject();
                 json.writeFieldName("rows");
                 json.writeStartArray();
                 updatePosition();
                 if (!partition.staticRow().isEmpty())
-                {
                     serializeRow(partition.staticRow());
-                }
+
                 Unfiltered unfiltered;
                 updatePosition();
                 while (partition.hasNext())
@@ -217,9 +215,9 @@ public final class JsonTransformer
                     updatePosition();
                 }
                 json.writeEndArray();
-            }
 
-            json.writeEndObject();
+                json.writeEndObject();
+            }
         }
         catch (IOException e)
         {

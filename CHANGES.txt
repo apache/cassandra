@@ -1,5 +1,7 @@
 3.11
 Merged from 3.0:
+ * Fix handling of partition with partition-level deletion plus
+   live rows in sstabledump (CASSANDRA-13177)
  * Provide user workaround when system_schema.columns does not contain entries
    for a table that's in system_schema.tables (CASSANDRA-13180)
 
