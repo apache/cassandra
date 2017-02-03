@@ -67,6 +67,7 @@ public final class SchemaKeyspace
     private static final Logger logger = LoggerFactory.getLogger(SchemaKeyspace.class);
 
     private static final boolean FLUSH_SCHEMA_TABLES = Boolean.valueOf(System.getProperty("cassandra.test.flush_local_schema_changes", "true"));
+    private static final boolean IGNORE_CORRUPTED_SCHEMA_TABLES = Boolean.valueOf(System.getProperty("cassandra.ignore_corrupted_schema_tables", "false"));
 
     public static final String NAME = "system_schema";
 
@@ -925,7 +926,26 @@ public final class SchemaKeyspace
 
         Tables.Builder tables = org.apache.cassandra.schema.Tables.builder();
         for (UntypedResultSet.Row row : query(query, keyspaceName))
-            tables.add(fetchTable(keyspaceName, row.getString("table_name"), types));
+        {
+            String tableName = row.getString("table_name");
+            try
+            {
+                tables.add(fetchTable(keyspaceName, tableName, types));
+            }
+            catch (MissingColumns exc)
+            {
+                if (!IGNORE_CORRUPTED_SCHEMA_TABLES)
+                {
+                    logger.error("No columns found for table {}.{} in {}.{}.  This may be due to " +
+                                 "corruption or concurrent dropping and altering of a table.  If this table " +
+                                 "is supposed to be dropped, restart cassandra with -Dcassandra.ignore_corrupted_schema_tables=true " +
+                                 "and run the following query: \"DELETE FROM {}.{} WHERE keyspace_name = '{}' AND table_name = '{}';\"." +
+                                 "If the table is not supposed to be dropped, restore {}.{} sstables from backups.",
+                                 keyspaceName, tableName, NAME, COLUMNS, NAME, TABLES, keyspaceName, tableName, NAME, COLUMNS);
+                    throw exc;
+                }
+            }
+        }
         return tables.build();
     }
 
@@ -991,8 +1011,12 @@ public final class SchemaKeyspace
     private static List<ColumnDefinition> fetchColumns(String keyspace, String table, Types types)
     {
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", NAME, COLUMNS);
+        UntypedResultSet columnRows = query(query, keyspace, table);
+        if (columnRows.isEmpty())
+            throw new MissingColumns("Columns not found in schema table for " + keyspace + "." + table);
+
         List<ColumnDefinition> columns = new ArrayList<>();
-        query(query, keyspace, table).forEach(row -> columns.add(createColumnFromRow(row, types)));
+        columnRows.forEach(row -> columns.add(createColumnFromRow(row, types)));
         return columns;
     }
 
@@ -1398,5 +1422,13 @@ public final class SchemaKeyspace
         return types.stream()
                     .map(SchemaKeyspace::expandUserTypes)
                     .collect(toList());
+    }
+
+    private static class MissingColumns extends RuntimeException
+    {
+        MissingColumns(String message)
+        {
+            super(message);
+        }
     }
 }
