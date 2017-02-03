@@ -472,6 +472,15 @@ For instance::
     REVOKE EXECUTE ON FUNCTION keyspace1.user_function( int ) FROM report_writer;
     REVOKE DESCRIBE ON ALL ROLES FROM role_admin;
 
+Because of their function in normal driver operations, certain tables cannot have their `SELECT` permissions
+revoked. The following tables will be available to all authorized users regardless of their assigned role::
+
+* `system_schema.keyspaces`
+* `system_schema.columns`
+* `system_schema.tables`
+* `system.local`
+* `system.peers`
+
 .. _list-permissions-statement:
 
 LIST PERMISSIONS
