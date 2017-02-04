@@ -14,6 +14,14 @@ restore snapshots created with the previous major version using the
 using the provided 'sstableupgrade' tool.
 
 
+3.11.0
+======
+
+Upgrading
+---------
+   - Nothing specific to this release, but please read all notes back to your
+     current version if you are upgrading.
+
 3.10
 ====
 
