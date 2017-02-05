@@ -14,22 +14,25 @@
  * Clean up the SSTableReader#getScanner API wrt removal of RateLimiter (CASSANDRA-12422)
  * Use new token allocation for non bootstrap case as well (CASSANDRA-13080)
  * Avoid byte-array copy when key cache is disabled (CASSANDRA-13084)
- * More fixes to the TokenAllocator (CASSANDRA-12990)
  * Require forceful decommission if number of nodes is less than replication factor (CASSANDRA-12510)
  * Allow IN restrictions on column families with collections (CASSANDRA-12654)
- * Move to FastThreadLocalThread and FastThreadLocal (CASSANDRA-13034)
- * nodetool stopdaemon errors out (CASSANDRA-13030)
  * Log message size in trace message in OutboundTcpConnection (CASSANDRA-13028)
  * Add timeUnit Days for cassandra-stress (CASSANDRA-13029)
  * Add mutation size and batch metrics (CASSANDRA-12649)
  * Add method to get size of endpoints to TokenMetadata (CASSANDRA-12999)
- * Fix primary index calculation for SASI (CASSANDRA-12910)
  * Expose time spent waiting in thread pool queue (CASSANDRA-8398)
  * Conditionally update index built status to avoid unnecessary flushes (CASSANDRA-12969)
- * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
  * cqlsh auto completion: refactor definition of compaction strategy options (CASSANDRA-12946)
  * Add support for arithmetic operators (CASSANDRA-11935)
+
+
+3.11.0
+ * Move to FastThreadLocalThread and FastThreadLocal (CASSANDRA-13034)
+ * nodetool stopdaemon errors out (CASSANDRA-13030)
  * Tables in system_distributed should not use gcgs of 0 (CASSANDRA-12954)
+ * Fix primary index calculation for SASI (CASSANDRA-12910)
+ * More fixes to the TokenAllocator (CASSANDRA-12990)
+ * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
 Merged from 3.0:
  * Fix handling of partition with partition-level deletion plus
    live rows in sstabledump (CASSANDRA-13177)
