@@ -1,4 +1,5 @@
 4.0
+ * Increase commitlog version (CASSANDRA-13161)
  * Make TableMetadata immutable, optimize Schema (CASSANDRA-9425)
  * Refactor ColumnCondition (CASSANDRA-12981)
  * Parallelize streaming of different keyspaces (CASSANDRA-4663)
