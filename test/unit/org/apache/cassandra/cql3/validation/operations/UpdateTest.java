@@ -23,12 +23,15 @@ import java.util.Arrays;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.commons.lang3.StringUtils.isEmpty;
-
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+
+import static org.apache.commons.lang3.StringUtils.isEmpty;
+import static org.junit.Assert.assertTrue;
 
 public class UpdateTest extends CQLTester
 {
@@ -618,4 +621,50 @@ public class UpdateTest extends CQLTester
                    row(1,1,1,4,4));
     }
 
+    /**
+     * Test for CASSANDRA-13152
+     */
+    @Test
+    public void testThatUpdatesWithEmptyInRestrictionDoNotCreateMutations() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a,b))");
+
+        execute("UPDATE %s SET c = 100 WHERE a IN () AND b = 1;");
+        execute("UPDATE %s SET c = 100 WHERE a = 1 AND b IN ();");
+
+        assertTrue("The memtable should be empty but is not", isMemtableEmpty());
+
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, s int static, PRIMARY KEY ((a,b), c))");
+
+        execute("UPDATE %s SET d = 100 WHERE a = 1 AND b = 1 AND c IN ();");
+        execute("UPDATE %s SET d = 100 WHERE a = 1 AND b IN () AND c IN ();");
+        execute("UPDATE %s SET d = 100 WHERE a IN () AND b IN () AND c IN ();");
+        execute("UPDATE %s SET d = 100 WHERE a IN () AND b IN () AND c = 1;");
+        execute("UPDATE %s SET d = 100 WHERE a IN () AND b = 1 AND c IN ();");
+
+        assertTrue("The memtable should be empty but is not", isMemtableEmpty());
+
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY ((a,b), c, d))");
+
+        execute("UPDATE %s SET e = 100 WHERE a = 1 AND b = 1 AND c = 1 AND d IN ();");
+        execute("UPDATE %s SET e = 100 WHERE a = 1 AND b = 1 AND c IN () AND d IN ();");
+        execute("UPDATE %s SET e = 100 WHERE a = 1 AND b IN () AND c IN () AND d IN ();");
+        execute("UPDATE %s SET e = 100 WHERE a IN () AND b IN () AND c IN () AND d IN ();");
+        execute("UPDATE %s SET e = 100 WHERE a IN () AND b IN () AND c IN () AND d = 1;");
+        execute("UPDATE %s SET e = 100 WHERE a IN () AND b IN () AND c = 1 AND d = 1;");
+        execute("UPDATE %s SET e = 100 WHERE a IN () AND b IN () AND c = 1 AND d IN ();");
+
+        assertTrue("The memtable should be empty but is not", isMemtableEmpty());
+    }
+
+    /**
+     * Checks if the memtable is empty or not
+     * @return {@code true} if the memtable is empty, {@code false} otherwise.
+     */
+    private boolean isMemtableEmpty()
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(currentTable());
+        return cfs.metric.allMemtablesLiveDataSize.getValue() == 0;
+    }
 }
