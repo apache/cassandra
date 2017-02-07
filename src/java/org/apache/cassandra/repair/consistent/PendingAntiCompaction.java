@@ -92,6 +92,7 @@ public class PendingAntiCompaction
             return Iterables.filter(cfs.getLiveSSTables(), s -> !s.isRepaired() && !s.isPendingRepair() && s.intersects(ranges));
         }
 
+        @SuppressWarnings("resource")
         private AcquireResult acquireTuple()
         {
             List<SSTableReader> sstables = Lists.newArrayList(getSSTables());

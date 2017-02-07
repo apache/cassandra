@@ -228,6 +228,7 @@ class PendingRepairManager
         return tasks;
     }
 
+    @SuppressWarnings("resource")
     private RepairFinishedCompactionTask getRepairFinishedCompactionTask(UUID sessionID)
     {
         Set<SSTableReader> sstables = get(sessionID).getSSTables();
