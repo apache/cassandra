@@ -657,6 +657,10 @@ public abstract class ModificationStatement implements CQLStatement
         {
             NavigableSet<Clustering> clusterings = createClustering(options);
 
+            // If some of the restrictions were unspecified (e.g. empty IN restrictions) we do not need to do anything.
+            if (restrictions.hasClusteringColumnsRestriction() && clusterings.isEmpty())
+                return;
+
             UpdateParameters params = makeUpdateParameters(keys, clusterings, options, local, now);
 
             for (ByteBuffer key : keys)
