@@ -21,13 +21,15 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TimeUUIDSerializer;
 
-public class TimeUUIDType extends AbstractType<UUID>
+public class TimeUUIDType extends TemporalType<UUID>
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
 
@@ -133,5 +135,29 @@ public class TimeUUIDType extends AbstractType<UUID>
     public int valueLengthIfFixed()
     {
         return 16;
+    }
+
+    @Override
+    public long toTimeInMillis(ByteBuffer value)
+    {
+        return UUIDGen.unixTimestamp(UUIDGen.getUUID(value));
+    }
+
+    @Override
+    public ByteBuffer addDuration(ByteBuffer temporal, ByteBuffer duration)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ByteBuffer substractDuration(ByteBuffer temporal, ByteBuffer duration)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ByteBuffer now()
+    {
+        return ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
     }
 }

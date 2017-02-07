@@ -30,7 +30,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 /**
  * Nanosecond resolution time values
  */
-public class TimeType extends AbstractType<Long>
+public class TimeType extends TemporalType<Long>
 {
     public static final TimeType instance = new TimeType();
     private TimeType() {super(ComparisonType.BYTE_ORDER);} // singleton

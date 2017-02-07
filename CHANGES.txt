@@ -1,4 +1,5 @@
 4.0
+ * Add support for + and - operations on dates (CASSANDRA-11936)
  * Fix consistency of incrementally repaired data (CASSANDRA-9143)
  * Increase commitlog version (CASSANDRA-13161)
  * Make TableMetadata immutable, optimize Schema (CASSANDRA-9425)

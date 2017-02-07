@@ -17,6 +17,8 @@
 .. highlight:: cql
 
 .. _arithmetic_operators:
+.. _number-arithmetic:
+.. _datetime--arithmetic:
 
 Arithmetic Operators
 --------------------
@@ -26,15 +28,20 @@ CQL supports the following operators:
 =============== =======================================================================================================
  Operator        Description
 =============== =======================================================================================================
- \- (unary)       Negates operand
- \+               Addition
- \-               Substraction
- \*               Multiplication
+ \- (unary)      Negates operand
+ \+              Addition
+ \-              Substraction
+ \*              Multiplication
  /               Division
  %               Returns the remainder of a division
 =============== =======================================================================================================
 
-Arithmetic operations are only supported on numeric types or counters.
+.. _number-arithmetic:
+
+Number Arithmetic
+^^^^^^^^^^^^^^^^^
+
+All arithmetic operations are supported on numeric types or counters.
 
 The return type of the operation will be based on the operand types:
 
@@ -55,3 +62,15 @@ The return type of the operation will be based on the operand types:
 ``*``, ``/`` and ``%`` operators have a higher precedence level than ``+`` and ``-`` operator. By consequence,
 they will be evaluated before. If two operator in an expression have the same precedence level, they will be evaluated
 left to right based on their position in the expression.
+
+.. _datetime--arithmetic:
+
+Datetime Arithmetic
+^^^^^^^^^^^^^^^^^^^
+
+A ``duration`` can be added (+) or substracted (-) from a ``timestamp`` or a ``date`` to create a new
+``timestamp`` or ``date``. So for instance::
+
+    SELECT * FROM myTable WHERE t = '2017-01-01' - 2d
+
+will select all the records with a value of ``t`` which is in the last 2 days of 2016.

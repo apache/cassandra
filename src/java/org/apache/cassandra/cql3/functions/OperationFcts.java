@@ -37,18 +37,26 @@ public final class OperationFcts
     {
         ADDITION('+', "_add")
         {
-            protected ByteBuffer execute(NumberType<?> resultType,
-                                         NumberType<?> leftType,
-                                         ByteBuffer left,
-                                         NumberType<?> rightType,
-                                         ByteBuffer right)
+            protected ByteBuffer executeOnNumerics(NumberType<?> resultType,
+                                                   NumberType<?> leftType,
+                                                   ByteBuffer left,
+                                                   NumberType<?> rightType,
+                                                   ByteBuffer right)
             {
                 return resultType.add(leftType, left, rightType, right);
+            }
+
+            @Override
+            protected ByteBuffer executeOnTemporals(TemporalType<?> type,
+                                                    ByteBuffer temporal,
+                                                    ByteBuffer duration)
+            {
+                return type.addDuration(temporal, duration);
             }
         },
         SUBSTRACTION('-', "_substract")
         {
-            protected ByteBuffer execute(NumberType<?> resultType,
+            protected ByteBuffer executeOnNumerics(NumberType<?> resultType,
                                          NumberType<?> leftType,
                                          ByteBuffer left,
                                          NumberType<?> rightType,
@@ -56,10 +64,18 @@ public final class OperationFcts
             {
                 return resultType.substract(leftType, left, rightType, right);
             }
+
+            @Override
+            protected ByteBuffer executeOnTemporals(TemporalType<?> type,
+                                                    ByteBuffer temporal,
+                                                    ByteBuffer duration)
+            {
+                return type.substractDuration(temporal, duration);
+            }
         },
         MULTIPLICATION('*', "_multiply")
         {
-            protected ByteBuffer execute(NumberType<?> resultType,
+            protected ByteBuffer executeOnNumerics(NumberType<?> resultType,
                                          NumberType<?> leftType,
                                          ByteBuffer left,
                                          NumberType<?> rightType,
@@ -70,7 +86,7 @@ public final class OperationFcts
         },
         DIVISION('/', "_divide")
         {
-            protected ByteBuffer execute(NumberType<?> resultType,
+            protected ByteBuffer executeOnNumerics(NumberType<?> resultType,
                                          NumberType<?> leftType,
                                          ByteBuffer left,
                                          NumberType<?> rightType,
@@ -81,7 +97,7 @@ public final class OperationFcts
         },
         MODULO('%', "_modulo")
         {
-            protected ByteBuffer execute(NumberType<?> resultType,
+            protected ByteBuffer executeOnNumerics(NumberType<?> resultType,
                                          NumberType<?> leftType,
                                          ByteBuffer left,
                                          NumberType<?> rightType,
@@ -108,7 +124,7 @@ public final class OperationFcts
         }
 
         /**
-         * Executes the operation between the specified operand.
+         * Executes the operation between the specified numeric operand.
          *
          * @param resultType the result ype of the operation
          * @param leftType the type of the left operand
@@ -117,11 +133,26 @@ public final class OperationFcts
          * @param right the right operand
          * @return the operation result
          */
-        protected abstract ByteBuffer execute(NumberType<?> resultType,
-                                              NumberType<?> leftType,
-                                              ByteBuffer left,
-                                              NumberType<?> rightType,
-                                              ByteBuffer right);
+        protected abstract ByteBuffer executeOnNumerics(NumberType<?> resultType,
+                                                        NumberType<?> leftType,
+                                                        ByteBuffer left,
+                                                        NumberType<?> rightType,
+                                                        ByteBuffer right);
+
+        /**
+         * Executes the operation on the specified temporal operand.
+         *
+         * @param type the temporal type
+         * @param temporal the temporal value
+         * @param duration the duration
+         * @return the operation result
+         */
+        protected ByteBuffer executeOnTemporals(TemporalType<?> type,
+                                                ByteBuffer temporal,
+                                                ByteBuffer duration)
+        {
+            throw new UnsupportedOperationException();
+        }
 
         /**
          * Returns the {@code OPERATOR} associated to the specified function.
@@ -178,14 +209,18 @@ public final class OperationFcts
             for (NumberType<?> right : numericTypes)
             {
                 NumberType<?> returnType = returnType(left, right);
-                functions.add(new OperationFunction(returnType, left, OPERATION.ADDITION, right));
-                functions.add(new OperationFunction(returnType, left, OPERATION.SUBSTRACTION, right));
-                functions.add(new OperationFunction(returnType, left, OPERATION.MULTIPLICATION, right));
-                functions.add(new OperationFunction(returnType, left, OPERATION.DIVISION, right));
-                functions.add(new OperationFunction(returnType, left, OPERATION.MODULO, right));
+                for (OPERATION operation : OPERATION.values())
+                    functions.add(new NumericOperationFunction(returnType, left, operation, right));
             }
-            functions.add(new NegationFunction(left));
+            functions.add(new NumericNegationFunction(left));
         }
+
+        for (OPERATION operation : new OPERATION[] {OPERATION.ADDITION, OPERATION.SUBSTRACTION})
+        {
+            functions.add(new TemporalOperationFunction(TimestampType.instance, operation));
+            functions.add(new TemporalOperationFunction(SimpleDateType.instance, operation));
+        }
+
         return functions;
     }
 
@@ -298,16 +333,16 @@ public final class OperationFcts
     }
 
     /**
-     * Function that execute operations.
+     * Base class for functions that execute operations.
      */
-    private static class OperationFunction extends NativeScalarFunction
+    private static abstract class OperationFunction extends NativeScalarFunction
     {
         private final OPERATION operation;
 
-        public OperationFunction(NumberType<?> returnType,
-                                 NumberType<?> left,
+        public OperationFunction(AbstractType<?> returnType,
+                                 AbstractType<?> left,
                                  OPERATION operation,
-                                 NumberType<?> right)
+                                 AbstractType<?> right)
         {
             super(operation.functionName, returnType, left, right);
             this.operation = operation;
@@ -326,13 +361,9 @@ public final class OperationFcts
             if (left == null || !left.hasRemaining() || right == null || !right.hasRemaining())
                 return null;
 
-            NumberType<?> leftType = (NumberType<?>) argTypes().get(0);
-            NumberType<?> rightType = (NumberType<?>) argTypes().get(1);
-            NumberType<?> resultType = (NumberType<?>) returnType();
-
             try
             {
-                return operation.execute(resultType, leftType, left, rightType, right);
+                return doExecute(left, operation, right);
             }
             catch (Exception e)
             {
@@ -340,22 +371,67 @@ public final class OperationFcts
             }
         }
 
+        protected abstract ByteBuffer doExecute(ByteBuffer left, OPERATION operation, ByteBuffer right);
+
         /**
          * Returns the operator symbol.
          * @return the operator symbol
          */
-        private char getOperator()
+        private final char getOperator()
         {
             return operation.symbol;
         }
     }
 
     /**
+     * Function that execute operations on numbers.
+     */
+    private static class NumericOperationFunction extends OperationFunction
+    {
+        public NumericOperationFunction(NumberType<?> returnType,
+                                        NumberType<?> left,
+                                        OPERATION operation,
+                                        NumberType<?> right)
+        {
+            super(returnType, left, operation, right);
+        }
+
+        @Override
+        protected ByteBuffer doExecute(ByteBuffer left, OPERATION operation, ByteBuffer right)
+        {
+            NumberType<?> leftType = (NumberType<?>) argTypes().get(0);
+            NumberType<?> rightType = (NumberType<?>) argTypes().get(1);
+            NumberType<?> resultType = (NumberType<?>) returnType();
+
+            return operation.executeOnNumerics(resultType, leftType, left, rightType, right);
+        }
+    }
+
+    /**
+     * Function that execute operations on temporals (timestamp, date, ...).
+     */
+    private static class TemporalOperationFunction extends OperationFunction
+    {
+        public TemporalOperationFunction(TemporalType<?> type,
+                                         OPERATION operation)
+        {
+            super(type, type, operation, DurationType.instance);
+        }
+
+        @Override
+        protected ByteBuffer doExecute(ByteBuffer left, OPERATION operation, ByteBuffer right)
+        {
+            TemporalType<?> resultType = (TemporalType<?>) returnType();
+            return operation.executeOnTemporals(resultType, left, right);
+        }
+    }
+
+    /**
      * Function that negate a number.
      */
-    private static class NegationFunction extends NativeScalarFunction
+    private static class NumericNegationFunction extends NativeScalarFunction
     {
-        public NegationFunction(NumberType<?> inputType)
+        public NumericNegationFunction(NumberType<?> inputType)
         {
             super(NEGATION_FUNCTION_NAME, inputType, inputType);
         }
