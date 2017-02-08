@@ -1805,17 +1805,42 @@ public abstract class LegacyLayout
             if (a.isStatic != b.isStatic)
                 return a.isStatic ? -1 : 1;
 
-            int result = this.clusteringComparator.compare(a.bound, b.bound);
-            if (result != 0)
-                return result;
+            // We have to be careful with bound comparison because of collections. Namely, if the 2 bounds represent the
+            // same prefix, then we should take the collectionName into account before taking the bounds kind
+            // (ClusteringPrefix.Kind). This means we can't really call ClusteringComparator.compare() directly.
+            // For instance, if
+            //    a is (bound=INCL_START_BOUND('x'), collectionName='d')
+            //    b is (bound=INCL_END_BOUND('x'),   collectionName='c')
+            // Ten b < a since the element 'c' of collection 'x' comes before element 'd', but calling
+            // clusteringComparator.compare(a.bound, b.bound) returns -1.
+            // See CASSANDRA-13125 for details.
+            int sa = a.bound.size();
+            int sb = b.bound.size();
+            for (int i = 0; i < Math.min(sa, sb); i++)
+            {
+                int cmp = clusteringComparator.compareComponent(i, a.bound.get(i), b.bound.get(i));
+                if (cmp != 0)
+                    return cmp;
+            }
 
-            // If both have equal "bound" but one is a collection tombstone and not the other, then the other comes before as it points to the beginning of the row.
-            if (a.collectionName == null)
-                return b.collectionName == null ? 0 : 1;
-            if (b.collectionName == null)
-                return -1;
+            if (sa != sb)
+                return sa < sb ? a.bound.kind().comparedToClustering : -b.bound.kind().comparedToClustering;
 
-            return UTF8Type.instance.compare(a.collectionName.name.bytes, b.collectionName.name.bytes);
+            // Both bound represent the same prefix, compare the collection names
+            // If one has a collection name and the other doesn't, the other comes before as it points to the beginning of the row.
+            if ((a.collectionName == null) != (b.collectionName == null))
+                return a.collectionName == null ? -1 : 1;
+
+            // If they both have a collection, compare that first
+            if (a.collectionName != null)
+            {
+                int cmp = UTF8Type.instance.compare(a.collectionName.name.bytes, b.collectionName.name.bytes);
+                if (cmp != 0)
+                    return cmp;
+            }
+
+            // Lastly, if everything so far is equal, compare their clustering kind
+            return ClusteringPrefix.Kind.compare(a.bound.kind(), b.bound.kind());
         }
     }
 
@@ -1832,8 +1857,8 @@ public abstract class LegacyLayout
 
         // Note: we don't want to use a List for the markedAts and delTimes to avoid boxing. We could
         // use a List for starts and ends, but having arrays everywhere is almost simpler.
-        private LegacyBound[] starts;
-        private LegacyBound[] ends;
+        LegacyBound[] starts;
+        LegacyBound[] ends;
         private long[] markedAts;
         private int[] delTimes;
 
@@ -1853,6 +1878,20 @@ public abstract class LegacyLayout
         public LegacyRangeTombstoneList(LegacyBoundComparator comparator, int capacity)
         {
             this(comparator, new LegacyBound[capacity], new LegacyBound[capacity], new long[capacity], new int[capacity], 0);
+        }
+
+        @Override
+        public String toString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.append('[');
+            for (int i = 0; i < size; i++)
+            {
+                if (i > 0)
+                    sb.append(',');
+                sb.append('(').append(starts[i]).append(", ").append(ends[i]).append(')');
+            }
+            return sb.append(']').toString();
         }
 
         public boolean isEmpty()
@@ -2109,6 +2148,7 @@ public abstract class LegacyLayout
             // If we got there, then just insert the remainder at the end
             addInternal(i, start, end, markedAt, delTime);
         }
+
         private int capacity()
         {
             return starts.length;
