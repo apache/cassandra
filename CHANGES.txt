@@ -1,4 +1,6 @@
 3.0.11
+ * Hint related logging should include the IP address of the destination in addition to 
+   host ID (CASSANDRA-13205)
  * Reloading logback.xml does not work (CASSANDRA-13173)
  * Lightweight transactions temporarily fail after upgrade from 2.1 to 3.0 (CASSANDRA-13109)
  * Duplicate rows after upgrading from 2.1.16 to 3.0.10/3.9 (CASSANDRA-13125)

@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.UnknownColumnFamilyException;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CLibrary;
@@ -225,7 +226,8 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
             }
             catch (UnknownColumnFamilyException e)
             {
-                logger.warn("Failed to read a hint for {} - table with id {} is unknown in file {}",
+                logger.warn("Failed to read a hint for {}: {} - table with id {} is unknown in file {}",
+                            StorageService.instance.getEndpointForHostId(descriptor.hostId),
                             descriptor.hostId,
                             e.cfId,
                             descriptor.fileName());
@@ -238,7 +240,8 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 return hint;
 
             // log a warning and skip the corrupted entry
-            logger.warn("Failed to read a hint for {} - digest mismatch for hint at position {} in file {}",
+            logger.warn("Failed to read a hint for {}: {} - digest mismatch for hint at position {} in file {}",
+                        StorageService.instance.getEndpointForHostId(descriptor.hostId),
                         descriptor.hostId,
                         input.getPosition() - size - 4,
                         descriptor.fileName());

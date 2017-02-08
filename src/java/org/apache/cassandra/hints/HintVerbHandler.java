@@ -47,6 +47,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
     {
         UUID hostId = message.payload.hostId;
         Hint hint = message.payload.hint;
+        InetAddress address = StorageService.instance.getEndpointForHostId(hostId);
 
         // If we see an unknown table id, it means the table, or one of the tables in the mutation, had been dropped.
         // In that case there is nothing we can really do, or should do, other than log it go on.
@@ -54,7 +55,8 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         // is schema agreement between the sender and the receiver.
         if (hint == null)
         {
-            logger.trace("Failed to decode and apply a hint for {} - table with id {} is unknown",
+            logger.trace("Failed to decode and apply a hint for {}: {} - table with id {} is unknown",
+                         address,
                          hostId,
                          message.payload.unknownTableID);
             reply(id, message.from);
@@ -68,7 +70,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         }
         catch (MarshalException e)
         {
-            logger.warn("Failed to validate a hint for {} (table id {}) - skipped", hostId);
+            logger.warn("Failed to validate a hint for {}: {} - skipped", address, hostId);
             reply(id, message.from);
             return;
         }
