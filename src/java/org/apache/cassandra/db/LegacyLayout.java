@@ -1263,7 +1263,7 @@ public abstract class LegacyLayout
                 return true;
             }
 
-            if (tombstone.isCollectionTombstone())
+            if (tombstone.isCollectionTombstone() && helper.includes(tombstone.start.collectionName))
             {
                 if (clustering == null)
                 {
