@@ -1,4 +1,5 @@
 2.1.17
+ * Fix Thread Leak in OutboundTcpConnection (CASSANDRA-13204)
  * Coalescing strategy can enter infinite loop (CASSANDRA-13159)
  * Upgrade netty version to fix memory leak with client encryption (CASSANDRA-13114)
  * Fix paging for DISTINCT queries on partition keys and static columns (CASSANDRA-13017)
