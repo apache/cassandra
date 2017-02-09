@@ -105,6 +105,13 @@ public final class ThreadAwareSecurityManager extends SecurityManager
         SMAwareReconfigureOnChangeFilter(ReconfigureOnChangeFilter reconfigureOnChangeFilter)
         {
             setRefreshPeriod(reconfigureOnChangeFilter.getRefreshPeriod());
+            setName(reconfigureOnChangeFilter.getName());
+            setContext(reconfigureOnChangeFilter.getContext());
+            if (reconfigureOnChangeFilter.isStarted())
+            {
+                reconfigureOnChangeFilter.stop();
+                start();
+            }
         }
 
         protected boolean changeDetected(long now)

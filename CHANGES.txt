@@ -1,4 +1,5 @@
 3.0.11
+ * Reloading logback.xml does not work (CASSANDRA-13173)
  * Lightweight transactions temporarily fail after upgrade from 2.1 to 3.0 (CASSANDRA-13109)
  * Duplicate rows after upgrading from 2.1.16 to 3.0.10/3.9 (CASSANDRA-13125)
  * Fix UPDATE queries with empty IN restrictions (CASSANDRA-13152)
