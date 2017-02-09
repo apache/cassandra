@@ -50,6 +50,7 @@ Merged from 2.2:
  * Fix leak on skipped SSTables in sstableupgrade (CASSANDRA-12899)
  * Avoid blocking gossip during pending range calculation (CASSANDRA-12281)
 Merged from 2.1:
+ * Upgrade netty version to fix memory leak with client encryption (CASSANDRA-13114)
  * cqlsh copy-from: sort user type fields in csv (CASSANDRA-12959)
 
 

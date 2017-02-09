@@ -551,15 +551,19 @@ public abstract class Message
         public void exceptionCaught(final ChannelHandlerContext ctx, Throwable cause)
         throws Exception
         {
+            // Provide error message to client in case channel is still open
+            UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), false);
+            ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
             if (ctx.channel().isOpen())
             {
-                UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), false);
-                ChannelFuture future = ctx.writeAndFlush(ErrorMessage.fromException(cause, handler));
+                ChannelFuture future = ctx.writeAndFlush(errorMessage);
                 // On protocol exception, close the channel as soon as the message have been sent
                 if (cause instanceof ProtocolException)
                 {
-                    future.addListener(new ChannelFutureListener() {
-                        public void operationComplete(ChannelFuture future) {
+                    future.addListener(new ChannelFutureListener()
+                    {
+                        public void operationComplete(ChannelFuture future)
+                        {
                             ctx.close();
                         }
                     });
