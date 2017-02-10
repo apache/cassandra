@@ -96,7 +96,7 @@ public class CoalescingStrategies
     {
         // only sleep if we can expect to double the number of messages we're sending in the time interval
         long sleep = messages * averageGap;
-        if (sleep > maxCoalesceWindow)
+        if (sleep <= 0 || sleep > maxCoalesceWindow)
             return false;
 
         // assume we receive as many messages as we expect; apply the same logic to the future batch:
