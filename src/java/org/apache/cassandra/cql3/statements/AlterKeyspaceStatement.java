@@ -18,7 +18,9 @@
 package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -26,7 +28,9 @@ import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.Event;
 
 public class AlterKeyspaceStatement extends SchemaAlteringStatement
@@ -74,7 +78,24 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
             params.validate(name);
             if (params.replication.klass.equals(LocalStrategy.class))
                 throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
+            warnIfIncreasingRF(ksm, params);
         }
+    }
+
+    private void warnIfIncreasingRF(KeyspaceMetadata ksm, KeyspaceParams params)
+    {
+        AbstractReplicationStrategy oldStrategy = AbstractReplicationStrategy.createReplicationStrategy(ksm.name,
+                                                                                                        ksm.params.replication.klass,
+                                                                                                        StorageService.instance.getTokenMetadata(),
+                                                                                                        DatabaseDescriptor.getEndpointSnitch(),
+                                                                                                        ksm.params.replication.options);
+        AbstractReplicationStrategy newStrategy = AbstractReplicationStrategy.createReplicationStrategy(keyspace(),
+                                                                                                        params.replication.klass,
+                                                                                                        StorageService.instance.getTokenMetadata(),
+                                                                                                        DatabaseDescriptor.getEndpointSnitch(),
+                                                                                                        params.replication.options);
+        if (newStrategy.getReplicationFactor() > oldStrategy.getReplicationFactor())
+            ClientWarn.instance.warn("When increasing replication factor you need to run a full (-full) repair to distribute the data.");
     }
 
     public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws RequestValidationException
