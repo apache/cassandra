@@ -16,6 +16,8 @@ Merged from 3.0:
    for a table that's in system_schema.tables (CASSANDRA-13180)
 Merged from 2.2:
   * Use only one file pointer when creating commitlog segments (CASSANDRA-12539)
+Merged from 2.1:
+ * Coalescing strategy can enter infinite loop (CASSANDRA-13159)
 
 3.10
  * Fix secondary index queries regression (CASSANDRA-13013)
