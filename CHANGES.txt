@@ -49,6 +49,7 @@ Merged from 2.2:
   * Use only one file pointer when creating commitlog segments (CASSANDRA-12539)
 Merged from 2.1:
  * Upgrade netty version to fix memory leak with client encryption (CASSANDRA-13114)
+ * Coalescing strategy can enter infinite loop (CASSANDRA-13159)
 
 
 3.10
