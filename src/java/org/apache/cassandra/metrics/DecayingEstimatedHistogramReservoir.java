@@ -351,11 +351,12 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         public EstimatedHistogramReservoirSnapshot(DecayingEstimatedHistogramReservoir reservoir)
         {
             final int length = reservoir.decayingBuckets.length();
+            final double rescaleFactor = forwardDecayWeight(clock.getTime());
 
             this.decayingBuckets = new long[length];
 
             for (int i = 0; i < length; i++)
-                this.decayingBuckets[i] = reservoir.decayingBuckets.get(i);
+                this.decayingBuckets[i] = Math.round(reservoir.decayingBuckets.get(i) / rescaleFactor);
         }
 
         /**
