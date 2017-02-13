@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
@@ -30,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.SchemaConstants;
@@ -80,6 +82,7 @@ public class StartupChecks
                                                                       inspectJvmOptions,
                                                                       checkJnaInitialization,
                                                                       initSigarLibrary,
+                                                                      checkMaxMapCount,
                                                                       checkDataDirs,
                                                                       checkSSTablesFormat,
                                                                       checkSystemKeyspaceState,
@@ -215,6 +218,53 @@ public class StartupChecks
         public void execute()
         {
             SigarLibrary.instance.warnIfRunningInDegradedMode();
+        }
+    };
+
+    public static final StartupCheck checkMaxMapCount = new StartupCheck()
+    {
+        private final long EXPECTED_MAX_MAP_COUNT = 1048575;
+        private final String MAX_MAP_COUNT_PATH = "/proc/sys/vm/max_map_count";
+
+        private long getMaxMapCount()
+        {
+            final Path path = Paths.get(MAX_MAP_COUNT_PATH);
+            try (final BufferedReader bufferedReader = Files.newBufferedReader(path))
+            {
+                final String data = bufferedReader.readLine();
+                if (data != null)
+                {
+                    try
+                    {
+                        return Long.parseLong(data);
+                    }
+                    catch (final NumberFormatException e)
+                    {
+                        logger.warn("Unable to parse {}.", path, e);
+                    }
+                }
+            }
+            catch (final IOException e)
+            {
+                logger.warn("IO exception while reading file {}.", path, e);
+            }
+            return -1;
+        }
+
+        public void execute()
+        {
+            if (!FBUtilities.isLinux)
+                return;
+
+            if (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.standard &&
+                DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.standard)
+                return; // no need to check if disk access mode is only standard and not mmap
+
+            long maxMapCount = getMaxMapCount();
+            if (maxMapCount < EXPECTED_MAX_MAP_COUNT)
+                logger.warn("Maximum number of memory map areas per process (vm.max_map_count) {} " +
+                            "is too low, recommended value: {}, you can change it with sysctl.",
+                            maxMapCount, EXPECTED_MAX_MAP_COUNT);
         }
     };
 

@@ -75,6 +75,7 @@ public class FBUtilities
 
     private static final String OPERATING_SYSTEM = System.getProperty("os.name").toLowerCase();
     public static final boolean isWindows = OPERATING_SYSTEM.contains("windows");
+    public static final boolean isLinux = OPERATING_SYSTEM.contains("linux");
 
     private static volatile InetAddress localInetAddress;
     private static volatile InetAddress broadcastInetAddress;

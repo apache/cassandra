@@ -103,6 +103,13 @@ public class StartupChecksTest
         startupChecks.verify();
     }
 
+    @Test
+    public void maxMapCountCheck() throws Exception
+    {
+        startupChecks = startupChecks.withTest(StartupChecks.checkMaxMapCount);
+        startupChecks.verify();
+    }
+
     private void copyLegacyNonSSTableFiles(Path targetDir) throws IOException
     {
 
