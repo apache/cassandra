@@ -50,6 +50,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSError;
@@ -1758,7 +1759,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public boolean intersects(Collection<Range<Token>> ranges)
     {
-        Range<Token> range = new Range<>(first.getToken(), last.getToken());
+        Bounds<Token> range = new Bounds<>(first.getToken(), last.getToken());
         return Iterables.any(ranges, r -> r.intersects(range));
     }
 
