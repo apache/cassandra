@@ -85,6 +85,8 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     //Size of 3 elements added to every message
     private static final int PROTOCOL_MAGIC_ID_TIMESTAMP_SIZE = 12;
 
+    public static final int MAX_COALESCED_MESSAGES = 128;
+
     private static CoalescingStrategy newCoalescingStrategy(String displayName)
     {
         return CoalescingStrategies.newCoalescingStrategy(DatabaseDescriptor.getOtcCoalescingStrategy(),
@@ -200,7 +202,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
 
     public void run()
     {
-        final int drainedMessageSize = 128;
+        final int drainedMessageSize = MAX_COALESCED_MESSAGES;
         // keeping list (batch) size small for now; that way we don't have an unbounded array (that we never resize)
         final List<QueuedMessage> drainedMessages = new ArrayList<>(drainedMessageSize);
 

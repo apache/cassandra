@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.utils;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.CoalescingStrategies.Clock;
 import org.apache.cassandra.utils.CoalescingStrategies.Coalescable;
 import org.apache.cassandra.utils.CoalescingStrategies.CoalescingStrategy;
 import org.apache.cassandra.utils.CoalescingStrategies.Parker;
+import org.junit.BeforeClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -100,6 +102,12 @@ public class CoalescingStrategiesTest
 
     Semaphore queueParked = new Semaphore(0);
     Semaphore queueRelease = new Semaphore(0);
+
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @SuppressWarnings({ "serial" })
     @Before
@@ -203,6 +211,38 @@ public class CoalescingStrategiesTest
         release();
         assertEquals( 3, output.size());
         assertEquals(toNanos(200), parker.parks.poll().longValue());
+
+    }
+
+    @Test
+    public void testFixedCoalescingStrategyEnough() throws Exception
+    {
+        int oldValue = DatabaseDescriptor.getOtcCoalescingEnoughCoalescedMessages();
+        DatabaseDescriptor.setOtcCoalescingEnoughCoalescedMessages(1);
+        try {
+            cs = newStrategy("FIXED", 200);
+
+            //Test that when a stream of messages continues arriving it keeps sending until all are drained
+            //It does this because it is already awake and sending messages
+            add(42);
+            add(42);
+            cs.coalesce(input, output, 128);
+            assertEquals(2, output.size());
+            assertNull(parker.parks.poll());
+
+            clear();
+
+            runBlocker(queueParked);
+            add(42);
+            add(42);
+            add(42);
+            release();
+            assertEquals(3, output.size());
+            assertNull(parker.parks.poll());
+        }
+        finally {
+            DatabaseDescriptor.setOtcCoalescingEnoughCoalescedMessages(oldValue);
+        }
 
     }
 
