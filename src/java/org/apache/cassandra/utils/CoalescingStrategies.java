@@ -19,8 +19,11 @@ package org.apache.cassandra.utils;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
+
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.RandomAccessFile;
@@ -40,6 +43,7 @@ import com.google.common.base.Preconditions;
 
 public class CoalescingStrategies
 {
+    static protected final Logger logger = LoggerFactory.getLogger(CoalescingStrategies.class);
 
     /*
      * Log debug information at info level about what the average is and when coalescing is enabled/disabled
@@ -89,15 +93,23 @@ public class CoalescingStrategies
     {
         long now = System.nanoTime();
         final long timer = now + nanos;
+        // We shouldn't loop if it's within a few % of the target sleep time if on a second iteration.
+        // See CASSANDRA-8692.
+        final long limit = timer - nanos / 16;
         do
         {
             LockSupport.parkNanos(timer - now);
+            now = System.nanoTime();
         }
-        while (timer - (now = System.nanoTime()) > nanos / 16);
+        while (now < limit);
     }
 
     private static boolean maybeSleep(int messages, long averageGap, long maxCoalesceWindow, Parker parker)
     {
+        // Do not sleep if there are still items in the backlog (CASSANDRA-13090).
+        if (messages >= DatabaseDescriptor.getOtcCoalescingEnoughCoalescedMessages())
+            return false;
+
         // only sleep if we can expect to double the number of messages we're sending in the time interval
         long sleep = messages * averageGap;
         if (sleep <= 0 || sleep > maxCoalesceWindow)
@@ -335,7 +347,7 @@ public class CoalescingStrategies
             if (input.drainTo(out, maxItems) == 0)
             {
                 out.add(input.take());
-                input.drainTo(out, maxItems - 1);
+                input.drainTo(out, maxItems - out.size());
             }
 
             for (Coalescable qm : out)
@@ -418,15 +430,16 @@ public class CoalescingStrategies
             if (input.drainTo(out, maxItems) == 0)
             {
                 out.add(input.take());
+                input.drainTo(out, maxItems - out.size());
             }
 
             long average = notifyOfSample(out.get(0).timestampNanos());
-
             debugGap(average);
 
-            maybeSleep(out.size(), average, maxCoalesceWindow, parker);
+            if (maybeSleep(out.size(), average, maxCoalesceWindow, parker)) {
+                input.drainTo(out, maxItems - out.size());
+            }
 
-            input.drainTo(out, maxItems - out.size());
             for (int ii = 1; ii < out.size(); ii++)
                 notifyOfSample(out.get(ii).timestampNanos());
         }
@@ -455,11 +468,16 @@ public class CoalescingStrategies
         @Override
         protected <C extends Coalescable> void coalesceInternal(BlockingQueue<C> input, List<C> out,  int maxItems) throws InterruptedException
         {
+            int enough = DatabaseDescriptor.getOtcCoalescingEnoughCoalescedMessages();
+
             if (input.drainTo(out, maxItems) == 0)
             {
                 out.add(input.take());
-                parker.park(coalesceWindow);
-                input.drainTo(out, maxItems - 1);
+                input.drainTo(out, maxItems - out.size());
+                if (out.size() < enough) {
+                    parker.park(coalesceWindow);
+                    input.drainTo(out, maxItems - out.size());
+                }
             }
             debugTimestamps(out);
         }
