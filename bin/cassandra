@@ -99,7 +99,7 @@ else
 fi
 
 if [ -z $JAVA ] ; then
-    echo Unable to find java executable. Check JAVA_HOME and PATH environment variables. > /dev/stderr
+    echo Unable to find java executable. Check JAVA_HOME and PATH environment variables. >&2
     exit 1;
 fi
 

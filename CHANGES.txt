@@ -1,4 +1,5 @@
 2.1.17
+ * Use portable stderr for java error in startup (CASSANDRA-13211)
  * Fix Thread Leak in OutboundTcpConnection (CASSANDRA-13204)
  * Coalescing strategy can enter infinite loop (CASSANDRA-13159)
  * Upgrade netty version to fix memory leak with client encryption (CASSANDRA-13114)
