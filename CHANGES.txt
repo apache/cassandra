@@ -37,6 +37,7 @@
  * More fixes to the TokenAllocator (CASSANDRA-12990)
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
 Merged from 3.0:
+ * Add vm.max_map_count StartupCheck (CASSANDRA-13008)
  * Obfuscate password in stress-graphs (CASSANDRA-12233)
  * Hint related logging should include the IP address of the destination in addition to
    host ID (CASSANDRA-13205)
