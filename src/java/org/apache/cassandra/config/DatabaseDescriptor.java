@@ -731,6 +731,12 @@ public class DatabaseDescriptor
 
         if (conf.max_value_size_in_mb == null || conf.max_value_size_in_mb <= 0)
             throw new ConfigurationException("max_value_size_in_mb must be positive", false);
+
+        if (conf.otc_coalescing_enough_coalesced_messages > 128)
+            throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be smaller than 128", false);
+
+        if (conf.otc_coalescing_enough_coalesced_messages <= 0)
+            throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be positive", false);
     }
 
     private static FileStore guessFileStore(String dir) throws IOException
@@ -1949,6 +1955,16 @@ public class DatabaseDescriptor
     public static int getOtcCoalescingWindow()
     {
         return conf.otc_coalescing_window_us;
+    }
+
+    public static int getOtcCoalescingEnoughCoalescedMessages()
+    {
+        return conf.otc_coalescing_enough_coalesced_messages;
+    }
+
+    public static void setOtcCoalescingEnoughCoalescedMessages(int otc_coalescing_enough_coalesced_messages)
+    {
+        conf.otc_coalescing_enough_coalesced_messages = otc_coalescing_enough_coalesced_messages;
     }
 
     public static int getWindowsTimerInterval()
