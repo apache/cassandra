@@ -32,7 +32,7 @@ public class StreamingHistogramTest
     @Test
     public void testFunction() throws Exception
     {
-        StreamingHistogram hist = new StreamingHistogram(5);
+        StreamingHistogram hist = new StreamingHistogram(5, 5, 1);
         long[] samples = new long[]{23, 19, 10, 16, 36, 2, 9, 32, 30, 45};
 
         // add 7 points to histogram of 5 bins
@@ -58,7 +58,7 @@ public class StreamingHistogramTest
         }
 
         // merge test
-        StreamingHistogram hist2 = new StreamingHistogram(3);
+        StreamingHistogram hist2 = new StreamingHistogram(3, 0, 1);
         for (int i = 7; i < samples.length; i++)
         {
             hist2.update(samples[i]);
@@ -88,7 +88,7 @@ public class StreamingHistogramTest
     @Test
     public void testSerDe() throws Exception
     {
-        StreamingHistogram hist = new StreamingHistogram(5);
+        StreamingHistogram hist = new StreamingHistogram(5, 0, 1);
         long[] samples = new long[]{23, 19, 10, 16, 36, 2, 9};
 
         // add 7 points to histogram of 5 bins
@@ -119,4 +119,37 @@ public class StreamingHistogramTest
             assertEquals(entry.getValue(), actual.getValue());
         }
     }
+
+    @Test
+    public void testOverflow() throws Exception
+    {
+        StreamingHistogram hist = new StreamingHistogram(5, 10, 1);
+        long[] samples = new long[]{23, 19, 10, 16, 36, 2, 9, 32, 30, 45, 31,
+                32, 32, 33, 34, 35, 70, 78, 80, 90, 100,
+                32, 32, 33, 34, 35, 70, 78, 80, 90, 100
+        };
+
+        // Hit the spool cap, force it to make bins
+        for (int i = 0; i < samples.length; i++)
+        {
+            hist.update(samples[i]);
+        }
+        assertEquals(5, hist.getAsMap().keySet().size());
+
+    }
+
+    @Test
+    public void testRounding() throws Exception
+    {
+        StreamingHistogram hist = new StreamingHistogram(5, 10, 60);
+        long[] samples = new long[] { 59, 60, 119, 180, 181, 300 }; // 60, 60, 120, 180, 240, 300
+        for (int i = 0 ; i < samples.length ; i++)
+            hist.update(samples[i]);
+
+        assertEquals(hist.getAsMap().keySet().size(), (int) 5);
+        assertEquals((long) hist.getAsMap().get(Double.valueOf(60)), (long) 2L);
+        assertEquals((long) hist.getAsMap().get(Double.valueOf(120)), (long) 1L);
+
+    }
+
 }
