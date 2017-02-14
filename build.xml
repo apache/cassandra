@@ -413,34 +413,50 @@
           <dependency groupId="joda-time" artifactId="joda-time" version="2.4" />
 
         </dependencyManagement>
+        <developer id="adelapena" name="Andres de la Peña"/>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="aleksey" name="Aleksey Yeschenko"/>
         <developer id="amorton" name="Aaron Morton"/>
+        <developer id="aweisberg" name="Ariel Weisberg"/>
+        <developer id="bdeggleston" name="Blake Eggleston"/>
         <developer id="benedict" name="Benedict Elliott Smith"/>
         <developer id="benjamin" name="Benjamin Lerer"/>
+        <developer id="blambov" name="Branimir Lambov"/>
         <developer id="brandonwilliams" name="Brandon Williams"/>
-        <developer id="dbrosius" name="David Brosius"/>
+        <developer id="carl" name="Carl Yeksigian"/>
+        <developer id="dbrosius" name="David Brosiusd"/>
+        <developer id="dikang" name="Dikang Gu"/>
         <developer id="eevans" name="Eric Evans"/>
         <developer id="gdusbabek" name="Gary Dusbabek"/>
         <developer id="goffinet" name="Chris Goffinet"/>
+        <developer id="ifesdjeen" name="Alex Petrov"/>
         <developer id="jaakko" name="Laine Jaakko Olavi"/>
         <developer id="jake" name="T Jake Luciani"/>
         <developer id="jasonbrown" name="Jason Brown"/>
         <developer id="jbellis" name="Jonathan Ellis"/>
+        <developer id="jfarrell" name="Jake Farrell"/>
+        <developer id="jjirsa" name="Jeff Jirsa"/>
+        <developer id="jkni" name="Joel Knighton"/>
         <developer id="jmckenzie" name="Josh McKenzie"/>
         <developer id="johan" name="Johan Oskarsson"/>
         <developer id="junrao" name="Jun Rao"/>
+        <developer id="kohlisankalp" name="Sankalp Kohli"/>
         <developer id="marcuse" name="Marcus Eriksson"/>
+        <developer id="mck" name="Michael Semb Wever"/>
         <developer id="mishail" name="Mikhail Stepura"/>
+        <developer id="mshuler" name="Michael Shuler"/>
+        <developer id="paulo" name="Paulo Motta"/>
         <developer id="pmalik" name="Prashant Malik"/>
-      	<developer id="rstupp" name="Robert Stupp"/>
+        <developer id="rstupp" name="Robert Stupp"/>
         <developer id="scode" name="Peter Schuller"/>
         <developer id="beobal" name="Sam Tunnicliffe"/>
         <developer id="slebresne" name="Sylvain Lebresne"/>
+        <developer id="stefania" name="Stefania Alborghetti"/>
         <developer id="tylerhobbs" name="Tyler Hobbs"/>
         <developer id="vijay" name="Vijay Parthasarathy"/>
         <developer id="xedin" name="Pavel Yaskevich"/>
         <developer id="yukim" name="Yuki Morishita"/>
+        <developer id="zznate" name="Nate McCall"/>
       </artifact:pom>
 
       <!-- each dependency set then defines the subset of the dependencies for that dependency set -->
