@@ -40,13 +40,13 @@ import org.apache.cassandra.net.IMessageSink;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.consistent.AbstractConsistentSessionTest;
+import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 
 @Ignore
-public class AbstractPendingRepairTest extends AbstractConsistentSessionTest
+public class AbstractPendingRepairTest extends AbstractRepairTest
 {
     protected String ks;
     protected final String tbl = "tbl";

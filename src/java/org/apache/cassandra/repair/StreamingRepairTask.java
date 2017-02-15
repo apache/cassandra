@@ -19,6 +19,7 @@ package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,13 +65,17 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
             ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId);
             isIncremental = prs.isIncremental;
         }
-        new StreamPlan("Repair", repairedAt, 1, false, isIncremental, false, isConsistent ? desc.parentSessionId : null).listeners(this)
-                                            .flushBeforeTransfer(true)
-                                            // request ranges from the remote node
-                                            .requestRanges(dest, preferred, desc.keyspace, request.ranges, desc.columnFamily)
-                                            // send ranges to the remote node
-                                            .transferRanges(dest, preferred, desc.keyspace, request.ranges, desc.columnFamily)
-                                            .execute();
+        createStreamPlan(dest, preferred, isIncremental).execute();
+    }
+
+    @VisibleForTesting
+    StreamPlan createStreamPlan(InetAddress dest, InetAddress preferred, boolean isIncremental)
+    {
+        return new StreamPlan("Repair", repairedAt, 1, false, isIncremental, false, isConsistent ? desc.parentSessionId : null)
+               .listeners(this)
+               .flushBeforeTransfer(!isIncremental) // sstables are isolated at the beginning of an incremental repair session, so flushing isn't neccessary
+               .requestRanges(dest, preferred, desc.keyspace, request.ranges, desc.columnFamily) // request ranges from the remote node
+               .transferRanges(dest, preferred, desc.keyspace, request.ranges, desc.columnFamily); // send ranges to the remote node
     }
 
     public void handleStreamEvent(StreamEvent event)

@@ -202,4 +202,14 @@ public class StreamPlan
         this.flushBeforeTransfer = flushBeforeTransfer;
         return this;
     }
+
+    public long getRepairedAt()
+    {
+        return repairedAt;
+    }
+
+    public boolean getFlushBeforeTransfer()
+    {
+        return flushBeforeTransfer;
+    }
 }

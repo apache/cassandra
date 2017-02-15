@@ -41,6 +41,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -64,7 +65,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
 
-public class LocalSessionTest extends AbstractConsistentSessionTest
+public class LocalSessionTest extends AbstractRepairTest
 {
 
     static LocalSession.Builder createBuilder()
@@ -196,7 +197,7 @@ public class LocalSessionTest extends AbstractConsistentSessionTest
 
     private static UUID registerSession()
     {
-        return registerSession(cfs);
+        return registerSession(cfs, true, true);
     }
 
     @Test

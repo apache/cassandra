@@ -37,6 +37,7 @@ import com.google.common.util.concurrent.SettableFuture;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.repair.RepairSessionResult;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
@@ -47,7 +48,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
 
-public class CoordinatorSessionTest extends AbstractConsistentSessionTest
+public class CoordinatorSessionTest extends AbstractRepairTest
 {
 
     static CoordinatorSession.Builder createBuilder()
