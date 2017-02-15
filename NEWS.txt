@@ -19,8 +19,8 @@ using the provided 'sstableupgrade' tool.
 
 Upgrading
 ---------
-   - Nothing specific to this release, but please read all notes back to your
-     current version if you are upgrading.
+   - Primary ranges in the system.size_estimates table are now based on the keyspace
+     replication settings and adjacent ranges are no longer merged (CASSANDRA-9639).
 
 3.10
 ====
