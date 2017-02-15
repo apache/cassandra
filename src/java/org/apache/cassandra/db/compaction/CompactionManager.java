@@ -565,48 +565,6 @@ public class CompactionManager implements CompactionManagerMBean
         }, jobs, OperationType.RELOCATE);
     }
 
-    public ListenableFuture<?> submitAntiCompaction(final ColumnFamilyStore cfs,
-                                                    final Collection<Range<Token>> ranges,
-                                                    final Refs<SSTableReader> sstables,
-                                                    final long repairedAt,
-                                                    final UUID pendingRepair,
-                                                    final UUID parentRepairSession)
-    {
-        Runnable runnable = new WrappedRunnable()
-        {
-            @Override
-            @SuppressWarnings("resource")
-            public void runMayThrow() throws Exception
-            {
-                LifecycleTransaction modifier = null;
-                while (modifier == null)
-                {
-                    for (SSTableReader compactingSSTable : cfs.getTracker().getCompacting())
-                        sstables.releaseIfHolds(compactingSSTable);
-                    Set<SSTableReader> compactedSSTables = new HashSet<>();
-                    for (SSTableReader sstable : sstables)
-                        if (sstable.isMarkedCompacted())
-                            compactedSSTables.add(sstable);
-                    sstables.release(compactedSSTables);
-                    modifier = cfs.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
-                }
-                performAnticompaction(cfs, ranges, sstables, modifier, repairedAt, pendingRepair, parentRepairSession);
-            }
-        };
-
-        ListenableFuture<?> ret = null;
-        try
-        {
-            ret = executor.submitIfRunning(runnable, "anticompaction");
-            return ret;
-        }
-        finally
-        {
-            if (ret == null || ret.isCancelled())
-                sstables.release();
-        }
-    }
-
     /**
      * Splits the given token ranges of the given sstables into a pending repair silo
      */
