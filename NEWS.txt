@@ -22,9 +22,6 @@ New features
      See CASSANDRA-11936
    - Support for arithmetic operations on number has been added. See CASSANDRA-11935
 
-3.11
-====
-
 Upgrading
 ---------
     - Cassandra 4.0 removed support for the deprecated Thrift interface. Amongst
@@ -46,6 +43,14 @@ Upgrading
       full and incremental repairs. For full repairs, data is no longer marked
       repaired. For incremental repairs, anticompaction is run at the beginning
       of the repair, instead of at the end.
+
+3.11.0
+======
+
+Upgrading
+---------
+   - Primary ranges in the system.size_estimates table are now based on the keyspace
+     replication settings and adjacent ranges are no longer merged (CASSANDRA-9639).
 
 3.10
 ====
