@@ -271,6 +271,7 @@ public class OutboundMessagingConnection
         }
 
         boolean compress = shouldCompressConnection(connectionId.local(), connectionId.remote());
+        maybeUpdateConnectionId();
         Bootstrap bootstrap = buildBootstrap(compress);
 
         ChannelFuture connectFuture = bootstrap.connect();
@@ -289,12 +290,38 @@ public class OutboundMessagingConnection
                || ((DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.dc) && !isLocalDC(localHost, remoteHost));
     }
 
+    /**
+     * After a bounce we won't necessarily know the peer's version, so we assume the peer is at least 4.0
+     * and thus using a single port for secure and non-secure communication. However, during a rolling upgrade from
+     * 3.0.x/3.x to 4.0, the not-yet upgraded peer is still listening on separate ports, but we don't know the peer's
+     * version until we can successfully connect. Fortunately, the peer can connect to this node, at which point
+     * we'll grab it's version. We then use that knowledge to use the {@link Config#ssl_storage_port} to connect on,
+     * and to do that we need to update some member fields in this instance.
+     *
+     * Note: can be removed at 5.0
+     */
+    void maybeUpdateConnectionId()
+    {
+        if (encryptionOptions != null)
+        {
+            int version = MessagingService.instance().getVersion(connectionId.remote());
+            if (version < targetVersion)
+            {
+                targetVersion = version;
+                int port = MessagingService.instance().portFor(connectionId.remote());
+                connectionId = connectionId.withNewConnectionPort(port);
+                logger.debug("changing connectionId to {}, with a different port for secure communication, because peer version is {}", connectionId, version);
+            }
+        }
+    }
+
     private Bootstrap buildBootstrap(boolean compress)
     {
         boolean tcpNoDelay = isLocalDC(connectionId.local(), connectionId.remote()) ? INTRADC_TCP_NODELAY : DatabaseDescriptor.getInterDCTcpNoDelay();
         int sendBufferSize = DatabaseDescriptor.getInternodeSendBufferSize() > 0
                              ? DatabaseDescriptor.getInternodeSendBufferSize()
                              : OutboundConnectionParams.DEFAULT_SEND_BUFFER_SIZE;
+
         OutboundConnectionParams params = OutboundConnectionParams.builder()
                                                                   .connectionId(connectionId)
                                                                   .callback(this::finishHandshake)

@@ -39,7 +39,7 @@ Upgrading
       4.0 and the legacy tables must have been removed. See the 'Upgrading' section
       for version 2.2 for migration instructions.
     - Cassandra 4.0 removed support for the deprecated Thrift interface. Amongst
-      Tother things, this imply the removal of all yaml option related to thrift
+      other things, this implies the removal of all yaml options related to thrift
       ('start_rpc', rpc_port, ...).
     - Cassandra 4.0 removed support for any pre-3.0 format. This means you
       cannot upgrade from a 2.x version to 4.0 directly, you have to upgrade to
@@ -67,6 +67,9 @@ Upgrading
 	- the miniumum value for internode message timeouts is 10ms. Previously, any
 	  positive value was allowed. See cassandra.yaml entries like
 	  read_request_timeout_in_ms for more details.
+	- Cassandra 4.0 allows a single port to be used for both secure and insecure
+	  connections between cassandra nodes (CASSANDRA-10404). See the yaml for
+	  specific property changes, and see the security doc for full details.
 
 Materialized Views
 -------------------

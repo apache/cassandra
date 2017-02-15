@@ -198,7 +198,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         this.index = index;
 
         OutboundConnectionIdentifier id = OutboundConnectionIdentifier.stream(new InetSocketAddress(FBUtilities.getBroadcastAddress(), 0),
-                                                                              new InetSocketAddress(connecting, MessagingService.portFor(connecting)));
+                                                                              new InetSocketAddress(connecting, MessagingService.instance().portFor(connecting)));
         this.messageSender = new NettyStreamingMessageSender(this, id, factory, StreamMessage.CURRENT_VERSION, previewKind.isPreview());
         this.metrics = StreamingMetrics.get(connecting);
         this.keepSSTableLevel = keepSSTableLevel;

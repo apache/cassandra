@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.config;
 
-public abstract class EncryptionOptions
+public class EncryptionOptions
 {
     public String keystore = "conf/.keystore";
     public String keystore_password = "cassandra";
@@ -29,19 +29,52 @@ public abstract class EncryptionOptions
     public String store_type = "JKS";
     public boolean require_client_auth = false;
     public boolean require_endpoint_verification = false;
+    public boolean enabled = false;
+    public boolean optional = false;
 
-    public static class ClientEncryptionOptions extends EncryptionOptions
+    public EncryptionOptions()
+    {   }
+
+    /**
+     * Copy constructor
+     */
+    public EncryptionOptions(EncryptionOptions options)
     {
-        public boolean enabled = false;
-        public boolean optional = false;
+        keystore = options.keystore;
+        keystore_password = options.keystore_password;
+        truststore = options.truststore;
+        truststore_password = options.truststore_password;
+        cipher_suites = options.cipher_suites;
+        protocol = options.protocol;
+        algorithm = options.algorithm;
+        store_type = options.store_type;
+        require_client_auth = options.require_client_auth;
+        require_endpoint_verification = options.require_endpoint_verification;
+        enabled = options.enabled;
+        optional = options.optional;
     }
 
     public static class ServerEncryptionOptions extends EncryptionOptions
     {
-        public static enum InternodeEncryption
+        public enum InternodeEncryption
         {
             all, none, dc, rack
         }
+
         public InternodeEncryption internode_encryption = InternodeEncryption.none;
+        public boolean enable_legacy_ssl_storage_port = false;
+
+        public ServerEncryptionOptions()
+        {   }
+
+        /**
+         * Copy constructor
+         */
+        public ServerEncryptionOptions(ServerEncryptionOptions options)
+        {
+            super(options);
+            internode_encryption = options.internode_encryption;
+            enable_legacy_ssl_storage_port = options.enable_legacy_ssl_storage_port;
+        }
     }
 }

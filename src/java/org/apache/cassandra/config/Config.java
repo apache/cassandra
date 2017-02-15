@@ -209,9 +209,7 @@ public class Config
     public double dynamic_snitch_badness_threshold = 0.1;
 
     public EncryptionOptions.ServerEncryptionOptions server_encryption_options = new EncryptionOptions.ServerEncryptionOptions();
-    public EncryptionOptions.ClientEncryptionOptions client_encryption_options = new EncryptionOptions.ClientEncryptionOptions();
-    // this encOptions is for backward compatibility (a warning is logged by DatabaseDescriptor)
-    public EncryptionOptions.ServerEncryptionOptions encryption_options;
+    public EncryptionOptions client_encryption_options = new EncryptionOptions();
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 

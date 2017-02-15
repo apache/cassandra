@@ -36,6 +36,7 @@ import java.util.regex.*;
 import java.util.regex.Matcher;
 
 import com.google.common.collect.Iterables;
+import com.google.common.net.InetAddresses;
 
 import com.codahale.metrics.Timer;
 
@@ -43,6 +44,7 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -77,7 +79,9 @@ public class MessagingServiceTest
 
         }
     };
-    static final IInternodeAuthenticator originalAuthenticator = DatabaseDescriptor.getInternodeAuthenticator();
+    private static IInternodeAuthenticator originalAuthenticator;
+    private static ServerEncryptionOptions originalServerEncryptionOptions;
+    private static InetAddress originalListenAddress;
 
     private final MessagingService messagingService = MessagingService.test();
 
@@ -87,6 +91,9 @@ public class MessagingServiceTest
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setBackPressureStrategy(new MockBackPressureStrategy(Collections.emptyMap()));
         DatabaseDescriptor.setBroadcastAddress(InetAddress.getByName("127.0.0.1"));
+        originalAuthenticator = DatabaseDescriptor.getInternodeAuthenticator();
+        originalServerEncryptionOptions = DatabaseDescriptor.getServerEncryptionOptions();
+        originalListenAddress = DatabaseDescriptor.getListenAddress();
     }
 
     private static int metricScopeId = 0;
@@ -101,9 +108,13 @@ public class MessagingServiceTest
     }
 
     @After
-    public void replaceAuthenticator()
+    public void tearDown()
     {
         DatabaseDescriptor.setInternodeAuthenticator(originalAuthenticator);
+        DatabaseDescriptor.setServerEncryptionOptions(originalServerEncryptionOptions);
+        DatabaseDescriptor.setShouldListenOnBroadcastAddress(false);
+        DatabaseDescriptor.setListenAddress(originalListenAddress);
+        FBUtilities.reset();
     }
 
     @Test
@@ -465,39 +476,188 @@ public class MessagingServiceTest
     @Test
     public void testCloseInboundConnections() throws UnknownHostException, InterruptedException
     {
-        messagingService.listen();
-        Assert.assertTrue(messagingService.isListening());
-        Assert.assertTrue(messagingService.serverChannels.size() > 0);
-        for (ServerChannel serverChannel : messagingService.serverChannels)
-            Assert.assertEquals(0, serverChannel.size());
+        try
+        {
+            messagingService.listen();
+            Assert.assertTrue(messagingService.isListening());
+            Assert.assertTrue(messagingService.serverChannels.size() > 0);
+            for (ServerChannel serverChannel : messagingService.serverChannels)
+                Assert.assertEquals(0, serverChannel.size());
 
-        // now, create a connection and make sure it's in a channel group
-        InetSocketAddress server = new InetSocketAddress(FBUtilities.getBroadcastAddress(), DatabaseDescriptor.getStoragePort());
-        OutboundConnectionIdentifier id = OutboundConnectionIdentifier.small(new InetSocketAddress(InetAddress.getByName("127.0.0.2"), 0), server);
+            // now, create a connection and make sure it's in a channel group
+            InetSocketAddress server = new InetSocketAddress(FBUtilities.getBroadcastAddress(), DatabaseDescriptor.getStoragePort());
+            OutboundConnectionIdentifier id = OutboundConnectionIdentifier.small(new InetSocketAddress(InetAddress.getByName("127.0.0.2"), 0), server);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        OutboundConnectionParams params = OutboundConnectionParams.builder()
-                                                                  .mode(NettyFactory.Mode.MESSAGING)
-                                                                  .sendBufferSize(1 << 10)
-                                                                  .connectionId(id)
-                                                                  .callback(handshakeResult -> latch.countDown())
-                                                                  .protocolVersion(MessagingService.current_version)
-                                                                  .build();
-        Bootstrap bootstrap = NettyFactory.instance.createOutboundBootstrap(params);
-        Channel channel = bootstrap.connect().awaitUninterruptibly().channel();
-        Assert.assertNotNull(channel);
-        latch.await(1, TimeUnit.SECONDS); // allow the netty pipeline/c* handshake to get set up
+            CountDownLatch latch = new CountDownLatch(1);
+            OutboundConnectionParams params = OutboundConnectionParams.builder()
+                                                                      .mode(NettyFactory.Mode.MESSAGING)
+                                                                      .sendBufferSize(1 << 10)
+                                                                      .connectionId(id)
+                                                                      .callback(handshakeResult -> latch.countDown())
+                                                                      .protocolVersion(MessagingService.current_version)
+                                                                      .build();
+            Bootstrap bootstrap = NettyFactory.instance.createOutboundBootstrap(params);
+            Channel channel = bootstrap.connect().awaitUninterruptibly().channel();
+            Assert.assertNotNull(channel);
+            latch.await(1, TimeUnit.SECONDS); // allow the netty pipeline/c* handshake to get set up
 
-        int connectCount = 0;
-        for (ServerChannel serverChannel : messagingService.serverChannels)
-            connectCount += serverChannel.size();
-        Assert.assertTrue(connectCount > 0);
-
-        // last, shutdown the MS and make sure connections are removed
-        messagingService.shutdown();
-        for (ServerChannel serverChannel : messagingService.serverChannels)
-            Assert.assertEquals(0, serverChannel.size());
+            int connectCount = 0;
+            for (ServerChannel serverChannel : messagingService.serverChannels)
+                connectCount += serverChannel.size();
+            Assert.assertTrue(connectCount > 0);
+        }
+        finally
+        {
+            // last, shutdown the MS and make sure connections are removed
+            messagingService.shutdown(true);
+            for (ServerChannel serverChannel : messagingService.serverChannels)
+                Assert.assertEquals(0, serverChannel.size());
+            messagingService.clearServerChannels();
+        }
     }
 
+    @Test
+    public void listenPlainConnection()
+    {
+        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions();
+        serverEncryptionOptions.enabled = false;
+        listen(serverEncryptionOptions, false);
+    }
 
+    @Test
+    public void listenPlainConnectionWithBroadcastAddr()
+    {
+        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions();
+        serverEncryptionOptions.enabled = false;
+        listen(serverEncryptionOptions, true);
+    }
+
+    @Test
+    public void listenRequiredSecureConnection()
+    {
+        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions();
+        serverEncryptionOptions.enabled = true;
+        serverEncryptionOptions.optional = false;
+        serverEncryptionOptions.enable_legacy_ssl_storage_port = false;
+        listen(serverEncryptionOptions, false);
+    }
+
+    @Test
+    public void listenRequiredSecureConnectionWithBroadcastAddr()
+    {
+        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions();
+        serverEncryptionOptions.enabled = true;
+        serverEncryptionOptions.optional = false;
+        serverEncryptionOptions.enable_legacy_ssl_storage_port = false;
+        listen(serverEncryptionOptions, true);
+    }
+
+    @Test
+    public void listenRequiredSecureConnectionWithLegacyPort()
+    {
+        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions();
+        serverEncryptionOptions.enabled = true;
+        serverEncryptionOptions.optional = false;
+        serverEncryptionOptions.enable_legacy_ssl_storage_port = true;
+        listen(serverEncryptionOptions, false);
+    }
+
+    @Test
+    public void listenRequiredSecureConnectionWithBroadcastAddrAndLegacyPort()
+    {
+        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions();
+        serverEncryptionOptions.enabled = true;
+        serverEncryptionOptions.optional = false;
+        serverEncryptionOptions.enable_legacy_ssl_storage_port = true;
+        listen(serverEncryptionOptions, true);
+    }
+
+    @Test
+    public void listenOptionalSecureConnection()
+    {
+        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions();
+        serverEncryptionOptions.enabled = true;
+        serverEncryptionOptions.optional = true;
+        listen(serverEncryptionOptions, false);
+    }
+
+    @Test
+    public void listenOptionalSecureConnectionWithBroadcastAddr()
+    {
+        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions();
+        serverEncryptionOptions.enabled = true;
+        serverEncryptionOptions.optional = true;
+        listen(serverEncryptionOptions, true);
+    }
+
+    private void listen(ServerEncryptionOptions serverEncryptionOptions, boolean listenOnBroadcastAddr)
+    {
+        InetAddress listenAddress = null;
+        if (listenOnBroadcastAddr)
+        {
+            DatabaseDescriptor.setShouldListenOnBroadcastAddress(true);
+            listenAddress = InetAddresses.increment(FBUtilities.getBroadcastAddress());
+            DatabaseDescriptor.setListenAddress(listenAddress);
+            FBUtilities.reset();
+        }
+
+        try
+        {
+            messagingService.listen(serverEncryptionOptions);
+            Assert.assertTrue(messagingService.isListening());
+            int expectedListeningCount = NettyFactory.determineAcceptGroupSize(serverEncryptionOptions);
+            Assert.assertEquals(expectedListeningCount, messagingService.serverChannels.size());
+
+            if (!serverEncryptionOptions.enabled)
+            {
+                // make sure no channel is using TLS
+                for (ServerChannel serverChannel : messagingService.serverChannels)
+                    Assert.assertEquals(ServerChannel.SecurityLevel.NONE, serverChannel.getSecurityLevel());
+            }
+            else
+            {
+                final int legacySslPort = DatabaseDescriptor.getSSLStoragePort();
+                boolean foundLegacyListenSslAddress = false;
+                for (ServerChannel serverChannel : messagingService.serverChannels)
+                {
+                    if (serverEncryptionOptions.optional)
+                        Assert.assertEquals(ServerChannel.SecurityLevel.OPTIONAL, serverChannel.getSecurityLevel());
+                    else
+                        Assert.assertEquals(ServerChannel.SecurityLevel.REQUIRED, serverChannel.getSecurityLevel());
+
+                    if (serverEncryptionOptions.enable_legacy_ssl_storage_port)
+                    {
+                        if (legacySslPort == serverChannel.getAddress().getPort())
+                        {
+                            foundLegacyListenSslAddress = true;
+                            Assert.assertEquals(ServerChannel.SecurityLevel.REQUIRED, serverChannel.getSecurityLevel());
+                        }
+                    }
+                }
+
+                if (serverEncryptionOptions.enable_legacy_ssl_storage_port && !foundLegacyListenSslAddress)
+                    Assert.fail("failed to find legacy ssl listen address");
+            }
+
+            // check the optional listen address
+            if (listenOnBroadcastAddr)
+            {
+                int expectedCount = (serverEncryptionOptions.enabled && serverEncryptionOptions.enable_legacy_ssl_storage_port) ? 2 : 1;
+                int found = 0;
+                for (ServerChannel serverChannel : messagingService.serverChannels)
+                {
+                    if (serverChannel.getAddress().getAddress().equals(listenAddress))
+                        found++;
+                }
+
+                Assert.assertEquals(expectedCount, found);
+            }
+        }
+        finally
+        {
+            messagingService.shutdown(true);
+            messagingService.clearServerChannels();
+            Assert.assertEquals(0, messagingService.serverChannels.size());
+        }
+    }
 }

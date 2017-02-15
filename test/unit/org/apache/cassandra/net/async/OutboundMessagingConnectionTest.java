@@ -41,6 +41,7 @@ import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -68,6 +69,7 @@ public class OutboundMessagingConnectionTest
     private EmbeddedChannel channel;
 
     private IEndpointSnitch snitch;
+    private ServerEncryptionOptions encryptionOptions;
 
     @BeforeClass
     public static void before()
@@ -84,12 +86,14 @@ public class OutboundMessagingConnectionTest
         omc.setChannelWriter(ChannelWriter.create(channel, omc::handleMessageResult, Optional.empty()));
 
         snitch = DatabaseDescriptor.getEndpointSnitch();
+        encryptionOptions = DatabaseDescriptor.getServerEncryptionOptions();
     }
 
     @After
     public void tearDown()
     {
         DatabaseDescriptor.setEndpointSnitch(snitch);
+        DatabaseDescriptor.setServerEncryptionOptions(encryptionOptions);
         channel.finishAndReleaseAll();
     }
 
@@ -470,5 +474,46 @@ public class OutboundMessagingConnectionTest
         omc.reconnectWithNewIp(RECONNECT_ADDR);
         Assert.assertNotSame(omc.getConnectionId(), originalId);
         Assert.assertSame(NOT_READY, omc.getState());
+    }
+
+    @Test
+    public void maybeUpdateConnectionId_NoEncryption()
+    {
+        OutboundConnectionIdentifier connectionId = omc.getConnectionId();
+        int version = omc.getTargetVersion();
+        omc.maybeUpdateConnectionId();
+        Assert.assertEquals(connectionId, omc.getConnectionId());
+        Assert.assertEquals(version, omc.getTargetVersion());
+    }
+
+    @Test
+    public void maybeUpdateConnectionId_SameVersion()
+    {
+        ServerEncryptionOptions encryptionOptions = new ServerEncryptionOptions();
+        omc = new OutboundMessagingConnection(connectionId, encryptionOptions, Optional.empty(), new AllowAllInternodeAuthenticator());
+        OutboundConnectionIdentifier connectionId = omc.getConnectionId();
+        int version = omc.getTargetVersion();
+        omc.maybeUpdateConnectionId();
+        Assert.assertEquals(connectionId, omc.getConnectionId());
+        Assert.assertEquals(version, omc.getTargetVersion());
+    }
+
+    @Test
+    public void maybeUpdateConnectionId_3_X_Version()
+    {
+        ServerEncryptionOptions encryptionOptions = new ServerEncryptionOptions();
+        encryptionOptions.enabled = true;
+        encryptionOptions.internode_encryption = ServerEncryptionOptions.InternodeEncryption.all;
+        DatabaseDescriptor.setServerEncryptionOptions(encryptionOptions);
+        omc = new OutboundMessagingConnection(connectionId, encryptionOptions, Optional.empty(), new AllowAllInternodeAuthenticator());
+        int peerVersion = MessagingService.VERSION_30;
+        MessagingService.instance().setVersion(connectionId.remote(), MessagingService.VERSION_30);
+
+        OutboundConnectionIdentifier connectionId = omc.getConnectionId();
+        omc.maybeUpdateConnectionId();
+        Assert.assertNotEquals(connectionId, omc.getConnectionId());
+        Assert.assertEquals(new InetSocketAddress(REMOTE_ADDR.getAddress(), DatabaseDescriptor.getSSLStoragePort()), omc.getConnectionId().remoteAddress());
+        Assert.assertEquals(new InetSocketAddress(REMOTE_ADDR.getAddress(), DatabaseDescriptor.getSSLStoragePort()), omc.getConnectionId().connectionAddress());
+        Assert.assertEquals(peerVersion, omc.getTargetVersion());
     }
 }

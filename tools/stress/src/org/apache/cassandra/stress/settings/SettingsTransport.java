@@ -23,7 +23,6 @@ package org.apache.cassandra.stress.settings;
 
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -39,9 +38,9 @@ public class SettingsTransport implements Serializable
         this.options = options;
     }
 
-    public EncryptionOptions.ClientEncryptionOptions getEncryptionOptions()
+    public EncryptionOptions getEncryptionOptions()
     {
-        EncryptionOptions.ClientEncryptionOptions encOptions = new EncryptionOptions.ClientEncryptionOptions();
+        EncryptionOptions encOptions = new EncryptionOptions();
         if (options.trustStore.present())
         {
             encOptions.enabled = true;

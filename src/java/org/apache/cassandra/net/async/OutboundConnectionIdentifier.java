@@ -120,6 +120,12 @@ public class OutboundConnectionIdentifier
         return new OutboundConnectionIdentifier(localAddr, remoteAddr, remoteConnectionAddr, connectionType);
     }
 
+    public OutboundConnectionIdentifier withNewConnectionPort(int port)
+    {
+        return new OutboundConnectionIdentifier(localAddr, new InetSocketAddress(remoteAddr.getAddress(), port),
+                                                new InetSocketAddress(remoteConnectionAddr.getAddress(), port), connectionType);
+    }
+
     /**
      * The local node address.
      */

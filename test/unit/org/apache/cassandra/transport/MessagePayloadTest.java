@@ -29,6 +29,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.BatchQueryOptions;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
@@ -48,7 +49,6 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.MD5Digest;
 
-import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class MessagePayloadTest extends CQLTester
@@ -127,7 +127,7 @@ public class MessagePayloadTest extends CQLTester
                                                    nativePort,
                                                    ProtocolVersion.V5,
                                                    true,
-                                                   new ClientEncryptionOptions());
+                                                   new EncryptionOptions());
             try
             {
                 client.connect(false);

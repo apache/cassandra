@@ -31,7 +31,6 @@ import org.junit.Test;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
-import io.netty.channel.DefaultEventLoop;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
@@ -44,10 +43,9 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
-import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.async.NettyFactory.InboundInitializer;
@@ -154,10 +152,15 @@ public class NettyFactoryTest
     @Test
     public void deterineAcceptGroupSize()
     {
-        Assert.assertEquals(1, NettyFactory.determineAcceptGroupSize(InternodeEncryption.none));
-        Assert.assertEquals(1, NettyFactory.determineAcceptGroupSize(InternodeEncryption.all));
-        Assert.assertEquals(2, NettyFactory.determineAcceptGroupSize(InternodeEncryption.rack));
-        Assert.assertEquals(2, NettyFactory.determineAcceptGroupSize(InternodeEncryption.dc));
+        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions();
+        serverEncryptionOptions.enabled = false;
+        Assert.assertEquals(1, NettyFactory.determineAcceptGroupSize(serverEncryptionOptions));
+        serverEncryptionOptions.enabled = true;
+        Assert.assertEquals(1, NettyFactory.determineAcceptGroupSize(serverEncryptionOptions));
+
+        serverEncryptionOptions.enable_legacy_ssl_storage_port = true;
+        Assert.assertEquals(2, NettyFactory.determineAcceptGroupSize(serverEncryptionOptions));
+        serverEncryptionOptions.enable_legacy_ssl_storage_port = false;
 
         InetAddress originalBroadcastAddr = FBUtilities.getBroadcastAddress();
         try
@@ -165,10 +168,13 @@ public class NettyFactoryTest
             FBUtilities.setBroadcastInetAddress(InetAddresses.increment(FBUtilities.getLocalAddress()));
             DatabaseDescriptor.setListenOnBroadcastAddress(true);
 
-            Assert.assertEquals(2, NettyFactory.determineAcceptGroupSize(InternodeEncryption.none));
-            Assert.assertEquals(2, NettyFactory.determineAcceptGroupSize(InternodeEncryption.all));
-            Assert.assertEquals(4, NettyFactory.determineAcceptGroupSize(InternodeEncryption.rack));
-            Assert.assertEquals(4, NettyFactory.determineAcceptGroupSize(InternodeEncryption.dc));
+            serverEncryptionOptions.enabled = false;
+            Assert.assertEquals(2, NettyFactory.determineAcceptGroupSize(serverEncryptionOptions));
+            serverEncryptionOptions.enabled = true;
+            Assert.assertEquals(2, NettyFactory.determineAcceptGroupSize(serverEncryptionOptions));
+
+            serverEncryptionOptions.enable_legacy_ssl_storage_port = true;
+            Assert.assertEquals(4, NettyFactory.determineAcceptGroupSize(serverEncryptionOptions));
         }
         finally
         {
@@ -263,10 +269,13 @@ public class NettyFactoryTest
     @Test
     public void createInboundInitializer_WithoutSsl() throws Exception
     {
-        InboundInitializer initializer = new InboundInitializer(AUTHENTICATOR, null, channelGroup);
+        ServerEncryptionOptions encryptionOptions = new ServerEncryptionOptions();
+        encryptionOptions.enabled = false;
+        InboundInitializer initializer = new InboundInitializer(AUTHENTICATOR, encryptionOptions, channelGroup);
         NioSocketChannel channel = new NioSocketChannel();
         initializer.initChannel(channel);
         Assert.assertNull(channel.pipeline().get(SslHandler.class));
+        Assert.assertNull(channel.pipeline().get(OptionalSslHandler.class));
     }
 
     private ServerEncryptionOptions encOptions()
@@ -281,15 +290,33 @@ public class NettyFactoryTest
         encryptionOptions.cipher_suites = new String[] {"TLS_RSA_WITH_AES_128_CBC_SHA"};
         return encryptionOptions;
     }
+
     @Test
     public void createInboundInitializer_WithSsl() throws Exception
     {
         ServerEncryptionOptions encryptionOptions = encOptions();
+        encryptionOptions.enabled = true;
+        encryptionOptions.optional = false;
         InboundInitializer initializer = new InboundInitializer(AUTHENTICATOR, encryptionOptions, channelGroup);
         NioSocketChannel channel = new NioSocketChannel();
         Assert.assertNull(channel.pipeline().get(SslHandler.class));
         initializer.initChannel(channel);
         Assert.assertNotNull(channel.pipeline().get(SslHandler.class));
+        Assert.assertNull(channel.pipeline().get(OptionalSslHandler.class));
+    }
+
+    @Test
+    public void createInboundInitializer_WithOptionalSsl() throws Exception
+    {
+        ServerEncryptionOptions encryptionOptions = encOptions();
+        encryptionOptions.enabled = true;
+        encryptionOptions.optional = true;
+        InboundInitializer initializer = new InboundInitializer(AUTHENTICATOR, encryptionOptions, channelGroup);
+        NioSocketChannel channel = new NioSocketChannel();
+        Assert.assertNull(channel.pipeline().get(SslHandler.class));
+        initializer.initChannel(channel);
+        Assert.assertNotNull(channel.pipeline().get(OptionalSslHandler.class));
+        Assert.assertNull(channel.pipeline().get(SslHandler.class));
     }
 
     @Test

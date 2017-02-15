@@ -1,8 +1,10 @@
 package org.apache.cassandra.net.async;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.zip.Checksum;
 
+import javax.annotation.Nullable;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 
@@ -45,7 +47,6 @@ import net.jpountz.xxhash.XXHashFactory;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
-import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.security.SSLFactory;
@@ -53,7 +54,6 @@ import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.CoalescingStrategies;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.NativeLibrary;
 
 /**
  * A factory for building Netty {@link Channel}s. Channels here are setup with a pipeline to participate
@@ -70,17 +70,13 @@ public final class NettyFactory
 
     private static final int LZ4_HASH_SEED = 0x9747b28c;
 
-    /**
-     * Default seed value for xxhash.
-     */
-    public static final int XXHASH_DEFAULT_SEED = 0x9747b28c;
-
     public enum Mode { MESSAGING, STREAMING }
 
-    private static final String SSL_CHANNEL_HANDLER_NAME = "ssl";
-    public static final String INBOUND_COMPRESSOR_HANDLER_NAME = "inboundCompressor";
-    public static final String OUTBOUND_COMPRESSOR_HANDLER_NAME = "outboundCompressor";
-    public static final String HANDSHAKE_HANDLER_NAME = "handshakeHandler";
+    static final String SSL_CHANNEL_HANDLER_NAME = "ssl";
+    private static final String OPTIONAL_SSL_CHANNEL_HANDLER_NAME = "optionalSsl";
+    static final String INBOUND_COMPRESSOR_HANDLER_NAME = "inboundCompressor";
+    static final String OUTBOUND_COMPRESSOR_HANDLER_NAME = "outboundCompressor";
+    private static final String HANDSHAKE_HANDLER_NAME = "handshakeHandler";
     public static final String INBOUND_STREAM_HANDLER_NAME = "inboundStreamHandler";
 
     /** a useful addition for debugging; simply set to true to get more data in your logs */
@@ -125,7 +121,7 @@ public final class NettyFactory
     NettyFactory(boolean useEpoll)
     {
         this.useEpoll = useEpoll;
-        acceptGroup = getEventLoopGroup(useEpoll, determineAcceptGroupSize(DatabaseDescriptor.getServerEncryptionOptions().internode_encryption),
+        acceptGroup = getEventLoopGroup(useEpoll, determineAcceptGroupSize(DatabaseDescriptor.getServerEncryptionOptions()),
                                         "MessagingService-NettyAcceptor-Thread", false);
         inboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyInbound-Thread", false);
         outboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyOutbound-Thread", true);
@@ -134,19 +130,23 @@ public final class NettyFactory
 
     /**
      * Determine the number of accept threads we need, which is based upon the number of listening sockets we will have.
-     * We'll have either 1 or 2 listen sockets, depending on if we use SSL or not in combination with non-SSL. If we have both,
-     * we'll have two sockets, and thus need two threads; else one socket and one thread.
-     *
-     * If the operator has configured multiple IP addresses (both {@link org.apache.cassandra.config.Config#broadcast_address}
-     * and {@link org.apache.cassandra.config.Config#listen_address} are configured), then we listen on another set of sockets
-     * - basically doubling the count. See CASSANDRA-9748 for more details.
+     * The idea is one accept thread per listening socket.
      */
-    static int determineAcceptGroupSize(InternodeEncryption internode_encryption)
+    public static int determineAcceptGroupSize(ServerEncryptionOptions serverEncryptionOptions)
     {
-        int listenSocketCount = internode_encryption == InternodeEncryption.dc || internode_encryption == InternodeEncryption.rack ? 2 : 1;
+        int listenSocketCount = 1;
 
-        if (MessagingService.shouldListenOnBroadcastAddress())
-            listenSocketCount *= 2;
+        boolean listenOnBroadcastAddr = MessagingService.shouldListenOnBroadcastAddress();
+        if (listenOnBroadcastAddr)
+            listenSocketCount++;
+
+        if (serverEncryptionOptions.enable_legacy_ssl_storage_port)
+        {
+            listenSocketCount++;
+
+            if (listenOnBroadcastAddr)
+                listenSocketCount++;
+        }
 
         return listenSocketCount;
     }
@@ -236,6 +236,28 @@ public final class NettyFactory
         return channelFuture.channel();
     }
 
+    /**
+     * Creates a new {@link SslHandler} from provided SslContext.
+     * @param peer enables endpoint verification for remote address when not null
+     */
+    static SslHandler newSslHandler(Channel channel, SslContext sslContext, @Nullable InetSocketAddress peer)
+    {
+        if (peer == null)
+        {
+            return sslContext.newHandler(channel.alloc());
+        }
+        else
+        {
+            logger.debug("Creating SSL handler for %s:%d", peer.getHostString(), peer.getPort());
+            SslHandler sslHandler = sslContext.newHandler(channel.alloc(), peer.getHostString(), peer.getPort());
+            SSLEngine engine = sslHandler.engine();
+            SSLParameters sslParameters = engine.getSSLParameters();
+            sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
+            engine.setSSLParameters(sslParameters);
+            return sslHandler;
+        }
+    }
+
     public static class InboundInitializer extends ChannelInitializer<SocketChannel>
     {
         private final IInternodeAuthenticator authenticator;
@@ -256,12 +278,20 @@ public final class NettyFactory
             ChannelPipeline pipeline = channel.pipeline();
 
             // order of handlers: ssl -> logger -> handshakeHandler
-            if (encryptionOptions != null)
+            if (encryptionOptions.enabled)
             {
-                SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, true, true);
-                SslHandler sslHandler = sslContext.newHandler(channel.alloc());
-                logger.trace("creating inbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
-                pipeline.addFirst(SSL_CHANNEL_HANDLER_NAME, sslHandler);
+                if (encryptionOptions.optional)
+                {
+                    pipeline.addFirst(OPTIONAL_SSL_CHANNEL_HANDLER_NAME, new OptionalSslHandler(encryptionOptions));
+                }
+                else
+                {
+                    SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, true, true);
+                    InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? channel.remoteAddress() : null;
+                    SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
+                    logger.trace("creating inbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+                    pipeline.addFirst(SSL_CHANNEL_HANDLER_NAME, sslHandler);
+                }
             }
 
             if (WIRETRACE)
@@ -271,7 +301,7 @@ public final class NettyFactory
         }
     }
 
-    private String encryptionLogStatement(ServerEncryptionOptions options)
+    private static String encryptionLogStatement(ServerEncryptionOptions options)
     {
         if (options == null)
             return "disabled";
@@ -287,9 +317,11 @@ public final class NettyFactory
     @VisibleForTesting
     public Bootstrap createOutboundBootstrap(OutboundConnectionParams params)
     {
-        logger.debug("creating outbound bootstrap to peer {}, compression: {}, encryption: {}, coalesce: {}", params.connectionId.connectionAddress(),
+        logger.debug("creating outbound bootstrap to peer {}, compression: {}, encryption: {}, coalesce: {}, protocolVersion: {}",
+                     params.connectionId.connectionAddress(),
                      params.compress, encryptionLogStatement(params.encryptionOptions),
-                     params.coalescingStrategy.isPresent() ? params.coalescingStrategy.get() : CoalescingStrategies.Strategy.DISABLED);
+                     params.coalescingStrategy.isPresent() ? params.coalescingStrategy.get() : CoalescingStrategies.Strategy.DISABLED,
+                     params.protocolVersion);
         Class<? extends Channel> transport = useEpoll ? EpollSocketChannel.class : NioSocketChannel.class;
         Bootstrap bootstrap = new Bootstrap().group(params.mode == Mode.MESSAGING ? outboundGroup : streamingGroup)
                               .channel(transport)
@@ -315,6 +347,12 @@ public final class NettyFactory
             this.params = params;
         }
 
+        /**
+         * {@inheritDoc}
+         *
+         * To determine if we should enable TLS, we only need to check if {@link #params#encryptionOptions} is set.
+         * The logic for figuring that out is is located in {@link MessagingService#getMessagingConnection(InetAddress)};
+         */
         public void initChannel(SocketChannel channel) throws Exception
         {
             ChannelPipeline pipeline = channel.pipeline();
@@ -323,22 +361,9 @@ public final class NettyFactory
             if (params.encryptionOptions != null)
             {
                 SslContext sslContext = SSLFactory.getSslContext(params.encryptionOptions, true, false);
-
-                final SslHandler sslHandler;
-                if (params.encryptionOptions.require_endpoint_verification)
-                {
-                    InetSocketAddress peer = params.connectionId.remoteAddress();
-                    sslHandler = sslContext.newHandler(channel.alloc(), peer.getHostString(), peer.getPort());
-                    SSLEngine engine = sslHandler.engine();
-                    SSLParameters sslParameters = engine.getSSLParameters();
-                    sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
-                    engine.setSSLParameters(sslParameters);
-                }
-                else
-                {
-                    sslHandler = sslContext.newHandler(channel.alloc());
-                }
-
+                // for some reason channel.remoteAddress() will return null
+                InetSocketAddress peer = params.encryptionOptions.require_endpoint_verification ? params.connectionId.remoteAddress() : null;
+                SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
                 logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
                 pipeline.addFirst(SSL_CHANNEL_HANDLER_NAME, sslHandler);
             }
