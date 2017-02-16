@@ -1,4 +1,5 @@
 2.2.10
+ * Don't anti-compact repaired data to avoid inconsistencies (CASSANDRA-13153)
  * Wrong logger name in AnticompactionTask (CASSANDRA-13343)
  * Fix queries updating multiple time the same list (CASSANDRA-13130)
  * Fix GRANT/REVOKE when keyspace isn't specified (CASSANDRA-13053)
