@@ -29,7 +29,7 @@ import org.apache.cassandra.serializers.MarshalException;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
-import static org.apache.commons.lang.time.DateUtils.MILLIS_PER_DAY;
+import static org.apache.commons.lang3.time.DateUtils.MILLIS_PER_DAY;
 
 /**
  * Represents a duration. A durations store separately months, days, and seconds due to the fact that
