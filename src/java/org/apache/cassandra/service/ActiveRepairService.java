@@ -100,7 +100,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         STARTED, SESSION_SUCCESS, SESSION_FAILED, FINISHED
     }
 
-    public class ConsistentSessions
+    public static class ConsistentSessions
     {
         public final LocalSessions local = new LocalSessions();
         public final CoordinatorSessions coordinated = new CoordinatorSessions();
