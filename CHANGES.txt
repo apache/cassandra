@@ -38,6 +38,7 @@
  * Conditionally update index built status to avoid unnecessary flushes (CASSANDRA-12969)
  * cqlsh auto completion: refactor definition of compaction strategy options (CASSANDRA-12946)
  * Add support for arithmetic operators (CASSANDRA-11935)
+ * Add histogram for delay to deliver hints (CASSANDRA-13234)
 
 
 3.11.0

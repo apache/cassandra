@@ -524,6 +524,31 @@ Hints_created-<PeerIP>       Counter        Number of hints on disk for this pee
 Hints_not_stored-<PeerIP>    Counter        Number of hints not stored for this peer, due to being down past the configured hint window.
 =========================== ============== ===========
 
+HintsService Metrics
+^^^^^^^^^^^^^^^^^^^^^
+
+Metrics specific to the Hints delivery service.  There are also some metrics related to hints tracked in ``Storage Metrics``
+
+These metrics include the peer endpoint **in the metric name**
+
+Reported name format:
+
+**Metric Name**
+    ``org.apache.cassandra.metrics.HintsService.<MetricName>``
+
+**JMX MBean**
+    ``org.apache.cassandra.metrics:type=HintsService name=<MetricName>``
+
+=========================== ============== ===========
+Name                        Type           Description
+=========================== ============== ===========
+HintsSucceeded               Meter          A meter of the hints successfully delivered
+HintsFailed                  Meter          A meter of the hints that failed deliver
+HintsTimedOut                Meter          A meter of the hints that timed out
+Hints_delays                 Histogram      Histogram of hint delivery delays (in milliseconds)
+Hints_delays-<PeerIP>        Histogram      Histogram of hint delivery delays (in milliseconds) per peer
+=========================== ============== ===========
+
 SSTable Index Metrics
 ^^^^^^^^^^^^^^^^^^^^^
 

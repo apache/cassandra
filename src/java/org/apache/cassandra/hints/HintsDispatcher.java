@@ -27,6 +27,7 @@ import java.util.function.Function;
 
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
@@ -175,6 +176,7 @@ final class HintsDispatcher implements AutoCloseable
     {
         Callback callback = new Callback();
         HintMessage message = new HintMessage(hostId, hint);
+        HintsServiceMetrics.updateDelayMetrics(address , ApproximateTime.currentTimeMillis() - hint.creationTime);
         MessagingService.instance().sendRRWithFailure(message.createMessageOut(), address, callback);
         return callback;
     }
@@ -187,6 +189,7 @@ final class HintsDispatcher implements AutoCloseable
     {
         Callback callback = new Callback();
         EncodedHintMessage message = new EncodedHintMessage(hostId, hint, messagingVersion);
+        HintsServiceMetrics.updateDelayMetrics(address, ApproximateTime.currentTimeMillis() - message.getHintCreationTime());
         MessagingService.instance().sendRRWithFailure(message.createMessageOut(), address, callback);
         return callback;
     }

@@ -18,6 +18,7 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -145,6 +146,11 @@ public final class Hint
             long creationTime = in.readLong();
             int gcgs = (int) in.readUnsignedVInt();
             return new Hint(Mutation.serializer.deserialize(in, version), creationTime, gcgs);
+        }
+
+        public long getHintCreationTime(ByteBuffer hintBuffer, int version)
+        {
+            return hintBuffer.getLong(0);
         }
     }
 }
