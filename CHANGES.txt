@@ -1,3 +1,7 @@
+3.0.12
+Merged from 2.2
+ * Exceptions encountered calling getSeeds() breaks OTC thread (CASSANDRA-13018)
+
 3.0.11
  * Use keyspace replication settings on system.size_estimates table (CASSANDRA-9639)
  * Add vm.max_map_count StartupCheck (CASSANDRA-13008)

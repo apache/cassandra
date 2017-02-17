@@ -444,8 +444,6 @@ public class OutboundTcpConnection extends Thread
                     // a different target version (targetVersion < MessagingService.VERSION_12)
                     // or if the same version the handshake will finally succeed
                     logger.trace("Target max version is {}; no version information yet, will retry", maxTargetVersion);
-                    if (DatabaseDescriptor.getSeeds().contains(poolReference.endPoint()))
-                        logger.warn("Seed gossip version is {}; will not connect with that version", maxTargetVersion);
                     disconnect();
                     continue;
                 }
@@ -457,8 +455,24 @@ public class OutboundTcpConnection extends Thread
                 if (targetVersion > maxTargetVersion)
                 {
                     logger.trace("Target max version is {}; will reconnect with that version", maxTargetVersion);
-                    disconnect();
-                    return false;
+                    try
+                    {
+                        if (DatabaseDescriptor.getSeeds().contains(poolReference.endPoint()))
+                            logger.warn("Seed gossip version is {}; will not connect with that version", maxTargetVersion);
+                    }
+                    catch (Throwable e)
+                    {
+                        // If invalid yaml has been added to the config since startup, getSeeds() will throw an AssertionError
+                        // Additionally, third party seed providers may throw exceptions if network is flakey
+                        // Regardless of what's thrown, we must catch it, disconnect, and try again
+                        JVMStabilityInspector.inspectThrowable(e);
+                        logger.warn("Configuration error prevented outbound connection: {}", e.getLocalizedMessage());
+                    }
+                    finally
+                    {
+                        disconnect();
+                        return false;
+                    }
                 }
 
                 if (targetVersion < maxTargetVersion && targetVersion < MessagingService.current_version)
