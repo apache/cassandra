@@ -1,3 +1,6 @@
+2.2.10
+ * Exceptions encountered calling getSeeds() breaks OTC thread (CASSANDRA-13018)
+
 2.2.9
  * Coalescing strategy sleeps too much and shouldn't be enabled by default (CASSANDRA-13090)
  * Fix negative mean latency metric (CASSANDRA-12876)
