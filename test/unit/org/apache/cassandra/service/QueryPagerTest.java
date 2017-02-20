@@ -28,8 +28,11 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.*;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.filter.*;
@@ -54,6 +57,7 @@ public class QueryPagerTest
     public static final String CF_STANDARD = "Standard1";
     public static final String KEYSPACE_CQL = "cql_keyspace";
     public static final String CF_CQL = "table2";
+    public static final String CF_CQL_WITH_STATIC = "with_static";
     public static final int nowInSec = FBUtilities.nowInSeconds();
 
     @BeforeClass
@@ -71,7 +75,14 @@ public class QueryPagerTest
                                                                + "k text,"
                                                                + "c text,"
                                                                + "v text,"
-                                                               + "PRIMARY KEY (k, c))", KEYSPACE_CQL));
+                                                               + "PRIMARY KEY (k, c))", KEYSPACE_CQL),
+                                    CreateTableStatement.parse("CREATE TABLE " + CF_CQL_WITH_STATIC + " ("
+                                                               + "pk text, "
+                                                               + "ck int, "
+                                                               + "st int static, "
+                                                               + "v1 int, "
+                                                               + "v2 int, "
+                                                               + "PRIMARY KEY(pk, ck))", KEYSPACE_CQL));
         addData();
     }
 
@@ -440,5 +451,68 @@ public class QueryPagerTest
             // The only live cell we should have each time is the row marker
             assertRow(partitions.get(0), "k0", "c" + i);
         }
+    }
+
+    @Test
+    public void pagingReversedQueriesWithStaticColumnsTest() throws Exception
+    {
+        // There was a bug in paging for reverse queries when the schema includes static columns in
+        // 2.1 & 2.2. This was never a problem in 3.0, so this test just guards against regressions
+        // see CASSANDRA-13222
+
+        // insert some rows into a single partition
+        for (int i=0; i < 5; i++)
+            executeInternal(String.format("INSERT INTO %s.%s (pk, ck, st, v1, v2) VALUES ('k0', %3$s, %3$s, %3$s, %3$s)",
+                                          KEYSPACE_CQL, CF_CQL_WITH_STATIC, i));
+
+        // query the table in reverse with page size = 1 & check that the returned rows contain the correct cells
+        TableMetadata table = Keyspace.open(KEYSPACE_CQL).getColumnFamilyStore(CF_CQL_WITH_STATIC).metadata();
+        queryAndVerifyCells(table, true, "k0");
+    }
+
+    private void queryAndVerifyCells(TableMetadata table, boolean reversed, String key) throws Exception
+    {
+        ClusteringIndexFilter rowfilter = new ClusteringIndexSliceFilter(Slices.ALL, reversed);
+        ReadCommand command = SinglePartitionReadCommand.create(table, nowInSec, Util.dk(key), ColumnFilter.all(table), rowfilter);
+        QueryPager pager = command.getPager(null, ProtocolVersion.CURRENT);
+
+        ColumnMetadata staticColumn = table.staticColumns().getSimple(0);
+        assertEquals(staticColumn.name.toCQLString(), "st");
+
+        for (int i=0; i<5; i++)
+        {
+            try (ReadExecutionController controller = pager.executionController();
+                 PartitionIterator partitions = pager.fetchPageInternal(1, controller))
+            {
+                try (RowIterator partition = partitions.next())
+                {
+                    assertCell(partition.staticRow(), staticColumn, 4);
+
+                    Row row = partition.next();
+                    int cellIndex = !reversed ? i : 4 - i;
+
+                    assertEquals(row.clustering().get(0), ByteBufferUtil.bytes(cellIndex));
+                    assertCell(row, table.getColumn(new ColumnIdentifier("v1", false)), cellIndex);
+                    assertCell(row, table.getColumn(new ColumnIdentifier("v2", false)), cellIndex);
+
+                    // the partition/page should contain just a single regular row
+                    assertFalse(partition.hasNext());
+                }
+            }
+        }
+
+        // After processing the 5 rows there should be no more rows to return
+        try ( ReadExecutionController controller = pager.executionController();
+              PartitionIterator partitions = pager.fetchPageInternal(1, controller))
+        {
+            assertFalse(partitions.hasNext());
+        }
+    }
+
+    private void assertCell(Row row, ColumnMetadata column, int value)
+    {
+        Cell cell = row.getCell(column);
+        assertNotNull(cell);
+        assertEquals(value, ByteBufferUtil.toInt(cell.value()));
     }
 }
