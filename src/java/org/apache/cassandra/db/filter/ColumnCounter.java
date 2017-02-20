@@ -20,6 +20,8 @@
  */
 package org.apache.cassandra.db.filter;
 
+import java.util.Iterator;
+
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
@@ -72,9 +74,16 @@ public class ColumnCounter
             return this;
 
         DeletionInfo.InOrderTester tester = container.inOrderDeletionTester();
-        for (Cell c : container)
-            count(c, tester);
+        Iterator<Cell> cells = getCellIterator(container);
+        while (cells.hasNext())
+            count(cells.next(), tester);
         return this;
+    }
+
+    protected Iterator<Cell> getCellIterator(ColumnFamily container)
+    {
+        // overridden by GroupByPrefixReversed to return a reverse iterator
+        return container.iterator();
     }
 
     public static class GroupByPrefix extends ColumnCounter
@@ -166,6 +175,12 @@ public class ColumnCounter
         public GroupByPrefixReversed(long timestamp, CellNameType type, int toGroup)
         {
             super(timestamp, type, toGroup);
+        }
+
+        @Override
+        public Iterator<Cell> getCellIterator(ColumnFamily container)
+        {
+            return container.reverseIterator();
         }
 
         @Override

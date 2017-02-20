@@ -53,6 +53,7 @@ public class QueryPagerTest
     public static final String CF_STANDARD = "Standard1";
     public static final String KEYSPACE_CQL = "cql_keyspace";
     public static final String CF_CQL = "table2";
+    public static final String CF_CQL_WITH_STATIC = "with_static";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -69,7 +70,14 @@ public class QueryPagerTest
                                                      + "k text,"
                                                      + "c text,"
                                                      + "v text,"
-                                                     + "PRIMARY KEY (k, c))", KEYSPACE_CQL));
+                                                     + "PRIMARY KEY (k, c))", KEYSPACE_CQL),
+                                    CFMetaData.compile("CREATE TABLE " + CF_CQL_WITH_STATIC + " ("
+                                                     + "pk text, "
+                                                     + "ck int, "
+                                                     + "st int static, "
+                                                     + "v1 int, "
+                                                     + "v2 int, "
+                                                     + "PRIMARY KEY(pk, ck))", KEYSPACE_CQL));
         addData();
     }
 
@@ -377,5 +385,47 @@ public class QueryPagerTest
             // The only live cell we should have each time is the row marker
             assertRow(page.get(0), "k0", ct.decompose("c" + i, ""));
         }
+    }
+
+    @Test
+    public void pagingReversedQueriesWithStaticColumnsTest() throws Exception
+    {
+        // insert some rows into a single partition
+        for (int i=0; i < 5; i++)
+            executeInternal(String.format("INSERT INTO %s.%s (pk, ck, st, v1, v2) VALUES ('k0', %3$s, %3$s, %3$s, %3$s)",
+                                          KEYSPACE_CQL, CF_CQL_WITH_STATIC, i));
+
+        // query the table in reverse with page size = 1 & check that the returned rows contain the correct cells
+        CFMetaData cfm = Keyspace.open(KEYSPACE_CQL).getColumnFamilyStore(CF_CQL_WITH_STATIC).metadata;
+        queryAndVerifyCells(cfm, true, "k0");
+    }
+
+    private void queryAndVerifyCells(CFMetaData cfm, boolean reversed, String key) throws Exception
+    {
+        SliceQueryFilter filter = new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, reversed, 100, 1);
+        QueryPager pager = QueryPagers.localPager(new SliceFromReadCommand(cfm.ksName, bytes(key), cfm.cfName, 0, filter));
+        CellName staticCellName = cfm.comparator.create(cfm.comparator.staticPrefix(),
+                                                        cfm.staticColumns().iterator().next());
+        for (int i=0; i<5; i++)
+        {
+            List<Row> page = pager.fetchPage(1);
+            assertEquals(1, page.size());
+            Row row = page.get(0);
+            assertCell(row.cf, staticCellName, 4);
+            int cellIndex = !reversed ? i : 4 - i;
+            assertCell(row.cf, Util.cellname(ByteBufferUtil.bytes(cellIndex), ByteBufferUtil.bytes("v1")), cellIndex);
+            assertCell(row.cf, Util.cellname(ByteBufferUtil.bytes(cellIndex), ByteBufferUtil.bytes("v2")), cellIndex);
+        }
+
+        // After processing the 5 rows there should be no more rows to return
+        List<Row> page = pager.fetchPage(1);
+        assertTrue(page.isEmpty());
+    }
+
+    private void assertCell(ColumnFamily cf, CellName cellName, int value)
+    {
+        Cell cell = cf.getColumn(cellName);
+        assertNotNull(cell);
+        assertEquals(value, ByteBufferUtil.toInt(cell.value()));
     }
 }
