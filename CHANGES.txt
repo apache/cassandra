@@ -1,5 +1,6 @@
 3.0.12
 Merged from 2.2
+ * Fix ColumnCounter::countAll behaviour for reverse queries (CASSANDRA-13222)
  * Exceptions encountered calling getSeeds() breaks OTC thread (CASSANDRA-13018)
 
 3.0.11
