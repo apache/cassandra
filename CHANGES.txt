@@ -1,4 +1,5 @@
 4.0
+ * Avoid synchronized on prepareForRepair in ActiveRepairService (CASSANDRA-9292)
  * Adds the ability to use uncompressed chunks in compressed files (CASSANDRA-10520)
  * Don't flush sstables when streaming for incremental repair (CASSANDRA-13226)
  * Remove unused method (CASSANDRA-13227)
