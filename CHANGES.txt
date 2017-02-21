@@ -1,3 +1,6 @@
+2.1.18
+ * 
+
 2.1.17
  * Use portable stderr for java error in startup (CASSANDRA-13211)
  * Fix Thread Leak in OutboundTcpConnection (CASSANDRA-13204)
