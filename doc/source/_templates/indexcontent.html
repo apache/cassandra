@@ -5,6 +5,17 @@
 
 <h3>Main documentation</h3>
 
+<div>
+<form id="doc-search-form" action="{{ pathto('search') }}" method="get" role="search">
+  <div class="form-group">
+    Search the documentation:
+    <input type="text" size="30" class="form-control input-sm" name="q" placeholder="Search docs">
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </div>
+</form><br />
+</div>
+
 <table class="contentstable doc-landing-table" align="center">
   <tr>
     <td class="left-column">
