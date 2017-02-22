@@ -84,6 +84,11 @@ def printmsg(msg, eol='\n', encoding='utf8'):
     sys.stdout.flush()
 
 
+# Keep arguments in sync with printmsg
+def swallowmsg(msg, eol='', encoding=''):
+    None
+
+
 class OneWayPipe(object):
     """
     A one way pipe protected by two process level locks, one for reading and one for writing.
@@ -242,7 +247,7 @@ class CopyTask(object):
 
         # do not display messages when exporting to STDOUT unless --debug is set
         self.printmsg = printmsg if self.fname is not None or direction == 'from' or DEBUG \
-            else lambda _, eol='\n': None
+            else swallowmsg
         self.options = self.parse_options(opts, direction)
 
         self.num_processes = self.options.copy['numprocesses']
