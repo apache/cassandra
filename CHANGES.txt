@@ -1,6 +1,8 @@
 2.2.10
  * Fix ColumnCounter::countAll behaviour for reverse queries (CASSANDRA-13222)
  * Exceptions encountered calling getSeeds() breaks OTC thread (CASSANDRA-13018)
+Merged from 2.1:
+ * Log stacktrace of uncaught exceptions (CASSANDRA-13108)
 
 2.2.9
  * Coalescing strategy sleeps too much (CASSANDRA-13090)
