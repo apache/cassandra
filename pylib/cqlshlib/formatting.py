@@ -356,7 +356,15 @@ def strftime(time_format, seconds, microseconds=0, timezone=None):
     ret_dt = ret_dt.replace(tzinfo=UTC())
     if timezone:
         ret_dt = ret_dt.astimezone(timezone)
-    return ret_dt.strftime(time_format)
+    try:
+        return ret_dt.strftime(time_format)
+    except ValueError:
+        # CASSANDRA-13185: if the date cannot be formatted as a string, return a string with the milliseconds
+        # since the epoch. cqlsh does the exact same thing for values below datetime.MINYEAR (1) or above
+        # datetime.MAXYEAR (9999). Some versions of strftime() also have problems for dates between MIN_YEAR and 1900.
+        # cqlsh COPY assumes milliseconds from the epoch if it fails to parse a datetime string, and so it is
+        # able to correctly import timestamps exported as milliseconds since the epoch.
+        return '%d' % (seconds * 1000.0)
 
 microseconds_regex = re.compile("(.*)(?:\.(\d{1,6}))(.*)")
 
