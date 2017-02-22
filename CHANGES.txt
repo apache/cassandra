@@ -58,6 +58,7 @@ Merged from 3.0:
  * Provide user workaround when system_schema.columns does not contain entries
    for a table that's in system_schema.tables (CASSANDRA-13180)
 Merged from 2.2:
+ * Fix failing COPY TO STDOUT (CASSANDRA-12497)
  * Fix ColumnCounter::countAll behaviour for reverse queries (CASSANDRA-13222)
  * Exceptions encountered calling getSeeds() breaks OTC thread (CASSANDRA-13018)
  * Fix negative mean latency metric (CASSANDRA-12876)
