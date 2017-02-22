@@ -240,13 +240,12 @@ class CopyTask(object):
             global DEBUG
             DEBUG = True
 
-        # do not display messages when exporting to STDOUT unless --debug is set
-        self.printmsg = printmsg if self.fname is not None or direction == 'from' or DEBUG \
-            else lambda _, eol='\n': None
         self.options = self.parse_options(opts, direction)
-
         self.num_processes = self.options.copy['numprocesses']
         self.encoding = self.options.copy['encoding']
+        # do not display messages when exporting to STDOUT unless --debug is set
+        self.printmsg = printmsg if self.fname is not None or direction == 'from' or DEBUG \
+            else lambda _, eol='\n', encoding=self.encoding : None
         self.printmsg('Using %d child processes' % (self.num_processes,))
 
         if direction == 'from':
