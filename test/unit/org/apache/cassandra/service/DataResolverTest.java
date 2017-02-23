@@ -556,6 +556,73 @@ public class DataResolverTest
         assertRepairContainsDeletions(msg2, null, one_two, withExclusiveEndIf(three_four, timestamp2 >= timestamp1), five_six);
     }
 
+    /**
+     * Test cases where a boundary of a source is covered by another source deletion and timestamp on one or both side
+     * of the boundary are equal to the "merged" deletion.
+     * This is a test for CASSANDRA-13237 to make sure we handle this case properly.
+     */
+    @Test
+    public void testRepairRangeTombstoneBoundary() throws UnknownHostException
+    {
+        testRepairRangeTombstoneBoundary(1, 0, 1);
+        messageRecorder.sent.clear();
+        testRepairRangeTombstoneBoundary(1, 1, 0);
+        messageRecorder.sent.clear();
+        testRepairRangeTombstoneBoundary(1, 1, 1);
+    }
+
+    /**
+     * Test for CASSANDRA-13237, checking we don't fail (and handle correctly) the case where a RT boundary has the
+     * same deletion on both side (while is useless but could be created by legacy code pre-CASSANDRA-13237 and could
+     * thus still be sent).
+     */
+    public void testRepairRangeTombstoneBoundary(int timestamp1, int timestamp2, int timestamp3) throws UnknownHostException
+    {
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        InetAddress peer1 = peer();
+        InetAddress peer2 = peer();
+
+        // 1st "stream"
+        RangeTombstone one_nine = tombstone("0", true , "9", true, timestamp1, nowInSec);
+        UnfilteredPartitionIterator iter1 = iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk)
+                                                 .addRangeTombstone(one_nine)
+                                                 .buildUpdate());
+
+        // 2nd "stream" (build more manually to ensure we have the boundary we want)
+        RangeTombstoneBoundMarker open_one = marker("0", true, true, timestamp2, nowInSec);
+        RangeTombstoneBoundaryMarker boundary_five = boundary("5", false, timestamp2, nowInSec, timestamp3, nowInSec);
+        RangeTombstoneBoundMarker close_nine = marker("9", false, true, timestamp3, nowInSec);
+        UnfilteredPartitionIterator iter2 = iter(dk, open_one, boundary_five, close_nine);
+
+        resolver.preprocess(readResponseMessage(peer1, iter1));
+        resolver.preprocess(readResponseMessage(peer2, iter2));
+
+        boolean shouldHaveRepair = timestamp1 != timestamp2 || timestamp1 != timestamp3;
+
+        // No results, we've only reconciled tombstones.
+        try (PartitionIterator data = resolver.resolve())
+        {
+            assertFalse(data.hasNext());
+            assertRepairFuture(resolver, shouldHaveRepair ? 1 : 0);
+        }
+
+        assertEquals(shouldHaveRepair? 1 : 0, messageRecorder.sent.size());
+
+        if (!shouldHaveRepair)
+            return;
+
+        MessageOut msg = getSentMessage(peer2);
+        assertRepairMetadata(msg);
+        assertRepairContainsNoColumns(msg);
+
+        RangeTombstone expected = timestamp1 != timestamp2
+                                  // We've repaired the 1st part
+                                  ? tombstone("0", true, "5", false, timestamp1, nowInSec)
+                                  // We've repaired the 2nd part
+                                  : tombstone("5", true, "9", true, timestamp1, nowInSec);
+        assertRepairContainsDeletions(msg, null, expected);
+    }
+
     // Forces the start to be exclusive if the condition holds
     private static RangeTombstone withExclusiveStartIf(RangeTombstone rt, boolean condition)
     {
@@ -883,12 +950,38 @@ public class DataResolverTest
 
     private RangeTombstone tombstone(Object start, boolean inclusiveStart, Object end, boolean inclusiveEnd, long markedForDeleteAt, int localDeletionTime)
     {
-        Kind startKind = inclusiveStart ? Kind.INCL_START_BOUND : Kind.EXCL_START_BOUND;
-        Kind endKind = inclusiveEnd ? Kind.INCL_END_BOUND : Kind.EXCL_END_BOUND;
-
-        ClusteringBound startBound = ClusteringBound.create(startKind, cfm.comparator.make(start).getRawValues());
-        ClusteringBound endBound = ClusteringBound.create(endKind, cfm.comparator.make(end).getRawValues());
+        ClusteringBound startBound = rtBound(start, true, inclusiveStart);
+        ClusteringBound endBound = rtBound(end, false, inclusiveEnd);
         return new RangeTombstone(Slice.make(startBound, endBound), new DeletionTime(markedForDeleteAt, localDeletionTime));
+    }
+
+    private ClusteringBound rtBound(Object value, boolean isStart, boolean inclusive)
+    {
+        ClusteringBound.Kind kind = isStart
+                                         ? (inclusive ? Kind.INCL_START_BOUND : Kind.EXCL_START_BOUND)
+                                         : (inclusive ? Kind.INCL_END_BOUND : Kind.EXCL_END_BOUND);
+
+        return ClusteringBound.create(kind, cfm.comparator.make(value).getRawValues());
+    }
+
+    private ClusteringBoundary rtBoundary(Object value, boolean inclusiveOnEnd)
+    {
+        ClusteringBound.Kind kind = inclusiveOnEnd
+                                         ? Kind.INCL_END_EXCL_START_BOUNDARY
+                                         : Kind.EXCL_END_INCL_START_BOUNDARY;
+        return ClusteringBoundary.create(kind, cfm.comparator.make(value).getRawValues());
+    }
+
+    private RangeTombstoneBoundMarker marker(Object value, boolean isStart, boolean inclusive, long markedForDeleteAt, int localDeletionTime)
+    {
+        return new RangeTombstoneBoundMarker(rtBound(value, isStart, inclusive), new DeletionTime(markedForDeleteAt, localDeletionTime));
+    }
+
+    private RangeTombstoneBoundaryMarker boundary(Object value, boolean inclusiveOnEnd, long markedForDeleteAt1, int localDeletionTime1, long markedForDeleteAt2, int localDeletionTime2)
+    {
+        return new RangeTombstoneBoundaryMarker(rtBoundary(value, inclusiveOnEnd),
+                                                new DeletionTime(markedForDeleteAt1, localDeletionTime1),
+                                                new DeletionTime(markedForDeleteAt2, localDeletionTime2));
     }
 
     private UnfilteredPartitionIterator fullPartitionDelete(CFMetaData cfm, DecoratedKey dk, long timestamp, int nowInSec)
@@ -914,5 +1007,27 @@ public class DataResolverTest
     private UnfilteredPartitionIterator iter(PartitionUpdate update)
     {
         return new SingletonUnfilteredPartitionIterator(update.unfilteredIterator(), false);
+    }
+
+    private UnfilteredPartitionIterator iter(DecoratedKey key, Unfiltered... unfiltereds)
+    {
+        SortedSet<Unfiltered> s = new TreeSet<>(cfm.comparator);
+        Collections.addAll(s, unfiltereds);
+        final Iterator<Unfiltered> iterator = s.iterator();
+
+        UnfilteredRowIterator rowIter = new AbstractUnfilteredRowIterator(cfm,
+                                                                          key,
+                                                                          DeletionTime.LIVE,
+                                                                          cfm.partitionColumns(),
+                                                                          Rows.EMPTY_STATIC_ROW,
+                                                                          false,
+                                                                          EncodingStats.NO_STATS)
+        {
+            protected Unfiltered computeNext()
+            {
+                return iterator.hasNext() ? iterator.next() : endOfData();
+            }
+        };
+        return new SingletonUnfilteredPartitionIterator(rowIter, false);
     }
 }
