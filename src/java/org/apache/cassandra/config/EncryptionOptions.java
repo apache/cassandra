@@ -25,7 +25,7 @@ public class EncryptionOptions
     public String truststore_password = "cassandra";
     public String[] cipher_suites = {};
     public String protocol = "TLS";
-    public String algorithm = "SunX509";
+    public String algorithm = null;
     public String store_type = "JKS";
     public boolean require_client_auth = false;
     public boolean require_endpoint_verification = false;

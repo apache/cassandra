@@ -171,7 +171,8 @@ public final class SSLFactory
     {
         try (InputStream tsf = Files.newInputStream(Paths.get(options.truststore)))
         {
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(options.algorithm);
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(
+                options.algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : options.algorithm);
             KeyStore ts = KeyStore.getInstance(options.store_type);
             ts.load(tsf, options.truststore_password.toCharArray());
             tmf.init(ts);
@@ -187,7 +188,8 @@ public final class SSLFactory
     {
         try (InputStream ksf = Files.newInputStream(Paths.get(options.keystore)))
         {
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(options.algorithm);
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(
+                options.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : options.algorithm);
             KeyStore ks = KeyStore.getInstance(options.store_type);
             ks.load(ksf, options.keystore_password.toCharArray());
             if (!checkedExpiry)
