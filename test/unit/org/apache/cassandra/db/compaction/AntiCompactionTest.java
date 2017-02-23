@@ -143,7 +143,6 @@ public class AntiCompactionTest
         cfs.disableAutoCompaction();
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
-        long origSize = s.bytesOnDisk();
         Range<Token> range = new Range<Token>(new BytesToken(ByteBufferUtil.bytes(0)), new BytesToken(ByteBufferUtil.bytes(500)));
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         UUID parentRepairSession = UUID.randomUUID();
@@ -161,7 +160,6 @@ public class AntiCompactionTest
         }
         assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(rows, 1000 * (1000 * 5));//See writeFile for how this number is derived
-        assertEquals(origSize, cfs.metric.liveDiskSpaceUsed.getCount(), 16000000);
     }
 
     private SSTableReader writeFile(ColumnFamilyStore cfs, int count)
