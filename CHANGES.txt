@@ -43,6 +43,7 @@
  * More fixes to the TokenAllocator (CASSANDRA-12990)
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
 Merged from 3.0:
+ * Remove unnecessary assertion from AntiCompactionTest (CASSANDRA-13070)
  * Fix cqlsh COPY for dates before 1900 (CASSANDRA-13185)
  * Use keyspace replication settings on system.size_estimates table (CASSANDRA-9639)
  * Add vm.max_map_count StartupCheck (CASSANDRA-13008)
