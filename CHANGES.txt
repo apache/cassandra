@@ -2,6 +2,7 @@
  * Remove unnecessary assertion from AntiCompactionTest (CASSANDRA-13070)
  * Fix cqlsh COPY for dates before 1900 (CASSANDRA-13185)
 Merged from 2.2
+ * Fix flaky LongLeveledCompactionStrategyTest (CASSANDRA-12202)
  * Fix failing COPY TO STDOUT (CASSANDRA-12497)
  * Fix ColumnCounter::countAll behaviour for reverse queries (CASSANDRA-13222)
  * Exceptions encountered calling getSeeds() breaks OTC thread (CASSANDRA-13018)

@@ -28,6 +28,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -45,6 +46,7 @@ public class LongLeveledCompactionStrategyTest
 {
     public static final String KEYSPACE1 = "LongLeveledCompactionStrategyTest";
     public static final String CF_STANDARDLVL = "StandardLeveled";
+    public static final String CF_STANDARDLVL2 = "StandardLeveled2";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -55,6 +57,8 @@ public class LongLeveledCompactionStrategyTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLVL)
+                                                .compaction(CompactionParams.lcs(leveledOptions)),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLVL2)
                                                 .compaction(CompactionParams.lcs(leveledOptions)));
     }
 
@@ -145,14 +149,13 @@ public class LongLeveledCompactionStrategyTest
     @Test
     public void testLeveledScanner() throws Exception
     {
-        testParallelLeveledCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARDLVL);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARDLVL2);
         store.disableAutoCompaction();
 
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy)store.getCompactionStrategyManager().getStrategies().get(1);
 
-        ByteBuffer value = ByteBuffer.wrap(new byte[10 * 1024]); // 10 KB value
+        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
         // Adds 10 partitions
         for (int r = 0; r < 10; r++)
@@ -169,33 +172,42 @@ public class LongLeveledCompactionStrategyTest
         //Flush sstable
         store.forceBlockingFlush();
 
-        Iterable<SSTableReader> allSSTables = store.getSSTables(SSTableSet.LIVE);
-        for (SSTableReader sstable : allSSTables)
+        store.runWithCompactionsDisabled(new Callable<Void>()
         {
-            if (sstable.getSSTableLevel() == 0)
+            public Void call() throws Exception
             {
-                System.out.println("Mutating L0-SSTABLE level to L1 to simulate a bug: " + sstable.getFilename());
-                sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 1);
-                sstable.reloadSSTableMetadata();
-            }
-        }
-
-        try (AbstractCompactionStrategy.ScannerList scannerList = lcs.getScanners(Lists.newArrayList(allSSTables)))
-        {
-            //Verify that leveled scanners will always iterate in ascending order (CASSANDRA-9935)
-            for (ISSTableScanner scanner : scannerList.scanners)
-            {
-                DecoratedKey lastKey = null;
-                while (scanner.hasNext())
+                Iterable<SSTableReader> allSSTables = store.getSSTables(SSTableSet.LIVE);
+                for (SSTableReader sstable : allSSTables)
                 {
-                    UnfilteredRowIterator row = scanner.next();
-                    if (lastKey != null)
+                    if (sstable.getSSTableLevel() == 0)
                     {
-                        assertTrue("row " + row.partitionKey() + " received out of order wrt " + lastKey, row.partitionKey().compareTo(lastKey) >= 0);
+                        System.out.println("Mutating L0-SSTABLE level to L1 to simulate a bug: " + sstable.getFilename());
+                        sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 1);
+                        sstable.reloadSSTableMetadata();
                     }
-                    lastKey = row.partitionKey();
                 }
+
+                try (AbstractCompactionStrategy.ScannerList scannerList = lcs.getScanners(Lists.newArrayList(allSSTables)))
+                {
+                    //Verify that leveled scanners will always iterate in ascending order (CASSANDRA-9935)
+                    for (ISSTableScanner scanner : scannerList.scanners)
+                    {
+                        DecoratedKey lastKey = null;
+                        while (scanner.hasNext())
+                        {
+                            UnfilteredRowIterator row = scanner.next();
+                            if (lastKey != null)
+                            {
+                                assertTrue("row " + row.partitionKey() + " received out of order wrt " + lastKey, row.partitionKey().compareTo(lastKey) >= 0);
+                            }
+                            lastKey = row.partitionKey();
+                        }
+                    }
+                }
+                return null;
             }
-        }
+        }, true, true);
+
+
     }
 }

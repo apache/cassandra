@@ -194,7 +194,7 @@ public class LeveledCompactionStrategyTest
     /**
      * wait for leveled compaction to quiesce on the given columnfamily
      */
-    private void waitForLeveling(ColumnFamilyStore cfs) throws InterruptedException
+    public static void waitForLeveling(ColumnFamilyStore cfs) throws InterruptedException
     {
         CompactionStrategyManager strategyManager = cfs.getCompactionStrategyManager();
         while (true)
