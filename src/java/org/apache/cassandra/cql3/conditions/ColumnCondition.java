@@ -783,6 +783,7 @@ public abstract class ColumnCondition
                         throw new AssertionError();
                 }
 
+                validateOperationOnDurations(valueSpec.type);
                 return condition(receiver, collectionElement.prepare(keyspace, elementSpec), operator, prepareTerms(keyspace, valueSpec));
             }
 
@@ -794,9 +795,11 @@ public abstract class ColumnCondition
                     throw invalidRequest("Unknown field %s for column %s", udtField, receiver.name);
 
                 ColumnSpecification fieldReceiver = UserTypes.fieldSpecOf(receiver, fieldPosition);
+                validateOperationOnDurations(fieldReceiver.type);
                 return condition(receiver, udtField, operator, prepareTerms(keyspace, fieldReceiver));
             }
 
+            validateOperationOnDurations(receiver.type);
             return condition(receiver, operator, prepareTerms(keyspace, receiver));
         }
 
@@ -820,6 +823,17 @@ public abstract class ColumnCondition
                 terms.add(raw.prepare(keyspace, receiver));
             }
             return terms;
+        }
+
+        private void validateOperationOnDurations(AbstractType<?> type)
+        {
+            if (type.referencesDuration() && operator.isSlice())
+            {
+                checkFalse(type.isCollection(), "Slice conditions are not supported on collections containing durations");
+                checkFalse(type.isTuple(), "Slice conditions are not supported on tuples containing durations");
+                checkFalse(type.isUDT(), "Slice conditions are not supported on UDTs containing durations");
+                throw invalidRequest("Slice conditions are not supported on durations", operator);
+            }
         }
     }
 }

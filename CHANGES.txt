@@ -36,6 +36,7 @@
 
 
 3.11.0
+ * Fix equality comparisons of columns using the duration type (CASSANDRA-13174)
  * Move to FastThreadLocalThread and FastThreadLocal (CASSANDRA-13034)
  * nodetool stopdaemon errors out (CASSANDRA-13030)
  * Tables in system_distributed should not use gcgs of 0 (CASSANDRA-12954)

@@ -316,6 +316,15 @@ public enum Operator
         return 4;
     }
 
+    /**
+     * Checks if this operator is a slice operator.
+     * @return {@code true} if this operator is a slice operator, {@code false} otherwise.
+     */
+    public boolean isSlice()
+    {
+        return this == LT || this == LTE || this == GT || this == GTE;
+    }
+
     @Override
     public String toString()
     {
