@@ -27,7 +27,7 @@ nodetool = "../bin/nodetool"
 outdir = "source/tools/nodetool"
 helpfilename = outdir + "/nodetool.txt"
 command_re = re.compile("(    )([_a-z]+)")
-commandRSTContent = ".. _{0}\n\n{0}\n-------\n\nUsage\n---------\n\n.. include:: {0}.txt\n  :literal:\n\n"
+commandRSTContent = ".. _nodetool_{0}:\n\n{0}\n-------\n\nUsage\n---------\n\n.. include:: {0}.txt\n  :literal:\n\n"
 
 # create the documentation directory
 if not os.path.exists(outdir):

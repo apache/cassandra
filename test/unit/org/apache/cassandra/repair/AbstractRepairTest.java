@@ -34,6 +34,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -85,7 +86,8 @@ public abstract class AbstractRepairTest
                                                                  Sets.newHashSet(RANGE1, RANGE2, RANGE3),
                                                                  isIncremental,
                                                                  repairedAt,
-                                                                 isGlobal);
+                                                                 isGlobal,
+                                                                 PreviewKind.NONE);
         return sessionId;
     }
 }

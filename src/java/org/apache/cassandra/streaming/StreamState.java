@@ -18,11 +18,13 @@
 package org.apache.cassandra.streaming;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 
 /**
  * Current snapshot of streaming progress.
@@ -49,5 +51,10 @@ public class StreamState implements Serializable
                 return session.isFailed();
             }
         });
+    }
+
+    public List<SessionSummary> createSummaries()
+    {
+        return Lists.newArrayList(Iterables.transform(sessions, SessionInfo::createSummary));
     }
 }

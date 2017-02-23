@@ -32,6 +32,7 @@ import java.util.Set;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.tools.NodeProbe;
@@ -73,6 +74,12 @@ public class Repair extends NodeToolCmd
     @Option(title = "full", name = {"-full", "--full"}, description = "Use -full to issue a full repair.")
     private boolean fullRepair = false;
 
+    @Option(title = "preview", name = {"-prv", "--preview"}, description = "Determine ranges and amount of data to be streamed, but don't actually perform repair")
+    private boolean preview = false;
+
+    @Option(title = "validate", name = {"-vd", "--validate"}, description = "Checks that repaired data is in sync between nodes. Out of sync repaired data indicates a full repair should be run.")
+    private boolean validate = false;
+
     @Option(title = "job_threads", name = {"-j", "--job-threads"}, description = "Number of threads to run repair jobs. " +
                                                                                  "Usually this means number of CFs to repair concurrently. " +
                                                                                  "WARNING: increasing this puts more load on repairing nodes, so be careful. (default: 1, max: 4)")
@@ -83,6 +90,26 @@ public class Repair extends NodeToolCmd
 
     @Option(title = "pull_repair", name = {"-pl", "--pull"}, description = "Use --pull to perform a one way repair where data is only streamed from a remote node to this node.")
     private boolean pullRepair = false;
+
+    private PreviewKind getPreviewKind()
+    {
+        if (validate)
+        {
+            return PreviewKind.REPAIRED;
+        }
+        else if (preview && fullRepair)
+        {
+            return PreviewKind.ALL;
+        }
+        else if (preview)
+        {
+            return PreviewKind.UNREPAIRED;
+        }
+        else
+        {
+            return PreviewKind.NONE;
+        }
+    }
 
     @Override
     public void execute(NodeProbe probe)
@@ -112,6 +139,8 @@ public class Repair extends NodeToolCmd
             options.put(RepairOption.TRACE_KEY, Boolean.toString(trace));
             options.put(RepairOption.COLUMNFAMILIES_KEY, StringUtils.join(cfnames, ","));
             options.put(RepairOption.PULL_REPAIR_KEY, Boolean.toString(pullRepair));
+            options.put(RepairOption.PREVIEW, getPreviewKind().toString());
+
             if (!startToken.isEmpty() || !endToken.isEmpty())
             {
                 options.put(RepairOption.RANGES_KEY, startToken + ":" + endToken);

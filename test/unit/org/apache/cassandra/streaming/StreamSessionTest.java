@@ -97,7 +97,8 @@ public class StreamSessionTest
         Collection<Range<Token>> ranges = Lists.newArrayList(new Range<Token>(partitioner.getMinimumToken(), partitioner.getMinimumToken()));
         List<StreamSession.SSTableStreamingSections> sections = StreamSession.getSSTableSectionsForRanges(ranges,
                                                                                                           Lists.newArrayList(cfs),
-                                                                                                          pendingRepair);
+                                                                                                          pendingRepair,
+                                                                                                          PreviewKind.NONE);
         Set<SSTableReader> sstables = new HashSet<>();
         for (StreamSession.SSTableStreamingSections section: sections)
         {

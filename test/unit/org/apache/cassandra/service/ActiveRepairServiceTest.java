@@ -20,7 +20,6 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Sets;
 import org.junit.Before;
@@ -40,6 +39,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -230,11 +230,19 @@ public class ActiveRepairServiceTest
         ColumnFamilyStore store = prepareColumnFamilyStore();
         UUID prsId = UUID.randomUUID();
         Set<SSTableReader> original = Sets.newHashSet(store.select(View.select(SSTableSet.CANONICAL, (s) -> !s.isRepaired())).sstables);
-        ActiveRepairService.instance.registerParentRepairSession(prsId, FBUtilities.getBroadcastAddress(), Collections.singletonList(store), Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(), store.getPartitioner().getMinimumToken())), true, System.currentTimeMillis(), true);
+        ActiveRepairService.instance.registerParentRepairSession(prsId, FBUtilities.getBroadcastAddress(), Collections.singletonList(store),
+                                                                 Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(),
+                                                                                                   store.getPartitioner().getMinimumToken())),
+                                                                 true, System.currentTimeMillis(), true, PreviewKind.NONE);
         ActiveRepairService.instance.getParentRepairSession(prsId).maybeSnapshot(store.metadata.id, prsId);
 
         UUID prsId2 = UUID.randomUUID();
-        ActiveRepairService.instance.registerParentRepairSession(prsId2, FBUtilities.getBroadcastAddress(), Collections.singletonList(store), Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(), store.getPartitioner().getMinimumToken())), true, System.currentTimeMillis(), true);
+        ActiveRepairService.instance.registerParentRepairSession(prsId2, FBUtilities.getBroadcastAddress(),
+                                                                 Collections.singletonList(store),
+                                                                 Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(),
+                                                                                                   store.getPartitioner().getMinimumToken())),
+                                                                 true, System.currentTimeMillis(),
+                                                                 true, PreviewKind.NONE);
         createSSTables(store, 2);
         ActiveRepairService.instance.getParentRepairSession(prsId).maybeSnapshot(store.metadata.id, prsId);
         try (Refs<SSTableReader> refs = store.getSnapshotSSTableReaders(prsId.toString()))

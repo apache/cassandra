@@ -1,4 +1,5 @@
 4.0
+ * Add repair streaming preview (CASSANDRA-13257)
  * Cleanup isIncremental/repairedAt usage (CASSANDRA-13430)
  * Change protocol to allow sending key space independent of query string (CASSANDRA-10145)
  * Make gc_log and gc_warn settable at runtime (CASSANDRA-12661)

@@ -29,6 +29,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
@@ -38,6 +39,8 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MerkleTree;
+import org.apache.cassandra.utils.MerkleTrees;
 
 /**
  * LocalSyncTask performs streaming between local(coordinator) node and remote replica.
@@ -51,9 +54,9 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     private final UUID pendingRepair;
     private final boolean pullRepair;
 
-    public LocalSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, UUID pendingRepair, boolean pullRepair)
+    public LocalSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, UUID pendingRepair, boolean pullRepair, PreviewKind previewKind)
     {
-        super(desc, r1, r2);
+        super(desc, r1, r2, previewKind);
         this.pendingRepair = pendingRepair;
         this.pullRepair = pullRepair;
     }
@@ -62,7 +65,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     @VisibleForTesting
     StreamPlan createStreamPlan(InetAddress dst, InetAddress preferred, List<Range<Token>> differences)
     {
-        StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, false, pendingRepair)
+        StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, false, pendingRepair, previewKind)
                           .listeners(this)
                           .flushBeforeTransfer(pendingRepair == null)
                           .requestRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily);  // request ranges from the remote node
@@ -79,6 +82,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
      * Starts sending/receiving our list of differences to/from the remote endpoint: creates a callback
      * that will be called out of band once the streams complete.
      */
+    @Override
     protected void startSync(List<Range<Token>> differences)
     {
         InetAddress local = FBUtilities.getBroadcastAddress();
@@ -87,7 +91,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         InetAddress preferred = SystemKeyspace.getPreferredIP(dst);
 
         String message = String.format("Performing streaming repair of %d ranges with %s", differences.size(), dst);
-        logger.info("[repair #{}] {}", desc.sessionId, message);
+        logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
 
         createStreamPlan(dst, preferred, differences).execute();
@@ -122,9 +126,9 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
     public void onSuccess(StreamState result)
     {
         String message = String.format("Sync complete using session %s between %s and %s on %s", desc.sessionId, r1.endpoint, r2.endpoint, desc.columnFamily);
-        logger.info("[repair #{}] {}", desc.sessionId, message);
+        logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
-        set(stat);
+        set(stat.withSummaries(result.createSummaries()));
     }
 
     public void onFailure(Throwable t)

@@ -22,8 +22,9 @@ import java.util.*;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 
 /**
  * {@link StreamPlan} is a helper class that builds StreamOperation of given configuration.
@@ -47,20 +48,20 @@ public class StreamPlan
      */
     public StreamPlan(StreamOperation streamOperation)
     {
-        this(streamOperation, 1, false, false, null);
+        this(streamOperation, 1, false, false, NO_PENDING_REPAIR, PreviewKind.NONE);
     }
 
     public StreamPlan(StreamOperation streamOperation, boolean keepSSTableLevels, boolean connectSequentially)
     {
-        this(streamOperation, 1, keepSSTableLevels, connectSequentially, null);
+        this(streamOperation, 1, keepSSTableLevels, connectSequentially, NO_PENDING_REPAIR, PreviewKind.NONE);
     }
 
     public StreamPlan(StreamOperation streamOperation, int connectionsPerHost, boolean keepSSTableLevels,
-                      boolean connectSequentially, UUID pendingRepair)
+                      boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
         this.streamOperation = streamOperation;
         this.coordinator = new StreamCoordinator(connectionsPerHost, keepSSTableLevels, new DefaultConnectionFactory(),
-                                                 connectSequentially, pendingRepair);
+                                                 connectSequentially, pendingRepair, previewKind);
     }
 
     /**

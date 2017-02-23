@@ -56,6 +56,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -789,7 +790,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
         List<StreamSession.SSTableStreamingSections> sectionsBeforeRewrite = StreamSession.getSSTableSectionsForRanges(
             Collections.singleton(new Range<Token>(firstToken, firstToken)),
-            Collections.singleton(cfs), null);
+            Collections.singleton(cfs), null, PreviewKind.NONE);
         assertEquals(1, sectionsBeforeRewrite.size());
         for (StreamSession.SSTableStreamingSections section : sectionsBeforeRewrite)
             section.ref.release();
@@ -804,7 +805,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 while (!done.get())
                 {
                     Set<Range<Token>> range = Collections.singleton(new Range<Token>(firstToken, firstToken));
-                    List<StreamSession.SSTableStreamingSections> sections = StreamSession.getSSTableSectionsForRanges(range, Collections.singleton(cfs), null);
+                    List<StreamSession.SSTableStreamingSections> sections = StreamSession.getSSTableSectionsForRanges(range, Collections.singleton(cfs), null, PreviewKind.NONE);
                     if (sections.size() != 1)
                         failed.set(true);
                     for (StreamSession.SSTableStreamingSections section : sections)

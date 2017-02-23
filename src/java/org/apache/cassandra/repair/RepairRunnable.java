@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXConfigurableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.repair.consistent.SyncStatSummary;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -50,6 +51,7 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
@@ -218,7 +220,11 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             cfnames[i] = columnFamilyStores.get(i).name;
         }
 
-        SystemDistributedKeyspace.startParentRepair(parentSession, keyspace, cfnames, options);
+        if (!options.isPreview())
+        {
+            SystemDistributedKeyspace.startParentRepair(parentSession, keyspace, cfnames, options);
+        }
+
         long repairedAt;
         try
         {
@@ -228,12 +234,19 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         }
         catch (Throwable t)
         {
-            SystemDistributedKeyspace.failParentRepair(parentSession, t);
+            if (!options.isPreview())
+            {
+                SystemDistributedKeyspace.failParentRepair(parentSession, t);
+            }
             fireErrorAndComplete(tag, progress.get(), totalProgress, t.getMessage());
             return;
         }
 
-        if (options.isIncremental())
+        if (options.isPreview())
+        {
+            previewRepair(parentSession, repairedAt, startTime, traceState, allNeighbors, commonRanges, cfnames);
+        }
+        else if (options.isIncremental())
         {
             consistentRepair(parentSession, repairedAt, startTime, traceState, allNeighbors, commonRanges, cfnames);
         }
@@ -311,6 +324,76 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         Futures.addCallback(repairResult, new RepairCompleteCallback(parentSession, ranges, startTime, traceState, hasFailure, executor));
     }
 
+    private void previewRepair(UUID parentSession,
+                               long repairedAt,
+                               long startTime,
+                               TraceState traceState,
+                               Set<InetAddress> allNeighbors,
+                               List<Pair<Set<InetAddress>, ? extends Collection<Range<Token>>>> commonRanges,
+                               String... cfnames)
+    {
+
+        logger.debug("Starting preview repair for {}", parentSession);
+        // Set up RepairJob executor for this repair command.
+        ListeningExecutorService executor = createExecutor();
+
+        final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, false, executor, commonRanges, cfnames);
+
+        Futures.addCallback(allSessions, new FutureCallback<List<RepairSessionResult>>()
+        {
+            public void onSuccess(List<RepairSessionResult> results)
+            {
+                try
+                {
+                    PreviewKind previewKind = options.getPreviewKind();
+                    assert previewKind != PreviewKind.NONE;
+                    SyncStatSummary summary = new SyncStatSummary(true);
+                    summary.consumeSessionResults(results);
+
+                    if (summary.isEmpty())
+                    {
+                        String message = previewKind == PreviewKind.REPAIRED ? "Repaired data is in sync" : "Previewed data was in sync";
+                        logger.info(message);
+                        fireProgressEvent(tag, new ProgressEvent(ProgressEventType.NOTIFICATION, progress.get(), totalProgress, message));
+                    }
+                    else
+                    {
+                        String message =  (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
+                        logger.info(message);
+                        fireProgressEvent(tag, new ProgressEvent(ProgressEventType.NOTIFICATION, progress.get(), totalProgress, message));
+                    }
+
+                    fireProgressEvent(tag, new ProgressEvent(ProgressEventType.SUCCESS, progress.get(), totalProgress,
+                                                             "Repair preview completed successfully"));
+                    complete();
+                }
+                catch (Throwable t)
+                {
+                    logger.error("Error completing preview repair", t);
+                    onFailure(t);
+                }
+            }
+
+            public void onFailure(Throwable t)
+            {
+                fireProgressEvent(tag, new ProgressEvent(ProgressEventType.ERROR, progress.get(), totalProgress, t.getMessage()));
+                logger.error("Error completing preview repair", t);
+                complete();
+            }
+
+            private void complete()
+            {
+                logger.debug("Preview repair {} completed", parentSession);
+
+                String duration = DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime,
+                                                                          true, true);
+                String message = String.format("Repair preview #%d finished in %s", cmd, duration);
+                fireProgressEvent(tag, new ProgressEvent(ProgressEventType.COMPLETE, progress.get(), totalProgress, message));
+                executor.shutdownNow();
+            }
+        });
+    }
+
     private ListenableFuture<List<RepairSessionResult>> submitRepairSessions(UUID parentSession,
                                                                              boolean isConsistent,
                                                                              ListeningExecutorService executor,
@@ -327,6 +410,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                                                                                      p.left,
                                                                                      isConsistent,
                                                                                      options.isPullRepair(),
+                                                                                     options.getPreviewKind(),
                                                                                      executor,
                                                                                      cfnames);
             if (session == null)
@@ -405,7 +489,10 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
         public void onSuccess(Object result)
         {
-            SystemDistributedKeyspace.successfulParentRepair(parentSession, successfulRanges);
+            if (!options.isPreview())
+            {
+                SystemDistributedKeyspace.successfulParentRepair(parentSession, successfulRanges);
+            }
             if (hasFailure.get())
             {
                 fireProgressEvent(tag, new ProgressEvent(ProgressEventType.ERROR, progress.get(), totalProgress,
@@ -422,7 +509,10 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         public void onFailure(Throwable t)
         {
             fireProgressEvent(tag, new ProgressEvent(ProgressEventType.ERROR, progress.get(), totalProgress, t.getMessage()));
-            SystemDistributedKeyspace.failParentRepair(parentSession, t);
+            if (!options.isPreview())
+            {
+                SystemDistributedKeyspace.failParentRepair(parentSession, t);
+            }
             repairComplete();
         }
 

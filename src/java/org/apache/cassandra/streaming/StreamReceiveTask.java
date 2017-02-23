@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,6 +93,8 @@ public class StreamReceiveTask extends StreamTask
      */
     public synchronized void received(SSTableMultiWriter sstable)
     {
+        Preconditions.checkState(!session.isPreview(), "we should never receive sstables when previewing");
+
         if (done)
         {
             logger.warn("[{}] Received sstable {} on already finished stream received task. Aborting sstable.", session.planId(),
