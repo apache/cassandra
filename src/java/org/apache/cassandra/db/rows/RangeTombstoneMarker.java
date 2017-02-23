@@ -27,7 +27,6 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  * A marker for a range tombstone bound.
  * <p>
  * There is 2 types of markers: bounds (see {@link RangeTombstoneBoundMarker}) and boundaries (see {@link RangeTombstoneBoundaryMarker}).
- * </p>
  */
 public interface RangeTombstoneMarker extends Unfiltered
 {
