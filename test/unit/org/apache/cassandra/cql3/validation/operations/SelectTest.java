@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.junit.Assert;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -4476,6 +4477,170 @@ public class SelectTest extends CQLTester
                            row(bytes("foo123"), bytes("1"), bytes("1"), bytes("1")),
                            row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1"), bytes("4")));
             });
+        }
+    }
+
+    @Test
+    public void testFilteringOnDurationColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, d duration)");
+        execute("INSERT INTO %s (k, d) VALUES (0, 1s)");
+        execute("INSERT INTO %s (k, d) VALUES (1, 2s)");
+        execute("INSERT INTO %s (k, d) VALUES (2, 1s)");
+
+        assertRows(execute("SELECT * FROM %s WHERE d=1s ALLOW FILTERING"),
+                   row(0, Duration.from("1s")),
+                   row(2, Duration.from("1s")));
+
+        assertInvalidMessage("IN predicates on non-primary-key columns (d) is not yet supported",
+                             "SELECT * FROM %s WHERE d IN (1s, 2s) ALLOW FILTERING");
+
+        assertInvalidMessage("Slice restrictions are not supported on duration columns",
+                             "SELECT * FROM %s WHERE d > 1s ALLOW FILTERING");
+
+        assertInvalidMessage("Slice restrictions are not supported on duration columns",
+                             "SELECT * FROM %s WHERE d >= 1s ALLOW FILTERING");
+
+        assertInvalidMessage("Slice restrictions are not supported on duration columns",
+                             "SELECT * FROM %s WHERE d <= 1s ALLOW FILTERING");
+
+        assertInvalidMessage("Slice restrictions are not supported on duration columns",
+                             "SELECT * FROM %s WHERE d < 1s ALLOW FILTERING");
+    }
+
+    @Test
+    public void testFilteringOnListContainingDurations() throws Throwable
+    {
+        for (Boolean frozen : new Boolean[]{Boolean.FALSE, Boolean.TRUE})
+        {
+            String listType = String.format(frozen ? "frozen<%s>" : "%s", "list<duration>");
+
+            createTable("CREATE TABLE %s (k int PRIMARY KEY, l " + listType + ")");
+            execute("INSERT INTO %s (k, l) VALUES (0, [1s, 2s])");
+            execute("INSERT INTO %s (k, l) VALUES (1, [2s, 3s])");
+            execute("INSERT INTO %s (k, l) VALUES (2, [1s, 3s])");
+
+            if (frozen)
+                assertRows(execute("SELECT * FROM %s WHERE l = [1s, 2s] ALLOW FILTERING"),
+                           row(0, list(Duration.from("1s"), Duration.from("2s"))));
+
+            assertInvalidMessage("IN predicates on non-primary-key columns (l) is not yet supported",
+                                 "SELECT * FROM %s WHERE l IN ([1s, 2s], [2s, 3s]) ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on collections containing durations",
+                                 "SELECT * FROM %s WHERE l > [2s, 3s] ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on collections containing durations",
+                                 "SELECT * FROM %s WHERE l >= [2s, 3s] ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on collections containing durations",
+                                 "SELECT * FROM %s WHERE l <= [2s, 3s] ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on collections containing durations",
+                                 "SELECT * FROM %s WHERE l < [2s, 3s] ALLOW FILTERING");
+
+            assertRows(execute("SELECT * FROM %s WHERE l CONTAINS 1s ALLOW FILTERING"),
+                       row(0, list(Duration.from("1s"), Duration.from("2s"))),
+                       row(2, list(Duration.from("1s"), Duration.from("3s"))));
+        }
+    }
+
+    @Test
+    public void testFilteringOnMapContainingDurations() throws Throwable
+    {
+        for (Boolean frozen : new Boolean[]{Boolean.FALSE, Boolean.TRUE})
+        {
+            String mapType = String.format(frozen ? "frozen<%s>" : "%s", "map<int, duration>");
+
+            createTable("CREATE TABLE %s (k int PRIMARY KEY, m " + mapType + ")");
+            execute("INSERT INTO %s (k, m) VALUES (0, {1:1s, 2:2s})");
+            execute("INSERT INTO %s (k, m) VALUES (1, {2:2s, 3:3s})");
+            execute("INSERT INTO %s (k, m) VALUES (2, {1:1s, 3:3s})");
+
+            if (frozen)
+                assertRows(execute("SELECT * FROM %s WHERE m = {1:1s, 2:2s} ALLOW FILTERING"),
+                           row(0, map(1, Duration.from("1s"), 2, Duration.from("2s"))));
+
+            assertInvalidMessage("IN predicates on non-primary-key columns (m) is not yet supported",
+                    "SELECT * FROM %s WHERE m IN ({1:1s, 2:2s}, {1:1s, 3:3s}) ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on collections containing durations",
+                    "SELECT * FROM %s WHERE m > {1:1s, 3:3s} ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on collections containing durations",
+                    "SELECT * FROM %s WHERE m >= {1:1s, 3:3s} ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on collections containing durations",
+                    "SELECT * FROM %s WHERE m <= {1:1s, 3:3s} ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on collections containing durations",
+                    "SELECT * FROM %s WHERE m < {1:1s, 3:3s} ALLOW FILTERING");
+
+            assertRows(execute("SELECT * FROM %s WHERE m CONTAINS 1s ALLOW FILTERING"),
+                       row(0, map(1, Duration.from("1s"), 2, Duration.from("2s"))),
+                       row(2, map(1, Duration.from("1s"), 3, Duration.from("3s"))));
+        }
+    }
+
+    @Test
+    public void testFilteringOnTupleContainingDurations() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, duration>)");
+        execute("INSERT INTO %s (k, t) VALUES (0, (1, 2s))");
+        execute("INSERT INTO %s (k, t) VALUES (1, (2, 3s))");
+        execute("INSERT INTO %s (k, t) VALUES (2, (1, 3s))");
+
+        assertRows(execute("SELECT * FROM %s WHERE t = (1, 2s) ALLOW FILTERING"),
+                   row(0, tuple(1, Duration.from("2s"))));
+
+        assertInvalidMessage("IN predicates on non-primary-key columns (t) is not yet supported",
+                "SELECT * FROM %s WHERE t IN ((1, 2s), (1, 3s)) ALLOW FILTERING");
+
+        assertInvalidMessage("Slice restrictions are not supported on tuples containing durations",
+                "SELECT * FROM %s WHERE t > (1, 2s) ALLOW FILTERING");
+
+        assertInvalidMessage("Slice restrictions are not supported on tuples containing durations",
+                "SELECT * FROM %s WHERE t >= (1, 2s) ALLOW FILTERING");
+
+        assertInvalidMessage("Slice restrictions are not supported on tuples containing durations",
+                "SELECT * FROM %s WHERE t <= (1, 2s) ALLOW FILTERING");
+
+        assertInvalidMessage("Slice restrictions are not supported on tuples containing durations",
+                "SELECT * FROM %s WHERE t < (1, 2s) ALLOW FILTERING");
+    }
+
+    @Test
+    public void testFilteringOnUdtContainingDurations() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (i int, d duration)");
+
+        for (Boolean frozen : new Boolean[]{Boolean.FALSE, Boolean.TRUE})
+        {
+            udt = String.format(frozen ? "frozen<%s>" : "%s", udt);
+
+            createTable("CREATE TABLE %s (k int PRIMARY KEY, u " + udt + ")");
+            execute("INSERT INTO %s (k, u) VALUES (0, {i: 1, d:2s})");
+            execute("INSERT INTO %s (k, u) VALUES (1, {i: 2, d:3s})");
+            execute("INSERT INTO %s (k, u) VALUES (2, {i: 1, d:3s})");
+
+            if (frozen)
+                assertRows(execute("SELECT * FROM %s WHERE u = {i: 1, d:2s} ALLOW FILTERING"),
+                           row(0, userType("i", 1, "d", Duration.from("2s"))));
+
+            assertInvalidMessage("IN predicates on non-primary-key columns (u) is not yet supported",
+                    "SELECT * FROM %s WHERE u IN ({i: 2, d:3s}, {i: 1, d:3s}) ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on UDTs containing durations",
+                    "SELECT * FROM %s WHERE u > {i: 1, d:3s} ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on UDTs containing durations",
+                    "SELECT * FROM %s WHERE u >= {i: 1, d:3s} ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on UDTs containing durations",
+                    "SELECT * FROM %s WHERE u <= {i: 1, d:3s} ALLOW FILTERING");
+
+            assertInvalidMessage("Slice restrictions are not supported on UDTs containing durations",
+                    "SELECT * FROM %s WHERE u < {i: 1, d:3s} ALLOW FILTERING");
         }
     }
 }

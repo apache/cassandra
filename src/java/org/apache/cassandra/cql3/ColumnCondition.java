@@ -26,11 +26,15 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
  * A CQL3 condition on the value of a column or collection element.  For example, "UPDATE .. IF a = 0".
@@ -1037,6 +1041,7 @@ public class ColumnCondition
                     default:
                         throw new AssertionError();
                 }
+
                 if (operator == Operator.IN)
                 {
                     if (inValues == null)
@@ -1048,6 +1053,7 @@ public class ColumnCondition
                 }
                 else
                 {
+                    validateOperationOnDurations(valueSpec.type);
                     return ColumnCondition.condition(receiver, collectionElement.prepare(keyspace, elementSpec), value.prepare(keyspace, valueSpec), operator);
                 }
             }
@@ -1071,6 +1077,7 @@ public class ColumnCondition
                 }
                 else
                 {
+                    validateOperationOnDurations(fieldReceiver.type);
                     return ColumnCondition.condition(receiver, udtField, value.prepare(keyspace, fieldReceiver), operator);
                 }
             }
@@ -1087,8 +1094,20 @@ public class ColumnCondition
                 }
                 else
                 {
+                    validateOperationOnDurations(receiver.type);
                     return ColumnCondition.condition(receiver, value.prepare(keyspace, receiver), operator);
                 }
+            }
+        }
+
+        private void validateOperationOnDurations(AbstractType<?> type)
+        {
+            if (type.referencesDuration() && operator.isSlice())
+            {
+                checkFalse(type.isCollection(), "Slice conditions are not supported on collections containing durations");
+                checkFalse(type.isTuple(), "Slice conditions are not supported on tuples containing durations");
+                checkFalse(type.isUDT(), "Slice conditions are not supported on UDTs containing durations");
+                throw invalidRequest("Slice conditions are not supported on durations", operator);
             }
         }
     }

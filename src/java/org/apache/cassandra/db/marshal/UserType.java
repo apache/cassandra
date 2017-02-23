@@ -407,6 +407,12 @@ public class UserType extends TupleType
     }
 
     @Override
+    public boolean isTuple()
+    {
+        return false;
+    }
+
+    @Override
     public String toString(boolean ignoreFreezing)
     {
         boolean includeFrozenType = !ignoreFreezing && !isMultiCell();

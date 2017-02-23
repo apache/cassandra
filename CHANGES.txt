@@ -1,4 +1,5 @@
 3.11.0
+ * Fix equality comparisons of columns using the duration type (CASSANDRA-13174)
  * Obfuscate password in stress-graphs (CASSANDRA-12233)
  * Move to FastThreadLocalThread and FastThreadLocal (CASSANDRA-13034)
  * nodetool stopdaemon errors out (CASSANDRA-13030)

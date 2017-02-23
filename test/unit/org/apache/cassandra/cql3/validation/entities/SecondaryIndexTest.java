@@ -30,6 +30,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.statements.IndexTarget;
@@ -1341,6 +1342,32 @@ public class SecondaryIndexTest extends CQLTester
 
         assertRows(execute("SELECT * FROM %s WHERE v = ?", 1),
                    row(1, 1, 9, 1));
+    }
+
+    @Test
+    public void testIndexOnDurationColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, d duration)");
+        assertInvalidMessage("Secondary indexes are not supported on duration columns",
+                             "CREATE INDEX ON %s (d)");
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<duration>)");
+        assertInvalidMessage("Secondary indexes are not supported on collections containing durations",
+                             "CREATE INDEX ON %s (l)");
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<int, duration>)");
+        assertInvalidMessage("Secondary indexes are not supported on collections containing durations",
+                             "CREATE INDEX ON %s (m)");
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, duration>)");
+        assertInvalidMessage("Secondary indexes are not supported on tuples containing durations",
+                             "CREATE INDEX ON %s (t)");
+
+        String udt = createType("CREATE TYPE %s (i int, d duration)");
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t " + udt + ")");
+        assertInvalidMessage("Secondary indexes are not supported on UDTs containing durations",
+                             "CREATE INDEX ON %s (t)");
     }
 
     private ResultMessage.Prepared prepareStatement(String cql, boolean forThrift)

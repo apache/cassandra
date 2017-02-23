@@ -412,6 +412,12 @@ public class TupleType extends AbstractType<ByteBuffer>
     }
 
     @Override
+    public boolean isTuple()
+    {
+        return true;
+    }
+
+    @Override
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Tuple.create(this);

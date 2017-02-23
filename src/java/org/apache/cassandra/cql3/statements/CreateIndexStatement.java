@@ -33,6 +33,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.IndexName;
+import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -44,6 +45,9 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /** A <code>CREATE INDEX</code> statement parsed from a CQL query. */
 public class CreateIndexStatement extends SchemaAlteringStatement
@@ -102,6 +106,14 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
             if (cd == null)
                 throw new InvalidRequestException("No column definition found for column " + target.column);
+
+            if (cd.type.referencesDuration())
+            {
+                checkFalse(cd.type.isCollection(), "Secondary indexes are not supported on collections containing durations");
+                checkFalse(cd.type.isTuple(), "Secondary indexes are not supported on tuples containing durations");
+                checkFalse(cd.type.isUDT(), "Secondary indexes are not supported on UDTs containing durations");
+                throw invalidRequest("Secondary indexes are not supported on duration columns");
+            }
 
             // TODO: we could lift that limitation
             if (cfm.isCompactTable() && cd.isPrimaryKeyColumn())

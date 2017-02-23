@@ -151,10 +151,10 @@ public class CreateTest extends CQLTester
                    row(1, 21, Duration.newInstance(12, 10, 0)),
                    row(1, 22, Duration.newInstance(-12, -10, 0)));
 
-        assertInvalidMessage("Slice restriction are not supported on duration columns",
+        assertInvalidMessage("Slice restrictions are not supported on duration columns",
                              "SELECT * FROM %s WHERE c > 1y ALLOW FILTERING");
 
-        assertInvalidMessage("Slice restriction are not supported on duration columns",
+        assertInvalidMessage("Slice restrictions are not supported on duration columns",
                              "SELECT * FROM %s WHERE c <= 1y ALLOW FILTERING");
 
         assertInvalidMessage("Expected at least 3 bytes for a duration (1)",
