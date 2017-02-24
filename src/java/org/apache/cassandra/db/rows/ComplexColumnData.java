@@ -218,7 +218,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
     @Override
     public int hashCode()
     {
-        return Objects.hash(column(), complexDeletion(), cells);
+        return Objects.hash(column(), complexDeletion(), BTree.hashCode(cells));
     }
 
     public static Builder builder()
