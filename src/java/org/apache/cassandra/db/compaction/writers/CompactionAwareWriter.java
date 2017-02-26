@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compaction.writers;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -64,6 +65,9 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     private final List<Directories.DataDirectory> locations;
     private final List<PartitionPosition> diskBoundaries;
     private int locationIndex;
+
+    // Keep targetDirectory for compactions, needed for `nodetool compactionstats`
+    protected Directories.DataDirectory sstableDirectory;
 
     @Deprecated
     public CompactionAwareWriter(ColumnFamilyStore cfs,
@@ -145,6 +149,11 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     {
         maybeSwitchWriter(partition.partitionKey());
         return realAppend(partition);
+    }
+
+    public final File getSstableDirectory() throws IOException
+    {
+        return getDirectories().getLocationForDisk(sstableDirectory);
     }
 
     @Override

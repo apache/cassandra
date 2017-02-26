@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.File;
+import java.io.IOException;
 import java.text.DecimalFormat;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
@@ -43,6 +45,11 @@ public class CompactionStats extends NodeToolCmd
             name = {"-H", "--human-readable"},
             description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
+
+    @Option(title = "with_more_info",
+            name = {"-v", "--with-more-info"},
+            description = "Sort and display sstable paths for the compactions")
+    private boolean withMoreInfo = false;
 
     @Override
     public void execute(NodeProbe probe)
@@ -69,34 +76,70 @@ public class CompactionStats extends NodeToolCmd
             }
         }
         System.out.println();
-        reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughput(), humanReadable);
+        reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughput(), humanReadable, withMoreInfo);
     }
 
-    public static void reportCompactionTable(List<Map<String,String>> compactions, int compactionThroughput, boolean humanReadable)
+    public static void reportCompactionTable(List<Map<String,String>> compactions, int compactionThroughput, boolean humanReadable, boolean withMoreInfo)
     {
+
         if (!compactions.isEmpty())
         {
             long remainingBytes = 0;
-            TableBuilder table = new TableBuilder();
+            final TableBuilder table = new TableBuilder();
+            final Map<String, List<Map<String, String>>> targetDirectoryRows;
 
             table.add("id", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
-            for (Map<String, String> c : compactions)
+
+            // Map target directories to the list of the corresponding compactions
+            targetDirectoryRows = compactions.stream()
+                    .collect(Collectors.groupingBy(c -> c.get("targetDirectory").substring(0,c.get("targetDirectory").lastIndexOf(c.get("keyspace")))));
+
+
+            for (Entry<String, List<Map<String, String>>> entry : targetDirectoryRows.entrySet())
             {
-                long total = Long.parseLong(c.get(CompactionInfo.TOTAL));
-                long completed = Long.parseLong(c.get(CompactionInfo.COMPLETED));
-                String taskType = c.get(CompactionInfo.TASK_TYPE);
-                String keyspace = c.get(CompactionInfo.KEYSPACE);
-                String columnFamily = c.get(CompactionInfo.COLUMNFAMILY);
-                String unit = c.get(CompactionInfo.UNIT);
-                boolean toFileSize = humanReadable && Unit.isFileSize(unit);
-                String completedStr = toFileSize ? FileUtils.stringifyFileSize(completed) : Long.toString(completed);
-                String totalStr = toFileSize ? FileUtils.stringifyFileSize(total) : Long.toString(total);
-                String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + "%";
-                String id = c.get(CompactionInfo.COMPACTION_ID);
-                table.add(id, taskType, keyspace, columnFamily, completedStr, totalStr, unit, percentComplete);
-                if (taskType.equals(OperationType.COMPACTION.toString()))
-                    remainingBytes += total - completed;
+                // if we require more info, add the directory name before the list of compactions
+                if (withMoreInfo)
+                {
+                    try
+                    {
+                        // Use canonical path
+                        final File compactionPath = new File(entry.getKey());
+                        table.add(compactionPath.getCanonicalPath());
+                    }
+                    catch (IOException e)
+                    {
+                        // Couldn't parse entry into the canonical path, just use as is
+                        table.add(entry.getKey());
+                    }
+                }
+
+                // Add the compactions
+                for (Map<String, String> c : entry.getValue())
+                {
+                    long total = Long.parseLong(c.get(CompactionInfo.TOTAL));
+                    long completed = Long.parseLong(c.get(CompactionInfo.COMPLETED));
+                    String taskType = c.get(CompactionInfo.TASK_TYPE);
+                    String keyspace = c.get(CompactionInfo.KEYSPACE);
+                    String columnFamily = c.get(CompactionInfo.COLUMNFAMILY);
+                    String unit = c.get(CompactionInfo.UNIT);
+                    boolean toFileSize = humanReadable && Unit.isFileSize(unit);
+                    String completedStr = toFileSize ? FileUtils.stringifyFileSize(completed) : Long.toString(completed);
+                    String totalStr = toFileSize ? FileUtils.stringifyFileSize(total) : Long.toString(total);
+                    String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + "%";
+                    String id = c.get(CompactionInfo.COMPACTION_ID);
+                    table.add(id, taskType, keyspace, columnFamily, completedStr, totalStr, unit, percentComplete);
+                    if (taskType.equals(OperationType.COMPACTION.toString()))
+                        remainingBytes += total - completed;
+                }
+
+                // If with more info, add an empty line between this and next path set
+                if (withMoreInfo)
+                    table.addEmptyLine();
             }
+
+            // if we printing more info, we need to remove the extra newline before printing the totals
+            if (withMoreInfo)
+                table.removeLastLine();
             table.printTo(System.out);
 
             String remainingTime = "n/a";
@@ -105,6 +148,7 @@ public class CompactionStats extends NodeToolCmd
                 long remainingTimeInSecs = remainingBytes / (1024L * 1024L * compactionThroughput);
                 remainingTime = format("%dh%02dm%02ds", remainingTimeInSecs / 3600, (remainingTimeInSecs % 3600) / 60, (remainingTimeInSecs % 60));
             }
+
             System.out.printf("%25s%10s%n", "Active compaction remaining time : ", remainingTime);
         }
     }

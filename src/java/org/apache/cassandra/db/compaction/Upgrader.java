@@ -94,6 +94,7 @@ public class Upgrader
         {
             writer.switchWriter(createCompactionWriter(sstable.getSSTableMetadata()));
             while (iter.hasNext())
+                iter.setTargetDirectory(writer.currentWriter().getFilename());
                 writer.append(iter.next());
 
             writer.finish();

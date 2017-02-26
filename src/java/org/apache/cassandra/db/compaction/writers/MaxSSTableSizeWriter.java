@@ -36,7 +36,6 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
     private final int level;
     private final long estimatedSSTables;
     private final Set<SSTableReader> allSSTables;
-    private Directories.DataDirectory sstableDirectory;
 
     public MaxSSTableSizeWriter(ColumnFamilyStore cfs,
                                 Directories directories,

@@ -57,6 +57,11 @@ public class TableBuilder
         this.columnDelimiter = columnDelimiter;
     }
 
+    public void addEmptyLine()
+    {
+        add("");
+    }
+
     public void add(@Nonnull String... row)
     {
         Objects.requireNonNull(row);
@@ -99,5 +104,13 @@ public class TableBuilder
             }
             out.println();
         }
+    }
+
+    // Remove last line in a set of rows, used in printouts to remove the last empty line
+    public void removeLastLine() {
+        if (rows.isEmpty())
+            return;
+
+        rows.remove(rows.size() - 1);
     }
 }

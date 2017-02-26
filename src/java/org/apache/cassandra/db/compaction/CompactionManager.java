@@ -1216,6 +1216,10 @@ public class CompactionManager implements CompactionManagerMBean
 
             while (ci.hasNext())
             {
+                ci.setTargetDirectory(writer.currentWriter().getFilename());
+                if (ci.isStopRequested())
+                    throw new CompactionInterruptedException(ci.getCompactionInfo());
+
                 try (UnfilteredRowIterator partition = ci.next();
                      UnfilteredRowIterator notCleaned = cleanupStrategy.cleanup(partition))
                 {
@@ -1523,15 +1527,18 @@ public class CompactionManager implements CompactionManagerMBean
                     if (fullChecker.test(token))
                     {
                         fullWriter.append(partition);
+                        ci.setTargetDirectory(fullWriter.currentWriter().getFilename());
                     }
                     else if (transChecker.test(token))
                     {
                         transWriter.append(partition);
+                        ci.setTargetDirectory(transWriter.currentWriter().getFilename());
                     }
                     else
                     {
                         // otherwise, append it to the unrepaired sstable
                         unrepairedWriter.append(partition);
+                        ci.setTargetDirectory(unrepairedWriter.currentWriter().getFilename());
                     }
                 }
             }

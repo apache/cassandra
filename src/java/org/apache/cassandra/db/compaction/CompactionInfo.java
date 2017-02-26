@@ -38,17 +38,26 @@ public final class CompactionInfo implements Serializable
     public static final String TASK_TYPE = "taskType";
     public static final String UNIT = "unit";
     public static final String COMPACTION_ID = "compactionId";
+    public static final String TARGET_DIRECTORY = "targetDirectory";
 
+    // NON_COMPACTION_OPERATION is going to be used for printouts of the compactions activities that are not actual compactions
+    private static final String NON_COMPACTION_OPERATION = "-------- Other operations --------";
     private final TableMetadata metadata;
     private final OperationType tasktype;
     private final long completed;
     private final long total;
     private final Unit unit;
     private final UUID compactionId;
+    private final String targetDirectory;
 
+    /**
+     * Allow instantiating CompactionInfo object without targetDirectory; for operations without actual compactions
+     * @params metadata, tasktype, how many bytes done, total bytes, compaction ID
+     * @return CompactionInfo object
+     */
     public CompactionInfo(TableMetadata metadata, OperationType tasktype, long bytesComplete, long totalBytes, UUID compactionId)
     {
-        this(metadata, tasktype, bytesComplete, totalBytes, Unit.BYTES, compactionId);
+        this(metadata, tasktype, bytesComplete, totalBytes, Unit.BYTES, compactionId, NON_COMPACTION_OPERATION);
     }
 
     public static enum Unit
@@ -74,12 +83,47 @@ public final class CompactionInfo implements Serializable
         }
     }
 
-    public CompactionInfo(OperationType tasktype, long completed, long total, Unit unit, UUID compactionId)
+    /**
+     * Allow instantiating CompactionInfo object with targetDirectory; for operations with compactions, used in `nodetool compactionstats`
+     * @params tasktype, how many bytes done, total bytes, compaction ID and targetDirectory
+     * @return CompactionInfo object
+     */
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long bytesComplete, long totalBytes, UUID compactionId, String targetDirectory)
     {
-        this(null, tasktype, completed, total, unit, compactionId);
+        this(metadata, tasktype, bytesComplete, totalBytes, Unit.BYTES, compactionId, targetDirectory);
     }
 
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, UUID compactionId)
+    /**
+     * Allow instantiating CompactionInfo object without targetDirectory; for operations without actual compactions
+     * @params tasktype, how many bytes done, total bytes, unit and compaction ID
+     * @return CompactionInfo object
+     */
+    public CompactionInfo(OperationType tasktype, long completed, long total, Unit unit, UUID compactionId)
+    {
+        this(null, tasktype, completed, total, unit, compactionId, NON_COMPACTION_OPERATION);
+    }
+
+    /**
+     * Allow instantiating CompactionInfo object with targetDirectory; for operations with compactions, used in `nodetool compactionstats`
+     * @params tasktype, how many bytes done, total bytes, unit, compaction ID and targetDirectory
+     * @return CompactionInfo object
+     */
+    public CompactionInfo(OperationType tasktype, long completed, long total, Unit unit, UUID compactionId, String targetDirectory)
+    {
+        this(null, tasktype, completed, total, unit, compactionId, targetDirectory);
+    }
+
+    /**
+     * Allow instantiating CompactionInfo object without targetDirectory; for operations without actual compactions
+     * @params metadata, tasktype, how many bytes done, total bytes, unit and compaction ID
+     * @return CompactionInfo object
+     */
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, UUID compactionId) {
+        this(metadata, tasktype, completed, total, unit, compactionId, NON_COMPACTION_OPERATION);
+    }
+
+    // This is the constructor that will always get called eventually to initialise all fields.
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, UUID compactionId, String targetDirectory)
     {
         this.tasktype = tasktype;
         this.completed = completed;
@@ -87,12 +131,15 @@ public final class CompactionInfo implements Serializable
         this.metadata = metadata;
         this.unit = unit;
         this.compactionId = compactionId;
+
+        // Will hold a target directory for compaction, used for printing in `nodetool compactionstats` to provide more info on compactions
+        this.targetDirectory = targetDirectory;
     }
 
     /** @return A copy of this CompactionInfo with updated progress. */
     public CompactionInfo forProgress(long complete, long total)
     {
-        return new CompactionInfo(metadata, tasktype, complete, total, unit, compactionId);
+        return new CompactionInfo(metadata, tasktype, complete, total, unit, compactionId, targetDirectory);
     }
 
     public Optional<String> getKeyspace()
@@ -135,6 +182,8 @@ public final class CompactionInfo implements Serializable
         return unit;
     }
 
+    public String targetDirectory() { return targetDirectory; }
+
     public String toString()
     {
         StringBuilder buff = new StringBuilder();
@@ -163,6 +212,7 @@ public final class CompactionInfo implements Serializable
         ret.put(TASK_TYPE, tasktype.toString());
         ret.put(UNIT, unit.toString());
         ret.put(COMPACTION_ID, compactionId == null ? "" : compactionId.toString());
+        ret.put(TARGET_DIRECTORY, targetDirectory == null ? "" : targetDirectory);
         return ret;
     }
 

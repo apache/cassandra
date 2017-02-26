@@ -60,10 +60,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final List<ISSTableScanner> scanners;
     private final int nowInSec;
     private final UUID compactionId;
-
     private final long totalBytes;
     private long bytesRead;
     private long totalSourceCQLRows;
+
+    // Keep targetDirectory for compactions, needed for `nodetool compactionstats`
+    private String targetDirectory = null;
+
 
     /*
      * counters for merged rows.
@@ -119,7 +122,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                   type,
                                   bytesRead,
                                   totalBytes,
-                                  compactionId);
+                                  compactionId,
+                                  targetDirectory);
+    }
+
+    public void setTargetDirectory(final String targetDirectory)
+    {
+        this.targetDirectory = targetDirectory;
     }
 
     private void updateCounterFor(int rows)

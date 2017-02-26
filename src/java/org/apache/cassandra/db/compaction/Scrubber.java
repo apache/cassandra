@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
 import java.io.*;
+import java.nio.file.Paths;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -475,7 +476,8 @@ public class Scrubber implements Closeable
                                           OperationType.SCRUB,
                                           dataFile.getFilePointer(),
                                           dataFile.length(),
-                                          scrubCompactionId);
+                                          scrubCompactionId,
+                                          Paths.get(sstable.getFilename()).getParent().toString());
             }
             catch (Exception e)
             {

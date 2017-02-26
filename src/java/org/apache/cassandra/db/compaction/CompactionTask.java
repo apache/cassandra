@@ -17,12 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicate;
@@ -199,6 +194,7 @@ public class CompactionTask extends AbstractCompactionTask
                         if (writer.append(ci.next()))
                             totalKeysWritten++;
 
+                        ci.setTargetDirectory(writer.getSstableDirectory().getAbsolutePath());
 
                         long bytesScanned = scanners.getTotalBytesScanned();
 

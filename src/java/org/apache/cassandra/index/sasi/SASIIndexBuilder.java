@@ -49,6 +49,9 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
     private final ColumnFamilyStore cfs;
     private final UUID compactionId = UUIDGen.getTimeUUID();
 
+    // Keep targetDirectory for compactions, needed for `nodetool compactionstats`
+    private String targetDirectory;
+
     private final SortedMap<SSTableReader, Map<ColumnMetadata, ColumnIndex>> sstables;
 
     private long bytesProcessed = 0;
@@ -76,6 +79,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
             try (RandomAccessReader dataFile = sstable.openDataReader())
             {
                 PerSSTableIndexWriter indexWriter = SASIIndex.newWriter(keyValidator, sstable.descriptor, indexes, OperationType.COMPACTION);
+                targetDirectory = indexWriter.getDescriptor().directory.getPath();
 
                 long previousKeyPosition = 0;
                 try (KeyIterator keys = new KeyIterator(sstable.descriptor, cfs.metadata()))
@@ -84,6 +88,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
                     {
                         if (isStopRequested())
                             throw new CompactionInterruptedException(getCompactionInfo());
+
 
                         final DecoratedKey key = keys.next();
                         final long keyPosition = keys.getKeyPosition();
