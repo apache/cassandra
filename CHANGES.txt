@@ -1,4 +1,5 @@
 2.2.10
+ * Fix GRANT/REVOKE when keyspace isn't specified (CASSANDRA-13053)
  * Avoid race on receiver by starting streaming sender thread after sending init message (CASSANDRA-12886)
  * Fix "multiple versions of ant detected..." when running ant test (CASSANDRA-13232)
  * Coalescing strategy sleeps too much (CASSANDRA-13090)
@@ -10,6 +11,7 @@
 Merged from 2.1:
  * Remove unused repositories (CASSANDRA-13278)
  * Log stacktrace of uncaught exceptions (CASSANDRA-13108)
+
 
 2.2.9
  * Fix negative mean latency metric (CASSANDRA-12876)
