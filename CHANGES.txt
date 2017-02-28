@@ -8,6 +8,7 @@
  * More fixes to the TokenAllocator (CASSANDRA-12990)
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
 Merged from 3.0:
+ * Coalescing strategy sleeps too much (CASSANDRA-13090)
  * Faster StreamingHistogram (CASSANDRA-13038)
  * Legacy deserializer can create unexpected boundary range tombstones (CASSANDRA-13237)
  * Remove unnecessary assertion from AntiCompactionTest (CASSANDRA-13070)
@@ -227,7 +228,6 @@ Merged from 3.0:
  * Correct log message for statistics of offheap memtable flush (CASSANDRA-12776)
  * Explicitly set locale for string validation (CASSANDRA-12541,CASSANDRA-12542,CASSANDRA-12543,CASSANDRA-12545)
 Merged from 2.2:
- * Coalescing strategy sleeps too much (CASSANDRA-13090)
  * Fix speculative retry bugs (CASSANDRA-13009)
  * Fix handling of nulls and unsets in IN conditions (CASSANDRA-12981)
  * Fix race causing infinite loop if Thrift server is stopped before it starts listening (CASSANDRA-12856)
