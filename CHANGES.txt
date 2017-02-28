@@ -4,6 +4,7 @@
  * Remove unnecessary assertion from AntiCompactionTest (CASSANDRA-13070)
  * Fix cqlsh COPY for dates before 1900 (CASSANDRA-13185)
 Merged from 2.2
+ * Coalescing strategy sleeps too much (CASSANDRA-13090)
  * Fix flaky LongLeveledCompactionStrategyTest (CASSANDRA-12202)
  * Fix failing COPY TO STDOUT (CASSANDRA-12497)
  * Fix ColumnCounter::countAll behaviour for reverse queries (CASSANDRA-13222)
@@ -52,7 +53,6 @@ Merged from 2.1:
  * Prevent reloading of logback.xml from UDF sandbox (CASSANDRA-12535)
  * Reenable HeapPool (CASSANDRA-12900)
 Merged from 2.2:
- * Coalescing strategy sleeps too much (CASSANDRA-13090)
  * Fix negative mean latency metric (CASSANDRA-12876)
  * Use only one file pointer when creating commitlog segments (CASSANDRA-12539)
  * Fix speculative retry bugs (CASSANDRA-13009)
