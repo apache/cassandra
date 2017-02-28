@@ -1,4 +1,5 @@
 4.0
+ * Skip building views during base table streams on range movements (CASSANDRA-13065)
  * Improve error messages for +/- operations on maps and tuples (CASSANDRA-13197)
  * Remove deprecated repair JMX APIs (CASSANDRA-11530)
  * Fix version check to enable streaming keep-alive (CASSANDRA-12929)

@@ -41,6 +41,7 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -144,7 +145,7 @@ public class RangeStreamer
     public RangeStreamer(TokenMetadata metadata,
                          Collection<Token> tokens,
                          InetAddress address,
-                         String description,
+                         StreamOperation streamOperation,
                          boolean useStrictConsistency,
                          IEndpointSnitch snitch,
                          StreamStateStore stateStore,
@@ -154,8 +155,8 @@ public class RangeStreamer
         this.metadata = metadata;
         this.tokens = tokens;
         this.address = address;
-        this.description = description;
-        this.streamPlan = new StreamPlan(description, ActiveRepairService.UNREPAIRED_SSTABLE, connectionsPerHost,
+        this.description = streamOperation.getDescription();
+        this.streamPlan = new StreamPlan(streamOperation, ActiveRepairService.UNREPAIRED_SSTABLE, connectionsPerHost,
                 true, false, connectSequentially, null);
         this.useStrictConsistency = useStrictConsistency;
         this.snitch = snitch;

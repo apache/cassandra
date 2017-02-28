@@ -33,6 +33,7 @@ import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -79,10 +80,10 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
             isIncremental = prs.isIncremental;
         }
         Tracing.traceRepair(message);
-        StreamPlan plan = new StreamPlan("Repair", repairedAt, 1, false, isIncremental, false, pendingRepair).listeners(this)
-                                            .flushBeforeTransfer(true)
-                                            // request ranges from the remote node
-                                            .requestRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily);
+        StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, repairedAt, 1, false, isIncremental, false, pendingRepair).listeners(this)
+                                                                                                                           .flushBeforeTransfer(true)
+                                                                                                                           // request ranges from the remote node
+                                                                                                                           .requestRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily);
         if (!pullRepair)
         {
             // send ranges to the remote node if we are not performing a pull repair
