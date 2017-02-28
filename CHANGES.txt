@@ -1,4 +1,5 @@
 2.2.10
+ * Coalescing strategy sleeps too much (CASSANDRA-13090)
  * Make sure compaction stats are updated when compaction is interrupted (Backport from 3.0, CASSANDRA-12100)
  * Fix flaky LongLeveledCompactionStrategyTest (CASSANDRA-12202)
  * Fix failing COPY TO STDOUT (CASSANDRA-12497)
@@ -8,7 +9,6 @@ Merged from 2.1:
  * Log stacktrace of uncaught exceptions (CASSANDRA-13108)
 
 2.2.9
- * Coalescing strategy sleeps too much (CASSANDRA-13090)
  * Fix negative mean latency metric (CASSANDRA-12876)
  * Use only one file pointer when creating commitlog segments (CASSANDRA-12539)
  * Fix speculative retry bugs (CASSANDRA-13009)
