@@ -397,7 +397,11 @@ concurrent_materialized_view_writes: 32
 # Specify the way Cassandra allocates and manages memtable memory.
 # Options are:
 #   heap_buffers:    on heap nio buffers
-#   offheap_buffers: off heap (direct) nio buffers
+#
+# Note: offheap_buffers are not supported in Cassandra 3.0 - 3.3.
+# They have been re-introduced in Cassandra 3.4. For details see
+# https://issues.apache.org/jira/browse/CASSANDRA-9472 and
+# https://issues.apache.org/jira/browse/CASSANDRA-11039
 memtable_allocation_type: heap_buffers
 
 # Total space to use for commit logs on disk.
