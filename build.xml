@@ -271,7 +271,6 @@
 
       <!-- define the remote repositories we use -->
       <artifact:remoteRepository id="central"   url="${artifact.remoteRepository.central}"/>
-      <artifact:remoteRepository id="java.net2" url="${artifact.remoteRepository.java.net2}"/>
       <artifact:remoteRepository id="apache"    url="${artifact.remoteRepository.apache}"/>
 
       <macrodef name="install">
@@ -654,7 +653,6 @@
                              dependencyRefsBuildFile="${build.dir}/build-dependencies.xml">
           <remoteRepository refid="central"/>
           <remoteRepository refid="apache"/>
-          <remoteRepository refid="java.net2"/>
       </artifact:dependencies>
       <!-- retrieve -source.jar artifacts using the reference-pom with the artifacts that have these -->
       <artifact:dependencies pomRefId="build-deps-pom-sources"
@@ -663,7 +661,6 @@
                              dependencyRefsBuildFile="${build.dir}/build-dependencies-sources.xml">
           <remoteRepository refid="central"/>
           <remoteRepository refid="apache"/>
-          <remoteRepository refid="java.net2"/>
       </artifact:dependencies>
       <copy todir="${build.dir.lib}/jars">
           <fileset refid="build-dependency-jars"/>
@@ -700,7 +697,6 @@
                              dependencyRefsBuildFile="${build.dir}/test-dependencies.xml">
         <remoteRepository refid="apache"/>
         <remoteRepository refid="central"/>
-        <remoteRepository refid="oauth"/>
       </artifact:dependencies>
       <copy todir="${test.lib}/jars">
         <fileset refid="test-dependency-jars"/>
@@ -720,7 +716,6 @@
                              dependencyRefsBuildFile="${build.dir}/test-dependencies.xml">
         <remoteRepository refid="apache"/>
         <remoteRepository refid="central"/>
-        <remoteRepository refid="java.net2"/>
       </artifact:dependencies>
       <copy todir="${build.dir.lib}/jars">
         <fileset refid="test-dependency-jars"/>
