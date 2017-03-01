@@ -989,3 +989,12 @@ windows_timer_interval: 1
 
 # Do not try to coalesce messages if we already got that many messages. This should be more than 2 and less than 128.
 # otc_coalescing_enough_coalesced_messages: 8
+
+# How many milliseconds to wait between two expiration runs on the backlog (queue) of the OutboundTcpConnection.
+# Expiration is done if messages are piling up in the backlog. Droppable messages are expired to free the memory
+# taken by expired messages. The interval should be between 0 and 1000, and in most installations the default value
+# will be appropriate. A smaller value could potentially expire messages slightly sooner at the expense of more CPU
+# time and queue contention while iterating the backlog of messages.
+# An interval of 0 disables any wait time, which is the behavior of former Cassandra versions.
+#
+# otc_backlog_expiration_interval_ms: 200
