@@ -31,6 +31,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.Checksum;
@@ -128,6 +129,9 @@ public class OutboundTcpConnection extends Thread
     static final int LZ4_HASH_SEED = 0x9747b28c;
 
     private final BlockingQueue<QueuedMessage> backlog = new LinkedBlockingQueue<>();
+    private final int backlogExpireAt = 1024;
+    private final AtomicBoolean backlogExpirationRunning = new AtomicBoolean(false);
+    private static final boolean BACKLOG_EXPIRATION_DEBUG = false;
 
     private final OutboundTcpConnectionPool poolReference;
 
@@ -164,8 +168,7 @@ public class OutboundTcpConnection extends Thread
 
     public void enqueue(MessageOut<?> message, int id)
     {
-        if (backlog.size() > 1024)
-            expireMessages();
+        expireMessages();
         try
         {
             backlog.put(new QueuedMessage(message, id));
@@ -563,18 +566,49 @@ public class OutboundTcpConnection extends Thread
         return version.get();
     }
 
+    /**
+     * Expire elements from the queue if the queue is pretty full and expiration is not already in progress.
+     * This method will only remove droppable expired entries. If no such element exists, nothing is removed from the queue.
+     */
     private void expireMessages()
     {
-        Iterator<QueuedMessage> iter = backlog.iterator();
-        while (iter.hasNext())
+        if (backlog.size() <= backlogExpireAt)
+            return; // Plenty of space
+
+        if (backlogExpirationRunning.get())
+            return; // Fast-path if expiration is currently in progress. No locks/CAS in this code path.
+
+        /**
+         * Expiration is an expensive process. Iterating the queue locks the queue for both writes and
+         * reads during iter.next() and iter.remove(). Thus let only a single Thread do expiration.
+         */
+        if (backlogExpirationRunning.compareAndSet(false, true))
         {
-            QueuedMessage qm = iter.next();
-            if (!qm.droppable)
-                continue;
-            if (!qm.isTimedOut())
-                return;
-            iter.remove();
-            dropped.incrementAndGet();
+            try
+            {
+                if (BACKLOG_EXPIRATION_DEBUG)
+                    logger.info("CASSANDRA-13265 Expiration of {} started by {}", getName(),
+                            Thread.currentThread().getName());
+                
+                Iterator<QueuedMessage> iter = backlog.iterator();
+                while (iter.hasNext())
+                {
+                    QueuedMessage qm = iter.next();
+                    if (!qm.droppable)
+                        continue;
+                    if (!qm.isTimedOut())
+                        return;
+                    iter.remove();
+                    dropped.incrementAndGet();
+                }
+            }
+            finally
+            {
+                backlogExpirationRunning.set(false);
+                if (BACKLOG_EXPIRATION_DEBUG)
+                    logger.info("CASSANDRA-13265 Expiration of {} ended by {}", getName(),
+                            Thread.currentThread().getName());
+            }
         }
     }
 
