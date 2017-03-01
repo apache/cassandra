@@ -1,4 +1,5 @@
 2.2.10
+ * Avoid race on receiver by starting streaming sender thread after sending init message (CASSANDRA-12886)
  * Fix "multiple versions of ant detected..." when running ant test (CASSANDRA-13232)
  * Coalescing strategy sleeps too much (CASSANDRA-13090)
  * Make sure compaction stats are updated when compaction is interrupted (Backport from 3.0, CASSANDRA-12100)
