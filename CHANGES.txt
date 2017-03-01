@@ -1,5 +1,6 @@
 2.1.18
  * Log stacktrace of uncaught exceptions (CASSANDRA-13108)
+ * Remove unused repositories (CASSANDRA-13278)
 
 2.1.17
  * Use portable stderr for java error in startup (CASSANDRA-13211)
