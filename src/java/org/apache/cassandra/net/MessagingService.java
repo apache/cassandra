@@ -45,6 +45,8 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.carrotsearch.hppc.IntObjectMap;
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
@@ -232,13 +234,42 @@ public final class MessagingService implements MessagingServiceMBean
         UNUSED_5,
         ;
 
+        private int id;
+        Verb()
+        {
+            id = ordinal();
+        }
+
+        /**
+         * Unused, but it is an extension point for adding custom verbs
+         * @param id
+         */
+        Verb(int id)
+        {
+            this.id = id;
+        }
+
         public long getTimeout()
         {
             return DatabaseDescriptor.getRpcTimeout();
         }
-    }
 
-    public static final Verb[] verbValues = Verb.values();
+        public int getId()
+        {
+            return id;
+        }
+        private static final IntObjectMap<Verb> idToVerbMap = new IntObjectOpenHashMap<>(values().length);
+        static
+        {
+            for (Verb v : values())
+                idToVerbMap.put(v.getId(), v);
+        }
+
+        public static Verb fromId(int id)
+        {
+            return idToVerbMap.get(id);
+        }
+    }
 
     public static final EnumMap<MessagingService.Verb, Stage> verbStages = new EnumMap<MessagingService.Verb, Stage>(MessagingService.Verb.class)
     {{
