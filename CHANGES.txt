@@ -8,6 +8,7 @@
  * More fixes to the TokenAllocator (CASSANDRA-12990)
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
 Merged from 3.0:
+ * Fix "multiple versions of ant detected..." when running ant test (CASSANDRA-13232)
  * Coalescing strategy sleeps too much (CASSANDRA-13090)
  * Faster StreamingHistogram (CASSANDRA-13038)
  * Legacy deserializer can create unexpected boundary range tombstones (CASSANDRA-13237)
