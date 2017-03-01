@@ -1,4 +1,5 @@
 3.0.12
+ * Avoid race on receiver by starting streaming sender thread after sending init message (CASSANDRA-12886)
  * Update c.yaml doc for offheap memtables (CASSANDRA-13179)
  * Faster StreamingHistogram (CASSANDRA-13038)
  * Legacy deserializer can create unexpected boundary range tombstones (CASSANDRA-13237)
