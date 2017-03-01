@@ -296,7 +296,6 @@
 
       <!-- define the remote repositories we use -->
       <artifact:remoteRepository id="central"   url="${artifact.remoteRepository.central}"/>
-      <artifact:remoteRepository id="java.net2" url="${artifact.remoteRepository.java.net2}"/>
       <artifact:remoteRepository id="apache"    url="${artifact.remoteRepository.apache}"/>
 
       <macrodef name="install">
@@ -403,6 +402,7 @@
           <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" version="${jacoco.version}"/>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}"/>
 
+          <dependency groupId="org.jboss.byteman" artifactId="byteman-install" version="${byteman.version}"/>
           <dependency groupId="org.jboss.byteman" artifactId="byteman" version="${byteman.version}"/>
           <dependency groupId="org.jboss.byteman" artifactId="byteman-submit" version="${byteman.version}"/>
           <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" version="${byteman.version}"/>
@@ -543,6 +543,7 @@
                 version="${version}"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.agent"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" />
+        <dependency groupId="org.jboss.byteman" artifactId="byteman-install"/>
         <dependency groupId="org.jboss.byteman" artifactId="byteman"/>
         <dependency groupId="org.jboss.byteman" artifactId="byteman-submit"/>
         <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit"/>
@@ -640,7 +641,6 @@
                              dependencyRefsBuildFile="${build.dir}/build-dependencies.xml">
           <remoteRepository refid="central"/>
           <remoteRepository refid="apache"/>
-          <remoteRepository refid="java.net2"/>
       </artifact:dependencies>
       <!-- retrieve -source.jar artifacts using the reference-pom with the artifacts that have these -->
       <artifact:dependencies pomRefId="build-deps-pom-sources"
@@ -649,7 +649,6 @@
                              dependencyRefsBuildFile="${build.dir}/build-dependencies-sources.xml">
           <remoteRepository refid="central"/>
           <remoteRepository refid="apache"/>
-          <remoteRepository refid="java.net2"/>
       </artifact:dependencies>
       <copy todir="${build.dir.lib}/jars">
           <fileset refid="build-dependency-jars"/>
@@ -685,7 +684,6 @@
                              dependencyRefsBuildFile="${build.dir}/test-dependencies.xml">
         <remoteRepository refid="apache"/>
         <remoteRepository refid="central"/>
-        <remoteRepository refid="oauth"/>
       </artifact:dependencies>
       <copy todir="${test.lib}/jars">
         <fileset refid="test-dependency-jars"/>
