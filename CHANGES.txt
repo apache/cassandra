@@ -4,6 +4,7 @@
  * Remove unnecessary assertion from AntiCompactionTest (CASSANDRA-13070)
  * Fix cqlsh COPY for dates before 1900 (CASSANDRA-13185)
 Merged from 2.2
+ * Fix "multiple versions of ant detected..." when running ant test (CASSANDRA-13232)
  * Coalescing strategy sleeps too much (CASSANDRA-13090)
  * Fix flaky LongLeveledCompactionStrategyTest (CASSANDRA-12202)
  * Fix failing COPY TO STDOUT (CASSANDRA-12497)

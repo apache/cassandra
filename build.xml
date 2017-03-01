@@ -155,10 +155,12 @@
         <fileset dir="${build.lib}">
           <include name="**/*.jar" />
           <exclude name="**/*-sources.jar"/>
+          <exclude name="**/ant-*.jar"/>
         </fileset>
         <fileset dir="${build.dir.lib}">
           <include name="**/*.jar" />
           <exclude name="**/*-sources.jar"/>
+          <exclude name="**/ant-*.jar"/>
         </fileset>
     </path>
 
@@ -1131,7 +1133,7 @@
      debug="true"
      debuglevel="${debuglevel}"
      destdir="${test.classes}"
-     includeantruntime="false"
+     includeantruntime="true"
      source="${source.version}" 
      target="${target.version}"
      encoding="utf-8">
