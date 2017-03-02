@@ -393,6 +393,7 @@
           <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" version="${jacoco.version}"/>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}"/>
 
+          <dependency groupId="org.jboss.byteman" artifactId="byteman-install" version="${byteman.version}" scope="test"/>
           <dependency groupId="org.jboss.byteman" artifactId="byteman" version="${byteman.version}" scope="test"/>
           <dependency groupId="org.jboss.byteman" artifactId="byteman-submit" version="${byteman.version}" scope="test"/>
           <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" version="${byteman.version}" scope="test"/>
@@ -528,6 +529,7 @@
         <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.agent"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.ant"/>
+        <dependency groupId="org.jboss.byteman" artifactId="byteman-install" scope="test"/>
         <dependency groupId="org.jboss.byteman" artifactId="byteman" scope="test"/>
         <dependency groupId="org.jboss.byteman" artifactId="byteman-submit" scope="test"/>
         <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" scope="test"/>
