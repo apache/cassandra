@@ -1120,3 +1120,8 @@ back_pressure_strategy:
 
 # Do not try to coalesce messages if we already got that many messages. This should be more than 2 and less than 128.
 # otc_coalescing_enough_coalesced_messages: 8
+
+# Track a metric per keyspace indicating whether replication achieved the ideal consistency
+# level for writes without timing out. This is different from the consistency level requested by
+# each write which may be lower in order to facilitate availability.
+# ideal_consistency_level: EACH_QUORUM

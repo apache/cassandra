@@ -561,9 +561,16 @@ public class StorageProxy implements StorageProxyMBean
                     MessagingService.instance().sendOneWay(message, destination);
                 }
             }
-            else if (shouldHint)
+            else
             {
-                submitHint(proposal.makeMutation(), destination, null);
+                if (responseHandler != null)
+                {
+                    responseHandler.expired();
+                }
+                if (shouldHint)
+                {
+                    submitHint(proposal.makeMutation(), destination, null);
+                }
             }
         }
 
@@ -1257,6 +1264,8 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
+                //Immediately mark the response as expired since the request will not be sent
+                responseHandler.expired();
                 if (shouldHint(destination))
                 {
                     if (endpointsToHint == null)
@@ -2773,5 +2782,18 @@ public class StorageProxy implements StorageProxyMBean
     public int getNumberOfTables()
     {
         return Schema.instance.getNumberOfTables();
+    }
+
+    public String getIdealConsistencyLevel()
+    {
+        return DatabaseDescriptor.getIdealConsistencyLevel().toString();
+    }
+
+    public String setIdealConsistencyLevel(String cl)
+    {
+        ConsistencyLevel original = DatabaseDescriptor.getIdealConsistencyLevel();
+        ConsistencyLevel newCL = ConsistencyLevel.valueOf(cl.trim().toUpperCase());
+        DatabaseDescriptor.setIdealConsistencyLevel(newCL);
+        return String.format("Updating ideal consistency level new value: %s old value %s", newCL, original.toString());
     }
 }

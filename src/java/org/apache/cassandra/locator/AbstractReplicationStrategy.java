@@ -28,6 +28,7 @@ import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
@@ -40,6 +41,7 @@ import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.FBUtilities;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
@@ -135,16 +137,57 @@ public abstract class AbstractReplicationStrategy
                                                                        WriteType writeType,
                                                                        long queryStartNanoTime)
     {
+        return getWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, callback, writeType, queryStartNanoTime, DatabaseDescriptor.getIdealConsistencyLevel());
+    }
+
+    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Collection<InetAddress> naturalEndpoints,
+                                                                       Collection<InetAddress> pendingEndpoints,
+                                                                       ConsistencyLevel consistency_level,
+                                                                       Runnable callback,
+                                                                       WriteType writeType,
+                                                                       long queryStartNanoTime,
+                                                                       ConsistencyLevel idealConsistencyLevel)
+    {
+        AbstractWriteResponseHandler resultResponseHandler;
         if (consistency_level.isDatacenterLocal())
         {
             // block for in this context will be localnodes block.
-            return new DatacenterWriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType, queryStartNanoTime);
+            resultResponseHandler = new DatacenterWriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType, queryStartNanoTime);
         }
         else if (consistency_level == ConsistencyLevel.EACH_QUORUM && (this instanceof NetworkTopologyStrategy))
         {
-            return new DatacenterSyncWriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType, queryStartNanoTime);
+            resultResponseHandler = new DatacenterSyncWriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType, queryStartNanoTime);
         }
-        return new WriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType, queryStartNanoTime);
+        else
+        {
+            resultResponseHandler = new WriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType, queryStartNanoTime);
+        }
+
+        //Check if tracking the ideal consistency level is configured
+        if (idealConsistencyLevel != null)
+        {
+            //If ideal and requested are the same just use this handler to track the ideal consistency level
+            //This is also used so that the ideal consistency level handler when constructed knows it is the ideal
+            //one for tracking purposes
+            if (idealConsistencyLevel == consistency_level)
+            {
+                resultResponseHandler.setIdealCLResponseHandler(resultResponseHandler);
+            }
+            else
+            {
+                //Construct a delegate response handler to use to track the ideal consistency level
+                AbstractWriteResponseHandler idealHandler = getWriteResponseHandler(naturalEndpoints,
+                                                                                    pendingEndpoints,
+                                                                                    idealConsistencyLevel,
+                                                                                    callback,
+                                                                                    writeType,
+                                                                                    queryStartNanoTime,
+                                                                                    idealConsistencyLevel);
+                resultResponseHandler.setIdealCLResponseHandler(idealHandler);
+            }
+        }
+
+        return resultResponseHandler;
     }
 
     private Keyspace getKeyspace()
