@@ -23,20 +23,32 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.channels.FileChannel;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.sun.jna.LastErrorException;
-import com.sun.jna.Native;
-import com.sun.jna.Pointer;
+
+import static org.apache.cassandra.utils.CLibrary.OSType.LINUX;
+import static org.apache.cassandra.utils.CLibrary.OSType.MAC;
+import static org.apache.cassandra.utils.CLibrary.OSType.WINDOWS;
+import static org.apache.cassandra.utils.CLibrary.OSType.AIX;
 
 public final class CLibrary
 {
     private static final Logger logger = LoggerFactory.getLogger(CLibrary.class);
+
+    public enum OSType
+    {
+        LINUX,
+        MAC,
+        WINDOWS,
+        AIX,
+        OTHER;
+    }
+
+    private static final OSType osType;
 
     private static final int MCL_CURRENT;
     private static final int MCL_FUTURE;
@@ -56,39 +68,32 @@ public final class CLibrary
     private static final int POSIX_FADV_DONTNEED   = 4; /* fadvise.h */
     private static final int POSIX_FADV_NOREUSE    = 5; /* fadvise.h */
 
-    static boolean jnaAvailable = true;
-    static boolean jnaLockable = false;
+    private static final CLibraryWrapper wrappedCLibrary;
+    private static boolean jnaLockable = false;
 
     static
     {
-        try
+        // detect the OS type the JVM is running on and then set the CLibraryWrapper
+        // instance to a compatable implementation of CLibraryWrapper for that OS type
+        osType = getOsType();
+        switch (osType)
         {
-            Native.register("c");
-        }
-        catch (NoClassDefFoundError e)
-        {
-            logger.warn("JNA not found. Native methods will be disabled.");
-            jnaAvailable = false;
-        }
-        catch (UnsatisfiedLinkError e)
-        {
-            logger.warn("JNA link failure, one or more native method will be unavailable.");
-            logger.trace("JNA link failure details: {}", e.getMessage());
-        }
-        catch (NoSuchMethodError e)
-        {
-            logger.warn("Obsolete version of JNA present; unable to register C library. Upgrade to JNA 3.2.7 or later");
-            jnaAvailable = false;
+            case MAC: wrappedCLibrary = new CLibraryDarwin(); break;
+            case WINDOWS: wrappedCLibrary = new CLibraryWindows(); break;
+            case LINUX:
+            case AIX:
+            case OTHER:
+            default: wrappedCLibrary = new CLibraryLinux();
         }
 
         if (System.getProperty("os.arch").toLowerCase().contains("ppc"))
         {
-            if (System.getProperty("os.name").toLowerCase().contains("linux"))
+            if (osType == LINUX)
             {
                MCL_CURRENT = 0x2000;
                MCL_FUTURE = 0x4000;
             }
-            else if (System.getProperty("os.name").toLowerCase().contains("aix"))
+            else if (osType == AIX)
             {
                 MCL_CURRENT = 0x100;
                 MCL_FUTURE = 0x200;
@@ -106,14 +111,24 @@ public final class CLibrary
         }
     }
 
-    private static native int mlockall(int flags) throws LastErrorException;
-    private static native int munlockall() throws LastErrorException;
-    private static native int fcntl(int fd, int command, long flags) throws LastErrorException;
-    private static native int posix_fadvise(int fd, long offset, int len, int flag) throws LastErrorException;
-    private static native int open(String path, int flags) throws LastErrorException;
-    private static native int fsync(int fd) throws LastErrorException;
-    private static native int close(int fd) throws LastErrorException;
-    private static native Pointer strerror(int errnum) throws LastErrorException;
+    private CLibrary() {}
+
+    /**
+     * @return the detected OSType of the Operating System running the JVM using crude string matching
+     */
+    private static OSType getOsType()
+    {
+        String osName = System.getProperty("os.name").toLowerCase();
+        if (osName.contains("mac"))
+            return MAC;
+        else if (osName.contains("windows"))
+            return WINDOWS;
+        else if (osName.contains("aix"))
+            return AIX;
+        else
+            // fall back to the Linux impl for all unknown OS types until otherwise implicitly supported as needed
+            return LINUX;
+    }
 
     private static int errno(RuntimeException e)
     {
@@ -129,11 +144,9 @@ public final class CLibrary
         }
     }
 
-    private CLibrary() {}
-
     public static boolean jnaAvailable()
     {
-        return jnaAvailable;
+        return wrappedCLibrary.jnaAvailable();
     }
 
     public static boolean jnaMemoryLockable()
@@ -145,7 +158,7 @@ public final class CLibrary
     {
         try
         {
-            mlockall(MCL_CURRENT);
+            wrappedCLibrary.callMlockall(MCL_CURRENT);
             jnaLockable = true;
             logger.info("JNA mlockall successful");
         }
@@ -158,13 +171,13 @@ public final class CLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            if (errno(e) == ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
+            if (errno(e) == ENOMEM && osType == LINUX)
             {
                 logger.warn("Unable to lock JVM memory (ENOMEM)."
                         + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
                         + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
             }
-            else if (!System.getProperty("os.name").toLowerCase().contains("mac"))
+            else if (osType != MAC)
             {
                 // OS X allows mlockall to be called, but always returns an error
                 logger.warn("Unknown mlockall error {}", errno(e));
@@ -209,16 +222,16 @@ public final class CLibrary
 
         try
         {
-            if (System.getProperty("os.name").toLowerCase().contains("linux"))
+            if (osType == LINUX)
             {
-                int result = posix_fadvise(fd, offset, len, POSIX_FADV_DONTNEED);
+                int result = wrappedCLibrary.callPosixFadvise(fd, offset, len, POSIX_FADV_DONTNEED);
                 if (result != 0)
                     NoSpamLogger.log(
                             logger,
                             NoSpamLogger.Level.WARN,
                             10,
                             TimeUnit.MINUTES,
-                            "Failed trySkipCache on file: {} Error: " + strerror(result).getString(0),
+                            "Failed trySkipCache on file: {} Error: " + wrappedCLibrary.callStrerror(result).getString(0),
                             path);
             }
         }
@@ -243,7 +256,7 @@ public final class CLibrary
 
         try
         {
-            result = fcntl(fd, command, flags);
+            result = wrappedCLibrary.callFcntl(fd, command, flags);
         }
         catch (UnsatisfiedLinkError e)
         {
@@ -266,7 +279,7 @@ public final class CLibrary
 
         try
         {
-            return open(path, O_RDONLY);
+            return wrappedCLibrary.callOpen(path, O_RDONLY);
         }
         catch (UnsatisfiedLinkError e)
         {
@@ -290,7 +303,7 @@ public final class CLibrary
 
         try
         {
-            fsync(fd);
+            wrappedCLibrary.callFsync(fd);
         }
         catch (UnsatisfiedLinkError e)
         {
@@ -301,7 +314,7 @@ public final class CLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("fsync(%d) failed, errno (%d) {}", fd, errno(e)), e);
+            logger.warn("fsync({}) failed, errorno ({}) {}", fd, errno(e), e);
         }
     }
 
@@ -312,7 +325,7 @@ public final class CLibrary
 
         try
         {
-            close(fd);
+            wrappedCLibrary.callClose(fd);
         }
         catch (UnsatisfiedLinkError e)
         {
@@ -359,6 +372,23 @@ public final class CLibrary
         {
             JVMStabilityInspector.inspectThrowable(e);
             logger.warn("Unable to read fd field from FileDescriptor");
+        }
+
+        return -1;
+    }
+
+    /**
+     * @return the PID of the JVM or -1 if we failed to get the PID
+     */
+    public static long getProcessID()
+    {
+        try
+        {
+            return wrappedCLibrary.callGetpid();
+        }
+        catch (Exception e)
+        {
+            logger.info("Failed to get PID from JNA", e);
         }
 
         return -1;
