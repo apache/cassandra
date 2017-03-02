@@ -129,8 +129,9 @@ public class OutboundTcpConnection extends Thread
     static final int LZ4_HASH_SEED = 0x9747b28c;
 
     private final BlockingQueue<QueuedMessage> backlog = new LinkedBlockingQueue<>();
-    private final int backlogExpireAt = 1024;
-    private final AtomicBoolean backlogExpirationRunning = new AtomicBoolean(false);
+    private static final int BACKLOG_PURGE_SIZE = 1024;
+    private static final long BACKLOG_EXPIRATION_INTERVAL_MILLIS = 10000;
+    private final AtomicLong backlogNextExpirationTime = new AtomicLong(0);
     private static final boolean BACKLOG_EXPIRATION_DEBUG = false;
 
     private final OutboundTcpConnectionPool poolReference;
@@ -572,43 +573,38 @@ public class OutboundTcpConnection extends Thread
      */
     private void expireMessages()
     {
-        if (backlog.size() <= backlogExpireAt)
+        if (backlog.size() <= BACKLOG_PURGE_SIZE)
             return; // Plenty of space
 
-        if (backlogExpirationRunning.get())
-            return; // Fast-path if expiration is currently in progress. No locks/CAS in this code path.
+        long nextExpirationTime = backlogNextExpirationTime.get();
+        long now = System.currentTimeMillis();
+        if (now < nextExpirationTime)
+            return; // Expiration is not due.
 
         /**
          * Expiration is an expensive process. Iterating the queue locks the queue for both writes and
          * reads during iter.next() and iter.remove(). Thus let only a single Thread do expiration.
          */
-        if (backlogExpirationRunning.compareAndSet(false, true))
+        if (backlogNextExpirationTime.compareAndSet(nextExpirationTime, now + BACKLOG_EXPIRATION_INTERVAL_MILLIS))
         {
-            try
+            if (BACKLOG_EXPIRATION_DEBUG)
+                logger.info("CASSANDRA-13265 Expiration of {} started by {}", getName(),
+                        Thread.currentThread().getName());
+            
+            Iterator<QueuedMessage> iter = backlog.iterator();
+            while (iter.hasNext())
             {
-                if (BACKLOG_EXPIRATION_DEBUG)
-                    logger.info("CASSANDRA-13265 Expiration of {} started by {}", getName(),
-                            Thread.currentThread().getName());
-                
-                Iterator<QueuedMessage> iter = backlog.iterator();
-                while (iter.hasNext())
-                {
-                    QueuedMessage qm = iter.next();
-                    if (!qm.droppable)
-                        continue;
-                    if (!qm.isTimedOut())
-                        return;
-                    iter.remove();
-                    dropped.incrementAndGet();
-                }
+                QueuedMessage qm = iter.next();
+                if (!qm.droppable)
+                    continue;
+                if (!qm.isTimedOut())
+                    continue;
+                iter.remove();
+                dropped.incrementAndGet();
             }
-            finally
-            {
-                backlogExpirationRunning.set(false);
-                if (BACKLOG_EXPIRATION_DEBUG)
-                    logger.info("CASSANDRA-13265 Expiration of {} ended by {}", getName(),
-                            Thread.currentThread().getName());
-            }
+            if (BACKLOG_EXPIRATION_DEBUG)
+                logger.info("CASSANDRA-13265 Expiration of {} ended by {}", getName(),
+                        Thread.currentThread().getName());
         }
     }
 
