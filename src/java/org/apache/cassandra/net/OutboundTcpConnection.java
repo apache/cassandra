@@ -31,7 +31,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.Checksum;
@@ -130,9 +129,8 @@ public class OutboundTcpConnection extends Thread
 
     private final BlockingQueue<QueuedMessage> backlog = new LinkedBlockingQueue<>();
     private static final int BACKLOG_PURGE_SIZE = 1024;
-    private static final long BACKLOG_EXPIRATION_INTERVAL_MILLIS = 10000;
-    private final AtomicLong backlogNextExpirationTime = new AtomicLong(0);
-    private static final boolean BACKLOG_EXPIRATION_DEBUG = false;
+    private static final long BACKLOG_EXPIRATION_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000; // 10s
+    private final AtomicLong backlogNextExpirationTime = new AtomicLong(System.nanoTime());
 
     private final OutboundTcpConnectionPool poolReference;
 
@@ -577,20 +575,16 @@ public class OutboundTcpConnection extends Thread
             return; // Plenty of space
 
         long nextExpirationTime = backlogNextExpirationTime.get();
-        long now = System.currentTimeMillis();
-        if (now < nextExpirationTime)
+        long now = System.nanoTime();
+        if (nextExpirationTime - now > 0)
             return; // Expiration is not due.
 
         /**
          * Expiration is an expensive process. Iterating the queue locks the queue for both writes and
          * reads during iter.next() and iter.remove(). Thus let only a single Thread do expiration.
          */
-        if (backlogNextExpirationTime.compareAndSet(nextExpirationTime, now + BACKLOG_EXPIRATION_INTERVAL_MILLIS))
+        if (backlogNextExpirationTime.compareAndSet(nextExpirationTime, now + BACKLOG_EXPIRATION_INTERVAL_NANOS))
         {
-            if (BACKLOG_EXPIRATION_DEBUG)
-                logger.info("CASSANDRA-13265 Expiration of {} started by {}", getName(),
-                        Thread.currentThread().getName());
-            
             Iterator<QueuedMessage> iter = backlog.iterator();
             while (iter.hasNext())
             {
@@ -602,9 +596,13 @@ public class OutboundTcpConnection extends Thread
                 iter.remove();
                 dropped.incrementAndGet();
             }
-            if (BACKLOG_EXPIRATION_DEBUG)
-                logger.info("CASSANDRA-13265 Expiration of {} ended by {}", getName(),
-                        Thread.currentThread().getName());
+            
+            if (logger.isTraceEnabled())
+            {
+                long duration = TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - now);
+                logger.trace("Expiration of {} took {}μs", getName(), duration);
+            }
+
         }
     }
 
