@@ -60,10 +60,11 @@ public class CompactionsTest
     {
         Map<String, String> compactionOptions = new HashMap<>();
         compactionOptions.put("tombstone_compaction_interval", "1");
-        SchemaLoader.prepareServer();
 
         // Disable tombstone histogram rounding for tests
         System.setProperty("cassandra.streaminghistogram.roundseconds", "1");
+
+        SchemaLoader.prepareServer();
 
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
