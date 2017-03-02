@@ -1,11 +1,11 @@
 3.0.12
- * Avoid race on receiver by starting streaming sender thread after sending init message (CASSANDRA-12886)
  * Update c.yaml doc for offheap memtables (CASSANDRA-13179)
  * Faster StreamingHistogram (CASSANDRA-13038)
  * Legacy deserializer can create unexpected boundary range tombstones (CASSANDRA-13237)
  * Remove unnecessary assertion from AntiCompactionTest (CASSANDRA-13070)
  * Fix cqlsh COPY for dates before 1900 (CASSANDRA-13185)
 Merged from 2.2
+ * Avoid race on receiver by starting streaming sender thread after sending init message (CASSANDRA-12886)
  * Fix "multiple versions of ant detected..." when running ant test (CASSANDRA-13232)
  * Coalescing strategy sleeps too much (CASSANDRA-13090)
  * Fix flaky LongLeveledCompactionStrategyTest (CASSANDRA-12202)
