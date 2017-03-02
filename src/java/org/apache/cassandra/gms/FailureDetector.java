@@ -270,7 +270,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
 
         if (logger.isTraceEnabled() && heartbeatWindow != null)
-            logger.trace("Average for {} is {}", ep, heartbeatWindow.mean());
+            logger.trace("Average for {} is {}ns", ep, heartbeatWindow.mean());
     }
 
     public void interpret(InetAddress ep)
@@ -285,7 +285,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         lastInterpret = now;
         if (diff > MAX_LOCAL_PAUSE_IN_NANOS)
         {
-            logger.warn("Not marking nodes down due to local pause of {} > {}", diff, MAX_LOCAL_PAUSE_IN_NANOS);
+            logger.warn("Not marking nodes down due to local pause of {}ns > {}ns", diff, MAX_LOCAL_PAUSE_IN_NANOS);
             lastPause = now;
             return;
         }
@@ -301,7 +301,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         if (PHI_FACTOR * phi > getPhiConvictThreshold())
         {
             if (logger.isTraceEnabled())
-                logger.trace("Node {} phi {} > {}; intervals: {} mean: {}", new Object[]{ep, PHI_FACTOR * phi, getPhiConvictThreshold(), hbWnd, hbWnd.mean()});
+                logger.trace("Node {} phi {} > {}; intervals: {} mean: {}ns", new Object[]{ep, PHI_FACTOR * phi, getPhiConvictThreshold(), hbWnd, hbWnd.mean()});
             for (IFailureDetectionEventListener listener : fdEvntListeners)
             {
                 listener.convict(ep, phi);
@@ -314,7 +314,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         else if (logger.isTraceEnabled())
         {
             logger.trace("PHI for {} : {}", ep, phi);
-            logger.trace("mean for {} : {}", ep, hbWnd.mean());
+            logger.trace("mean for {} : {}ns", ep, hbWnd.mean());
         }
     }
 
@@ -450,11 +450,11 @@ class ArrivalWindow
             if (interArrivalTime <= MAX_INTERVAL_IN_NANO)
             {
                 arrivalIntervals.add(interArrivalTime);
-                logger.trace("Reporting interval time of {} for {}", interArrivalTime, ep);
+                logger.trace("Reporting interval time of {}ns for {}", interArrivalTime, ep);
             }
             else
             {
-                logger.debug("Ignoring interval time of {} for {}", interArrivalTime, ep);
+                logger.debug("Ignoring interval time of {}ns for {}", interArrivalTime, ep);
             }
         }
         else
