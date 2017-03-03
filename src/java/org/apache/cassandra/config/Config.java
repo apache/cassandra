@@ -295,7 +295,7 @@ public class Config
      * Can be fixed, movingaverage, timehorizon, disabled. Setting is case and leading/trailing
      * whitespace insensitive. You can also specify a subclass of CoalescingStrategies.CoalescingStrategy by name.
      */
-    public String otc_coalescing_strategy = "TIMEHORIZON";
+    public String otc_coalescing_strategy = "DISABLED";
 
     /*
      * How many microseconds to wait for coalescing. For fixed strategy this is the amount of time after the first

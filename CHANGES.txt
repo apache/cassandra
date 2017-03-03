@@ -7,6 +7,7 @@
  * Fix primary index calculation for SASI (CASSANDRA-12910)
  * More fixes to the TokenAllocator (CASSANDRA-12990)
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
+ * Address message coalescing regression (CASSANDRA-12676)
 Merged from 3.0:
  * Cqlsh copy-from should error out when csv contains invalid data for collections (CASSANDRA-13071)
  * Fix "multiple versions of ant detected..." when running ant test (CASSANDRA-13232)
