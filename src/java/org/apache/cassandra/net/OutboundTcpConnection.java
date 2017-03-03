@@ -118,7 +118,7 @@ public class OutboundTcpConnection extends Thread
                     "Value provided for coalescing window must be greather than 0: " + coalescingWindow);
     }
 
-    private static final MessageOut CLOSE_SENTINEL = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE);
+    private static final MessageOut<?> CLOSE_SENTINEL = new MessageOut<MessagingService.Verb>(MessagingService.Verb.INTERNAL_RESPONSE);
     private volatile boolean isStopped = false;
 
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
@@ -346,7 +346,7 @@ public class OutboundTcpConnection extends Thread
         }
     }
 
-    private void writeInternal(MessageOut message, int id, long timestamp) throws IOException
+    private void writeInternal(MessageOut<?> message, int id, long timestamp) throws IOException
     {
         out.writeInt(MessagingService.PROTOCOL_MAGIC);
 
