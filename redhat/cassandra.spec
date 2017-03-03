@@ -18,7 +18,7 @@ URL:           http://cassandra.apache.org/
 Source0:       %{relname}-src.tar.gz
 BuildRoot:     %{_tmppath}/%{relname}root-%(%{__id_u} -n)
 
-BuildRequires: ant
+BuildRequires: ant >= 1.9
 
 Requires:      jre >= 1.8.0
 Requires:      python(abi) >= 2.7
