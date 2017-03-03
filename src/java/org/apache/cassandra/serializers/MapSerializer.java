@@ -21,6 +21,8 @@ package org.apache.cassandra.serializers;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -29,21 +31,18 @@ import org.apache.cassandra.utils.Pair;
 public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
 {
     // interning instances
-    private static final Map<Pair<TypeSerializer<?>, TypeSerializer<?>>, MapSerializer> instances = new HashMap<Pair<TypeSerializer<?>, TypeSerializer<?>>, MapSerializer>();
+    private static final ConcurrentMap<Pair<TypeSerializer<?>, TypeSerializer<?>>, MapSerializer> instances = new ConcurrentHashMap<Pair<TypeSerializer<?>, TypeSerializer<?>>, MapSerializer>();
 
     public final TypeSerializer<K> keys;
     public final TypeSerializer<V> values;
     private final Comparator<Pair<ByteBuffer, ByteBuffer>> comparator;
 
-    public static synchronized <K, V> MapSerializer<K, V> getInstance(TypeSerializer<K> keys, TypeSerializer<V> values, Comparator<ByteBuffer> comparator)
+    public static <K, V> MapSerializer<K, V> getInstance(TypeSerializer<K> keys, TypeSerializer<V> values, Comparator<ByteBuffer> comparator)
     {
         Pair<TypeSerializer<?>, TypeSerializer<?>> p = Pair.<TypeSerializer<?>, TypeSerializer<?>>create(keys, values);
         MapSerializer<K, V> t = instances.get(p);
         if (t == null)
-        {
-            t = new MapSerializer<K, V>(keys, values, comparator);
-            instances.put(p, t);
-        }
+            t = instances.computeIfAbsent(p, k -> new MapSerializer<>(k.left, k.right, comparator) );
         return t;
     }
 

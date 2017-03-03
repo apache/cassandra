@@ -19,6 +19,8 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Lists;
@@ -39,8 +41,8 @@ public class ListType<T> extends CollectionType<List<T>>
     private static final Logger logger = LoggerFactory.getLogger(ListType.class);
 
     // interning instances
-    private static final Map<AbstractType<?>, ListType> instances = new HashMap<>();
-    private static final Map<AbstractType<?>, ListType> frozenInstances = new HashMap<>();
+    private static final ConcurrentMap<AbstractType<?>, ListType> instances = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<AbstractType<?>, ListType> frozenInstances = new ConcurrentHashMap<>();
 
     private final AbstractType<T> elements;
     public final ListSerializer<T> serializer;
@@ -55,15 +57,12 @@ public class ListType<T> extends CollectionType<List<T>>
         return getInstance(l.get(0), true);
     }
 
-    public static synchronized <T> ListType<T> getInstance(AbstractType<T> elements, boolean isMultiCell)
+    public static <T> ListType<T> getInstance(AbstractType<T> elements, final boolean isMultiCell)
     {
-        Map<AbstractType<?>, ListType> internMap = isMultiCell ? instances : frozenInstances;
+        ConcurrentMap<AbstractType<?>, ListType> internMap = isMultiCell ? instances : frozenInstances;
         ListType<T> t = internMap.get(elements);
         if (t == null)
-        {
-            t = new ListType<T>(elements, isMultiCell);
-            internMap.put(elements, t);
-        }
+            t = internMap.computeIfAbsent(elements, k -> new ListType<>(k, isMultiCell) );
         return t;
     }
 

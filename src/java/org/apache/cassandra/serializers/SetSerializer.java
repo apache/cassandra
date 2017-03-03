@@ -21,25 +21,24 @@ package org.apache.cassandra.serializers;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.cassandra.transport.ProtocolVersion;
 
 public class SetSerializer<T> extends CollectionSerializer<Set<T>>
 {
     // interning instances
-    private static final Map<TypeSerializer<?>, SetSerializer> instances = new HashMap<TypeSerializer<?>, SetSerializer>();
+    private static final ConcurrentMap<TypeSerializer<?>, SetSerializer> instances = new ConcurrentHashMap<TypeSerializer<?>, SetSerializer>();
 
     public final TypeSerializer<T> elements;
     private final Comparator<ByteBuffer> comparator;
 
-    public static synchronized <T> SetSerializer<T> getInstance(TypeSerializer<T> elements, Comparator<ByteBuffer> elementComparator)
+    public static <T> SetSerializer<T> getInstance(TypeSerializer<T> elements, Comparator<ByteBuffer> elementComparator)
     {
         SetSerializer<T> t = instances.get(elements);
         if (t == null)
-        {
-            t = new SetSerializer<T>(elements, elementComparator);
-            instances.put(elements, t);
-        }
+            t = instances.computeIfAbsent(elements, k -> new SetSerializer<>(k, elementComparator) );
         return t;
     }
 
