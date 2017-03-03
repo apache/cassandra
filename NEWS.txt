@@ -51,6 +51,11 @@ Upgrading
 ---------
    - Primary ranges in the system.size_estimates table are now based on the keyspace
      replication settings and adjacent ranges are no longer merged (CASSANDRA-9639).
+   - In 2.1, the default for otc_coalescing_strategy was 'DISABLED'.
+     In 2.2 and 3.0, it was changed to 'TIMEHORIZON', but that value was shown
+     to be a performance regression. The default for 3.11.0 and newer has
+     been reverted to 'DISABLED'. Users upgrading from Cassandra 2.2 or 3.0 should
+     be aware that the default has changed.
 
 3.10
 ====
