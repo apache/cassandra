@@ -169,11 +169,9 @@ public final class HeapUtils
      */
     private static Long getProcessId()
     {
-        // Once Java 9 is ready the process API should provide a better way to get the process ID.
-        long pid = SigarLibrary.instance.getPid();
-
+        long pid = CLibrary.getProcessID();
         if (pid >= 0)
-            return Long.valueOf(pid);
+            return pid;
 
         return getProcessIdFromJvmName();
     }
