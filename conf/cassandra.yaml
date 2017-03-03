@@ -1108,9 +1108,9 @@ back_pressure_strategy:
 # See CASSANDRA-8692 for details.
 
 # Strategy to use for coalescing messages in OutboundTcpConnection.
-# Can be fixed, movingaverage, timehorizon (default), disabled.
+# Can be fixed, movingaverage, timehorizon, disabled (default).
 # You can also specify a subclass of CoalescingStrategies.CoalescingStrategy by name.
-# otc_coalescing_strategy: TIMEHORIZON
+# otc_coalescing_strategy: DISABLED
 
 # How many microseconds to wait for coalescing. For fixed strategy this is the amount of time after the first
 # message is received before it will be sent with any accompanying messages. For moving average this is the
