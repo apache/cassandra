@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 
 import java.io.File;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.FileUtils;
@@ -32,5 +33,12 @@ public class CLibraryTest
         File file = FileUtils.createTempFile("testSkipCache", "1");
 
         CLibrary.trySkipCache(file.getPath(), 0, 0);
+    }
+
+    @Test
+    public void getPid()
+    {
+        long pid = CLibrary.getProcessID();
+        Assert.assertTrue(pid > 0);
     }
 }

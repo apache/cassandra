@@ -385,7 +385,7 @@ public class UUIDGen
                 messageDigest.update(addr.getAddress());
 
             // Identify the process on the load: we use both the PID and class loader hash.
-            long pid = SigarLibrary.instance.getPid();
+            long pid = CLibrary.getProcessID();
             if (pid < 0)
                 pid = new Random(System.currentTimeMillis()).nextLong();
             FBUtilities.updateWithLong(messageDigest, pid);
