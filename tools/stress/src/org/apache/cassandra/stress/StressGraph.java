@@ -110,17 +110,14 @@ public class StressGraph
 
     private String getGraphHTML()
     {
-        InputStream graphHTMLRes = StressGraph.class.getClassLoader().getResourceAsStream("org/apache/cassandra/stress/graph/graph.html");
-        String graphHTML;
-        try
+        try (InputStream graphHTMLRes = StressGraph.class.getClassLoader().getResourceAsStream("org/apache/cassandra/stress/graph/graph.html"))
         {
-            graphHTML = new String(ByteStreams.toByteArray(graphHTMLRes));
+            return new String(ByteStreams.toByteArray(graphHTMLRes));
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
-        return graphHTML;
     }
 
     /** Parse log and append to stats array */
