@@ -147,7 +147,7 @@ public class DirectoriesTest
     }
 
     @Test
-    public void testStandardDirs()
+    public void testStandardDirs() throws IOException
     {
         for (TableMetadata cfm : CFM)
         {
@@ -156,10 +156,10 @@ public class DirectoriesTest
 
             Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, 1, SSTableFormat.Type.BIG);
             File snapshotDir = new File(cfDir(cfm),  File.separator + Directories.SNAPSHOT_SUBDIR + File.separator + "42");
-            assertEquals(snapshotDir, Directories.getSnapshotDirectory(desc, "42"));
+            assertEquals(snapshotDir.getCanonicalFile(), Directories.getSnapshotDirectory(desc, "42"));
 
             File backupsDir = new File(cfDir(cfm),  File.separator + Directories.BACKUPS_SUBDIR);
-            assertEquals(backupsDir, Directories.getBackupsDirectory(desc));
+            assertEquals(backupsDir.getCanonicalFile(), Directories.getBackupsDirectory(desc));
         }
     }
 
