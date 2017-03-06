@@ -22,6 +22,7 @@ package org.apache.cassandra.net;
 
 import java.util.List;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -29,6 +30,13 @@ import static org.junit.Assert.assertEquals;
 public class MessagingServiceTest
 {
     private final MessagingService messagingService = MessagingService.test();
+
+    private static int metricScopeId = 0;
+
+    @Before
+    public void before() {
+        messagingService.resetDroppedMessagesMap(Integer.toString(metricScopeId++));;
+    }
 
     @Test
     public void testDroppedMessages()

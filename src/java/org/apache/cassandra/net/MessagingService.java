@@ -65,6 +65,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.ILatencySubscriber;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.metrics.DroppedMessageMetrics;
 import org.apache.cassandra.repair.messages.RepairMessage;
@@ -338,12 +339,26 @@ public final class MessagingService implements MessagingServiceMBean
 
         DroppedMessages(Verb verb)
         {
-            this.metrics = new DroppedMessageMetrics(verb);
+            this(new DroppedMessageMetrics(verb));
+        }
+
+        DroppedMessages(DroppedMessageMetrics metrics)
+        {
+            this.metrics = metrics;
             this.droppedInternalTimeout = new AtomicInteger(0);
             this.droppedCrossNodeTimeout = new AtomicInteger(0);
         }
-
     }
+
+    @VisibleForTesting
+    public void resetDroppedMessagesMap(String scope)
+    {
+        for (Verb verb : droppedMessagesMap.keySet())
+            droppedMessagesMap.put(verb, new DroppedMessages(new DroppedMessageMetrics(metricName -> {
+                return new CassandraMetricsRegistry.MetricName("DroppedMessages", metricName, scope);
+            })));
+    }
+
     // total dropped message counts for server lifetime
     private final Map<Verb, DroppedMessages> droppedMessagesMap = new EnumMap<>(Verb.class);
 
