@@ -126,11 +126,15 @@ public final class CLibrary
     private static OSType getOsType()
     {
         String osName = System.getProperty("os.name").toLowerCase();
-        if (osName.contains("mac"))
+        if  (osName.contains("linux"))
+            return LINUX;
+        else if (osName.contains("mac"))
             return MAC;
         else if (osName.contains("windows"))
             return WINDOWS;
-        else if (osName.contains("aix"))
+
+        logger.warn("the current operating system, {}, is unsupported by cassandra", osName);
+        if (osName.contains("aix"))
             return AIX;
         else
             // fall back to the Linux impl for all unknown OS types until otherwise implicitly supported as needed
