@@ -9,6 +9,7 @@
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
  * Address message coalescing regression (CASSANDRA-12676)
 Merged from 3.0:
+ * Prevent data loss on upgrade 2.1 - 3.0 by adding component separator to LogRecord absolute path (CASSANDRA-13294)
  * Improve testing on macOS by eliminating sigar logging (CASSANDRA-13233)
  * Cqlsh copy-from should error out when csv contains invalid data for collections (CASSANDRA-13071)
  * Fix "multiple versions of ant detected..." when running ant test (CASSANDRA-13232)

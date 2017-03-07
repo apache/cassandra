@@ -634,7 +634,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
             Assert.assertEquals(2, logFiles.size());
 
             // insert a partial sstable record and a full commit record
-            String sstableRecord = LogRecord.make(LogRecord.Type.ADD, Collections.emptyList(), 0, "abc").raw;
+            String sstableRecord = LogRecord.make(LogRecord.Type.ADD, Collections.emptyList(), 0, "abc-").raw;
             int toChop = sstableRecord.length() / 2;
             FileUtils.append(logFiles.get(0), sstableRecord.substring(0, sstableRecord.length() - toChop));
             FileUtils.append(logFiles.get(1), sstableRecord);
@@ -653,7 +653,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
             Assert.assertEquals(2, logFiles.size());
 
             // insert a partial sstable record and a full commit record
-            String sstableRecord = LogRecord.make(LogRecord.Type.ADD, Collections.emptyList(), 0, "abc").raw;
+            String sstableRecord = LogRecord.make(LogRecord.Type.ADD, Collections.emptyList(), 0, "abc-").raw;
             int toChop = sstableRecord.length() / 2;
             FileUtils.append(logFiles.get(0), sstableRecord);
             FileUtils.append(logFiles.get(1), sstableRecord.substring(0, sstableRecord.length() - toChop));

@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -123,7 +124,7 @@ final class LogRecord
 
             Type type = Type.fromPrefix(matcher.group(1));
             return new LogRecord(type,
-                                 matcher.group(2),
+                                 matcher.group(2) + Component.separator, // see comment on CASSANDRA-13294 below
                                  Long.parseLong(matcher.group(3)),
                                  Integer.parseInt(matcher.group(4)),
                                  Long.parseLong(matcher.group(5)),
@@ -148,7 +149,11 @@ final class LogRecord
 
     public static LogRecord make(Type type, SSTable table)
     {
-        String absoluteTablePath = FileUtils.getCanonicalPath(table.descriptor.baseFilename());
+        // CASSANDRA-13294: add the sstable component separator because for legacy (2.1) files
+        // there is no separator after the generation number, and this would cause files of sstables with
+        // a higher generation number that starts with the same number, to be incorrectly classified as files
+        // of this record sstable
+        String absoluteTablePath = FileUtils.getCanonicalPath(table.descriptor.baseFilename() + Component.separator);
         return make(type, getExistingFiles(absoluteTablePath), table.getAllFilePaths().size(), absoluteTablePath);
     }
 
@@ -190,7 +195,7 @@ final class LogRecord
         assert !type.hasFile() || absolutePath != null : "Expected file path for file records";
 
         this.type = type;
-        this.absolutePath = type.hasFile() ? Optional.of(absolutePath) : Optional.<String>empty();
+        this.absolutePath = type.hasFile() ? Optional.of(absolutePath) : Optional.empty();
         this.updateTime = type == Type.REMOVE ? updateTime : 0;
         this.numFiles = type.hasFile() ? numFiles : 0;
         this.status = new Status();
@@ -284,9 +289,25 @@ final class LogRecord
                : false;
     }
 
-    String absolutePath()
+    /**
+     * Return the absolute path, if present, except for the last character (the descriptor separator), or
+     * the empty string if the record has no path. This method is only to be used internally for writing
+     * the record to file or computing the checksum.
+     *
+     * CASSANDRA-13294: the last character of the absolute path is the descriptor separator, it is removed
+     * from the absolute path for backward compatibility, to make sure that on upgrade from 3.0.x to 3.0.y
+     * or to 3.y or to 4.0, the checksum of existing txn files still matches (in case of non clean shutdown
+     * some txn files may be present). By removing the last character here, it means that
+     * it will never be written to txn files, but it is added after reading a txn file in LogFile.make().
+     */
+    private String absolutePath()
     {
-        return absolutePath.isPresent() ? absolutePath.get() : "";
+        if (!absolutePath.isPresent())
+            return "";
+
+        String ret = absolutePath.get();
+        assert ret.charAt(ret.length() -1) == Component.separator : "Invalid absolute path, should end with '-'";
+        return ret.substring(0, ret.length() - 1);
     }
 
     @Override
