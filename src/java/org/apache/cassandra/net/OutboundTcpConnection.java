@@ -646,7 +646,7 @@ public class OutboundTcpConnection extends Thread
         boolean isTimedOut(long nowNanos)
         {
             long messageTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(message.getTimeout());
-            return droppable && timestampNanos - (nowNanos - messageTimeoutNanos) < 0;
+            return droppable && nowNanos - timestampNanos  > messageTimeoutNanos;
         }
 
         boolean shouldRetry()
