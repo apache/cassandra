@@ -1,4 +1,5 @@
 4.0
+ * Remove config option index_interval (CASSANDRA-10671)
  * Reduce lock contention for collection types and serializers (CASSANDRA-13271)
  * Make it possible to override MessagingService.Verb ids (CASSANDRA-13283)
  * Avoid synchronized on prepareForRepair in ActiveRepairService (CASSANDRA-9292)

@@ -217,9 +217,6 @@ public class Config
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
-    @Deprecated
-    public Integer index_interval = null;
-
     public int hinted_handoff_throttle_in_kb = 1024;
     public int batchlog_replay_throttle_in_kb = 1024;
     public int max_hints_delivery_threads = 2;

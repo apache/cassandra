@@ -43,6 +43,7 @@ Upgrading
       full and incremental repairs. For full repairs, data is no longer marked
       repaired. For incremental repairs, anticompaction is run at the beginning
       of the repair, instead of at the end.
+    - Config option index_interval has been removed (it was deprecated since 2.0)
 
 3.11.0
 ======
