@@ -18,6 +18,9 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Term;
@@ -74,5 +77,11 @@ public class TimeType extends TemporalType<Long>
     public TypeSerializer<Long> getSerializer()
     {
         return TimeSerializer.instance;
+    }
+
+    @Override
+    public ByteBuffer now()
+    {
+        return decompose(LocalTime.now(ZoneOffset.UTC).toNanoOfDay());
     }
 }

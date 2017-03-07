@@ -486,7 +486,7 @@ public final class Schema
     public Collection<Function> getFunctions(FunctionName name)
     {
         if (!name.hasKeyspace())
-            throw new IllegalArgumentException(String.format("Function name must be fully quallified: got %s", name));
+            throw new IllegalArgumentException(String.format("Function name must be fully qualified: got %s", name));
 
         KeyspaceMetadata ksm = getKeyspaceMetadata(name.keyspace);
         return ksm == null

@@ -36,7 +36,11 @@ public abstract class TimeFcts
 
     public static Collection<Function> all()
     {
-        return ImmutableList.of(now(TimeUUIDType.instance),
+        return ImmutableList.of(now("now", TimeUUIDType.instance),
+                                now("currenttimeuuid", TimeUUIDType.instance),
+                                now("currenttimestamp", TimestampType.instance),
+                                now("currentdate", SimpleDateType.instance),
+                                now("currenttime", TimeType.instance),
                                 minTimeuuidFct,
                                 maxTimeuuidFct,
                                 dateOfFct,
@@ -50,9 +54,9 @@ public abstract class TimeFcts
                                 toTimestamp(SimpleDateType.instance));
     }
 
-    public static final Function now(final TemporalType<?> type)
+    public static final Function now(final String name, final TemporalType<?> type)
     {
-        return new NativeScalarFunction("now", type)
+        return new NativeScalarFunction(name, type)
         {
             @Override
             public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)

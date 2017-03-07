@@ -18,6 +18,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - The currentTimestamp, currentDate, currentTime and currentTimeUUID functions have been added.
+     See CASSANDRA-13132
    - Support for arithmetic operations between `timestamp`/`date` and `duration` has been added.
      See CASSANDRA-11936
    - Support for arithmetic operations on number has been added. See CASSANDRA-11935
