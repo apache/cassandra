@@ -1,3 +1,8 @@
+3.0.13
+Merged from 2.2:
+ * Fix GRANT/REVOKE when keyspace isn't specified (CASSANDRA-13053)
+
+
 3.0.12
  * Prevent data loss on upgrade 2.1 - 3.0 by adding component separator to LogRecord absolute path (CASSANDRA-13294)
  * Improve testing on macOS by eliminating sigar logging (CASSANDRA-13233)
@@ -7,7 +12,7 @@
  * Legacy deserializer can create unexpected boundary range tombstones (CASSANDRA-13237)
  * Remove unnecessary assertion from AntiCompactionTest (CASSANDRA-13070)
  * Fix cqlsh COPY for dates before 1900 (CASSANDRA-13185)
-Merged from 2.2
+Merged from 2.2:
  * Avoid race on receiver by starting streaming sender thread after sending init message (CASSANDRA-12886)
  * Fix "multiple versions of ant detected..." when running ant test (CASSANDRA-13232)
  * Coalescing strategy sleeps too much (CASSANDRA-13090)
@@ -18,6 +23,7 @@ Merged from 2.2
 Merged from 2.1:
  * Remove unused repositories (CASSANDRA-13278)
  * Log stacktrace of uncaught exceptions (CASSANDRA-13108)
+
 
 3.0.11
  * Use keyspace replication settings on system.size_estimates table (CASSANDRA-9639)
