@@ -24,6 +24,7 @@
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
  * Address message coalescing regression (CASSANDRA-12676)
  * Delete illegal character from StandardTokenizerImpl.jflex (CASSANDRA-13417)
+ * Fix cqlsh automatic protocol downgrade regression (CASSANDRA-13307)
 Merged from 3.0:
  * Handling partially written hint files (CASSANDRA-12728)
  * Fix NPE issue in StorageService (CASSANDRA-13060)
