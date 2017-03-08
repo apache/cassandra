@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.net;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.MessagingService.Verb;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -38,7 +40,21 @@ public class OutboundTcpConnectionTest
     final static Verb VERB_DROPPABLE = Verb.MUTATION; // Droppable, 2s timeout
     final static Verb VERB_NONDROPPABLE = Verb.GOSSIP_DIGEST_ACK; // Not droppable
 
-    final static long NANOS_100S = TimeUnit.SECONDS.toNanos(100);
+    final static long NANOS_FOR_TIMEOUT = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getTimeout(VERB_DROPPABLE)*2);
+
+    
+    /**
+     * Verifies our assumptions whether a Verb can be dropped or not. The tests make use of droppabilty, and
+     * may produce wrong test results if their droppabilty is changed. 
+     */
+    @BeforeClass
+    public static void assertDroppability()
+    {
+        if (!MessagingService.DROPPABLE_VERBS.contains(VERB_DROPPABLE))
+            throw new AssertionError("Expected " + VERB_DROPPABLE + " to be droppable");
+        if (MessagingService.DROPPABLE_VERBS.contains(VERB_NONDROPPABLE))
+            throw new AssertionError("Expected " + VERB_NONDROPPABLE + " not to be droppable");
+    }
 
     /**
      * Tests that non-droppable messages are never expired
@@ -54,10 +70,10 @@ public class OutboundTcpConnectionTest
 
         fillToPurgeSize(otc, VERB_NONDROPPABLE);
         fillToPurgeSize(otc, VERB_NONDROPPABLE);
-        otc.expireMessages(futureNanos());
+        otc.expireMessages(expirationTimeNanos());
 
         assertFalse("OutboundTcpConnection with non-droppable verbs should not expire",
-                otc.backlogContainsExpiredMessages(futureNanos()));
+                otc.backlogContainsExpiredMessages(expirationTimeNanos()));
     }
 
     /**
@@ -79,18 +95,18 @@ public class OutboundTcpConnectionTest
         assertFalse("OutboundTcpConnection with droppable verbs should not expire with enqueue-time expiration",
                 otc.backlogContainsExpiredMessages(nanoTimeBeforeEnqueue));
 
-        // Lets presume, 100s have passed => At that time there shall be expired messages in the Queue
-        long nanoTimeWhenExpired = futureNanos();
-        assertTrue("OutboundTcpConnection with droppable verbs should have expired after 100s",
+        // Lets presume, expiration time have passed => At that time there shall be expired messages in the Queue
+        long nanoTimeWhenExpired = expirationTimeNanos();
+        assertTrue("OutboundTcpConnection with droppable verbs should have expired",
                 otc.backlogContainsExpiredMessages(nanoTimeWhenExpired));
 
         // Using the same timestamp, lets expire them and check whether they have gone
         otc.expireMessages(nanoTimeWhenExpired);
-        assertFalse("OutboundTcpConnection should not have any expired entries after 100s",
+        assertFalse("OutboundTcpConnection should not have expired entries",
                 otc.backlogContainsExpiredMessages(nanoTimeWhenExpired));
 
         // Actually the previous test can be done in a harder way: As expireMessages() has run, we cannot have
-        // ANY expired values, thus lets test against nanoTimeWhenExpired
+        // ANY expired values, thus lets test also against nanoTimeBeforeEnqueue
         assertFalse("OutboundTcpConnection should not have any expired entries",
                 otc.backlogContainsExpiredMessages(nanoTimeBeforeEnqueue));
 
@@ -113,14 +129,14 @@ public class OutboundTcpConnectionTest
     }
 
     /**
-     * Returns a nano timestamp in the far future. The offset of 100s is chosen, as it is bigger than the
-     * highest default expiration of any Verb.
+     * Returns a nano timestamp in the far future, where expiration should have been performed for VERB_DROPPABLE.
+     * The offset is chosen as 2 times of the expiration time of VERB_DROPPABLE.
      * 
      * @return The future nano timestamp
      */
-    private long futureNanos()
+    private long expirationTimeNanos()
     {
-        return System.nanoTime() + NANOS_100S;
+        return System.nanoTime() + NANOS_FOR_TIMEOUT;
     }
 
     private int nextMessageId()
