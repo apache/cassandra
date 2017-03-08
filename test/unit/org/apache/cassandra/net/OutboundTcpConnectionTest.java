@@ -24,6 +24,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -37,7 +38,7 @@ public class OutboundTcpConnectionTest
     final static Verb VERB_DROPPABLE = Verb.MUTATION; // Droppable, 2s timeout
     final static Verb VERB_NONDROPPABLE = Verb.GOSSIP_DIGEST_ACK; // Not droppable
 
-    long NANOS_100S = 100_000_000_000L;
+    final static long NANOS_100S = TimeUnit.SECONDS.toNanos(100);
 
     /**
      * Tests that non-droppable messages are never expired
@@ -79,7 +80,7 @@ public class OutboundTcpConnectionTest
                 otc.backlogContainsExpiredMessages(nanoTimeBeforeEnqueue));
 
         // Lets presume, 100s have passed => At that time there shall be expired messages in the Queue
-        long nanoTimeWhenExpired = System.nanoTime() + NANOS_100S;
+        long nanoTimeWhenExpired = futureNanos();
         assertTrue("OutboundTcpConnection with droppable verbs should have expired after 100s",
                 otc.backlogContainsExpiredMessages(nanoTimeWhenExpired));
 
@@ -119,7 +120,7 @@ public class OutboundTcpConnectionTest
      */
     private long futureNanos()
     {
-        return System.nanoTime() + 100_000_000_000L;
+        return System.nanoTime() + NANOS_100S;
     }
 
     private int nextMessageId()
