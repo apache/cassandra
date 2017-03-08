@@ -812,7 +812,7 @@ public final class MessagingService implements MessagingServiceMBean
                 catch (IOException e)
                 {
                     // see https://issues.apache.org/jira/browse/CASSANDRA-10545
-                    handleIOException(e);
+                    handleIOExceptionOnClose(e);
                 }
         }
         catch (IOException e)
@@ -1102,7 +1102,8 @@ public final class MessagingService implements MessagingServiceMBean
             catch (IOException e)
             {
                 // see https://issues.apache.org/jira/browse/CASSANDRA-8220
-                handleIOException(e);
+                // see https://issues.apache.org/jira/browse/CASSANDRA-12513
+                handleIOExceptionOnClose(e);
             }
             for (Closeable connection : connections)
             {
@@ -1116,12 +1117,22 @@ public final class MessagingService implements MessagingServiceMBean
         }
     }
 
-    private static void handleIOException(IOException e) throws IOException
+    private static void handleIOExceptionOnClose(IOException e) throws IOException
     {
         // dirty hack for clean shutdown on OSX w/ Java >= 1.8.0_20
-        // see https://bugs.openjdk.java.net/browse/JDK-8050499
-        if (!"Unknown error: 316".equals(e.getMessage()) || !"Mac OS X".equals(System.getProperty("os.name")))
-            throw e;
+        // see https://bugs.openjdk.java.net/browse/JDK-8050499;
+        // also CASSANDRA-12513
+        if ("Mac OS X".equals(System.getProperty("os.name")))
+        {
+            switch (e.getMessage())
+            {
+                case "Unknown error: 316":
+                case "No such file or directory":
+                    return;
+            }
+        }
+
+        throw e;
     }
 
     public Map<String, Integer> getLargeMessagePendingTasks()
