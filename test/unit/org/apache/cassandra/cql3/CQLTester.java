@@ -957,6 +957,22 @@ public abstract class CQLTester
         assert ignoreExtra || expectedRows.size() == actualRows.size();
     }
 
+    private static List<String> makeRowStrings(UntypedResultSet resultSet)
+    {
+        List<List<ByteBuffer>> rows = new ArrayList<>();
+        for (UntypedResultSet.Row row : resultSet)
+        {
+            List<ByteBuffer> values = new ArrayList<>();
+            for (ColumnSpecification columnSpecification : resultSet.metadata())
+            {
+                values.add(row.getBytes(columnSpecification.name.toString()));
+            }
+            rows.add(values);
+        }
+
+        return makeRowStrings(rows, resultSet.metadata());
+    }
+
     private static List<String> makeRowStrings(Iterable<List<ByteBuffer>> rows, List<ColumnSpecification> meta)
     {
         List<String> strings = new ArrayList<>();
@@ -1065,7 +1081,7 @@ public abstract class CQLTester
     protected void assertEmpty(UntypedResultSet result) throws Throwable
     {
         if (result != null && !result.isEmpty())
-            throw new AssertionError(String.format("Expected empty result but got %d rows", result.size()));
+            throw new AssertionError(String.format("Expected empty result but got %d rows: %s \n", result.size(), makeRowStrings(result)));
     }
 
     protected void assertInvalid(String query, Object... values) throws Throwable
