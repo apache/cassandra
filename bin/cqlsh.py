@@ -178,7 +178,6 @@ from cqlshlib.util import get_file_encoding_bomsize, trim_if_present
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
 DEFAULT_SSL = False
-DEFAULT_PROTOCOL_VERSION = 4
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 5
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 10
 
@@ -223,6 +222,9 @@ parser.add_option('--cqlversion', default=None,
                   help='Specify a particular CQL version, '
                        'by default the highest version supported by the server will be used.'
                        ' Examples: "3.0.3", "3.1.0"')
+parser.add_option("--protocol-version", type="int", default=None,
+                  help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
+
 parser.add_option("-e", "--execute", help='Execute the statement and quit.')
 parser.add_option("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
                   help='Specify the connection timeout in seconds (default: %default seconds).')
@@ -449,7 +451,7 @@ class Shell(cmd.Cmd):
                  ssl=False,
                  single_statement=None,
                  request_timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
-                 protocol_version=DEFAULT_PROTOCOL_VERSION,
+                 protocol_version=None,
                  connect_timeout=DEFAULT_CONNECT_TIMEOUT_SECONDS):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
@@ -468,13 +470,16 @@ class Shell(cmd.Cmd):
         if use_conn:
             self.conn = use_conn
         else:
+            kwargs = {}
+            if protocol_version is not None:
+                kwargs['protocol_version'] = protocol_version
             self.conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=cqlver,
-                                protocol_version=protocol_version,
                                 auth_provider=self.auth_provider,
                                 ssl_options=sslhandling.ssl_settings(hostname, CONFIG_FILE) if ssl else None,
                                 load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
                                 control_connection_timeout=connect_timeout,
-                                connect_timeout=connect_timeout)
+                                connect_timeout=connect_timeout,
+                                **kwargs)
         self.owns_connection = not use_conn
 
         if keyspace:
@@ -1673,9 +1678,9 @@ class Shell(cmd.Cmd):
 
         direction = parsed.get_binding('dir').upper()
         if direction == 'FROM':
-            task = ImportTask(self, ks, table, columns, fname, opts, DEFAULT_PROTOCOL_VERSION, CONFIG_FILE)
+            task = ImportTask(self, ks, table, columns, fname, opts, self.conn.protocol_version, CONFIG_FILE)
         elif direction == 'TO':
-            task = ExportTask(self, ks, table, columns, fname, opts, DEFAULT_PROTOCOL_VERSION, CONFIG_FILE)
+            task = ExportTask(self, ks, table, columns, fname, opts, self.conn.protocol_version, CONFIG_FILE)
         else:
             raise SyntaxError("Unknown direction %s" % direction)
 
@@ -2231,6 +2236,7 @@ def read_options(cmdlineargs, environment):
     optvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
 
     optvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
+    optvalues.protocol_version = option_with_default(configs.getint, 'protocol', 'version', None)
     optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', None)
     optvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
     optvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
@@ -2384,6 +2390,7 @@ def main(options, hostname, port):
                       tty=options.tty,
                       completekey=options.completekey,
                       browser=options.browser,
+                      protocol_version=options.protocol_version,
                       cqlver=options.cqlversion,
                       keyspace=options.keyspace,
                       display_timestamp_format=options.time_format,
