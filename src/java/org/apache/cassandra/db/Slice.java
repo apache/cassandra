@@ -160,7 +160,7 @@ public class Slice
     public static boolean isEmpty(ClusteringComparator comparator, ClusteringBound start, ClusteringBound end)
     {
         assert start.isStart() && end.isEnd();
-        return comparator.compare(end, start) < 0;
+        return comparator.compare(end, start) <= 0;
     }
 
     /**
