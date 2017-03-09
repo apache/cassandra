@@ -1,4 +1,5 @@
 3.0.13
+ * Slice.isEmpty() returns false for some empty slices (CASSANDRA-13305)
  * Add formatted row output to assertEmpty in CQL Tester (CASSANDRA-13238)
 Merged from 2.2:
  * Fix GRANT/REVOKE when keyspace isn't specified (CASSANDRA-13053)
