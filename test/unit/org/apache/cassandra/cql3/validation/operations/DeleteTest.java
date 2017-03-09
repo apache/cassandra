@@ -1346,6 +1346,24 @@ public class DeleteTest extends CQLTester
     }
 
     /**
+     * Test for CASSANDRA-13305
+     */
+    @Test
+    public void testWithEmptyRange() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k text, a int, b int, PRIMARY KEY (k, a, b))");
+
+        // Both of the following should be doing nothing, but before #13305 this inserted broken ranges. We do it twice
+        // and the follow-up delete mainly as a way to show the bug as the combination of this will trigger an assertion
+        // in RangeTombstoneList pre-#13305 showing that something wrong happened.
+        execute("DELETE FROM %s WHERE k = ? AND a >= ? AND a < ?", "a", 1, 1);
+        execute("DELETE FROM %s WHERE k = ? AND a >= ? AND a < ?", "a", 1, 1);
+
+        execute("DELETE FROM %s WHERE k = ? AND a >= ? AND a < ?", "a", 0, 2);
+    }
+
+
+    /**
      * Checks if the memtable is empty or not
      * @return {@code true} if the memtable is empty, {@code false} otherwise.
      */
