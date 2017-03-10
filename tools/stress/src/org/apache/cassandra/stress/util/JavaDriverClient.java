@@ -165,7 +165,7 @@ public class JavaDriverClient
                 connectionsPerHost);
         for (Host host : metadata.getAllHosts())
         {
-            System.out.printf("Datatacenter: %s; Host: %s; Rack: %s%n",
+            System.out.printf("Datacenter: %s; Host: %s; Rack: %s%n",
                     host.getDatacenter(), host.getAddress(), host.getRack());
         }
 
