@@ -91,16 +91,39 @@ public class UpdateParameters
         return new RangeTombstone(slice.start, slice.finish, timestamp - 1, localDeletionTime);
     }
 
-    public List<Cell> getPrefetchedList(ByteBuffer rowKey, ColumnIdentifier cql3ColumnName)
+    /**
+     * Returns the prefetched list with the already performed modifications.
+     * <p>If no modification have yet been performed this method will return the fetched list.
+     * If some modifications (updates or deletions) have already been done the list returned
+     * will be the result of the merge of the fetched list and of the pending mutations.</p>
+     *
+     * @param rowKey the row key
+     * @param cql3ColumnName the column name
+     * @param cf the pending modifications
+     * @return the prefetched list with the already performed modifications
+     */
+    public List<Cell> getPrefetchedList(ByteBuffer rowKey, ColumnIdentifier cql3ColumnName, ColumnFamily cf)
     {
         if (prefetchedLists == null)
             return Collections.emptyList();
 
         CQL3Row row = prefetchedLists.get(rowKey);
-        if (row == null)
-            return Collections.<Cell>emptyList();
 
-        List<Cell> cql3List = row.getMultiCellColumn(cql3ColumnName);
+        List<Cell> cql3List = row == null ? Collections.<Cell>emptyList() : row.getMultiCellColumn(cql3ColumnName);
+
+        if (!cf.isEmpty())
+        {
+            ColumnFamily currentCf = cf.cloneMe();
+
+            for (Cell c : cql3List)
+                currentCf.addColumn(c);
+
+            CFMetaData cfm = currentCf.metadata();
+            CQL3Row.RowIterator iterator = cfm.comparator.CQL3RowBuilder(cfm, timestamp).group(currentCf.iterator());
+            // We can only update one CQ3Row per partition key at a time (we don't allow IN for clustering key)
+            cql3List = iterator.hasNext() ? iterator.next().getMultiCellColumn(cql3ColumnName) : null;
+        }
+
         return (cql3List == null) ? Collections.<Cell>emptyList() : cql3List;
     }
 }
