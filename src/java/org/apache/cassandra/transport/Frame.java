@@ -32,6 +32,7 @@ import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.util.Attribute;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.frame.FrameBodyTransformer;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 
 public class Frame
@@ -102,7 +103,8 @@ public class Frame
             TRACING,
             CUSTOM_PAYLOAD,
             WARNING,
-            USE_BETA;
+            USE_BETA,
+            CHECKSUMMED;
 
             private static final Flag[] ALL_VALUES = values();
 
@@ -301,54 +303,70 @@ public class Frame
     }
 
     @ChannelHandler.Sharable
-    public static class Decompressor extends MessageToMessageDecoder<Frame>
+    public static class InboundBodyTransformer extends MessageToMessageDecoder<Frame>
     {
         public void decode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
         throws IOException
         {
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
 
-            if (!frame.header.flags.contains(Header.Flag.COMPRESSED) || connection == null)
+            if ((!frame.header.flags.contains(Header.Flag.COMPRESSED) && !frame.header.flags.contains(Header.Flag.CHECKSUMMED)) || connection == null)
             {
                 results.add(frame);
                 return;
             }
 
-            FrameCompressor compressor = connection.getCompressor();
-            if (compressor == null)
+            FrameBodyTransformer transformer = connection.getTransformer();
+            if (transformer == null)
             {
                 results.add(frame);
                 return;
             }
 
-            results.add(compressor.decompress(frame));
+            try
+            {
+                results.add(frame.with(transformer.transformInbound(frame.body, frame.header.flags)));
+            }
+            finally
+            {
+                // release the old frame
+                frame.release();
+            }
         }
     }
 
     @ChannelHandler.Sharable
-    public static class Compressor extends MessageToMessageEncoder<Frame>
+    public static class OutboundBodyTransformer extends MessageToMessageEncoder<Frame>
     {
         public void encode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
         throws IOException
         {
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
 
-            // Never compress STARTUP messages
+            // Never transform STARTUP messages
             if (frame.header.type == Message.Type.STARTUP || connection == null)
             {
                 results.add(frame);
                 return;
             }
 
-            FrameCompressor compressor = connection.getCompressor();
-            if (compressor == null)
+            FrameBodyTransformer transformer = connection.getTransformer();
+            if (transformer == null)
             {
                 results.add(frame);
                 return;
             }
 
-            frame.header.flags.add(Header.Flag.COMPRESSED);
-            results.add(compressor.compress(frame));
+            try
+            {
+                results.add(frame.with(transformer.transformOutbound(frame.body)));
+                frame.header.flags.addAll(transformer.getOutboundHeaderFlags());
+            }
+            finally
+            {
+                // release the old frame
+                frame.release();
+            }
         }
     }
 }

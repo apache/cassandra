@@ -51,7 +51,7 @@ public class ClientWarningsTest extends CQLTester
 
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V4))
         {
-            client.connect(false);
+            client.connect(false, false);
 
             QueryMessage query = new QueryMessage(createBatchStatement2(1), QueryOptions.DEFAULT);
             Message.Response resp = client.execute(query);
@@ -70,7 +70,7 @@ public class ClientWarningsTest extends CQLTester
 
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V4))
         {
-            client.connect(false);
+            client.connect(false, false);
 
             QueryMessage query = new QueryMessage(createBatchStatement2(DatabaseDescriptor.getBatchSizeWarnThreshold() / 2 + 1), QueryOptions.DEFAULT);
             Message.Response resp = client.execute(query);
@@ -90,7 +90,7 @@ public class ClientWarningsTest extends CQLTester
 
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V4))
         {
-            client.connect(false);
+            client.connect(false, false);
 
             for (int i = 0; i < iterations; i++)
             {
@@ -130,7 +130,7 @@ public class ClientWarningsTest extends CQLTester
 
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V3))
         {
-            client.connect(false);
+            client.connect(false, false);
 
             QueryMessage query = new QueryMessage(createBatchStatement(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
             Message.Response resp = client.execute(query);

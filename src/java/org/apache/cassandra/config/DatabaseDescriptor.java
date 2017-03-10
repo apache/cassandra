@@ -1878,6 +1878,11 @@ public class DatabaseDescriptor
         conf.native_transport_allow_older_protocols = isEnabled;
     }
 
+    public static int getNativeTransportFrameBlockSize()
+    {
+        return conf.native_transport_frame_block_size_in_kb * 1024;
+    }
+
     public static double getCommitLogSyncGroupWindow()
     {
         return conf.commitlog_sync_group_window_in_ms;

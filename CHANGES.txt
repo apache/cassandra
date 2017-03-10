@@ -1,4 +1,5 @@
 4.0
+ * Add checksumming to the native protocol (CASSANDRA-13304)
  * Make AuthCache more easily extendable (CASSANDRA-14662)
  * Extend RolesCache to include detailed role info (CASSANDRA-14497)
  * Add fqltool compare (CASSANDRA-14619)
