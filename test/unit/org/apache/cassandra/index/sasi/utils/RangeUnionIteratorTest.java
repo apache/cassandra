@@ -214,7 +214,7 @@ public class RangeUnionIteratorTest
         FileUtils.closeQuietly(tokens);
 
         RangeIterator emptyTokens = RangeUnionIterator.builder().build();
-        Assert.assertNull(emptyTokens);
+        Assert.assertEquals(0, emptyTokens.getCount());
 
         builder = RangeUnionIterator.builder();
         Assert.assertEquals(0L, builder.add((RangeIterator<Long, Token>) null).rangeCount());
@@ -302,5 +302,75 @@ public class RangeUnionIteratorTest
 
         Assert.assertNull(empty.skipTo(3L));
         Assert.assertFalse(empty.hasNext());
+    }
+
+    @Test
+    public void emptyRangeTest() {
+        RangeIterator.Builder<Long, Token> builder;
+        RangeIterator<Long, Token> range;
+        // empty, then non-empty
+        builder = RangeUnionIterator.builder();
+        builder.add(new LongIterator(new long[] {}));
+        for (int i = 0; i < 10; i++)
+            builder.add(new LongIterator(new long[] {i + 10}));
+        range = builder.build();
+        Assert.assertEquals(Long.valueOf(10), range.getMinimum());
+        Assert.assertEquals(Long.valueOf(19), range.getMaximum());
+        Assert.assertTrue(range.hasNext());
+        Assert.assertEquals(10, range.getCount());
+
+        builder = RangeUnionIterator.builder();
+        builder.add(new LongIterator(new long[] {}));
+        builder.add(new LongIterator(new long[] {10}));
+        range = builder.build();
+        Assert.assertEquals(Long.valueOf(10), range.getMinimum());
+        Assert.assertEquals(Long.valueOf(10), range.getMaximum());
+        Assert.assertTrue(range.hasNext());
+        Assert.assertEquals(1, range.getCount());
+
+        // non-empty, then empty
+        builder = RangeUnionIterator.builder();
+        for (int i = 0; i < 10; i++)
+            builder.add(new LongIterator(new long[] {i + 10}));
+        builder.add(new LongIterator(new long[] {}));
+        range = builder.build();
+        Assert.assertEquals(Long.valueOf(10), range.getMinimum());
+        Assert.assertEquals(Long.valueOf(19), range.getMaximum());
+        Assert.assertTrue(range.hasNext());
+        Assert.assertEquals(10, range.getCount());
+
+        builder = RangeUnionIterator.builder();
+        builder.add(new LongIterator(new long[] {10}));
+        builder.add(new LongIterator(new long[] {}));
+        range = builder.build();
+        Assert.assertEquals(Long.valueOf(10), range.getMinimum());
+        Assert.assertEquals(Long.valueOf(10), range.getMaximum());
+        Assert.assertTrue(range.hasNext());
+        Assert.assertEquals(1, range.getCount());
+
+        // empty, then non-empty then empty again
+        builder = RangeUnionIterator.builder();
+        builder.add(new LongIterator(new long[] {}));
+        for (int i = 0; i < 10; i++)
+            builder.add(new LongIterator(new long[] {i + 10}));
+        builder.add(new LongIterator(new long[] {}));
+        range = builder.build();
+        Assert.assertEquals(Long.valueOf(10), range.getMinimum());
+        Assert.assertEquals(Long.valueOf(19), range.getMaximum());
+        Assert.assertTrue(range.hasNext());
+        Assert.assertEquals(10, range.getCount());
+
+        // non-empty, empty, then non-empty again
+        builder = RangeUnionIterator.builder();
+        for (int i = 0; i < 5; i++)
+            builder.add(new LongIterator(new long[] {i + 10}));
+        builder.add(new LongIterator(new long[] {}));
+        for (int i = 5; i < 10; i++)
+            builder.add(new LongIterator(new long[] {i + 10}));
+        range = builder.build();
+        Assert.assertEquals(Long.valueOf(10), range.getMinimum());
+        Assert.assertEquals(Long.valueOf(19), range.getMaximum());
+        Assert.assertTrue(range.hasNext());
+        Assert.assertEquals(10, range.getCount());
     }
 }

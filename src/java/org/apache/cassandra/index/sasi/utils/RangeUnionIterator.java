@@ -153,7 +153,14 @@ public class RangeUnionIterator<K extends Comparable<K>, D extends CombinedValue
 
         protected RangeIterator<K, D> buildIterator()
         {
-            return new RangeUnionIterator<>(statistics, ranges);
+            switch (rangeCount())
+            {
+                case 1:
+                    return ranges.poll();
+
+                default:
+                    return new RangeUnionIterator<>(statistics, ranges);
+            }
         }
     }
 }

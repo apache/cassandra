@@ -223,7 +223,7 @@ public class RangeIntersectionIteratorTest
         FileUtils.closeQuietly(tokens);
 
         RangeIterator emptyTokens = RangeIntersectionIterator.builder(strategy).build();
-        Assert.assertNull(emptyTokens);
+        Assert.assertEquals(0, emptyTokens.getCount());
 
         builder = RangeIntersectionIterator.builder(strategy);
         Assert.assertEquals(0L, builder.add((RangeIterator<Long, Token>) null).rangeCount());
@@ -236,6 +236,15 @@ public class RangeIntersectionIteratorTest
         // because build should return first element if it's only one instead of building yet another iterator
         Assert.assertEquals(range, single);
 
+        // Make a difference between empty and null ranges.
+        builder = RangeIntersectionIterator.builder(strategy);
+        builder.add(new LongIterator(new long[] {}));
+        Assert.assertEquals(0L, builder.rangeCount());
+        builder.add(single);
+        Assert.assertEquals(1L, builder.rangeCount());
+        range = builder.build();
+        Assert.assertEquals(0, range.getCount());
+
         // disjoint case
         builder = RangeIntersectionIterator.builder();
         builder.add(new LongIterator(new long[] { 1L, 2L, 3L }));
@@ -247,6 +256,73 @@ public class RangeIntersectionIteratorTest
         Assert.assertNotNull(disjointIntersection);
         Assert.assertFalse(disjointIntersection.hasNext());
 
+    }
+
+    @Test
+    public void emptyRangeTest() {
+        RangeIterator.Builder<Long, Token> builder;
+
+        // empty, then non-empty
+        builder = RangeIntersectionIterator.builder();
+        builder.add(new LongIterator(new long[] {}));
+        builder.add(new LongIterator(new long[] {10}));
+        assertEmpty(builder.build());
+
+        builder = RangeIntersectionIterator.builder();
+        builder.add(new LongIterator(new long[] {}));
+        for (int i = 0; i < 10; i++)
+            builder.add(new LongIterator(new long[] {0, i + 10}));
+        assertEmpty(builder.build());
+
+        // non-empty, then empty
+        builder = RangeIntersectionIterator.builder();
+        builder.add(new LongIterator(new long[] {10}));
+        builder.add(new LongIterator(new long[] {}));
+        assertEmpty(builder.build());
+
+        builder = RangeIntersectionIterator.builder();
+        for (int i = 0; i < 10; i++)
+            builder.add(new LongIterator(new long[] {0, i + 10}));
+
+        builder.add(new LongIterator(new long[] {}));
+        assertEmpty(builder.build());
+
+        // empty, then non-empty then empty again
+        builder = RangeIntersectionIterator.builder();
+        builder.add(new LongIterator(new long[] {}));
+        builder.add(new LongIterator(new long[] {0, 10}));
+        builder.add(new LongIterator(new long[] {}));
+        assertEmpty(builder.build());
+
+        builder = RangeIntersectionIterator.builder();
+        builder.add(new LongIterator(new long[] {}));
+        for (int i = 0; i < 10; i++)
+            builder.add(new LongIterator(new long[] {0, i + 10}));
+        builder.add(new LongIterator(new long[] {}));
+        assertEmpty(builder.build());
+
+        // non-empty, empty, then non-empty again
+        builder = RangeIntersectionIterator.builder();
+        builder.add(new LongIterator(new long[] {0, 10}));
+        builder.add(new LongIterator(new long[] {}));
+        builder.add(new LongIterator(new long[] {0, 10}));
+        assertEmpty(builder.build());
+
+        builder = RangeIntersectionIterator.builder();
+        for (int i = 0; i < 5; i++)
+            builder.add(new LongIterator(new long[] {0, i + 10}));
+        builder.add(new LongIterator(new long[] {}));
+        for (int i = 5; i < 10; i++)
+            builder.add(new LongIterator(new long[] {0, i + 10}));
+        assertEmpty(builder.build());
+    }
+
+    public static void assertEmpty(RangeIterator<Long, Token> range)
+    {
+        Assert.assertNull(range.getMinimum());
+        Assert.assertNull(range.getMaximum());
+        Assert.assertFalse(range.hasNext());
+        Assert.assertEquals(0, range.getCount());
     }
 
     @Test
