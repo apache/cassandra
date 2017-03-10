@@ -3655,8 +3655,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // stream to the closest peer as chosen by the snitch
             DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), candidates);
             InetAddress hintsDestinationHost = candidates.get(0);
-            InetAddress preferred = SystemKeyspace.getPreferredIP(hintsDestinationHost);
-            return tokenMetadata.getHostId(preferred);
+            return tokenMetadata.getHostId(hintsDestinationHost);
         }
     }
 
