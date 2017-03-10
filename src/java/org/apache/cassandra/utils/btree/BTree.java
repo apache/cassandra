@@ -825,6 +825,26 @@ public class BTree
             this.values = new Object[16];
         }
 
+        private Builder(Builder<V> builder)
+        {
+            this.comparator = builder.comparator;
+            this.values = Arrays.copyOf(builder.values, builder.values.length);
+            this.count = builder.count;
+            this.detected = builder.detected;
+            this.auto = builder.auto;
+            this.quickResolver = builder.quickResolver;
+            this.recycleHandle = null;
+        }
+
+        /**
+         * Creates a copy of this {@code Builder}.
+         * @return a copy of this {@code Builder}.
+         */
+        public Builder<V> copy()
+        {
+            return new Builder<>(this);
+        }
+
         public Builder<V> setQuickResolver(QuickResolver<V> quickResolver)
         {
             this.quickResolver = quickResolver;

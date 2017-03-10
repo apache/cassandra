@@ -421,6 +421,12 @@ public interface Row extends Unfiltered, Collection<ColumnData>
     public interface Builder
     {
         /**
+         * Creates a copy of this {@code Builder}.
+         * @return a copy of this {@code Builder}
+         */
+        public Builder copy();
+
+        /**
          * Whether the builder is a sorted one or not.
          *
          * @return if the builder requires calls to be done in sorted order or not (see above).
