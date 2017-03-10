@@ -200,12 +200,34 @@ public class UpdateParameters
         return new RangeTombstone(slice, deletionTime);
     }
 
+    /**
+     * Returns the prefetched row with the already performed modifications.
+     * <p>If no modification have yet been performed this method will return the fetched row or {@code null} if
+     * the row does not exist. If some modifications (updates or deletions) have already been done the row returned
+     * will be the result of the merge of the fetched row and of the pending mutations.</p>
+     *
+     * @param key the partition key
+     * @param clustering the row clustering
+     * @return the prefetched row with the already performed modifications
+     */
     public Row getPrefetchedRow(DecoratedKey key, Clustering clustering)
     {
         if (prefetchedRows == null)
             return null;
 
         Partition partition = prefetchedRows.get(key);
-        return partition == null ? null : partition.searchIterator(ColumnFilter.selection(partition.columns()), false).next(clustering);
+        Row prefetchedRow = partition == null ? null : partition.searchIterator(ColumnFilter.selection(partition.columns()), false).next(clustering);
+
+        // We need to apply the pending mutations to return the row in its current state
+        Row pendingMutations = builder.copy().build();
+
+        if (pendingMutations.isEmpty())
+            return prefetchedRow;
+
+        if (prefetchedRow == null)
+            return pendingMutations;
+
+        return Rows.merge(prefetchedRow, pendingMutations, nowInSec)
+                   .purge(DeletionPurger.PURGE_ALL, nowInSec);
     }
 }

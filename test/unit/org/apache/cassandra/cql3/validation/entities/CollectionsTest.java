@@ -972,4 +972,104 @@ public class CollectionsTest extends CQLTester
         assertInvalidMessage("The data cannot be deserialized as a map",
                              "INSERT INTO %s (pk, m) VALUES (?, ?)", 1, -1);
     }
+
+    @Test
+    public void testMultipleOperationOnListWithinTheSameQuery() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, l list<int>)");
+        execute("INSERT INTO %s (pk, l) VALUES (1, [1, 2, 3, 4])");
+
+        // Checks that when the same element is updated twice the update with the greatest value is the one taken into account
+        execute("UPDATE %s SET l[?] = ?, l[?] = ?  WHERE pk = ?", 2, 7, 2, 8, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, list(1, 2, 8, 4)));
+
+        execute("UPDATE %s SET l[?] = ?, l[?] = ?  WHERE pk = ?", 2, 9, 2, 6, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, list(1, 2, 9, 4)));
+
+        // Checks that deleting twice the same element will result in the deletion of the element with the index
+        // and of the following element.
+        execute("DELETE l[?], l[?] FROM %s WHERE pk = ?", 2, 2, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, list(1, 2)));
+
+        // Checks that the set operation is performed on the added elements and that the greatest value win
+        execute("UPDATE %s SET l = l + ?, l[?] = ?  WHERE pk = ?", list(3, 4), 3, 7, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, list(1, 2, 3, 7)));
+
+        execute("UPDATE %s SET l = l + ?, l[?] = ?  WHERE pk = ?", list(6, 8), 4, 5, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, list(1, 2, 3, 7, 6, 8)));
+
+        // Checks that the order of the operations matters
+        assertInvalidMessage("List index 6 out of bound, list has size 6",
+                             "UPDATE %s SET l[?] = ?, l = l + ? WHERE pk = ?", 6, 5, list(9), 1);
+
+        // Checks that the updated element is deleted.
+        execute("UPDATE %s SET l[?] = ? , l = l - ? WHERE pk = ?", 2, 8, list(8), 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, list(1, 2, 7, 6)));
+
+        // Checks that we cannot update an element that has been removed.
+        assertInvalidMessage("List index 3 out of bound, list has size 3",
+                             "UPDATE %s SET l = l - ?, l[?] = ?  WHERE pk = ?", list(6), 3, 4, 1);
+
+        // Checks that the element is updated before the other ones are shifted.
+        execute("UPDATE %s SET l[?] = ? , l = l - ? WHERE pk = ?", 2, 8, list(1), 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, list(2, 8, 6)));
+
+        // Checks that the element are shifted before the element is updated.
+        execute("UPDATE %s SET l = l - ?, l[?] = ?  WHERE pk = ?", list(2, 6), 0, 9, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, list(9)));
+    }
+
+    @Test
+    public void testMultipleOperationOnMapWithinTheSameQuery() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, m map<int, int>)");
+        execute("INSERT INTO %s (pk, m) VALUES (1, {0 : 1, 1 : 2, 2 : 3, 3 : 4})");
+
+        // Checks that when the same element is updated twice the update with the greatest value is the one taken into account
+        execute("UPDATE %s SET m[?] = ?, m[?] = ?  WHERE pk = ?", 2, 7, 2, 8, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = 1") , row(1, map(0, 1, 1, 2, 2, 8, 3, 4)));
+
+        execute("UPDATE %s SET m[?] = ?, m[?] = ?  WHERE pk = ?", 2, 9, 2, 6, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = 1") , row(1, map(0, 1, 1, 2, 2, 9, 3, 4)));
+
+        // Checks that deleting twice the same element has no side effect
+        execute("DELETE m[?], m[?] FROM %s WHERE pk = ?", 2, 2, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, map(0, 1, 1, 2, 3, 4)));
+
+        // Checks that the set operation is performed on the added elements and that the greatest value win
+        execute("UPDATE %s SET m = m + ?, m[?] = ?  WHERE pk = ?", map(4, 5), 4, 7, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, map(0, 1, 1, 2, 3, 4, 4, 7)));
+
+        execute("UPDATE %s SET m = m + ?, m[?] = ?  WHERE pk = ?", map(4, 8), 4, 6, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, map(0, 1, 1, 2, 3, 4, 4, 8)));
+
+        // Checks that, as tombstones win over updates for the same timestamp, the removed element is not readded
+        execute("UPDATE %s SET m = m - ?, m[?] = ?  WHERE pk = ?", set(4), 4, 9, 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, map(0, 1, 1, 2, 3, 4)));
+
+        // Checks that the update is taken into account before the removal
+        execute("UPDATE %s SET m[?] = ?,  m = m - ?  WHERE pk = ?", 5, 9, set(5), 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, map(0, 1, 1, 2, 3, 4)));
+
+        // Checks that the set operation is merged with the change of the append and that the greatest value win
+        execute("UPDATE %s SET m[?] = ?, m = m + ?  WHERE pk = ?", 5, 9, map(5, 8, 6, 9), 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, map(0, 1, 1, 2, 3, 4, 5, 9, 6, 9)));
+
+        execute("UPDATE %s SET m[?] = ?, m = m + ?  WHERE pk = ?", 7, 1, map(7, 2), 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1) , row(1, map(0, 1, 1, 2, 3, 4, 5, 9, 6, 9, 7, 2)));
+    }
+
+    @Test
+    public void testMultipleOperationOnSetWithinTheSameQuery() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, s set<int>)");
+        execute("INSERT INTO %s (pk, s) VALUES (1, {0, 1, 2})");
+
+        // Checks that the two operation are merged and that the tombstone always win
+        execute("UPDATE %s SET s = s + ? , s = s - ?  WHERE pk = ?", set(3, 4), set(3), 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = 1") , row(1, set(0, 1, 2, 4)));
+
+        execute("UPDATE %s SET s = s - ? , s = s + ?  WHERE pk = ?", set(3), set(3, 4), 1);
+        assertRows(execute("SELECT * FROM %s WHERE pk = 1") , row(1, set(0, 1, 2, 4)));
+    }
 }
