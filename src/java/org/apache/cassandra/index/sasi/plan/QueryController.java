@@ -144,9 +144,6 @@ public class QueryController
             @SuppressWarnings("resource") // RangeIterators are closed by releaseIndexes
             RangeIterator<Long, Token> index = TermIterator.build(e.getKey(), e.getValue());
 
-            if (index == null)
-                continue;
-
             builder.add(index);
             perIndexUnions.add(index);
         }

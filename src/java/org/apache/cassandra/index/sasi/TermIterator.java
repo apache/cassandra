@@ -157,7 +157,7 @@ public class TermIterator extends RangeIterator<Long, Token>
             e.checkpoint();
 
             RangeIterator<Long, Token> ranges = RangeUnionIterator.build(tokens);
-            return ranges == null ? null : new TermIterator(e, ranges, referencedIndexes);
+            return new TermIterator(e, ranges, referencedIndexes);
         }
         catch (Throwable ex)
         {
