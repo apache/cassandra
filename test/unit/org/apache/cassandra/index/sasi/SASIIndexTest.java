@@ -2061,7 +2061,7 @@ public class SASIIndexTest
             // expected since CONTAINS + analyzed only support LIKE
         }
 
-        QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Pav%%';", KS_NAME, containsTable));
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Pav%%';", KS_NAME, containsTable));
         Assert.assertNotNull(results);
         Assert.assertEquals(1, results.size());
 
