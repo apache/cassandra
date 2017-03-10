@@ -25,6 +25,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.rows.Row.Builder;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -38,6 +39,12 @@ public class RowBuilder implements Row.Builder
     public LivenessInfo livenessInfo = null;
     public Row.Deletion deletionTime = null;
     public List<Pair<ColumnDefinition, DeletionTime>> complexDeletions = new LinkedList<>();
+
+    @Override
+    public Builder copy()
+    {
+        throw new UnsupportedOperationException();
+    }
 
     public void addCell(Cell cell)
     {

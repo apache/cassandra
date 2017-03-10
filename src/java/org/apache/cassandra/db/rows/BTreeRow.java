@@ -577,18 +577,27 @@ public class BTreeRow extends AbstractRow
                     lb++;
                 }
 
-                List<Object> buildFrom = Arrays.asList(cells).subList(lb, ub);
-                if (deletion != DeletionTime.LIVE)
+                List<Object> buildFrom = new ArrayList<>(ub - lb);
+                Cell previous = null;
+                for (int i = lb; i < ub; i++)
                 {
-                    // Make sure we don't include any shadowed cells
-                    List<Object> filtered = new ArrayList<>(buildFrom.size());
-                    for (Object c : buildFrom)
+                    Cell c = (Cell) cells[i];
+
+                    if (deletion == DeletionTime.LIVE || c.timestamp() >= deletion.markedForDeleteAt())
                     {
-                        if (((Cell)c).timestamp() >= deletion.markedForDeleteAt())
-                            filtered.add(c);
+                        if (previous != null && column.cellComparator().compare(previous, c) == 0)
+                        {
+                            c = Cells.reconcile(previous, c, nowInSec);
+                            buildFrom.set(buildFrom.size() - 1, c);
+                        }
+                        else
+                        {
+                            buildFrom.add(c);
+                        }
+                        previous = c;
                     }
-                    buildFrom = filtered;
                 }
+
                 Object[] btree = BTree.build(buildFrom, UpdateFunction.noOp());
                 return new ComplexColumnData(column, btree, deletion);
             }
@@ -618,6 +627,23 @@ public class BTreeRow extends AbstractRow
             this.cells.auto(false);
         }
 
+        protected Builder(Builder builder)
+        {
+            clustering = builder.clustering;
+            primaryKeyLivenessInfo = builder.primaryKeyLivenessInfo;
+            deletion = builder.deletion;
+            cells = builder.cells.copy();
+            resolver = builder.resolver;
+            isSorted = builder.isSorted;
+            hasComplex = builder.hasComplex;
+        }
+
+        @Override
+        public Builder copy()
+        {
+            return new Builder(this);
+        }
+
         public boolean isSorted()
         {
             return isSorted;
@@ -640,6 +666,7 @@ public class BTreeRow extends AbstractRow
             this.primaryKeyLivenessInfo = LivenessInfo.EMPTY;
             this.deletion = Deletion.LIVE;
             this.cells.reuse();
+            this.hasComplex = false;
         }
 
         public void addPrimaryKeyLivenessInfo(LivenessInfo info)
