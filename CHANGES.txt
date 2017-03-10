@@ -1,4 +1,5 @@
 3.0.14
+ * Avoid name clashes in CassandraIndexTest (CASSANDRA-13427)
  * Handling partially written hint files (CASSANDRA-12728) 
  * Interrupt replaying hints on decommission (CASSANDRA-13308)
 
