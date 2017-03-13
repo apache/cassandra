@@ -1,4 +1,5 @@
 4.0
+ * Fix incorrect cqlsh results when selecting same columns multiple times (CASSANDRA-13262)
  * Fix WriteResponseHandlerTest is sensitive to test execution order (CASSANDRA-13421)
  * Improve incremental repair logging (CASSANDRA-13468)
  * Start compaction when incremental repair finishes (CASSANDRA-13454)
