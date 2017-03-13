@@ -989,7 +989,7 @@ windows_timer_interval: 1
 # How many milliseconds to wait between two expiration runs on the backlog (queue) of the OutboundTcpConnection.
 # Expiration is done if messages are piling up in the backlog. Droppable messages are expired to free the memory
 # taken by expired messages. The interval should be between 0 and 1000, and in most installations the default value
-# will be appropriate. A smaller interval helps keeping the memory footprint on high-throughput installation low,
-# but will lock the backlog queue more frequently. 
-# 
+# will be appropriate. A smaller interval can help on high-throughput installations.
+# An interval of 0 disables any wait time, which is the behaviour of former Cassandra versions.
+#
 # otc_backlog_expiration_interval_ms: 200
