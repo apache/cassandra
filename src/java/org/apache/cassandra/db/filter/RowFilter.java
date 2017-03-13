@@ -611,7 +611,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     if (column.isComplex())
                     {
                         ComplexColumnData complexData = row.getComplexColumnData(column);
-                        if (complexData != null) {
+                        if (complexData != null)
+                        {
                             for (Cell cell : complexData)
                             {
                                 if (type.kind == CollectionType.Kind.SET)
