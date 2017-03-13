@@ -265,6 +265,18 @@ public class CommitLogReader
             int serializedSize;
             try
             {
+                // We rely on reading serialized size == 0 (LEGACY_END_OF_SEGMENT_MARKER) to identify the end
+                // of a segment, which happens naturally due to the 0 padding of the empty segment on creation.
+                // However, it's possible with 2.1 era commitlogs that the last mutation ended less than 4 bytes
+                // from the end of the file, which means that we'll be unable to read an a full int and instead
+                // read an EOF here
+                if(end - reader.getFilePointer() < 4)
+                {
+                    logger.trace("Not enough bytes left for another mutation in this CommitLog segment, continuing");
+                    statusTracker.requestTermination();
+                    return;
+                }
+
                 // any of the reads may hit EOF
                 serializedSize = reader.readInt();
                 if (serializedSize == LEGACY_END_OF_SEGMENT_MARKER)

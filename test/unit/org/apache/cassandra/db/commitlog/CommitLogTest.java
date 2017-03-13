@@ -171,10 +171,23 @@ public class CommitLogTest
     }
 
     @Test
+    public void testRecoveryWithShortPadding() throws Exception
+    {
+            // If we have 0-3 bytes remaining, commitlog replayer
+            // should pass, because there's insufficient room
+            // left in the segment for the legacy size marker.
+            testRecovery(new byte[1], null);
+            testRecovery(new byte[2], null);
+            testRecovery(new byte[3], null);
+    }
+
+    @Test
     public void testRecoveryWithShortSize() throws Exception
     {
+        byte[] data = new byte[5];
+        data[3] = 1; // Not a legacy marker, give it a fake (short) size
         runExpecting(() -> {
-            testRecovery(new byte[2], CommitLogDescriptor.VERSION_20);
+            testRecovery(data, CommitLogDescriptor.VERSION_20);
             return null;
         }, CommitLogReplayException.class);
     }
