@@ -27,3 +27,4 @@ Contributing to Cassandra
    code_style
    how_to_review
    how_to_commit
+   documentation
