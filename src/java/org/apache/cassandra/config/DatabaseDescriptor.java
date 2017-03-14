@@ -1967,13 +1967,12 @@ public class DatabaseDescriptor
         conf.otc_coalescing_enough_coalesced_messages = otc_coalescing_enough_coalesced_messages;
     }
 
-    public static Integer getOtcBacklogExpirationInterval()
+    public static int getOtcBacklogExpirationInterval()
     {
-        Integer confValue = conf.otc_backlog_expiration_interval_ms;
-        return confValue != null ? confValue : Config.otc_backlog_expiration_interval_ms_default;
+        return conf.otc_backlog_expiration_interval_ms;
     }
 
-    public static void setOtcBacklogExpirationInterval(Integer intervalInMillis)
+    public static void setOtcBacklogExpirationInterval(int intervalInMillis)
     {
         conf.otc_backlog_expiration_interval_ms = intervalInMillis;
         
@@ -2043,4 +2042,5 @@ public class DatabaseDescriptor
     {
         return conf.gc_warn_threshold_in_ms;
     }
+
 }

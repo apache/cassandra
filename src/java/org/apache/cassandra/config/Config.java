@@ -302,7 +302,7 @@ public class Config
      * Backlog expiration interval in milliseconds for the OutboundTcpConnection.  
      */
     public static final int otc_backlog_expiration_interval_ms_default = 200;
-    public volatile Integer otc_backlog_expiration_interval_ms = otc_backlog_expiration_interval_ms_default;
+    public volatile int otc_backlog_expiration_interval_ms = otc_backlog_expiration_interval_ms_default;
     
     public int windows_timer_interval = 0;
 
