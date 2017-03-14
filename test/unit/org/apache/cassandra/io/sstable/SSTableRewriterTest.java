@@ -789,7 +789,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
         List<StreamSession.SSTableStreamingSections> sectionsBeforeRewrite = StreamSession.getSSTableSectionsForRanges(
             Collections.singleton(new Range<Token>(firstToken, firstToken)),
-            Collections.singleton(cfs), 0L, false);
+            Collections.singleton(cfs), 0L, null);
         assertEquals(1, sectionsBeforeRewrite.size());
         for (StreamSession.SSTableStreamingSections section : sectionsBeforeRewrite)
             section.ref.release();
@@ -804,7 +804,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 while (!done.get())
                 {
                     Set<Range<Token>> range = Collections.singleton(new Range<Token>(firstToken, firstToken));
-                    List<StreamSession.SSTableStreamingSections> sections = StreamSession.getSSTableSectionsForRanges(range, Collections.singleton(cfs), 0L, false);
+                    List<StreamSession.SSTableStreamingSections> sections = StreamSession.getSSTableSectionsForRanges(range, Collections.singleton(cfs), 0L, null);
                     if (sections.size() != 1)
                         failed.set(true);
                     for (StreamSession.SSTableStreamingSections section : sections)

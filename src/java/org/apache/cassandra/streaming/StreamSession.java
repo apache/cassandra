@@ -26,6 +26,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
@@ -320,7 +322,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             flushSSTables(stores);
 
         List<Range<Token>> normalizedRanges = Range.normalize(ranges);
-        List<SSTableStreamingSections> sections = getSSTableSectionsForRanges(normalizedRanges, stores, repairedAt, isIncremental);
+        List<SSTableStreamingSections> sections = getSSTableSectionsForRanges(normalizedRanges, stores, repairedAt, pendingRepair);
         try
         {
             addTransferFiles(sections);
@@ -362,7 +364,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
     @VisibleForTesting
-    public static List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, long overriddenRepairedAt, final boolean isIncremental)
+    public static List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, long overriddenRepairedAt, UUID pendingRepair)
     {
         Refs<SSTableReader> refs = new Refs<>();
         try
@@ -375,6 +377,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 refs.addAll(cfStore.selectAndReference(view -> {
                     Set<SSTableReader> sstables = Sets.newHashSet();
                     SSTableIntervalTree intervalTree = SSTableIntervalTree.build(view.select(SSTableSet.CANONICAL));
+                    Predicate<SSTableReader> predicate;
+                    if (pendingRepair == ActiveRepairService.NO_PENDING_REPAIR)
+                    {
+                        predicate = Predicates.alwaysTrue();
+                    }
+                    else
+                    {
+                        predicate = s -> s.isPendingRepair() && s.getSSTableMetadata().pendingRepair.equals(pendingRepair);
+                    }
+
                     for (Range<PartitionPosition> keyRange : keyRanges)
                     {
                         // keyRange excludes its start, while sstableInBounds is inclusive (of both start and end).
@@ -383,10 +395,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                         // sort after all keys having the token. That "fake" key cannot however be equal to any real key, so that even
                         // including keyRange.left will still exclude any key having the token of the original token range, and so we're
                         // still actually selecting what we wanted.
-                        for (SSTableReader sstable : View.sstablesInBounds(keyRange.left, keyRange.right, intervalTree))
+                        for (SSTableReader sstable : Iterables.filter(View.sstablesInBounds(keyRange.left, keyRange.right, intervalTree), predicate))
                         {
-                            if (!isIncremental || !sstable.isRepaired())
-                                sstables.add(sstable);
+                            sstables.add(sstable);
                         }
                     }
 
