@@ -1196,8 +1196,12 @@ public abstract class LegacyLayout
                 assert !cell.value.hasRemaining();
                 // In 2.1, the row marker expired cell might have been converted into a deleted one by compaction. So,
                 // we need to set the primary key liveness info only if the cell is not a deleted one.
+                // The only time in 2.x that we actually delete a row marker is in 2i tables, so in that case we do
+                // want to actually propagate the row deletion. (CASSANDRA-13320)
                 if (!cell.isTombstone())
                     builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(cell.timestamp, cell.ttl, cell.localDeletionTime));
+                else if (metadata.isIndex())
+                    builder.addRowDeletion(Row.Deletion.regular(new DeletionTime(cell.timestamp, cell.localDeletionTime)));
             }
             else
             {
