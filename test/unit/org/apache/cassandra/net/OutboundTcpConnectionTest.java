@@ -129,7 +129,7 @@ public class OutboundTcpConnectionTest
     }
 
     /**
-     * Returns a nano timestamp in the far future, where expiration should have been performed for VERB_DROPPABLE.
+     * Returns a nano timestamp in the far future, when expiration should have been performed for VERB_DROPPABLE.
      * The offset is chosen as 2 times of the expiration time of VERB_DROPPABLE.
      * 
      * @return The future nano timestamp
@@ -156,8 +156,7 @@ public class OutboundTcpConnectionTest
     {
         for (int i = 0; i < OutboundTcpConnection.BACKLOG_PURGE_SIZE; i++)
         {
-            MessageOut<?> messageNonDroppable = new MessageOut<>(verb);
-            otc.enqueue(messageNonDroppable, nextMessageId());
+            otc.enqueue(new MessageOut<>(verb), nextMessageId());
         }
     }
 

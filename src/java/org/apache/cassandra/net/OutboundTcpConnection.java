@@ -136,7 +136,7 @@ public class OutboundTcpConnection extends Thread
 
     private final BlockingQueue<QueuedMessage> backlog = new LinkedBlockingQueue<>();
     @VisibleForTesting
-    static final int BACKLOG_PURGE_SIZE = 1024;
+    static final int BACKLOG_PURGE_SIZE = Integer.getInteger("OTC_BACKLOG_PURGE_SIZE", 1024);
     private final AtomicBoolean backlogExpirationActive = new AtomicBoolean(false);
     private volatile long backlogNextExpirationTime;
 
@@ -237,9 +237,8 @@ public class OutboundTcpConnection extends Thread
                 throw new AssertionError(e);
             }
 
-            currentMsgBufferCount = drainedMessages.size();
+            int count = currentMsgBufferCount = drainedMessages.size();
 
-            int count = drainedMessages.size();
             //The timestamp of the first message has already been provided to the coalescing strategy
             //so skip logging it.
             inner:
@@ -262,12 +261,10 @@ public class OutboundTcpConnection extends Thread
                         writeConnected(qm, count == 1 && backlog.isEmpty());
                     else
                     {
-                        // clear out the queue, else gossip messages back up.
-                        int drainCount = drainedMessages.size();
-                        drainedMessages.clear();
-                        // Clear the backlog and update dropped statistics. Hint: The statistics may be slightly
-                        // too low, if messages are added between the calls of backlog.size() and backlog.clear()
-                        dropped.addAndGet(backlog.size() + drainCount);
+                        // Not connected! Clear out the queue, else gossip messages back up. Update dropped
+                        // statistics accordingly. Hint: The statistics may be slightly too low, if messages
+                        // are added between the calls of backlog.size() and backlog.clear()
+                        dropped.addAndGet(backlog.size());
                         backlog.clear();
                         break inner;
                     }
@@ -281,6 +278,8 @@ public class OutboundTcpConnection extends Thread
                 }
                 currentMsgBufferCount = --count;
             }
+            // Update dropped statistics by the number of unprocessed drainedMessages
+            dropped.addAndGet(currentMsgBufferCount);
             drainedMessages.clear();
         }
     }
@@ -633,10 +632,9 @@ public class OutboundTcpConnection extends Thread
             }
             finally
             {
-                backlogExpirationActive.set(false);
                 long backlogExpirationIntervalNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getOtcBacklogExpirationInterval());
                 backlogNextExpirationTime = timestampNanos + backlogExpirationIntervalNanos;
-
+                backlogExpirationActive.set(false);
             }
         }
     }
