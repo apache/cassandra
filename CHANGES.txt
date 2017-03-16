@@ -42,6 +42,7 @@
 
 
 3.11.0
+ * Support unaligned memory access for AArch64 (CASSANDRA-13326)
  * Improve SASI range iterator efficiency on intersection with an empty range (CASSANDRA-12915).
  * Fix equality comparisons of columns using the duration type (CASSANDRA-13174)
  * Move to FastThreadLocalThread and FastThreadLocal (CASSANDRA-13034)

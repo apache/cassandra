@@ -26,14 +26,15 @@ import com.google.common.collect.Sets;
 
 public final class Architecture
 {
-    // Note that s390x architecture are not officially supported and adding it here is only done out of convenience
-    // for those that want to run C* on this architecture at their own risk (see #11214)
+    // Note that s390x & aarch64 architecture are not officially supported and adding it here is only done out of convenience
+    // for those that want to run C* on this architecture at their own risk (see #11214 & #13326)
     private static final Set<String> UNALIGNED_ARCH = Collections.unmodifiableSet(Sets.newHashSet(
-        "i386",
-        "x86",
-        "amd64",
-        "x86_64",
-        "s390x"
+    "i386",
+    "x86",
+    "amd64",
+    "x86_64",
+    "s390x",
+    "aarch64"
     ));
 
     public static final boolean IS_UNALIGNED = UNALIGNED_ARCH.contains(System.getProperty("os.arch"));
