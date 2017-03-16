@@ -386,6 +386,9 @@ public class Config
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
 
     public CorruptedTombstoneStrategy corrupted_tombstone_strategy = CorruptedTombstoneStrategy.disabled;
+
+    public volatile boolean diagnostic_events_enabled = false;
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */

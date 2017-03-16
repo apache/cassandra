@@ -72,8 +72,9 @@ public class MigrationManager
     {
         if (Schema.instance.getVersion() == null)
         {
-            logger.debug("Not pulling schema from {}, because local schama version is not known yet",
+            logger.debug("Not pulling schema from {}, because local schema version is not known yet",
                          endpoint);
+            SchemaMigrationDiagnostics.unknownLocalSchemaVersion(endpoint, theirVersion);
             return;
         }
         if (Schema.instance.isSameVersion(theirVersion))
@@ -81,12 +82,14 @@ public class MigrationManager
             logger.debug("Not pulling schema from {}, because schema versions match ({})",
                          endpoint,
                          Schema.schemaVersionToString(theirVersion));
+            SchemaMigrationDiagnostics.versionMatch(endpoint, theirVersion);
             return;
         }
         if (!shouldPullSchemaFrom(endpoint))
         {
             logger.debug("Not pulling schema from {}, because versions match ({}/{}), or shouldPullSchemaFrom returned false",
                          endpoint, Schema.instance.getVersion(), theirVersion);
+            SchemaMigrationDiagnostics.skipPull(endpoint, theirVersion);
             return;
         }
 
@@ -319,10 +322,22 @@ public class MigrationManager
     {
         Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(() -> Schema.instance.mergeAndAnnounceVersion(schema));
 
+        Set<InetAddressAndPort> schemaDestinationEndpoints = new HashSet<>();
+        Set<InetAddressAndPort> schemaEndpointsIgnored = new HashSet<>();
         for (InetAddressAndPort endpoint : Gossiper.instance.getLiveMembers())
+        {
             if (shouldPushSchemaTo(endpoint))
+            {
                 pushSchemaMutation(endpoint, schema);
+                schemaDestinationEndpoints.add(endpoint);
+            }
+            else
+            {
+                schemaEndpointsIgnored.add(endpoint);
+            }
+        }
 
+        SchemaAnnouncementDiagnostics.schemaMutationsAnnounced(schemaDestinationEndpoints, schemaEndpointsIgnored);
         FBUtilities.waitOnFuture(f);
     }
 
@@ -340,9 +355,23 @@ public class MigrationManager
         if (locally || result.diff.isEmpty())
             return result.diff;
 
+        Set<InetAddressAndPort> schemaDestinationEndpoints = new HashSet<>();
+        Set<InetAddressAndPort> schemaEndpointsIgnored = new HashSet<>();
         for (InetAddressAndPort endpoint : Gossiper.instance.getLiveMembers())
+        {
             if (shouldPushSchemaTo(endpoint))
+            {
                 pushSchemaMutation(endpoint, result.mutations);
+                schemaDestinationEndpoints.add(endpoint);
+            }
+            else
+            {
+                schemaEndpointsIgnored.add(endpoint);
+            }
+        }
+
+        SchemaAnnouncementDiagnostics.schemaTransformationAnnounced(schemaDestinationEndpoints, schemaEndpointsIgnored,
+                                                                    transformation);
 
         return result.diff;
     }
@@ -356,6 +385,8 @@ public class MigrationManager
         logger.info("Starting local schema reset...");
 
         logger.debug("Truncating schema tables...");
+
+        SchemaMigrationDiagnostics.resetLocalSchema();
 
         SchemaKeyspace.truncate();
 

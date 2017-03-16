@@ -271,6 +271,11 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_AGGREGATE, keyspaceName, aggregateName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, aggregateName);
+    }
+
     private String stateFunctionString()
     {
         return format("%s(%s)", stateFunctionName, join(", ", transform(concat(singleton(rawStateType), rawArgumentTypes), Object::toString)));

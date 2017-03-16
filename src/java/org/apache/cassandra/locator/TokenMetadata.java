@@ -800,6 +800,8 @@ public class TokenMetadata
         // avoid race between both branches - do not use a lock here as this will block any other unrelated operations!
         synchronized (pendingRanges)
         {
+            TokenMetadataDiagnostics.pendingRangeCalculationStarted(this, keyspaceName);
+
             if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty())
             {
                 if (logger.isTraceEnabled())

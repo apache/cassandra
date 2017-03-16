@@ -123,6 +123,11 @@ public final class CreateTableStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_TABLE, keyspaceName, tableName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
+    }
+
     public TableMetadata.Builder builder(Types types)
     {
         attrs.validate();

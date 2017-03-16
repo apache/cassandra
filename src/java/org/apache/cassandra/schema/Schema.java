@@ -98,9 +98,11 @@ public final class Schema
      */
     public void loadFromDisk(boolean updateVersion)
     {
+        SchemaDiagnostics.schemataLoading(this);
         SchemaKeyspace.fetchNonSystemKeyspaces().forEach(this::load);
         if (updateVersion)
             updateVersion();
+        SchemaDiagnostics.schemataLoaded(this);
     }
 
     /**
@@ -128,6 +130,8 @@ public final class Schema
         ksm.tables
            .indexTables()
            .forEach((name, metadata) -> indexMetadataRefs.put(Pair.create(ksm.name, name), new TableMetadataRef(metadata)));
+
+        SchemaDiagnostics.metadataInitialized(this, ksm);
     }
 
     private void reload(KeyspaceMetadata previous, KeyspaceMetadata updated)
@@ -166,6 +170,8 @@ public final class Schema
                    .stream()
                    .map(MapDifference.ValueDifference::rightValue)
                    .forEach(indexTable -> indexMetadataRefs.get(Pair.create(indexTable.keyspace, indexTable.indexName().get())).set(indexTable));
+
+        SchemaDiagnostics.metadataReloaded(this, previous, updated, tablesDiff, viewsDiff, indexesDiff);
     }
 
     public void registerListener(SchemaChangeListener listener)
@@ -249,6 +255,8 @@ public final class Schema
            .indexTables()
            .keySet()
            .forEach(name -> indexMetadataRefs.remove(Pair.create(ksm.name, name)));
+
+        SchemaDiagnostics.metadataRemoved(this, ksm);
     }
 
     public int getNumberOfTables()
@@ -356,6 +364,11 @@ public final class Schema
         return indexMetadataRefs.get(Pair.create(keyspace, index));
     }
 
+    Map<Pair<String, String>, TableMetadataRef> getIndexTableMetadataRefs()
+    {
+        return indexMetadataRefs;
+    }
+
     /**
      * Get Table metadata by its identifier
      *
@@ -371,6 +384,11 @@ public final class Schema
     public TableMetadataRef getTableMetadataRef(Descriptor descriptor)
     {
         return getTableMetadataRef(descriptor.ksname, descriptor.cfname);
+    }
+
+    Map<TableId, TableMetadataRef> getTableMetadataRefs()
+    {
+        return metadataRefs;
     }
 
     /**
@@ -511,6 +529,7 @@ public final class Schema
     {
         version = SchemaKeyspace.calculateSchemaDigest();
         SystemKeyspace.updateSchemaVersion(version);
+        SchemaDiagnostics.versionUpdated(this);
     }
 
     /*
@@ -529,6 +548,7 @@ public final class Schema
     private void passiveAnnounceVersion()
     {
         Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(version));
+        SchemaDiagnostics.versionAnnounced(this);
     }
 
     /**
@@ -538,6 +558,7 @@ public final class Schema
     {
         getNonSystemKeyspaces().forEach(k -> unload(getKeyspaceMetadata(k)));
         updateVersionAndAnnounce();
+        SchemaDiagnostics.schemataCleared(this);
     }
 
     /*
@@ -646,6 +667,8 @@ public final class Schema
 
     private void alterKeyspace(KeyspaceDiff delta)
     {
+        SchemaDiagnostics.keyspaceAltering(this, delta);
+
         // drop tables and views
         delta.views.dropped.forEach(this::dropView);
         delta.tables.dropped.forEach(this::dropTable);
@@ -685,10 +708,12 @@ public final class Schema
         delta.views.altered.forEach(diff -> notifyAlterView(diff.before, diff.after));
         delta.udfs.altered.forEach(diff -> notifyAlterFunction(diff.before, diff.after));
         delta.udas.altered.forEach(diff -> notifyAlterAggregate(diff.before, diff.after));
+        SchemaDiagnostics.keyspaceAltered(this, delta);
     }
 
     private void createKeyspace(KeyspaceMetadata keyspace)
     {
+        SchemaDiagnostics.keyspaceCreating(this, keyspace);
         load(keyspace);
         Keyspace.open(keyspace.name);
 
@@ -698,10 +723,12 @@ public final class Schema
         keyspace.views.forEach(this::notifyCreateView);
         keyspace.functions.udfs().forEach(this::notifyCreateFunction);
         keyspace.functions.udas().forEach(this::notifyCreateAggregate);
+        SchemaDiagnostics.keyspaceCreated(this, keyspace);
     }
 
     private void dropKeyspace(KeyspaceMetadata keyspace)
     {
+        SchemaDiagnostics.keyspaceDroping(this, keyspace);
         keyspace.views.forEach(this::dropView);
         keyspace.tables.forEach(this::dropTable);
 
@@ -716,6 +743,7 @@ public final class Schema
         keyspace.tables.forEach(this::notifyDropTable);
         keyspace.types.forEach(this::notifyDropType);
         notifyDropKeyspace(keyspace);
+        SchemaDiagnostics.keyspaceDroped(this, keyspace);
     }
 
     private void dropView(ViewMetadata metadata)
@@ -726,6 +754,7 @@ public final class Schema
 
     private void dropTable(TableMetadata metadata)
     {
+        SchemaDiagnostics.tableDropping(this, metadata);
         ColumnFamilyStore cfs = Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name);
         assert cfs != null;
         // make sure all the indexes are dropped, or else.
@@ -735,11 +764,14 @@ public final class Schema
             cfs.snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(cfs.name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
         CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
         Keyspace.open(metadata.keyspace).dropCf(metadata.id);
+        SchemaDiagnostics.tableDropped(this, metadata);
     }
 
     private void createTable(TableMetadata table)
     {
+        SchemaDiagnostics.tableCreating(this, table);
         Keyspace.open(table.keyspace).initCf(metadataRefs.get(table.id), true);
+        SchemaDiagnostics.tableCreated(this, table);
     }
 
     private void createView(ViewMetadata view)
@@ -749,7 +781,9 @@ public final class Schema
 
     private void alterTable(TableMetadata updated)
     {
+        SchemaDiagnostics.tableAltering(this, updated);
         Keyspace.open(updated.keyspace).getColumnFamilyStore(updated.name).reload();
+        SchemaDiagnostics.tableAltered(this, updated);
     }
 
     private void alterView(ViewMetadata updated)

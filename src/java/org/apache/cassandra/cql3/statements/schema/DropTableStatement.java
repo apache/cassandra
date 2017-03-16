@@ -92,6 +92,11 @@ public final class DropTableStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.DROP_TABLE, keyspaceName, tableName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
+    }
+
     public static final class Raw extends CQLStatement.Raw
     {
         private final QualifiedName name;

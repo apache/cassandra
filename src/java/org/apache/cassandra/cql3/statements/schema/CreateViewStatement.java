@@ -341,6 +341,11 @@ public final class CreateViewStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_VIEW, keyspaceName, viewName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, viewName);
+    }
+
     public final static class Raw extends CQLStatement.Raw
     {
         private final QualifiedName tableName;

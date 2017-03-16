@@ -94,6 +94,11 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_KEYSPACE, keyspaceName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s)", getClass().getSimpleName(), keyspaceName);
+    }
+
     public static final class Raw extends CQLStatement.Raw
     {
         public final String keyspaceName;

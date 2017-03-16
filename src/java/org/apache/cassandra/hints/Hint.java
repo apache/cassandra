@@ -132,7 +132,7 @@ public final class Hint
     /**
      * @return calculates whether or not it is safe to apply the hint without risking to resurrect any deleted data
      */
-    boolean isLive()
+    public boolean isLive()
     {
         return isLive(creationTime, System.currentTimeMillis(), ttl());
     }

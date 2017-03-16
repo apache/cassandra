@@ -198,6 +198,11 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_FUNCTION, keyspaceName, functionName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, functionName);
+    }
+
     public static final class Raw extends CQLStatement.Raw
     {
         private final FunctionName name;

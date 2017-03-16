@@ -81,6 +81,11 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.ALTER_TABLE, keyspaceName, tableName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
+    }
+
     abstract KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table);
 
     /**

@@ -147,6 +147,11 @@ public final class DropFunctionStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.DROP_FUNCTION, keyspaceName, functionName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, functionName);
+    }
+
     private List<AbstractType<?>> prepareArgumentTypes(Types types)
     {
         return arguments.stream()

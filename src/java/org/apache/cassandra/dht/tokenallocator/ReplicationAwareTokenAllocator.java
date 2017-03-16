@@ -132,7 +132,9 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
             }
         }
 
-        return ImmutableList.copyOf(unitToTokens.get(newUnit));
+        ImmutableList<Token> newTokens = ImmutableList.copyOf(unitToTokens.get(newUnit));
+        TokenAllocatorDiagnostics.unitedAdded(this, numTokens, unitToTokens, sortedTokens, newTokens, newUnit);
+        return newTokens;
     }
 
     private Collection<Token> generateRandomTokens(Unit newUnit, int numTokens)
@@ -148,6 +150,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
                 unitToTokens.put(newUnit, token);
             }
         }
+        TokenAllocatorDiagnostics.randomTokensGenerated(this, numTokens, unitToTokens, sortedTokens, newUnit, tokens);
         return tokens;
     }
 
@@ -176,6 +179,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
             curr = curr.next;
         } while (curr != first);
 
+        TokenAllocatorDiagnostics.tokenInfosCreated(this, unitToTokens, first);
         return first;
     }
 
@@ -526,6 +530,7 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
     {
         Collection<Token> tokens = unitToTokens.removeAll(n);
         sortedTokens.keySet().removeAll(tokens);
+        TokenAllocatorDiagnostics.unitRemoved(this, n, unitToTokens, sortedTokens);
     }
 
     public int unitCount()
