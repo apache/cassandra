@@ -55,6 +55,8 @@ public interface RangeTombstoneMarker extends Unfiltered
         return false;
     }
 
+    public RangeTombstoneMarker withNewOpeningDeletionTime(boolean reversed, DeletionTime newDeletionTime);
+
     /**
      * Utility class to help merging range tombstone markers coming from multiple inputs (UnfilteredRowIterators).
      * <p>
