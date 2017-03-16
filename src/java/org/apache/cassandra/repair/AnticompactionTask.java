@@ -54,7 +54,7 @@ public class AnticompactionTask extends AbstractFuture<InetAddress> implements R
      * If Cassandra version is more than this, we need to wait for anticompaction response.
      */
     private static final CassandraVersion VERSION_CHECKER = new CassandraVersion("2.1.5");
-    private static Logger logger = LoggerFactory.getLogger(RepairSession.class);
+    private static Logger logger = LoggerFactory.getLogger(AnticompactionTask.class);
 
     private final UUID parentSession;
     private final InetAddress neighbor;

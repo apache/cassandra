@@ -35,6 +35,7 @@ Merged from 3.0:
  * Provide user workaround when system_schema.columns does not contain entries
    for a table that's in system_schema.tables (CASSANDRA-13180)
 Merged from 2.2:
+ * Wrong logger name in AnticompactionTask (CASSANDRA-13343)
  * Commitlog replay may fail if last mutation is within 4 bytes of end of segment (CASSANDRA-13282)
  * Fix queries updating multiple time the same list (CASSANDRA-13130)
  * Fix GRANT/REVOKE when keyspace isn't specified (CASSANDRA-13053)
