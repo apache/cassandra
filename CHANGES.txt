@@ -2,6 +2,7 @@
  * Slice.isEmpty() returns false for some empty slices (CASSANDRA-13305)
  * Add formatted row output to assertEmpty in CQL Tester (CASSANDRA-13238)
 Merged from 2.2:
+ * Wrong logger name in AnticompactionTask (CASSANDRA-13343)
  * Commitlog replay may fail if last mutation is within 4 bytes of end of segment (CASSANDRA-13282)
  * Fix queries updating multiple time the same list (CASSANDRA-13130)
  * Fix GRANT/REVOKE when keyspace isn't specified (CASSANDRA-13053)
