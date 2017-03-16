@@ -31,6 +31,7 @@
  * Outbound TCP connections ignore internode authenticator (CASSANDRA-13324)
  * Upgrade junit from 4.6 to 4.12 (CASSANDRA-13360)
  * Cleanup ParentRepairSession after repairs (CASSANDRA-13359)
+ * Upgrade snappy-java to 1.1.2.6 (CASSANDRA-13336)
  * Incremental repair not streaming correct sstables (CASSANDRA-13328)
  * Upgrade the jna version to 4.3.0 (CASSANDRA-13300)
  * Add the currentTimestamp, currentDate, currentTime and currentTimeUUID functions (CASSANDRA-13132)

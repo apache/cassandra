@@ -54,6 +54,7 @@ Upgrading
       any inconsistencies.
     - Config option index_interval has been removed (it was deprecated since 2.0)
     - Deprecated repair JMX APIs are removed.
+    - The version of snappy-java has been upgraded to 1.1.2.6
 
 3.11.0
 ======
