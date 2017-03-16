@@ -90,6 +90,11 @@ public final class DropIndexStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.DROP_INDEX, keyspaceName, indexName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, indexName);
+    }
+
     public static final class Raw extends CQLStatement.Raw
     {
         private final QualifiedName name;

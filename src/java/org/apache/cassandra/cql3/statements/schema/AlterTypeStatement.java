@@ -83,6 +83,11 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.ALTER_TYPE, keyspaceName, typeName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, typeName);
+    }
+
     private static final class AddField extends AlterTypeStatement
     {
         private final FieldIdentifier fieldName;

@@ -168,7 +168,11 @@ public class BootStrapper extends ProgressEventNotifierSupport
 
         // if user specified tokens, use those
         if (initialTokens.size() > 0)
-            return getSpecifiedTokens(metadata, initialTokens);
+        {
+            Collection<Token> tokens = getSpecifiedTokens(metadata, initialTokens);
+            BootstrapDiagnostics.useSpecifiedTokens(address, allocationKeyspace, tokens, DatabaseDescriptor.getNumTokens());
+            return tokens;
+        }
 
         int numTokens = DatabaseDescriptor.getNumTokens();
         if (numTokens < 1)
@@ -180,7 +184,9 @@ public class BootStrapper extends ProgressEventNotifierSupport
         if (numTokens == 1)
             logger.warn("Picking random token for a single vnode.  You should probably add more vnodes and/or use the automatic token allocation mechanism.");
 
-        return getRandomTokens(metadata, numTokens);
+        Collection<Token> tokens = getRandomTokens(metadata, numTokens);
+        BootstrapDiagnostics.useRandomTokens(address, metadata, numTokens, tokens);
+        return tokens;
     }
 
     private static Collection<Token> getSpecifiedTokens(final TokenMetadata metadata,
@@ -213,7 +219,9 @@ public class BootStrapper extends ProgressEventNotifierSupport
             throw new ConfigurationException("Problem opening token allocation keyspace " + allocationKeyspace);
         AbstractReplicationStrategy rs = ks.getReplicationStrategy();
 
-        return TokenAllocation.allocateTokens(metadata, rs, address, numTokens);
+        Collection<Token> tokens = TokenAllocation.allocateTokens(metadata, rs, address, numTokens);
+        BootstrapDiagnostics.tokensAllocated(address, metadata, allocationKeyspace, numTokens, tokens);
+        return tokens;
     }
 
     public static Collection<Token> getRandomTokens(TokenMetadata metadata, int numTokens)

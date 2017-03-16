@@ -139,6 +139,11 @@ public final class DropAggregateStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.DROP_AGGREGATE, keyspaceName, aggregateName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, aggregateName);
+    }
+
     private List<AbstractType<?>> prepareArgumentTypes(Types types)
     {
         return arguments.stream()

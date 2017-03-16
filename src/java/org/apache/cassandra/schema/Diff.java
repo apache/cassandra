@@ -55,5 +55,10 @@ public class Diff<T extends Iterable, S>
             this.after = after;
             this.kind = kind;
         }
+
+        public String toString()
+        {
+            return String.format("%s -> %s (%s)", before, after, kind);
+        }
     }
 }

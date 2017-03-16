@@ -82,6 +82,11 @@ public final class DropTriggerStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.DROP_TRIGGER, keyspaceName, triggerName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, triggerName);
+    }
+
     public static final class Raw extends CQLStatement.Raw
     {
         private final QualifiedName tableName;

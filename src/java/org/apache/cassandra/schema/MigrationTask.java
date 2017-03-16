@@ -51,6 +51,7 @@ final class MigrationTask extends WrappedRunnable
     MigrationTask(InetAddressAndPort endpoint)
     {
         this.endpoint = endpoint;
+        SchemaMigrationDiagnostics.taskCreated(endpoint);
     }
 
     static ConcurrentLinkedQueue<CountDownLatch> getInflightTasks()
@@ -63,6 +64,7 @@ final class MigrationTask extends WrappedRunnable
         if (!FailureDetector.instance.isAlive(endpoint))
         {
             logger.warn("Can't send schema pull request: node {} is down.", endpoint);
+            SchemaMigrationDiagnostics.taskSendAborted(endpoint);
             return;
         }
 
@@ -72,6 +74,7 @@ final class MigrationTask extends WrappedRunnable
         if (!MigrationManager.shouldPullSchemaFrom(endpoint))
         {
             logger.info("Skipped sending a migration request: node {} has a higher major version now.", endpoint);
+            SchemaMigrationDiagnostics.taskSendAborted(endpoint);
             return;
         }
 
@@ -109,5 +112,7 @@ final class MigrationTask extends WrappedRunnable
             inflightTasks.offer(completionLatch);
 
         MessagingService.instance().sendRR(message, endpoint, cb);
+
+        SchemaMigrationDiagnostics.taskRequestSend(endpoint);
     }
 }

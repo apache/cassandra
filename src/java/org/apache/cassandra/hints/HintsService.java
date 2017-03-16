@@ -73,8 +73,8 @@ public final class HintsService implements HintsServiceMBean
     private final HintsCatalog catalog;
     private final HintsWriteExecutor writeExecutor;
     private final HintsBufferPool bufferPool;
-    private final HintsDispatchExecutor dispatchExecutor;
-    private final AtomicBoolean isDispatchPaused;
+    final HintsDispatchExecutor dispatchExecutor;
+    final AtomicBoolean isDispatchPaused;
 
     private volatile boolean isShutDown = false;
 
@@ -209,6 +209,8 @@ public final class HintsService implements HintsServiceMBean
 
         isDispatchPaused.set(false);
 
+        HintsServiceDiagnostics.dispatchingStarted(this);
+
         HintsDispatchTrigger trigger = new HintsDispatchTrigger(catalog, writeExecutor, dispatchExecutor, isDispatchPaused);
         // triggering hint dispatch is now very cheap, so we can do it more often - every 10 seconds vs. every 10 minutes,
         // previously; this reduces mean time to delivery, and positively affects batchlog delivery latencies, too
@@ -219,12 +221,16 @@ public final class HintsService implements HintsServiceMBean
     {
         logger.info("Paused hints dispatch");
         isDispatchPaused.set(true);
+
+        HintsServiceDiagnostics.dispatchingPaused(this);
     }
 
     public void resumeDispatch()
     {
         logger.info("Resumed hints dispatch");
         isDispatchPaused.set(false);
+
+        HintsServiceDiagnostics.dispatchingResumed(this);
     }
 
     /**
@@ -250,6 +256,8 @@ public final class HintsService implements HintsServiceMBean
 
         dispatchExecutor.shutdownBlocking();
         writeExecutor.shutdownBlocking();
+
+        HintsServiceDiagnostics.dispatchingShutdown(this);
     }
 
     /**

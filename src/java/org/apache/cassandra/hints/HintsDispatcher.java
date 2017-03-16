@@ -50,8 +50,8 @@ final class HintsDispatcher implements AutoCloseable
     private enum Action { CONTINUE, ABORT }
 
     private final HintsReader reader;
-    private final UUID hostId;
-    private final InetAddressAndPort address;
+    final UUID hostId;
+    final InetAddressAndPort address;
     private final int messagingVersion;
     private final BooleanSupplier abortRequested;
 
@@ -71,11 +71,14 @@ final class HintsDispatcher implements AutoCloseable
     static HintsDispatcher create(File file, RateLimiter rateLimiter, InetAddressAndPort address, UUID hostId, BooleanSupplier abortRequested)
     {
         int messagingVersion = MessagingService.instance().getVersion(address);
-        return new HintsDispatcher(HintsReader.open(file, rateLimiter), hostId, address, messagingVersion, abortRequested);
+        HintsDispatcher dispatcher = new HintsDispatcher(HintsReader.open(file, rateLimiter), hostId, address, messagingVersion, abortRequested);
+        HintDiagnostics.dispatcherCreated(dispatcher);
+        return dispatcher;
     }
 
     public void close()
     {
+        HintDiagnostics.dispatcherClosed(this);
         reader.close();
     }
 
@@ -111,6 +114,7 @@ final class HintsDispatcher implements AutoCloseable
     // retry in case of a timeout; stop in case of a failure, host going down, or delivery paused
     private Action dispatch(HintsReader.Page page)
     {
+        HintDiagnostics.dispatchPage(this);
         return sendHintsAndAwait(page);
     }
 
@@ -132,33 +136,34 @@ final class HintsDispatcher implements AutoCloseable
         if (action == Action.ABORT)
             return action;
 
-        boolean hadFailures = false;
+        long success = 0, failures = 0, timeouts = 0;
         for (Callback cb : callbacks)
         {
             Callback.Outcome outcome = cb.await();
-            updateMetrics(outcome);
-
-            if (outcome != Callback.Outcome.SUCCESS)
-                hadFailures = true;
+            if (outcome == Callback.Outcome.SUCCESS) success++;
+            else if (outcome == Callback.Outcome.FAILURE) failures++;
+            else if (outcome == Callback.Outcome.TIMEOUT) timeouts++;
         }
 
-        return hadFailures ? Action.ABORT : Action.CONTINUE;
+        updateMetrics(success, failures, timeouts);
+
+        if (failures > 0 || timeouts > 0)
+        {
+            HintDiagnostics.pageFailureResult(this, success, failures, timeouts);
+            return Action.ABORT;
+        }
+        else
+        {
+            HintDiagnostics.pageSuccessResult(this, success, failures, timeouts);
+            return Action.CONTINUE;
+        }
     }
 
-    private void updateMetrics(Callback.Outcome outcome)
+    private void updateMetrics(long success, long failures, long timeouts)
     {
-        switch (outcome)
-        {
-            case SUCCESS:
-                HintsServiceMetrics.hintsSucceeded.mark();
-                break;
-            case FAILURE:
-                HintsServiceMetrics.hintsFailed.mark();
-                break;
-            case TIMEOUT:
-                HintsServiceMetrics.hintsTimedOut.mark();
-                break;
-        }
+        HintsServiceMetrics.hintsSucceeded.mark(success);
+        HintsServiceMetrics.hintsFailed.mark(failures);
+        HintsServiceMetrics.hintsTimedOut.mark(timeouts);
     }
 
     /*
@@ -170,7 +175,10 @@ final class HintsDispatcher implements AutoCloseable
         while (hints.hasNext())
         {
             if (abortRequested.getAsBoolean())
+            {
+                HintDiagnostics.abortRequested(this);
                 return Action.ABORT;
+            }
             callbacks.add(sendFunction.apply(hints.next()));
         }
         return Action.CONTINUE;

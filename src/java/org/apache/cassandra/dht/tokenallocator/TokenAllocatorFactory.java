@@ -37,9 +37,13 @@ public class TokenAllocatorFactory
         if(strategy.replicas() == 1)
         {
             logger.info("Using NoReplicationTokenAllocator.");
-            return new NoReplicationTokenAllocator<>(sortedTokens, strategy, partitioner);
+            NoReplicationTokenAllocator<InetAddressAndPort> allocator = new NoReplicationTokenAllocator<>(sortedTokens, strategy, partitioner);
+            TokenAllocatorDiagnostics.noReplicationTokenAllocatorInstanciated(allocator);
+            return allocator;
         }
         logger.info("Using ReplicationAwareTokenAllocator.");
-        return new ReplicationAwareTokenAllocator<>(sortedTokens, strategy, partitioner);
+        ReplicationAwareTokenAllocator<InetAddressAndPort> allocator = new ReplicationAwareTokenAllocator<>(sortedTokens, strategy, partitioner);
+        TokenAllocatorDiagnostics.replicationTokenAllocatorInstanciated(allocator);
+        return allocator;
     }
 }

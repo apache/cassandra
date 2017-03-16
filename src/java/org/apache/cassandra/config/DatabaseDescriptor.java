@@ -2536,6 +2536,17 @@ public class DatabaseDescriptor
         return conf.back_pressure_enabled;
     }
 
+    public static boolean diagnosticEventsEnabled()
+    {
+        return conf.diagnostic_events_enabled;
+    }
+
+    @VisibleForTesting
+    public static void setDiagnosticEventsEnabled(boolean enabled)
+    {
+        conf.diagnostic_events_enabled = enabled;
+    }
+
     @VisibleForTesting
     public static void setBackPressureStrategy(BackPressureStrategy strategy)
     {

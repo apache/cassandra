@@ -42,6 +42,7 @@ public final class SchemaPushVerbHandler implements IVerbHandler<Collection<Muta
     {
         logger.trace("Received schema push request from {}", message.from);
 
+        SchemaAnnouncementDiagnostics.schemataMutationsReceived(message.from);
         StageManager.getStage(Stage.MIGRATION).submit(() -> Schema.instance.mergeAndAnnounceVersion(message.payload));
     }
 }

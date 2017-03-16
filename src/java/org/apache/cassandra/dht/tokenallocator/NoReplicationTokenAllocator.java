@@ -86,6 +86,7 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
             sortedUnits.add(new Weighted<UnitInfo>(unitInfo.ownership, unitInfo));
         }
 
+        TokenAllocatorDiagnostics.tokenInfosCreated(this, sortedUnits, sortedTokens, first);
         return first;
     }
 
@@ -127,6 +128,7 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
         }
         unitInfos.put(newUnit.unit, newUnit);
         createTokenInfos(unitInfos);
+        TokenAllocatorDiagnostics.randomTokensGenerated(this, numTokens, sortedUnits, sortedTokens, newUnit.unit, tokens);
         return tokens;
     }
 
@@ -232,6 +234,7 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
         }
         sortedUnits.add(new Weighted<>(newUnitInfo.ownership, newUnitInfo));
 
+        TokenAllocatorDiagnostics.unitedAdded(this, numTokens, sortedUnits, sortedTokens, newTokens, newUnit);
         return newTokens;
     }
 
@@ -257,6 +260,7 @@ public class NoReplicationTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
             tokens.add(tokenInfo.value.token);
         }
         sortedTokens.keySet().removeAll(tokens);
+        TokenAllocatorDiagnostics.unitRemoved(this, n, sortedUnits, sortedTokens);
     }
 
     public int getReplicas()

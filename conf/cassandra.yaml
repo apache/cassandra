@@ -1217,3 +1217,8 @@ audit_logging_options:
 # validate tombstones on reads and compaction
 # can be either "disabled", "warn" or "exception"
 # corrupted_tombstone_strategy: disabled
+
+# Diagnostic Events #
+# If enabled, diagnostic events can be helpful for troubleshooting operational issues. Emitted events contain details
+# on internal state and temporal relationships across events, accessible by clients via JMX.
+diagnostic_events_enabled: false

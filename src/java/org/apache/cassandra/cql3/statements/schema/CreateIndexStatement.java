@@ -194,6 +194,11 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_INDEX, keyspaceName, indexName);
     }
 
+    public String toString()
+    {
+        return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, indexName);
+    }
+
     public static final class Raw extends CQLStatement.Raw
     {
         private final QualifiedName tableName;
