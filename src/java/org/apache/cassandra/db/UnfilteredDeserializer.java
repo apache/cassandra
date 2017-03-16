@@ -690,6 +690,5 @@ public abstract class UnfilteredDeserializer
                 }
             }
         }
-
     }
 }
