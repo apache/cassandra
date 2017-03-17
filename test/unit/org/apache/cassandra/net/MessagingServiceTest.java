@@ -62,9 +62,12 @@ public class MessagingServiceTest
         DatabaseDescriptor.setBroadcastAddress(InetAddress.getByName("127.0.0.1"));
     }
 
+    private static int metricScopeId = 0;
+
     @Before
     public void before() throws UnknownHostException
     {
+        messagingService.resetDroppedMessagesMap(Integer.toString(metricScopeId++));
         MockBackPressureStrategy.applied = false;
         messagingService.destroyConnectionPool(InetAddress.getByName("127.0.0.2"));
         messagingService.destroyConnectionPool(InetAddress.getByName("127.0.0.3"));

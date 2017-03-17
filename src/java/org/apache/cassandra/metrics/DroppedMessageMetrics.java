@@ -40,7 +40,11 @@ public class DroppedMessageMetrics
 
     public DroppedMessageMetrics(MessagingService.Verb verb)
     {
-        MetricNameFactory factory = new DefaultNameFactory("DroppedMessage", verb.toString());
+        this(new DefaultNameFactory("DroppedMessage", verb.toString()));
+    }
+
+    public DroppedMessageMetrics(MetricNameFactory factory)
+    {
         dropped = Metrics.meter(factory.createMetricName("Dropped"));
         internalDroppedLatency = Metrics.timer(factory.createMetricName("InternalDroppedLatency"));
         crossNodeDroppedLatency = Metrics.timer(factory.createMetricName("CrossNodeDroppedLatency"));
