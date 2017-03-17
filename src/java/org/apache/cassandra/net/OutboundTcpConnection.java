@@ -118,11 +118,11 @@ public class OutboundTcpConnection extends Thread
         if (coalescingWindow < 0)
             throw new ExceptionInInitializerError(
                     "Value provided for coalescing window must be greather than 0: " + coalescingWindow);
-        
+
         int otc_backlog_expiration_interval_in_ms = DatabaseDescriptor.getOtcBacklogExpirationInterval();
         if (otc_backlog_expiration_interval_in_ms != Config.otc_backlog_expiration_interval_ms_default)
             logger.info("OutboundTcpConnection backlog expiration interval set to to {}ms", otc_backlog_expiration_interval_in_ms);
-        
+
     }
 
     private static final MessageOut<?> CLOSE_SENTINEL = new MessageOut<MessagingService.Verb>(MessagingService.Verb.INTERNAL_RESPONSE);
@@ -623,7 +623,7 @@ public class OutboundTcpConnection extends Thread
                     iter.remove();
                     dropped.incrementAndGet();
                 }
-                
+
                 if (logger.isTraceEnabled())
                 {
                     long duration = TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - timestampNanos);
