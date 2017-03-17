@@ -100,7 +100,6 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
-import org.apache.cassandra.utils.progress.jmx.LegacyJMXProgressSupport;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -120,13 +119,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
 
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
-
-    /**
-     * @deprecated backward support to previous notification interface
-     * Will be removed on 4.0
-     */
-    @Deprecated
-    private final LegacyJMXProgressSupport legacyProgressSupport;
 
     private static final AtomicInteger threadCounter = new AtomicInteger(1);
 
@@ -261,8 +253,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             throw new RuntimeException(e);
         }
-
-        legacyProgressSupport = new LegacyJMXProgressSupport(this, jmxObjectName);
 
         ReadCommandVerbHandler readHandler = new ReadCommandVerbHandler();
 
@@ -3272,170 +3262,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 option.getRanges().addAll(getLocalRanges(keyspace));
             }
         }
-        return forceRepairAsync(keyspace, option, false);
-    }
+        if (option.getRanges().isEmpty() || Keyspace.open(keyspace).getReplicationStrategy().getReplicationFactor() < 2)
+            return 0;
 
-    @Deprecated
-    public int forceRepairAsync(String keyspace,
-                                boolean isSequential,
-                                Collection<String> dataCenters,
-                                Collection<String> hosts,
-                                boolean primaryRange,
-                                boolean fullRepair,
-                                String... tableNames)
-    {
-        return forceRepairAsync(keyspace, isSequential ? RepairParallelism.SEQUENTIAL.ordinal() : RepairParallelism.PARALLEL.ordinal(), dataCenters, hosts, primaryRange, fullRepair, tableNames);
-    }
-
-    @Deprecated
-    public int forceRepairAsync(String keyspace,
-                                int parallelismDegree,
-                                Collection<String> dataCenters,
-                                Collection<String> hosts,
-                                boolean primaryRange,
-                                boolean fullRepair,
-                                String... tableNames)
-    {
-        if (parallelismDegree < 0 || parallelismDegree > RepairParallelism.values().length - 1)
-        {
-            throw new IllegalArgumentException("Invalid parallelism degree specified: " + parallelismDegree);
-        }
-        RepairParallelism parallelism = RepairParallelism.values()[parallelismDegree];
-        if (FBUtilities.isWindows && parallelism != RepairParallelism.PARALLEL)
-        {
-            logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
-            parallelism = RepairParallelism.PARALLEL;
-        }
-
-        RepairOption options = new RepairOption(parallelism, primaryRange, !fullRepair, false, 1, Collections.<Range<Token>>emptyList(), false, false);
-        if (dataCenters != null)
-        {
-            options.getDataCenters().addAll(dataCenters);
-        }
-        if (hosts != null)
-        {
-            options.getHosts().addAll(hosts);
-        }
-        if (primaryRange)
-        {
-            // when repairing only primary range, neither dataCenters nor hosts can be set
-            if (options.getDataCenters().isEmpty() && options.getHosts().isEmpty())
-                options.getRanges().addAll(getPrimaryRanges(keyspace));
-                // except dataCenters only contain local DC (i.e. -local)
-            else if (options.getDataCenters().size() == 1 && options.getDataCenters().contains(DatabaseDescriptor.getLocalDataCenter()))
-                options.getRanges().addAll(getPrimaryRangesWithinDC(keyspace));
-            else
-                throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
-        }
-        else
-        {
-            options.getRanges().addAll(getLocalRanges(keyspace));
-        }
-        if (tableNames != null)
-        {
-            for (String table : tableNames)
-            {
-                options.getColumnFamilies().add(table);
-            }
-        }
-        return forceRepairAsync(keyspace, options, true);
-    }
-
-    @Deprecated
-    public int forceRepairAsync(String keyspace,
-                                boolean isSequential,
-                                boolean isLocal,
-                                boolean primaryRange,
-                                boolean fullRepair,
-                                String... tableNames)
-    {
-        Set<String> dataCenters = null;
-        if (isLocal)
-        {
-            dataCenters = Sets.newHashSet(DatabaseDescriptor.getLocalDataCenter());
-        }
-        return forceRepairAsync(keyspace, isSequential, dataCenters, null, primaryRange, fullRepair, tableNames);
-    }
-
-    @Deprecated
-    public int forceRepairRangeAsync(String beginToken,
-                                     String endToken,
-                                     String keyspaceName,
-                                     boolean isSequential,
-                                     Collection<String> dataCenters,
-                                     Collection<String> hosts,
-                                     boolean fullRepair,
-                                     String... tableNames)
-    {
-        return forceRepairRangeAsync(beginToken, endToken, keyspaceName,
-                                     isSequential ? RepairParallelism.SEQUENTIAL.ordinal() : RepairParallelism.PARALLEL.ordinal(),
-                                     dataCenters, hosts, fullRepair, tableNames);
-    }
-
-    @Deprecated
-    public int forceRepairRangeAsync(String beginToken,
-                                     String endToken,
-                                     String keyspaceName,
-                                     int parallelismDegree,
-                                     Collection<String> dataCenters,
-                                     Collection<String> hosts,
-                                     boolean fullRepair,
-                                     String... tableNames)
-    {
-        if (parallelismDegree < 0 || parallelismDegree > RepairParallelism.values().length - 1)
-        {
-            throw new IllegalArgumentException("Invalid parallelism degree specified: " + parallelismDegree);
-        }
-        RepairParallelism parallelism = RepairParallelism.values()[parallelismDegree];
-        if (FBUtilities.isWindows && parallelism != RepairParallelism.PARALLEL)
-        {
-            logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
-            parallelism = RepairParallelism.PARALLEL;
-        }
-
-        if (!fullRepair)
-            logger.warn("Incremental repair can't be requested with subrange repair " +
-                        "because each subrange repair would generate an anti-compacted table. " +
-                        "The repair will occur but without anti-compaction.");
-        Collection<Range<Token>> repairingRange = createRepairRangeFrom(beginToken, endToken);
-
-        RepairOption options = new RepairOption(parallelism, false, !fullRepair, false, 1, repairingRange, true, false);
-        if (dataCenters != null)
-        {
-            options.getDataCenters().addAll(dataCenters);
-        }
-        if (hosts != null)
-        {
-            options.getHosts().addAll(hosts);
-        }
-        if (tableNames != null)
-        {
-            for (String table : tableNames)
-            {
-                options.getColumnFamilies().add(table);
-            }
-        }
-
-        logger.info("starting user-requested repair of range {} for keyspace {} and column families {}",
-                    repairingRange, keyspaceName, tableNames);
-        return forceRepairAsync(keyspaceName, options, true);
-    }
-
-    @Deprecated
-    public int forceRepairRangeAsync(String beginToken,
-                                     String endToken,
-                                     String keyspaceName,
-                                     boolean isSequential,
-                                     boolean isLocal,
-                                     boolean fullRepair,
-                                     String... tableNames)
-    {
-        Set<String> dataCenters = null;
-        if (isLocal)
-        {
-            dataCenters = Sets.newHashSet(DatabaseDescriptor.getLocalDataCenter());
-        }
-        return forceRepairRangeAsync(beginToken, endToken, keyspaceName, isSequential, dataCenters, null, fullRepair, tableNames);
+        int cmd = nextRepairCommand.incrementAndGet();
+        NamedThreadFactory.createThread(createRepairTask(cmd, keyspace, option), "Repair-Task-" + threadCounter.incrementAndGet()).start();
+        return cmd;
     }
 
     /**
@@ -3481,17 +3313,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return tokenMetadata.partitioner.getTokenFactory();
     }
 
-    public int forceRepairAsync(String keyspace, RepairOption options, boolean legacy)
-    {
-        if (options.getRanges().isEmpty() || Keyspace.open(keyspace).getReplicationStrategy().getReplicationFactor() < 2)
-            return 0;
-
-        int cmd = nextRepairCommand.incrementAndGet();
-        NamedThreadFactory.createThread(createRepairTask(cmd, keyspace, options, legacy), "Repair-Task-" + threadCounter.incrementAndGet()).start();
-        return cmd;
-    }
-
-    private FutureTask<Object> createRepairTask(final int cmd, final String keyspace, final RepairOption options, boolean legacy)
+    private FutureTask<Object> createRepairTask(final int cmd, final String keyspace, final RepairOption options)
     {
         if (!options.getDataCenters().isEmpty() && !options.getDataCenters().contains(DatabaseDescriptor.getLocalDataCenter()))
         {
@@ -3500,8 +3322,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         RepairRunnable task = new RepairRunnable(this, cmd, options, keyspace);
         task.addProgressListener(progressSupport);
-        if (legacy)
-            task.addProgressListener(legacyProgressSupport);
         return new FutureTask<>(task, null);
     }
 

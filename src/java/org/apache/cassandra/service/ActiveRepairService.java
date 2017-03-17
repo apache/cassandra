@@ -89,17 +89,6 @@ import org.apache.cassandra.utils.UUIDGen;
  */
 public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener, ActiveRepairServiceMBean
 {
-    /**
-     * @deprecated this statuses are from the previous JMX notification service,
-     * which will be deprecated on 4.0. For statuses of the new notification
-     * service, see {@link org.apache.cassandra.streaming.StreamEvent.ProgressEvent}
-     */
-    @Deprecated
-    public static enum Status
-    {
-        STARTED, SESSION_SUCCESS, SESSION_FAILED, FINISHED
-    }
-
     public static class ConsistentSessions
     {
         public final LocalSessions local = new LocalSessions();
