@@ -355,7 +355,9 @@ public class CommitLogReplayer
                 desc = null;
             }
             if (desc == null) {
-                handleReplayError(false, "Could not read commit log descriptor in file %s", file);
+                // Presumably a failed CRC or other IO error occurred, which may be ok if it's the last segment
+                // where we tolerate (and expect) truncation
+                handleReplayError(tolerateTruncation, "Could not read commit log descriptor in file %s", file);
                 return;
             }
             if (segmentId != desc.id)

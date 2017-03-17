@@ -117,10 +117,21 @@ public class CommitLogTest
     @Test
     public void testRecoveryWithEmptyLog() throws Exception
     {
+        // The first empty file we expect to throw as it's invalid
+        // We need to pass the second as well, because allowTruncation will be set to true for the final segment
         runExpecting(() -> {
-            CommitLog.instance.recover(new File[]{ tmpFile(CommitLogDescriptor.current_version) });
+            CommitLog.instance.recover(new File[]{
+                    tmpFile(CommitLogDescriptor.current_version),
+                    tmpFile(CommitLogDescriptor.current_version)  });
             return null;
         }, CommitLogReplayException.class);
+    }
+
+    @Test
+    public void testRecoveryWithEmptyFinalLog() throws Exception
+    {
+        // Even though it's empty, it's the last commitlog segment, so allowTruncation=true should allow it to pass
+        CommitLog.instance.recover(new File[]{ tmpFile(CommitLogDescriptor.current_version)  });
     }
 
     @Test
