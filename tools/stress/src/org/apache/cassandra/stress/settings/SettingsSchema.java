@@ -222,7 +222,7 @@ public class SettingsSchema implements Serializable
     {
         out.println("  Keyspace: " + keyspace);
         out.println("  Replication Strategy: " + replicationStrategy);
-        out.println("  Replication Strategy Pptions: " + replicationStrategyOptions);
+        out.println("  Replication Strategy Options: " + replicationStrategyOptions);
 
         out.println("  Table Compression: " + compression);
         out.println("  Table Compaction Strategy: " + compactionStrategy);
