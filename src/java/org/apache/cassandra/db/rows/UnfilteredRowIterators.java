@@ -46,11 +46,52 @@ public abstract class UnfilteredRowIterators
 
     private UnfilteredRowIterators() {}
 
+    /**
+     * Interface for a listener interested in the result of merging multiple versions of a given row.
+     * <p>
+     * Implementors of this interface are given enough information that they can easily reconstruct the difference
+     * between the merged result and each individual input. This is used when reconciling results on replias for
+     * instance to figure out what to send as read-repair to each source.
+     */
     public interface MergeListener
     {
+        /**
+         * Called once for the merged partition.
+         *
+         * @param mergedDeletion the partition level deletion for the merged partition. Implementors can test if the
+         * merged partition actually has a partition level deletion or not by calling {@code mergedDeletion.isLive()}.
+         * @param versions the partition level deletion for the sources of the merge. Elements of the array will never
+         * be null, but be "live".
+         **/
         public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions);
 
+        /**
+         * Called once for every row participating in the merge.
+         * <p>
+         * Note that this is called for every clustering where at least one of the source merged has a row. In
+         * particular, this may be called in cases where there is no row in the merged output (if a source has a row
+         * that is shadowed by another source range tombstone or partition level deletion).
+         *
+         * @param merged the result of the merge. This cannot be {@code null} but can be empty, in which case this is a
+         * placeholder for when at least one source has a row, but that row is shadowed in the merged output.
+         * @param versions for each source, the row in that source corresponding to {@code merged}. This can be
+         * {@code null} for some sources if the source has not such row.
+         */
         public void onMergedRows(Row merged, Row[] versions);
+
+        /**
+         * Called once for every range tombstone marker participating in the merge.
+         * <p>
+         * Note that this is called for every "clustering position" where at least one of the source merged has a range
+         * tombstone marker.
+         *
+         * @param merged the marker in the merged output. This can be {@code null} if there is no such marker, which
+         * means that at least one source has a marker in {@code versions} but the merged out has nothing corresponding
+         * (this basically mean the merged output has a currently open deletion that shadows whatever marker the source
+         * had).
+         * @param versions the marker for each source merged. This can be {@code null} for some source if that source
+         * has not such marker.
+         */
         public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions);
 
         public void close();
@@ -361,7 +402,7 @@ public abstract class UnfilteredRowIterators
                 if (!delTime.supersedes(iterDeletion))
                     delTime = iterDeletion;
             }
-            if (listener != null && !delTime.isLive())
+            if (listener != null)
                 listener.onMergedPartitionLevelDeletion(delTime, versions);
             return delTime;
         }
@@ -478,7 +519,7 @@ public abstract class UnfilteredRowIterators
                 else
                 {
                     RangeTombstoneMarker merged = markerMerger.merge();
-                    if (merged != null && listener != null)
+                    if (listener != null)
                         listener.onMergedRangeTombstoneMarkers(merged, markerMerger.mergedMarkers());
                     return merged;
                 }

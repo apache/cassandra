@@ -53,6 +53,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.apache.cassandra.db.ClusteringBound.Kind;
 
 public class DataResolverTest
 {
@@ -245,7 +246,7 @@ public class DataResolverTest
 
         RangeTombstone tombstone1 = tombstone("1", "11", 1, nowInSec);
         RangeTombstone tombstone2 = tombstone("3", "31", 1, nowInSec);
-        PartitionUpdate update =new RowUpdateBuilder(cfm, nowInSec, 1L, dk).addRangeTombstone(tombstone1)
+        PartitionUpdate update = new RowUpdateBuilder(cfm, nowInSec, 1L, dk).addRangeTombstone(tombstone1)
                                                                                   .addRangeTombstone(tombstone2)
                                                                                   .buildUpdate();
 
@@ -438,6 +439,113 @@ public class DataResolverTest
         assertRepairMetadata(msg);
         assertRepairContainsNoDeletions(msg);
         assertRepairContainsColumn(msg, "1", "two", "B", 3);
+    }
+
+    @Test
+    public void testResolveRangeTombstonesOnBoundaryRightWins() throws UnknownHostException
+    {
+        resolveRangeTombstonesOnBoundary(1, 2);
+    }
+
+    @Test
+    public void testResolveRangeTombstonesOnBoundaryLeftWins() throws UnknownHostException
+    {
+        resolveRangeTombstonesOnBoundary(2, 1);
+    }
+
+    @Test
+    public void testResolveRangeTombstonesOnBoundarySameTimestamp() throws UnknownHostException
+    {
+        resolveRangeTombstonesOnBoundary(1, 1);
+    }
+
+    /*
+     * We want responses to merge on tombstone boundary. So we'll merge 2 "streams":
+     *   1: [1, 2)(3, 4](5, 6]  2
+     *   2:    [2, 3][4, 5)     1
+     * which tests all combination of open/close boundaries (open/close, close/open, open/open, close/close).
+     *
+     * Note that, because DataResolver returns a "filtered" iterator, it should resolve into an empty iterator.
+     * However, what should be sent to each source depends on the exact on the timestamps of each tombstones and we
+     * test a few combination.
+     */
+    private void resolveRangeTombstonesOnBoundary(long timestamp1, long timestamp2)
+    {
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2);
+        InetAddress peer1 = peer();
+        InetAddress peer2 = peer();
+
+        // 1st "stream"
+        RangeTombstone one_two    = tombstone("1", true , "2", false, timestamp1, nowInSec);
+        RangeTombstone three_four = tombstone("3", false, "4", true , timestamp1, nowInSec);
+        RangeTombstone five_six   = tombstone("5", false, "6", true , timestamp1, nowInSec);
+        UnfilteredPartitionIterator iter1 = iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).addRangeTombstone(one_two)
+                                                                                            .addRangeTombstone(three_four)
+                                                                                            .addRangeTombstone(five_six)
+                                                                                            .buildUpdate());
+
+        // 2nd "stream"
+        RangeTombstone two_three = tombstone("2", true, "3", true , timestamp2, nowInSec);
+        RangeTombstone four_five = tombstone("4", true, "5", false, timestamp2, nowInSec);
+        UnfilteredPartitionIterator iter2 = iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).addRangeTombstone(two_three)
+                                                                                            .addRangeTombstone(four_five)
+                                                                                            .buildUpdate());
+
+        resolver.preprocess(readResponseMessage(peer1, iter1));
+        resolver.preprocess(readResponseMessage(peer2, iter2));
+
+        // No results, we've only reconciled tombstones.
+        try (PartitionIterator data = resolver.resolve())
+        {
+            assertFalse(data.hasNext());
+        }
+
+        assertEquals(2, messageRecorder.sent.size());
+
+        MessageOut msg1 = getSentMessage(peer1);
+        assertRepairMetadata(msg1);
+        assertRepairContainsNoColumns(msg1);
+
+        MessageOut msg2 = getSentMessage(peer2);
+        assertRepairMetadata(msg2);
+        assertRepairContainsNoColumns(msg2);
+
+        // Both streams are mostly complementary, so they will roughly get the ranges of the other stream. One subtlety is
+        // around the value "4" however, as it's included by both stream.
+        // So for a given stream, unless the other stream has a strictly higher timestamp, the value 4 will be excluded
+        // from whatever range it receives as repair since the stream already covers it.
+
+        // Message to peer1 contains peer2 ranges
+        assertRepairContainsDeletions(msg1, null, two_three, withExclusiveStartIf(four_five, timestamp1 >= timestamp2));
+
+        // Message to peer2 contains peer1 ranges
+        assertRepairContainsDeletions(msg2, null, one_two, withExclusiveEndIf(three_four, timestamp2 >= timestamp1), five_six);
+    }
+
+    // Forces the start to be exclusive if the condition holds
+    private static RangeTombstone withExclusiveStartIf(RangeTombstone rt, boolean condition)
+    {
+        if (!condition)
+            return rt;
+
+        Slice slice = rt.deletedSlice();
+        ClusteringBound newStart = ClusteringBound.create(Kind.EXCL_START_BOUND, slice.start().getRawValues());
+        return condition
+             ? new RangeTombstone(Slice.make(newStart, slice.end()), rt.deletionTime())
+             : rt;
+    }
+
+    // Forces the end to be exclusive if the condition holds
+    private static RangeTombstone withExclusiveEndIf(RangeTombstone rt, boolean condition)
+    {
+        if (!condition)
+            return rt;
+
+        Slice slice = rt.deletedSlice();
+        ClusteringBound newEnd = ClusteringBound.create(Kind.EXCL_END_BOUND, slice.end().getRawValues());
+        return condition
+             ? new RangeTombstone(Slice.make(slice.start(), newEnd), rt.deletionTime())
+             : rt;
     }
 
     private static ByteBuffer bb(int b)
@@ -667,7 +775,10 @@ public class DataResolverTest
         int i = 0;
         while (ranges.hasNext())
         {
-            assertEquals(ranges.next(), rangeTombstones[i++]);
+            RangeTombstone expected = rangeTombstones[i++];
+            RangeTombstone actual = ranges.next();
+            String msg = String.format("Expected %s, but got %s", expected.toString(cfm.comparator), actual.toString(cfm.comparator));
+            assertEquals(msg, expected, actual);
         }
     }
 
@@ -721,8 +832,17 @@ public class DataResolverTest
 
     private RangeTombstone tombstone(Object start, Object end, long markedForDeleteAt, int localDeletionTime)
     {
-        return new RangeTombstone(Slice.make(cfm.comparator.make(start), cfm.comparator.make(end)),
-                                  new DeletionTime(markedForDeleteAt, localDeletionTime));
+        return tombstone(start, true, end, true, markedForDeleteAt, localDeletionTime);
+    }
+
+    private RangeTombstone tombstone(Object start, boolean inclusiveStart, Object end, boolean inclusiveEnd, long markedForDeleteAt, int localDeletionTime)
+    {
+        Kind startKind = inclusiveStart ? Kind.INCL_START_BOUND :  Kind.EXCL_START_BOUND;
+        Kind endKind = inclusiveEnd ? Kind.INCL_END_BOUND : Kind.EXCL_END_BOUND;
+
+        ClusteringBound startBound = ClusteringBound.create(startKind, cfm.comparator.make(start).getRawValues());
+        ClusteringBound endBound = ClusteringBound.create(endKind, cfm.comparator.make(end).getRawValues());
+        return new RangeTombstone(Slice.make(startBound, endBound), new DeletionTime(markedForDeleteAt, localDeletionTime));
     }
 
     private UnfilteredPartitionIterator fullPartitionDelete(CFMetaData cfm, DecoratedKey dk, long timestamp, int nowInSec)

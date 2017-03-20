@@ -167,8 +167,14 @@ public class DataResolver extends ResponseResolver
             private final Row.Builder[] currentRows = new Row.Builder[sources.length];
             private final RowDiffListener diffListener;
 
-            private final ClusteringBound[] markerOpen = new ClusteringBound[sources.length];
-            private final DeletionTime[] markerTime = new DeletionTime[sources.length];
+            // The partition level deletion for the merge row.
+            private DeletionTime partitionLevelDeletion;
+            // When merged has a currently open marker, its time. null otherwise.
+            private DeletionTime mergedDeletionTime;
+            // For each source, the time of the current deletion as known by the source.
+            private final DeletionTime[] sourceDeletionTime = new DeletionTime[sources.length];
+            // For each source, record if there is an open range to send as repair, and from where.
+            private final ClusteringBound[] markerToRepair = new ClusteringBound[sources.length];
 
             public MergeListener(DecoratedKey partitionKey, PartitionColumns columns, boolean isReversed)
             {
@@ -236,6 +242,7 @@ public class DataResolver extends ResponseResolver
 
             public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions)
             {
+                this.partitionLevelDeletion = mergedDeletion;
                 for (int i = 0; i < versions.length; i++)
                 {
                     if (mergedDeletion.supersedes(versions[i]))
@@ -260,24 +267,99 @@ public class DataResolver extends ResponseResolver
                 Arrays.fill(currentRows, null);
             }
 
+            private DeletionTime currentDeletion()
+            {
+                return mergedDeletionTime == null ? partitionLevelDeletion : mergedDeletionTime;
+            }
+
             public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions)
             {
+                // The current deletion as of dealing with this marker.
+                DeletionTime currentDeletion = currentDeletion();
+
                 for (int i = 0; i < versions.length; i++)
                 {
                     RangeTombstoneMarker marker = versions[i];
-                    // Note that boundaries are both close and open, so it's not one or the other
-                    if (merged.isClose(isReversed) && markerOpen[i] != null)
+
+                    // Update what the source now thinks is the current deletion
+                    if (marker != null)
+                        sourceDeletionTime[i] = marker.isOpen(isReversed) ? marker.openDeletionTime(isReversed) : null;
+
+                    // If merged == null, some of the source is opening or closing a marker
+                    if (merged == null)
                     {
-                        ClusteringBound open = markerOpen[i];
-                        ClusteringBound close = merged.closeBound(isReversed);
-                        update(i).add(new RangeTombstone(Slice.make(isReversed ? close : open, isReversed ? open : close), markerTime[i]));
+                        // but if it's not this source, move to the next one
+                        if (marker == null)
+                            continue;
+
+                        // We have a close and/or open marker for a source, with nothing corresponding in merged.
+                        // Because merged is a superset, this imply that we have a current deletion (being it due to an
+                        // early opening in merged or a partition level deletion) and that this deletion will still be
+                        // active after that point. Further whatever deletion was open or is open by this marker on the
+                        // source, that deletion cannot supersedes the current one.
+                        //
+                        // What we want to know here is if the source deletion and merged deletion was or will be equal,
+                        // because in that case we don't want to include any repair for the source, and otherwise we do.
+                        //
+                        // Note further that if the marker is a boundary, as both side of that boundary will have a
+                        // different deletion time, only one side might be equal to the merged deletion. This means we
+                        // can only be in one of 2 cases:
+                        //   1) the source was up-to-date on deletion up to that point (markerToRepair[i] == null), and then
+                        //      it won't be from that point on.
+                        //   2) the source wasn't up-to-date on deletion up to that point (markerToRepair[i] != null), and
+                        //      it may now be (if it isn't we just have nothing to do for that marker).
+                        assert !currentDeletion.isLive();
+
+                        if (markerToRepair[i] == null)
+                        {
+                            // Since there is an ongoing merged deletion, the only way we don't have an open repair for
+                            // this source is that it had a range open with the same deletion as current and it's
+                            // closing it. This imply we need to open a deletion for the source from that point.
+                            assert marker.isClose(isReversed) && currentDeletion.equals(marker.closeDeletionTime(isReversed));
+                            assert !marker.isOpen(isReversed) || currentDeletion.supersedes(marker.openDeletionTime(isReversed));
+                            markerToRepair[i] = marker.closeBound(isReversed).invert();
+                        }
+                        // In case 2) above, we only have something to do if the source is up-to-date after that point
+                        else if (marker.isOpen(isReversed) && currentDeletion.equals(marker.openDeletionTime(isReversed)))
+                        {
+                            closeOpenMarker(i, marker.openBound(isReversed).invert());
+                        }
                     }
-                    if (merged.isOpen(isReversed) && (marker == null || merged.openDeletionTime(isReversed).supersedes(marker.openDeletionTime(isReversed))))
+                    else
                     {
-                        markerOpen[i] = merged.openBound(isReversed);
-                        markerTime[i] = merged.openDeletionTime(isReversed);
+                        // We have a change of current deletion in merged (potentially to/from no deletion at all).
+
+                        if (merged.isClose(isReversed))
+                        {
+                            // We're closing the merged range. If we've marked the source as needing to be repaired for
+                            // that range, close and add it to the repair to be sent.
+                            if (markerToRepair[i] != null)
+                                closeOpenMarker(i, merged.closeBound(isReversed));
+
+                        }
+
+                        if (merged.isOpen(isReversed))
+                        {
+                            // If we're opening a new merged range (or just switching deletion), then unless the source
+                            // is up to date on that deletion (note that we've updated what the source deleteion is
+                            // above), we'll have to sent the range to the source.
+                            DeletionTime newDeletion = merged.openDeletionTime(isReversed);
+                            DeletionTime sourceDeletion = sourceDeletionTime[i];
+                            if (!newDeletion.equals(sourceDeletion))
+                                markerToRepair[i] = merged.openBound(isReversed);
+                        }
                     }
                 }
+
+                if (merged != null)
+                    mergedDeletionTime = merged.isOpen(isReversed) ? merged.openDeletionTime(isReversed) : null;
+            }
+
+            private void closeOpenMarker(int i, ClusteringBound close)
+            {
+                ClusteringBound open = markerToRepair[i];
+                update(i).add(new RangeTombstone(Slice.make(isReversed ? close : open, isReversed ? open : close), currentDeletion()));
+                markerToRepair[i] = null;
             }
 
             public void close()
