@@ -611,17 +611,20 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     if (column.isComplex())
                     {
                         ComplexColumnData complexData = row.getComplexColumnData(column);
-                        for (Cell cell : complexData)
+                        if (complexData != null)
                         {
-                            if (type.kind == CollectionType.Kind.SET)
+                            for (Cell cell : complexData)
                             {
-                                if (type.nameComparator().compare(cell.path().get(0), value) == 0)
-                                    return true;
-                            }
-                            else
-                            {
-                                if (type.valueComparator().compare(cell.value(), value) == 0)
-                                    return true;
+                                if (type.kind == CollectionType.Kind.SET)
+                                {
+                                    if (type.nameComparator().compare(cell.path().get(0), value) == 0)
+                                        return true;
+                                }
+                                else
+                                {
+                                    if (type.valueComparator().compare(cell.value(), value) == 0)
+                                        return true;
+                                }
                             }
                         }
                         return false;

@@ -55,6 +55,7 @@
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
  * Address message coalescing regression (CASSANDRA-12676)
 Merged from 3.0:
+ * Fix CONTAINS filtering for null collections (CASSANDRA-13246)
  * Applying: Use a unique metric reservoir per test run when using Cassandra-wide metrics residing in MBeans (CASSANDRA-13216)
  * Propagate row deletions in 2i tables on upgrade (CASSANDRA-13320)
  * Slice.isEmpty() returns false for some empty slices (CASSANDRA-13305)
