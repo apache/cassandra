@@ -793,6 +793,13 @@ public class LeveledManifest
             tasks += estimated[i];
         }
 
+        if (!DatabaseDescriptor.getDisableSTCSInL0() && getLevel(0).size() > MAX_COMPACTING_L0)
+        {
+            int l0compactions = getLevel(0).size() / MAX_COMPACTING_L0;
+            tasks += l0compactions;
+            estimated[0] += l0compactions;
+        }
+
         logger.trace("Estimating {} compactions to do for {}.{}",
                      Arrays.toString(estimated), cfs.keyspace.getName(), cfs.name);
         return Ints.checkedCast(tasks);
