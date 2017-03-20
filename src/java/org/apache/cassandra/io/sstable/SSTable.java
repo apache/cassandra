@@ -78,8 +78,8 @@ public abstract class SSTable
     {
         // In almost all cases, metadata shouldn't be null, but allowing null allows to create a mostly functional SSTable without
         // full schema definition. SSTableLoader use that ability
-        assert descriptor != null;
-        assert components != null;
+        assert(descriptor != null):"descriptor can not be null";
+        assert(components != null):"components can not be null";
 
         this.descriptor = descriptor;
         Set<Component> dataComponents = new HashSet<>(components);

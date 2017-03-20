@@ -73,7 +73,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public final Kind kind;
 
-    /*
+    /**
      * If the column is a partition key or clustering column, its position relative to
      * other columns of the same kind. Otherwise,  NO_POSITION (-1).
      *
