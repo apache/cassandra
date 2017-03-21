@@ -1,4 +1,5 @@
 4.0
+ * Cleanup ParentRepairSession after repairs (CASSANDRA-13359)
  * Incremental repair not streaming correct sstables (CASSANDRA-13328)
  * Upgrade the jna version to 4.3.0 (CASSANDRA-13300)
  * Add the currentTimestamp, currentDate, currentTime and currentTimeUUID functions (CASSANDRA-13132)
