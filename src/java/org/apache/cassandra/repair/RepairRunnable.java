@@ -440,6 +440,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
         private void repairComplete()
         {
+            ActiveRepairService.instance.removeParentRepairSession(parentSession);
             String duration = DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime,
                                                                       true, true);
             String message = String.format("Repair command #%d finished in %s", cmd, duration);
