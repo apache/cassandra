@@ -297,6 +297,14 @@ public final class OperationFcts
         if (size > 0)
             return size;
 
+        // tinyint and smallint type are not fixed length types even if they should be.
+        // So we need to handle them in a special way.
+        if (type == ByteType.instance)
+            return 1;
+
+        if (type == ShortType.instance)
+            return 2;
+
         if (type.isCounter())
             return LongType.instance.valueLengthIfFixed();
 

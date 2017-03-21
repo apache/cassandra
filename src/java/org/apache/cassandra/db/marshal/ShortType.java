@@ -93,12 +93,6 @@ public class ShortType extends NumberType<Short>
     }
 
     @Override
-    public int valueLengthIfFixed()
-    {
-        return 2;
-    }
-
-    @Override
     public short toShort(ByteBuffer value)
     {
         return ByteBufferUtil.toShort(value);

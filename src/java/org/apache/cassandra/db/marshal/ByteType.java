@@ -84,12 +84,6 @@ public class ByteType extends NumberType<Byte>
     }
 
     @Override
-    public int valueLengthIfFixed()
-    {
-        return 1;
-    }
-
-    @Override
     public TypeSerializer<Byte> getSerializer()
     {
         return ByteSerializer.instance;
