@@ -30,6 +30,7 @@ import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.utils.CassandraVersion;
@@ -88,6 +89,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private static final Logger logger = LoggerFactory.getLogger(Gossiper.class);
     public static final Gossiper instance = new Gossiper();
 
+    // Timestamp to prevent processing any in-flight messages for we've not send any SYN yet, see CASSANDRA-12653.
+    volatile long firstSynSendAt = 0L;
+
     public static final long aVeryLongTime = 259200 * 1000; // 3 days
 
     // Maximimum difference between generation value and local time we are willing to accept about a peer
@@ -112,7 +116,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private final Map<InetAddress, Long> unreachableEndpoints = new ConcurrentHashMap<InetAddress, Long>();
 
     /* initial seeds for joining the cluster */
-    private final Set<InetAddress> seeds = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
+    @VisibleForTesting
+    final Set<InetAddress> seeds = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
 
     /* map where key is the endpoint and value is the state associated with the endpoint */
     final ConcurrentMap<InetAddress, EndpointState> endpointStateMap = new ConcurrentHashMap<InetAddress, EndpointState>();
@@ -126,7 +131,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private final Map<InetAddress, Long> expireTimeEndpointMap = new ConcurrentHashMap<InetAddress, Long>();
 
     private volatile boolean inShadowRound = false;
+    // seeds gathered during shadow round that indicated to be in the shadow round phase as well
     private final Set<InetAddress> seedsInShadowRound = new ConcurrentSkipListSet<>(inetcomparator);
+    // endpoint states as gathered during shadow round
+    private final Map<InetAddress, EndpointState> endpointShadowStateMap = new ConcurrentHashMap<>();
 
     private volatile long lastProcessedMessageAt = System.currentTimeMillis();
 
@@ -650,6 +658,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         InetAddress to = liveEndpoints.get(index);
         if (logger.isTraceEnabled())
             logger.trace("Sending a GossipDigestSyn to {} ...", to);
+        if (firstSynSendAt == 0)
+            firstSynSendAt = System.nanoTime();
         MessagingService.instance().sendOneWay(message, to);
         return seeds.contains(to);
     }
@@ -726,11 +736,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * @param endpoint - the endpoint to check
      * @param localHostUUID - the host id to check
      * @param isBootstrapping - whether the node intends to bootstrap when joining
+     * @param epStates - endpoint states in the cluster
      * @return true if it is safe to start the node, false otherwise
      */
-    public boolean isSafeForStartup(InetAddress endpoint, UUID localHostUUID, boolean isBootstrapping)
+    public boolean isSafeForStartup(InetAddress endpoint, UUID localHostUUID, boolean isBootstrapping,
+                                    Map<InetAddress, EndpointState> epStates)
     {
-        EndpointState epState = endpointStateMap.get(endpoint);
+        EndpointState epState = epStates.get(endpoint);
         // if there's no previous state, or the node was previously removed from the cluster, we're good
         if (epState == null || isDeadState(epState))
             return true;
@@ -854,14 +866,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return !(value1 == null || value2 == null) && value1.value.equals(value2.value);
     }
 
-    // removes ALL endpoint states; should only be called after shadow gossip
-    public void resetEndpointStateMap()
-    {
-        endpointStateMap.clear();
-        unreachableEndpoints.clear();
-        liveEndpoints.clear();
-    }
-
     public Set<Entry<InetAddress, EndpointState>> getEndpointStates()
     {
         return endpointStateMap.entrySet();
@@ -869,7 +873,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public UUID getHostId(InetAddress endpoint)
     {
-        return UUID.fromString(getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.HOST_ID).value);
+        return getHostId(endpoint, endpointStateMap);
+    }
+
+    public UUID getHostId(InetAddress endpoint, Map<InetAddress, EndpointState> epStates)
+    {
+        return UUID.fromString(epStates.get(endpoint).getApplicationState(ApplicationState.HOST_ID).value);
     }
 
     EndpointState getStateForVersionBiggerThan(InetAddress forEndpoint, int version)
@@ -1343,20 +1352,32 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     }
 
     /**
-     *  Do a single 'shadow' round of gossip, where we do not modify any state
-     *  Used when preparing to join the ring:
-     *      * when replacing a node, to get and assume its tokens
-     *      * when joining, to check that the local host id matches any previous id for the endpoint address
+     * Do a single 'shadow' round of gossip by retrieving endpoint states that will be stored exclusively in the
+     * map return value, instead of endpointStateMap.
+     *
+     * <ul>
+     *     <li>when replacing a node, to get and assume its tokens</li>
+     *     <li>when joining, to check that the local host id matches any previous id for the endpoint address</li>
+     * </ul>
+     *
+     * Method is synchronized, as we use an in-progress flag to indicate that shadow round must be cleared
+     * again by calling {@link Gossiper#maybeFinishShadowRound(InetAddress, boolean, Map)}. This will update
+     * {@link Gossiper#endpointShadowStateMap} with received values, in order to return an immutable copy to the
+     * caller of {@link Gossiper#doShadowRound()}. Therefor only a single shadow round execution is permitted at
+     * the same time.
+     *
+     * @return endpoint states gathered during shadow round or empty map
      */
-    public void doShadowRound()
+    public synchronized Map<InetAddress, EndpointState> doShadowRound()
     {
         buildSeedsList();
         // it may be that the local address is the only entry in the seed
         // list in which case, attempting a shadow round is pointless
         if (seeds.isEmpty())
-            return;
+            return endpointShadowStateMap;
 
         seedsInShadowRound.clear();
+        endpointShadowStateMap.clear();
         // send a completely empty syn
         List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
         GossipDigestSyn digestSynMessage = new GossipDigestSyn(DatabaseDescriptor.getClusterName(),
@@ -1401,9 +1422,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             throw new RuntimeException(wtf);
         }
+
+        return ImmutableMap.copyOf(endpointShadowStateMap);
     }
 
-    private void buildSeedsList()
+    @VisibleForTesting
+    void buildSeedsList()
     {
         for (InetAddress seed : DatabaseDescriptor.getSeeds())
         {
@@ -1521,7 +1545,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return (scheduledGossipTask != null) && (!scheduledGossipTask.isCancelled());
     }
 
-    protected void maybeFinishShadowRound(InetAddress respondent, boolean isInShadowRound)
+    protected void maybeFinishShadowRound(InetAddress respondent, boolean isInShadowRound, Map<InetAddress, EndpointState> epStateMap)
     {
         if (inShadowRound)
         {
@@ -1529,6 +1553,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 logger.debug("Received a regular ack from {}, can now exit shadow round", respondent);
                 // respondent sent back a full ack, so we can exit our shadow round
+                endpointShadowStateMap.putAll(epStateMap);
                 inShadowRound = false;
                 seedsInShadowRound.clear();
             }

@@ -62,18 +62,18 @@ class MigrationTask extends WrappedRunnable
 
     public void runMayThrow() throws Exception
     {
+        if (!FailureDetector.instance.isAlive(endpoint))
+        {
+            logger.warn("Can't send schema pull request: node {} is down.", endpoint);
+            return;
+        }
+
         // There is a chance that quite some time could have passed between now and the MM#maybeScheduleSchemaPull(),
         // potentially enough for the endpoint node to restart - which is an issue if it does restart upgraded, with
         // a higher major.
         if (!MigrationManager.shouldPullSchemaFrom(endpoint))
         {
             logger.info("Skipped sending a migration request: node {} has a higher major version now.", endpoint);
-            return;
-        }
-
-        if (!FailureDetector.instance.isAlive(endpoint))
-        {
-            logger.debug("Can't send schema pull request: node {} is down.", endpoint);
             return;
         }
 
