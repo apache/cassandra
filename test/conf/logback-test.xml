@@ -68,6 +68,7 @@
       <maxFlushTime>0</maxFlushTime>
       <queueSize>1024</queueSize>
       <appender-ref ref="TEE"/>
+      <includeCallerData>true</includeCallerData>
   </appender>
 
   <root level="DEBUG">
