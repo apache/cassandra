@@ -584,7 +584,7 @@ public class SinglePartitionReadCommand extends ReadCommand
                 if (!shouldInclude(sstable))
                 {
                     nonIntersectingSSTables++;
-                    if (sstable.hasTombstones())
+                    if (sstable.mayHaveTombstones())
                     { // if sstable has tombstones we need to check after one pass if it can be safely skipped
                         if (skippedSSTablesWithTombstones == null)
                             skippedSSTablesWithTombstones = new ArrayList<>();
@@ -773,7 +773,7 @@ public class SinglePartitionReadCommand extends ReadCommand
                 // however: if it is set, it impacts everything and must be included. Getting that top-level partition deletion costs us
                 // some seek in general however (unless the partition is indexed and is in the key cache), so we first check if the sstable
                 // has any tombstone at all as a shortcut.
-                if (!sstable.hasTombstones())
+                if (!sstable.mayHaveTombstones())
                     continue; // no tombstone at all, we can skip that sstable
 
                 // We need to get the partition deletion and include it if it's live. In any case though, we're done with that sstable.

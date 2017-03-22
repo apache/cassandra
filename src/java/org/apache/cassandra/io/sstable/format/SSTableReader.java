@@ -51,6 +51,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -1881,12 +1882,20 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.maxLocalDeletionTime;
     }
 
-    /** sstable contains no tombstones if minLocalDeletionTime == Integer.MAX_VALUE */
-    public boolean hasTombstones()
+    /**
+     * Whether the sstable may contain tombstones or if it is guaranteed to not contain any.
+     * <p>
+     * Note that having that method return {@code false} guarantees the sstable has no tombstones whatsoever (so no
+     * cell tombstone, no range tombstone maker and no expiring columns), but having it return {@code true} doesn't
+     * guarantee it contains any as 1) it may simply have non-expired cells and 2) old-format sstables didn't contain
+     * enough information to decide this and so always return {@code true}.
+     */
+    public boolean mayHaveTombstones()
     {
-        // sstable contains no tombstone if minLocalDeletionTime is still set to  the default value Integer.MAX_VALUE
-        // which is bigger than any valid deletion times
-        return getMinLocalDeletionTime() != Integer.MAX_VALUE;
+        // A sstable is guaranteed to have no tombstones if it properly tracked the minLocalDeletionTime (which we only
+        // do since 3.0 - see CASSANDRA-13366) and that value is still set to its default, Cell.NO_DELETION_TIME, which
+        // is bigger than any valid deletion times.
+        return !descriptor.version.storeRows() || getMinLocalDeletionTime() != Cell.NO_DELETION_TIME;
     }
 
     public int getMinTTL()
@@ -2006,22 +2015,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         if (readMeter != null)
             readMeter.mark();
-    }
-
-    /**
-     * Checks if this sstable can overlap with another one based on the min/man clustering values.
-     * If this methods return false, we're guarantee that {@code this} and {@code other} have no overlapping
-     * data, i.e. no cells to reconcile.
-     */
-    public boolean mayOverlapsWith(SSTableReader other)
-    {
-        StatsMetadata m1 = getSSTableMetadata();
-        StatsMetadata m2 = other.getSSTableMetadata();
-
-        if (m1.minClusteringValues.isEmpty() || m1.maxClusteringValues.isEmpty() || m2.minClusteringValues.isEmpty() || m2.maxClusteringValues.isEmpty())
-            return true;
-
-        return !(compare(m1.maxClusteringValues, m2.minClusteringValues) < 0 || compare(m1.minClusteringValues, m2.maxClusteringValues) > 0);
     }
 
     private int compare(List<ByteBuffer> values1, List<ByteBuffer> values2)
