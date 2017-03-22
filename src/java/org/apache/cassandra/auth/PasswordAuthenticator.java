@@ -22,7 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -38,7 +37,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -83,48 +81,34 @@ public class PasswordAuthenticator implements IAuthenticator
 
     private AuthenticatedUser authenticate(String username, String password) throws AuthenticationException
     {
-        try
-        {
-            String hash = cache.get(username);
-            if (!BCrypt.checkpw(password, hash))
-                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
+        String hash = cache.get(username);
+        if (!BCrypt.checkpw(password, hash))
+            throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
-            return new AuthenticatedUser(username);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return new AuthenticatedUser(username);
     }
 
     private String queryHashedPassword(String username)
     {
-        try
-        {
-            SelectStatement authenticationStatement = authenticationStatement();
+        SelectStatement authenticationStatement = authenticationStatement();
 
-            ResultMessage.Rows rows =
-                authenticationStatement.execute(QueryState.forInternalCalls(),
-                                                QueryOptions.forInternalCalls(consistencyForRole(username),
-                                                                              Lists.newArrayList(ByteBufferUtil.bytes(username))),
-                                                System.nanoTime());
+        ResultMessage.Rows rows =
+        authenticationStatement.execute(QueryState.forInternalCalls(),
+                                        QueryOptions.forInternalCalls(consistencyForRole(username),
+                                                                      Lists.newArrayList(ByteBufferUtil.bytes(username))),
+                                        System.nanoTime());
 
-            // If either a non-existent role name was supplied, or no credentials
-            // were found for that role we don't want to cache the result so we throw
-            // a specific, but unchecked, exception to keep LoadingCache happy.
-            if (rows.result.isEmpty())
-                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
+        // If either a non-existent role name was supplied, or no credentials
+        // were found for that role we don't want to cache the result so we throw
+        // a specific, but unchecked, exception to keep LoadingCache happy.
+        if (rows.result.isEmpty())
+            throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
-            UntypedResultSet result = UntypedResultSet.create(rows.result);
-            if (!result.one().has(SALTED_HASH))
-                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
+        UntypedResultSet result = UntypedResultSet.create(rows.result);
+        if (!result.one().has(SALTED_HASH))
+            throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
-            return result.one().getString(SALTED_HASH);
-        }
-        catch (RequestExecutionException e)
-        {
-            throw new AuthenticationException(String.format("Error performing internal authentication of user %s : %s", username, e.getMessage()));
-        }
+        return result.one().getString(SALTED_HASH);
     }
 
     /**

@@ -483,23 +483,16 @@ public class CassandraRoleManager implements IRoleManager
      */
     private Role getRole(String name)
     {
-        try
+        // If it exists, try the legacy users table in case the cluster
+        // is in the process of being upgraded and so is running with mixed
+        // versions of the authn schema.
+        if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, "users") == null)
+            return getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
+        else
         {
-            // If it exists, try the legacy users table in case the cluster
-            // is in the process of being upgraded and so is running with mixed
-            // versions of the authn schema.
-            if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, "users") == null)
-                return getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
-            else
-            {
-                if (legacySelectUserStatement == null)
-                    legacySelectUserStatement = prepareLegacySelectUserStatement();
-                return getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE);
-            }
-        }
-        catch (RequestExecutionException | RequestValidationException e)
-        {
-            throw new RuntimeException(e);
+            if (legacySelectUserStatement == null)
+                legacySelectUserStatement = prepareLegacySelectUserStatement();
+            return getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE);
         }
     }
 

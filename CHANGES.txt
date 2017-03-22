@@ -1,4 +1,5 @@
 4.0
+ * Avoid rewrapping an exception thrown for cache load functions (CASSANDRA-13367)
  * Log time elapsed for each incremental repair phase (CASSANDRA-13498)
  * Add multiple table operation support to cassandra-stress (CASSANDRA-8780)
  * Fix incorrect cqlsh results when selecting same columns multiple times (CASSANDRA-13262)
