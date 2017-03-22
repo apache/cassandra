@@ -481,15 +481,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             MessagingService.instance().listen();
 
         // make magic happen
-        Gossiper.instance.doShadowRound();
-
+        Map<InetAddress, EndpointState> epStates = Gossiper.instance.doShadowRound();
         // now that we've gossiped at least once, we should be able to find the node we're replacing
-        if (Gossiper.instance.getEndpointStateForEndpoint(DatabaseDescriptor.getReplaceAddress())== null)
+        if (epStates.get(DatabaseDescriptor.getReplaceAddress())== null)
             throw new RuntimeException("Cannot replace_address " + DatabaseDescriptor.getReplaceAddress() + " because it doesn't exist in gossip");
-        replacingId = Gossiper.instance.getHostId(DatabaseDescriptor.getReplaceAddress());
+        replacingId = Gossiper.instance.getHostId(DatabaseDescriptor.getReplaceAddress(), epStates);
         try
         {
-            VersionedValue tokensVersionedValue = Gossiper.instance.getEndpointStateForEndpoint(DatabaseDescriptor.getReplaceAddress()).getApplicationState(ApplicationState.TOKENS);
+            VersionedValue tokensVersionedValue = epStates.get(DatabaseDescriptor.getReplaceAddress()).getApplicationState(ApplicationState.TOKENS);
             if (tokensVersionedValue == null)
                 throw new RuntimeException("Could not find tokens for " + DatabaseDescriptor.getReplaceAddress() + " to replace");
             Collection<Token> tokens = TokenSerializer.deserialize(tokenMetadata.partitioner, new DataInputStream(new ByteArrayInputStream(tokensVersionedValue.toBytes())));
@@ -498,7 +497,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 SystemKeyspace.setLocalHostId(replacingId); // use the replacee's host Id as our own so we receive hints, etc
             }
-            Gossiper.instance.resetEndpointStateMap(); // clean up since we have what we need
             return tokens;
         }
         catch (IOException e)
@@ -512,8 +510,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.debug("Starting shadow gossip round to check for endpoint collision");
         if (!MessagingService.instance().isListening())
             MessagingService.instance().listen();
-        Gossiper.instance.doShadowRound();
-        if (!Gossiper.instance.isSafeForBootstrap(FBUtilities.getBroadcastAddress()))
+        Map<InetAddress, EndpointState> epStates = Gossiper.instance.doShadowRound();
+        if (!Gossiper.instance.isSafeForBootstrap(FBUtilities.getBroadcastAddress(), epStates))
         {
             throw new RuntimeException(String.format("A node with address %s already exists, cancelling join. " +
                                                      "Use cassandra.replace_address if you want to replace this node.",
@@ -521,7 +519,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         if (useStrictConsistency && !allowSimultaneousMoves())
         {
-            for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.getEndpointStates())
+            for (Map.Entry<InetAddress, EndpointState> entry : epStates.entrySet())
             {
                 // ignore local node or empty status
                 if (entry.getKey().equals(FBUtilities.getBroadcastAddress()) || entry.getValue().getApplicationState(ApplicationState.STATUS) == null)
@@ -533,7 +531,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     throw new UnsupportedOperationException("Other bootstrapping/leaving/moving nodes detected, cannot bootstrap while cassandra.consistent.rangemovement is true");
             }
         }
-        Gossiper.instance.resetEndpointStateMap();
     }
 
     private boolean allowSimultaneousMoves()
