@@ -1409,6 +1409,109 @@ public class SecondaryIndexTest extends CQLTester
                              "CREATE INDEX ON %s (t)");
     }
 
+    @Test
+    public void testIndexOnFrozenUDT() throws Throwable
+    {
+        String type = createType("CREATE TYPE %s (a int)");
+        String tableName = createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<" + type + ">)");
+
+        Object udt1 = userType("a", 1);
+        Object udt2 = userType("a", 2);
+
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, udt1);
+        execute("CREATE INDEX idx ON %s (v)");
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, udt2);
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, udt1);
+        assertTrue(waitForIndex(keyspace(), tableName, "idx"));
+
+        assertRows(execute("SELECT * FROM %s WHERE v = ?", udt1), row(1, udt1), row(0, udt1));
+        assertEmpty(execute("SELECT * FROM %s WHERE v = ?", udt2));
+
+        execute("DELETE FROM %s WHERE k = 0");
+        assertRows(execute("SELECT * FROM %s WHERE v = ?", udt1), row(1, udt1));
+
+        dropIndex("DROP INDEX %s.idx");
+        assertInvalidMessage("Index 'idx' could not be found", "DROP INDEX " + KEYSPACE + ".idx");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE v = ?", udt1);
+    }
+
+    @Test
+    public void testIndexOnFrozenCollectionOfUDT() throws Throwable
+    {
+        String type = createType("CREATE TYPE %s (a int)");
+        String tableName = createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<set<frozen<" + type + ">>>)");
+
+        Object udt1 = userType("a", 1);
+        Object udt2 = userType("a", 2);
+
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, set(udt1, udt2));
+        assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (keys(v))");
+        assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (values(v))");
+        execute("CREATE INDEX idx ON %s (full(v))");
+
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 2, set(udt2));
+        assertTrue(waitForIndex(keyspace(), tableName, "idx"));
+
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE v CONTAINS ?", udt1);
+
+        assertRows(execute("SELECT * FROM %s WHERE v = ?", set(udt1, udt2)), row(1, set(udt1, udt2)));
+        assertRows(execute("SELECT * FROM %s WHERE v = ?", set(udt2)), row(2, set(udt2)));
+
+        execute("DELETE FROM %s WHERE k = 2");
+        assertEmpty(execute("SELECT * FROM %s WHERE v = ?", set(udt2)));
+
+        dropIndex("DROP INDEX %s.idx");
+        assertInvalidMessage("Index 'idx' could not be found", "DROP INDEX " + KEYSPACE + ".idx");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE v CONTAINS ?", udt1);
+    }
+
+    @Test
+    public void testIndexOnNonFrozenCollectionOfFrozenUDT() throws Throwable
+    {
+        String type = createType("CREATE TYPE %s (a int)");
+        String tableName = createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<frozen<" + type + ">>)");
+
+        Object udt1 = userType("a", 1);
+        Object udt2 = userType("a", 2);
+
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, set(udt1));
+        assertInvalidMessage("Cannot create index on keys of column v with non-map type",
+                             "CREATE INDEX idx ON %s (keys(v))");
+        assertInvalidMessage("full() indexes can only be created on frozen collections",
+                             "CREATE INDEX idx ON %s (full(v))");
+        execute("CREATE INDEX idx ON %s (values(v))");
+
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 2, set(udt2));
+        execute("UPDATE %s SET v = v + ? WHERE k = ?", set(udt2), 1);
+        assertTrue(waitForIndex(keyspace(), tableName, "idx"));
+
+        assertRows(execute("SELECT * FROM %s WHERE v CONTAINS ?", udt1), row(1, set(udt1, udt2)));
+        assertRows(execute("SELECT * FROM %s WHERE v CONTAINS ?", udt2), row(1, set(udt1, udt2)), row(2, set(udt2)));
+
+        execute("DELETE FROM %s WHERE k = 1");
+        assertEmpty(execute("SELECT * FROM %s WHERE v CONTAINS ?", udt1));
+        assertRows(execute("SELECT * FROM %s WHERE v CONTAINS ?", udt2), row(2, set(udt2)));
+
+        dropIndex("DROP INDEX %s.idx");
+        assertInvalidMessage("Index 'idx' could not be found", "DROP INDEX " + KEYSPACE + ".idx");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE v CONTAINS ?", udt1);
+    }
+
+    @Test
+    public void testIndexOnNonFrozenUDT() throws Throwable
+    {
+        String type = createType("CREATE TYPE %s (a int)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + type + ")");
+        assertInvalidMessage("Secondary indexes are not supported on non-frozen UDTs", "CREATE INDEX ON %s (v)");
+        assertInvalidMessage("Non-collection columns support only simple indexes", "CREATE INDEX ON %s (keys(v))");
+        assertInvalidMessage("Non-collection columns support only simple indexes", "CREATE INDEX ON %s (values(v))");
+        assertInvalidMessage("full() indexes can only be created on frozen collections", "CREATE INDEX ON %s (full(v))");
+    }
+
     private ResultMessage.Prepared prepareStatement(String cql, boolean forThrift)
     {
         return QueryProcessor.prepare(String.format(cql, KEYSPACE, currentTable()),

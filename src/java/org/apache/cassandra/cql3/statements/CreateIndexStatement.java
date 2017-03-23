@@ -134,6 +134,8 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                 validateIsSimpleIndexIfTargetColumnNotCollection(cd, target);
                 validateTargetColumnIsMapIfIndexInvolvesKeys(isMap, target);
             }
+
+            checkFalse(cd.type.isUDT() && cd.type.isMultiCell(), "Secondary indexes are not supported on non-frozen UDTs");
         }
 
         if (!Strings.isNullOrEmpty(indexName))
