@@ -127,6 +127,9 @@ CasPropose                              Latency        Latency of paxos propose 
 CasCommit                               Latency        Latency of paxos commit round.
 PercentRepaired                         Gauge<Double>  Percent of table data that is repaired on disk.
 SpeculativeRetries                      Counter        Number of times speculative retries were sent for this table.
+SpeculativeFailedRetries                Counter        Number of speculative retries that failed to prevent a timeout
+SpeculativeInsufficientReplicas         Counter        Number of speculative retries that couldn't be attempted due to lack of replicas
+SpeculativeSampleLatencyNanos           Gauge<Long>    Number of nanoseconds to wait before speculation is attempted. Value may be statically configured or updated periodically based on coordinator latency.
 WaitingOnFreeMemtableSpace              Histogram      Histogram of time spent waiting for free memtable space, either on- or off-heap.
 DroppedMutations                        Counter        Number of dropped mutations on this table.
 ======================================= ============== ===========
