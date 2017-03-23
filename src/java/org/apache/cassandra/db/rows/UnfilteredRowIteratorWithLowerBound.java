@@ -147,7 +147,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     @Override
     public DeletionTime partitionLevelDeletion()
     {
-        if (!sstable.hasTombstones())
+        if (!sstable.mayHaveTombstones())
             return DeletionTime.LIVE;
 
         return super.partitionLevelDeletion();
@@ -198,12 +198,34 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     }
 
     /**
-     * @return true if we can use the clustering values in the stats of the sstable:
-     * we cannot create tombstone bounds from these values only and so we rule out sstables with tombstones
+     * Whether we can use the clustering values in the stats of the sstable to build the lower bound.
+     * <p>
+     * Currently, the clustering values of the stats file records for each clustering component the min and max
+     * value seen, null excluded. In other words, having a non-null value for a component in those min/max clustering
+     * values does _not_ guarantee that there isn't an unfiltered in the sstable whose clustering has either no value for
+     * that component (it's a prefix) or a null value.
+     * <p>
+     * This is problematic as this means we can't in general build a lower bound from those values since the "min"
+     * values doesn't actually guarantee minimality.
+     * <p>
+     * However, we can use those values if we can guarantee that no clustering in the sstable 1) is a true prefix and
+     * 2) uses null values. Nat having true prefixes means having no range tombstone markers since rows use
+     * {@link Clustering} which is always "full" (all components are always present). As for null values, we happen to
+     * only allow those in compact tables (for backward compatibility), so we can simply exclude those tables.
+     * <p>
+     * Note that the information we currently have at our disposal make this condition less precise that it could be.
+     * In particular, {@link SSTableReader#mayHaveTombstones} could return {@code true} (making us not use the stats)
+     * because of cell tombstone or even expiring cells even if the sstable has no range tombstone markers, even though
+     * it's really only markers we want to exclude here (more precisely, as said above, we want to exclude anything
+     * whose clustering is not "full", but that's only markers). It wouldn't be very hard to collect whether a sstable
+     * has any range tombstone marker however so it's a possible improvement.
      */
     private boolean canUseMetadataLowerBound()
     {
-        return !sstable.hasTombstones();
+        // Side-note: pre-2.1 sstable stat file had clustering value arrays whose size may not match the comparator size
+        // and that would break getMetadataLowerBound. We don't support upgrade from 2.0 to 3.0 directly however so it's
+        // not a true concern. Besides, !sstable.mayHaveTombstones already ensure this is a 3.0 sstable anyway.
+        return !sstable.mayHaveTombstones() && !sstable.metadata().isCompactTable();
     }
 
     /**
