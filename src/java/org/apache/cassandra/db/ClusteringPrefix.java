@@ -482,7 +482,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             }
 
             if (bound.size() == nextSize)
-                return nextKind.compareTo(bound.kind());
+                return Kind.compare(nextKind, bound.kind());
 
             // We know that we'll have exited already if nextSize < bound.size
             return -bound.kind().comparedToClustering;
