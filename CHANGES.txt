@@ -46,6 +46,7 @@
 
 
 3.11.0
+ * Forbid SELECT restrictions and CREATE INDEX over non-frozen UDT columns (CASSANDRA-13247)
  * Default logging we ship will incorrectly print "?:?" for "%F:%L" pattern (CASSANDRA-13317)
  * Possible AssertionError in UnfilteredRowIteratorWithLowerBound (CASSANDRA-13366)
  * Support unaligned memory access for AArch64 (CASSANDRA-13326)

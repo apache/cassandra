@@ -271,6 +271,12 @@ public final class SingleColumnRelation extends Relation
             checkTrue(isEQ(), "Only EQ relations are supported on map entries");
         }
 
+        // Non-frozen UDTs don't support any operator
+        checkFalse(receiver.type.isUDT() && receiver.type.isMultiCell(),
+                   "Non-frozen UDT column '%s' (%s) cannot be restricted by any relation",
+                   receiver.name,
+                   receiver.type.asCQL3Type());
+
         if (receiver.type.isCollection())
         {
             // We don't support relations against entire collections (unless they're frozen), like "numbers = {1, 2, 3}"
