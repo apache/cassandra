@@ -115,6 +115,7 @@ public class SettingsTransport implements Serializable
             {
                 // mandatory for SSLFactory.createSSLContext(), see CASSANDRA-9325
                 encOptions.keystore = encOptions.truststore;
+                encOptions.keystore_password = encOptions.truststore_password;
             }
             encOptions.algorithm = options.alg.value();
             encOptions.protocol = options.protocol.value();

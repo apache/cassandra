@@ -1,4 +1,5 @@
 2.2.10
+ * Honor truststore-password parameter in cassandra-stress (CASSANDRA-12773)
  * Discard in-flight shadow round responses (CASSANDRA-12653)
  * Don't anti-compact repaired data to avoid inconsistencies (CASSANDRA-13153)
  * Wrong logger name in AnticompactionTask (CASSANDRA-13343)
