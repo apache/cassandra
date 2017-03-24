@@ -29,6 +29,7 @@ import java.nio.file.Paths;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -36,6 +37,7 @@ import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
@@ -79,7 +81,7 @@ public class DatabaseDescriptor
     private static InetAddress rpcAddress;
     private static InetAddress broadcastRpcAddress;
     private static SeedProvider seedProvider;
-    private static IInternodeAuthenticator internodeAuthenticator;
+    private static IInternodeAuthenticator internodeAuthenticator = new AllowAllInternodeAuthenticator();
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
@@ -1538,6 +1540,7 @@ public class DatabaseDescriptor
 
     public static void setInternodeAuthenticator(IInternodeAuthenticator internodeAuthenticator)
     {
+        Preconditions.checkNotNull(internodeAuthenticator);
         DatabaseDescriptor.internodeAuthenticator = internodeAuthenticator;
     }
 
