@@ -536,8 +536,6 @@ public final class MessagingService implements MessagingServiceMBean
                 if (cp != null)
                     cp.incrementTimeout();
 
-                getConnectionPool(expiredCallbackInfo.target).incrementTimeout();
-
                 if (expiredCallbackInfo.callback.supportsBackPressure())
                 {
                     updateBackPressureOnReceive(expiredCallbackInfo.target, expiredCallbackInfo.callback, true);
@@ -607,8 +605,12 @@ public final class MessagingService implements MessagingServiceMBean
     {
         if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
         {
-            BackPressureState backPressureState = getConnectionPool(host).getBackPressureState();
-            backPressureState.onMessageSent(message);
+            OutboundTcpConnectionPool cp = getConnectionPool(host);
+            if (cp != null)
+            {
+                BackPressureState backPressureState = cp.getBackPressureState();
+                backPressureState.onMessageSent(message);
+            }
         }
     }
 
@@ -623,11 +625,15 @@ public final class MessagingService implements MessagingServiceMBean
     {
         if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
         {
-            BackPressureState backPressureState = getConnectionPool(host).getBackPressureState();
-            if (!timeout)
-                backPressureState.onResponseReceived();
-            else
-                backPressureState.onResponseTimeout();
+            OutboundTcpConnectionPool cp = getConnectionPool(host);
+            if (cp != null)
+            {
+                BackPressureState backPressureState = cp.getBackPressureState();
+                if (!timeout)
+                    backPressureState.onResponseReceived();
+                else
+                    backPressureState.onResponseTimeout();
+            }
         }
     }
 
@@ -644,10 +650,16 @@ public final class MessagingService implements MessagingServiceMBean
     {
         if (DatabaseDescriptor.backPressureEnabled())
         {
-            backPressure.apply(StreamSupport.stream(hosts.spliterator(), false)
-                    .filter(h -> !h.equals(FBUtilities.getBroadcastAddress()))
-                    .map(h -> getConnectionPool(h).getBackPressureState())
-                    .collect(Collectors.toSet()), timeoutInNanos, TimeUnit.NANOSECONDS);
+            Set<BackPressureState> states = new HashSet<BackPressureState>();
+            for (InetAddress host : hosts)
+            {
+                if (host.equals(FBUtilities.getBroadcastAddress()))
+                    continue;
+                OutboundTcpConnectionPool cp = getConnectionPool(host);
+                if (cp != null)
+                    states.add(cp.getBackPressureState());
+            }
+            backPressure.apply(states, timeoutInNanos, TimeUnit.NANOSECONDS);
         }
     }
 
@@ -679,7 +691,7 @@ public final class MessagingService implements MessagingServiceMBean
         if (cp != null)
         {
             logger.trace("Resetting pool for {}", ep);
-            getConnectionPool(ep).reset();
+            cp.reset();
         }
         else
         {
