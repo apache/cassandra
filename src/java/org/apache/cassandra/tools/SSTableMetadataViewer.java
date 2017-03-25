@@ -129,8 +129,8 @@ public class SSTableMetadataViewer
                             minValues[i] = clusteringTypes.get(i).getString(minClusteringValues.get(i));
                             maxValues[i] = clusteringTypes.get(i).getString(maxClusteringValues.get(i));
                         }
-                        out.printf("minClustringValues: %s%n", Arrays.toString(minValues));
-                        out.printf("maxClustringValues: %s%n", Arrays.toString(maxValues));
+                        out.printf("minClusteringValues: %s%n", Arrays.toString(minValues));
+                        out.printf("maxClusteringValues: %s%n", Arrays.toString(maxValues));
                     }
                     out.printf("Estimated droppable tombstones: %s%n", stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000) - gcgs));
                     out.printf("SSTable Level: %d%n", stats.sstableLevel);
