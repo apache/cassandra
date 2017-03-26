@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 import com.google.common.base.Objects;

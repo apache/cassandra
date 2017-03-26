@@ -1808,5 +1808,7 @@ basic_unreserved_keyword returns [String str]
         | K_PER
         | K_PARTITION
         | K_GROUP
+        | K_ATTRIBUTE
+        | K_POLICY
         ) { $str = $k.text; }
     ;

@@ -2266,4 +2266,9 @@ public class DatabaseDescriptor
     {
         return backPressureStrategy;
     }
+
+    public static boolean isUsingAbac()
+    {
+        return conf.use_abac;
+    }
 }

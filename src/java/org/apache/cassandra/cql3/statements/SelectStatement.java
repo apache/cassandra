@@ -1306,4 +1306,25 @@ public class SelectStatement implements CQLStatement
             return 0;
         }
     }
+
+    @Override
+    public String decorateAbac(ClientState clientState, String cqlQuery)
+    {
+        if(table.isView())
+        {
+            TableMetadataRef tableMetadataRef = View.findBaseTable(keyspace(), columnFamily());
+            if(tableMetadataRef != null)
+            {
+                return clientState.decorateAbac(tableMetadataRef, cqlQuery);
+            }
+            else
+            {
+                return null;
+            }
+        }
+        else
+        {
+            return clientState.decorateAbac(table, cqlQuery);
+        }
+    }
 }

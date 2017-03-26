@@ -66,4 +66,16 @@ public abstract class AuthorizationStatement extends ParsedStatement implements 
         }
         return resource;
     }
+
+    /**
+     * Not required for Authorization statements.
+     * @param clientState
+     * @param cqlQuery
+     * @return
+     */
+    @Override
+    public String decorateAbac(ClientState clientState, String cqlQuery)
+    {
+        return null;
+    }
 }

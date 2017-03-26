@@ -225,6 +225,18 @@ public class QueryProcessor implements QueryHandler
         if (prepared.getBoundTerms() != options.getValues().size())
             throw new InvalidRequestException("Invalid amount of bind variables");
 
+        if (DatabaseDescriptor.isUsingAbac())
+        {
+            ClientState clientState = queryState.getClientState();
+
+            String decoratedCqlQuery = prepared.decorateAbac(clientState, );
+
+            if(!decoratedCqlQuery.equals(queryString) || null == decoratedCqlQuery)
+            {
+                return process(decoratedCqlQuery, queryState, options, queryStartNanoTime);
+            }
+        }
+
         if (!queryState.getClientState().isInternal)
             metrics.regularStatementsExecuted.inc();
 

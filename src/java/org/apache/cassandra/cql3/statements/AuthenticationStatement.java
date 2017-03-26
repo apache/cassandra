@@ -69,5 +69,17 @@ public abstract class AuthenticationStatement extends ParsedStatement implements
                                                           state.getUser().getName()));
         }
     }
+
+    /**
+     * Not required for Authentication statement.
+     * @param clientState
+     * @param cqlQuery
+     * @return
+     */
+    @Override
+    public String decorateAbac(ClientState clientState, String cqlQuery)
+    {
+        return null;
+    }
 }
 

@@ -120,4 +120,16 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         Event.SchemaChange ce = announceMigration(state, true);
         return ce == null ? new ResultMessage.Void() : new ResultMessage.SchemaChange(ce);
     }
+
+    /**
+     * Not required for Schema Altering statements.
+     * @param clientState
+     * @param cqlQuery
+     * @return
+     */
+    @Override
+    public String decorateAbac(ClientState clientState, String cqlQuery)
+    {
+        return null;
+    }
 }
