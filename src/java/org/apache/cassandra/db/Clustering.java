@@ -140,7 +140,7 @@ public interface Clustering extends ClusteringPrefix
             }
             catch (IOException e)
             {
-                throw new RuntimeException("Writting to an in-memory buffer shouldn't trigger an IOException", e);
+                throw new RuntimeException("Writing to an in-memory buffer shouldn't trigger an IOException", e);
             }
         }
 
