@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -83,6 +84,12 @@ public final class SchemaKeyspace
 
     public static final List<String> ALL =
         ImmutableList.of(KEYSPACES, TABLES, COLUMNS, DROPPED_COLUMNS, TRIGGERS, VIEWS, TYPES, FUNCTIONS, AGGREGATES, INDEXES);
+
+    /**
+     * The tables to which we added the cdc column. This is used in {@link #makeUpdateForSchema} below to make sure we skip that
+     * column is cdc is disabled as the columns breaks pre-cdc to post-cdc upgrades (typically, 3.0 -> 3.X).
+     */
+    private static final Set<String> TABLES_WITH_CDC_ADDED = ImmutableSet.of(TABLES, VIEWS);
 
     private static final CFMetaData Keyspaces =
         compile(KEYSPACES,
@@ -385,9 +392,9 @@ public final class SchemaKeyspace
     private static PartitionUpdate makeUpdateForSchema(UnfilteredRowIterator partition, ColumnFilter filter)
     {
         // This method is used during schema migration tasks, and if cdc is disabled, we want to force excluding the
-        // 'cdc' column from the TABLES schema table because it is problematic if received by older nodes (see #12236
+        // 'cdc' column from the TABLES/VIEWS schema table because it is problematic if received by older nodes (see #12236
         // and #12697). Otherwise though, we just simply "buffer" the content of the partition into a PartitionUpdate.
-        if (DatabaseDescriptor.isCDCEnabled() || !partition.metadata().cfName.equals(TABLES))
+        if (DatabaseDescriptor.isCDCEnabled() || !TABLES_WITH_CDC_ADDED.contains(partition.metadata().cfName))
             return PartitionUpdate.fromIterator(partition, filter);
 
         // We want to skip the 'cdc' column. A simple solution for that is based on the fact that
