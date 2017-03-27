@@ -413,7 +413,42 @@ public class UnfilteredSerializer
         return 1;
     }
 
+    /**
+     * Deserialize an {@link Unfiltered} from the provided input.
+     *
+     * @param in the input from which to deserialize.
+     * @param header serialization header corresponding to the serialized data.
+     * @param helper the helper to use for deserialization.
+     * @param builder a row builder, passed here so we don't allocate a new one for every new row.
+     * @return the deserialized {@link Unfiltered} or {@code null} if we've read the end of a partition. This method is
+     * guaranteed to never return empty rows.
+     */
     public Unfiltered deserialize(DataInputPlus in, SerializationHeader header, SerializationHelper helper, Row.Builder builder)
+    throws IOException
+    {
+        while (true)
+        {
+            Unfiltered unfiltered = deserializeOne(in, header, helper, builder);
+            if (unfiltered == null)
+                return null;
+
+            // Skip empty rows, see deserializeOne javadoc
+            if (!unfiltered.isEmpty())
+                return unfiltered;
+        }
+    }
+
+    /**
+     * Deserialize a single {@link Unfiltered} from the provided input.
+     * <p>
+     * <b>WARNING:</b> this can return an empty row because it's possible there is a row serialized, but that row only
+     * contains data for dropped columns, see CASSANDRA-13337. But as most code expect rows to not be empty, this isn't
+     * meant to be exposed publicly.
+     *
+     * But as {@link UnfilteredRowIterator} should not return empty
+     * rows, this mean consumer of this method should make sure to skip said empty rows.
+     */
+    private Unfiltered deserializeOne(DataInputPlus in, SerializationHeader header, SerializationHelper helper, Row.Builder builder)
     throws IOException
     {
         // It wouldn't be wrong per-se to use an unsorted builder, but it would be inefficient so make sure we don't do it by mistake
@@ -437,13 +472,7 @@ public class UnfilteredSerializer
                 throw new IOException("Corrupt flags value for unfiltered partition (isStatic flag set): " + flags);
 
             builder.newRow(Clustering.serializer.deserialize(in, helper.version, header.clusteringTypes()));
-            Row row = deserializeRowBody(in, header, helper, flags, extendedFlags, builder);
-            // we do not write empty rows because Rows.collectStats(), called by BTW.applyToRow(), asserts that rows are not empty
-            // if we don't throw here, then later the very same assertion in Rows.collectStats() will fail compactions
-            // see BlackListingCompactionsTest and CASSANDRA-9530 for details
-            if (row.isEmpty())
-                throw new IOException("Corrupt empty row found in unfiltered partition");
-            return row;
+            return deserializeRowBody(in, header, helper, flags, extendedFlags, builder);
         }
     }
 
