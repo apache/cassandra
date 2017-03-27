@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.auth;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +26,7 @@ import com.google.common.base.*;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -179,6 +181,29 @@ public class CassandraRoleManager implements IRoleManager
         }
     }
 
+    @Override
+    public Object getRoleAttribute(RoleResource roleResource, String attributeName)
+    {
+        String selectCql = String.format("SELECT attributes FROM %s.%s WHERE role = %s",
+                SchemaConstants.AUTH_KEYSPACE_NAME,
+                AuthKeyspace.ROLES,
+                roleResource.getName());
+
+        UntypedResultSet results = process(selectCql, consistencyForRole(roleResource.getRoleName()));
+
+        if(results.isEmpty())
+        {
+            return null;
+        }
+
+        Map<String, ByteBuffer> attributes =
+                results.one().getMap("attributes",
+                        (AbstractType<String>)CQL3Type.Native.TEXT.getType(),
+                        (AbstractType<ByteBuffer>)CQL3Type.Native.BLOB.getType());
+
+        return attributes.get(attributeName);
+    }
+
     public Set<Option> supportedOptions()
     {
         return supportedOptions;
@@ -193,19 +218,21 @@ public class CassandraRoleManager implements IRoleManager
     throws RequestValidationException, RequestExecutionException
     {
         String insertCql = options.getPassword().isPresent()
-                         ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', %s, %s, '%s')",
+                         ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash, attributes) VALUES ('%s', %s, %s, '%s')",
                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                          AuthKeyspace.ROLES,
                                          escape(role.getRoleName()),
                                          options.getSuperuser().or(false),
                                          options.getLogin().or(false),
-                                         escape(hashpw(options.getPassword().get())))
-                         : String.format("INSERT INTO %s.%s (role, is_superuser, can_login) VALUES ('%s', %s, %s)",
+                                         escape(hashpw(options.getPassword().get())),
+                                         options.getAttributes().or(null))
+                         : String.format("INSERT INTO %s.%s (role, is_superuser, can_login, attributes) VALUES ('%s', %s, %s)",
                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                          AuthKeyspace.ROLES,
                                          escape(role.getRoleName()),
                                          options.getSuperuser().or(false),
-                                         options.getLogin().or(false));
+                                         options.getLogin().or(false),
+                                         options.getAttributes().or(null));
         process(insertCql, consistencyForRole(role.getRoleName()));
     }
 

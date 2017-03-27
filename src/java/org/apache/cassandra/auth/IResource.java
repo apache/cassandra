@@ -65,4 +65,12 @@ public interface IResource
      * @return the permissions that may be granted on the specific resource
      */
     Set<Permission> applicablePermissions();
+
+    /**
+     * Returns the value of an attribute on a role.
+     *
+     * @param attributeName the name of the attribute as a String.
+     * @return Value of the attribute.
+     */
+    Object getAttribute(String attributeName);
 }

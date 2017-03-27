@@ -1,5 +1,9 @@
 package org.apache.cassandra.auth;
 
+import org.apache.cassandra.cql3.PolicyClause;
+
+import java.util.Set;
+
 /**
  * Created by coleman on 3/26/17.
  */
@@ -22,12 +26,7 @@ public final class AbacProxy
 
     }
 
-    public static void listAllPolicies()
-    {
-
-    }
-
-    public static void listAllPoliciesOn()
+    static Set<PolicyClause> listAllPoliciesOn(IResource resource, Permission permission)
     {
 
     }

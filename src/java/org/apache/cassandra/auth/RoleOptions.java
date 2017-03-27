@@ -27,6 +27,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static com.sun.xml.internal.ws.policy.sourcemodel.wspolicy.XmlToken.Optional;
+
 public class RoleOptions
 {
     private final Map<IRoleManager.Option, Object> options = new HashMap<>();
@@ -87,6 +89,35 @@ public class RoleOptions
     public Optional<String> getPassword()
     {
         return Optional.fromNullable((String)options.get(IRoleManager.Option.PASSWORD));
+    }
+
+    public Optional<String> getAttributes()
+    {
+        return Optional.fromNullable(mapToStringLiteral((Map<String, Object>) options.get(IRoleManager.Option.ATTRIBUTES)));
+    }
+
+    private String mapToStringLiteral(Map<String, Object> map)
+    {
+        if(map == null)
+        {
+            return "{}";
+        }
+
+        String ret = "{";
+
+        for(String key : map.keySet())
+        {
+            ret.concat(escape(key) + ":" + escape(map.get(key).toString()));
+        }
+
+        ret += "}";
+
+        return ret;
+    }
+
+    private String escape(String val)
+    {
+        return "'" + val.replace("'", "''") + "'";
     }
 
     /**
