@@ -223,7 +223,9 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                    && !stopReadingDisk())
             {
                 Unfiltered unfiltered = deserializer.readNext();
-                buffer.add(unfiltered);
+                // We may get empty row for the same reason expressed on UnfilteredSerializer.deserializeOne.
+                if (!unfiltered.isEmpty())
+                    buffer.add(unfiltered);
 
                 if (unfiltered.isRangeTombstoneMarker())
                     updateOpenMarker((RangeTombstoneMarker)unfiltered);
