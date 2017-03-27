@@ -416,4 +416,55 @@ public class AlterTest extends CQLTester
             assertEquals(errorMsg, e.getMessage());
         }
     }
+
+    /**
+     * Test for CASSANDRA-13337. Checks that dropping a column when a sstable contains only data for that column
+     * works properly.
+     */
+    @Test
+    public void testAlterDropEmptySSTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s(k int PRIMARY KEY, x int, y int)");
+
+        execute("UPDATE %s SET x = 1 WHERE k = 0");
+
+        flush();
+
+        execute("UPDATE %s SET x = 1, y = 1 WHERE k = 0");
+
+        flush();
+
+        execute("ALTER TABLE %s DROP x");
+
+        compact();
+
+        assertRows(execute("SELECT * FROM %s"), row(0, 1));
+    }
+
+    /**
+     * Similarly to testAlterDropEmptySSTable, checks we don't return empty rows from queries (testAlterDropEmptySSTable
+     * tests the compaction case).
+     */
+    @Test
+    public void testAlterOnlyColumnBehaviorWithFlush() throws Throwable
+    {
+        testAlterOnlyColumnBehaviorWithFlush(true);
+        testAlterOnlyColumnBehaviorWithFlush(false);
+    }
+
+    private void testAlterOnlyColumnBehaviorWithFlush(boolean flushAfterInsert) throws Throwable
+    {
+        createTable("CREATE TABLE %s(k int PRIMARY KEY, x int, y int)");
+
+        execute("UPDATE %s SET x = 1 WHERE k = 0");
+
+        assertRows(execute("SELECT * FROM %s"), row(0, 1, null));
+
+        if (flushAfterInsert)
+            flush();
+
+        execute("ALTER TABLE %s DROP x");
+
+        assertEmpty(execute("SELECT * FROM %s"));
+    }
 }
