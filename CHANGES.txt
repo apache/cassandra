@@ -1,4 +1,5 @@
 3.11.0
+ * DataOutputBuffer.asNewBuffer broken (CASSANDRA-13298)
  * unittest CipherFactoryTest failed on MacOS (CASSANDRA-13370)
  * Forbid SELECT restrictions and CREATE INDEX over non-frozen UDT columns (CASSANDRA-13247)
  * Default logging we ship will incorrectly print "?:?" for "%F:%L" pattern (CASSANDRA-13317)
