@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.NativeLibrary;
 
 /**
  * Because a column family may have sstables on different disks and disks can
@@ -45,12 +45,12 @@ final class LogReplica implements AutoCloseable
 
     static LogReplica create(File directory, String fileName)
     {
-        return new LogReplica(new File(fileName), CLibrary.tryOpenDirectory(directory.getPath()));
+        return new LogReplica(new File(fileName), NativeLibrary.tryOpenDirectory(directory.getPath()));
     }
 
     static LogReplica open(File file)
     {
-        return new LogReplica(file, CLibrary.tryOpenDirectory(file.getParentFile().getPath()));
+        return new LogReplica(file, NativeLibrary.tryOpenDirectory(file.getParentFile().getPath()));
     }
 
     LogReplica(File file, int directoryDescriptor)
@@ -93,7 +93,7 @@ final class LogReplica implements AutoCloseable
     void syncDirectory()
     {
         if (directoryDescriptor >= 0)
-            CLibrary.trySync(directoryDescriptor);
+            NativeLibrary.trySync(directoryDescriptor);
     }
 
     void delete()
@@ -111,7 +111,7 @@ final class LogReplica implements AutoCloseable
     {
         if (directoryDescriptor >= 0)
         {
-            CLibrary.tryCloseFD(directoryDescriptor);
+            NativeLibrary.tryCloseFD(directoryDescriptor);
             directoryDescriptor = -1;
         }
     }

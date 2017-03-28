@@ -176,7 +176,7 @@ public class SyncUtil
         if (SKIP_SYNC)
             return;
         else
-            CLibrary.trySync(fd);
+            NativeLibrary.trySync(fd);
     }
 
     public static void trySyncDir(File dir)
@@ -184,14 +184,14 @@ public class SyncUtil
         if (SKIP_SYNC)
             return;
 
-        int directoryFD = CLibrary.tryOpenDirectory(dir.getPath());
+        int directoryFD = NativeLibrary.tryOpenDirectory(dir.getPath());
         try
         {
             trySync(directoryFD);
         }
         finally
         {
-            CLibrary.tryCloseFD(directoryFD);
+            NativeLibrary.tryCloseFD(directoryFD);
         }
     }
 }

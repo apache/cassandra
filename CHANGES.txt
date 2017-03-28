@@ -18,6 +18,7 @@
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
  * Address message coalescing regression (CASSANDRA-12676)
 Merged from 3.0:
+ * Use the Kernel32 library to retrieve the PID on Windows and fix startup checks (CASSANDRA-13333)
  * Fix code to not exchange schema across major versions (CASSANDRA-13274)
  * Dropping column results in "corrupt" SSTable (CASSANDRA-13337)
  * Bugs handling range tombstones in the sstable iterators (CASSANDRA-13340)

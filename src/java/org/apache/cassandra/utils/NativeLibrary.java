@@ -31,14 +31,14 @@ import org.slf4j.LoggerFactory;
 import com.sun.jna.LastErrorException;
 import sun.nio.ch.FileChannelImpl;
 
-import static org.apache.cassandra.utils.CLibrary.OSType.LINUX;
-import static org.apache.cassandra.utils.CLibrary.OSType.MAC;
-import static org.apache.cassandra.utils.CLibrary.OSType.WINDOWS;
-import static org.apache.cassandra.utils.CLibrary.OSType.AIX;
+import static org.apache.cassandra.utils.NativeLibrary.OSType.LINUX;
+import static org.apache.cassandra.utils.NativeLibrary.OSType.MAC;
+import static org.apache.cassandra.utils.NativeLibrary.OSType.WINDOWS;
+import static org.apache.cassandra.utils.NativeLibrary.OSType.AIX;
 
-public final class CLibrary
+public final class NativeLibrary
 {
-    private static final Logger logger = LoggerFactory.getLogger(CLibrary.class);
+    private static final Logger logger = LoggerFactory.getLogger(NativeLibrary.class);
 
     public enum OSType
     {
@@ -69,7 +69,7 @@ public final class CLibrary
     private static final int POSIX_FADV_DONTNEED   = 4; /* fadvise.h */
     private static final int POSIX_FADV_NOREUSE    = 5; /* fadvise.h */
 
-    private static final CLibraryWrapper wrappedCLibrary;
+    private static final NativeLibraryWrapper wrappedLibrary;
     private static boolean jnaLockable = false;
 
     private static final Field FILE_DESCRIPTOR_FD_FIELD;
@@ -85,12 +85,12 @@ public final class CLibrary
         osType = getOsType();
         switch (osType)
         {
-            case MAC: wrappedCLibrary = new CLibraryDarwin(); break;
-            case WINDOWS: wrappedCLibrary = new CLibraryWindows(); break;
+            case MAC: wrappedLibrary = new NativeLibraryDarwin(); break;
+            case WINDOWS: wrappedLibrary = new NativeLibraryWindows(); break;
             case LINUX:
             case AIX:
             case OTHER:
-            default: wrappedCLibrary = new CLibraryLinux();
+            default: wrappedLibrary = new NativeLibraryLinux();
         }
 
         if (System.getProperty("os.arch").toLowerCase().contains("ppc"))
@@ -118,7 +118,7 @@ public final class CLibrary
         }
     }
 
-    private CLibrary() {}
+    private NativeLibrary() {}
 
     /**
      * @return the detected OSType of the Operating System running the JVM using crude string matching
@@ -151,9 +151,13 @@ public final class CLibrary
         }
     }
 
-    public static boolean jnaAvailable()
+    /**
+     * Checks if the library has been successfully linked.
+     * @return {@code true} if the library has been successfully linked, {@code false} otherwise.
+     */
+    public static boolean isAvailable()
     {
-        return wrappedCLibrary.jnaAvailable();
+        return wrappedLibrary.isAvailable();
     }
 
     public static boolean jnaMemoryLockable()
@@ -165,7 +169,7 @@ public final class CLibrary
     {
         try
         {
-            wrappedCLibrary.callMlockall(MCL_CURRENT);
+            wrappedLibrary.callMlockall(MCL_CURRENT);
             jnaLockable = true;
             logger.info("JNA mlockall successful");
         }
@@ -231,14 +235,14 @@ public final class CLibrary
         {
             if (osType == LINUX)
             {
-                int result = wrappedCLibrary.callPosixFadvise(fd, offset, len, POSIX_FADV_DONTNEED);
+                int result = wrappedLibrary.callPosixFadvise(fd, offset, len, POSIX_FADV_DONTNEED);
                 if (result != 0)
                     NoSpamLogger.log(
                             logger,
                             NoSpamLogger.Level.WARN,
                             10,
                             TimeUnit.MINUTES,
-                            "Failed trySkipCache on file: {} Error: " + wrappedCLibrary.callStrerror(result).getString(0),
+                            "Failed trySkipCache on file: {} Error: " + wrappedLibrary.callStrerror(result).getString(0),
                             path);
             }
         }
@@ -263,7 +267,7 @@ public final class CLibrary
 
         try
         {
-            result = wrappedCLibrary.callFcntl(fd, command, flags);
+            result = wrappedLibrary.callFcntl(fd, command, flags);
         }
         catch (UnsatisfiedLinkError e)
         {
@@ -286,7 +290,7 @@ public final class CLibrary
 
         try
         {
-            return wrappedCLibrary.callOpen(path, O_RDONLY);
+            return wrappedLibrary.callOpen(path, O_RDONLY);
         }
         catch (UnsatisfiedLinkError e)
         {
@@ -310,7 +314,7 @@ public final class CLibrary
 
         try
         {
-            wrappedCLibrary.callFsync(fd);
+            wrappedLibrary.callFsync(fd);
         }
         catch (UnsatisfiedLinkError e)
         {
@@ -332,7 +336,7 @@ public final class CLibrary
 
         try
         {
-            wrappedCLibrary.callClose(fd);
+            wrappedLibrary.callClose(fd);
         }
         catch (UnsatisfiedLinkError e)
         {
@@ -387,7 +391,7 @@ public final class CLibrary
     {
         try
         {
-            return wrappedCLibrary.callGetpid();
+            return wrappedLibrary.callGetpid();
         }
         catch (Exception e)
         {
