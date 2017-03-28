@@ -74,7 +74,7 @@ public class StartupChecks
                                                                       checkValidLaunchDate,
                                                                       checkJMXPorts,
                                                                       inspectJvmOptions,
-                                                                      checkJnaInitialization,
+                                                                      checkNativeLibraryInitialization,
                                                                       initSigarLibrary,
                                                                       checkMaxMapCount,
                                                                       checkDataDirs,
@@ -184,13 +184,13 @@ public class StartupChecks
         }
     };
 
-    public static final StartupCheck checkJnaInitialization = new StartupCheck()
+    public static final StartupCheck checkNativeLibraryInitialization = new StartupCheck()
     {
         public void execute() throws StartupException
         {
-            // Fail-fast if JNA is not available or failing to initialize properly
-            if (!CLibrary.jnaAvailable())
-                throw new StartupException(3, "JNA failing to initialize properly. ");
+            // Fail-fast if the native library could not be linked.
+            if (!NativeLibrary.isAvailable())
+                throw new StartupException(3, "The native library could not be initialized properly. ");
         }
     };
 

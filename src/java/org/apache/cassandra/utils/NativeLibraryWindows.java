@@ -21,21 +21,51 @@ package org.apache.cassandra.utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.sun.jna.LastErrorException;
+import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 
 /**
- * A CLibraryWrapper implementation for Windows.
- * <p>
- * As libc isn't available on Windows these implementations
- * will obviously be a no-op, however when possible implementations
- * are used that are Windows friendly that will return the same
- * return value.
- * @see org.apache.cassandra.utils.CLibraryWrapper
- * @see CLibrary
+ * A {@code NativeLibraryWrapper} implementation for Windows.
+ * <p> This implementation only offer support for the {@code callGetpid} method
+ * using the Windows/Kernel32 library.</p>
+ *
+ * @see org.apache.cassandra.utils.NativeLibraryWrapper
+ * @see NativeLibrary
  */
-public class CLibraryWindows implements CLibraryWrapper
+public class NativeLibraryWindows implements NativeLibraryWrapper
 {
-    private static final Logger logger = LoggerFactory.getLogger(CLibraryWindows.class);
+    private static boolean available;
+
+    private static final Logger logger = LoggerFactory.getLogger(NativeLibraryWindows.class);
+
+    static
+    {
+        try
+        {
+            Native.register("kernel32");
+            available = true;
+        }
+        catch (NoClassDefFoundError e)
+        {
+            logger.warn("JNA not found. Native methods will be disabled.");
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            logger.error("Failed to link the Windows/Kernel32 library against JNA. Native methods will be unavailable.", e);
+        }
+        catch (NoSuchMethodError e)
+        {
+            logger.warn("Obsolete version of JNA present; unable to register Windows/Kernel32 library. Upgrade to JNA 3.2.7 or later");
+        }
+    }
+
+    /**
+     * Retrieves the process identifier of the calling process (<a href='https://msdn.microsoft.com/en-us/library/windows/desktop/ms683180(v=vs.85).aspx'>GetCurrentProcessId function</a>).
+     *
+     * @return the process identifier of the calling process
+     */
+    private static native long GetCurrentProcessId() throws LastErrorException;
 
     public int callMlockall(int flags) throws UnsatisfiedLinkError, RuntimeException
     {
@@ -84,20 +114,11 @@ public class CLibraryWindows implements CLibraryWrapper
      */
     public long callGetpid() throws UnsatisfiedLinkError, RuntimeException
     {
-        try
-        {
-            return SigarLibrary.instance.getPid();
-        }
-        catch (Exception e)
-        {
-            logger.error("Failed to initialize or use Sigar Library", e);
-        }
-
-        return -1;
+        return GetCurrentProcessId();
     }
 
-    public boolean jnaAvailable()
+    public boolean isAvailable()
     {
-        return false;
+        return available;
     }
 }

@@ -22,11 +22,15 @@ import com.sun.jna.Pointer;
 
 /**
  * An interface to implement for using OS specific native methods.
- * @see CLibrary
+ * @see NativeLibrary
  */
-interface CLibraryWrapper
+interface NativeLibraryWrapper
 {
-    boolean jnaAvailable();
+    /**
+     * Checks if the library has been successfully linked.
+     * @return {@code true} if the library has been successfully linked, {@code false} otherwise.
+     */
+    boolean isAvailable();
 
     int callMlockall(int flags) throws UnsatisfiedLinkError, RuntimeException;
     int callMunlockall() throws UnsatisfiedLinkError, RuntimeException;

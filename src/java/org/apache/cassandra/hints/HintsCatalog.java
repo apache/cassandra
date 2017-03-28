@@ -27,7 +27,7 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.io.FSReadError;
-import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SyncUtil;
 
 import static java.util.stream.Collectors.groupingBy;
@@ -130,11 +130,11 @@ final class HintsCatalog
 
     void fsyncDirectory()
     {
-        int fd = CLibrary.tryOpenDirectory(hintsDirectory.getAbsolutePath());
+        int fd = NativeLibrary.tryOpenDirectory(hintsDirectory.getAbsolutePath());
         if (fd != -1)
         {
             SyncUtil.trySync(fd);
-            CLibrary.tryCloseFD(fd);
+            NativeLibrary.tryCloseFD(fd);
         }
     }
 

@@ -34,6 +34,10 @@ public final class WindowsTimer
         {
             Native.register("winmm");
         }
+        catch (NoClassDefFoundError e)
+        {
+            logger.warn("JNA not found. winmm.dll cannot be registered. Performance will be negatively impacted on this node.");
+        }
         catch (Exception e)
         {
             logger.error("Failed to register winmm.dll. Performance will be negatively impacted on this node.");

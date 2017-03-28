@@ -26,7 +26,7 @@ import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 
 /**
- * A CLibraryWrapper implementation for Darwin/Mac.
+ * A {@code NativeLibraryWrapper} implementation for Darwin/Mac.
  * <p>
  * When JNA is initialized, all methods that have the 'native' keyword
  * will be attmpted to be linked against. As Java doesn't have the equivalent
@@ -37,35 +37,33 @@ import com.sun.jna.Pointer;
  * native calls that are supported on that target operating system will be
  * unavailable simply because of one native defined method not supported
  * on the runtime operating system.
- * @see org.apache.cassandra.utils.CLibraryWrapper
- * @see CLibrary
+ * @see org.apache.cassandra.utils.NativeLibraryWrapper
+ * @see NativeLibrary
  */
-public class CLibraryDarwin implements CLibraryWrapper
+public class NativeLibraryDarwin implements NativeLibraryWrapper
 {
-    private static final Logger logger = LoggerFactory.getLogger(CLibraryDarwin.class);
+    private static final Logger logger = LoggerFactory.getLogger(NativeLibraryDarwin.class);
 
-    private static boolean jnaAvailable = true;
+    private static boolean available;
 
     static
     {
         try
         {
             Native.register("c");
+            available = true;
         }
         catch (NoClassDefFoundError e)
         {
             logger.warn("JNA not found. Native methods will be disabled.");
-            jnaAvailable = false;
         }
         catch (UnsatisfiedLinkError e)
         {
-            logger.warn("JNA link failure, one or more native method will be unavailable.");
-            logger.error("JNA link failure details: {}", e.getMessage());
+            logger.error("Failed to link the C library against JNA. Native methods will be unavailable.", e);
         }
         catch (NoSuchMethodError e)
         {
             logger.warn("Obsolete version of JNA present; unable to register C library. Upgrade to JNA 3.2.7 or later");
-            jnaAvailable = false;
         }
     }
 
@@ -124,8 +122,8 @@ public class CLibraryDarwin implements CLibraryWrapper
         return getpid();
     }
 
-    public boolean jnaAvailable()
+    public boolean isAvailable()
     {
-        return jnaAvailable;
+        return available;
     }
 }

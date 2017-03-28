@@ -34,7 +34,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.Throwables;
 
@@ -71,7 +71,7 @@ class HintsWriter implements AutoCloseable
         File file = new File(directory, descriptor.fileName());
 
         FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
-        int fd = CLibrary.getfd(channel);
+        int fd = NativeLibrary.getfd(channel);
 
         CRC32 crc = new CRC32();
 
@@ -293,7 +293,7 @@ class HintsWriter implements AutoCloseable
             // don't skip page cache for tiny files, on the assumption that if they are tiny, the target node is probably
             // alive, and if so, the file will be closed and dispatched shortly (within a minute), and the file will be dropped.
             if (position >= DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024L)
-                CLibrary.trySkipCache(fd, 0, position - (position % PAGE_SIZE), file.getPath());
+                NativeLibrary.trySkipCache(fd, 0, position - (position % PAGE_SIZE), file.getPath());
         }
     }
 }

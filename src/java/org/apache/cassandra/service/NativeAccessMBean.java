@@ -19,7 +19,15 @@ package org.apache.cassandra.service;
 
 public interface NativeAccessMBean 
 {
+    /**
+     * Checks if the native library has been successfully linked.
+     * @return {@code true} if the library has been successfully linked, {@code false} otherwise.
+     */
     boolean isAvailable();
 
+    /**
+     * Checks if the native library is able to lock memory.
+     * @return {@code true} if the native library is able to lock memory, {@code false} otherwise.
+     */
     boolean isMemoryLockable();
 }

@@ -34,7 +34,7 @@ import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.IndexSummaryBuilder;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
 
@@ -137,7 +137,7 @@ public abstract class SegmentedFile extends SharedCloseableImpl
 
     public void dropPageCache(long before)
     {
-        CLibrary.trySkipCache(channel.getFileDescriptor(), 0, before, path());
+        NativeLibrary.trySkipCache(channel.getFileDescriptor(), 0, before, path());
     }
 
     /**
