@@ -34,6 +34,8 @@ Upgrading
       a 3.0.x/3.x version first (and run upgradesstable). In particular, this
       mean Cassandra 4.0 cannot load or read pre-3.0 sstables in any way: you
       will need to upgrade those sstable in 3.0.x/3.x first.
+    - Upgrades from 3.0.x or 3.x are supported since 3.0.13 or 3.11.0, previous
+      versions will causes issues during rolling upgrades (CASSANDRA-13274).
     - Cassandra will no longer allow invalid keyspace replication options, such
       as invalid datacenter names for NetworkTopologyStrategy. Operators MUST
       add new nodes to a datacenter before they can set set ALTER or CREATE

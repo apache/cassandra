@@ -1122,8 +1122,6 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public int setVersion(InetAddress endpoint, int version)
     {
-        // We can't talk to someone from the future
-        version = Math.min(version, current_version);
         logger.trace("Setting version {} for {}", version, endpoint);
 
         Integer v = versions.put(endpoint, version);
@@ -1136,6 +1134,10 @@ public final class MessagingService implements MessagingServiceMBean
         versions.remove(endpoint);
     }
 
+    /**
+     * Returns the messaging-version as announced by the given node but capped
+     * to the min of the version as announced by the node and {@link #current_version}.
+     */
     public int getVersion(InetAddress endpoint)
     {
         Integer v = versions.get(endpoint);
@@ -1154,6 +1156,9 @@ public final class MessagingService implements MessagingServiceMBean
         return getVersion(InetAddress.getByName(endpoint));
     }
 
+    /**
+     * Returns the messaging-version exactly as announced by the given endpoint.
+     */
     public int getRawVersion(InetAddress endpoint)
     {
         Integer v = versions.get(endpoint);
