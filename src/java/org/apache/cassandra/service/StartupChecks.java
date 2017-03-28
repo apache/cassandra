@@ -42,7 +42,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SigarLibrary;
 
@@ -80,7 +80,7 @@ public class StartupChecks
                                                                       checkJMXPorts,
                                                                       checkJMXProperties,
                                                                       inspectJvmOptions,
-                                                                      checkJnaInitialization,
+                                                                      checkNativeLibraryInitialization,
                                                                       initSigarLibrary,
                                                                       checkMaxMapCount,
                                                                       checkDataDirs,
@@ -203,13 +203,13 @@ public class StartupChecks
         }
     };
 
-    public static final StartupCheck checkJnaInitialization = new StartupCheck()
+    public static final StartupCheck checkNativeLibraryInitialization = new StartupCheck()
     {
         public void execute() throws StartupException
         {
-            // Fail-fast if JNA is not available or failing to initialize properly
-            if (!CLibrary.jnaAvailable())
-                throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE, "JNA failing to initialize properly. ");
+            // Fail-fast if the native library could not be linked.
+            if (!NativeLibrary.isAvailable())
+                throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE, "The native library could not be initialized properly. ");
         }
     };
 

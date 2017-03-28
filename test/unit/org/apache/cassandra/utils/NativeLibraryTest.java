@@ -25,20 +25,20 @@ import org.junit.Test;
 
 import org.apache.cassandra.io.util.FileUtils;
 
-public class CLibraryTest
+public class NativeLibraryTest
 {
     @Test
     public void testSkipCache()
     {
         File file = FileUtils.createTempFile("testSkipCache", "1");
 
-        CLibrary.trySkipCache(file.getPath(), 0, 0);
+        NativeLibrary.trySkipCache(file.getPath(), 0, 0);
     }
 
     @Test
     public void getPid()
     {
-        long pid = CLibrary.getProcessID();
+        long pid = NativeLibrary.getProcessID();
         Assert.assertTrue(pid > 0);
     }
 }

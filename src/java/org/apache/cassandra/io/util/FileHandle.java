@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
@@ -164,7 +164,7 @@ public class FileHandle extends SharedCloseableImpl
             else
                 return metadata.chunkFor(before).offset;
         }).orElse(before);
-        CLibrary.trySkipCache(channel.getFileDescriptor(), 0, position, path());
+        NativeLibrary.trySkipCache(channel.getFileDescriptor(), 0, position, path());
     }
 
     private Rebufferer instantiateRebufferer(RateLimiter limiter)

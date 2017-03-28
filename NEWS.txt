@@ -54,6 +54,9 @@ Upgrading
 
 Upgrading
 ---------
+   - The NativeAccessMBean isAvailable method will only return true if the
+     native library has been successfully linked. Previously it was returning
+     true if JNA could be found but was not taking into account link failures.
    - Primary ranges in the system.size_estimates table are now based on the keyspace
      replication settings and adjacent ranges are no longer merged (CASSANDRA-9639).
    - In 2.1, the default for otc_coalescing_strategy was 'DISABLED'.
