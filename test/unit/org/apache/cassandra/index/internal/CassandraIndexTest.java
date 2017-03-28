@@ -358,6 +358,32 @@ public class CassandraIndexTest extends CQLTester
     }
 
     @Test
+    public void indexOnStaticColumn() throws Throwable
+    {
+        Object[] row1 = row("k0", "c0", "s0");
+        Object[] row2 = row("k0", "c1", "s0");
+        Object[] row3 = row("k1", "c0", "s1");
+        Object[] row4 = row("k1", "c1", "s1");
+
+        createTable("CREATE TABLE %s (k text, c text, s text static, PRIMARY KEY (k, c));");
+        createIndex("CREATE INDEX sc_index on %s(s)");
+
+        execute("INSERT INTO %s (k, c, s) VALUES (?, ?, ?)", row1);
+        execute("INSERT INTO %s (k, c, s) VALUES (?, ?, ?)", row2);
+        execute("INSERT INTO %s (k, c, s) VALUES (?, ?, ?)", row3);
+        execute("INSERT INTO %s (k, c, s) VALUES (?, ?, ?)", row4);
+
+        assertRows(execute("SELECT * FROM %s WHERE s = ?", "s0"), row1, row2);
+        assertRows(execute("SELECT * FROM %s WHERE s = ?", "s1"), row3, row4);
+
+        assertRows(execute("SELECT * FROM %s WHERE s = ? AND token(k) >= token(?)", "s0", "k0"), row1, row2);
+        assertRows(execute("SELECT * FROM %s WHERE s = ? AND token(k) >= token(?)", "s1", "k1"), row3, row4);
+
+        assertEmpty(execute("SELECT * FROM %s WHERE s = ? AND token(k) < token(?)", "s0", "k0"));
+        assertEmpty(execute("SELECT * FROM %s WHERE s = ? AND token(k) < token(?)", "s1", "k1"));
+    }
+
+    @Test
     public void createIndexesOnMultipleMapDimensions() throws Throwable
     {
         Object[] row1 = row(0, 0, ImmutableMap.of("a", 10, "b", 20, "c", 30));
