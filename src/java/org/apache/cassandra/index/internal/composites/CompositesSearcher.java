@@ -114,6 +114,12 @@ public class CompositesSearcher extends CassandraIndexSearcher
                     List<IndexEntry> entries = new ArrayList<>();
                     if (isStaticColumn())
                     {
+                        // The index hit may not match the commad key constraint
+                        if (!isMatchingEntry(partitionKey, nextEntry, command)) {
+                            nextEntry = indexHits.hasNext() ? index.decodeEntry(indexKey, indexHits.next()) : null;
+                            continue;
+                        }
+
                         // If the index is on a static column, we just need to do a full read on the partition.
                         // Note that we want to re-use the command.columnFilter() in case of future change.
                         dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata,
