@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -97,6 +98,31 @@ public class LegacySchemaMigratorTest
         // format of index name: the index_name column of system.IndexInfo used to
         // contain table_name.index_name. Now it should contain just the index_name.
         expected.forEach(LegacySchemaMigratorTest::verifyIndexBuildStatus);
+    }
+
+    @Test
+    public void testMigrateLegacyCachingOptions() throws IOException
+    {
+        CQLTester.cleanupAndLeaveDirs();
+
+        assertEquals(CachingParams.CACHE_EVERYTHING, LegacySchemaMigrator.cachingFromRow("ALL"));
+        assertEquals(CachingParams.CACHE_NOTHING, LegacySchemaMigrator.cachingFromRow("NONE"));
+        assertEquals(CachingParams.CACHE_KEYS, LegacySchemaMigrator.cachingFromRow("KEYS_ONLY"));
+        assertEquals(new CachingParams(false, Integer.MAX_VALUE), LegacySchemaMigrator.cachingFromRow("ROWS_ONLY"));
+        assertEquals(CachingParams.CACHE_KEYS, LegacySchemaMigrator.cachingFromRow("{\"keys\" : \"ALL\", \"rows_per_partition\" : \"NONE\"}" ));
+        assertEquals(new CachingParams(false, Integer.MAX_VALUE), LegacySchemaMigrator.cachingFromRow("{\"keys\" : \"NONE\", \"rows_per_partition\" : \"ALL\"}" ));
+        assertEquals(new CachingParams(true, 100), LegacySchemaMigrator.cachingFromRow("{\"keys\" : \"ALL\", \"rows_per_partition\" : \"100\"}" ));
+
+        try
+        {
+            LegacySchemaMigrator.cachingFromRow("EXCEPTION");
+            Assert.fail();
+        }
+        catch(RuntimeException e)
+        {
+            // Expected passing path
+            assertTrue(true);
+        }
     }
 
     private static FieldIdentifier field(String field)
