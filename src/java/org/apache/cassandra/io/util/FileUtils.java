@@ -28,6 +28,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.stream.StreamSupport;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -369,6 +372,13 @@ public final class FileUtils
 
     public static void delete(File... files)
     {
+        if (files == null)
+        {
+            // CASSANDRA-13389: some callers use Files.listFiles() which, on error, silently returns null
+            logger.debug("Received null list of files to delete");
+            return;
+        }
+
         for ( File file : files )
         {
             file.delete();
@@ -385,6 +395,22 @@ public final class FileUtils
             }
         };
         ScheduledExecutors.nonPeriodicTasks.execute(runnable);
+    }
+
+    public static void visitDirectory(Path dir, Predicate<? super File> filter, Consumer<? super File> consumer)
+    {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir))
+        {
+            StreamSupport.stream(stream.spliterator(), false)
+                         .map(Path::toFile)
+                         // stream directories are weakly consistent so we always check if the file still exists
+                         .filter(f -> f.exists() && (filter == null || filter.test(f)))
+                         .forEach(consumer);
+        }
+        catch (IOException|DirectoryIteratorException ex)
+        {
+            logger.error("Failed to list files in {} with exception: {}", dir, ex.getMessage(), ex);
+        }
     }
 
     public static String stringifyFileSize(double value)
