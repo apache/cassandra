@@ -26,8 +26,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.PeekingIterator;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -43,8 +41,6 @@ import org.apache.cassandra.net.MessagingService;
  */
 public abstract class UnfilteredDeserializer
 {
-    private static final Logger logger = LoggerFactory.getLogger(UnfilteredDeserializer.class);
-
     protected final CFMetaData metadata;
     protected final DataInputPlus in;
     protected final SerializationHelper helper;
@@ -434,21 +430,31 @@ public abstract class UnfilteredDeserializer
                 {
                     if (atoms.hasNext())
                     {
+                        // If there is a range tombstone to open strictly before the next row/RT, we need to return that open (or boundary) marker first.
+                        if (tombstoneTracker.hasOpeningMarkerBefore(atoms.peek()))
+                        {
+                            next = tombstoneTracker.popOpeningMarker();
+                        }
                         // If a range tombstone closes strictly before the next row/RT, we need to return that close (or boundary) marker first.
-                        if (tombstoneTracker.hasClosingMarkerBefore(atoms.peek()))
+                        else if (tombstoneTracker.hasClosingMarkerBefore(atoms.peek()))
                         {
                             next = tombstoneTracker.popClosingMarker();
                         }
                         else
                         {
                             LegacyLayout.LegacyAtom atom = atoms.next();
-                            if (!tombstoneTracker.isShadowed(atom))
-                                next = isRow(atom) ? readRow(atom) : tombstoneTracker.openNew(atom.asRangeTombstone());
+                            if (tombstoneTracker.isShadowed(atom))
+                                continue;
+
+                            if (isRow(atom))
+                                next = readRow(atom);
+                            else
+                                tombstoneTracker.openNew(atom.asRangeTombstone());
                         }
                     }
                     else if (tombstoneTracker.hasOpenTombstones())
                     {
-                        next = tombstoneTracker.popClosingMarker();
+                        next = tombstoneTracker.popMarker();
                     }
                     else
                     {
@@ -563,10 +569,30 @@ public abstract class UnfilteredDeserializer
 
             /**
              * Tracks which range tombstones are open when deserializing the old format.
+             * <p>
+             * This is a bit tricky because in the old of format we could have duplicated tombstones, overlapping ones,
+             * shadowed ones, etc.., but we should generate from that a "flat" output where at most one non-shadoowed
+             * range is open at any given time and without empty range.
+             * <p>
+             * One consequence of that is that we have to be careful to not generate markers too soon. For instance,
+             * we might get a range tombstone [1, 1]@3 followed by [1, 10]@5. So if we generate an opening marker on
+             * the first tombstone (so INCL_START(1)@3), we're screwed when we get to the 2nd range tombstone: we really
+             * should ignore the first tombstone in that that and generate INCL_START(1)@5 (assuming obviously we don't
+             * have one more range tombstone starting at 1 in the stream). This is why we have the
+             * {@link #hasOpeningMarkerBefore} method: in practice, we remember when a marker should be opened, but only
+             * generate that opening marker when we're sure that we won't get anything shadowing that marker.
+             * <p>
+             * For closing marker, we also have a {@link #hasClosingMarkerBefore} because in the old format the closing
+             * markers comes with the opening one, but we should generate them "in order" in the new format.
              */
             private class TombstoneTracker
             {
                 private final DeletionTime partitionDeletion;
+
+                // As explained in the javadoc, we need to wait to generate an opening marker until we're sure we have
+                // seen anything that could shadow it. So this remember a marker that needs to be opened but hasn't
+                // been yet. This is truly returned when hasOpeningMarkerBefore tells us it's safe to.
+                private RangeTombstoneMarker openMarkerToReturn;
 
                 // Open tombstones sorted by their closing bound (i.e. first tombstone is the first to close).
                 // As we only track non-fully-shadowed ranges, the first range is necessarily the currently
@@ -592,6 +618,23 @@ public abstract class UnfilteredDeserializer
 
                     SortedSet<LegacyLayout.LegacyRangeTombstone> coveringTombstones = isRow(atom) ? openTombstones : openTombstones.tailSet(atom.asRangeTombstone());
                     return Iterables.any(coveringTombstones, tombstone -> tombstone.deletionTime.deletes(timestamp));
+                }
+
+                /**
+                 * Whether there is an outstanding opening marker that should be returned before we process the provided row/RT.
+                 */
+                public boolean hasOpeningMarkerBefore(LegacyLayout.LegacyAtom atom)
+                {
+                    return openMarkerToReturn != null
+                           && metadata.comparator.compare(openMarkerToReturn.openBound(false), atom.clustering()) < 0;
+                }
+
+                public Unfiltered popOpeningMarker()
+                {
+                    assert openMarkerToReturn != null;
+                    Unfiltered toReturn = openMarkerToReturn;
+                    openMarkerToReturn = null;
+                    return toReturn;
                 }
 
                 /**
@@ -623,35 +666,56 @@ public abstract class UnfilteredDeserializer
                     return RangeTombstoneBoundaryMarker.makeBoundary(false, first.stop.bound, first.stop.bound.invert(), first.deletionTime, next.deletionTime);
                 }
 
+                 /**
+                  * Pop whatever next marker needs to be popped. This should be called as many time as necessary (until
+                  * {@link #hasOpenTombstones} returns {@false}) when all atoms have been consumed to "empty" the tracker.
+                  */
+                 public Unfiltered popMarker()
+                 {
+                     assert hasOpenTombstones();
+                     return openMarkerToReturn == null ? popClosingMarker() : popOpeningMarker();
+                 }
+
                 /**
-                 * Update the tracker given the provided newly open tombstone. This return the Unfiltered corresponding to the opening
-                 * of said tombstone: this can be a simple open mark, a boundary (if there was an open tombstone superseded by this new one)
-                 * or even null (if the new tombstone start is supersedes by the currently open tombstone).
+                 * Update the tracker given the provided newly open tombstone. This potentially update openMarkerToReturn
+                 * to account for th new opening.
                  *
-                 * Note that this method assume the added tombstone is not fully shadowed, i.e. that !isShadowed(tombstone). It also
-                 * assumes no opened tombstone closes before that tombstone (so !hasClosingMarkerBefore(tombstone)).
+                 * Note that this method assumes that:
+                 +  1) the added tombstone is not fully shadowed: !isShadowed(tombstone).
+                 +  2) there is no marker to open that open strictly before this new tombstone: !hasOpeningMarkerBefore(tombstone).
+                 +  3) no opened tombstone closes before that tombstone: !hasClosingMarkerBefore(tombstone).
+                 + One can check that this is only called after the condition above have been checked in UnfilteredIterator.hasNext above.
                  */
-                public Unfiltered openNew(LegacyLayout.LegacyRangeTombstone tombstone)
+                public void openNew(LegacyLayout.LegacyRangeTombstone tombstone)
                 {
                     if (openTombstones.isEmpty())
                     {
+                        // If we have an openMarkerToReturn, the corresponding RT must be in openTombstones (or we wouldn't know when to close it)
+                        assert openMarkerToReturn == null;
                         openTombstones.add(tombstone);
-                        return new RangeTombstoneBoundMarker(tombstone.start.bound, tombstone.deletionTime);
+                        openMarkerToReturn = new RangeTombstoneBoundMarker(tombstone.start.bound, tombstone.deletionTime);
+                        return;
                     }
 
-                    // Add the new tombstone, and then check if it changes the currently open deletion or not.
-                    // Note: we grab the first tombstone (which represents the currently open deletion time) before adding
-                    // because add() can remove that first.
-                    Iterator<LegacyLayout.LegacyRangeTombstone> iter = openTombstones.iterator();
-                    LegacyLayout.LegacyRangeTombstone first = iter.next();
+                    if (openMarkerToReturn != null)
+                    {
+                        // If the new opening supersedes the one we're about to return, we need to update the one to return.
+                        if (tombstone.deletionTime.supersedes(openMarkerToReturn.openDeletionTime(false)))
+                            openMarkerToReturn = openMarkerToReturn.withNewOpeningDeletionTime(false, tombstone.deletionTime);
+                    }
+                    else
+                    {
+                        // We have no openMarkerToReturn set yet so set it now if needs be.
+                        // Since openTombstones isn't empty, it means we have a currently ongoing deletion. And if the new tombstone
+                        // supersedes that ongoing deletion, we need to close the opening  deletion and open with the new one.
+                        DeletionTime currentOpenDeletion = openTombstones.first().deletionTime;
+                        if (tombstone.deletionTime.supersedes(currentOpenDeletion))
+                            openMarkerToReturn = RangeTombstoneBoundaryMarker.makeBoundary(false, tombstone.start.bound.invert(), tombstone.start.bound, currentOpenDeletion, tombstone.deletionTime);
+                    }
 
+                    // In all cases, we know !isShadowed(tombstone) so we need to add the tombstone (note however that we may not have set openMarkerToReturn if the
+                    // new tombstone doesn't supersedes the current deletion _but_ extend past the marker currently open)
                     add(tombstone);
-
-                    // If the newly opened tombstone superseds the currently open one, we have to produce a boundary to change
-                    // the currently open deletion time, otherwise we have nothing to do.
-                    return tombstone.deletionTime.supersedes(first.deletionTime)
-                           ? RangeTombstoneBoundaryMarker.makeBoundary(false, tombstone.start.bound.invert(), tombstone.start.bound, first.deletionTime, tombstone.deletionTime)
-                           : null;
                 }
 
                 /**
@@ -681,11 +745,12 @@ public abstract class UnfilteredDeserializer
 
                 public boolean hasOpenTombstones()
                 {
-                    return !openTombstones.isEmpty();
+                    return openMarkerToReturn != null || !openTombstones.isEmpty();
                 }
 
                 public void clearState()
                 {
+                    openMarkerToReturn = null;
                     openTombstones.clear();
                 }
             }

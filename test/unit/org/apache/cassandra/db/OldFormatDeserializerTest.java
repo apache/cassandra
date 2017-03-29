@@ -77,6 +77,60 @@ public class OldFormatDeserializerTest
          assertFalse(iterator.hasNext());
     }
 
+    @Test
+    public void testRangeTombstonesSameStart() throws Exception
+    {
+        CFMetaData metadata = CFMetaData.Builder.create("ks", "table")
+                                                .withPartitioner(Murmur3Partitioner.instance)
+                                                .addPartitionKey("k", Int32Type.instance)
+                                                .addClusteringColumn("v", Int32Type.instance)
+                                                .build();
+
+        // Multiple RT that have the same start (we _can_ get this in the legacy format!)
+        Supplier<LegacyLayout.LegacyAtom> atomSupplier = supplier(rt(1, 2, 3),
+                                                                  rt(1, 2, 5),
+                                                                  rt(1, 5, 4));
+
+        UnfilteredIterator iterator = new UnfilteredIterator(metadata,
+                                                             DeletionTime.LIVE,
+                                                             new SerializationHelper(metadata, MessagingService.current_version, SerializationHelper.Flag.LOCAL),
+                                                             atomSupplier);
+
+        // We should be entirely ignoring the first tombston (shadowed by 2nd one) so we should generate
+        // [1, 2]@5 (2, 5]@4 (but where both range actually form a boundary)
+
+        assertTrue(iterator.hasNext());
+
+        Unfiltered first = iterator.next();
+        System.out.println(">> " + first.toString(metadata));
+        assertTrue(first.isRangeTombstoneMarker());
+        RangeTombstoneMarker start = (RangeTombstoneMarker)first;
+        assertTrue(start.isOpen(false));
+        assertFalse(start.isClose(false));
+        assertEquals(1, toInt(start.openBound(false)));
+        assertEquals(5, start.openDeletionTime(false).markedForDeleteAt());
+
+        Unfiltered second = iterator.next();
+        assertTrue(second.isRangeTombstoneMarker());
+        RangeTombstoneMarker middle = (RangeTombstoneMarker)second;
+        assertTrue(middle.isClose(false));
+        assertTrue(middle.isOpen(false));
+        assertEquals(2, toInt(middle.closeBound(false)));
+        assertEquals(2, toInt(middle.openBound(false)));
+        assertEquals(5, middle.closeDeletionTime(false).markedForDeleteAt());
+        assertEquals(4, middle.openDeletionTime(false).markedForDeleteAt());
+
+        Unfiltered third = iterator.next();
+        assertTrue(third.isRangeTombstoneMarker());
+        RangeTombstoneMarker end = (RangeTombstoneMarker)third;
+        assertTrue(end.isClose(false));
+        assertFalse(end.isOpen(false));
+        assertEquals(5, toInt(end.closeBound(false)));
+        assertEquals(4, end.closeDeletionTime(false).markedForDeleteAt());
+
+        assertFalse(iterator.hasNext());
+    }
+
     private static int toInt(ClusteringPrefix prefix)
     {
         assertTrue(prefix.size() == 1);
