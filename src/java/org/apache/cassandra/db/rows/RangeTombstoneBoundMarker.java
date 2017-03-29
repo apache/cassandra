@@ -118,6 +118,14 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<Clus
         return new RangeTombstoneBoundMarker(clustering().copy(allocator), deletion);
     }
 
+    public RangeTombstoneBoundMarker withNewOpeningDeletionTime(boolean reversed, DeletionTime newDeletionTime)
+    {
+        if (!isOpen(reversed))
+            throw new IllegalStateException();
+
+        return new RangeTombstoneBoundMarker(clustering(), newDeletionTime);
+    }
+
     public void digest(MessageDigest digest)
     {
         bound.digest(digest);

@@ -19,9 +19,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -35,8 +32,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
  */
 public class UnfilteredDeserializer
 {
-    private static final Logger logger = LoggerFactory.getLogger(UnfilteredDeserializer.class);
-
     protected final TableMetadata metadata;
     protected final DataInputPlus in;
     protected final SerializationHelper helper;
