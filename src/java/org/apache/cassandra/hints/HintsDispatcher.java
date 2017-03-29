@@ -174,9 +174,8 @@ final class HintsDispatcher implements AutoCloseable
 
     private Callback sendHint(Hint hint)
     {
-        Callback callback = new Callback();
+        Callback callback = new Callback(hint.creationTime);
         HintMessage message = new HintMessage(hostId, hint);
-        HintsServiceMetrics.updateDelayMetrics(address , ApproximateTime.currentTimeMillis() - hint.creationTime);
         MessagingService.instance().sendRRWithFailure(message.createMessageOut(), address, callback);
         return callback;
     }
@@ -187,9 +186,8 @@ final class HintsDispatcher implements AutoCloseable
 
     private Callback sendEncodedHint(ByteBuffer hint)
     {
-        Callback callback = new Callback();
         EncodedHintMessage message = new EncodedHintMessage(hostId, hint, messagingVersion);
-        HintsServiceMetrics.updateDelayMetrics(address, ApproximateTime.currentTimeMillis() - message.getHintCreationTime());
+        Callback callback = new Callback(message.getHintCreationTime());
         MessagingService.instance().sendRRWithFailure(message.createMessageOut(), address, callback);
         return callback;
     }
@@ -201,6 +199,12 @@ final class HintsDispatcher implements AutoCloseable
         private final long start = System.nanoTime();
         private final SimpleCondition condition = new SimpleCondition();
         private volatile Outcome outcome;
+        private final long hintCreationTime;
+
+        private Callback(long hintCreationTime)
+        {
+            this.hintCreationTime = hintCreationTime;
+        }
 
         Outcome await()
         {
@@ -227,6 +231,7 @@ final class HintsDispatcher implements AutoCloseable
 
         public void response(MessageIn msg)
         {
+            HintsServiceMetrics.updateDelayMetrics(msg.from, ApproximateTime.currentTimeMillis() - this.hintCreationTime);
             outcome = Outcome.SUCCESS;
             condition.signalAll();
         }
