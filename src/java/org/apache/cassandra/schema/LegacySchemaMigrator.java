@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
@@ -472,7 +473,7 @@ public final class LegacySchemaMigrator
         if (row.has("memtable_flush_period_in_ms"))
             params.memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"));
 
-        params.caching(CachingParams.fromMap(fromJsonMap(row.getString("caching"))));
+        params.caching(cachingFromRow(row.getString("caching")));
 
         if (row.has("default_time_to_live"))
             params.defaultTimeToLive(row.getInt("default_time_to_live"));
@@ -500,6 +501,32 @@ public final class LegacySchemaMigrator
             params.bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"));
 
         return params.build();
+    }
+
+    /**
+     *
+     * 2.1 and newer use JSON'ified map of caching parameters, but older versions had valid Strings
+     * NONE, KEYS_ONLY, ROWS_ONLY, and ALL
+     *
+     * @param caching, the string representing the table's caching options
+     * @return CachingParams object corresponding to the input string
+     */
+    @VisibleForTesting
+    public static CachingParams cachingFromRow(String caching)
+    {
+        switch(caching)
+        {
+            case "NONE":
+                return CachingParams.CACHE_NOTHING;
+            case "KEYS_ONLY":
+                return CachingParams.CACHE_KEYS;
+            case "ROWS_ONLY":
+                return new CachingParams(false, Integer.MAX_VALUE);
+            case "ALL":
+                return CachingParams.CACHE_EVERYTHING;
+            default:
+                return CachingParams.fromMap(fromJsonMap(caching));
+        }
     }
 
     /*
