@@ -67,4 +67,10 @@ public interface CQLStatement
      * @return functions all functions found (may contain duplicates)
      */
     public Iterable<Function> getFunctions();
+
+    /**
+     * Return the cql query string that represents this query after ABAC is considered.
+     * @return string representing the ABAC decorated query.
+     */
+    public String decorateAbac(ClientState clientState, String cqlQuery);
 }

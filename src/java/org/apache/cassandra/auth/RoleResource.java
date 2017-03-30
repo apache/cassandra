@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 import com.google.common.base.Objects;
@@ -149,6 +151,12 @@ public class RoleResource implements IResource, Comparable<RoleResource>
     public Set<Permission> applicablePermissions()
     {
         return level == Level.ROOT ? ROOT_LEVEL_PERMISSIONS : ROLE_LEVEL_PERMISSIONS;
+    }
+
+    @Override
+    public Object getAttribute(String attributeName)
+    {
+        return DatabaseDescriptor.getRoleManager().getRoleAttribute(this, attributeName);
     }
 
     public int compareTo(RoleResource o)

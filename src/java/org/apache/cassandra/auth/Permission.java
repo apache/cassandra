@@ -66,4 +66,7 @@ public enum Permission
     public static final Set<Permission> ALL =
             Sets.immutableEnumSet(EnumSet.range(Permission.CREATE, Permission.EXECUTE));
     public static final Set<Permission> NONE = ImmutableSet.of();
+
+    public static final Set<Permission> BASIC =
+            Sets.immutableEnumSet(EnumSet.range(Permission.SELECT, Permission.MODIFY));
 }

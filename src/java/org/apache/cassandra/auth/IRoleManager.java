@@ -34,13 +34,23 @@ public interface IRoleManager
 {
 
     /**
+     * For a given role get the value of the attribute from the
+     * attribute string.
+     *
+     * @param roleResource a resource object.
+     * @param attributeName the String representing an attributes name.
+     * @return an object stored as a Role attribute.
+     */
+    Object getRoleAttribute(RoleResource roleResource, String attributeName);
+
+    /**
      * Supported options for CREATE ROLE/ALTER ROLE (and
      * CREATE USER/ALTER USER, which are aliases provided
      * for backwards compatibility).
      */
     public enum Option
     {
-        SUPERUSER, PASSWORD, LOGIN, OPTIONS
+        SUPERUSER, PASSWORD, LOGIN, OPTIONS, ATTRIBUTES
     }
 
     /**

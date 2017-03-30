@@ -45,6 +45,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.CassandraVersion;
 
+import javax.xml.crypto.Data;
+
 /**
  * State related to a client connection.
  */
@@ -423,5 +425,19 @@ public class ClientState
     private Set<Permission> authorize(IResource resource)
     {
         return user.getPermissions(resource);
+    }
+
+    public String decorateAbac(TableMetadata table, String cqlQuery)
+    {
+        // TODO: Decorate Abac
+
+        return null;
+    }
+
+    public String decorateAbac(TableMetadataRef tableMetadataRef, String cqlQuery)
+    {
+        // TODO: DecorateAbac
+
+        return null;
     }
 }

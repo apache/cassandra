@@ -65,4 +65,16 @@ public class UseStatement extends ParsedStatement implements CQLStatement
         // but for some unit tests we need to set the keyspace (e.g. for tests with DROP INDEX)
         return execute(state, options, System.nanoTime());
     }
+
+    /**
+     * Not required for a Use statement, since these statments are not eligible for ABAC.
+     * @param clientState
+     * @param cqlQuery
+     * @return
+     */
+    @Override
+    public String decorateAbac(ClientState clientState, String cqlQuery)
+    {
+        return null;
+    }
 }

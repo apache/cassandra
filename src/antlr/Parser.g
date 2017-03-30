@@ -243,6 +243,10 @@ cqlStatement returns [ParsedStatement stmt]
     | st38=createMaterializedViewStatement { $stmt = st38; }
     | st39=dropMaterializedViewStatement   { $stmt = st39; }
     | st40=alterMaterializedViewStatement  { $stmt = st40; }
+    | st41=createPolicyStatement           { $stmt = st41; }
+    | st42=dropPolicyStatement             { $stmt = st42; }
+    | st43=alterPolicyStatement            { $stmt = st43; }
+    | st44=listPoliciesStatement           { $stmt = st44; }
     ;
 
 /*
@@ -1006,6 +1010,62 @@ truncateStatement returns [TruncateStatement stmt]
     ;
 
 /**
+ * CREATE POLICY <name>
+ * ON <table>
+ * DENY <functionOrAll>
+ * IF ATTRIBUTE <attribute> <function> <valueOrColumn>; // TODO: Need to test.
+ */
+createPolicyStatement returns [CreatePolicyStatement stmt]
+    : K_CREATE K_POLICY
+          pn=policyName
+      K_ON
+          name=columnFamilyName
+      K_DENY
+          perms=basicPermissions
+      K_IF K_ATTRIBUTE
+          pc=policyClause
+      { $stmt = new CreatePolicyStatement(pn, name, perms, pc); }
+    ;
+
+/**
+ * DROP POLICY <name> ON <table>; // TODO: Need to test.
+ */
+dropPolicyStatement returns [DropPolicyStatement stmt]
+    : K_DROP K_POLICY
+          pn=policyName
+      K_ON
+          name=columnFamilyName
+      { $stmt = new DropPolicyStatement(pn, name); }
+    ;
+
+/**
+ * ALTER POLICY <name>
+ * ON <table>
+ * DENY <functionorAll>
+ * IF ATTRIBUTE <attribute> <function> <valueOrColumn>; // TODO: Need to test.
+ */
+ alterPolicyStatement returns [AlterPolicyStatement stmt]
+     : K_ALTER K_POLICY
+           pn=policyName
+       K_ON
+           name=columnFamilyName
+       K_DENY
+           perms=basicPermissions
+       K_IF K_ATTRIBUTE
+           pc=policyClause
+       { $stmt = new CreatePolicyStatement(pn, name, perms, pc); }
+     ;
+
+/**
+ * LIST ALL POLICIES ON <table>; // TODO: Need to test.
+ */
+listPoliciesStatement returns [ListPoliciesStatement stmt]
+    : K_LIST K_ALL K_POLICIES K_ON
+          name=columnFamilyName
+      { $stmt = new ListPoliciesStatement(name); }
+    ;
+
+/**
  * GRANT <permission> ON <resource> TO <rolename>
  */
 grantPermissionsStatement returns [GrantPermissionsStatement stmt]
@@ -1066,6 +1126,14 @@ listPermissionsStatement returns [ListPermissionsStatement stmt]
       ( K_NORECURSIVE { recursive = false; } )?
       { $stmt = new ListPermissionsStatement($permissionOrAll.perms, resource, grantee, recursive); }
     ;
+
+basicPermissions returns [Set<Permission> perms]
+    : K_ALL ( K_PERMISSIONS )?       { $perms = Permission.BASIC; }
+    : K_SELECT ( K_PERMISSION )?     { $perms = EnumSet.of(Permission.SELECT); }
+    : K_MODIFY ( K_PERMISSION )?     { $perms = EnumSet.of(Permission.MODIFY); }
+    ;
+
+policyClause returns [PolicyClause pc]
 
 permission returns [Permission perm]
     : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE | K_DESCRIBE | K_EXECUTE)
@@ -1137,6 +1205,7 @@ createUserStatement returns [CreateRoleStatement stmt]
     : K_CREATE K_USER (K_IF K_NOT K_EXISTS { ifNotExists = true; })? u=username { name.setName($u.text, true); }
       ( K_WITH userPassword[opts] )?
       ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
+      ( K_ATTRIBUTES '=' map=fullMapLiteral { opts.setOption(IRoleManager.Option.ATTRIBUTES, map); } )?
       { opts.setOption(IRoleManager.Option.SUPERUSER, superuser);
         $stmt = new CreateRoleStatement(name, opts, ifNotExists); }
     ;
@@ -1153,6 +1222,7 @@ alterUserStatement returns [AlterRoleStatement stmt]
       ( K_WITH userPassword[opts] )?
       ( K_SUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, true); }
         | K_NOSUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, false); } ) ?
+      ( K_ATTRIBUTES '=' map=fullMapLiteral { opts.setOption(IRoleManager.Option.ATTRIBUTES, map); } )?
       {  $stmt = new AlterRoleStatement(name, opts); }
     ;
 
@@ -1256,6 +1326,7 @@ roleOption[RoleOptions opts]
     |  K_OPTIONS '=' m=fullMapLiteral { opts.setOption(IRoleManager.Option.OPTIONS, convertPropertyMap(m)); }
     |  K_SUPERUSER '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.SUPERUSER, Boolean.valueOf($b.text)); }
     |  K_LOGIN '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.LOGIN, Boolean.valueOf($b.text)); }
+    |  K_ATTRIBUTES '=' map=fullMapLiteral { opts.setOption(IRoleManager.Option.ATTRIBUTES, map); }
     ;
 
 // for backwards compatibility in CREATE/ALTER USER, this has no '='
@@ -1319,6 +1390,10 @@ userOrRoleName returns [RoleName name]
     : roleName[role] {$name = role;}
     ;
 
+policyName returns [PolicyName pn]
+    @init { PolicyName pol = PolicyName(); }
+    : plcyName[pol] { $pn = pol; }
+
 ksName[KeyspaceElementName name]
     : t=IDENT              { $name.setKeyspace($t.text, false);}
     | t=QUOTED_NAME        { $name.setKeyspace($t.text, true);}
@@ -1346,6 +1421,21 @@ roleName[RoleName name]
     | t=QUOTED_NAME        { $name.setName($t.text, true); }
     | k=unreserved_keyword { $name.setName(k, false); }
     | QMARK {addRecognitionError("Bind variables cannot be used for role names");}
+    ;
+
+plcyName[PolicyName pn]
+    : t=IDENT              { $pn.setName($t.text, false); }
+    | s=STRING_LITERAL     { $pn.setName($s.text, true); }
+    | t=QUOTED_NAME        { $pn.setName($t.text, true); }
+    | k=unreserved_keyword { $pn.setName(k, false); }
+    | QMARK {addRecognitionError("Bind variables cannot be used for policy names");}
+    ;
+
+policyClause returns [PolicyClause pc] // TODO: Test This
+    : attr=STRING_LITERAL type=relationType col=cident { $pc = new PolicyClause($attr.text, type, col); }
+    | attr=STRING_LITERAL K_IS K_NOT K_NULL { $pc = new PolicyClause($attr.text, Operator.IS_NOT, Constants.NULL_LITERAL); }
+    | attr=STRING_LITERAL K_IN col=cident { $pc = new PolicyClause($attr.text, col); }
+    | attr=STRING_LITERAL cont=containsOperator col=cident { $pc = new PolicyClause($attr.text, cont, col); }
     ;
 
 constant returns [Constants.Literal constant]
@@ -1808,5 +1898,10 @@ basic_unreserved_keyword returns [String str]
         | K_PER
         | K_PARTITION
         | K_GROUP
+        | K_ATTRIBUTE
+        | K_ATTRIBUTES
+        | K_POLICY
+        | K_POLICIES
+        | K_DENY
         ) { $str = $k.text; }
     ;

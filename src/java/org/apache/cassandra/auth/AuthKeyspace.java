@@ -40,7 +40,19 @@ public final class AuthKeyspace
     public static final String ROLE_PERMISSIONS = "role_permissions";
     public static final String RESOURCE_ROLE_INDEX = "resource_role_permissons_index";
 
+    public static final String POLICIES = "policies";
+
     public static final long SUPERUSER_SETUP_DELAY = Long.getLong("cassandra.superuser_setup_delay_ms", 10000);
+
+    private static final TableMetadata Policies =
+        parse(POLICIES,
+            "abac policy definitions",
+            "CREATE TABLE %s ("
+            + "policy text,"
+            + "description text,"
+            + "obj blob,"
+            + "type text,"
+            + "PRIMARY KEY(policy, columnfamily))");
 
     private static final TableMetadata Roles =
         parse(ROLES,
@@ -51,6 +63,7 @@ public final class AuthKeyspace
               + "can_login boolean,"
               + "salted_hash text,"
               + "member_of set<text>,"
+              + "attributes map<text, blob>,"
               + "PRIMARY KEY(role))");
 
     private static final TableMetadata RoleMembers =
@@ -93,6 +106,6 @@ public final class AuthKeyspace
     {
         return KeyspaceMetadata.create(SchemaConstants.AUTH_KEYSPACE_NAME,
                                        KeyspaceParams.simple(1),
-                                       Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex));
+                                       Tables.of(Policies, Roles, RoleMembers, RolePermissions, ResourceRoleIndex));
     }
 }

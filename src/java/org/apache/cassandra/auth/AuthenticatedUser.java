@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.base.Objects;
@@ -102,6 +103,23 @@ public class AuthenticatedUser
     public Set<Permission> getPermissions(IResource resource)
     {
         return permissionsCache.getPermissions(this, resource);
+    }
+
+    public Set<Object> getAttribute(String attributeName)
+    {
+        Set<Object> ret = new HashSet<>();
+
+        for(RoleResource role : Roles.getRoles(role))
+        {
+            Object attr = role.getAttribute(attributeName);
+
+            if(attr != null)
+            {
+                ret.add(attr);
+            }
+        }
+
+        return ret;
     }
 
     @Override

@@ -130,6 +130,20 @@ public class BatchStatement implements CQLStatement
         return functions;
     }
 
+    /**
+     * Batches are not yet supported by ABAC.
+     * @param clientState
+     * @param cqlQuery
+     * @return
+     */
+    @Override
+    public String decorateAbac(ClientState clientState, String cqlQuery)
+    {
+        // TODO: ABAC, NOT SURE HOW TO DO BATCHES YET...
+
+        return null;
+    }
+
     public int getBoundTerms()
     {
         return boundTerms;
