@@ -125,7 +125,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     /**
      * Version where keep-alive support was added
      */
-    private static final CassandraVersion STREAM_KEEP_ALIVE = new CassandraVersion("3.10");
+    private static final CassandraVersion STREAM_KEEP_ALIVE_VERSION = new CassandraVersion("3.10");
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
     private static final DebuggableScheduledThreadPoolExecutor keepAliveExecutor = new DebuggableScheduledThreadPoolExecutor("StreamKeepAliveExecutor");
     static {
@@ -241,7 +241,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private boolean isKeepAliveSupported()
     {
         CassandraVersion peerVersion = Gossiper.instance.getReleaseVersion(peer);
-        return STREAM_KEEP_ALIVE.isSupportedBy(peerVersion);
+        return peerVersion.compareTo(STREAM_KEEP_ALIVE_VERSION) >= 0;
     }
 
     /**
