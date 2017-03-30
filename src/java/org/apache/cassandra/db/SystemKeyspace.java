@@ -68,6 +68,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
+import static org.apache.cassandra.io.util.FileUtils.visitDirectory;
 
 public final class SystemKeyspace
 {
@@ -1412,28 +1413,33 @@ public final class SystemKeyspace
         Iterable<String> dirs = Arrays.asList(DatabaseDescriptor.getAllDataFileLocations());
         for (String dataDir : dirs)
         {
-            logger.trace("Checking {} for old files", dataDir);
+            logger.debug("Checking {} for legacy files", dataDir);
             File dir = new File(dataDir);
             assert dir.exists() : dir + " should have been created by startup checks";
 
-            for (File ksdir : dir.listFiles((d, n) -> new File(d, n).isDirectory()))
-            {
-                logger.trace("Checking {} for old files", ksdir);
+            visitDirectory(dir.toPath(),
+                           File::isDirectory,
+                           ksdir ->
+                           {
+                               logger.trace("Checking {} for legacy files", ksdir);
+                               visitDirectory(ksdir.toPath(),
+                                              File::isDirectory,
+                                              cfdir ->
+                                              {
+                                                  logger.trace("Checking {} for legacy files", cfdir);
 
-                for (File cfdir : ksdir.listFiles((d, n) -> new File(d, n).isDirectory()))
-                {
-                    logger.trace("Checking {} for old files", cfdir);
-
-                    if (Descriptor.isLegacyFile(cfdir))
-                    {
-                        FileUtils.deleteRecursive(cfdir);
-                    }
-                    else
-                    {
-                        FileUtils.delete(cfdir.listFiles((d, n) -> Descriptor.isLegacyFile(new File(d, n))));
-                    }
-                }
-            }
+                                                  if (Descriptor.isLegacyFile(cfdir))
+                                                  {
+                                                      FileUtils.deleteRecursive(cfdir);
+                                                  }
+                                                  else
+                                                  {
+                                                      visitDirectory(cfdir.toPath(),
+                                                                     Descriptor::isLegacyFile,
+                                                                     FileUtils::delete);
+                                                  }
+                                              });
+                           });
         }
     }
 

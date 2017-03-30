@@ -40,12 +40,15 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.CassandraVersion;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class SystemKeyspaceTest
 {
-    public static final String MIGRATION_SSTABLES_ROOT = "migration-sstable-root";
+    private static final String MIGRATION_SSTABLES_ROOT = "migration-sstable-root";
+
+    // any file name will do but unrelated files in our folders tend to be log files or very old data files
+    private static final String UNRELATED_FILE_NAME = "system.log";
+    private static final String UNRELATED_FOLDER_NAME = "snapshot-abc";
 
     @BeforeClass
     public static void prepSnapshotTracker()
@@ -222,12 +225,107 @@ public class SystemKeyspaceTest
                     else
                     {
                         File[] legacyFiles = cfdir.listFiles((d, n) -> Descriptor.isLegacyFile(new File(d, n)));
-                        ret += legacyFiles.length;
+                        if (legacyFiles != null)
+                            ret += legacyFiles.length;
                     }
                 }
             }
         }
         return ret;
+    }
+
+    @Test
+    public void testMigrateDataDirs_UnrelatedFiles_2_1() throws IOException
+    {
+        testMigrateDataDirsWithUnrelatedFiles("2.1");
+    }
+
+    @Test
+    public void testMigrateDataDirs_UnrelatedFiles_2_2() throws IOException
+    {
+        testMigrateDataDirsWithUnrelatedFiles("2.2");
+    }
+
+    private void testMigrateDataDirsWithUnrelatedFiles(String version) throws IOException
+    {
+        Path migrationSSTableRoot = Paths.get(System.getProperty(MIGRATION_SSTABLES_ROOT), version);
+        Path dataDir = Paths.get(DatabaseDescriptor.getAllDataFileLocations()[0]);
+
+        FileUtils.copyDirectory(migrationSSTableRoot.toFile(), dataDir.toFile());
+
+        addUnRelatedFiles(dataDir);
+
+        SystemKeyspace.migrateDataDirs();
+
+        checkUnrelatedFiles(dataDir);
+    }
+
+    /**
+     * Add some extra and totally unrelated files to the data dir and its sub-folders
+     */
+    private void addUnRelatedFiles(Path dataDir) throws IOException
+    {
+        File dir = new File(dataDir.toString());
+        createAndCheck(dir, UNRELATED_FILE_NAME, false);
+        createAndCheck(dir, UNRELATED_FOLDER_NAME, true);
+
+        for (File ksdir : dir.listFiles((d, n) -> new File(d, n).isDirectory()))
+        {
+            createAndCheck(ksdir, UNRELATED_FILE_NAME, false);
+            createAndCheck(ksdir, UNRELATED_FOLDER_NAME, true);
+
+            for (File cfdir : ksdir.listFiles((d, n) -> new File(d, n).isDirectory()))
+            {
+                createAndCheck(cfdir, UNRELATED_FILE_NAME, false);
+                createAndCheck(cfdir, UNRELATED_FOLDER_NAME, true);
+            }
+        }
+    }
+
+    /**
+     * Make sure the extra files are still in the data dir and its sub-folders, then
+     * remove them.
+     */
+    private void checkUnrelatedFiles(Path dataDir) throws IOException
+    {
+        File dir = new File(dataDir.toString());
+        checkAndDelete(dir, UNRELATED_FILE_NAME, false);
+        checkAndDelete(dir, UNRELATED_FOLDER_NAME, true);
+
+        for (File ksdir : dir.listFiles((d, n) -> new File(d, n).isDirectory()))
+        {
+            checkAndDelete(ksdir, UNRELATED_FILE_NAME, false);
+            checkAndDelete(ksdir, UNRELATED_FOLDER_NAME, true);
+
+            for (File cfdir : ksdir.listFiles((d, n) -> new File(d, n).isDirectory()))
+            {
+                checkAndDelete(cfdir, UNRELATED_FILE_NAME, false);
+                checkAndDelete(cfdir, UNRELATED_FOLDER_NAME, true);
+            }
+        }
+    }
+
+    private void createAndCheck(File dir, String fileName, boolean isDir) throws IOException
+    {
+        File f = new File(dir, fileName);
+
+        if (isDir)
+            f.mkdir();
+        else
+            f.createNewFile();
+
+        assertTrue(f.exists());
+    }
+
+    private void checkAndDelete(File dir, String fileName, boolean isDir) throws IOException
+    {
+        File f = new File(dir, fileName);
+        assertTrue(f.exists());
+
+        if (isDir)
+            FileUtils.deleteDirectory(f);
+        else
+            f.delete();
     }
 
     private String getOlderVersionString()
