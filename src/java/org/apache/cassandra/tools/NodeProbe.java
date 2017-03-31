@@ -1100,7 +1100,7 @@ public class NodeProbe implements AutoCloseable
 
     public int getExceptionCount()
     {
-        return (int)StorageMetrics.exceptions.getCount();
+        return (int)StorageMetrics.uncaughtExceptions.getCount();
     }
 
     public Map<String, Integer> getDroppedMessages()

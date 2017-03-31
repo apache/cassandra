@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.repair;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -50,6 +51,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.consistent.CoordinatorSession;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.QueryState;
@@ -121,6 +123,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
     protected void fireErrorAndComplete(int progressCount, int totalProgress, String message)
     {
+        StorageMetrics.repairExceptions.inc();
         fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCount, totalProgress, message));
         String completionMessage = String.format("Repair command #%d finished with error", cmd);
         fireProgressEvent(new ProgressEvent(ProgressEventType.COMPLETE, progressCount, totalProgress, completionMessage));
@@ -144,7 +147,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             validColumnFamilies = storageService.getValidColumnFamilies(false, false, keyspace, columnFamilies);
             progress.incrementAndGet();
         }
-        catch (IllegalArgumentException e)
+        catch (IllegalArgumentException | IOException e)
         {
             logger.error("Repair failed:", e);
             fireErrorAndComplete(progress.get(), totalProgress, e.getMessage());
@@ -396,6 +399,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
             public void onFailure(Throwable t)
             {
+                StorageMetrics.repairExceptions.inc();
                 fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progress.get(), totalProgress, t.getMessage()));
                 logger.error("Error completing preview repair", t);
                 String completionMessage = complete();
@@ -476,6 +480,8 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
         public void onFailure(Throwable t)
         {
+            StorageMetrics.repairExceptions.inc();
+
             String message = String.format("Repair session %s for range %s failed with error %s",
                                            session.getId(), session.getRanges().toString(), t.getMessage());
             logger.error(message, t);
@@ -519,6 +525,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             final String message;
             if (hasFailure.get())
             {
+                StorageMetrics.repairExceptions.inc();
                 message = "Some repair failed";
                 fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progress.get(), totalProgress,
                                                     message));
@@ -543,6 +550,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
         public void onFailure(Throwable t)
         {
+            StorageMetrics.repairExceptions.inc();
             fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progress.get(), totalProgress, t.getMessage()));
             if (!options.isPreview())
             {
