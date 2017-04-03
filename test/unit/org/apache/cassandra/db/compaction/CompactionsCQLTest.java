@@ -64,9 +64,9 @@ public class CompactionsCQLTest extends CQLTester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'DateTieredCompactionStrategy', 'min_threshold':2};");
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
-        execute("insert into %s (id) values ('1')");
+        execute("insert into %s (id) values ('1') using timestamp 1000"); // same timestamp = same window = minor compaction triggered
         flush();
-        execute("insert into %s (id) values ('1')");
+        execute("insert into %s (id) values ('1') using timestamp 1000");
         flush();
         waitForMinor(KEYSPACE, currentTable(), SLEEP_TIME, true);
     }
