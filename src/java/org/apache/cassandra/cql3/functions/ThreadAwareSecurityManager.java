@@ -78,6 +78,15 @@ public final class ThreadAwareSecurityManager extends SecurityManager
             return;
         System.setSecurityManager(new ThreadAwareSecurityManager());
 
+        // The default logback configuration in conf/logback.xml allows reloading the
+        // configuration when the configuration file has changed (every 60 seconds by default).
+        // This requires logback to use file I/O APIs. But file I/O is not allowed from UDFs.
+        // I.e. if logback decides to check for a modification of the config file while
+        // executiing a sandbox thread, the UDF execution and therefore the whole request
+        // execution will fail with an AccessControlException.
+        // To work around this, a custom ReconfigureOnChangeFilter is installed, that simply
+        // prevents this configuration file check and possible reload of the configration,
+        // while executing sandboxed UDF code.
         Logger l = LoggerFactory.getLogger(ThreadAwareSecurityManager.class);
         ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) l;
         LoggerContext ctx = logbackLogger.getLoggerContext();
@@ -98,7 +107,8 @@ public final class ThreadAwareSecurityManager extends SecurityManager
     }
 
     /**
-     * The purpose of this class is
+     * The purpose of this class is to prevent logback from checking for config file change,
+     * if the current thread is executing a sandboxed thread to avoid {@link AccessControlException}s.
      */
     private static class SMAwareReconfigureOnChangeFilter extends ReconfigureOnChangeFilter
     {
