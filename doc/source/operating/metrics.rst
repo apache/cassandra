@@ -138,7 +138,7 @@ Keyspace Metrics
 ^^^^^^^^^^^^^^^^
 Each keyspace in Cassandra has metrics responsible for tracking its state and performance.
 
-These metrics are the same as the ``Table Metrics`` above, only they are aggregated at the Keyspace level.
+Most of these metrics are the same as the ``Table Metrics`` above, only they are aggregated at the Keyspace level. The keyspace specific metrics are specified in the table below.
 
 Reported name format:
 
@@ -147,6 +147,14 @@ Reported name format:
 
 **JMX MBean**
     ``org.apache.cassandra.metrics:type=Keyspace scope=<Keyspace> name=<MetricName>``
+
+
+======================================= ============== ===========
+Name                                    Type           Description
+======================================= ============== ===========
+WriteFailedIdeaCL                       Counter        Number of writes that failed to achieve the configured ideal consistency level or 0 if none is configured
+IdealCLWriteLatency                     Latency        Coordinator latency of writes at the configured ideal consistency level. No values are recorded if ideal consistency level is not configured
+======================================= ============== ===========
 
 ThreadPool Metrics
 ^^^^^^^^^^^^^^^^^^
