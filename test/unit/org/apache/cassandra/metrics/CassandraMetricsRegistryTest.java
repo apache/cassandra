@@ -20,8 +20,16 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.lang.management.ManagementFactory;
+import java.util.Collection;
+
 import org.junit.Test;
+
+import com.codahale.metrics.jvm.BufferPoolMetricSet;
+import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
+import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
+
 import static org.junit.Assert.*;
 
 
@@ -39,16 +47,43 @@ public class CassandraMetricsRegistryTest
         assertEquals("StrangeName", MetricName.chooseType("", StrangeName$.class));
         assertEquals("String", MetricName.chooseType(null, String.class));
         assertEquals("String", MetricName.chooseType("", String.class));
-        
+
         assertEquals("a", MetricName.chooseType("a", StrangeName$.class));
         assertEquals("b", MetricName.chooseType("b", String.class));
     }
-    
+
     @Test
     public void testMetricName()
     {
-         MetricName name = new MetricName(StrangeName$.class, "NaMe", "ScOpE");
-         assertEquals("StrangeName", name.getType());
+        MetricName name = new MetricName(StrangeName$.class, "NaMe", "ScOpE");
+        assertEquals("StrangeName", name.getType());
     }
-    
+
+    @Test
+    public void testJvmMetricsRegistration()
+    {
+        CassandraMetricsRegistry registry = CassandraMetricsRegistry.Metrics;
+
+        // Same registration as CassandraDaemon
+        registry.register("jvm.buffers", new BufferPoolMetricSet(ManagementFactory.getPlatformMBeanServer()));
+        registry.register("jvm.gc", new GarbageCollectorMetricSet());
+        registry.register("jvm.memory", new MemoryUsageGaugeSet());
+
+        Collection<String> names = registry.getNames();
+
+        // No metric with ".." in name
+        assertTrue(names.stream()
+                        .filter(name -> name.contains(".."))
+                        .count()
+                   == 0);
+
+        // There should be several metrics within each category
+        for (String category : new String[]{"jvm.buffers","jvm.gc","jvm.memory"})
+        {
+            assertTrue(names.stream()
+                            .filter(name -> name.startsWith(category+'.'))
+                            .count() > 1);
+        }
+    }
+
 }
