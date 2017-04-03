@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.Nullable;
 
@@ -74,8 +75,12 @@ public class ViewBuilder extends CompactionInfo.Holder
     {
         AtomicLong noBase = new AtomicLong(Long.MAX_VALUE);
         ReadQuery selectQuery = view.getReadQuery();
+
         if (!selectQuery.selectsKey(key))
+        {
+            logger.trace("Skipping {}, view query filters", key);
             return;
+        }
 
         int nowInSec = FBUtilities.nowInSeconds();
         SinglePartitionReadCommand command = view.getSelectStatement().internalReadForView(key, nowInSec);
@@ -97,49 +102,41 @@ public class ViewBuilder extends CompactionInfo.Holder
 
     public void run()
     {
+        logger.debug("Starting view builder for {}.{}", baseCfs.metadata.ksName, view.name);
         String ksname = baseCfs.metadata.ksName, viewName = view.name;
 
         if (SystemKeyspace.isViewBuilt(ksname, viewName))
+        {
+            logger.debug("View already marked built for {}.{}", baseCfs.metadata.ksName, view.name);
             return;
-
+        }
         Iterable<Range<Token>> ranges = StorageService.instance.getLocalRanges(baseCfs.metadata.ksName);
+
         final Pair<Integer, Token> buildStatus = SystemKeyspace.getViewBuildStatus(ksname, viewName);
         Token lastToken;
         Function<org.apache.cassandra.db.lifecycle.View, Iterable<SSTableReader>> function;
         if (buildStatus == null)
         {
-            baseCfs.forceBlockingFlush();
-            function = org.apache.cassandra.db.lifecycle.View.selectFunction(SSTableSet.CANONICAL);
-            int generation = Integer.MIN_VALUE;
-
-            try (Refs<SSTableReader> temp = baseCfs.selectAndReference(function).refs)
-            {
-                for (SSTableReader reader : temp)
-                {
-                    generation = Math.max(reader.descriptor.generation, generation);
-                }
-            }
-
-            SystemKeyspace.beginViewBuild(ksname, viewName, generation);
+            logger.debug("Starting new view build. flushing base table {}.{}", baseCfs.metadata.ksName, baseCfs.name);
             lastToken = null;
+
+            //We don't track the generation number anymore since if a rebuild is stopped and
+            //restarted the max generation filter may yield no sstables due to compactions.
+            //We only care about max generation *during* a build, not across builds.
+            //see CASSANDRA-13405
+            SystemKeyspace.beginViewBuild(ksname, viewName, 0);
         }
         else
         {
-            function = new Function<org.apache.cassandra.db.lifecycle.View, Iterable<SSTableReader>>()
-            {
-                @Nullable
-                public Iterable<SSTableReader> apply(org.apache.cassandra.db.lifecycle.View view)
-                {
-                    Iterable<SSTableReader> readers = org.apache.cassandra.db.lifecycle.View.selectFunction(SSTableSet.CANONICAL).apply(view);
-                    if (readers != null)
-                        return Iterables.filter(readers, ssTableReader -> ssTableReader.descriptor.generation <= buildStatus.left);
-                    return null;
-                }
-            };
             lastToken = buildStatus.right;
+            logger.debug("Resuming view build from token {}. flushing base table {}.{}", lastToken, baseCfs.metadata.ksName, baseCfs.name);
         }
 
+        baseCfs.forceBlockingFlush();
+        function = org.apache.cassandra.db.lifecycle.View.selectFunction(SSTableSet.CANONICAL);
+
         prevToken = lastToken;
+        long keysBuilt = 0;
         try (Refs<SSTableReader> sstables = baseCfs.selectAndReference(function).refs;
              ReducingKeyIterator iter = new ReducingKeyIterator(sstables))
         {
@@ -154,6 +151,7 @@ public class ViewBuilder extends CompactionInfo.Holder
                         if (range.contains(token))
                         {
                             buildKey(key);
+                            ++keysBuilt;
 
                             if (prevToken == null || prevToken.compareTo(token) != 0)
                             {
@@ -162,12 +160,20 @@ public class ViewBuilder extends CompactionInfo.Holder
                             }
                         }
                     }
+
                     lastToken = null;
                 }
             }
 
             if (!isStopped)
+            {
+                logger.debug("Marking view({}.{}) as built covered {} keys ", ksname, viewName, keysBuilt);
                 SystemKeyspace.finishViewBuildStatus(ksname, viewName);
+            }
+            else
+            {
+                logger.debug("Stopped build for view({}.{}) after covering {} keys", ksname, viewName, keysBuilt);
+            }
         }
         catch (Exception e)
         {
@@ -198,6 +204,7 @@ public class ViewBuilder extends CompactionInfo.Holder
             if (lastToken == null || range.contains(lastToken))
                 rangesLeft = 0;
         }
+
         return new CompactionInfo(baseCfs.metadata, OperationType.VIEW_BUILD, rangesLeft, rangesTotal, "ranges", compactionId);
     }
 
