@@ -101,14 +101,13 @@ public class ViewBuilder extends CompactionInfo.Holder
 
     public void run()
     {
-        logger.debug("Starting view builder for {}.{}", baseCfs.metadata.ksName, view.name);
-        logger.trace("Running view builder for {}.{}", baseCfs.metadata.keyspace, view.name);
+        logger.debug("Starting view builder for {}.{}", baseCfs.metadata.keyspace, view.name);
         UUID localHostId = SystemKeyspace.getLocalHostId();
         String ksname = baseCfs.metadata.keyspace, viewName = view.name;
 
         if (SystemKeyspace.isViewBuilt(ksname, viewName))
         {
-            logger.debug("View already marked built for {}.{}", baseCfs.metadata.ksName, view.name);
+            logger.debug("View already marked built for {}.{}", baseCfs.metadata.keyspace, view.name);
             if (!SystemKeyspace.isViewStatusReplicated(ksname, viewName))
                 updateDistributed(ksname, viewName, localHostId);
             return;
@@ -120,7 +119,7 @@ public class ViewBuilder extends CompactionInfo.Holder
         Function<org.apache.cassandra.db.lifecycle.View, Iterable<SSTableReader>> function;
         if (buildStatus == null)
         {
-            logger.debug("Starting new view build. flushing base table {}.{}", baseCfs.metadata.ksName, baseCfs.name);
+            logger.debug("Starting new view build. flushing base table {}.{}", baseCfs.metadata.keyspace, baseCfs.name);
             lastToken = null;
 
             //We don't track the generation number anymore since if a rebuild is stopped and
@@ -132,7 +131,7 @@ public class ViewBuilder extends CompactionInfo.Holder
         else
         {
             lastToken = buildStatus.right;
-            logger.debug("Resuming view build from token {}. flushing base table {}.{}", lastToken, baseCfs.metadata.ksName, baseCfs.name);
+            logger.debug("Resuming view build from token {}. flushing base table {}.{}", lastToken, baseCfs.metadata.keyspace, baseCfs.name);
         }
 
         baseCfs.forceBlockingFlush();
