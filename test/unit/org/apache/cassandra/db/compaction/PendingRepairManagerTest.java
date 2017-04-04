@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -152,10 +153,17 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         Assert.assertEquals(2, prm.getSessions().size());
         Assert.assertNull(prm.getNextBackgroundTask(FBUtilities.nowInSeconds()));
         AbstractCompactionTask compactionTask = prm.getNextRepairFinishedTask();
-        Assert.assertNotNull(compactionTask);
-        Assert.assertSame(PendingRepairManager.RepairFinishedCompactionTask.class, compactionTask.getClass());
-        PendingRepairManager.RepairFinishedCompactionTask cleanupTask = (PendingRepairManager.RepairFinishedCompactionTask) compactionTask;
-        Assert.assertEquals(repairID, cleanupTask.getSessionID());
+        try
+        {
+            Assert.assertNotNull(compactionTask);
+            Assert.assertSame(PendingRepairManager.RepairFinishedCompactionTask.class, compactionTask.getClass());
+            PendingRepairManager.RepairFinishedCompactionTask cleanupTask = (PendingRepairManager.RepairFinishedCompactionTask) compactionTask;
+            Assert.assertEquals(repairID, cleanupTask.getSessionID());
+        }
+        finally
+        {
+            compactionTask.transaction.abort();
+        }
     }
 
     @Test
@@ -179,7 +187,15 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         Assert.assertNotNull(prm.get(repairID));
         LocalSessionAccessor.finalizeUnsafe(repairID);
 
-        Assert.assertEquals(1, prm.getMaximalTasks(FBUtilities.nowInSeconds(), false).size());
+        Collection<AbstractCompactionTask> tasks = prm.getMaximalTasks(FBUtilities.nowInSeconds(), false);
+        try
+        {
+            Assert.assertEquals(1, tasks.size());
+        }
+        finally
+        {
+            tasks.stream().forEach(t -> t.transaction.abort());
+        }
     }
 
     @Test
@@ -191,7 +207,14 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         mutateRepaired(sstable, repairId);
         prm.addSSTable(sstable);
         List<AbstractCompactionTask> tasks = csm.getUserDefinedTasks(Collections.singleton(sstable), 100);
-        Assert.assertEquals(1, tasks.size());
+        try
+        {
+            Assert.assertEquals(1, tasks.size());
+        }
+        finally
+        {
+            tasks.stream().forEach(t -> t.transaction.abort());
+        }
     }
 
     @Test
@@ -208,6 +231,13 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         prm.addSSTable(sstable);
         prm.addSSTable(sstable2);
         List<AbstractCompactionTask> tasks = csm.getUserDefinedTasks(Lists.newArrayList(sstable, sstable2), 100);
-        Assert.assertEquals(2, tasks.size());
+        try
+        {
+            Assert.assertEquals(2, tasks.size());
+        }
+        finally
+        {
+            tasks.stream().forEach(t -> t.transaction.abort());
+        }
     }
 }

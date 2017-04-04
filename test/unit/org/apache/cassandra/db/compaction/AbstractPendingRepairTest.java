@@ -88,6 +88,7 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
         cfs = Schema.instance.getColumnFamilyStoreInstance(cfm.id);
         csm = cfs.getCompactionStrategyManager();
         nextSSTableKey = 0;
+        cfs.disableAutoCompaction();
     }
 
     /**

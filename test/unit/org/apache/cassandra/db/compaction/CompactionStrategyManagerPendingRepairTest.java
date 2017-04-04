@@ -235,6 +235,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertTrue(sstable.isPendingRepair());
         Assert.assertFalse(sstable.isRepaired());
 
+        cfs.getCompactionStrategyManager().enable(); // enable compaction to fetch next background task
         AbstractCompactionTask compactionTask = csm.getNextBackgroundTask(FBUtilities.nowInSeconds());
         Assert.assertNotNull(compactionTask);
         Assert.assertSame(PendingRepairManager.RepairFinishedCompactionTask.class, compactionTask.getClass());
@@ -272,6 +273,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertTrue(sstable.isPendingRepair());
         Assert.assertFalse(sstable.isRepaired());
 
+        cfs.getCompactionStrategyManager().enable(); // enable compaction to fetch next background task
         AbstractCompactionTask compactionTask = csm.getNextBackgroundTask(FBUtilities.nowInSeconds());
         Assert.assertNotNull(compactionTask);
         Assert.assertSame(PendingRepairManager.RepairFinishedCompactionTask.class, compactionTask.getClass());
