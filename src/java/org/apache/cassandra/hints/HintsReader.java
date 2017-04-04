@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.hints;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -188,6 +189,11 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 {
                     hint = computeNextInternal();
                 }
+                catch (EOFException e)
+                {
+                    logger.warn("Unexpected EOF replaying hints ({}), likely due to unflushed hint file on shutdown; continuing", descriptor.fileName(), e);
+                    return endOfData();
+                }
                 catch (IOException e)
                 {
                     throw new FSReadError(e, file);
@@ -279,6 +285,11 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 try
                 {
                     buffer = computeNextInternal();
+                }
+                catch (EOFException e)
+                {
+                    logger.warn("Unexpected EOF replaying hints ({}), likely due to unflushed hint file on shutdown; continuing", descriptor.fileName(), e);
+                    return endOfData();
                 }
                 catch (IOException e)
                 {

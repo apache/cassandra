@@ -1,5 +1,5 @@
 3.0.14
- * 
+ * Handling partially written hint files (CASSANDRA-12728) 
 
 3.0.13
  * Make reading of range tombstones more reliable (CASSANDRA-12811)
