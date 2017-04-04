@@ -53,7 +53,7 @@
 3.11.0
  * Fix testLimitSSTables flake caused by concurrent flush (CASSANDRA-12820)
  * cdc column addition strikes again (CASSANDRA-13382)
- * Fix static column indexes (CASSANDRA-13277) 
+ * Fix static column indexes (CASSANDRA-13277)
  * DataOutputBuffer.asNewBuffer broken (CASSANDRA-13298)
  * unittest CipherFactoryTest failed on MacOS (CASSANDRA-13370)
  * Forbid SELECT restrictions and CREATE INDEX over non-frozen UDT columns (CASSANDRA-13247)
@@ -70,6 +70,9 @@
  * NoReplicationTokenAllocator should work with zero replication factor (CASSANDRA-12983)
  * Address message coalescing regression (CASSANDRA-12676)
 Merged from 3.0:
+ * Fix view builder bug that can filter out data on restart (CASSANDRA-13405)
+ * Fix 2i page size calculation when there are no regular columns (CASSANDRA-13400)
+ * Fix the conversion of 2.X expired rows without regular column data (CASSANDRA-13395)
  * Fix hint delivery when using ext+internal IPs with prefer_local enabled (CASSANDRA-13020)
  * Legacy deserializer can create empty range tombstones (CASSANDRA-13341)
  * Legacy caching options can prevent 3.0 upgrade (CASSANDRA-13384)

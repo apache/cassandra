@@ -21,7 +21,10 @@ package org.apache.cassandra.cql3;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import junit.framework.Assert;
 import org.junit.After;
@@ -40,6 +43,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -1233,5 +1237,60 @@ public class ViewTest extends CQLTester
         catch (Exception e)
         {
         }
+    }
+
+    @Test
+    public void testViewBuilderResume() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "k int, " +
+                    "c int, " +
+                    "val text, " +
+                    "PRIMARY KEY(k,c))");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        CompactionManager.instance.setCoreCompactorThreads(1);
+        CompactionManager.instance.setMaximumCompactorThreads(1);
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        for (int i = 0; i < 1024; i++)
+            execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, ""+i);
+
+        cfs.forceBlockingFlush();
+
+        for (int i = 0; i < 1024; i++)
+            execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, ""+i);
+
+        cfs.forceBlockingFlush();
+
+        for (int i = 0; i < 1024; i++)
+            execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, ""+i);
+
+        cfs.forceBlockingFlush();
+
+        for (int i = 0; i < 1024; i++)
+            execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, ""+i);
+
+        cfs.forceBlockingFlush();
+
+        createView("mv_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
+
+        cfs.enableAutoCompaction();
+        List<Future<?>> futures = CompactionManager.instance.submitBackground(cfs);
+
+        //Force a second MV on the same base table, which will restart the first MV builder...
+        createView("mv_test2", "CREATE MATERIALIZED VIEW %s AS SELECT val, k, c FROM %%s WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
+
+
+        //Compact the base table
+        FBUtilities.waitOnFutures(futures);
+
+        while (!SystemKeyspace.isViewBuilt(keyspace(), "mv_test"))
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+
+        assertRows(execute("SELECT count(*) FROM mv_test"), row(1024L));
     }
 }
