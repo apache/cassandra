@@ -47,6 +47,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -354,6 +355,34 @@ public class CassandraIndexTest extends CQLTester
                         .updateExpression("SET v=2")
                         .postUpdateQueryExpression("v=2")
                         .run();
+    }
+
+    @Test
+    public void indexOnClusteringColumnWithoutRegularColumns() throws Throwable
+    {
+        Object[] row1 = row("k0", "c0");
+        Object[] row2 = row("k0", "c1");
+        Object[] row3 = row("k1", "c0");
+        Object[] row4 = row("k1", "c1");
+        String tableName = createTable("CREATE TABLE %s (k text, c text, PRIMARY KEY(k, c))");
+        createIndex("CREATE INDEX no_regulars_idx ON %s(c)");
+
+        execute("INSERT INTO %s (k, c) VALUES (?, ?)", row1);
+        execute("INSERT INTO %s (k, c) VALUES (?, ?)", row2);
+        execute("INSERT INTO %s (k, c) VALUES (?, ?)", row3);
+        execute("INSERT INTO %s (k, c) VALUES (?, ?)", row4);
+
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE c = ?", "c0"), row1, row3);
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE c = ?", "c1"), row2, row4);
+        assertEmpty(execute("SELECT * FROM %s WHERE c = ?", "c3"));
+
+        dropIndex("DROP INDEX %s.no_regulars_idx");
+        createIndex("CREATE INDEX no_regulars_idx ON %s(c)");
+        assertTrue(waitForIndex(keyspace(), tableName, "no_regulars_idx"));
+
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE c = ?", "c0"), row1, row3);
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE c = ?", "c1"), row2, row4);
+        assertEmpty(execute("SELECT * FROM %s WHERE c = ?", "c3"));
     }
 
     @Test

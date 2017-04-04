@@ -623,7 +623,7 @@ public class SecondaryIndexManager implements IndexRegistry
             return DEFAULT_PAGE_SIZE;
 
         int columnsPerRow = baseCfs.metadata.partitionColumns().regulars.size();
-        if (meanCellsPerPartition <= 0)
+        if (columnsPerRow <= 0)
             return DEFAULT_PAGE_SIZE;
 
         int meanRowsPerPartition = meanCellsPerPartition / columnsPerRow;
