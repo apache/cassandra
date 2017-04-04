@@ -1,4 +1,5 @@
 3.11.0
+ * Fix the problem with duplicated rows when using paging with SASI (CASSANDRA-13302)
  * Allow CONTAINS statements filtering on the partition key and it’s parts (CASSANDRA-13275)
  * Fall back to even ranges calculation in clusters with vnodes when tokens are distributed unevenly (CASSANDRA-13229)
  * Fix duration type validation to prevent overflow (CASSANDRA-13218)
