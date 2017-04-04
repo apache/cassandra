@@ -1129,6 +1129,11 @@ public abstract class LegacyLayout
 
     public static class CellGrouper
     {
+        /**
+         * The fake TTL used for expired rows that have been compacted.
+         */
+        private static final int FAKE_TTL = 1;
+
         public final CFMetaData metadata;
         private final boolean isStatic;
         private final SerializationHelper helper;
@@ -1196,14 +1201,17 @@ public abstract class LegacyLayout
                 // It's the row marker
                 assert !cell.value.hasRemaining();
 
-                // In 2.1, the row marker expired cell might have been converted into a deleted one by compaction. So,
-                // we need to set the primary key liveness info only if the cell is not a deleted one.
+                // In 2.1, the row marker expired cell might have been converted into a deleted one by compaction.
+                // If we do not set the primary key liveness info for this row and it does not contains any regular columns
+                // the row will be empty. To avoid that, we reuse the localDeletionTime but use a fake TTL.
                 // The only time in 2.x that we actually delete a row marker is in 2i tables, so in that case we do
                 // want to actually propagate the row deletion. (CASSANDRA-13320)
                 if (!cell.isTombstone())
                     builder.addPrimaryKeyLivenessInfo(LivenessInfo.withExpirationTime(cell.timestamp, cell.ttl, cell.localDeletionTime));
                 else if (metadata.isIndex())
                     builder.addRowDeletion(Row.Deletion.regular(new DeletionTime(cell.timestamp, cell.localDeletionTime)));
+                else
+                    builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(cell.timestamp, FAKE_TTL, cell.localDeletionTime));
             }
             else
             {
