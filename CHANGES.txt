@@ -15,6 +15,7 @@
  * Slice.isEmpty() returns false for some empty slices (CASSANDRA-13305)
  * Add formatted row output to assertEmpty in CQL Tester (CASSANDRA-13238)
  * Legacy caching options can prevent 3.0 upgrade (CASSANDRA-13384)
+ * Nodetool upgradesstables/scrub/compact ignores system tables (CASSANDRA-13410)
 Merged from 2.2:
  * Honor truststore-password parameter in cassandra-stress (CASSANDRA-12773)
  * Discard in-flight shadow round responses (CASSANDRA-12653)
