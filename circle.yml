@@ -1,0 +1,17 @@
+machine:
+  java:
+    version: 'oraclejdk8'
+
+test:
+  pre:
+    - sudo ifconfig lo:1 127.0.0.2 up
+    - sudo ifconfig lo:2 127.0.0.3 up
+    - sudo ifconfig lo:3 127.0.0.4 up
+    - sudo ifconfig lo:4 127.0.0.5 up
+    - ant build
+
+  override:
+    - ant test
+  post:
+    - mkdir -p $CIRCLE_TEST_REPORTS/junit/
+    - cp ./build/test/output/*.xml $CIRCLE_TEST_REPORTS/junit/
