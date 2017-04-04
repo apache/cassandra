@@ -241,7 +241,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private boolean isKeepAliveSupported()
     {
         CassandraVersion peerVersion = Gossiper.instance.getReleaseVersion(peer);
-        return peerVersion.compareTo(STREAM_KEEP_ALIVE_VERSION) >= 0;
+        return peerVersion != null && peerVersion.compareTo(STREAM_KEEP_ALIVE_VERSION) >= 0;
     }
 
     /**
