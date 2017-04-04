@@ -115,13 +115,14 @@ public class CollectionsTest extends CQLTester
         );
 
         execute("UPDATE %s SET s += ? WHERE k = 0", set("v5"));
-        execute("UPDATE %s SET s += ? WHERE k = 0", set("v6"));
+        execute("UPDATE %s SET s += {'v6'} WHERE k = 0");
 
         assertRows(execute("SELECT s FROM %s WHERE k = 0"),
                    row(set("v5", "v6", "v7"))
         );
 
-        execute("UPDATE %s SET s -= ? WHERE k = 0", set("v6", "v5"));
+        execute("UPDATE %s SET s -= ? WHERE k = 0", set("v5"));
+        execute("UPDATE %s SET s -= {'v6'} WHERE k = 0");
 
         assertRows(execute("SELECT s FROM %s WHERE k = 0"),
                    row(set("v7"))
@@ -143,6 +144,15 @@ public class CollectionsTest extends CQLTester
     public void testMaps() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<text, int>)");
+
+        assertInvalidMessage("Value for a map addition has to be a map, but was: '{1}'",
+                             "UPDATE %s SET m = m + {1} WHERE k = 0;");
+        assertInvalidMessage("Not enough bytes to read a map",
+                             "UPDATE %s SET m += ? WHERE k = 0", set("v1"));
+        assertInvalidMessage("Value for a map substraction has to be a set, but was: '{'v1': 1}'",
+                             "UPDATE %s SET m = m - {'v1': 1} WHERE k = 0", map("v1", 1));
+        assertInvalidMessage("Unexpected extraneous bytes after set value",
+                             "UPDATE %s SET m -= ? WHERE k = 0", map("v1", 1));
 
         execute("INSERT INTO %s(k, m) VALUES (0, ?)", map("v1", 1, "v2", 2));
 
@@ -188,6 +198,18 @@ public class CollectionsTest extends CQLTester
         );
 
         execute("UPDATE %s SET m -= ? WHERE k = 0", set("v7"));
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+                   row(map("v5", 5, "v6", 6))
+        );
+
+        execute("UPDATE %s SET m += {'v7': 7} WHERE k = 0");
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+                   row(map("v5", 5, "v6", 6, "v7", 7))
+        );
+
+        execute("UPDATE %s SET m -= {'v7'} WHERE k = 0");
 
         assertRows(execute("SELECT m FROM %s WHERE k = 0"),
                    row(map("v5", 5, "v6", 6))
@@ -275,6 +297,10 @@ public class CollectionsTest extends CQLTester
 
         execute("UPDATE %s SET l = l - ? WHERE k=0", list("v11"));
 
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
+
+        execute("UPDATE %s SET l = l + ? WHERE k = 0", list("v1", "v2", "v1", "v2", "v1", "v2"));
+        execute("UPDATE %s SET l = l - ? WHERE k=0", list("v1", "v2"));
         assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
     }
 

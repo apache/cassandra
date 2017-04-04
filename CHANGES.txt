@@ -1,4 +1,5 @@
 4.0
+ * Improve error messages for +/- operations on maps and tuples (CASSANDRA-13197)
  * Remove deprecated repair JMX APIs (CASSANDRA-11530)
  * Fix version check to enable streaming keep-alive (CASSANDRA-12929)
  * Make it possible to monitor an ideal consistency level separate from actual consistency level (CASSANDRA-13289)

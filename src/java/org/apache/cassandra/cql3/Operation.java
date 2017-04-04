@@ -300,13 +300,14 @@ public abstract class Operation
 
         public Operation prepare(TableMetadata metadata, ColumnMetadata receiver) throws InvalidRequestException
         {
-            Term v = value.prepare(metadata.keyspace, receiver);
-
             if (!(receiver.type instanceof CollectionType))
             {
+                if (receiver.type instanceof TupleType)
+                    throw new InvalidRequestException(String.format("Invalid operation (%s) for tuple column %s", toString(receiver), receiver.name));
+
                 if (!(receiver.type instanceof CounterColumnType))
                     throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver.name));
-                return new Constants.Adder(receiver, v);
+                return new Constants.Adder(receiver, value.prepare(metadata.keyspace, receiver));
             }
             else if (!(receiver.type.isMultiCell()))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for frozen collection column %s", toString(receiver), receiver.name));
@@ -314,11 +315,21 @@ public abstract class Operation
             switch (((CollectionType)receiver.type).kind)
             {
                 case LIST:
-                    return new Lists.Appender(receiver, v);
+                    return new Lists.Appender(receiver, value.prepare(metadata.keyspace, receiver));
                 case SET:
-                    return new Sets.Adder(receiver, v);
+                    return new Sets.Adder(receiver, value.prepare(metadata.keyspace, receiver));
                 case MAP:
-                    return new Maps.Putter(receiver, v);
+                    Term term;
+                    try
+                    {
+                        term = value.prepare(metadata.keyspace, receiver);
+                    }
+                    catch (InvalidRequestException e)
+                    {
+                        throw new InvalidRequestException(String.format("Value for a map addition has to be a map, but was: '%s'", value));
+                    }
+
+                    return new Maps.Putter(receiver, term);
             }
             throw new AssertionError();
         }
@@ -366,7 +377,16 @@ public abstract class Operation
                                                                      receiver.cfName,
                                                                      receiver.name,
                                                                      SetType.getInstance(((MapType)receiver.type).getKeysType(), false));
-                    return new Sets.Discarder(receiver, value.prepare(metadata.keyspace, vr));
+                    Term term;
+                    try
+                    {
+                        term = value.prepare(metadata.keyspace, vr);
+                    }
+                    catch (InvalidRequestException e)
+                    {
+                        throw new InvalidRequestException(String.format("Value for a map substraction has to be a set, but was: '%s'", value));
+                    }
+                    return new Sets.Discarder(receiver, term);
             }
             throw new AssertionError();
         }
