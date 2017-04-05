@@ -119,9 +119,8 @@ public class BigFormat implements SSTableFormat
         //             store rows natively
         // mb (3.0.7, 3.7): commit log lower bound included
         // mc (3.0.8, 3.9): commit log intervals included
-        // md (3.0.9, 3.10): pending repair session included
 
-        // na (4.0.0): uncompressed chunks
+        // na (4.0.0): uncompressed chunks, pending repair session
         //
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
@@ -142,7 +141,7 @@ public class BigFormat implements SSTableFormat
             hasCommitLogLowerBound = version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
             hasMaxCompressedLength = version.compareTo("na") >= 0;
-            hasPendingRepair = version.compareTo("md") >= 0;
+            hasPendingRepair = version.compareTo("na") >= 0;
         }
 
         @Override
