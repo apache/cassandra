@@ -22,7 +22,7 @@ import java.util.Arrays;
 /**
  * This class implements Word Break rules from the Unicode Text Segmentation 
  * algorithm, as specified in 
- * <a href="http://unicode.org/reports/tr29/">Unicode Standard Annex #29</a>. ∂
+ * <a href="http://unicode.org/reports/tr29/">Unicode Standard Annex #29</a>. 
  * <p/>
  * Tokens produced are of the following types:
  * <ul>
