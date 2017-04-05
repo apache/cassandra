@@ -329,7 +329,7 @@ public class NodeTool
 
         protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe)
         {
-            return parseOptionalKeyspace(cmdArgs, nodeProbe, KeyspaceSet.NON_SYSTEM);
+            return parseOptionalKeyspace(cmdArgs, nodeProbe, KeyspaceSet.ALL);
         }
 
         protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe, KeyspaceSet defaultKeyspaceSet)
