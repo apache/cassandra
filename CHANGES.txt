@@ -107,6 +107,7 @@ Merged from 3.0:
    live rows in sstabledump (CASSANDRA-13177)
  * Provide user workaround when system_schema.columns does not contain entries
    for a table that's in system_schema.tables (CASSANDRA-13180)
+ * Nodetool upgradesstables/scrub/compact ignores system tables (CASSANDRA-13410)
 Merged from 2.2:
  * Fix JVM metric names (CASSANDRA-13103)
  * Honor truststore-password parameter in cassandra-stress (CASSANDRA-12773)
