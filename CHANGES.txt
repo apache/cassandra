@@ -1,4 +1,5 @@
 4.0
+ * Fix WriteResponseHandlerTest is sensitive to test execution order (CASSANDRA-13421)
  * Improve incremental repair logging (CASSANDRA-13468)
  * Start compaction when incremental repair finishes (CASSANDRA-13454)
  * Add repair streaming preview (CASSANDRA-13257)
