@@ -25,7 +25,8 @@ Merged from 2.2:
  * Commitlog replay may fail if last mutation is within 4 bytes of end of segment (CASSANDRA-13282)
  * Fix queries updating multiple time the same list (CASSANDRA-13130)
  * Fix GRANT/REVOKE when keyspace isn't specified (CASSANDRA-13053)
-
+Merged from 2.1:
+ * Fix ParseError unhashable type list in cqlsh copy from (CASSANDRA-13364)
 
 3.0.12
  * Prevent data loss on upgrade 2.1 - 3.0 by adding component separator to LogRecord absolute path (CASSANDRA-13294)
