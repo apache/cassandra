@@ -49,10 +49,9 @@ public class StreamInitMessage
     // true if this init message is to connect for outgoing message on receiving side
     public final boolean isForOutgoing;
     public final boolean keepSSTableLevel;
-    public final boolean isIncremental;
     public final UUID pendingRepair;
 
-    public StreamInitMessage(InetAddress from, int sessionIndex, UUID planId, StreamOperation streamOperation, boolean isForOutgoing, boolean keepSSTableLevel, boolean isIncremental, UUID pendingRepair)
+    public StreamInitMessage(InetAddress from, int sessionIndex, UUID planId, StreamOperation streamOperation, boolean isForOutgoing, boolean keepSSTableLevel, UUID pendingRepair)
     {
         this.from = from;
         this.sessionIndex = sessionIndex;
@@ -60,7 +59,6 @@ public class StreamInitMessage
         this.streamOperation = streamOperation;
         this.isForOutgoing = isForOutgoing;
         this.keepSSTableLevel = keepSSTableLevel;
-        this.isIncremental = isIncremental;
         this.pendingRepair = pendingRepair;
     }
 
@@ -116,7 +114,6 @@ public class StreamInitMessage
             out.writeUTF(message.streamOperation.getDescription());
             out.writeBoolean(message.isForOutgoing);
             out.writeBoolean(message.keepSSTableLevel);
-            out.writeBoolean(message.isIncremental);
 
             out.writeBoolean(message.pendingRepair != null);
             if (message.pendingRepair != null)
@@ -134,9 +131,8 @@ public class StreamInitMessage
             boolean sentByInitiator = in.readBoolean();
             boolean keepSSTableLevel = in.readBoolean();
 
-            boolean isIncremental = in.readBoolean();
             UUID pendingRepair = in.readBoolean() ? UUIDSerializer.serializer.deserialize(in, version) : null;
-            return new StreamInitMessage(from, sessionIndex, planId, StreamOperation.fromString(description), sentByInitiator, keepSSTableLevel, isIncremental, pendingRepair);
+            return new StreamInitMessage(from, sessionIndex, planId, StreamOperation.fromString(description), sentByInitiator, keepSSTableLevel, pendingRepair);
         }
 
         public long serializedSize(StreamInitMessage message, int version)
@@ -147,7 +143,6 @@ public class StreamInitMessage
             size += TypeSizes.sizeof(message.streamOperation.getDescription());
             size += TypeSizes.sizeof(message.isForOutgoing);
             size += TypeSizes.sizeof(message.keepSSTableLevel);
-            size += TypeSizes.sizeof(message.isIncremental);
             size += TypeSizes.sizeof(message.pendingRepair != null);
             if (message.pendingRepair != null)
             {

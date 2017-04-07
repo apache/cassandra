@@ -40,7 +40,6 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     private final RepairSession session;
     private final RepairJobDesc desc;
     private final RepairParallelism parallelismDegree;
-    private final long repairedAt;
     private final ListeningExecutorService taskExecutor;
     private final boolean isConsistent;
 
@@ -54,7 +53,6 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     {
         this.session = session;
         this.desc = new RepairJobDesc(session.parentRepairSession, session.getId(), session.keyspace, columnFamily, session.getRanges());
-        this.repairedAt = session.repairedAt;
         this.taskExecutor = session.taskExecutor;
         this.parallelismDegree = session.parallelismDegree;
         this.isConsistent = isConsistent;
@@ -130,7 +128,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                         SyncTask task;
                         if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
                         {
-                            task = new LocalSyncTask(desc, r1, r2, repairedAt, isConsistent ? desc.parentSessionId : null, session.pullRepair);
+                            task = new LocalSyncTask(desc, r1, r2, isConsistent ? desc.parentSessionId : null, session.pullRepair);
                         }
                         else
                         {

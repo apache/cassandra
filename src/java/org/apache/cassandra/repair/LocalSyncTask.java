@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.util.List;
 import java.util.UUID;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,17 +48,31 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
 
     private static final Logger logger = LoggerFactory.getLogger(LocalSyncTask.class);
 
-    private final long repairedAt;
     private final UUID pendingRepair;
-
     private final boolean pullRepair;
 
-    public LocalSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, long repairedAt, UUID pendingRepair, boolean pullRepair)
+    public LocalSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, UUID pendingRepair, boolean pullRepair)
     {
         super(desc, r1, r2);
-        this.repairedAt = repairedAt;
         this.pendingRepair = pendingRepair;
         this.pullRepair = pullRepair;
+    }
+
+
+    @VisibleForTesting
+    StreamPlan createStreamPlan(InetAddress dst, InetAddress preferred, List<Range<Token>> differences)
+    {
+        StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, false, pendingRepair)
+                          .listeners(this)
+                          .flushBeforeTransfer(pendingRepair == null)
+                          .requestRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily);  // request ranges from the remote node
+        if (!pullRepair)
+        {
+            // send ranges to the remote node if we are not performing a pull repair
+            plan.transferRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily);
+        }
+
+        return plan;
     }
 
     /**
@@ -73,24 +88,9 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
 
         String message = String.format("Performing streaming repair of %d ranges with %s", differences.size(), dst);
         logger.info("[repair #{}] {}", desc.sessionId, message);
-        boolean isIncremental = false;
-        if (desc.parentSessionId != null)
-        {
-            ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId);
-            isIncremental = prs.isIncremental;
-        }
         Tracing.traceRepair(message);
-        StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, repairedAt, 1, false, isIncremental, false, pendingRepair).listeners(this)
-                                                                                                                           .flushBeforeTransfer(true)
-                                                                                                                           // request ranges from the remote node
-                                                                                                                           .requestRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily);
-        if (!pullRepair)
-        {
-            // send ranges to the remote node if we are not performing a pull repair
-            plan.transferRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily);
-        }
 
-        plan.execute();
+        createStreamPlan(dst, preferred, differences).execute();
     }
 
     public void handleStreamEvent(StreamEvent event)

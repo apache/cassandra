@@ -90,7 +90,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     /** Range to repair */
     public final Collection<Range<Token>> ranges;
     public final Set<InetAddress> endpoints;
-    public final long repairedAt;
     public final boolean isConsistent;
 
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
@@ -124,7 +123,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                          String keyspace,
                          RepairParallelism parallelismDegree,
                          Set<InetAddress> endpoints,
-                         long repairedAt,
                          boolean isConsistent,
                          boolean pullRepair,
                          String... cfnames)
@@ -138,7 +136,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.cfnames = cfnames;
         this.ranges = ranges;
         this.endpoints = endpoints;
-        this.repairedAt = repairedAt;
         this.isConsistent = isConsistent;
         this.pullRepair = pullRepair;
     }

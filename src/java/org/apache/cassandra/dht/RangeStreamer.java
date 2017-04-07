@@ -156,8 +156,7 @@ public class RangeStreamer
         this.tokens = tokens;
         this.address = address;
         this.description = streamOperation.getDescription();
-        this.streamPlan = new StreamPlan(streamOperation, ActiveRepairService.UNREPAIRED_SSTABLE, connectionsPerHost,
-                true, false, connectSequentially, null);
+        this.streamPlan = new StreamPlan(streamOperation, connectionsPerHost, true, connectSequentially, null);
         this.useStrictConsistency = useStrictConsistency;
         this.snitch = snitch;
         this.stateStore = stateStore;

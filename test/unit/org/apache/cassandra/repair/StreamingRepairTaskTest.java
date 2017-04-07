@@ -65,12 +65,10 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), ks, tbl, prs.getRanges());
         SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges());
-        StreamingRepairTask task = new StreamingRepairTask(desc, request, prs.getRepairedAt(), prs.isIncremental);
+        StreamingRepairTask task = new StreamingRepairTask(desc, request, desc.sessionId);
 
-        StreamPlan plan = task.createStreamPlan(request.src, request.dst, prs.isIncremental);
+        StreamPlan plan = task.createStreamPlan(request.src, request.dst);
         Assert.assertFalse(plan.getFlushBeforeTransfer());
-        Assert.assertEquals(prs.repairedAt, plan.getRepairedAt());
-
     }
 
     @Test
@@ -80,10 +78,9 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, UUIDGen.getTimeUUID(), ks, tbl, prs.getRanges());
         SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges());
-        StreamingRepairTask task = new StreamingRepairTask(desc, request, prs.getRepairedAt(), prs.isIncremental);
+        StreamingRepairTask task = new StreamingRepairTask(desc, request, null);
 
-        StreamPlan plan = task.createStreamPlan(request.src, request.dst, prs.isIncremental);
+        StreamPlan plan = task.createStreamPlan(request.src, request.dst);
         Assert.assertTrue(plan.getFlushBeforeTransfer());
-        Assert.assertEquals(ActiveRepairService.UNREPAIRED_SSTABLE, plan.getRepairedAt());
     }
 }

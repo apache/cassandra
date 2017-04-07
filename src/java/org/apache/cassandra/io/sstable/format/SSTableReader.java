@@ -1760,6 +1760,16 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.pendingRepair != ActiveRepairService.NO_PENDING_REPAIR;
     }
 
+    public UUID getPendingRepair()
+    {
+        return sstableMetadata.pendingRepair;
+    }
+
+    public long getRepairedAt()
+    {
+        return sstableMetadata.repairedAt;
+    }
+
     public boolean intersects(Collection<Range<Token>> ranges)
     {
         Bounds<Token> range = new Bounds<>(first.getToken(), last.getToken());

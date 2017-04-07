@@ -255,7 +255,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         ListeningExecutorService executor = createExecutor();
 
         // Setting the repairedAt time to UNREPAIRED_SSTABLE causes the repairedAt times to be preserved across streamed sstables
-        final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, ActiveRepairService.UNREPAIRED_SSTABLE, false, executor, commonRanges, cfnames);
+        final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, false, executor, commonRanges, cfnames);
 
         // After all repair sessions completes(successful or not),
         // run anticompaction if necessary and send finish notice back to client
@@ -301,7 +301,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         ListeningExecutorService executor = createExecutor();
         AtomicBoolean hasFailure = new AtomicBoolean(false);
         ListenableFuture repairResult = coordinatorSession.execute(executor,
-                                                                   () -> submitRepairSessions(parentSession, repairedAt, true, executor, commonRanges, cfnames),
+                                                                   () -> submitRepairSessions(parentSession, true, executor, commonRanges, cfnames),
                                                                    hasFailure);
         Collection<Range<Token>> ranges = new HashSet<>();
         for (Collection<Range<Token>> range : Iterables.transform(commonRanges, cr -> cr.right))
@@ -312,7 +312,6 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
     }
 
     private ListenableFuture<List<RepairSessionResult>> submitRepairSessions(UUID parentSession,
-                                                                             long repairedAt,
                                                                              boolean isConsistent,
                                                                              ListeningExecutorService executor,
                                                                              List<Pair<Set<InetAddress>, ? extends Collection<Range<Token>>>> commonRanges,
@@ -326,7 +325,6 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                                                                                      keyspace,
                                                                                      options.getParallelism(),
                                                                                      p.left,
-                                                                                     repairedAt,
                                                                                      isConsistent,
                                                                                      options.isPullRepair(),
                                                                                      executor,
