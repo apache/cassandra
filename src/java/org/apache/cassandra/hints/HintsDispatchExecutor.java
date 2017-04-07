@@ -60,10 +60,7 @@ final class HintsDispatchExecutor
         this.isAlive = isAlive;
 
         scheduledDispatches = new ConcurrentHashMap<>();
-        executor = new JMXEnabledThreadPoolExecutor(1,
-                                                    maxThreads,
-                                                    1,
-                                                    TimeUnit.MINUTES,
+        executor = new JMXEnabledThreadPoolExecutor(maxThreads, maxThreads,1, TimeUnit.MINUTES,
                                                     new LinkedBlockingQueue<>(),
                                                     new NamedThreadFactory("HintsDispatcher", Thread.MIN_PRIORITY),
                                                     "internal");
