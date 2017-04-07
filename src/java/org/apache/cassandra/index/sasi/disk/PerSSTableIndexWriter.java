@@ -79,7 +79,6 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
     private final OperationType source;
 
     private final AbstractType<?> keyValidator;
-    private final Map<ColumnMetadata, ColumnIndex> supportedIndexes;
 
     @VisibleForTesting
     protected final Map<ColumnMetadata, Index> indexes;
@@ -96,8 +95,9 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         this.keyValidator = keyValidator;
         this.descriptor = descriptor;
         this.source = source;
-        this.supportedIndexes = supportedIndexes;
         this.indexes = new HashMap<>();
+        for (Map.Entry<ColumnMetadata, ColumnIndex> entry : supportedIndexes.entrySet())
+            indexes.put(entry.getKey(), newIndex(entry.getValue()));
     }
 
     public void begin()
@@ -116,18 +116,13 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
         Row row = (Row) unfiltered;
 
-        supportedIndexes.keySet().forEach((column) -> {
+        indexes.forEach((column, index) -> {
             ByteBuffer value = ColumnIndex.getValueOf(column, row, nowInSec);
             if (value == null)
                 return;
 
-            ColumnIndex columnIndex = supportedIndexes.get(column);
-            if (columnIndex == null)
-                return;
-
-            Index index = indexes.get(column);
             if (index == null)
-                indexes.put(column, (index = newIndex(columnIndex)));
+                throw new IllegalArgumentException("No index exists for column " + column.name.toString());
 
             index.add(value.duplicate(), currentKey, currentKeyPosition);
         });

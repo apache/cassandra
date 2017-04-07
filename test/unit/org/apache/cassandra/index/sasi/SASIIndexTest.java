@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -1897,6 +1898,22 @@ public class SASIIndexTest
                              CQLTester.row("Pavel", "BY", 28, "xedin", 182, 2.0));
         CQLTester.assertRows(executeCQL(CLUSTERING_CF_NAME_1, "SELECT * FROM %s.%s WHERE score < 2.0 AND nickname = 'jrwest' ALLOW FILTERING"),
                              CQLTester.row("Jordan", "US", 27, "jrwest", 182, 1.0));
+    }
+
+    @Test
+    public void testIndexRebuild() throws Exception
+    {
+        ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME_1);
+
+        executeCQL(CLUSTERING_CF_NAME_1, "INSERT INTO %s.%s (name, nickname) VALUES (?, ?)", "Alex", "ifesdjeen");
+
+        store.forceBlockingFlush();
+
+        for (Index index : store.indexManager.listIndexes())
+        {
+            SASIIndex idx = (SASIIndex) index;
+            Assert.assertFalse(idx.getIndex().init(store.getLiveSSTables()).iterator().hasNext());
+        }
     }
 
     @Test

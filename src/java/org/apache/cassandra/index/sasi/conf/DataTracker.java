@@ -29,8 +29,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.SSTableIndex;
 import org.apache.cassandra.index.sasi.conf.view.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-
-import com.google.common.collect.Sets;
+import org.apache.cassandra.utils.Pair;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,8 +65,9 @@ public class DataTracker
      */
     public Iterable<SSTableReader> update(Collection<SSTableReader> oldSSTables, Collection<SSTableReader> newSSTables)
     {
-        final Set<SSTableIndex> newIndexes = getIndexes(newSSTables);
-        final Set<SSTableReader> indexedSSTables = getSSTables(newIndexes);
+        final Pair<Set<SSTableIndex>, Set<SSTableReader>> built = getBuiltIndexes(newSSTables);
+        final Set<SSTableIndex> newIndexes = built.left;
+        final Set<SSTableReader> indexedSSTables = built.right;
 
         View currentView, newView;
         do
@@ -131,9 +131,10 @@ public class DataTracker
         update(toRemove, Collections.<SSTableReader>emptyList());
     }
 
-    private Set<SSTableIndex> getIndexes(Collection<SSTableReader> sstables)
+    private Pair<Set<SSTableIndex>, Set<SSTableReader>> getBuiltIndexes(Collection<SSTableReader> sstables)
     {
         Set<SSTableIndex> indexes = new HashSet<>(sstables.size());
+        Set<SSTableReader> builtSSTables = new HashSet<>(sstables.size());
         for (SSTableReader sstable : sstables)
         {
             if (sstable.isMarkedCompacted())
@@ -142,6 +143,14 @@ public class DataTracker
             File indexFile = new File(sstable.descriptor.filenameFor(columnIndex.getComponent()));
             if (!indexFile.exists())
                 continue;
+
+            // if the index file is empty, we have to ignore it to avoid re-building, but it doesn't take
+            // a part in query process
+            if (indexFile.length() == 0)
+            {
+                builtSSTables.add(sstable);
+                continue;
+            }
 
             SSTableIndex index = null;
 
@@ -160,7 +169,9 @@ public class DataTracker
                 // Try to add new index to the set, if set already has such index, we'll simply release and move on.
                 // This covers situation when sstable collection has the same sstable multiple
                 // times because we don't know what kind of collection it actually is.
-                if (!indexes.add(index))
+                if (indexes.add(index))
+                    builtSSTables.add(sstable);
+                else
                     index.release();
             }
             catch (Throwable t)
@@ -171,11 +182,6 @@ public class DataTracker
             }
         }
 
-        return indexes;
-    }
-
-    private Set<SSTableReader> getSSTables(Set<SSTableIndex> indexes)
-    {
-        return Sets.newHashSet(indexes.stream().map(SSTableIndex::getSSTable).collect(Collectors.toList()));
+        return Pair.create(indexes, builtSSTables);
     }
 }

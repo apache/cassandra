@@ -52,6 +52,7 @@
 
 
 3.11.0
+ * Avoid rebuilding SASI indexes containing no values (CASSANDRA-12962)
  * Add charset to Analyser input stream (CASSANDRA-13151)
  * Fix testLimitSSTables flake caused by concurrent flush (CASSANDRA-12820)
  * cdc column addition strikes again (CASSANDRA-13382)
