@@ -1998,7 +1998,7 @@ class ImportConversion(object):
             return tuple(convert_mandatory(t, v) for t, v in zip(ct.subtypes, split(val)))
 
         def convert_list(val, ct=cql_type):
-            return list(convert_mandatory(ct.subtypes[0], v) for v in split(val))
+            return tuple(convert_mandatory(ct.subtypes[0], v) for v in split(val))
 
         def convert_set(val, ct=cql_type):
             return frozenset(convert_mandatory(ct.subtypes[0], v) for v in split(val))

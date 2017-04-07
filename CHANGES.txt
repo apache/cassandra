@@ -127,6 +127,7 @@ Merged from 2.2:
  * Fix negative mean latency metric (CASSANDRA-12876)
  * Use only one file pointer when creating commitlog segments (CASSANDRA-12539)
 Merged from 2.1:
+ * Fix ParseError unhashable type list in cqlsh copy from (CASSANDRA-13364)
  * Remove unused repositories (CASSANDRA-13278)
  * Log stacktrace of uncaught exceptions (CASSANDRA-13108)
  * Use portable stderr for java error in startup (CASSANDRA-13211)
