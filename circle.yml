@@ -4,14 +4,15 @@ machine:
 
 test:
   pre:
-    - sudo ifconfig lo:1 127.0.0.2 up
-    - sudo ifconfig lo:2 127.0.0.3 up
-    - sudo ifconfig lo:3 127.0.0.4 up
-    - sudo ifconfig lo:4 127.0.0.5 up
-    - ant build
-
+    - sudo apt-get update; sudo apt-get install wamerican:
+        parallel: true
   override:
-    - ant test
+    - case $CIRCLE_NODE_INDEX in 0) ant eclipse-warnings; ant test ;; 1) ant long-test ;; 2) ant test-compression ;; 3) ant stress-test ;;esac:
+        parallel: true
+
   post:
-    - mkdir -p $CIRCLE_TEST_REPORTS/junit/
-    - cp ./build/test/output/*.xml $CIRCLE_TEST_REPORTS/junit/
+    - mkdir -p $CIRCLE_TEST_REPORTS/junit/:
+        parallel: true
+    - find ./build/test/output/ -iname "*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/junit/ \;:
+        parallel: true
+
