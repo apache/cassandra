@@ -25,9 +25,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.MapDifference;
+import com.google.common.collect.*;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,8 +80,21 @@ public final class SchemaKeyspace
     public static final String AGGREGATES = "aggregates";
     public static final String INDEXES = "indexes";
 
-    public static final List<String> ALL =
-        ImmutableList.of(KEYSPACES, TABLES, COLUMNS, DROPPED_COLUMNS, TRIGGERS, VIEWS, TYPES, FUNCTIONS, AGGREGATES, INDEXES);
+    /**
+     * The order in this list matters.
+     *
+     * When flushing schema tables, we want to flush them in a way that mitigates the effects of an abrupt shutdown whilst
+     * the tables are being flushed. On startup, we load the schema from disk before replaying the CL, so we need to
+     * try to avoid problems like reading a table without columns or types, for example. So columns and types should be
+     * flushed before tables, which should be flushed before keyspaces.
+     *
+     * When truncating, the order should be reversed. For immutable lists this is an efficient operation that simply
+     * iterates in reverse order.
+     *
+     * See CASSANDRA-12213 for more details.
+     */
+    public static final ImmutableList<String> ALL =
+        ImmutableList.of(COLUMNS, DROPPED_COLUMNS, TRIGGERS, TYPES, FUNCTIONS, AGGREGATES, INDEXES, TABLES, VIEWS, KEYSPACES);
 
     /**
      * The tables to which we added the cdc column. This is used in {@link #makeUpdateForSchema} below to make sure we skip that
@@ -279,7 +290,7 @@ public final class SchemaKeyspace
 
     public static void truncate()
     {
-        ALL.forEach(table -> getSchemaCFS(table).truncateBlocking());
+        ALL.reverse().forEach(table -> getSchemaCFS(table).truncateBlocking());
     }
 
     static void flush()
