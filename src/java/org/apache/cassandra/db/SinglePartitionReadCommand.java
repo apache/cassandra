@@ -736,13 +736,13 @@ public class SinglePartitionReadCommand extends ReadCommand
 
                 // We need to get the partition deletion and include it if it's live. In any case though, we're done with that sstable.
                 sstable.incrementReadCount();
-                try (UnfilteredRowIterator iter = sstable.iterator(partitionKey(), columnFilter(), filter.isReversed(), isForThrift()))
+                try (UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(), columnFilter(), filter.isReversed(), isForThrift())))
                 {
+                    sstablesIterated++;
                     if (!iter.partitionLevelDeletion().isLive())
-                    {
-                        sstablesIterated++;
                         result = add(UnfilteredRowIterators.noRowsIterator(iter.metadata(), iter.partitionKey(), Rows.EMPTY_STATIC_ROW, iter.partitionLevelDeletion(), filter.isReversed()), result, filter, sstable.isRepaired());
-                    }
+                    else
+                        result = add(iter, result, filter, sstable.isRepaired());
                 }
                 continue;
             }
@@ -835,9 +835,6 @@ public class SinglePartitionReadCommand extends ReadCommand
         NavigableSet<Clustering> toRemove = null;
         for (Clustering clustering : clusterings)
         {
-            if (!searchIter.hasNext())
-                break;
-
             Row row = searchIter.next(clustering);
             if (row == null || !canRemoveRow(row, columns.regulars, sstableTimestamp))
                 continue;

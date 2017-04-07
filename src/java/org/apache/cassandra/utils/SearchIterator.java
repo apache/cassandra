@@ -19,8 +19,6 @@ package org.apache.cassandra.utils;
 
 public interface SearchIterator<K, V>
 {
-    public boolean hasNext();
-
     /**
      * Searches "forwards" (in direction of travel) in the iterator for the required key;
      * if this or any key greater has already been returned by the iterator, the method may
