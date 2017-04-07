@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.index.sasi;
 
-import java.io.File;
 import java.io.FileWriter;
 import java.io.Writer;
 import java.nio.ByteBuffer;
@@ -35,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term;
@@ -61,7 +61,6 @@ import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.QueryController;
 import org.apache.cassandra.index.sasi.plan.QueryPlan;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -1906,6 +1905,22 @@ public class SASIIndexTest
                              CQLTester.row("Pavel", "BY", 28, "xedin", 182, 2.0));
         CQLTester.assertRows(executeCQL(CLUSTERING_CF_NAME_1, "SELECT * FROM %s.%s WHERE score < 2.0 AND nickname = 'jrwest' ALLOW FILTERING"),
                              CQLTester.row("Jordan", "US", 27, "jrwest", 182, 1.0));
+    }
+
+    @Test
+    public void testIndexRebuild() throws Exception
+    {
+        ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME_1);
+
+        executeCQL(CLUSTERING_CF_NAME_1, "INSERT INTO %s.%s (name, nickname) VALUES (?, ?)", "Alex", "ifesdjeen");
+
+        store.forceBlockingFlush();
+
+        for (Index index : store.indexManager.listIndexes())
+        {
+            SASIIndex idx = (SASIIndex) index;
+            Assert.assertFalse(idx.getIndex().init(store.getLiveSSTables()).iterator().hasNext());
+        }
     }
 
     @Test

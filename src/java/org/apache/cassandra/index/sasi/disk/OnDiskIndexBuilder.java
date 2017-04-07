@@ -246,7 +246,18 @@ public class OnDiskIndexBuilder
     {
         // no terms means there is nothing to build
         if (terms.isEmpty())
+        {
+            try
+            {
+                file.createNewFile();
+            }
+            catch (IOException e)
+            {
+                throw new FSWriteError(e, file);
+            }
+
             return false;
+        }
 
         // split terms into suffixes only if it's text, otherwise (even if CONTAINS is set) use terms in original form
         SA sa = ((termComparator instanceof UTF8Type || termComparator instanceof AsciiType) && mode == Mode.CONTAINS)
