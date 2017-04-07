@@ -83,11 +83,6 @@ public abstract class EnsureOnHeap extends Transformation
         {
             return new SearchIterator<Clustering, Row>()
             {
-                public boolean hasNext()
-                {
-                    return partition.hasNext();
-                }
-
                 public Row next(Clustering key)
                 {
                     return applyToRow(partition.next(key));
