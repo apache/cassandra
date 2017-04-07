@@ -83,5 +83,8 @@ cstar_perf
 
 Another tool available on github is `cstar_perf <https://github.com/datastax/cstar_perf>`_ that can be used for intensive performance testing in large clusters or locally. Please refer to the project page on how to set it up and how to use it.
 
+CircleCI
+--------
+Cassandra ships with a default `CircleCI <https://circleci.com>`_ configuration, to enable running tests on your branches, you need to go the CircleCI website, click "Login" and log in with your github account. Then you need to give CircleCI permission to watch your repositories. Once you have done that, you can optionally configure CircleCI to run tests in parallel - click "Projects", then your github account and then click the settings for the project. If you leave the parallelism at 1 for Cassandra, only ``ant eclipse-warnings`` and ``ant test`` will be run. If you up the parallelism to 4, it also runs ``ant long-test``, ``ant test-compression`` and ``ant stress-test``
 
 
