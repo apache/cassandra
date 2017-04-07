@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import org.apache.cassandra.index.sasi.analyzer.filter.*;
@@ -152,7 +153,7 @@ public class StandardAnalyzer extends AbstractAnalyzer
         this.options = tokenizerOptions;
         this.filterPipeline = getFilterPipeline();
 
-        Reader reader = new InputStreamReader(new DataInputBuffer(ByteBufferUtil.EMPTY_BYTE_BUFFER, false));
+        Reader reader = new InputStreamReader(new DataInputBuffer(ByteBufferUtil.EMPTY_BYTE_BUFFER, false), StandardCharsets.UTF_8);
         this.scanner = new StandardTokenizerImpl(reader);
         this.inputReader = reader;
     }
@@ -179,15 +180,16 @@ public class StandardAnalyzer extends AbstractAnalyzer
     public void reset(ByteBuffer input)
     {
         this.next = null;
-        Reader reader = new InputStreamReader(new DataInputBuffer(input, false));
+        Reader reader = new InputStreamReader(new DataInputBuffer(input, false), StandardCharsets.UTF_8);
         scanner.yyreset(reader);
         this.inputReader = reader;
     }
 
+    @VisibleForTesting
     public void reset(InputStream input)
     {
         this.next = null;
-        Reader reader = new InputStreamReader(input);
+        Reader reader = new InputStreamReader(input, StandardCharsets.UTF_8);
         scanner.yyreset(reader);
         this.inputReader = reader;
     }
