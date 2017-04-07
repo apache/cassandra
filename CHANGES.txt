@@ -26,6 +26,7 @@ Merged from 2.2:
  * Fix queries updating multiple time the same list (CASSANDRA-13130)
  * Fix GRANT/REVOKE when keyspace isn't specified (CASSANDRA-13053)
 Merged from 2.1:
+ * Fix 2ndary index queries on partition keys for tables with static columns CASSANDRA-13147
  * Fix ParseError unhashable type list in cqlsh copy from (CASSANDRA-13364)
 
 3.0.12

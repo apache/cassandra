@@ -78,6 +78,12 @@ public final class StatementRestrictions
      */
     private RestrictionSet nonPrimaryKeyRestrictions;
 
+    /**
+     * <code>true</code> if nonPrimaryKeyRestrictions contains restriction on a regular column,
+     * <code>false</code> otherwise.
+     */
+    private boolean hasRegularColumnsRestriction = false;
+
     private Set<ColumnDefinition> notNullColumns;
 
     /**
@@ -263,7 +269,13 @@ public final class StatementRestrictions
         else if (def.isClusteringColumn())
             clusteringColumnsRestrictions = clusteringColumnsRestrictions.mergeWith(restriction);
         else
+        {
+            if (restriction.columnDef.kind == ColumnDefinition.Kind.REGULAR)
+            {
+                hasRegularColumnsRestriction = true;
+            }
             nonPrimaryKeyRestrictions = nonPrimaryKeyRestrictions.addRestriction(restriction);
+        }
     }
 
     /**
@@ -335,6 +347,11 @@ public final class StatementRestrictions
     public boolean isKeyRange()
     {
         return this.isKeyRange;
+    }
+
+    public boolean hasRegularColumnsRestriction()
+    {
+        return hasRegularColumnsRestriction;
     }
 
     /**
