@@ -43,14 +43,88 @@ public class DeleteTest extends CQLTester
     @Test
     public void testRangeDeletion() throws Throwable
     {
-        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
+        testRangeDeletion(true, true);
+        testRangeDeletion(false, true);
+        testRangeDeletion(true, false);
+        testRangeDeletion(false, false);
+    }
 
+    private void testRangeDeletion(boolean flushData, boolean flushTombstone) throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 1, 1);
-        flush();
+        flush(flushData);
         execute("DELETE FROM %s WHERE a=? AND b=?", 1, 1);
-        flush();
+        flush(flushTombstone);
         assertEmpty(execute("SELECT * FROM %s WHERE a=? AND b=? AND c=?", 1, 1, 1));
     }
+
+    @Test
+    public void testDeleteRange() throws Throwable
+    {
+        testDeleteRange(true, true);
+        testDeleteRange(false, true);
+        testDeleteRange(true, false);
+        testDeleteRange(false, false);
+    }
+
+    private void testDeleteRange(boolean flushData, boolean flushTombstone) throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 1, 1);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, 2);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 2, 3);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 3, 4);
+        flush(flushData);
+
+        execute("DELETE FROM %s WHERE a = ? AND b >= ?", 2, 2);
+        flush(flushTombstone);
+
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s"),
+                                row(1, 1, 1),
+                                row(2, 1, 2));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ?", 2, 1),
+                   row(2, 1, 2));
+        assertEmpty(execute("SELECT * FROM %s WHERE a = ? AND b = ?", 2, 2));
+        assertEmpty(execute("SELECT * FROM %s WHERE a = ? AND b = ?", 2, 3));
+    }
+
+    @Test
+    public void testCrossMemSSTableMultiColumn() throws Throwable
+    {
+        testCrossMemSSTableMultiColumn(true, true);
+        testCrossMemSSTableMultiColumn(false, true);
+        testCrossMemSSTableMultiColumn(true, false);
+        testCrossMemSSTableMultiColumn(false, false);
+    }
+
+    private void testCrossMemSSTableMultiColumn(boolean flushData, boolean flushTombstone) throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 1, 1);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, 2);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 2, 2);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 3, 3);
+        flush(flushData);
+
+        execute("DELETE FROM %s WHERE a = ? AND (b) = (?)", 2, 2);
+        execute("DELETE FROM %s WHERE a = ? AND (b) = (?)", 2, 3);
+
+        flush(flushTombstone);
+
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s"),
+                                row(1, 1, 1),
+                                row(2, 1, 2));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ?", 2, 1),
+                   row(2, 1, 2));
+        assertEmpty(execute("SELECT * FROM %s WHERE a = ? AND b = ?", 2, 2));
+        assertEmpty(execute("SELECT * FROM %s WHERE a = ? AND b = ?", 2, 3));
+    }
+
 
     /**
      * Test simple deletion and in particular check for #4193 bug
@@ -461,7 +535,7 @@ public class DeleteTest extends CQLTester
                 assertEmpty(execute("SELECT * FROM %s WHERE partitionKey = ? AND clustering = ?", 0, 1));
             }
 
-            execute("DELETE FROM %s WHERE partitionKey = ? AND (clustering) = (?)", 0, 1);
+            execute("DELETE FROM %s WHERE partitionKey = ? AND clustering = ?", 0, 1);
             flush(forceFlush);
             assertEmpty(execute("SELECT value FROM %s WHERE partitionKey = ? AND clustering = ?", 0, 1));
 

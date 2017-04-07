@@ -325,7 +325,7 @@ public class PartitionImplementationTest
         int pos = reversed ? KEY_RANGE : 0;
         int mul = reversed ? -1 : 1;
         boolean started = false;
-        while (searchIter.hasNext())
+        while (pos < KEY_RANGE)
         {
             int skip = rand.nextInt(KEY_RANGE / 10);
             pos += skip * mul;

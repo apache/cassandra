@@ -20,6 +20,11 @@ package org.apache.cassandra.utils;
 public interface IndexedSearchIterator<K, V> extends SearchIterator<K, V>
 {
     /**
+     * @return true if iterator has any elements left, false otherwise
+     */
+    public boolean hasNext();
+
+    /**
      * @return the value just recently returned by next()
      * @throws java.util.NoSuchElementException if next() returned null
      */
