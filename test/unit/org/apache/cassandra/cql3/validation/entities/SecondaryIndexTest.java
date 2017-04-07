@@ -698,6 +698,29 @@ public class SecondaryIndexTest extends CQLTester
     }
 
     @Test
+    public void testIndexOnPartitionKeyWithStaticColumnAndNoRows() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk1 int, pk2 int, c int, s int static, v int, PRIMARY KEY((pk1, pk2), c))");
+        createIndex("CREATE INDEX ON %s (pk2)");
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) VALUES (?, ?, ?, ?, ?)", 1, 1, 1, 9, 1);
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) VALUES (?, ?, ?, ?, ?)", 1, 1, 2, 9, 2);
+        execute("INSERT INTO %s (pk1, pk2, s) VALUES (?, ?, ?)", 2, 1, 9);
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) VALUES (?, ?, ?, ?, ?)", 3, 1, 1, 9, 1);
+
+        assertRows(execute("SELECT * FROM %s WHERE pk2 = ?", 1),
+                   row(2, 1, null, 9, null),
+                   row(1, 1, 1, 9, 1),
+                   row(1, 1, 2, 9, 2),
+                   row(3, 1, 1, 9, 1));
+
+        execute("UPDATE %s SET s=?, v=? WHERE pk1=? AND pk2=? AND c=?", 9, 1, 1, 10, 2);
+        assertRows(execute("SELECT * FROM %s WHERE pk2 = ?", 10), row(1, 10, 2, 9, 1));
+
+        execute("UPDATE %s SET s=? WHERE pk1=? AND pk2=?", 9, 1, 20);
+        assertRows(execute("SELECT * FROM %s WHERE pk2 = ?", 20), row(1, 20, null, 9, null));
+    }
+
+    @Test
     public void testIndexOnClusteringColumnInsertValueOver64k() throws Throwable
     {
         createTable("CREATE TABLE %s(a int, b int, c blob, PRIMARY KEY (a, b))");
