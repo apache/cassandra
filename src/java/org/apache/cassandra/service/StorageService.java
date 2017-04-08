@@ -2036,12 +2036,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private boolean isStatus(InetAddress endpoint, String status)
     {
-        return Gossiper.instance.getEndpointStateForEndpoint(endpoint).getStatus().equals(status);
+        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+        return state != null && state.getStatus().equals(status);
     }
 
     public boolean isRpcReady(InetAddress endpoint)
     {
-        return Gossiper.instance.getEndpointStateForEndpoint(endpoint).isRpcReady();
+        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+        return state != null && state.isRpcReady();
     }
 
     /**
