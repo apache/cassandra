@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -57,6 +58,9 @@ import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.*;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 
 import static org.apache.cassandra.Util.cellname;
 import static org.apache.cassandra.Util.column;
@@ -2232,5 +2236,35 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertNull(PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY);
         
         PerRowSecondaryIndexTest.TestIndex.reset();
+    }
+
+    @Test
+    public void testSnapshotWithoutFlushWithSecondaryIndexes() throws Exception
+    {
+        String keyspaceName = "Keyspace1";
+        String cfName = "Indexed1";
+        Keyspace keyspace = Keyspace.open(keyspaceName);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+        cfs.truncateBlocking();
+
+        List<Mutation> rms = new LinkedList<>();
+        Mutation rm;
+
+        rm = new Mutation(keyspaceName, ByteBufferUtil.bytes("k1"));
+        rm.add(cfName, cellname("birthdate"), ByteBufferUtil.bytes(1L), 0);
+        rm.add(cfName, cellname("nobirthdate"), ByteBufferUtil.bytes(1L), 0);
+        rms.add(rm);
+        Util.writeColumnFamily(rms);
+
+        String snapshotName = "newSnapshot";
+        cfs.snapshotWithoutFlush(snapshotName);
+
+        File snapshotManifestFile = cfs.directories.getSnapshotManifestFile(snapshotName);
+        JSONParser parser = new JSONParser();
+        JSONObject manifest = (JSONObject) parser.parse(new FileReader(snapshotManifestFile));
+        JSONArray files = (JSONArray) manifest.get("files");
+
+        // Keyspace1-Indexed1 and the corresponding index CFS
+        assert files.size() == 2;
     }
 }
