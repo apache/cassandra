@@ -96,7 +96,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
 
         public long weightedSize()
         {
-            return ohCache.size();
+            return ohCache.memUsed();
         }
 
         public void clear()
