@@ -19,6 +19,7 @@
  * Nodetool upgradesstables/scrub/compact ignores system tables (CASSANDRA-13410)
  * Fix NPE issue in StorageService (CASSANDRA-13060)
 Merged from 2.2:
+ * Fix weightedSize() for row-cache reported by JMX and NodeTool (CASSANDRA-13393)
  * Honor truststore-password parameter in cassandra-stress (CASSANDRA-12773)
  * Discard in-flight shadow round responses (CASSANDRA-12653)
  * Don't anti-compact repaired data to avoid inconsistencies (CASSANDRA-13153)
