@@ -6,6 +6,7 @@ conf/cassandra-topology.properties etc/cassandra
 conf/logback.xml etc/cassandra
 conf/logback-tools.xml etc/cassandra
 conf/jvm.options etc/cassandra
+conf/hotspot_compiler etc/cassandra
 conf/triggers/* etc/cassandra/triggers
 debian/cassandra.in.sh usr/share/cassandra
 debian/cassandra.conf etc/security/limits.d
