@@ -135,8 +135,9 @@ public class OutboundTcpConnection extends Thread
     static final int LZ4_HASH_SEED = 0x9747b28c;
 
     private final BlockingQueue<QueuedMessage> backlog = new LinkedBlockingQueue<>();
+    private static final String BACKLOG_PURGE_SIZE_PROPERTY = PREFIX + "otc_backlog_purge_size";
     @VisibleForTesting
-    static final int BACKLOG_PURGE_SIZE = Integer.getInteger("OTC_BACKLOG_PURGE_SIZE", 1024);
+    static final int BACKLOG_PURGE_SIZE = Integer.getInteger(BACKLOG_PURGE_SIZE_PROPERTY, 1024);
     private final AtomicBoolean backlogExpirationActive = new AtomicBoolean(false);
     private volatile long backlogNextExpirationTime;
 
