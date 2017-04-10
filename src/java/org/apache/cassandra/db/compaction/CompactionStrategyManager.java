@@ -653,14 +653,14 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private void handleDeletingNotification(SSTableReader deleted)
     {
-        readLock.lock();
+        writeLock.lock();
         try
         {
             getCompactionStrategyFor(deleted).removeSSTable(deleted);
         }
         finally
         {
-            readLock.unlock();
+            writeLock.unlock();
         }
     }
 

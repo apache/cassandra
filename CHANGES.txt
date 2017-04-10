@@ -53,6 +53,7 @@
 
 
 3.11.0
+ * Use write lock not read lock for removing sstables from compaction strategies. (CASSANDRA-13422)
  * Use corePoolSize equal to maxPoolSize in JMXEnabledThreadPoolExecutors (CASSANDRA-13329)
  * Avoid rebuilding SASI indexes containing no values (CASSANDRA-12962)
  * Add charset to Analyser input stream (CASSANDRA-13151)
