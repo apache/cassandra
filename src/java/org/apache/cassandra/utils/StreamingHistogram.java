@@ -57,6 +57,11 @@ public class StreamingHistogram
     private final int roundSeconds;
 
     /**
+     * To calculate nearest points. First element is distance between points and second element is left point.
+     */
+    private final TreeSet<int[]> distances;
+
+    /**
      * Creates a new histogram with max bin size of maxBinSize
      * @param maxBinSize maximum number of bins this histogram can have
      */
@@ -72,6 +77,14 @@ public class StreamingHistogram
                                 else
                                     return Double.compare(o1.doubleValue(), o2.doubleValue());
                             });
+        distances = new TreeSet<>((distPoint1, distPoint2) ->
+                                  {
+                                      final int result = Integer.compare(distPoint1[0], distPoint2[0]);
+                                      if (result == 0)
+                                          return Integer.compare(distPoint1[1], distPoint2[1]);
+                                      else
+                                          return result;
+                                  });
         spool = new HashMap<>();
     }
 
@@ -79,7 +92,17 @@ public class StreamingHistogram
     {
         this(maxBinSize, maxSpoolSize, roundSeconds);
         for (Map.Entry<Double, Long> entry : bin.entrySet())
-            this.bin.put(entry.getKey().intValue(), new long[]{ entry.getValue() });
+        {
+            final int current = entry.getKey().intValue();
+            this.bin.put(current, new long[]{ entry.getValue() });
+        }
+        Integer prev = null;
+        for (Integer key : this.bin.keySet())
+        {
+            if (prev != null)
+                this.distances.add(distanceKey(prev, key));
+            prev = key;
+        }
     }
 
     /**
@@ -125,7 +148,6 @@ public class StreamingHistogram
         if (spool.size() > 0)
         {
             long[] spoolValue;
-            long[] binValue;
 
             // Iterate over the spool, copying the value into the primary bin map
             // and compacting that map as necessary
@@ -133,8 +155,7 @@ public class StreamingHistogram
             {
                 int key = entry.getKey();
                 spoolValue = entry.getValue();
-                binValue = bin.computeIfAbsent(key, k -> new long[]{ 0 });
-                binValue[0] += spoolValue[0];
+                flushValue(key, spoolValue[0]);
 
                 if (bin.size() > maxBinSize)
                 {
@@ -145,40 +166,59 @@ public class StreamingHistogram
         }
     }
 
+    private void flushValue(int key, long spoolValue)
+    {
+        long[] binValue = bin.computeIfAbsent(key, k -> new long[]{ 0 });
+        boolean isNewPoint = binValue[0] == 0;
+        binValue[0] += spoolValue;
+        if (isNewPoint)
+        {
+            final Integer prevPoint = bin.lowerKey(key);
+            final Integer nextPoint = bin.higherKey(key);
+            if (prevPoint != null && nextPoint != null)
+                distances.remove(distanceKey(prevPoint, nextPoint));
+            if (prevPoint != null)
+                distances.add(distanceKey(prevPoint, key));
+            if (nextPoint != null)
+                distances.add(distanceKey(key, nextPoint));
+        }
+    }
+
+    private int[] distanceKey(Integer prevPoint, Integer nextPoint)
+    {
+        final int distance = nextPoint - prevPoint;
+        return new int[]{ distance, prevPoint };
+    }
+
     private void mergeBin()
     {
-        // find points p1, p2 which have smallest difference
-        Iterator<Integer> keys = bin.keySet().iterator();
-        int p1 = keys.next();
-        int p2 = keys.next();
-        int smallestDiff = p2 - p1;
-        int q1 = p1, q2 = p2;
-        while (keys.hasNext())
-        {
-            p1 = p2;
-            p2 = keys.next();
-            int diff = p2 - p1;
-            if (diff < smallestDiff)
-            {
-                smallestDiff = diff;
-                q1 = p1;
-                q2 = p2;
-            }
-        }
+        // find points q1, q2 which have smallest difference
+        final int[] smallestDifference = distances.pollFirst();
+
+        final int q1 = smallestDifference[1];
+        final int q2 = smallestDifference[1] + smallestDifference[0];
+
         // merge those two
         long[] a1 = bin.remove(q1);
         long[] a2 = bin.remove(q2);
+
+        final Integer pointAfterQ2 = bin.higherKey(q2);
+        if (pointAfterQ2 != null)
+            distances.remove(distanceKey(q2, pointAfterQ2));
+
+        final Integer pointBeforeQ1 = bin.lowerKey(q1);
+        if (pointBeforeQ1!=null)
+            distances.remove(distanceKey(pointBeforeQ1, q1));
+
+        if (pointBeforeQ1 != null && pointAfterQ2 != null)
+            distances.add(distanceKey(pointBeforeQ1, pointAfterQ2));
+
         long k1 = a1[0];
         long k2 = a2[0];
         long sum = k1 + k2;
 
-        final int key = roundKey((int)((q1 * k1 + q2 * k2) / (k1 + k2)));
-        final long[] oldValue = bin.computeIfAbsent(key, k ->
-        {
-            a1[0] = 0;
-            return a1;
-        });
-        oldValue[0] += sum;
+        final int key = roundKey((int) ((q1 * k1 + q2 * k2) / (k1 + k2)));
+        flushValue(key, sum);
     }
 
     /**
@@ -208,7 +248,7 @@ public class StreamingHistogram
         flushHistogram();
         double sum = 0;
         // find the points pi, pnext which satisfy pi <= b < pnext
-        Map.Entry<Integer, long[]> pnext = bin.higherEntry((int)b);
+        Map.Entry<Integer, long[]> pnext = bin.higherEntry((int) b);
         if (pnext == null)
         {
             // if b is greater than any key in this histogram,
@@ -218,7 +258,7 @@ public class StreamingHistogram
         }
         else
         {
-            Map.Entry<Integer, long[]> pi = bin.floorEntry((int)b);
+            Map.Entry<Integer, long[]> pi = bin.floorEntry((int) b);
             if (pi == null)
                 return 0;
             // calculate estimated count mb for point b
