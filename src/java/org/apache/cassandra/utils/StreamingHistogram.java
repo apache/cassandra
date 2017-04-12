@@ -19,6 +19,8 @@ package org.apache.cassandra.utils;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 
@@ -27,9 +29,12 @@ import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
+import static org.apache.cassandra.utils.StreamingHistogram.AddResult.ACCUMULATED;
+import static org.apache.cassandra.utils.StreamingHistogram.AddResult.INSERTED;
+
 /**
  * Histogram that can be constructed from streaming of data.
- *
+ * <p>
  * The algorithm is taken from following paper:
  * Yael Ben-Haim and Elad Tom-Tov, "A Streaming Parallel Decision Tree Algorithm" (2010)
  * http://jmlr.csail.mit.edu/papers/volume11/ben-haim10a/ben-haim10a.pdf
@@ -38,14 +43,14 @@ public class StreamingHistogram
 {
     public static final StreamingHistogramSerializer serializer = new StreamingHistogramSerializer();
 
-    // TreeMap to hold bins of histogram.
-    // The key is a numeric type so we can avoid boxing/unboxing streams of different key types
-    // The value is a unboxed long array always of length == 1
-    // Serialized Histograms always writes with double keys for backwards compatibility
-    private final TreeMap<Integer, long[]> bin;
+    // Buffer with point-value pair
+    private final DataHolder bin;
+
+    // Buffer with distance between points, sorted from nearest to furthest
+    private final DistanceHolder distances;
 
     // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
-    private final Map<Integer, long[]> spool;
+    private final Map<Integer, int[]> spool;
 
     // maximum bin size for this histogram
     private final int maxBinSize;
@@ -57,12 +62,8 @@ public class StreamingHistogram
     private final int roundSeconds;
 
     /**
-     * To calculate nearest points. First element is distance between points and second element is left point.
-     */
-    private final TreeSet<int[]> distances;
-
-    /**
      * Creates a new histogram with max bin size of maxBinSize
+     *
      * @param maxBinSize maximum number of bins this histogram can have
      */
     public StreamingHistogram(int maxBinSize, int maxSpoolSize, int roundSeconds)
@@ -70,21 +71,8 @@ public class StreamingHistogram
         this.maxBinSize = maxBinSize;
         this.maxSpoolSize = maxSpoolSize;
         this.roundSeconds = roundSeconds;
-        bin = new TreeMap<>((o1, o2) ->
-                            {
-                                if (o1.getClass().equals(o2.getClass()))
-                                    return ((Comparable) o1).compareTo(o2);
-                                else
-                                    return Double.compare(o1.doubleValue(), o2.doubleValue());
-                            });
-        distances = new TreeSet<>((distPoint1, distPoint2) ->
-                                  {
-                                      final int result = Integer.compare(distPoint1[0], distPoint2[0]);
-                                      if (result == 0)
-                                          return Integer.compare(distPoint1[1], distPoint2[1]);
-                                      else
-                                          return result;
-                                  });
+        bin = new DataHolder(maxBinSize + 1);
+        distances = new DistanceHolder(maxBinSize);
         spool = new HashMap<>();
     }
 
@@ -94,19 +82,20 @@ public class StreamingHistogram
         for (Map.Entry<Double, Long> entry : bin.entrySet())
         {
             final int current = entry.getKey().intValue();
-            this.bin.put(current, new long[]{ entry.getValue() });
+            this.bin.addValue(current, entry.getValue().intValue());
         }
         Integer prev = null;
         for (Integer key : this.bin.keySet())
         {
             if (prev != null)
-                this.distances.add(distanceKey(prev, key));
+                this.distances.add(prev, key);
             prev = key;
         }
     }
 
     /**
      * Adds new point p to this histogram.
+     *
      * @param p
      */
     public void update(int p)
@@ -116,6 +105,7 @@ public class StreamingHistogram
 
     /**
      * Adds new point p with value m to this histogram.
+     *
      * @param p
      * @param m
      */
@@ -123,11 +113,11 @@ public class StreamingHistogram
     {
         p = roundKey(p);
 
-        final long[] oldValue = spool.computeIfAbsent(p, key -> new long[]{ 0 });
+        final int[] oldValue = spool.computeIfAbsent(p, key -> new int[]{ 0 });
         oldValue[0] += m;
 
         // If spool has overflowed, compact it
-        if(spool.size() > maxSpoolSize)
+        if (spool.size() > maxSpoolSize)
             flushHistogram();
     }
 
@@ -147,17 +137,17 @@ public class StreamingHistogram
     {
         if (spool.size() > 0)
         {
-            long[] spoolValue;
+            int[] spoolValue;
 
             // Iterate over the spool, copying the value into the primary bin map
             // and compacting that map as necessary
-            for (Map.Entry<Integer, long[]> entry : spool.entrySet())
+            for (Map.Entry<Integer, int[]> entry : spool.entrySet())
             {
                 int key = entry.getKey();
                 spoolValue = entry.getValue();
                 flushValue(key, spoolValue[0]);
 
-                if (bin.size() > maxBinSize)
+                if (bin.isFull())
                 {
                     mergeBin();
                 }
@@ -166,59 +156,48 @@ public class StreamingHistogram
         }
     }
 
-    private void flushValue(int key, long spoolValue)
+    private void flushValue(int key, int spoolValue)
     {
-        long[] binValue = bin.computeIfAbsent(key, k -> new long[]{ 0 });
-        boolean isNewPoint = binValue[0] == 0;
-        binValue[0] += spoolValue;
-        if (isNewPoint)
+        DataHolder.NeighboursAndResult addResult = bin.addValue(key, spoolValue);
+        if (addResult.result == INSERTED)
         {
-            final Integer prevPoint = bin.lowerKey(key);
-            final Integer nextPoint = bin.higherKey(key);
-            if (prevPoint != null && nextPoint != null)
-                distances.remove(distanceKey(prevPoint, nextPoint));
-            if (prevPoint != null)
-                distances.add(distanceKey(prevPoint, key));
-            if (nextPoint != null)
-                distances.add(distanceKey(key, nextPoint));
+            final int prevPoint = addResult.prevPoint;
+            final int nextPoint = addResult.nextPoint;
+            if (prevPoint != -1 && nextPoint != -1)
+                distances.remove(prevPoint, nextPoint);
+            if (prevPoint != -1)
+                distances.add(prevPoint, key);
+            if (nextPoint != -1)
+                distances.add(key, nextPoint);
         }
-    }
-
-    private int[] distanceKey(Integer prevPoint, Integer nextPoint)
-    {
-        final int distance = nextPoint - prevPoint;
-        return new int[]{ distance, prevPoint };
     }
 
     private void mergeBin()
     {
-        // find points q1, q2 which have smallest difference
-        final int[] smallestDifference = distances.pollFirst();
+        // find points point1, point2 which have smallest difference
+        final int[] smallestDifference = distances.getFirstAndRemove();
 
-        final int q1 = smallestDifference[1];
-        final int q2 = smallestDifference[1] + smallestDifference[0];
+        final int point1 = smallestDifference[0];
+        final int point2 = smallestDifference[1];
 
         // merge those two
-        long[] a1 = bin.remove(q1);
-        long[] a2 = bin.remove(q2);
+        DataHolder.MergeResult mergeResult = bin.merge(point1, point2);
 
-        final Integer pointAfterQ2 = bin.higherKey(q2);
-        if (pointAfterQ2 != null)
-            distances.remove(distanceKey(q2, pointAfterQ2));
+        final int nextPoint = mergeResult.nextPoint;
+        final int prevPoint = mergeResult.prevPoint;
+        final int newPoint = mergeResult.newPoint;
 
-        final Integer pointBeforeQ1 = bin.lowerKey(q1);
-        if (pointBeforeQ1!=null)
-            distances.remove(distanceKey(pointBeforeQ1, q1));
+        if (nextPoint != -1)
+        {
+            distances.remove(point2, nextPoint);
+            distances.add(newPoint, nextPoint);
+        }
 
-        if (pointBeforeQ1 != null && pointAfterQ2 != null)
-            distances.add(distanceKey(pointBeforeQ1, pointAfterQ2));
-
-        long k1 = a1[0];
-        long k2 = a2[0];
-        long sum = k1 + k2;
-
-        final int key = roundKey((int) ((q1 * k1 + q2 * k2) / (k1 + k2)));
-        flushValue(key, sum);
+        if (prevPoint != -1)
+        {
+            distances.remove(prevPoint, point1);
+            distances.add(prevPoint, newPoint);
+        }
     }
 
     /**
@@ -246,37 +225,16 @@ public class StreamingHistogram
     public double sum(double b)
     {
         flushHistogram();
-        double sum = 0;
-        // find the points pi, pnext which satisfy pi <= b < pnext
-        Map.Entry<Integer, long[]> pnext = bin.higherEntry((int) b);
-        if (pnext == null)
-        {
-            // if b is greater than any key in this histogram,
-            // just count all appearance and return
-            for (long[] value : bin.values())
-                sum += value[0];
-        }
-        else
-        {
-            Map.Entry<Integer, long[]> pi = bin.floorEntry((int) b);
-            if (pi == null)
-                return 0;
-            // calculate estimated count mb for point b
-            double weight = (b - pi.getKey().doubleValue()) / (pnext.getKey().doubleValue() - pi.getKey().doubleValue());
-            double mb = pi.getValue()[0] + (pnext.getValue()[0] - pi.getValue()[0]) * weight;
-            sum += (pi.getValue()[0] + mb) * weight / 2;
 
-            sum += pi.getValue()[0] / 2.0;
-            for (long[] value : bin.headMap(pi.getKey(), false).values())
-                sum += value[0];
-        }
-        return sum;
+        return bin.sum((int) b);
     }
 
     public Map<Integer, long[]> getAsMap()
     {
         flushHistogram();
-        return Collections.unmodifiableMap(bin);
+        TreeMap<Integer, long[]> bin = new TreeMap<>();
+        this.bin.forEach(datum -> bin.put(datum[0], new long[]{ datum[1] }));
+        return bin;
     }
 
     public static class StreamingHistogramSerializer implements ISerializer<StreamingHistogram>
@@ -337,5 +295,297 @@ public class StreamingHistogram
     public int hashCode()
     {
         return Objects.hashCode(bin.hashCode(), spool.hashCode(), maxBinSize);
+    }
+
+    private static class DistanceHolder
+    {
+        private static final long EMPTY = Long.MAX_VALUE;
+        private final long[] data;
+
+        DistanceHolder(int maxCapacity)
+        {
+            data = new long[maxCapacity];
+            Arrays.fill(data, EMPTY);
+        }
+
+        void add(int prev, int next)
+        {
+            long key = getKey(prev, next);
+            int index = Arrays.binarySearch(data, key);
+
+            assert (index < 0) : "Element already exists";
+            assert (data[data.length - 1] == EMPTY) : "No more space in array";
+
+            index = -index - 1;
+            System.arraycopy(data, index, data, index + 1, data.length - index - 1);
+            data[index] = key;
+        }
+
+        void remove(int prev, int next)
+        {
+            long key = getKey(prev, next);
+            int index = Arrays.binarySearch(data, key);
+            if (index >= 0)
+            {
+                if (index < data.length)
+                    System.arraycopy(data, index + 1, data, index, data.length - index - 1);
+                data[data.length - 1] = EMPTY;
+            }
+        }
+
+        int[] getFirstAndRemove()
+        {
+            if (data[0] == EMPTY)
+                return null;
+
+            int[] result = unwrapKey(data[0]);
+            System.arraycopy(data, 1, data, 0, data.length - 1);
+            data[data.length - 1] = EMPTY;
+            return result;
+        }
+
+        private int[] unwrapKey(long key)
+        {
+            final int distance = (int) (key >> 32);
+            final int prev = (int) (key & 0xFF_FF_FF_FFL);
+            return new int[]{ prev, prev + distance };
+        }
+
+        private long getKey(int prev, int next)
+        {
+            long distance = next - prev;
+            return (distance << 32) | prev;
+        }
+
+        public String toString()
+        {
+            return Arrays.stream(data).filter(x -> x != EMPTY).boxed().map(this::unwrapKey).map(Arrays::toString).collect(Collectors.joining());
+        }
+    }
+
+    class DataHolder
+    {
+        private static final long EMPTY = Long.MAX_VALUE;
+        private final long[] data;
+
+        DataHolder(int maxCapacity)
+        {
+            data = new long[maxCapacity];
+            Arrays.fill(data, EMPTY);
+        }
+
+        NeighboursAndResult addValue(int point, int delta)
+        {
+            long key = wrap(point, 0);
+            int index = Arrays.binarySearch(data, key);
+            AddResult addResult;
+            if (index < 0)
+            {
+                index = -index - 1;
+                assert (index < data.length) : "No more space in array";
+
+                if (unwrapPoint(data[index]) != point) //ok, someone else at this point, let's shift array and insert
+                {
+                    assert (data[data.length - 1] == EMPTY) : "No more space in array";
+
+                    System.arraycopy(data, index, data, index + 1, data.length - index - 1);
+
+                    data[index] = wrap(point, delta);
+                    addResult = INSERTED;
+                }
+                else
+                {
+                    data[index] += delta;
+                    addResult = ACCUMULATED;
+                }
+            }
+            else
+            {
+                data[index] += delta;
+                addResult = ACCUMULATED;
+            }
+
+            return new NeighboursAndResult(getPrevPoint(index), getNextPoint(index), addResult);
+        }
+
+        public MergeResult merge(int point1, int point2)
+        {
+            long key = wrap(point1, 0);
+            int index = Arrays.binarySearch(data, key);
+            if (index < 0)
+            {
+                index = -index - 1;
+                assert (index < data.length) : "Not found in array";
+                assert (unwrapPoint(data[index]) == point1) : "Not found in array";
+            }
+
+            final int prevPoint = getPrevPoint(index);
+            final int nextPoint = getNextPoint(index + 1);
+
+            int value1 = unwrapValue(data[index]);
+            int value2 = unwrapValue(data[index + 1]);
+
+            assert (unwrapPoint(data[index + 1]) == point2) : "point2 should follow point1";
+
+            int sum = value1 + value2;
+
+            //let's evaluate in long values to handle overflow in multiplication
+            int newPoint = (int) (((long) point1 * value1 + (long) point2 * value2) / (value1 + value2));
+            newPoint = roundKey(newPoint);
+            data[index] = wrap(newPoint, sum);
+
+            System.arraycopy(data, index + 2, data, index + 1, data.length - index - 2);
+            data[data.length - 1] = EMPTY;
+
+            return new MergeResult(prevPoint, newPoint, nextPoint);
+        }
+
+        private int getPrevPoint(int index)
+        {
+            if (index > 0)
+                if (data[index - 1] != EMPTY)
+                    return (int) (data[index - 1] >> 32);
+                else
+                    return -1;
+            else
+                return -1;
+        }
+
+        private int getNextPoint(int index)
+        {
+            if (index < data.length - 1)
+                if (data[index + 1] != EMPTY)
+                    return (int) (data[index + 1] >> 32);
+                else
+                    return -1;
+            else
+                return -1;
+        }
+
+        private int[] unwrap(long key)
+        {
+            final int point = (int) (key >> 32);
+            final int value = (int) (key & 0xFF_FF_FF_FFL);
+            return new int[]{ point, value };
+        }
+
+        private int unwrapPoint(long key)
+        {
+            return (int) (key >> 32);
+        }
+
+        private int unwrapValue(long key)
+        {
+            return (int) (key & 0xFF_FF_FF_FFL);
+        }
+
+        private long wrap(int point, int value)
+        {
+            return (((long) point) << 32) | value;
+        }
+
+
+        public String toString()
+        {
+            return Arrays.stream(data).filter(x -> x != EMPTY).boxed().map(this::unwrap).map(Arrays::toString).collect(Collectors.joining());
+        }
+
+        public boolean isFull()
+        {
+            return data[data.length - 1] != EMPTY;
+        }
+
+        public void forEach(Consumer<int[]> pointAndValueConsumer)
+        {
+            for (long datum : data)
+            {
+                if (datum == EMPTY)
+                {
+                    break;
+                }
+
+                pointAndValueConsumer.accept(unwrap(datum));
+            }
+        }
+
+        public List<Integer> keySet()
+        {
+            List<Integer> result = new ArrayList<>();
+            forEach(pointAndValue -> result.add(pointAndValue[0]));
+            return result;
+        }
+
+        public double sum(int b)
+        {
+            double sum = 0;
+
+            for (int i = 0; i < data.length; i++)
+            {
+                long pointAndValue = data[i];
+                if (pointAndValue == EMPTY)
+                {
+                    break;
+                }
+                final int point = unwrapPoint(pointAndValue);
+                final int value = unwrapValue(pointAndValue);
+                if (point > b)
+                {
+                    if (i == 0)
+                    { // no prev point
+                        return 0;
+                    }
+                    else
+                    {
+                        final int prevPoint = unwrapPoint(data[i - 1]);
+                        final int prevValue = unwrapValue(data[i - 1]);
+                        double weight = (b - prevPoint) / (double) (point - prevPoint);
+                        double mb = prevValue + (value - prevValue) * weight;
+                        sum -= prevValue;
+                        sum += (prevValue + mb) * weight / 2;
+                        sum += prevValue / 2.0;
+                        return sum;
+                    }
+                }
+                else
+                {
+                    sum += value;
+                }
+            }
+            return sum;
+        }
+
+        class MergeResult
+        {
+            int prevPoint;
+            int newPoint;
+            int nextPoint;
+
+            MergeResult(int prevPoint, int newPoint, int nextPoint)
+            {
+                this.prevPoint = prevPoint;
+                this.newPoint = newPoint;
+                this.nextPoint = nextPoint;
+            }
+        }
+
+        class NeighboursAndResult
+        {
+            int prevPoint;
+            int nextPoint;
+            AddResult result;
+
+            NeighboursAndResult(int prevPoint, int nextPoint, AddResult result)
+            {
+                this.prevPoint = prevPoint;
+                this.nextPoint = nextPoint;
+                this.result = result;
+            }
+        }
+    }
+
+    public enum AddResult
+    {
+        INSERTED,
+        ACCUMULATED
     }
 }

@@ -20,7 +20,9 @@ package org.apache.cassandra.utils;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.IntStream;
 
+import org.apache.commons.lang.math.IntRange;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -180,5 +182,12 @@ public class StreamingHistogramTest
         assertEquals(hist.getAsMap().get(60)[0], 2);
         assertEquals(hist.getAsMap().get(120)[0], 1);
 
+    }
+
+    @Test
+    public void testLargeValues() throws Exception
+    {
+        final StreamingHistogram hist = new StreamingHistogram(5, 0, 1);
+        IntStream.range(Integer.MAX_VALUE-30, Integer.MAX_VALUE).forEach(hist::update);
     }
 }
