@@ -1,4 +1,5 @@
 4.0
+ * Change protocol to allow sending key space independent of query string (CASSANDRA-10145)
  * Make gc_log and gc_warn settable at runtime (CASSANDRA-12661)
  * Take number of files in L0 in account when estimating remaining compaction tasks (CASSANDRA-13354)
  * Skip building views during base table streams on range movements (CASSANDRA-13065)
