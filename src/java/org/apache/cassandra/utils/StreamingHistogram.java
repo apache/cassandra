@@ -45,7 +45,7 @@ public class StreamingHistogram
     private final TreeMap<Number, long[]> bin;
 
     // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
-    private final TreeMap<Number, long[]> spool;
+    private final Map<Number, long[]> spool;
 
     // maximum bin size for this histogram
     private final int maxBinSize;
@@ -71,13 +71,7 @@ public class StreamingHistogram
             else
             	return Double.compare(o1.doubleValue(), o2.doubleValue());
         });
-        spool = new TreeMap<>((o1, o2) -> {
-            if (o1.getClass().equals(o2.getClass()))
-                return ((Comparable)o1).compareTo(o2);
-            else
-                return Double.compare(o1.doubleValue(), o2.doubleValue());
-        });
-
+        spool = new HashMap<>();
     }
 
     private StreamingHistogram(int maxBinSize, int maxSpoolSize,  int roundSeconds, Map<Double, Long> bin)
@@ -107,17 +101,8 @@ public class StreamingHistogram
         if (d.longValue() > 0)
             p =p.longValue() + (this.roundSeconds - d.longValue());
 
-        long[] mi = spool.get(p);
-        if (mi != null)
-        {
-            // we found the same p so increment that counter
-            mi[0] += m;
-        }
-        else
-        {
-            mi = new long[]{m};
-            spool.put(p, mi);
-        }
+        final long[] oldValue = spool.computeIfAbsent(p, key -> new long[]{ 0 });
+        oldValue[0] += m;
 
         // If spool has overflowed, compact it
         if(spool.size() > maxSpoolSize)
@@ -140,53 +125,52 @@ public class StreamingHistogram
             {
                 Number key = entry.getKey();
                 spoolValue = entry.getValue();
-                binValue = bin.get(key);
-
-                // If this value is already in the final histogram bins
-                // Simply increment and update, otherwise, insert a new long[1] value
-                if(binValue != null)
-                {
-                    binValue[0] += spoolValue[0];
-                    bin.put(key, binValue);
-                }
-                else
-                {
-                    bin.put(key, new long[]{spoolValue[0]});
-                }
+                binValue = bin.computeIfAbsent(key, k -> new long[]{ 0 });
+                binValue[0] += spoolValue[0];
 
                 if (bin.size() > maxBinSize)
                 {
-                    // find points p1, p2 which have smallest difference
-                    Iterator<Number> keys = bin.keySet().iterator();
-                    double p1 = keys.next().doubleValue();
-                    double p2 = keys.next().doubleValue();
-                    double smallestDiff = p2 - p1;
-                    double q1 = p1, q2 = p2;
-                    while (keys.hasNext())
-                    {
-                        p1 = p2;
-                        p2 = keys.next().doubleValue();
-                        double diff = p2 - p1;
-                        if (diff < smallestDiff)
-                        {
-                            smallestDiff = diff;
-                            q1 = p1;
-                            q2 = p2;
-                        }
-                    }
-                    // merge those two
-                    long[] a1 = bin.remove(q1);
-                    long[] a2 = bin.remove(q2);
-                    long k1 = a1[0];
-                    long k2 = a2[0];
-
-                    a1[0] += k2;
-                    bin.put((q1 * k1 + q2 * k2) / (k1 + k2), a1);
-
+                    mergeBin();
                 }
             }
             spool.clear();
         }
+    }
+
+    private void mergeBin()
+    {
+        // find points p1, p2 which have smallest difference
+        Iterator<Number> keys = bin.keySet().iterator();
+        double p1 = keys.next().doubleValue();
+        double p2 = keys.next().doubleValue();
+        double smallestDiff = p2 - p1;
+        double q1 = p1, q2 = p2;
+        while (keys.hasNext())
+        {
+            p1 = p2;
+            p2 = keys.next().doubleValue();
+            double diff = p2 - p1;
+            if (diff < smallestDiff)
+            {
+                smallestDiff = diff;
+                q1 = p1;
+                q2 = p2;
+            }
+        }
+        // merge those two
+        long[] a1 = bin.remove(q1);
+        long[] a2 = bin.remove(q2);
+        long k1 = a1[0];
+        long k2 = a2[0];
+        long sum = k1 + k2;
+
+        final double key = (q1 * k1 + q2 * k2) / (k1 + k2);
+        final long[] oldValue = bin.computeIfAbsent(key, k ->
+        {
+            a1[0] = 0;
+            return a1;
+        });
+        oldValue[0] += sum;
     }
 
     /**
