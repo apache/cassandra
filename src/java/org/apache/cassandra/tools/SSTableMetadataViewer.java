@@ -141,9 +141,9 @@ public class SSTableMetadataViewer
                     out.printf("totalRows: %s%n", stats.totalRows);
                     out.println("Estimated tombstone drop times:");
 
-                    for (Map.Entry<Number, long[]> entry : stats.estimatedTombstoneDropTime.getAsMap().entrySet())
+                    for (Map.Entry<Integer, long[]> entry : stats.estimatedTombstoneDropTime.getAsMap().entrySet())
                     {
-                        out.printf("%-10s:%10s%n",entry.getKey().intValue(), entry.getValue()[0]);
+                        out.printf("%-10s:%10s%n",entry.getKey(), entry.getValue()[0]);
                     }
                     printHistograms(stats, out);
                 }

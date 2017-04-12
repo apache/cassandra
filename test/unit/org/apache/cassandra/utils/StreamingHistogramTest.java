@@ -34,7 +34,7 @@ public class StreamingHistogramTest
     public void testFunction() throws Exception
     {
         StreamingHistogram hist = new StreamingHistogram(5, 0, 1);
-        long[] samples = new long[]{23, 19, 10, 16, 36, 2, 9, 32, 30, 45};
+        int[] samples = new int[]{23, 19, 10, 16, 36, 2, 9, 32, 30, 45};
 
         // add 7 points to histogram of 5 bins
         for (int i = 0; i < 7; i++)
@@ -51,7 +51,7 @@ public class StreamingHistogramTest
         expected1.put(36.0, 1L);
 
         Iterator<Map.Entry<Double, Long>> expectedItr = expected1.entrySet().iterator();
-        for (Map.Entry<Number, long[]> actual : hist.getAsMap().entrySet())
+        for (Map.Entry<Integer, long[]> actual : hist.getAsMap().entrySet())
         {
             Map.Entry<Double, Long> entry = expectedItr.next();
             assertEquals(entry.getKey(), actual.getKey().doubleValue(), 0.01);
@@ -73,7 +73,7 @@ public class StreamingHistogramTest
         expected2.put(32.0, 3L);
         expected2.put(45.0, 1L);
         expectedItr = expected2.entrySet().iterator();
-        for (Map.Entry<Number, long[]> actual : hist.getAsMap().entrySet())
+        for (Map.Entry<Integer, long[]> actual : hist.getAsMap().entrySet())
         {
             Map.Entry<Double, Long> entry = expectedItr.next();
             assertEquals(entry.getKey(), actual.getKey().doubleValue(), 0.01);
@@ -90,7 +90,7 @@ public class StreamingHistogramTest
     public void testSerDe() throws Exception
     {
         StreamingHistogram hist = new StreamingHistogram(5, 0, 1);
-        long[] samples = new long[]{23, 19, 10, 16, 36, 2, 9};
+        int[] samples = new int[]{23, 19, 10, 16, 36, 2, 9};
 
         // add 7 points to histogram of 5 bins
         for (int i = 0; i < samples.length; i++)
@@ -113,7 +113,7 @@ public class StreamingHistogramTest
         expected1.put(36.0, 1L);
 
         Iterator<Map.Entry<Double, Long>> expectedItr = expected1.entrySet().iterator();
-        for (Map.Entry<Number, long[]> actual : deserialized.getAsMap().entrySet())
+        for (Map.Entry<Integer, long[]> actual : deserialized.getAsMap().entrySet())
         {
             Map.Entry<Double, Long> entry = expectedItr.next();
             assertEquals(entry.getKey(), actual.getKey().doubleValue(), 0.01);
@@ -128,10 +128,10 @@ public class StreamingHistogramTest
         StreamingHistogram hist = new StreamingHistogram(5, 0, 1);
 
         hist.update(2);
-        hist.update(2.0);
-        hist.update(2L);
+        hist.update(2);
+        hist.update(2);
 
-        Map<Number, long[]> asMap = hist.getAsMap();
+        Map<Integer, long[]> asMap = hist.getAsMap();
 
         assertEquals(1, asMap.size());
         assertEquals(3L, asMap.get(2)[0]);
@@ -143,7 +143,7 @@ public class StreamingHistogramTest
 
         StreamingHistogram deserialized = StreamingHistogram.serializer.deserialize(new DataInputBuffer(bytes));
 
-        deserialized.update(2L);
+        deserialized.update(2);
 
         asMap = deserialized.getAsMap();
         assertEquals(1, asMap.size());
@@ -154,7 +154,7 @@ public class StreamingHistogramTest
     public void testOverflow() throws Exception
     {
         StreamingHistogram hist = new StreamingHistogram(5, 10, 1);
-        long[] samples = new long[]{23, 19, 10, 16, 36, 2, 9, 32, 30, 45, 31,
+        int[] samples = new int[]{23, 19, 10, 16, 36, 2, 9, 32, 30, 45, 31,
                                     32, 32, 33, 34, 35, 70, 78, 80, 90, 100,
                                     32, 32, 33, 34, 35, 70, 78, 80, 90, 100
                                     };
@@ -173,7 +173,7 @@ public class StreamingHistogramTest
     public void testRounding() throws Exception
     {
         StreamingHistogram hist = new StreamingHistogram(5, 10, 60);
-        long[] samples = new long[] { 59, 60, 119, 180, 181, 300 }; // 60, 60, 120, 180, 240, 300
+        int[] samples = new int[] { 59, 60, 119, 180, 181, 300 }; // 60, 60, 120, 180, 240, 300
         for (int i = 0 ; i < samples.length ; i++)
             hist.update(samples[i]);
         assertEquals(hist.getAsMap().keySet().size(), 5);

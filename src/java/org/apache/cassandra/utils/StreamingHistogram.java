@@ -42,10 +42,10 @@ public class StreamingHistogram
     // The key is a numeric type so we can avoid boxing/unboxing streams of different key types
     // The value is a unboxed long array always of length == 1
     // Serialized Histograms always writes with double keys for backwards compatibility
-    private final TreeMap<Number, long[]> bin;
+    private final TreeMap<Integer, long[]> bin;
 
     // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
-    private final Map<Number, long[]> spool;
+    private final Map<Integer, long[]> spool;
 
     // maximum bin size for this histogram
     private final int maxBinSize;
@@ -79,14 +79,14 @@ public class StreamingHistogram
     {
         this(maxBinSize, maxSpoolSize, roundSeconds);
         for (Map.Entry<Double, Long> entry : bin.entrySet())
-            this.bin.put(entry.getKey(), new long[]{entry.getValue()});
+            this.bin.put(entry.getKey().intValue(), new long[]{ entry.getValue() });
     }
 
     /**
      * Adds new point p to this histogram.
      * @param p
      */
-    public void update(Number p)
+    public void update(int p)
     {
         update(p, 1L);
     }
@@ -96,7 +96,7 @@ public class StreamingHistogram
      * @param p
      * @param m
      */
-    public void update(Number p, long m)
+    public void update(int p, long m)
     {
         p = roundKey(p);
 
@@ -108,14 +108,13 @@ public class StreamingHistogram
             flushHistogram();
     }
 
-    private Number roundKey(Number p)
+    private int roundKey(int p)
     {
-        final long longValue = p.longValue();
-        long d = longValue % this.roundSeconds;
+        int d = p % this.roundSeconds;
         if (d > 0)
-            return longValue + (this.roundSeconds - d);
+            return p + (this.roundSeconds - d);
         else
-            return longValue;
+            return p;
     }
 
     /**
@@ -130,9 +129,9 @@ public class StreamingHistogram
 
             // Iterate over the spool, copying the value into the primary bin map
             // and compacting that map as necessary
-            for (Map.Entry<Number, long[]> entry : spool.entrySet())
+            for (Map.Entry<Integer, long[]> entry : spool.entrySet())
             {
-                Number key = entry.getKey();
+                int key = entry.getKey();
                 spoolValue = entry.getValue();
                 binValue = bin.computeIfAbsent(key, k -> new long[]{ 0 });
                 binValue[0] += spoolValue[0];
@@ -149,16 +148,16 @@ public class StreamingHistogram
     private void mergeBin()
     {
         // find points p1, p2 which have smallest difference
-        Iterator<Number> keys = bin.keySet().iterator();
-        double p1 = keys.next().doubleValue();
-        double p2 = keys.next().doubleValue();
-        double smallestDiff = p2 - p1;
-        double q1 = p1, q2 = p2;
+        Iterator<Integer> keys = bin.keySet().iterator();
+        int p1 = keys.next();
+        int p2 = keys.next();
+        int smallestDiff = p2 - p1;
+        int q1 = p1, q2 = p2;
         while (keys.hasNext())
         {
             p1 = p2;
-            p2 = keys.next().doubleValue();
-            double diff = p2 - p1;
+            p2 = keys.next();
+            int diff = p2 - p1;
             if (diff < smallestDiff)
             {
                 smallestDiff = diff;
@@ -173,7 +172,7 @@ public class StreamingHistogram
         long k2 = a2[0];
         long sum = k1 + k2;
 
-        final Number key = roundKey((q1 * k1 + q2 * k2) / (k1 + k2));
+        final int key = roundKey((int)((q1 * k1 + q2 * k2) / (k1 + k2)));
         final long[] oldValue = bin.computeIfAbsent(key, k ->
         {
             a1[0] = 0;
@@ -194,7 +193,7 @@ public class StreamingHistogram
 
         other.flushHistogram();
 
-        for (Map.Entry<Number, long[]> entry : other.getAsMap().entrySet())
+        for (Map.Entry<Integer, long[]> entry : other.getAsMap().entrySet())
             update(entry.getKey(), entry.getValue()[0]);
     }
 
@@ -209,7 +208,7 @@ public class StreamingHistogram
         flushHistogram();
         double sum = 0;
         // find the points pi, pnext which satisfy pi <= b < pnext
-        Map.Entry<Number, long[]> pnext = bin.higherEntry(b);
+        Map.Entry<Integer, long[]> pnext = bin.higherEntry((int)b);
         if (pnext == null)
         {
             // if b is greater than any key in this histogram,
@@ -219,7 +218,7 @@ public class StreamingHistogram
         }
         else
         {
-            Map.Entry<Number, long[]> pi = bin.floorEntry(b);
+            Map.Entry<Integer, long[]> pi = bin.floorEntry((int)b);
             if (pi == null)
                 return 0;
             // calculate estimated count mb for point b
@@ -234,7 +233,7 @@ public class StreamingHistogram
         return sum;
     }
 
-    public Map<Number, long[]> getAsMap()
+    public Map<Integer, long[]> getAsMap()
     {
         flushHistogram();
         return Collections.unmodifiableMap(bin);
@@ -246,9 +245,9 @@ public class StreamingHistogram
         {
             histogram.flushHistogram();
             out.writeInt(histogram.maxBinSize);
-            Map<Number, long[]> entries = histogram.getAsMap();
+            Map<Integer, long[]> entries = histogram.getAsMap();
             out.writeInt(entries.size());
-            for (Map.Entry<Number, long[]> entry : entries.entrySet())
+            for (Map.Entry<Integer, long[]> entry : entries.entrySet())
             {
                 out.writeDouble(entry.getKey().doubleValue());
                 out.writeLong(entry.getValue()[0]);
@@ -271,7 +270,7 @@ public class StreamingHistogram
         public long serializedSize(StreamingHistogram histogram)
         {
             long size = TypeSizes.sizeof(histogram.maxBinSize);
-            Map<Number, long[]> entries = histogram.getAsMap();
+            Map<Integer, long[]> entries = histogram.getAsMap();
             size += TypeSizes.sizeof(entries.size());
             // size of entries = size * (8(double) + 8(long))
             size += entries.size() * (8L + 8L);
