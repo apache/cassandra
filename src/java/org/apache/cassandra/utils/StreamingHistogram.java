@@ -65,16 +65,17 @@ public class StreamingHistogram
         this.maxBinSize = maxBinSize;
         this.maxSpoolSize = maxSpoolSize;
         this.roundSeconds = roundSeconds;
-        bin = new TreeMap<>((o1, o2) -> {
-            if (o1.getClass().equals(o2.getClass()))
-                return ((Comparable)o1).compareTo(o2);
-            else
-            	return Double.compare(o1.doubleValue(), o2.doubleValue());
-        });
+        bin = new TreeMap<>((o1, o2) ->
+                            {
+                                if (o1.getClass().equals(o2.getClass()))
+                                    return ((Comparable) o1).compareTo(o2);
+                                else
+                                    return Double.compare(o1.doubleValue(), o2.doubleValue());
+                            });
         spool = new HashMap<>();
     }
 
-    private StreamingHistogram(int maxBinSize, int maxSpoolSize,  int roundSeconds, Map<Double, Long> bin)
+    private StreamingHistogram(int maxBinSize, int maxSpoolSize, int roundSeconds, Map<Double, Long> bin)
     {
         this(maxBinSize, maxSpoolSize, roundSeconds);
         for (Map.Entry<Double, Long> entry : bin.entrySet())
@@ -97,9 +98,7 @@ public class StreamingHistogram
      */
     public void update(Number p, long m)
     {
-        Number d = p.longValue() % this.roundSeconds;
-        if (d.longValue() > 0)
-            p =p.longValue() + (this.roundSeconds - d.longValue());
+        p = roundKey(p);
 
         final long[] oldValue = spool.computeIfAbsent(p, key -> new long[]{ 0 });
         oldValue[0] += m;
@@ -107,6 +106,16 @@ public class StreamingHistogram
         // If spool has overflowed, compact it
         if(spool.size() > maxSpoolSize)
             flushHistogram();
+    }
+
+    private Number roundKey(Number p)
+    {
+        final long longValue = p.longValue();
+        long d = longValue % this.roundSeconds;
+        if (d > 0)
+            return longValue + (this.roundSeconds - d);
+        else
+            return longValue;
     }
 
     /**
@@ -164,7 +173,7 @@ public class StreamingHistogram
         long k2 = a2[0];
         long sum = k1 + k2;
 
-        final double key = (q1 * k1 + q2 * k2) / (k1 + k2);
+        final Number key = roundKey((q1 * k1 + q2 * k2) / (k1 + k2));
         final long[] oldValue = bin.computeIfAbsent(key, k ->
         {
             a1[0] = 0;
@@ -290,5 +299,4 @@ public class StreamingHistogram
     {
         return Objects.hashCode(bin.hashCode(), spool.hashCode(), maxBinSize);
     }
-
 }

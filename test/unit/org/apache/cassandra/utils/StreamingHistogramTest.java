@@ -45,8 +45,8 @@ public class StreamingHistogramTest
         // should end up (2,1),(9.5,2),(17.5,2),(23,1),(36,1)
         Map<Double, Long> expected1 = new LinkedHashMap<Double, Long>(5);
         expected1.put(2.0, 1L);
-        expected1.put(9.5, 2L);
-        expected1.put(17.5, 2L);
+        expected1.put(9.0, 2L);
+        expected1.put(17.0, 2L);
         expected1.put(23.0, 1L);
         expected1.put(36.0, 1L);
 
@@ -68,9 +68,9 @@ public class StreamingHistogramTest
         // should end up (2,1),(9.5,2),(19.33,3),(32.67,3),(45,1)
         Map<Double, Long> expected2 = new LinkedHashMap<Double, Long>(5);
         expected2.put(2.0, 1L);
-        expected2.put(9.5, 2L);
-        expected2.put(19.33, 3L);
-        expected2.put(32.67, 3L);
+        expected2.put(9.0, 2L);
+        expected2.put(19.0, 3L);
+        expected2.put(32.0, 3L);
         expected2.put(45.0, 1L);
         expectedItr = expected2.entrySet().iterator();
         for (Map.Entry<Number, long[]> actual : hist.getAsMap().entrySet())
@@ -81,7 +81,7 @@ public class StreamingHistogramTest
         }
 
         // sum test
-        assertEquals(3.28, hist.sum(15), 0.01);
+        assertEquals(3.38, hist.sum(15), 0.01);
         // sum test (b > max(hist))
         assertEquals(10.0, hist.sum(50), 0.01);
     }
@@ -107,8 +107,8 @@ public class StreamingHistogramTest
         // deserialized histogram should have following values
         Map<Double, Long> expected1 = new LinkedHashMap<Double, Long>(5);
         expected1.put(2.0, 1L);
-        expected1.put(9.5, 2L);
-        expected1.put(17.5, 2L);
+        expected1.put(9.0, 2L);
+        expected1.put(17.0, 2L);
         expected1.put(23.0, 1L);
         expected1.put(36.0, 1L);
 
