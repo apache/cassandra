@@ -403,7 +403,7 @@ public abstract class QueryOptions
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
             EnumSet<Flag> flags = Flag.deserialize(version.isGreaterOrEqualTo(ProtocolVersion.V5)
                                                    ? (int)body.readUnsignedInt()
-                                                   : (int)body.readByte());
+                                                   : (int)body.readUnsignedByte());
 
             List<ByteBuffer> values = Collections.<ByteBuffer>emptyList();
             List<String> names = null;
