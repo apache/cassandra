@@ -18,11 +18,13 @@
 package org.apache.cassandra.utils;
 
 import java.io.IOException;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
+import com.google.common.math.IntMath;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
@@ -50,13 +52,10 @@ public class StreamingHistogram
     private final DistanceHolder distances;
 
     // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
-    private final Map<Integer, int[]> spool;
+    private final Spool spool;
 
     // maximum bin size for this histogram
     private final int maxBinSize;
-
-    // maximum size of the spool
-    private final int maxSpoolSize;
 
     // voluntarily give up resolution for speed
     private final int roundSeconds;
@@ -69,11 +68,13 @@ public class StreamingHistogram
     public StreamingHistogram(int maxBinSize, int maxSpoolSize, int roundSeconds)
     {
         this.maxBinSize = maxBinSize;
-        this.maxSpoolSize = maxSpoolSize;
         this.roundSeconds = roundSeconds;
         bin = new DataHolder(maxBinSize + 1);
         distances = new DistanceHolder(maxBinSize);
-        spool = new HashMap<>();
+
+        //for spool we need power-of-two cells
+        maxSpoolSize = maxSpoolSize == 0 ? 0 : IntMath.pow(2, IntMath.log2(maxSpoolSize, RoundingMode.CEILING));
+        spool = new Spool(maxSpoolSize);
     }
 
     private StreamingHistogram(int maxBinSize, int maxSpoolSize, int roundSeconds, Map<Double, Long> bin)
@@ -100,7 +101,7 @@ public class StreamingHistogram
      */
     public void update(int p)
     {
-        update(p, 1L);
+        update(p, 1);
     }
 
     /**
@@ -109,16 +110,23 @@ public class StreamingHistogram
      * @param p
      * @param m
      */
-    public void update(int p, long m)
+    public void update(int p, int m)
     {
         p = roundKey(p);
 
-        final int[] oldValue = spool.computeIfAbsent(p, key -> new int[]{ 0 });
-        oldValue[0] += m;
-
-        // If spool has overflowed, compact it
-        if (spool.size() > maxSpoolSize)
-            flushHistogram();
+        if (spool.capacity > 0)
+        {
+            if (!spool.tryAddOrAccumulate(p, m))
+            {
+                flushHistogram();
+                final boolean success = spool.tryAddOrAccumulate(p, m);
+                assert success : "Can not add value to spool"; // after spool flushing we should always be able to insert new value
+            }
+        }
+        else
+        {
+            flushValue(p, m);
+        }
     }
 
     private int roundKey(int p)
@@ -135,25 +143,8 @@ public class StreamingHistogram
      */
     public void flushHistogram()
     {
-        if (spool.size() > 0)
-        {
-            int[] spoolValue;
-
-            // Iterate over the spool, copying the value into the primary bin map
-            // and compacting that map as necessary
-            for (Map.Entry<Integer, int[]> entry : spool.entrySet())
-            {
-                int key = entry.getKey();
-                spoolValue = entry.getValue();
-                flushValue(key, spoolValue[0]);
-
-                if (bin.isFull())
-                {
-                    mergeBin();
-                }
-            }
-            spool.clear();
-        }
+        spool.forEach(this::flushValue);
+        spool.clear();
     }
 
     private void flushValue(int key, int spoolValue)
@@ -169,6 +160,11 @@ public class StreamingHistogram
                 distances.add(prevPoint, key);
             if (nextPoint != -1)
                 distances.add(key, nextPoint);
+        }
+
+        if (bin.isFull())
+        {
+            mergeBin();
         }
     }
 
@@ -213,7 +209,7 @@ public class StreamingHistogram
         other.flushHistogram();
 
         for (Map.Entry<Integer, long[]> entry : other.getAsMap().entrySet())
-            update(entry.getKey(), entry.getValue()[0]);
+            update(entry.getKey(), (int) entry.getValue()[0]);
     }
 
     /**
@@ -587,5 +583,89 @@ public class StreamingHistogram
     {
         INSERTED,
         ACCUMULATED
+    }
+
+    static class Spool
+    {
+        // odd elements - points, even elements - values
+        final int[] map;
+        final int capacity;
+        int size;
+
+        Spool(int capacity)
+        {
+            this.capacity = capacity;
+            if (capacity == 0)
+            {
+                map = new int[0];
+            }
+            else
+            {
+                assert IntMath.isPowerOfTwo(capacity) : "should be power of two";
+                // x2 because we want to save points and values in consecutive cells and x2 because we want reprobing less that two when _capacity_ values will be written
+                map = new int[capacity * 2 * 2];
+                clear();
+            }
+        }
+
+        void clear()
+        {
+            Arrays.fill(map, -1);
+            size = 0;
+        }
+
+        boolean tryAddOrAccumulate(int point, int delta)
+        {
+            if (size > capacity){
+                return false;
+            }
+
+            final int cell = 2 * ((capacity - 1) & hash(point));
+            for (int attempt = 0; attempt < 100; attempt++)
+            {
+                if (tryCell(cell + attempt * 2, point, delta))
+                    return true;
+            }
+            return false;
+        }
+
+        private int hash(int i){
+            long largePrime =  948701839L;
+            return (int) (i*largePrime);
+        }
+
+        void forEach(PointAndValueConsumer consumer)
+        {
+            for (int i = 0; i < map.length; i += 2)
+            {
+                if (map[i] != -1)
+                {
+                    consumer.consume(map[i], map[i + 1]);
+                }
+            }
+        }
+
+        private boolean tryCell(int cell, int point, int delta)
+        {
+            cell = cell % map.length;
+            if (map[cell] == -1)
+            {
+                map[cell] = point;
+                map[cell + 1] = delta;
+                size++;
+                return true;
+            }
+            if (map[cell] == point)
+            {
+                map[cell + 1] += delta;
+                return true;
+            }
+            return false;
+        }
+
+        interface PointAndValueConsumer
+        {
+            void consume(int point, int value);
+        }
     }
 }
