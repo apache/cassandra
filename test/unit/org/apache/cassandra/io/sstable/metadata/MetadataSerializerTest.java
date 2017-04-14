@@ -121,9 +121,9 @@ public class MetadataSerializerTest
     }
 
     @Test
-    public void testMdReadMc() throws IOException
+    public void testNaReadMc() throws IOException
     {
-        testOldReadsNew("mc", "md");
+        testOldReadsNew("mc", "na");
     }
 
     public void testOldReadsNew(String oldV, String newV) throws IOException
@@ -160,7 +160,7 @@ public class MetadataSerializerTest
     {
         Version mc = BigFormat.instance.getVersion("mc");
         assertFalse(mc.hasPendingRepair());
-        Version md = BigFormat.instance.getVersion("md");
-        assertTrue(md.hasPendingRepair());
+        Version na = BigFormat.instance.getVersion("na");
+        assertTrue(na.hasPendingRepair());
     }
 }
