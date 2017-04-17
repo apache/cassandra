@@ -19,6 +19,7 @@ package org.apache.cassandra.tools;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -214,7 +215,7 @@ public class SSTableMetadataViewer
         if (!summariesFile.exists())
             return;
 
-        try (DataInputStream iStream = new DataInputStream(new FileInputStream(summariesFile)))
+        try (DataInputStream iStream = new DataInputStream(Files.newInputStream(summariesFile.toPath())))
         {
             Pair<DecoratedKey, DecoratedKey> firstLast = new IndexSummary.IndexSummarySerializer().deserializeFirstLastKey(iStream, partitioner);
             out.printf("First token: %s (key=%s)%n", firstLast.left.getToken(), keyType.getString(firstLast.left.getKey()));

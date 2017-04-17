@@ -148,7 +148,7 @@ public class StressGraph
                         currentThreadCount = tc.group(2);
                     }
                 }
-                
+
                 // Detect mode changes
                 if (line.equals(StressMetrics.HEAD))
                 {
@@ -232,7 +232,7 @@ public class StressGraph
 
     private JSONObject createJSONStats(JSONObject json)
     {
-        try (InputStream logStream = new FileInputStream(stressSettings.graph.temporaryLogFile))
+        try (InputStream logStream = Files.newInputStream(stressSettings.graph.temporaryLogFile.toPath()))
         {
             JSONArray stats;
             if (json == null)

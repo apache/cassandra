@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.gms;
 
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.Path;
 import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
@@ -215,15 +218,18 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
      */
     public void dumpInterArrivalTimes()
     {
-        File file = FileUtils.createTempFile("failuredetector-", ".dat");
+        Path path = null;
+        try {
+            path = Files.createTempFile("failuredetector-", ".dat");
 
-        try (OutputStream os = new BufferedOutputStream(new FileOutputStream(file, true)))
-        {
-            os.write(toString().getBytes());
+            try (OutputStream os = new BufferedOutputStream(Files.newOutputStream(path, StandardOpenOption.APPEND)))
+            {
+                os.write(toString().getBytes());
+            }
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, file);
+            throw new FSWriteError(e, (path == null) ? null : path.toFile());
         }
     }
 

@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.io.*;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
@@ -730,7 +732,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     private void loadBloomFilter() throws IOException
     {
-        try (DataInputStream stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER)))))
+        try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(Paths.get(descriptor.filenameFor(Component.FILTER))))))
         {
             bf = FilterFactory.deserialize(stream, true);
         }
@@ -871,7 +873,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         try
         {
             TableMetadata metadata = metadata();
-            iStream = new DataInputStream(new FileInputStream(summariesFile));
+            iStream = new DataInputStream(Files.newInputStream(summariesFile.toPath()));
             indexSummary = IndexSummary.serializer.deserialize(
                     iStream, getPartitioner(),
                     metadata.params.minIndexInterval, metadata.params.maxIndexInterval);
