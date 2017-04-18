@@ -325,10 +325,15 @@ public class MigrationManager
      */
     public static void forceAnnounceNewColumnFamily(CFMetaData cfm) throws ConfigurationException
     {
-        announceNewColumnFamily(cfm, false, false);
+        announceNewColumnFamily(cfm, false, false, 0);
     }
 
     private static void announceNewColumnFamily(CFMetaData cfm, boolean announceLocally, boolean throwOnDuplicate) throws ConfigurationException
+    {
+        announceNewColumnFamily(cfm, announceLocally, throwOnDuplicate, FBUtilities.timestampMicros());
+    }
+
+    private static void announceNewColumnFamily(CFMetaData cfm, boolean announceLocally, boolean throwOnDuplicate, long timestamp) throws ConfigurationException
     {
         cfm.validate();
 
@@ -340,7 +345,7 @@ public class MigrationManager
             throw new AlreadyExistsException(cfm.ksName, cfm.cfName);
 
         logger.info(String.format("Create new table: %s", cfm));
-        announce(SchemaKeyspace.makeCreateTableMutation(ksm, cfm, FBUtilities.timestampMicros()), announceLocally);
+        announce(SchemaKeyspace.makeCreateTableMutation(ksm, cfm, timestamp), announceLocally);
     }
 
     public static void announceNewView(ViewDefinition view, boolean announceLocally) throws ConfigurationException

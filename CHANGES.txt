@@ -4,6 +4,7 @@
  * Avoid name clashes in CassandraIndexTest (CASSANDRA-13427)
  * Handling partially written hint files (CASSANDRA-12728) 
  * Interrupt replaying hints on decommission (CASSANDRA-13308)
+ * Fix schema version calculation for rolling upgrades (CASSANDRA-13441)
 
 3.0.13
  * Make reading of range tombstones more reliable (CASSANDRA-12811)
