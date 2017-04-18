@@ -67,6 +67,11 @@ final class TokenFilter implements PartitionKeyRestrictions
         return isOnToken() ? false : restrictions.hasIN();
     }
 
+    public boolean hasContains()
+    {
+        return isOnToken() ? false : restrictions.hasContains();
+    }
+
     public boolean hasOnlyEqualityRestrictions()
     {
         return isOnToken() ? false : restrictions.hasOnlyEqualityRestrictions();

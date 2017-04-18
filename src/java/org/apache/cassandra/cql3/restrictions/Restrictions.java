@@ -55,6 +55,11 @@ public interface Restrictions extends Restriction
     public boolean hasIN();
 
     /**
+     * Checks if any of the underlying restrictions is a CONTAINS / CONTAINS KEY restriction.
+     * @return <code>true</code> if any of the underlying restrictions is CONTAINS, <code>false</code> otherwise
+     */
+    public boolean hasContains();
+    /**
      * Checks if any of the underlying restrictions is a slice.
      * @return <code>true</code> if any of the underlying restrictions is a slice, <code>false</code> otherwise
      */

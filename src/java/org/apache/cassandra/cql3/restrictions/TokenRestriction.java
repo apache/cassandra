@@ -225,6 +225,11 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         {
             return Collections.singletonList(value.bindAndGet(options));
         }
+
+        public boolean hasContains()
+        {
+            return false;
+        }
     }
 
     public static class SliceRestriction extends TokenRestriction
@@ -235,6 +240,11 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         {
             super(cfm, columnDefs);
             slice = TermSlice.newInstance(bound, inclusive, term);
+        }
+
+        public boolean hasContains()
+        {
+            return false;
         }
 
         @Override
