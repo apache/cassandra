@@ -543,6 +543,11 @@ public class StressProfile implements Serializable
 
                         //Put PK predicates at the end
                         sb.append(pred);
+                        if (insert.containsKey("condition"))
+                        {
+                            sb.append(" " + insert.get("condition"));
+                            insert.remove("condition");
+                        }
                     }
                     else
                     {
@@ -595,6 +600,8 @@ public class StressProfile implements Serializable
                     String query = sb.toString();
 
                     insertStatement = client.prepare(query);
+                    System.out.println("Insert Statement:");
+                    System.out.println("  " + query);
                 }
             }
         }
