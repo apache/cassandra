@@ -117,6 +117,14 @@ final class HintsDispatchExecutor
         }
     }
 
+    void interruptDispatch(UUID hostId)
+    {
+        Future future = scheduledDispatches.remove(hostId);
+
+        if (null != future)
+            future.cancel(true);
+    }
+
     private final class TransferHintsTask implements Runnable
     {
         private final HintsCatalog catalog;
