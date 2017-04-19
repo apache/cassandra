@@ -26,6 +26,7 @@
  * Delete illegal character from StandardTokenizerImpl.jflex (CASSANDRA-13417)
  * Fix cqlsh automatic protocol downgrade regression (CASSANDRA-13307)
 Merged from 3.0:
+ * Interrupt replaying hints on decommission (CASSANDRA-13308)
  * Handling partially written hint files (CASSANDRA-12728)
  * Fix NPE issue in StorageService (CASSANDRA-13060)
  * Make reading of range tombstones more reliable (CASSANDRA-12811)
