@@ -72,6 +72,7 @@ Merged from 3.0:
    for a table that's in system_schema.tables (CASSANDRA-13180)
  * Nodetool upgradesstables/scrub/compact ignores system tables (CASSANDRA-13410)
 Merged from 2.2:
+ * Avoid starting gossiper in RemoveTest (CASSANDRA-13407)
  * Fix weightedSize() for row-cache reported by JMX and NodeTool (CASSANDRA-13393)
  * Fix JVM metric names (CASSANDRA-13103)
  * Honor truststore-password parameter in cassandra-stress (CASSANDRA-12773)
