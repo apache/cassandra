@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.*;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -71,7 +70,6 @@ public class RemoveTest
     public static void setupClass() throws ConfigurationException
     {
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
-        SchemaLoader.loadSchema();
     }
 
     @AfterClass
@@ -89,7 +87,6 @@ public class RemoveTest
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
 
         MessagingService.instance().listen();
-        Gossiper.instance.start(1);
         removalhost = hosts.get(5);
         hosts.remove(removalhost);
         removalId = hostIds.get(5);
