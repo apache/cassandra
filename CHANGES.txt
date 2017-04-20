@@ -1,4 +1,5 @@
 4.0
+ * Improve incremental repair logging (CASSANDRA-13468)
  * Start compaction when incremental repair finishes (CASSANDRA-13454)
  * Add repair streaming preview (CASSANDRA-13257)
  * Cleanup isIncremental/repairedAt usage (CASSANDRA-13430)
