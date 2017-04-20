@@ -18,7 +18,9 @@
 package org.apache.cassandra.utils;
 
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import com.datastax.driver.core.*;
 
@@ -184,16 +186,29 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         for (Row colRow : session.execute(columnsQuery, keyspace, name))
             defs.add(createDefinitionFromRow(colRow, keyspace, name, types));
 
-        return CFMetaData.create(keyspace,
-                                 name,
-                                 id,
-                                 isDense,
-                                 isCompound,
-                                 isSuper,
-                                 isCounter,
-                                 isView,
-                                 defs,
-                                 partitioner);
+        CFMetaData metadata = CFMetaData.create(keyspace,
+                                                name,
+                                                id,
+                                                isDense,
+                                                isCompound,
+                                                isSuper,
+                                                isCounter,
+                                                isView,
+                                                defs,
+                                                partitioner);
+
+        String droppedColumnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
+                                                   SchemaKeyspace.NAME,
+                                                   SchemaKeyspace.DROPPED_COLUMNS);
+        Map<ByteBuffer, CFMetaData.DroppedColumn> droppedColumns = new HashMap<>();
+        for (Row colRow : session.execute(droppedColumnsQuery, keyspace, name))
+        {
+            CFMetaData.DroppedColumn droppedColumn = createDroppedColumnFromRow(colRow, keyspace);
+            droppedColumns.put(UTF8Type.instance.decompose(droppedColumn.name), droppedColumn);
+        }
+        metadata.droppedColumns(droppedColumns);
+
+        return metadata;
     }
 
     private static ColumnDefinition createDefinitionFromRow(Row row, String keyspace, String table, Types types)
@@ -210,5 +225,13 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         int position = row.getInt("position");
         ColumnDefinition.Kind kind = ColumnDefinition.Kind.valueOf(row.getString("kind").toUpperCase());
         return new ColumnDefinition(keyspace, table, name, type, position, kind);
+    }
+
+    private static CFMetaData.DroppedColumn createDroppedColumnFromRow(Row row, String keyspace)
+    {
+        String name = row.getString("column_name");
+        AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), Types.none());
+        long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getTimestamp("dropped_time").getTime());
+        return new CFMetaData.DroppedColumn(name, type, droppedTime);
     }
 }
