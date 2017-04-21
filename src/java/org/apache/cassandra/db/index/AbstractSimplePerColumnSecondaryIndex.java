@@ -116,7 +116,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, cell));
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata, false, 1);
         CellName name = makeIndexColumnName(rowKey, cell);
-        if (cell instanceof ExpiringCell)
+        if (!columnDef.isPrimaryKeyColumn() && cell instanceof ExpiringCell)
         {
             ExpiringCell ec = (ExpiringCell) cell;
             cfi.addColumn(new BufferExpiringCell(name, ByteBufferUtil.EMPTY_BYTE_BUFFER, ec.timestamp(), ec.getTimeToLive(), ec.getLocalDeletionTime()));
