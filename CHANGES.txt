@@ -18,6 +18,7 @@
  * Exceptions encountered calling getSeeds() breaks OTC thread (CASSANDRA-13018)
  * Commitlog replay may fail if last mutation is within 4 bytes of end of segment (CASSANDRA-13282)
 Merged from 2.1:
+ * Set javac encoding to utf-8 (CASSANDRA-13466)
  * Fix 2ndary index queries on partition keys for tables with static columns (CASSANDRA-13147)
  * Fix ParseError unhashable type list in cqlsh copy from (CASSANDRA-13364)
  * Remove unused repositories (CASSANDRA-13278)
