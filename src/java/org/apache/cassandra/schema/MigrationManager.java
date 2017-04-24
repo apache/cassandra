@@ -198,10 +198,15 @@ public class MigrationManager
      */
     public static void forceAnnounceNewTable(TableMetadata cfm)
     {
-        announceNewTable(cfm, false, false);
+        announceNewTable(cfm, false, false, 0);
     }
 
     private static void announceNewTable(TableMetadata cfm, boolean announceLocally, boolean throwOnDuplicate)
+    {
+        announceNewTable(cfm, announceLocally, throwOnDuplicate, FBUtilities.timestampMicros());
+    }
+
+    private static void announceNewTable(TableMetadata cfm, boolean announceLocally, boolean throwOnDuplicate, long timestamp)
     {
         cfm.validate();
 
@@ -213,7 +218,7 @@ public class MigrationManager
             throw new AlreadyExistsException(cfm.keyspace, cfm.name);
 
         logger.info("Create new table: {}", cfm);
-        announce(SchemaKeyspace.makeCreateTableMutation(ksm, cfm, FBUtilities.timestampMicros()), announceLocally);
+        announce(SchemaKeyspace.makeCreateTableMutation(ksm, cfm, timestamp), announceLocally);
     }
 
     public static void announceNewView(ViewMetadata view, boolean announceLocally) throws ConfigurationException
