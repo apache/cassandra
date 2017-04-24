@@ -30,6 +30,8 @@ import org.slf4j.LoggerFactory;
 
 import com.sun.jna.LastErrorException;
 
+import org.apache.cassandra.io.FSWriteError;
+
 import static org.apache.cassandra.utils.NativeLibrary.OSType.LINUX;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.MAC;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.WINDOWS;
@@ -318,7 +320,9 @@ public final class NativeLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn("fsync({}) failed, errorno ({}) {}", fd, errno(e), e);
+            String errMsg = String.format("fsync(%s) failed, errno %s", fd, errno(e));
+            logger.warn(errMsg);
+            throw new FSWriteError(e, errMsg);
         }
     }
 
@@ -340,7 +344,9 @@ public final class NativeLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("close(%d) failed, errno (%d).", fd, errno(e)));
+            String errMsg = String.format("close(%d) failed, errno (%d).", fd, errno(e));
+            logger.warn(errMsg);
+            throw new FSWriteError(e, errMsg);
         }
     }
 

@@ -37,11 +37,13 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LogRecord.Type;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SnapshotDeletingTask;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
@@ -222,7 +224,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         catch (IOException e)
         {
             logger.error("Unable to delete {}", file, e);
-            throw new RuntimeException(e);
+            FileUtils.handleFSErrorAndPropagate(new FSWriteError(e, file));
         }
     }
 
@@ -256,8 +258,10 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             if (logger.isTraceEnabled())
                 logger.trace("Removing files for transaction {}", name());
 
+            // this happens if we forget to close a txn and the garbage collector closes it for us
+            // or if the transaction journal was never properly created in the first place
             if (!data.completed())
-            { // this happens if we forget to close a txn and the garbage collector closes it for us
+            {
                 logger.error("{} was not completed, trying to abort it now", data);
                 Throwable err = Throwables.perform((Throwable)null, data::abort);
                 if (err != null)
