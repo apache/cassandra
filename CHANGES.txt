@@ -74,6 +74,7 @@ Merged from 3.0:
  * Provide user workaround when system_schema.columns does not contain entries
    for a table that's in system_schema.tables (CASSANDRA-13180)
  * Nodetool upgradesstables/scrub/compact ignores system tables (CASSANDRA-13410)
+ * Fix schema version calculation for rolling upgrades (CASSANDRA-13441)
 Merged from 2.2:
  * Avoid starting gossiper in RemoveTest (CASSANDRA-13407)
  * Fix weightedSize() for row-cache reported by JMX and NodeTool (CASSANDRA-13393)
