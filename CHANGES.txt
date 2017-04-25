@@ -59,6 +59,7 @@
 
 
 3.11.0
+ * Fix compaction-stress by using daemonInitialization (CASSANDRA-13188)
  * V5 protocol flags decoding broken (CASSANDRA-13443)
  * Use write lock not read lock for removing sstables from compaction strategies. (CASSANDRA-13422)
  * Use corePoolSize equal to maxPoolSize in JMXEnabledThreadPoolExecutors (CASSANDRA-13329)
@@ -160,7 +161,6 @@ Merged from 2.1:
  * Fix Thread Leak in OutboundTcpConnection (CASSANDRA-13204)
  * Upgrade netty version to fix memory leak with client encryption (CASSANDRA-13114)
  * Coalescing strategy can enter infinite loop (CASSANDRA-13159)
-
 
 3.10
  * Fix secondary index queries regression (CASSANDRA-13013)
