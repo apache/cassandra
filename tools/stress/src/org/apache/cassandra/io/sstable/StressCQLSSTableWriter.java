@@ -609,7 +609,9 @@ public class StressCQLSSTableWriter implements Closeable
             KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
 
             CFMetaData cfMetaData = ksm.tables.getNullable(schemaStatement.columnFamily());
-            assert cfMetaData == null;
+
+            if (cfMetaData != null)
+                return Schema.instance.getColumnFamilyStoreInstance(cfMetaData.cfId);
 
             CreateTableStatement statement = (CreateTableStatement) schemaStatement.prepare(ksm.types).statement;
             statement.validate(ClientState.forInternalCalls());
