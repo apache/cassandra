@@ -6,6 +6,7 @@
 # 
 # chkconfig: 2345 20 80
 # description: Starts and stops Cassandra
+# pidfile: /var/run/cassandra/cassandra.pid
 
 . /etc/rc.d/init.d/functions
 
