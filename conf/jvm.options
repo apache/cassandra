@@ -237,3 +237,8 @@
 -XX:+UseGCLogFileRotation
 -XX:NumberOfGCLogFiles=10
 -XX:GCLogFileSize=10M
+
+#uses 1GB for CAPI Row-Cache and /dev/sg7 for CAPI flash path
+-Dcapi.devices=/dev/sg7:0:1
+-Dcapi.hash=org.apache.cassandra.cache.capi.YCSBKeyHashFunction
+

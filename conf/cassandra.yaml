@@ -303,6 +303,7 @@ key_cache_save_period: 14400
 #   This is the row cache implementation availabile
 #   in previous releases of Cassandra.
 # row_cache_class_name: org.apache.cassandra.cache.OHCProvider
+row_cache_class_name: org.apache.cassandra.cache.CapiRowCacheProvider
 
 # Maximum size of the row cache in memory.
 # Please note that OHC cache implementation requires some additional off-heap memory to manage
@@ -312,7 +313,8 @@ key_cache_save_period: 14400
 # headroom for OS block level cache. Do never allow your system to swap.
 #
 # Default value is 0, to disable row caching.
-row_cache_size_in_mb: 0
+#row_cache_size_in_mb: 0 - // commented as we want to enable row cache in CAPI
+row_cache_size_in_mb: 1
 
 # Duration in seconds after which Cassandra should save the row cache.
 # Caches are saved to saved_caches_directory as specified in this configuration file.
