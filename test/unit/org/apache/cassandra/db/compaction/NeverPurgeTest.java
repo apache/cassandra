@@ -80,7 +80,7 @@ public class NeverPurgeTest extends CQLTester
         execute("DELETE FROM %s WHERE a=3");
         cfs.forceBlockingFlush();
         cfs.enableAutoCompaction();
-        while (cfs.getLiveSSTables().size() > 1)
+        while (cfs.getLiveSSTables().size() > 1 || !cfs.getTracker().getCompacting().isEmpty())
             Thread.sleep(100);
         verifyContainsTombstones(cfs.getLiveSSTables(), 3);
     }
