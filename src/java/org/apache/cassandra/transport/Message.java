@@ -458,7 +458,7 @@ public abstract class Message
 
                 runsSinceFlush++;
 
-                if (!doneWork || runsSinceFlush > 2 || flushed.size() > 50)
+                if (runsSinceFlush > 2 || flushed.size() > 50)
                 {
                     for (ChannelHandlerContext channel : channels)
                         channel.flush();
