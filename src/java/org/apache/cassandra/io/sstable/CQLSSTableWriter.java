@@ -315,6 +315,13 @@ public class CQLSSTableWriter implements Closeable
     }
 
     /**
+     * Flushes the data currently buffered.
+     */
+    public void flush() throws IOException {
+        writer.flush();
+    }
+
+    /**
      * Close this writer.
      * <p>
      * This method should be called, otherwise the produced sstables are not
