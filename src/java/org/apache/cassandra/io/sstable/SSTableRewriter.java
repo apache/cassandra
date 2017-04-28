@@ -64,7 +64,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     private long currentlyOpenedEarlyAt; // the position (in MB) in the target file we last (re)opened at
 
-    private final List<SSTableWriter> writers = new ArrayList<>();
+    private final Set<SSTableWriter> writers = new HashSet<>();
     private final boolean keepOriginals; // true if we do not want to obsolete the originals
 
     private SSTableWriter writer;

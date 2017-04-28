@@ -98,4 +98,6 @@ appender reference in the root level section below.
   </root>
 
   <logger name="org.apache.cassandra" level="DEBUG"/>
+  <logger name="org.apache.cassandra.db.compaction.writers.SplittingTimeWindowCompactionWriter" level="TRACE"/>
+  <logger name="org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy" level="TRACE"/>
 </configuration>

@@ -18,19 +18,15 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
+import org.apache.cassandra.db.compaction.writers.SplittingTimeWindowCompactionWriter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,7 +55,8 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         super(cfs, options);
         this.estimatedRemainingTasks = 0;
         this.options = new TimeWindowCompactionStrategyOptions(options);
-        if (!options.containsKey(AbstractCompactionStrategy.TOMBSTONE_COMPACTION_INTERVAL_OPTION) && !options.containsKey(AbstractCompactionStrategy.TOMBSTONE_THRESHOLD_OPTION))
+        if (!options.containsKey(AbstractCompactionStrategy.TOMBSTONE_COMPACTION_INTERVAL_OPTION) &&
+            !options.containsKey(AbstractCompactionStrategy.TOMBSTONE_THRESHOLD_OPTION))
         {
             disableTombstoneCompactions = true;
             logger.debug("Disabling tombstone compactions for TWCS");
@@ -149,7 +146,8 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
     private List<SSTableReader> getCompactionCandidates(Iterable<SSTableReader> candidateSSTables)
     {
-        Pair<HashMultimap<Long, SSTableReader>, Long> buckets = getBuckets(candidateSSTables, options.sstableWindowUnit, options.sstableWindowSize, options.timestampResolution);
+        Pair<HashMultimap<Long, SSTableReader>, Long> buckets = getBuckets(
+                candidateSSTables, options.sstableWindowUnit, options.sstableWindowSize, options.timestampResolution);
         // Update the highest window seen, if necessary
         if(buckets.right > this.highestWindowSeen)
             this.highestWindowSeen = buckets.right;
@@ -224,8 +222,10 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
      * @param timestampResolution
      * @return A pair, where the left element is the bucket representation (map of timestamp to sstablereader), and the right is the highest timestamp seen
      */
-    @VisibleForTesting
-    static Pair<HashMultimap<Long, SSTableReader>, Long> getBuckets(Iterable<SSTableReader> files, TimeUnit sstableWindowUnit, int sstableWindowSize, TimeUnit timestampResolution)
+    public static Pair<HashMultimap<Long, SSTableReader>, Long> getBuckets(Iterable<SSTableReader> files,
+                                                                           TimeUnit sstableWindowUnit,
+                                                                           int sstableWindowSize,
+                                                                           TimeUnit timestampResolution)
     {
         HashMultimap<Long, SSTableReader> buckets = HashMultimap.create();
 
@@ -236,6 +236,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         for (SSTableReader f : files)
         {
             assert TimeWindowCompactionStrategyOptions.validTimestampTimeUnits.contains(timestampResolution);
+            // TODO: Should we use f.getMinTimestamp() here like in SplittingTimeWindowCompactionWriter?
             long tStamp = TimeUnit.MILLISECONDS.convert(f.getMaxTimestamp(), timestampResolution);
             Pair<Long,Long> bounds = getWindowBoundsInMillis(sstableWindowUnit, sstableWindowSize, tStamp);
             buckets.put(bounds.left, f);
@@ -271,7 +272,9 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
      * @return a bucket (list) of sstables to compact.
      */
     @VisibleForTesting
-    static List<SSTableReader> newestBucket(HashMultimap<Long, SSTableReader> buckets, int minThreshold, int maxThreshold, SizeTieredCompactionStrategyOptions stcsOptions, long now)
+    static List<SSTableReader> newestBucket(HashMultimap<Long, SSTableReader> buckets,
+                                            int minThreshold, int maxThreshold,
+                                            SizeTieredCompactionStrategyOptions stcsOptions, long now)
     {
         // If the current bucket has at least minThreshold SSTables, choose that one.
         // For any other bucket, at least 2 SSTables is enough.
@@ -336,7 +339,11 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         LifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
         if (txn == null)
             return null;
-        return Collections.singleton(new CompactionTask(cfs, txn, gcBefore));
+        if (splitOutput)
+            return Arrays.<AbstractCompactionTask>asList(
+                    new TimeWindowCompactionStrategy.SplittingCompactionTask(cfs, txn, gcBefore, options));
+        else
+            return Collections.singleton(new CompactionTask(cfs, txn, gcBefore));
     }
 
     @Override
@@ -351,8 +358,11 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
             logger.debug("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
             return null;
         }
-
-        return new CompactionTask(cfs, modifier, gcBefore).setUserDefined(true);
+        // TODO: Change this to split by TW if after the first TW.
+        AbstractCompactionTask task = new TimeWindowCompactionStrategy.SplittingCompactionTask(cfs, modifier, gcBefore, options);
+        //return new CompactionTask(cfs, modifier, gcBefore);
+        task.setUserDefined(true);
+        return task;
     }
 
     public int getEstimatedRemainingTasks()
@@ -379,8 +389,31 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
     public String toString()
     {
-        return String.format("TimeWindowCompactionStrategy[%s/%s]",
+        return String.format("TimeWindowCompactionStrategy[%s/%s|%s %s]",
                 cfs.getMinimumCompactionThreshold(),
-                cfs.getMaximumCompactionThreshold());
+                cfs.getMaximumCompactionThreshold(),
+                options.sstableWindowSize,
+                options.sstableWindowUnit);
+    }
+
+    private static class SplittingCompactionTask extends CompactionTask
+    {
+        private final TimeWindowCompactionStrategyOptions options;
+
+        public SplittingCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore,
+                                       TimeWindowCompactionStrategyOptions options)
+        {
+            super(cfs, txn, gcBefore);
+            this.options = options;
+        }
+
+        @Override
+        public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
+                                                              Directories directories,
+                                                              LifecycleTransaction txn,
+                                                              Set<SSTableReader> nonExpiredSSTables)
+        {
+            return new SplittingTimeWindowCompactionWriter(cfs, directories, txn, nonExpiredSSTables, options);
+        }
     }
 }
