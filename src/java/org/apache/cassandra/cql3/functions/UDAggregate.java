@@ -161,13 +161,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
 
             public void addInput(ProtocolVersion protocolVersion, List<ByteBuffer> values) throws InvalidRequestException
             {
-                if (needsInit)
-                {
-                    state = initcond != null ? UDHelper.deserialize(stateTypeCodec, protocolVersion, initcond.duplicate()) : null;
-                    stateFunctionDuration = 0;
-                    stateFunctionCount = 0;
-                    needsInit = false;
-                }
+                maybeInit(protocolVersion);
 
                 long startTime = System.nanoTime();
                 stateFunctionCount++;
@@ -184,9 +178,20 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
                 stateFunctionDuration += (System.nanoTime() - startTime) / 1000;
             }
 
+            private void maybeInit(ProtocolVersion protocolVersion)
+            {
+                if (needsInit)
+                {
+                    state = initcond != null ? UDHelper.deserialize(stateTypeCodec, protocolVersion, initcond.duplicate()) : null;
+                    stateFunctionDuration = 0;
+                    stateFunctionCount = 0;
+                    needsInit = false;
+                }
+            }
+
             public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException
             {
-                assert !needsInit;
+                maybeInit(protocolVersion);
 
                 // final function is traced in UDFunction
                 Tracing.trace("Executed UDA {}: {} call(s) to state function {} in {}\u03bcs", name(), stateFunctionCount, stateFunction.name(), stateFunctionDuration);

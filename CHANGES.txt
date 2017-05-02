@@ -61,6 +61,7 @@
 
 
 3.11.0
+ * UDA fails without input rows (CASSANDRA-13399)
  * Fix compaction-stress by using daemonInitialization (CASSANDRA-13188)
  * V5 protocol flags decoding broken (CASSANDRA-13443)
  * Use write lock not read lock for removing sstables from compaction strategies. (CASSANDRA-13422)
