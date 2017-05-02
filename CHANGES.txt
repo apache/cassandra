@@ -60,6 +60,7 @@
  * Add support for arithmetic operators (CASSANDRA-11935)
  * Add histogram for delay to deliver hints (CASSANDRA-13234)
  * Fix cqlsh automatic protocol downgrade regression (CASSANDRA-13307)
+ * Changing `max_hint_window_in_ms` at runtime (CASSANDRA-11720)
 
 
 3.11.0

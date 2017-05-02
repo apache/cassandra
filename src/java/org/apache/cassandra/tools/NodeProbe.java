@@ -1011,6 +1011,16 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getConcurrentCompactors();
     }
 
+    public void setMaxHintWindow(int value)
+    {
+        spProxy.setMaxHintWindow(value);
+    }
+
+    public int getMaxHintWindow()
+    {
+        return spProxy.getMaxHintWindow();
+    }
+
     public long getTimeout(String type)
     {
         switch (type)
