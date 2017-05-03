@@ -29,6 +29,7 @@
  * Fix cqlsh automatic protocol downgrade regression (CASSANDRA-13307)
  * Tracing payload not passed from QueryMessage to tracing session (CASSANDRA-12835)
 Merged from 3.0:
+ * Expire OutboundTcpConnection messages by a single Thread (CASSANDRA-13265)
  * Fail repair if insufficient responses received (CASSANDRA-13397)
  * Fix SSTableLoader fail when the loaded table contains dropped columns (CASSANDRA-13276)
  * Avoid name clashes in CassandraIndexTest (CASSANDRA-13427)
