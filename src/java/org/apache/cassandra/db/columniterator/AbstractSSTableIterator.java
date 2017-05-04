@@ -29,6 +29,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -285,6 +286,7 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
     {
         private final boolean shouldCloseFile;
         public FileDataInput file;
+        public final Version version;
 
         protected UnfilteredDeserializer deserializer;
 
@@ -295,6 +297,7 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
         {
             this.file = file;
             this.shouldCloseFile = shouldCloseFile;
+            this.version = sstable.descriptor.version;
 
             if (file != null)
                 createDeserializer();
@@ -430,6 +433,19 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
             currentIndexIdx = blockIdx;
             reader.openMarker = blockIdx > 0 ? indexes.get(blockIdx - 1).endOpenMarker : null;
             mark = reader.file.mark();
+
+            // If we're reading an old format file and we move to the first block in the index (i.e. the
+            // head of the partition), we skip the static row as it's already been read when we first opened
+            // the iterator. If we don't do this and a static row is present, we'll re-read it but treat it
+            // as a regular row, causing deserialization to blow up later as that row's flags will be invalid
+            // see CASSANDRA-12088 & CASSANDRA-13236
+            if (!reader.version.storeRows()
+                && blockIdx == 0
+                && reader.deserializer.hasNext()
+                && reader.deserializer.nextIsStatic())
+            {
+                reader.deserializer.skipNext();
+            }
         }
 
         private long columnOffset(int i)
