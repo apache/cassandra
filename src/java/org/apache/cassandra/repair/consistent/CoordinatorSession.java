@@ -36,6 +36,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,6 +63,9 @@ public class CoordinatorSession extends ConsistentSession
     private final SettableFuture<Boolean> prepareFuture = SettableFuture.create();
     private final SettableFuture<Boolean> finalizeProposeFuture = SettableFuture.create();
 
+    private volatile long sessionStart = Long.MIN_VALUE;
+    private volatile long repairStart = Long.MIN_VALUE;
+    private volatile long finalizeStart = Long.MIN_VALUE;
 
     public CoordinatorSession(Builder builder)
     {
@@ -245,6 +249,16 @@ public class CoordinatorSession extends ConsistentSession
         setAll(State.FAILED);
     }
 
+    private static String formatDuration(long then, long now)
+    {
+        if (then == Long.MIN_VALUE || now == Long.MIN_VALUE)
+        {
+            // if neither of the times were initially set, don't return a non-sensical answer
+            return "n/a";
+        }
+        return DurationFormatUtils.formatDurationWords(now - then, true, true);
+    }
+
     /**
      * Runs the asynchronous consistent repair session. Actual repair sessions are scheduled via a submitter to make unit testing easier
      */
@@ -252,6 +266,7 @@ public class CoordinatorSession extends ConsistentSession
     {
         logger.info("Beginning coordination of incremental repair session {}", sessionID);
 
+        sessionStart = System.currentTimeMillis();
         ListenableFuture<Boolean> prepareResult = prepare(executor);
 
         // run repair sessions normally
@@ -261,6 +276,11 @@ public class CoordinatorSession extends ConsistentSession
             {
                 if (success)
                 {
+                    repairStart = System.currentTimeMillis();
+                    if (logger.isDebugEnabled())
+                    {
+                        logger.debug("Incremental repair {} prepare phase completed in {}", sessionID, formatDuration(sessionStart, repairStart));
+                    }
                     setRepairing();
                     return sessionSubmitter.get();
                 }
@@ -279,6 +299,12 @@ public class CoordinatorSession extends ConsistentSession
             {
                 if (results == null || results.isEmpty() || Iterables.any(results, r -> r == null))
                 {
+                    finalizeStart = System.currentTimeMillis();
+                    if (logger.isDebugEnabled())
+                    {
+                        logger.debug("Incremental repair {} validation/stream phase completed in {}", sessionID, formatDuration(repairStart, finalizeStart));
+
+                    }
                     return Futures.immediateFailedFuture(new RuntimeException());
                 }
                 else
@@ -295,7 +321,15 @@ public class CoordinatorSession extends ConsistentSession
             {
                 if (result != null && result)
                 {
+                    if (logger.isDebugEnabled())
+                    {
+                        logger.debug("Incremental repair {} finalization phase completed in {}", sessionID, formatDuration(finalizeStart, System.currentTimeMillis()));
+                    }
                     finalizeCommit(executor);
+                    if (logger.isDebugEnabled())
+                    {
+                        logger.debug("Incremental repair {} phase completed in {}", sessionID, formatDuration(sessionStart, System.currentTimeMillis()));
+                    }
                 }
                 else
                 {
@@ -306,6 +340,10 @@ public class CoordinatorSession extends ConsistentSession
 
             public void onFailure(Throwable t)
             {
+                if (logger.isDebugEnabled())
+                {
+                    logger.debug("Incremental repair {} phase failed in {}", sessionID, formatDuration(sessionStart, System.currentTimeMillis()));
+                }
                 hasFailure.set(true);
                 fail(executor);
             }

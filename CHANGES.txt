@@ -1,4 +1,5 @@
 4.0
+ * Log time elapsed for each incremental repair phase (CASSANDRA-13498)
  * Add multiple table operation support to cassandra-stress (CASSANDRA-8780)
  * Fix incorrect cqlsh results when selecting same columns multiple times (CASSANDRA-13262)
  * Fix WriteResponseHandlerTest is sensitive to test execution order (CASSANDRA-13421)
