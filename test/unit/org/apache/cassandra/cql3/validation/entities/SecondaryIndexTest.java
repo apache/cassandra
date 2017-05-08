@@ -1090,12 +1090,12 @@ public class SecondaryIndexTest extends CQLTester
     public void droppingIndexInvalidatesPreparedStatements() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY ((a), b))");
-        createIndex("CREATE INDEX c_idx ON %s(c)");
+        String indexName = createIndex("CREATE INDEX ON %s(c)");
         MD5Digest cqlId = prepareStatement("SELECT * FROM %s.%s WHERE c=?").statementId;
 
         assertNotNull(QueryProcessor.instance.getPrepared(cqlId));
 
-        dropIndex("DROP INDEX %s.c_idx");
+        dropIndex("DROP INDEX %s." + indexName);
 
         assertNull(QueryProcessor.instance.getPrepared(cqlId));
     }
@@ -1428,10 +1428,10 @@ public class SecondaryIndexTest extends CQLTester
         Object udt2 = userType("a", 2);
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, udt1);
-        execute("CREATE INDEX idx ON %s (v)");
+        String indexName = createIndex("CREATE INDEX ON %s (v)");
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, udt2);
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, udt1);
-        assertTrue(waitForIndex(keyspace(), tableName, "idx"));
+        assertTrue(waitForIndex(keyspace(), tableName, indexName));
 
         assertRows(execute("SELECT * FROM %s WHERE v = ?", udt1), row(1, udt1), row(0, udt1));
         assertEmpty(execute("SELECT * FROM %s WHERE v = ?", udt2));
@@ -1439,8 +1439,9 @@ public class SecondaryIndexTest extends CQLTester
         execute("DELETE FROM %s WHERE k = 0");
         assertRows(execute("SELECT * FROM %s WHERE v = ?", udt1), row(1, udt1));
 
-        dropIndex("DROP INDEX %s.idx");
-        assertInvalidMessage("Index 'idx' could not be found", "DROP INDEX " + KEYSPACE + ".idx");
+        dropIndex("DROP INDEX %s." + indexName);
+        assertInvalidMessage(String.format("Index '%s' could not be found", indexName),
+                             String.format("DROP INDEX %s.%s", KEYSPACE, indexName));
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v = ?", udt1);
     }
@@ -1457,10 +1458,10 @@ public class SecondaryIndexTest extends CQLTester
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, set(udt1, udt2));
         assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (keys(v))");
         assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (values(v))");
-        execute("CREATE INDEX idx ON %s (full(v))");
+        String indexName = createIndex("CREATE INDEX ON %s (full(v))");
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 2, set(udt2));
-        assertTrue(waitForIndex(keyspace(), tableName, "idx"));
+        assertTrue(waitForIndex(keyspace(), tableName, indexName));
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v CONTAINS ?", udt1);
@@ -1471,8 +1472,9 @@ public class SecondaryIndexTest extends CQLTester
         execute("DELETE FROM %s WHERE k = 2");
         assertEmpty(execute("SELECT * FROM %s WHERE v = ?", set(udt2)));
 
-        dropIndex("DROP INDEX %s.idx");
-        assertInvalidMessage("Index 'idx' could not be found", "DROP INDEX " + KEYSPACE + ".idx");
+        dropIndex("DROP INDEX %s." + indexName);
+        assertInvalidMessage(String.format("Index '%s' could not be found", indexName),
+                             String.format("DROP INDEX %s.%s", KEYSPACE, indexName));
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v CONTAINS ?", udt1);
     }
@@ -1488,14 +1490,14 @@ public class SecondaryIndexTest extends CQLTester
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, set(udt1));
         assertInvalidMessage("Cannot create index on keys of column v with non-map type",
-                             "CREATE INDEX idx ON %s (keys(v))");
+                             "CREATE INDEX ON %s (keys(v))");
         assertInvalidMessage("full() indexes can only be created on frozen collections",
-                             "CREATE INDEX idx ON %s (full(v))");
-        execute("CREATE INDEX idx ON %s (values(v))");
+                             "CREATE INDEX ON %s (full(v))");
+        String indexName = createIndex("CREATE INDEX ON %s (values(v))");
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 2, set(udt2));
         execute("UPDATE %s SET v = v + ? WHERE k = ?", set(udt2), 1);
-        assertTrue(waitForIndex(keyspace(), tableName, "idx"));
+        assertTrue(waitForIndex(keyspace(), tableName, indexName));
 
         assertRows(execute("SELECT * FROM %s WHERE v CONTAINS ?", udt1), row(1, set(udt1, udt2)));
         assertRows(execute("SELECT * FROM %s WHERE v CONTAINS ?", udt2), row(1, set(udt1, udt2)), row(2, set(udt2)));
@@ -1504,8 +1506,9 @@ public class SecondaryIndexTest extends CQLTester
         assertEmpty(execute("SELECT * FROM %s WHERE v CONTAINS ?", udt1));
         assertRows(execute("SELECT * FROM %s WHERE v CONTAINS ?", udt2), row(2, set(udt2)));
 
-        dropIndex("DROP INDEX %s.idx");
-        assertInvalidMessage("Index 'idx' could not be found", "DROP INDEX " + KEYSPACE + ".idx");
+        dropIndex("DROP INDEX %s." + indexName);
+        assertInvalidMessage(String.format("Index '%s' could not be found", indexName),
+                             String.format("DROP INDEX %s.%s", KEYSPACE, indexName));
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v CONTAINS ?", udt1);
     }

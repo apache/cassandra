@@ -119,9 +119,9 @@ public class KeyCacheCqlTest extends CQLTester
     }
 
     @Override
-    protected void createIndex(String query)
+    protected String createIndex(String query)
     {
-        createFormattedIndex(formatQuery(KEYSPACE_PER_TEST, query));
+        return createFormattedIndex(formatQuery(KEYSPACE_PER_TEST, query));
     }
 
     @Override
@@ -246,8 +246,8 @@ public class KeyCacheCqlTest extends CQLTester
         String table = createTable("CREATE TABLE %s ("
                                    + commonColumnsDef
                                    + "PRIMARY KEY ((part_key_a, part_key_b),clust_key_a,clust_key_b,clust_key_c))");
-        createIndex("CREATE INDEX some_index ON %s (col_int)");
-        insertData(table, "some_index", true);
+        String indexName = createIndex("CREATE INDEX ON %s (col_int)");
+        insertData(table, indexName, true);
         clearCache();
 
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
@@ -331,8 +331,8 @@ public class KeyCacheCqlTest extends CQLTester
         String table = createTable("CREATE TABLE %s ("
                                    + commonColumnsDef
                                    + "PRIMARY KEY ((part_key_a, part_key_b),clust_key_a,clust_key_b,clust_key_c))");
-        createIndex("CREATE INDEX some_index ON %s (col_int)");
-        insertData(table, "some_index", true);
+        String indexName = createIndex("CREATE INDEX ON %s (col_int)");
+        insertData(table, indexName, true);
         clearCache();
 
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();

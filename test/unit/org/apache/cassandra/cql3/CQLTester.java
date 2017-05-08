@@ -29,9 +29,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import org.junit.*;
 import org.slf4j.Logger;
@@ -95,6 +98,14 @@ public abstract class CQLTester
     private static boolean isServerPrepared = false;
 
     public static final List<ProtocolVersion> PROTOCOL_VERSIONS = new ArrayList<>(ProtocolVersion.SUPPORTED.size());
+
+    private static final String CREATE_INDEX_NAME_REGEX = "(\\s*(\\w*|\"\\w*\")\\s*)";
+    private static final String CREATE_INDEX_REGEX = String.format("\\A\\s*CREATE(?:\\s+CUSTOM)?\\s+INDEX" +
+                                                                   "(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s*" +
+                                                                   "%s?\\s*ON\\s+(%<s\\.)?%<s\\s*" +
+                                                                   "(\\((?:\\s*\\w+\\s*\\()?%<s\\))?",
+                                                                   CREATE_INDEX_NAME_REGEX);
+    private static final Pattern CREATE_INDEX_PATTERN = Pattern.compile(CREATE_INDEX_REGEX, Pattern.CASE_INSENSITIVE);
 
     /** Return the current server version if supported by the driver, else
      * the latest that is supported.
@@ -634,15 +645,40 @@ public abstract class CQLTester
         schemaChange(formattedQuery);
     }
 
-    protected void createIndex(String query)
+    protected String createIndex(String query)
     {
-        createFormattedIndex(formatQuery(query));
+        String formattedQuery = formatQuery(query);
+        return createFormattedIndex(formattedQuery);
     }
 
-    protected void createFormattedIndex(String formattedQuery)
+    protected String createFormattedIndex(String formattedQuery)
     {
         logger.info(formattedQuery);
+        String indexName = getCreateIndexName(formattedQuery);
         schemaChange(formattedQuery);
+        return indexName;
+    }
+
+    protected static String getCreateIndexName(String formattedQuery)
+    {
+        Matcher matcher = CREATE_INDEX_PATTERN.matcher(formattedQuery);
+        if (!matcher.find())
+            throw new IllegalArgumentException("Expected valid create index query but found: " + formattedQuery);
+
+        String index = matcher.group(2);
+        if (!Strings.isNullOrEmpty(index))
+            return index;
+
+        String keyspace = matcher.group(5);
+        if (Strings.isNullOrEmpty(keyspace))
+            throw new IllegalArgumentException("Keyspace name should be specified: " + formattedQuery);
+
+        String table = matcher.group(7);
+        if (Strings.isNullOrEmpty(table))
+            throw new IllegalArgumentException("Table name should be specified: " + formattedQuery);
+
+        String column = matcher.group(9);
+        return Indexes.getAvailableIndexName(keyspace, table, Strings.isNullOrEmpty(column) ? null : column);
     }
 
     /**
