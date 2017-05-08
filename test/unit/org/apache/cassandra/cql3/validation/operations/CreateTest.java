@@ -523,6 +523,20 @@ public class CreateTest extends CQLTester
         assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE testXYZ WITH replication = { 'class' : 'SimpleStrategy' }");
     }
 
+    @Test
+    public void testCreateKeyspaceWithMultipleInstancesOfSameDCThrowsException() throws Throwable
+    {
+        try
+        {
+            assertInvalidThrow(SyntaxException.class, "CREATE KEYSPACE testABC WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2, '" + DATA_CENTER + "' : 3 }");
+        }
+        finally
+        {
+            // clean-up
+            execute("DROP KEYSPACE IF EXISTS testABC");
+        }
+    }
+
     /**
      * Test create and drop table
      * migrated from cql_tests.py:TestCQL.table_test()

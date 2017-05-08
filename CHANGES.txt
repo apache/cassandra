@@ -63,6 +63,7 @@
 
 
 3.11.0
+ * Reject multiple values for a key in CQL grammar. (CASSANDRA-13369)
  * UDA fails without input rows (CASSANDRA-13399)
  * Fix compaction-stress by using daemonInitialization (CASSANDRA-13188)
  * V5 protocol flags decoding broken (CASSANDRA-13443)
