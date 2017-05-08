@@ -1,3 +1,4 @@
+spacenam: example # idenitifier for this spec if running with multiple yaml files
 keyspace: example
 
 # Would almost always be network topology unless running something locally

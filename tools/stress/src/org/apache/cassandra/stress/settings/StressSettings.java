@@ -109,6 +109,17 @@ public class StressSettings implements Serializable
 
     public JavaDriverClient getJavaDriverClient(boolean setKeyspace)
     {
+        if (setKeyspace)
+        {
+            return getJavaDriverClient(schema.keyspace);
+        } else {
+            return getJavaDriverClient(null);
+        }
+    }
+
+
+    public JavaDriverClient getJavaDriverClient(String keyspace)
+    {
         if (client != null)
             return client;
 
@@ -126,8 +137,8 @@ public class StressSettings implements Serializable
                 EncryptionOptions.ClientEncryptionOptions encOptions = transport.getEncryptionOptions();
                 JavaDriverClient c = new JavaDriverClient(this, currentNode, port.nativePort, encOptions);
                 c.connect(mode.compression());
-                if (setKeyspace)
-                    c.execute("USE \"" + schema.keyspace + "\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
+                if (keyspace != null)
+                    c.execute("USE \"" + keyspace + "\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
 
                 return client = c;
             }
@@ -144,7 +155,7 @@ public class StressSettings implements Serializable
         if (command.type == Command.WRITE || command.type == Command.COUNTER_WRITE)
             schema.createKeySpaces(this);
         else if (command.type == Command.USER)
-            ((SettingsCommandUser) command).profile.maybeCreateSchema(this);
+            ((SettingsCommandUser) command).profiles.forEach((k,v) -> v.maybeCreateSchema(this));
     }
 
     public static StressSettings parse(String[] args)
@@ -296,8 +307,8 @@ public class StressSettings implements Serializable
         if (command.type == Command.USER)
         {
             out.println();
-            out.println("******************** Profile ********************");
-            ((SettingsCommandUser) command).profile.printSettings(out, this);
+            out.println("******************** Profile(s) ********************");
+            ((SettingsCommandUser) command).profiles.forEach((k,v) -> v.printSettings(out, this));
         }
         out.println();
 

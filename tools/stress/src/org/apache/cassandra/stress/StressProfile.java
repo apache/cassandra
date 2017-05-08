@@ -66,6 +66,7 @@ public class StressProfile implements Serializable
     private List<String> extraSchemaDefinitions;
     public final String seedStr = "seed for stress";
 
+    public String specName;
     public String keyspaceName;
     public String tableName;
     private Map<String, GeneratorConfig> columnConfigs;
@@ -144,6 +145,8 @@ public class StressProfile implements Serializable
         queries = yaml.queries;
         tokenRangeQueries = yaml.token_range_queries;
         insert = yaml.insert;
+        specName = yaml.specname;
+        if (specName == null){specName = keyspaceName + "." + tableName;}
 
         extraSchemaDefinitions = yaml.extra_definitions;
 
@@ -216,7 +219,7 @@ public class StressProfile implements Serializable
     {
         if (!schemaCreated)
         {
-            JavaDriverClient client = settings.getJavaDriverClient(false);
+            JavaDriverClient client = settings.getJavaDriverClient();
 
             if (keyspaceCql != null)
             {
@@ -283,7 +286,7 @@ public class StressProfile implements Serializable
     {
         if (tableMetaData == null)
         {
-            JavaDriverClient client = settings.getJavaDriverClient();
+            JavaDriverClient client = settings.getJavaDriverClient(keyspaceName);
 
             synchronized (client)
             {
@@ -317,7 +320,7 @@ public class StressProfile implements Serializable
     {
         maybeLoadSchemaInfo(settings); // ensure table metadata is available
 
-        JavaDriverClient client = settings.getJavaDriverClient();
+        JavaDriverClient client = settings.getJavaDriverClient(keyspaceName);
         synchronized (client)
         {
             if (tokenRanges != null)
@@ -361,7 +364,7 @@ public class StressProfile implements Serializable
             {
                 if (queryStatements == null)
                 {
-                    JavaDriverClient jclient = settings.getJavaDriverClient();
+                    JavaDriverClient jclient = settings.getJavaDriverClient(keyspaceName);
 
                     Map<String, PreparedStatement> stmts = new HashMap<>();
                     Map<String, SchemaQuery.ArgSelect> args = new HashMap<>();
@@ -588,7 +591,7 @@ public class StressProfile implements Serializable
                         System.err.printf("WARNING: You have defined a schema that permits very large batches (%.0f max rows (>100K)). This may OOM this stress client, or the server.%n",
                                           selectchance.get().max() * partitions.get().maxValue() * generator.maxRowCount);
 
-                    JavaDriverClient client = settings.getJavaDriverClient();
+                    JavaDriverClient client = settings.getJavaDriverClient(keyspaceName);
                     String query = sb.toString();
 
                     insertStatement = client.prepare(query);
@@ -771,6 +774,7 @@ public class StressProfile implements Serializable
                 throw new IOException("Unable to load yaml file from: "+file);
 
             StressYaml profileYaml = yaml.loadAs(yamlStream, StressYaml.class);
+
 
             StressProfile profile = new StressProfile();
             profile.init(profileYaml);
