@@ -2850,7 +2850,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         logger.trace("truncate complete");
     }
 
-    public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation)
+    public <V> V runWithCompactionsDisabled(Callable<V> callable, List<OperationType> interruptibles)
     {
         // synchronize so that concurrent invocations don't re-enable compactions partway through unexpectedly,
         // and so we only run one major compaction at a time
@@ -2863,8 +2863,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 cfs.getCompactionStrategy().pause();
             try
             {
+
                 // interrupt in-progress compactions
-                CompactionManager.instance.interruptCompactionForCFs(selfWithIndexes, interruptValidation);
+                CompactionManager.instance.interruptCompactionFor(metadataWithIndexes(), interruptibles);
                 CompactionManager.instance.waitForCessation(selfWithIndexes);
 
                 // doublecheck that we finished, instead of timing out
@@ -2896,6 +2897,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation)
+    {
+        ArrayList<OperationType> interruptible = new ArrayList<OperationType>();
+        if (interruptValidation)
+            interruptible.add(OperationType.VALIDATION);
+
+        return runWithCompactionsDisabled(callable, interruptible);
+    }
+
     public LifecycleTransaction markAllCompacting(final OperationType operationType)
     {
         Callable<LifecycleTransaction> callable = new Callable<LifecycleTransaction>()
@@ -2912,7 +2922,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         };
 
-        return runWithCompactionsDisabled(callable, false);
+        return runWithCompactionsDisabled(callable, operationType.getInterruptibles());
     }
 
 
@@ -3045,6 +3055,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // we return the main CFS first, which we rely on for simplicity in switchMemtable(), for getting the
         // latest replay position
         return Iterables.concat(Collections.singleton(this), indexManager.getIndexesBackedByCfs());
+    }
+
+    /**
+     * @return List of CFMetadatas for this CFS and all its indexes
+     */
+    public Iterable<CFMetaData> metadataWithIndexes()
+    {
+        ArrayList<CFMetaData> metadatas = new ArrayList<>();
+        metadatas.add(metadata);
+        for (ColumnFamilyStore cfs : indexManager.getIndexesBackedByCfs())
+            metadatas.add(cfs.metadata);
+        return metadatas;
     }
 
     public List<String> getBuiltIndexes()

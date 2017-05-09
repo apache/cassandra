@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+
 public enum OperationType
 {
     COMPACTION("Compaction"),
@@ -36,10 +40,25 @@ public enum OperationType
     INDEX_SUMMARY("Index summary redistribution");
 
     private final String type;
+    // Interruptible operations by other operations
+    private static final HashMap<OperationType, List<OperationType>> interruptibles = new HashMap<>();
+
+    static {
+        interruptibles.put(OperationType.UPGRADE_SSTABLES, Arrays.asList(UNKNOWN, KEY_CACHE_SAVE, ROW_CACHE_SAVE,
+                                                                         COUNTER_CACHE_SAVE, VERIFY, INDEX_SUMMARY));
+    }
 
     OperationType(String type)
     {
         this.type = type;
+    }
+
+
+    /**
+     * @return Operations that can be interrupted by this.
+     */
+    public List<OperationType> getInterruptibles(){
+        return interruptibles.get(this);
     }
 
     public String toString()

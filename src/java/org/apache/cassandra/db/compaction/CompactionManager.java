@@ -1722,10 +1722,10 @@ public class CompactionManager implements CompactionManagerMBean
      * isCompacting if you want that behavior.
      *
      * @param columnFamilies The ColumnFamilies to try to stop compaction upon.
-     * @param interruptValidation true if validation operations for repair should also be interrupted
+     * @param interruptibles {@link org.apache.cassandra.db.compaction.OperationType}'s that should be interrupted
      *
      */
-    public void interruptCompactionFor(Iterable<CFMetaData> columnFamilies, boolean interruptValidation)
+    public void interruptCompactionFor(Iterable<CFMetaData> columnFamilies, List<OperationType> interruptibles)
     {
         assert columnFamilies != null;
 
@@ -1733,12 +1733,24 @@ public class CompactionManager implements CompactionManagerMBean
         for (Holder compactionHolder : CompactionMetrics.getCompactions())
         {
             CompactionInfo info = compactionHolder.getCompactionInfo();
-            if ((info.getTaskType() == OperationType.VALIDATION) && !interruptValidation)
-                continue;
-
-            if (Iterables.contains(columnFamilies, info.getCFMetaData()))
-                compactionHolder.stop(); // signal compaction to stop
+            if ((interruptibles.contains(info.getTaskType())))
+            {
+                if (Iterables.contains(columnFamilies, info.getCFMetaData()))
+                    compactionHolder.stop(); // signal compaction to stop
+            }
         }
+    }
+
+    /**
+     * See {@link org.apache.cassandra.db.compaction.CompactionManager#interruptCompactionFor(Iterable, List)}
+     * @param interruptValidation true if validation operations for repair should also be interrupted
+     */
+    public void interruptCompactionFor(Iterable<CFMetaData> columnFamilies, boolean interruptValidation)
+    {
+        if (interruptValidation)
+            interruptCompactionFor(columnFamilies, new ArrayList<OperationType>().add(OperationType.VALIDATION));
+        else
+            interruptCompactionFor(columnFamilies, new ArrayList<OperationType>());
     }
 
     public void interruptCompactionForCFs(Iterable<ColumnFamilyStore> cfss, boolean interruptValidation)
