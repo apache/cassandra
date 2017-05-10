@@ -562,6 +562,9 @@ public class DatabaseDescriptor
         if (conf.concurrent_compactors == null)
             conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
 
+        if (conf.concurrent_validations < 1)
+            conf.concurrent_validations = Integer.MAX_VALUE;
+
         if (conf.concurrent_compactors <= 0)
             throw new ConfigurationException("concurrent_compactors should be strictly greater than 0, but was " + conf.concurrent_compactors, false);
 
@@ -1399,6 +1402,17 @@ public class DatabaseDescriptor
     }
 
     public static int getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold_mb * 1024 * 1024; }
+
+    public static int getConcurrentValidations()
+    {
+        return conf.concurrent_validations;
+    }
+
+    public static void setConcurrentValidations(int value)
+    {
+        value = value > 0 ? value : Integer.MAX_VALUE;
+        conf.concurrent_validations = value;
+    }
 
     public static long getMinFreeSpacePerDriveInBytes()
     {

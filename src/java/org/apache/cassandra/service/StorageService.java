@@ -1363,6 +1363,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         CompactionManager.instance.setConcurrentCompactors(value);
     }
 
+    public int getConcurrentValidators()
+    {
+        return DatabaseDescriptor.getConcurrentValidations();
+    }
+
+    public void setConcurrentValidators(int value)
+    {
+        DatabaseDescriptor.setConcurrentValidations(value);
+        CompactionManager.instance.setConcurrentValidations(DatabaseDescriptor.getConcurrentValidations());
+    }
+
     public boolean isIncrementalBackupsEnabled()
     {
         return DatabaseDescriptor.isIncrementalBackupsEnabled();
