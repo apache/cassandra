@@ -1924,7 +1924,7 @@ public class SASIIndexTest
         try
         {
             // unsupported partition key column
-            SASIIndex.validateOptions(Collections.singletonMap("target", "id"), store.metadata);
+            SASIIndex.validateOptions(Collections.singletonMap("target", "id"), store.metadata());
             Assert.fail();
         }
         catch (ConfigurationException e)
