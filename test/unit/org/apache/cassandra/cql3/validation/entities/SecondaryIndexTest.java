@@ -860,6 +860,48 @@ public class SecondaryIndexTest extends CQLTester
                    row(1, 1, 9, 1));
     }
 
+    @Test
+    public void testIndexOnPartitionKeyInsertExpiringColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 int, k2 int, a int, b int, PRIMARY KEY ((k1, k2)))");
+        createIndex("CREATE INDEX on %s(k1)");
+        execute("INSERT INTO %s (k1, k2, a, b) VALUES (1, 2, 3, 4)");
+        assertRows(execute("SELECT * FROM %s WHERE k1 = 1"), row(1, 2, 3, 4));
+        execute("UPDATE %s USING TTL 1 SET b = 10 WHERE k1 = 1 AND k2 = 2");
+        Thread.sleep(1000);
+        assertRows(execute("SELECT * FROM %s WHERE k1 = 1"), row(1, 2, 3, null));
+    }
+
+    @Test
+    public void testIndexOnClusteringKeyInsertExpiringColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX on %s(ck)");
+        execute("INSERT INTO %s (pk, ck, a, b) VALUES (1, 2, 3, 4)");
+        assertRows(execute("SELECT * FROM %s WHERE ck = 2"), row(1, 2, 3, 4));
+        execute("UPDATE %s USING TTL 1 SET b = 10 WHERE pk = 1 AND ck = 2");
+        Thread.sleep(1000);
+        assertRows(execute("SELECT * FROM %s WHERE ck = 2"), row(1, 2, 3, null));
+    }
+
+    @Test
+    public void testIndexOnRegularColumnInsertExpiringColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX on %s(a)");
+        execute("INSERT INTO %s (pk, ck, a, b) VALUES (1, 2, 3, 4)");
+        assertRows(execute("SELECT * FROM %s WHERE a = 3"), row(1, 2, 3, 4));
+
+        execute("UPDATE %s USING TTL 1 SET b = 10 WHERE pk = 1 AND ck = 2");
+        Thread.sleep(1000);
+        assertRows(execute("SELECT * FROM %s WHERE a = 3"), row(1, 2, 3, null));
+
+        execute("UPDATE %s USING TTL 1 SET a = 5 WHERE pk = 1 AND ck = 2");
+        Thread.sleep(1000);
+        assertEmpty(execute("SELECT * FROM %s WHERE a = 3"));
+        assertEmpty(execute("SELECT * FROM %s WHERE a = 5"));
+    }
+
     /**
      * Custom index used to test the behavior of the system when the index is not ready.
      * As Custom indices cannot by <code>PerColumnSecondaryIndex</code> we use a <code>PerRowSecondaryIndex</code>
