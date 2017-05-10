@@ -199,6 +199,9 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.service.throttler.CassandraKeyspaceLimitProvider;
+import org.apache.cassandra.service.throttler.IRequestThrottler;
+import org.apache.cassandra.service.throttler.KeyspaceBasedRequestThrottler;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -1345,6 +1348,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setTokens(tokens);
 
         assert tokenMetadata.sortedTokens().size() > 0;
+
+        doRequestThrottlerSetup();
     }
 
     @VisibleForTesting
@@ -1365,6 +1370,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Schema.instance.registerListener(new AuthSchemaChangeListener());
             authSetupComplete = true;
         }
+    }
+
+    private void doRequestThrottlerSetup()
+    {
+        IRequestThrottler throttler = DatabaseDescriptor.getRequestThrottler();
+        if (throttler instanceof KeyspaceBasedRequestThrottler) {
+            KeyspaceBasedRequestThrottler keyspaceBasedThrottler = (KeyspaceBasedRequestThrottler) throttler;
+
+            Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(
+            keyspaceBasedThrottler.getLimitProvider().getKeyspaceMetadata(),
+            CassandraKeyspaceLimitProvider.GENERATION)
+            );
+        }
+        throttler.setup();
     }
 
     public boolean isAuthSetupComplete()

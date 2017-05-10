@@ -114,6 +114,7 @@ public class Config
     public CommitFailurePolicy commit_failure_policy = CommitFailurePolicy.stop;
 
     public volatile boolean use_deterministic_table_id = false;
+    public ParameterizedClass request_throttler;
 
     /* initial token in the ring */
     public String initial_token;

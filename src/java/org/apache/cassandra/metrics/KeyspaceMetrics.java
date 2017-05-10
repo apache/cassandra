@@ -174,6 +174,13 @@ public class KeyspaceMetrics
     public final Meter rowIndexSizeAborts;
     public final Histogram rowIndexSize;
 
+    /** Throttle metrics */
+    public final Counter serialReadThrottles;
+    public final Counter singleReadThrottles;
+    public final Counter rangeReadThrottles;
+    public final Counter serialMutationThrottles;
+    public final Counter singleMutationThrottles;
+
     public final MetricNameFactory factory;
     private Keyspace keyspace;
 
@@ -275,6 +282,12 @@ public class KeyspaceMetrics
         outOfRangeTokenReads = createKeyspaceCounter("ReadOutOfRangeToken");
         outOfRangeTokenWrites = createKeyspaceCounter("WriteOutOfRangeToken");
         outOfRangeTokenPaxosRequests = createKeyspaceCounter("PaxosOutOfRangeToken");
+
+        serialReadThrottles = createKeyspaceCounter("SerialReadThrottles");
+        singleReadThrottles = createKeyspaceCounter("SingleReadThrottles");
+        rangeReadThrottles = createKeyspaceCounter("RangeReadThrottles");
+        singleMutationThrottles = createKeyspaceCounter("SingleMutationThrottles");
+        serialMutationThrottles = createKeyspaceCounter("SerialMutationThrottles");
     }
 
     /**

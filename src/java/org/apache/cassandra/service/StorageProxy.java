@@ -95,6 +95,7 @@ import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestThrottledException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteFailureException;
@@ -133,6 +134,8 @@ import org.apache.cassandra.service.reads.AbstractReadExecutor;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
+
+import org.apache.cassandra.service.throttler.IRequestThrottler;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.triggers.TriggerExecutor;
@@ -338,6 +341,8 @@ public class StorageProxy implements StorageProxyMBean
     {
         try
         {
+            SinglePartitionReadCommand readCommandForThrottle = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
+            DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(readCommandForThrottle, consistencyForPaxos);
             TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
 
             Function<Ballot, Pair<PartitionUpdate, RowIterator>> updateProposer = ballot ->
@@ -388,6 +393,12 @@ public class StorageProxy implements StorageProxyMBean
                            casWriteMetrics,
                            updateProposer);
 
+        }
+        catch (RequestThrottledException e) {
+            casWriteMetrics.throttles.mark();
+            Tracing.trace("CAS request throttled");
+            logger.debug("CAS request throttled");
+            throw new ReadTimeoutException(consistencyForPaxos, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
         }
         catch (CasWriteUnknownResultException e)
         {
@@ -878,10 +889,12 @@ public class StorageProxy implements StorageProxyMBean
         List<AbstractWriteResponseHandler<IMutation>> responseHandlers = new ArrayList<>(mutations.size());
         WriteType plainWriteType = mutations.size() <= 1 ? WriteType.SIMPLE : WriteType.UNLOGGED_BATCH;
 
+        WriteType wt = mutations.size() <= 1 ? WriteType.SIMPLE : WriteType.UNLOGGED_BATCH;
         try
         {
             for (IMutation mutation : mutations)
             {
+                DatabaseDescriptor.getRequestThrottler().maybeThrottleMutation(mutation, consistencyLevel);
                 if (mutation instanceof CounterMutation)
                     responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter, requestTime));
                 else
@@ -898,6 +911,12 @@ public class StorageProxy implements StorageProxyMBean
             // wait for writes.  throws TimeoutException if necessary
             for (AbstractWriteResponseHandler<IMutation> responseHandler : responseHandlers)
                 responseHandler.get();
+        }
+        catch (RequestThrottledException e) {
+            Tracing.trace("Throttling write request");
+            logger.debug("Throttling write request");
+            writeMetrics.throttles.mark();
+            throw new WriteTimeoutException(wt, consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT);
         }
         catch (WriteTimeoutException|WriteFailureException ex)
         {
@@ -1203,6 +1222,7 @@ public class StorageProxy implements StorageProxyMBean
             // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
             for (Mutation mutation : mutations)
             {
+                DatabaseDescriptor.getRequestThrottler().maybeThrottleMutation(mutation, consistency_level);
                 WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(mutation,
                                                                                consistency_level,
                                                                                batchConsistencyLevel,
@@ -1218,6 +1238,12 @@ public class StorageProxy implements StorageProxyMBean
 
             // now actually perform the writes and wait for them to complete
             syncWriteBatchedMutations(wrappers, Stage.MUTATION, requestTime);
+        }
+        catch (RequestThrottledException e) {
+            Tracing.trace("Throttling write request");
+            logger.debug("Throttling write request");
+            writeMetrics.throttles.mark();
+            throw new WriteTimeoutException(WriteType.BATCH, consistency_level, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT);
         }
         catch (UnavailableException e)
         {
@@ -1880,6 +1906,11 @@ public class StorageProxy implements StorageProxyMBean
         PartitionIterator result = null;
         try
         {
+
+            for (SinglePartitionReadCommand cmd : group.queries)
+            {
+                DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
+            }
             final ConsistencyLevel consistencyForReplayCommitsOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
                                                                         ? ConsistencyLevel.LOCAL_QUORUM
                                                                         : ConsistencyLevel.QUORUM;
@@ -1915,6 +1946,13 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             result = fetchRows(group.queries, consistencyForReplayCommitsOrFetch, requestTime);
+        }
+        catch (RequestThrottledException e) {
+            logger.debug("Throttling read request");
+            Tracing.trace("Throttling read request");
+            readMetrics.throttles.mark();
+            casReadMetrics.throttles.mark();
+            throw new ReadTimeoutException(consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
         }
         catch (UnavailableException e)
         {
@@ -1969,6 +2007,9 @@ public class StorageProxy implements StorageProxyMBean
         long start = nanoTime();
         try
         {
+            for (SinglePartitionReadCommand cmd : group.queries) {
+                DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
+            }
             PartitionIterator result = fetchRows(group.queries, consistencyLevel, requestTime);
             // Note that the only difference between the command in a group must be the partition key on which
             // they applied.
@@ -1978,6 +2019,12 @@ public class StorageProxy implements StorageProxyMBean
             if (group.queries.size() > 1)
                 result = group.limits().filter(result, group.nowInSec(), group.selectsFullPartition(), enforceStrictLiveness);
             return result;
+        }
+        catch (RequestThrottledException e) {
+            Tracing.trace("Throttling read request");
+            logger.debug("Throttling read request");
+            readMetrics.throttles.mark();
+            throw new ReadTimeoutException(consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
         }
         catch (UnavailableException e)
         {

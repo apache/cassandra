@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
@@ -38,6 +39,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.ReadAbortException;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.RequestThrottledException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.Replica;
@@ -49,6 +51,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
+import org.apache.cassandra.service.throttler.IRequestThrottler;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -79,6 +82,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     private int liveReturned;
     private int rangesQueried;
     private int batchesRequested = 0;
+    private ConsistencyLevel consistencyLevel;
 
     RangeCommandIterator(CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
                          PartitionRangeReadCommand command,
@@ -87,12 +91,25 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
                          int totalRangeCount,
                          Dispatcher.RequestTime requestTime)
     {
+        this(replicaPlans, command, concurrencyFactor, maxConcurrencyFactor, totalRangeCount, requestTime, null);
+    }
+
+    RangeCommandIterator(CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
+                         PartitionRangeReadCommand command,
+                         int concurrencyFactor,
+                         int maxConcurrencyFactor,
+                         int totalRangeCount,
+                         Dispatcher.RequestTime requestTime,
+                         ConsistencyLevel consistencyLevel)
+    {
         this.replicaPlans = replicaPlans;
         this.command = command;
         this.concurrencyFactor = concurrencyFactor;
         this.maxConcurrencyFactor = maxConcurrencyFactor;
         this.totalRangeCount = totalRangeCount;
         this.requestTime = requestTime;
+        this.consistencyLevel = consistencyLevel;
+
         enforceStrictLiveness = command.metadata().enforceStrictLiveness();
     }
 
@@ -101,6 +118,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     {
         try
         {
+            DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(command, consistencyLevel);
             while (sentQueryIterator == null || !sentQueryIterator.hasNext())
             {
                 // If we don't have more range to handle, we're done
@@ -121,6 +139,12 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             }
 
             return sentQueryIterator.next();
+        }
+        catch (RequestThrottledException e) {
+            logger.debug("Throttling range request");
+            Tracing.trace("Throttling range request");
+            rangeMetrics.throttles.mark();
+            throw new ReadTimeoutException(consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
         }
         catch (UnavailableException e)
         {

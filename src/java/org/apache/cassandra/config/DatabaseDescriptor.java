@@ -88,6 +88,8 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
+import org.apache.cassandra.service.throttler.IRequestThrottler;
+import org.apache.cassandra.service.throttler.NoOpRequestThrottler;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
@@ -132,6 +134,7 @@ public class DatabaseDescriptor
     private static InetAddress broadcastRpcAddress;
     private static SeedProvider seedProvider;
     private static IInternodeAuthenticator internodeAuthenticator = new AllowAllInternodeAuthenticator();
+    private static IRequestThrottler requestThrottler;
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
@@ -812,6 +815,24 @@ public class DatabaseDescriptor
         if (conf.allow_extra_insecure_udfs)
             logger.warn("Allowing java.lang.System.* access in UDFs is dangerous and not recommended. Set allow_extra_insecure_udfs: false to disable.");
 
+        if (conf.request_throttler == null)
+        {
+            logger.info("request_throttler not specified, using NoOpRequestThrottler");
+            requestThrottler = new NoOpRequestThrottler(null);
+        }
+        else
+        {
+            try
+            {
+                Class<?> throttlerClass = Class.forName(conf.request_throttler.class_name);
+                requestThrottler = (IRequestThrottler) throttlerClass.getConstructor(Map.class).newInstance(conf.request_throttler.parameters);
+            }
+            catch (Exception e)
+            {
+                throw new ConfigurationException(e.getMessage() + "\nCould not initialize request_throttler", e);
+            }
+        }
+
         if(conf.scripted_user_defined_functions_enabled)
             logger.warn("JavaScript user-defined functions have been deprecated. You can still use them but the plan is to remove them in the next major version. For more information - CASSANDRA-17280");
 
@@ -1424,6 +1445,16 @@ public class DatabaseDescriptor
     public static boolean getAuthFromRoot()
     {
         return conf.traverse_auth_from_root;
+    }
+
+    public static IRequestThrottler getRequestThrottler()
+    {
+        return requestThrottler;
+    }
+
+    public static void setRequestThrottler(IRequestThrottler throttler)
+    {
+        requestThrottler = throttler;
     }
 
     public static IRoleManager getRoleManager()

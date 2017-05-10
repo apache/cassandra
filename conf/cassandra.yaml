@@ -569,6 +569,19 @@ commitlog_segment_size: 32MiB
 #        was the pre 4.0 behavior.
 #
 # flush_compression: fast
+# RequestThrottler which can limit the number of read or write requests allowed
+# by the co-ordinator. The default NoOpRequestThrottler allows all requests.
+#request_throttler:
+#  - class_name: "org.apache.cassandra.service.throttler.NoOpRequestThrottler"
+#    parameters:
+#        -
+#
+# If you want to throttle based on keyspaces, you can use the following configuration.
+#request_throttler:
+#  - class_name: org.apache.cassandra.service.throttler.KeyspaceBasedRequestThrottler
+#    parameters:
+#        - fetch_limits_period_in_sec: "10"
+#          replenish_limits_period_in_sec: "1"
 
 # any class that implements the SeedProvider interface and has a
 # constructor that takes a Map<String, String> of parameters will do.

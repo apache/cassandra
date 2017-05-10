@@ -97,7 +97,8 @@ public class RangeCommands
                                         concurrencyFactor,
                                         maxConcurrencyFactor,
                                         replicaPlans.size(),
-                                        requestTime);
+                                        requestTime,
+                                        consistencyLevel);
     }
 
     /**
