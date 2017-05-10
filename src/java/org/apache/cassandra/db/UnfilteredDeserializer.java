@@ -256,6 +256,10 @@ public abstract class UnfilteredDeserializer
         // The position in the input after the last data consumption (readNext/skipNext).
         private long lastConsumedPosition;
 
+        // Tracks the size of the last LegacyAtom read from disk, because this needs to be accounted
+        // for when marking lastConsumedPosition after readNext/skipNext
+        private long bytesReadForNextAtom;
+
         private OldFormatDeserializer(CFMetaData metadata,
                                       DataInputPlus in,
                                       SerializationHelper helper,
@@ -272,7 +276,10 @@ public abstract class UnfilteredDeserializer
         {
             try
             {
-                return LegacyLayout.readLegacyAtom(metadata, in, readAllAsDynamic);
+                long pos = currentPosition();
+                LegacyLayout.LegacyAtom atom =  LegacyLayout.readLegacyAtom(metadata, in, readAllAsDynamic);
+                bytesReadForNextAtom = currentPosition() - pos;
+                return atom;
             }
             catch (IOException e)
             {
@@ -359,7 +366,7 @@ public abstract class UnfilteredDeserializer
                 throw new IllegalStateException();
             Unfiltered toReturn = next;
             next = null;
-            lastConsumedPosition = currentPosition();
+            lastConsumedPosition = currentPosition() - bytesReadForNextAtom();
             return toReturn;
         }
 
@@ -368,7 +375,7 @@ public abstract class UnfilteredDeserializer
             if (!hasNext())
                 throw new UnsupportedOperationException();
             next = null;
-            lastConsumedPosition = currentPosition();
+            lastConsumedPosition = currentPosition() - bytesReadForNextAtom();
         }
 
         public long bytesReadForUnconsumedData()
@@ -377,6 +384,21 @@ public abstract class UnfilteredDeserializer
                 throw new AssertionError();
 
             return currentPosition() - lastConsumedPosition;
+        }
+
+        // Reading/skipping an Unfiltered consumes LegacyAtoms from the underlying legacy atom iterator
+        // e.g. hasNext() -> iterator.hasNext() -> iterator.readRow() -> atoms.next()
+        // The stop condition of the loop which groups legacy atoms into rows causes that AtomIterator
+        // to read in the first atom which doesn't belong in the row. So by that point, our position
+        // is actually past the end of the next Unfiltered. To compensate, we record the size of
+        // the last LegacyAtom read and subtract it from the current position when we calculate lastConsumedPosition.
+        // If we don't, then when reading an indexed block, we can over correct and may think that we've
+        // exhausted the block before we actually have.
+        private long bytesReadForNextAtom()
+        {
+            // If we've read anything at all then we will have recorded this in bytesReadForNextAtom,
+            // but being extra careful here just incase this method is called before any reads happen.
+            return iterator.atoms.next == null ? 0 : bytesReadForNextAtom;
         }
 
         public void clearState()
