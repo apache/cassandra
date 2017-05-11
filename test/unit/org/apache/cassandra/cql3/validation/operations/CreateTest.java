@@ -167,6 +167,12 @@ public class CreateTest extends CQLTester
         assertInvalidMessage("The duration months, days and nanoseconds must be all of the same sign (-2, 0, 2000000)",
                              "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(-2, 0, 2000000));
 
+        assertInvalidMessage("The duration months must be a 32 bits integer but was: 9223372036854775807",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(9223372036854775807L, 1, 0));
+
+        assertInvalidMessage("The duration days must be a 32 bits integer but was: 9223372036854775807",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(0, 9223372036854775807L, 0));
+
         // Test with duration column name
         createTable("CREATE TABLE %s (a text PRIMARY KEY, duration duration);");
 
@@ -226,7 +232,7 @@ public class CreateTest extends CQLTester
                 "CREATE TABLE %s(pk int, m frozen<map<text, list<tuple<int, duration>>>>, v int, PRIMARY KEY (pk, m))");
     }
 
-    private ByteBuffer duration(int months, int days, long nanoseconds) throws IOException
+    private ByteBuffer duration(long months, long days, long nanoseconds) throws IOException
     {
         try(DataOutputBuffer output = new DataOutputBuffer())
         {
