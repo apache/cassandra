@@ -32,6 +32,7 @@
  * Fix cqlsh automatic protocol downgrade regression (CASSANDRA-13307)
  * Tracing payload not passed from QueryMessage to tracing session (CASSANDRA-12835)
 Merged from 3.0:
+ * Properly handle quoted index names in cqlsh DESCRIBE output (CASSANDRA-12847)
  * Avoid reading static row twice from old format sstables (CASSANDRA-13236)
  * Fix NPE in StorageService.excise() (CASSANDRA-13163)
  * Expire OutboundTcpConnection messages by a single Thread (CASSANDRA-13265)
