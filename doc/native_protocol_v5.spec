@@ -905,6 +905,8 @@ Table of Contents
   A duration is composed of 3 signed variable length integers ([vint]s).
   The first [vint] represents a number of months, the second [vint] represents
   a number of days, and the last [vint] represents a number of nanoseconds.
+  The number of months and days must be valid 32 bits integers whereas the
+  number of nanoseconds must be a valid 64 bits integer.
   A duration can either be positive or negative. If a duration is positive
   all the integers must be positive or zero. If a duration is
   negative all the numbers must be negative or zero.

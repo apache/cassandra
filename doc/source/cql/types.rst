@@ -189,6 +189,8 @@ Working with durations
 Values of the ``duration`` type are encoded as 3 signed integer of variable lengths. The first integer represents the
 number of months, the second the number of days and the third the number of nanoseconds. This is due to the fact that
 the number of days in a month can change, and a day can have 23 or 25 hours depending on the daylight saving.
+Internally, the number of months and days are decoded as 32 bits integers whereas the number of nanoseconds is decoded
+as a 64 bits integer.
 
 A duration can be input as:
 

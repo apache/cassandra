@@ -83,9 +83,18 @@ public final class DurationSerializer implements TypeSerializer<Duration>
 
         try (DataInputBuffer in = new DataInputBuffer(bytes, true))
         {
-            int months = (int) in.readVInt();
-            int days = (int) in.readVInt();
+            long monthsAsLong = in.readVInt();
+            long daysAsLong = in.readVInt();
             long nanoseconds = in.readVInt();
+
+            if (!canBeCastToInt(monthsAsLong))
+                throw new MarshalException(String.format("The duration months must be a 32 bits integer but was: %d",
+                                                         monthsAsLong));
+            if (!canBeCastToInt(daysAsLong))
+                throw new MarshalException(String.format("The duration days must be a 32 bits integer but was: %d",
+                                                         daysAsLong));
+            int months = (int) monthsAsLong;
+            int days = (int) daysAsLong;
 
             if (!((months >= 0 && days >= 0 && nanoseconds >= 0) || (months <= 0 && days <=0 && nanoseconds <=0)))
                 throw new MarshalException(String.format("The duration months, days and nanoseconds must be all of the same sign (%d, %d, %d)",
@@ -96,6 +105,18 @@ public final class DurationSerializer implements TypeSerializer<Duration>
             // this should never happen with a DataInputBuffer
             throw new AssertionError("Unexpected error", e);
         }
+    }
+
+    /**
+     * Checks that the specified {@code long} can be cast to an {@code int} without information lost.
+     *
+     * @param l the {@code long} to check
+     * @return {@code true} if the specified {@code long} can be cast to an {@code int} without information lost,
+     * {@code false} otherwise.
+     */
+    private boolean canBeCastToInt(long l)
+    {
+        return ((int) l) == l;
     }
 
     public String toString(Duration duration)

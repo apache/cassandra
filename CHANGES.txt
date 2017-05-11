@@ -1,4 +1,5 @@
 3.11.0
+ * Fix duration type validation to prevent overflow (CASSANDRA-13218)
  * Forbid unsupported creation of SASI indexes over partition key columns (CASSANDRA-13228)
  * Reject multiple values for a key in CQL grammar. (CASSANDRA-13369)
  * UDA fails without input rows (CASSANDRA-13399)
