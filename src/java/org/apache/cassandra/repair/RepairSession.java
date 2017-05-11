@@ -349,7 +349,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             return;
 
         Exception exception = new IOException(String.format("Endpoint %s died", endpoint));
-        logger.error(String.format("{} session completed with the following error", previewKind.logPrefix(getId())), exception);
+        logger.error("{} session completed with the following error", previewKind.logPrefix(getId()), exception);
         // If a node failed, we stop everything (though there could still be some activity in the background)
         forceShutdown(exception);
     }
