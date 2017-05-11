@@ -53,6 +53,8 @@ public class BulkLoader
     private static final String IGNORE_NODES_OPTION  = "ignore";
     private static final String INITIAL_HOST_ADDRESS_OPTION = "nodes";
     private static final String NATIVE_PORT_OPTION = "port";
+    private static final String STORAGE_PORT_OPTION = "storage-port";
+    private static final String SSL_STORAGE_PORT_OPTION = "ssl-storage-port";
     private static final String USER_OPTION = "username";
     private static final String PASSWD_OPTION = "password";
     private static final String AUTH_PROVIDER_OPTION = "auth-provider";
@@ -313,7 +315,7 @@ public class BulkLoader
         public boolean debug;
         public boolean verbose;
         public boolean noProgress;
-        public int nativePort = 9042;
+        public int nativePort;
         public String user;
         public String passwd;
         public String authProviderName;
@@ -376,9 +378,6 @@ public class BulkLoader
 
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.noProgress = cmd.hasOption(NOPROGRESS_OPTION);
-
-                if (cmd.hasOption(NATIVE_PORT_OPTION))
-                    opts.nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
 
                 if (cmd.hasOption(USER_OPTION))
                     opts.user = cmd.getOptionValue(USER_OPTION);
@@ -450,8 +449,19 @@ public class BulkLoader
                     config.stream_throughput_outbound_megabits_per_sec = 0;
                     config.inter_dc_stream_throughput_outbound_megabits_per_sec = 0;
                 }
-                opts.storagePort = config.storage_port;
-                opts.sslStoragePort = config.ssl_storage_port;
+
+                if (cmd.hasOption(NATIVE_PORT_OPTION))
+                    opts.nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
+                else
+                    opts.nativePort = config.native_transport_port;
+                if (cmd.hasOption(STORAGE_PORT_OPTION))
+                    opts.storagePort = Integer.parseInt(cmd.getOptionValue(STORAGE_PORT_OPTION));
+                else
+                    opts.storagePort = config.storage_port;
+                if (cmd.hasOption(SSL_STORAGE_PORT_OPTION))
+                    opts.sslStoragePort = Integer.parseInt(cmd.getOptionValue(SSL_STORAGE_PORT_OPTION));
+                else
+                    opts.sslStoragePort = config.ssl_storage_port;
                 opts.throttle = config.stream_throughput_outbound_megabits_per_sec;
                 opts.interDcThrottle = config.inter_dc_stream_throughput_outbound_megabits_per_sec;
                 opts.clientEncOptions = config.client_encryption_options;
@@ -597,7 +607,9 @@ public class BulkLoader
             options.addOption(null, NOPROGRESS_OPTION,   "don't display progress");
             options.addOption("i",  IGNORE_NODES_OPTION, "NODES", "don't stream to this (comma separated) list of nodes");
             options.addOption("d",  INITIAL_HOST_ADDRESS_OPTION, "initial hosts", "Required. try to connect to these hosts (comma separated) initially for ring information");
-            options.addOption("p",  NATIVE_PORT_OPTION, "rpc port", "port used for native connection (default 9042)");
+            options.addOption("p",  NATIVE_PORT_OPTION, "native transport port", "port used for native connection (default 9042)");
+            options.addOption("sp",  STORAGE_PORT_OPTION, "storage port", "port used for internode communication (default 7000)");
+            options.addOption("ssp",  SSL_STORAGE_PORT_OPTION, "ssl storage port", "port used for TLS internode communication (default 7001)");
             options.addOption("t",  THROTTLE_MBITS, "throttle", "throttle speed in Mbits (default unlimited)");
             options.addOption("idct",  INTER_DC_THROTTLE_MBITS, "inter-dc-throttle", "inter-datacenter throttle speed in Mbits (default unlimited)");
             options.addOption("u",  USER_OPTION, "username", "username for cassandra authentication");
