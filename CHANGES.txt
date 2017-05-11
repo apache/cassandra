@@ -1,4 +1,5 @@
 3.0.14
+ * Interned ColumnIdentifiers should use minimal ByteBuffers (CASSANDRA-13533)
  * ReverseIndexedReader may drop rows during 2.1 to 3.0 upgrade (CASSANDRA-13525)
  * Fix repair process violating start/end token limits for small ranges (CASSANDRA-13052)
  * Add storage port options to sstableloader (CASSANDRA-13518)

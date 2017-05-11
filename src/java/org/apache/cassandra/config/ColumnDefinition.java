@@ -29,7 +29,9 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.serializers.MarshalException;
+import org.github.jamm.Unmetered;
 
+@Unmetered
 public class ColumnDefinition extends ColumnSpecification implements Comparable<ColumnDefinition>
 {
     public static final Comparator<Object> asymmetricColumnDataComparator =
