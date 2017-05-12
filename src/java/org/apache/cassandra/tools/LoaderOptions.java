@@ -42,6 +42,8 @@ public class LoaderOptions
     public static final String VERBOSE_OPTION = "verbose";
     public static final String NOPROGRESS_OPTION = "no-progress";
     public static final String NATIVE_PORT_OPTION = "port";
+    public static final String STORAGE_PORT_OPTION = "storage-port";
+    public static final String SSL_STORAGE_PORT_OPTION = "ssl-storage-port";
     public static final String USER_OPTION = "username";
     public static final String PASSWD_OPTION = "password";
     public static final String AUTH_PROVIDER_OPTION = "auth-provider";
@@ -294,11 +296,6 @@ public class LoaderOptions
                 verbose = cmd.hasOption(VERBOSE_OPTION);
                 noProgress = cmd.hasOption(NOPROGRESS_OPTION);
 
-                if (cmd.hasOption(NATIVE_PORT_OPTION))
-                {
-                    nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
-                }
-
                 if (cmd.hasOption(USER_OPTION))
                 {
                     user = cmd.getOptionValue(USER_OPTION);
@@ -375,8 +372,19 @@ public class LoaderOptions
                     config.stream_throughput_outbound_megabits_per_sec = 0;
                     config.inter_dc_stream_throughput_outbound_megabits_per_sec = 0;
                 }
-                storagePort = config.storage_port;
-                sslStoragePort = config.ssl_storage_port;
+
+                if (cmd.hasOption(NATIVE_PORT_OPTION))
+                    nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
+                else
+                    nativePort = config.native_transport_port;
+                if (cmd.hasOption(STORAGE_PORT_OPTION))
+                    storagePort = Integer.parseInt(cmd.getOptionValue(STORAGE_PORT_OPTION));
+                else
+                    storagePort = config.storage_port;
+                if (cmd.hasOption(SSL_STORAGE_PORT_OPTION))
+                    sslStoragePort = Integer.parseInt(cmd.getOptionValue(SSL_STORAGE_PORT_OPTION));
+                else
+                    sslStoragePort = config.ssl_storage_port;
                 throttle = config.stream_throughput_outbound_megabits_per_sec;
                 clientEncOptions = config.client_encryption_options;
                 serverEncOptions = config.server_encryption_options;
@@ -526,7 +534,9 @@ public class LoaderOptions
         options.addOption(null, NOPROGRESS_OPTION, "don't display progress");
         options.addOption("i", IGNORE_NODES_OPTION, "NODES", "don't stream to this (comma separated) list of nodes");
         options.addOption("d", INITIAL_HOST_ADDRESS_OPTION, "initial hosts", "Required. try to connect to these hosts (comma separated) initially for ring information");
-        options.addOption("p", NATIVE_PORT_OPTION, "rpc port", "port used for native connection (default 9042)");
+        options.addOption("p",  NATIVE_PORT_OPTION, "native transport port", "port used for native connection (default 9042)");
+        options.addOption("sp",  STORAGE_PORT_OPTION, "storage port", "port used for internode communication (default 7000)");
+        options.addOption("ssp",  SSL_STORAGE_PORT_OPTION, "ssl storage port", "port used for TLS internode communication (default 7001)");
         options.addOption("t", THROTTLE_MBITS, "throttle", "throttle speed in Mbits (default unlimited)");
         options.addOption("idct", INTER_DC_THROTTLE_MBITS, "inter-dc-throttle", "inter-datacenter throttle speed in Mbits (default unlimited)");
         options.addOption("u", USER_OPTION, "username", "username for cassandra authentication");
