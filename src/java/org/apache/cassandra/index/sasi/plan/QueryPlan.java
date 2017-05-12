@@ -110,6 +110,9 @@ public class QueryPlan
                     if (!keyRange.right.isMinimum() && keyRange.right.compareTo(key) < 0)
                         return endOfData();
 
+                    if (!keyRange.inclusiveLeft() && key.compareTo(keyRange.left) == 0)
+                        continue;
+
                     try (UnfilteredRowIterator partition = controller.getPartition(key, executionController))
                     {
                         Row staticRow = partition.staticRow();
