@@ -4986,17 +4986,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * etc.
      *
      * The final entry in the returned list will always be the partitioner maximum tokens upper key bound
-     *
-     * @param localRanges
-     * @param partitioner
-     * @param dataDirectories
-     * @return
      */
     public static List<PartitionPosition> getDiskBoundaries(List<Range<Token>> localRanges, IPartitioner partitioner, Directories.DataDirectory[] dataDirectories)
     {
         assert partitioner.splitter().isPresent();
         Splitter splitter = partitioner.splitter().get();
-        List<Token> boundaries = splitter.splitOwnedRanges(dataDirectories.length, localRanges, DatabaseDescriptor.getNumTokens() > 1);
+        boolean dontSplitRanges = DatabaseDescriptor.getNumTokens() > 1;
+        List<Token> boundaries = splitter.splitOwnedRanges(dataDirectories.length, localRanges, dontSplitRanges);
+        // If we can't split by ranges, split evenly to ensure utilisation of all disks
+        if (dontSplitRanges && boundaries.size() < dataDirectories.length)
+            boundaries = splitter.splitOwnedRanges(dataDirectories.length, localRanges, false);
+
         List<PartitionPosition> diskBoundaries = new ArrayList<>();
         for (int i = 0; i < boundaries.size() - 1; i++)
             diskBoundaries.add(boundaries.get(i).maxKeyBound());
