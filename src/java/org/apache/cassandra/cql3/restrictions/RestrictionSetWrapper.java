@@ -89,6 +89,11 @@ class RestrictionSetWrapper implements Restrictions
         return restrictions.hasIN();
     }
 
+    public boolean hasContains()
+    {
+        return restrictions.hasContains();
+    }
+
     public boolean hasSlice()
     {
         return restrictions.hasSlice();

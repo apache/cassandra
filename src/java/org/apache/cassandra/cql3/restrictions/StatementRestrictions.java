@@ -424,8 +424,7 @@ public final class StatementRestrictions
             // components must have a EQ. Only the last partition key component can be in IN relation.
             if (partitionKeyRestrictions.needFiltering(table))
             {
-                if (!allowFiltering && !forView && !hasQueriableIndex
-                    && (partitionKeyRestrictions.hasUnrestrictedPartitionKeyComponents(table) || partitionKeyRestrictions.hasSlice()))
+                if (!allowFiltering && !forView && !hasQueriableIndex)
                     throw new InvalidRequestException(REQUIRES_ALLOW_FILTERING_MESSAGE);
 
                 if (partitionKeyRestrictions.hasIN())
@@ -509,7 +508,6 @@ public final class StatementRestrictions
         else
         {
             checkFalse(clusteringColumnsRestrictions.hasContains() && !hasQueriableIndex && !allowFiltering,
-
                        "Clustering columns can only be restricted with CONTAINS with a secondary index or filtering");
 
             if (hasClusteringColumnsRestrictions() && clusteringColumnsRestrictions.needFiltering())

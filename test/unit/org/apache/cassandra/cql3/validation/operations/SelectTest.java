@@ -549,8 +549,8 @@ public class SelectTest extends CQLTester
         createTable("CREATE TABLE %s (account text, id int, categories map<text,text>, PRIMARY KEY (account, id))");
 
         // create an index on
-        createIndex("CREATE INDEX id_index ON %s(id)");
-        createIndex("CREATE INDEX categories_values_index ON %s(categories)");
+        createIndex("CREATE INDEX ON %s(id)");
+        createIndex("CREATE INDEX ON %s(categories)");
 
         beforeAndAfterFlush(() -> {
 
@@ -1373,7 +1373,7 @@ public class SelectTest extends CQLTester
     public void testSelectCountPaging() throws Throwable
     {
         createTable("create table %s (field1 text, field2 timeuuid, field3 boolean, primary key(field1, field2))");
-        createIndex("create index test_index on %s (field3)");
+        createIndex("create index on %s (field3)");
 
         execute("insert into %s (field1, field2, field3) values ('hola', now(), false)");
         execute("insert into %s (field1, field2, field3) values ('hola', now(), false)");
@@ -2306,8 +2306,8 @@ public class SelectTest extends CQLTester
     @Test
     public void testIndexQueryWithValueOver64K() throws Throwable
     {
-        createTable("CREATE TABLE %s (a int, b int, c blob, PRIMARY KEY (a, b))");
-        createIndex("CREATE INDEX test ON %s (c)");
+        String tableName = createTable("CREATE TABLE %s (a int, b int, c blob, PRIMARY KEY (a, b))");
+        String idx = createIndex("CREATE INDEX ON %s (c)");
 
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, bytes(1));
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, bytes(2));
@@ -2315,7 +2315,7 @@ public class SelectTest extends CQLTester
         assertInvalidMessage("Index expression values may not be larger than 64K",
                              "SELECT * FROM %s WHERE c = ?  ALLOW FILTERING", TOO_BIG);
 
-        dropIndex("DROP INDEX %s.test");
+        dropIndex("DROP INDEX %s." + idx);
         assertEmpty(execute("SELECT * FROM %s WHERE c = ?  ALLOW FILTERING", TOO_BIG));
     }
 
@@ -3761,6 +3761,58 @@ public class SelectTest extends CQLTester
                        row(21, 22, map("2", "3"), 24));
             assertInvalidMessage("Clustering column \"c\" cannot be restricted (preceding column \"b\" is restricted by a non-EQ relation)",
                                  "SELECT * FROM %s WHERE b > 20 AND c CONTAINS KEY '2'");
+        });
+    }
+
+    @Test
+    public void testContainsOnPartitionKey() throws Throwable
+    {
+        testContainsOnPartitionKey("CREATE TABLE %s (pk frozen<map<int, int>>, ck int, v int, PRIMARY KEY (pk, ck))");
+    }
+
+    @Test
+    public void testContainsOnPartitionKeyPart() throws Throwable
+    {
+        testContainsOnPartitionKey("CREATE TABLE %s (pk frozen<map<int, int>>, ck int, v int, PRIMARY KEY ((pk, ck)))");
+    }
+
+    private void testContainsOnPartitionKey(String schema) throws Throwable
+    {
+        createTable(schema);
+
+        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", map(1, 2), 1, 1);
+        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", map(1, 2), 2, 2);
+
+        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", map(1, 2, 3, 4), 1, 3);
+        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", map(1, 2, 3, 4), 2, 3);
+
+        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", map(5, 6), 5, 5);
+        execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", map(7, 8), 6, 6);
+
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE pk CONTAINS KEY 1");
+
+        beforeAndAfterFlush(() -> {
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk CONTAINS KEY 1 ALLOW FILTERING"),
+                                    row(map(1, 2), 1, 1),
+                                    row(map(1, 2), 2, 2),
+                                    row(map(1, 2, 3, 4), 1, 3),
+                                    row(map(1, 2, 3, 4), 2, 3));
+
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk CONTAINS KEY 1 AND pk CONTAINS 4 ALLOW FILTERING"),
+                                    row(map(1, 2, 3, 4), 1, 3),
+                                    row(map(1, 2, 3, 4), 2, 3));
+
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk CONTAINS KEY 1 AND pk CONTAINS KEY 3 ALLOW FILTERING"),
+                                    row(map(1, 2, 3, 4), 1, 3),
+                                    row(map(1, 2, 3, 4), 2, 3));
+
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk CONTAINS KEY 1 AND v = 3 ALLOW FILTERING"),
+                                    row(map(1, 2, 3, 4), 1, 3),
+                                    row(map(1, 2, 3, 4), 2, 3));
+
+            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk CONTAINS KEY 1 AND ck = 1 AND v = 3 ALLOW FILTERING"),
+                                    row(map(1, 2, 3, 4), 1, 3));
         });
     }
 
