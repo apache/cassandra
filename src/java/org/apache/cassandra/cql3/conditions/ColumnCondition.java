@@ -849,7 +849,12 @@ public abstract class ColumnCondition
                 throw invalidRequest("Slice conditions ( %s ) are not supported on durations", operator);
             }
         }
-        
+
+        public Term.Raw getValue()
+        {
+            return value;
+        }
+
         @Override
         public String toString()
         {

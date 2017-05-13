@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -935,6 +936,16 @@ public abstract class ModificationStatement implements CQLStatement
         protected static ColumnMetadata getColumnDefinition(TableMetadata metadata, Raw rawId)
         {
             return rawId.prepare(metadata);
+        }
+
+        public List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> getConditions()
+        {
+            ImmutableList.Builder<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> builder = ImmutableList.builderWithExpectedSize(conditions.size());
+
+            for (Pair<Raw, ColumnCondition.Raw> condition : conditions)
+                builder.add(Pair.create(condition.left, condition.right));
+
+            return builder.build();
         }
     }
 }

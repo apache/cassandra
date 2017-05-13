@@ -42,14 +42,17 @@ import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.generate.values.*;
-import org.apache.cassandra.stress.operations.userdefined.TokenRangeQuery;
+import org.apache.cassandra.stress.operations.userdefined.CASQuery;
 import org.apache.cassandra.stress.operations.userdefined.SchemaInsert;
 import org.apache.cassandra.stress.operations.userdefined.SchemaQuery;
+import org.apache.cassandra.stress.operations.userdefined.SchemaStatement;
+import org.apache.cassandra.stress.operations.userdefined.TokenRangeQuery;
 import org.apache.cassandra.stress.operations.userdefined.ValidatingSchemaQuery;
 import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.*;
@@ -87,7 +90,7 @@ public class StressProfile implements Serializable
     transient volatile PreparedStatement insertStatement;
     transient volatile List<ValidatingSchemaQuery.Factory> validationFactories;
 
-    transient volatile Map<String, SchemaQuery.ArgSelect> argSelects;
+    transient volatile Map<String, SchemaStatement.ArgSelect> argSelects;
     transient volatile Map<String, PreparedStatement> queryStatements;
 
     private static final Pattern lowercaseAlphanumeric = Pattern.compile("[a-z0-9_]+");
@@ -367,13 +370,13 @@ public class StressProfile implements Serializable
                     JavaDriverClient jclient = settings.getJavaDriverClient(keyspaceName);
 
                     Map<String, PreparedStatement> stmts = new HashMap<>();
-                    Map<String, SchemaQuery.ArgSelect> args = new HashMap<>();
+                    Map<String, SchemaStatement.ArgSelect> args = new HashMap<>();
                     for (Map.Entry<String, StressYaml.QueryDef> e : queries.entrySet())
                     {
                         stmts.put(e.getKey().toLowerCase(), jclient.prepare(e.getValue().cql));
                         args.put(e.getKey().toLowerCase(), e.getValue().fields == null
-                                                                 ? SchemaQuery.ArgSelect.MULTIROW
-                                                                 : SchemaQuery.ArgSelect.valueOf(e.getValue().fields.toUpperCase()));
+                                ? SchemaStatement.ArgSelect.MULTIROW
+                                : SchemaStatement.ArgSelect.valueOf(e.getValue().fields.toUpperCase()));
                     }
                     queryStatements = stmts;
                     argSelects = args;
@@ -381,7 +384,40 @@ public class StressProfile implements Serializable
             }
         }
 
+        if (dynamicConditionExists(queryStatements.get(name)))
+            return new CASQuery(timer, settings, generator, seeds, queryStatements.get(name), settings.command.consistencyLevel, argSelects.get(name), tableName);
+
         return new SchemaQuery(timer, settings, generator, seeds, queryStatements.get(name), settings.command.consistencyLevel, argSelects.get(name));
+    }
+
+    static boolean dynamicConditionExists(PreparedStatement statement) throws IllegalArgumentException
+    {
+        if (statement == null)
+            return false;
+
+        if (!statement.getQueryString().toUpperCase().startsWith("UPDATE"))
+            return false;
+
+        ModificationStatement.Parsed modificationStatement;
+        try
+        {
+            modificationStatement = CQLFragmentParser.parseAnyUnhandled(CqlParser::updateStatement,
+                                                                        statement.getQueryString());
+        }
+        catch (RecognitionException e)
+        {
+            throw new IllegalArgumentException("could not parse update query:" + statement.getQueryString(), e);
+        }
+
+        /*
+         * here we differentiate between static vs dynamic conditions:
+         *  - static condition example: if col1 = NULL
+         *  - dynamic condition example: if col1 = ?
+         *  for static condition we don't have to replace value, no extra work involved.
+         *  for dynamic condition we have to read existing db value and then
+         *  use current db values during the update.
+         */
+        return modificationStatement.getConditions().stream().anyMatch(condition -> condition.right.getValue().getText().equals("?"));
     }
 
     public Operation getBulkReadQueries(String name, Timer timer, StressSettings settings, TokenRangeIterator tokenRangeIterator, boolean isWarmup)
