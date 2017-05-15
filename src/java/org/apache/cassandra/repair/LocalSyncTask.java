@@ -129,10 +129,12 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         set(stat.withSummaries(result.createSummaries()));
+        finished();
     }
 
     public void onFailure(Throwable t)
     {
         setException(t);
+        finished();
     }
 }

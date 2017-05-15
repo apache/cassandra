@@ -18,11 +18,13 @@
 package org.apache.cassandra.repair;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.AbstractFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -43,6 +45,7 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
     protected final PreviewKind previewKind;
 
     protected volatile SyncStat stat;
+    protected long startTime = Long.MIN_VALUE;
 
     public SyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, PreviewKind previewKind)
     {
@@ -57,6 +60,7 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
      */
     public void run()
     {
+        startTime = System.currentTimeMillis();
         // compare trees, and collect differences
         List<Range<Token>> differences = MerkleTrees.difference(r1.trees, r2.trees);
 
@@ -81,6 +85,12 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
     public SyncStat getCurrentStat()
     {
         return stat;
+    }
+
+    protected void finished()
+    {
+        if (startTime != Long.MIN_VALUE)
+            Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).metric.syncTime.update(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
     }
 
     protected abstract void startSync(List<Range<Token>> differences);

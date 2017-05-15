@@ -22,7 +22,6 @@ import java.util.Set;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -103,6 +102,20 @@ public class KeyspaceMetrics
     public final Counter speculativeFailedRetries;
     /** Needed to speculate, but didn't have enough replicas **/
     public final Counter speculativeInsufficientReplicas;
+    /** total time spent as a repair coordinator */
+    public final Timer repairTime;
+    /** total time spent preparing for repair */
+    public final Timer repairPrepareTime;
+    /** Time spent anticompacting */
+    public final Timer anticompactionTime;
+    /** total time spent creating merkle trees */
+    public final Timer validationTime;
+    /** total time spent syncing data after repair */
+    public final Timer repairSyncTime;
+    /** histogram over the number of bytes we have validated */
+    public final Histogram bytesValidated;
+    /** histogram over the number of partitions we have validated */
+    public final Histogram partitionsValidated;
 
     public final MetricNameFactory factory;
     private Keyspace keyspace;
@@ -272,6 +285,13 @@ public class KeyspaceMetrics
                 return metric.speculativeInsufficientReplicas.getCount();
             }
         });
+        repairTime = Metrics.timer(factory.createMetricName("RepairTime"));
+        repairPrepareTime = Metrics.timer(factory.createMetricName("RepairPrepareTime"));
+        anticompactionTime = Metrics.timer(factory.createMetricName("AntiCompactionTime"));
+        validationTime = Metrics.timer(factory.createMetricName("ValidationTime"));
+        repairSyncTime = Metrics.timer(factory.createMetricName("RepairSyncTime"));
+        partitionsValidated = Metrics.histogram(factory.createMetricName("PartitionsValidated"), false);
+        bytesValidated = Metrics.histogram(factory.createMetricName("BytesValidated"), false);
     }
 
     /**

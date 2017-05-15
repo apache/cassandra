@@ -69,5 +69,6 @@ public class RemoteSyncTask extends SyncTask
         {
             setException(new RepairException(desc, previewKind, String.format("Sync failed between %s and %s", r1.endpoint, r2.endpoint)));
         }
+        finished();
     }
 }
