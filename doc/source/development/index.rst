@@ -28,3 +28,4 @@ Contributing to Cassandra
    how_to_review
    how_to_commit
    documentation
+   ci
