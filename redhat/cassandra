@@ -3,10 +3,23 @@
 # /etc/init.d/cassandra
 #
 # Startup script for Cassandra
-# 
-# chkconfig: 2345 20 80
+#
+# chkconfig: 2345 80 20
 # description: Starts and stops Cassandra
 # pidfile: /var/run/cassandra/cassandra.pid
+
+### BEGIN INIT INFO
+# Provides:          cassandra
+# Required-Start:    $remote_fs $network $named $time
+# Required-Stop:     $remote_fs $network $named $time
+# Should-Start:      ntp mdadm
+# Should-Stop:       ntp mdadm
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: distributed storage system for structured data
+# Description:       Cassandra is a distributed (peer-to-peer) system for
+#                    the management and storage of structured data.
+### END INIT INFO
 
 . /etc/rc.d/init.d/functions
 
