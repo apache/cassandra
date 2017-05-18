@@ -181,7 +181,7 @@ public class RangeStreamer
     {
         if(Keyspace.open(keyspaceName).getReplicationStrategy() instanceof LocalStrategy)
         {
-            logger.info("Not adding ranges for Local Strategy keyspace=" + keyspaceName);
+            logger.info("Not adding ranges for Local Strategy keyspace={}", keyspaceName);
             return;
         }
 
@@ -190,7 +190,7 @@ public class RangeStreamer
                 ? getAllRangesWithStrictSourcesFor(keyspaceName, ranges) : getAllRangesWithSourcesFor(keyspaceName, ranges);
 
         for (Map.Entry<Range<Token>, InetAddress> entry : rangesForKeyspace.entries())
-            logger.info(String.format("{}: range {} exists on {} for keyspace {}", description, entry.getKey(), entry.getValue(), keyspaceName));
+            logger.info("{}: range {} exists on {} for keyspace {}", description, entry.getKey(), entry.getValue(), keyspaceName);
 
 
         Multimap<InetAddress, Range<Token>> rangeFetchMap = useStrictSource ? getRangeFetchMap(rangesForKeyspace, sourceFilters, keyspaceName, useStrictConsistency) :
@@ -375,7 +375,7 @@ public class RangeStreamer
     {
         RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(rangesWithSources, sourceFilters, keyspace);
         Multimap<InetAddress, Range<Token>> rangeFetchMapMap = calculator.getRangeFetchMap();
-        logger.info("Output from RangeFetchMapCalculator for keyspace " + keyspace);
+        logger.info("Output from RangeFetchMapCalculator for keyspace {}", keyspace);
         validateRangeFetchMap(rangesWithSources, rangeFetchMapMap, keyspace);
         return rangeFetchMapMap;
     }
