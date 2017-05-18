@@ -190,7 +190,7 @@ public class RangeStreamer
                 ? getAllRangesWithStrictSourcesFor(keyspaceName, ranges) : getAllRangesWithSourcesFor(keyspaceName, ranges);
 
         for (Map.Entry<Range<Token>, InetAddress> entry : rangesForKeyspace.entries())
-            logger.info(String.format("%s: range %s exists on %s for keyspace %s", description, entry.getKey(), entry.getValue(), keyspaceName));
+            logger.info(String.format("{}: range {} exists on {} for keyspace {}", description, entry.getKey(), entry.getValue(), keyspaceName));
 
 
         Multimap<InetAddress, Range<Token>> rangeFetchMap = useStrictSource ? getRangeFetchMap(rangesForKeyspace, sourceFilters, keyspaceName, useStrictConsistency) :
