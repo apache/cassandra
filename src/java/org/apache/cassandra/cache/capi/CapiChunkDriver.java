@@ -277,7 +277,7 @@ public class CapiChunkDriver {
             }
         }
 
-        public void read(long lba, ByteBuffer bb) throws IOException {
+        @SuppressWarnings("resource") public void read(long lba, ByteBuffer bb) throws IOException {
             if (bb.capacity() % CapiBlockDevice.BLOCK_SIZE != 0)
                 throw new IllegalArgumentException("bytebuffer is not aligned to the blocksize (" + CapiBlockDevice.BLOCK_SIZE + ")");
             int numOfBlocks = bb.capacity() / CapiBlockDevice.BLOCK_SIZE;
@@ -293,10 +293,10 @@ public class CapiChunkDriver {
             }
 
             if (rc != numOfBlocks)
-                throw new IOException("capi device error: " + chunk2Device.get(chunk));
+		throw new IOException("capi device error: " + chunk2Device.get(chunk));
         }
 
-        public void write(long lba, ByteBuffer bb) throws IOException {
+       @SuppressWarnings("resource") public void write(long lba, ByteBuffer bb) throws IOException {
             ByteBuffer original = null;
             if (bb.capacity() % CapiBlockDevice.BLOCK_SIZE != 0) {
                 original = bb;
