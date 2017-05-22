@@ -287,7 +287,10 @@ public class CompactionManager implements CompactionManagerMBean
         List<LifecycleTransaction> transactions = new ArrayList<>();
         try (LifecycleTransaction compacting = cfs.markAllCompacting(operationType))
         {
-            Iterable<SSTableReader> sstables = compacting != null ? Lists.newArrayList(operation.filterSSTables(compacting)) : Collections.<SSTableReader>emptyList();
+            if (compacting == null)
+                return AllSSTableOpStatus.UNABLE_TO_CANCEL;
+
+            Iterable<SSTableReader> sstables = Lists.newArrayList(operation.filterSSTables(compacting));
             if (Iterables.isEmpty(sstables))
             {
                 logger.info("No sstables for {}.{}", cfs.keyspace.getName(), cfs.name);
@@ -339,7 +342,12 @@ public class CompactionManager implements CompactionManagerMBean
         void execute(LifecycleTransaction input) throws IOException;
     }
 
-    public enum AllSSTableOpStatus { ABORTED(1), SUCCESSFUL(0);
+    public enum AllSSTableOpStatus
+    {
+        SUCCESSFUL(0),
+        ABORTED(1),
+        UNABLE_TO_CANCEL(2);
+
         public final int statusCode;
 
         AllSSTableOpStatus(int statusCode)
