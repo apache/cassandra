@@ -183,11 +183,13 @@ class PendingRepairManager
         strategies.values().forEach(AbstractCompactionStrategy::shutdown);
     }
 
+    @Deprecated
     synchronized void enable()
     {
         strategies.values().forEach(AbstractCompactionStrategy::enable);
     }
 
+    @Deprecated
     synchronized void disable()
     {
         strategies.values().forEach(AbstractCompactionStrategy::disable);
