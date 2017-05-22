@@ -213,10 +213,12 @@ public abstract class AbstractCompactionStrategy
      */
     public abstract long getMaxSSTableBytes();
 
+    @Deprecated
     public void enable()
     {
     }
 
+    @Deprecated
     public void disable()
     {
     }
@@ -540,6 +542,7 @@ public abstract class AbstractCompactionStrategy
         return uncheckedOptions;
     }
 
+    @Deprecated
     public boolean shouldBeEnabled()
     {
         String optionValue = options.get(COMPACTION_ENABLED);
