@@ -28,6 +28,7 @@ import com.google.common.math.IntMath;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -48,12 +49,6 @@ public class StreamingHistogram
     // Buffer with point-value pair
     private final DataHolder bin;
 
-    // Buffer with distance between points, sorted from nearest to furthest
-    private final DistanceHolder distances;
-
-    // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
-    private final Spool spool;
-
     // maximum bin size for this histogram
     private final int maxBinSize;
 
@@ -65,134 +60,171 @@ public class StreamingHistogram
      *
      * @param maxBinSize maximum number of bins this histogram can have
      */
-    public StreamingHistogram(int maxBinSize, int maxSpoolSize, int roundSeconds)
+    private StreamingHistogram(int maxBinSize, int roundSeconds, Map<Double, Long> bin)
     {
         this.maxBinSize = maxBinSize;
         this.roundSeconds = roundSeconds;
-        bin = new DataHolder(maxBinSize + 1);
-        distances = new DistanceHolder(maxBinSize);
+        this.bin = new DataHolder(maxBinSize + 1, roundSeconds);
 
-        //for spool we need power-of-two cells
-        maxSpoolSize = maxSpoolSize == 0 ? 0 : IntMath.pow(2, IntMath.log2(maxSpoolSize, RoundingMode.CEILING));
-        spool = new Spool(maxSpoolSize);
-    }
-
-    private StreamingHistogram(int maxBinSize, int maxSpoolSize, int roundSeconds, Map<Double, Long> bin)
-    {
-        this(maxBinSize, maxSpoolSize, roundSeconds);
         for (Map.Entry<Double, Long> entry : bin.entrySet())
         {
             final int current = entry.getKey().intValue();
             this.bin.addValue(current, entry.getValue().intValue());
         }
-        Integer prev = null;
-        for (Integer key : this.bin.keySet())
-        {
-            if (prev != null)
-                this.distances.add(prev, key);
-            prev = key;
-        }
     }
 
-    /**
-     * Adds new point p to this histogram.
-     *
-     * @param p
-     */
-    public void update(int p)
+    private StreamingHistogram(int maxBinSize, int roundSeconds, DataHolder holder)
     {
-        update(p, 1);
+        this.maxBinSize = maxBinSize;
+        this.roundSeconds = roundSeconds;
+        bin = new DataHolder(holder);
     }
 
-    /**
-     * Adds new point p with value m to this histogram.
-     *
-     * @param p
-     * @param m
-     */
-    public void update(int p, int m)
+    public static StreamingHistogram createDefault()
     {
-        p = roundKey(p);
-
-        if (spool.capacity > 0)
-        {
-            if (!spool.tryAddOrAccumulate(p, m))
-            {
-                flushHistogram();
-                final boolean success = spool.tryAddOrAccumulate(p, m);
-                assert success : "Can not add value to spool"; // after spool flushing we should always be able to insert new value
-            }
-        }
-        else
-        {
-            flushValue(p, m);
-        }
+        return new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS, Collections.emptyMap());
     }
 
-    private int roundKey(int p)
+    private static int roundKey(int p, int roundSeconds)
     {
-        int d = p % this.roundSeconds;
+        int d = p % roundSeconds;
         if (d > 0)
-            return p + (this.roundSeconds - d);
+            return p + (roundSeconds - d);
         else
             return p;
     }
 
-    /**
-     * Drain the temporary spool into the final bins
-     */
-    public void flushHistogram()
+    public static class Builder
     {
-        spool.forEach(this::flushValue);
-        spool.clear();
-    }
+        // Buffer with point-value pair
+        private final DataHolder bin;
 
-    private void flushValue(int key, int spoolValue)
-    {
-        DataHolder.NeighboursAndResult addResult = bin.addValue(key, spoolValue);
-        if (addResult.result == INSERTED)
+        // Buffer with distance between points, sorted from nearest to furthest
+        private final DistanceHolder distances;
+
+        // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
+        private final Spool spool;
+
+        // maximum bin size for this histogram
+        private final int maxBinSize;
+
+        // voluntarily give up resolution for speed
+        private final int roundSeconds;
+
+        public Builder(int maxBinSize, int maxSpoolSize, int roundSeconds)
         {
-            final int prevPoint = addResult.prevPoint;
-            final int nextPoint = addResult.nextPoint;
-            if (prevPoint != -1 && nextPoint != -1)
-                distances.remove(prevPoint, nextPoint);
-            if (prevPoint != -1)
-                distances.add(prevPoint, key);
+            this.maxBinSize = maxBinSize;
+            this.roundSeconds = roundSeconds;
+            this.bin = new DataHolder(maxBinSize + 1, roundSeconds);
+            distances = new DistanceHolder(maxBinSize);
+
+            //for spool we need power-of-two cells
+            maxSpoolSize = maxSpoolSize == 0 ? 0 : IntMath.pow(2, IntMath.log2(maxSpoolSize, RoundingMode.CEILING));
+            spool = new Spool(maxSpoolSize);
+        }
+
+        /**
+         * Adds new point p to this histogram.
+         *
+         * @param p
+         */
+        public void update(int p)
+        {
+            update(p, 1);
+        }
+
+        /**
+         * Adds new point p with value m to this histogram.
+         *
+         * @param p
+         * @param m
+         */
+        public void update(int p, int m)
+        {
+            p = roundKey(p, roundSeconds);
+
+            if (spool.capacity > 0)
+            {
+                if (!spool.tryAddOrAccumulate(p, m))
+                {
+                    flushHistogram();
+                    final boolean success = spool.tryAddOrAccumulate(p, m);
+                    assert success : "Can not add value to spool"; // after spool flushing we should always be able to insert new value
+                }
+            }
+            else
+            {
+                flushValue(p, m);
+            }
+        }
+
+        /**
+         * Drain the temporary spool into the final bins
+         */
+        public void flushHistogram()
+        {
+            spool.forEach(this::flushValue);
+            spool.clear();
+        }
+
+        private void flushValue(int key, int spoolValue)
+        {
+            DataHolder.NeighboursAndResult addResult = bin.addValue(key, spoolValue);
+            if (addResult.result == INSERTED)
+            {
+                final int prevPoint = addResult.prevPoint;
+                final int nextPoint = addResult.nextPoint;
+                if (prevPoint != -1 && nextPoint != -1)
+                    distances.remove(prevPoint, nextPoint);
+                if (prevPoint != -1)
+                    distances.add(prevPoint, key);
+                if (nextPoint != -1)
+                    distances.add(key, nextPoint);
+            }
+
+            if (bin.isFull())
+            {
+                mergeBin();
+            }
+        }
+
+        private void mergeBin()
+        {
+            // find points point1, point2 which have smallest difference
+            final int[] smallestDifference = distances.getFirstAndRemove();
+
+            final int point1 = smallestDifference[0];
+            final int point2 = smallestDifference[1];
+
+            // merge those two
+            DataHolder.MergeResult mergeResult = bin.merge(point1, point2);
+
+            final int nextPoint = mergeResult.nextPoint;
+            final int prevPoint = mergeResult.prevPoint;
+            final int newPoint = mergeResult.newPoint;
+
             if (nextPoint != -1)
-                distances.add(key, nextPoint);
+            {
+                distances.remove(point2, nextPoint);
+                distances.add(newPoint, nextPoint);
+            }
+
+            if (prevPoint != -1)
+            {
+                distances.remove(prevPoint, point1);
+                distances.add(prevPoint, newPoint);
+            }
         }
 
-        if (bin.isFull())
+        /**
+         * Creates a 'finished' snapshot of the current state of the historgram, but leaves this builder instance
+         * open for subsequent additions to the histograms. Basically, this allows us to have some degree of sanity
+         * wrt sstable early open.
+         */
+        public StreamingHistogram build()
         {
-            mergeBin();
-        }
-    }
-
-    private void mergeBin()
-    {
-        // find points point1, point2 which have smallest difference
-        final int[] smallestDifference = distances.getFirstAndRemove();
-
-        final int point1 = smallestDifference[0];
-        final int point2 = smallestDifference[1];
-
-        // merge those two
-        DataHolder.MergeResult mergeResult = bin.merge(point1, point2);
-
-        final int nextPoint = mergeResult.nextPoint;
-        final int prevPoint = mergeResult.prevPoint;
-        final int newPoint = mergeResult.newPoint;
-
-        if (nextPoint != -1)
-        {
-            distances.remove(point2, nextPoint);
-            distances.add(newPoint, nextPoint);
-        }
-
-        if (prevPoint != -1)
-        {
-            distances.remove(prevPoint, point1);
-            distances.add(prevPoint, newPoint);
+            flushHistogram();
+            return new StreamingHistogram(maxBinSize, roundSeconds, bin);
         }
     }
 
@@ -201,15 +233,20 @@ public class StreamingHistogram
      *
      * @param other histogram to merge
      */
-    public void merge(StreamingHistogram other)
+    public StreamingHistogram merge(StreamingHistogram other)
     {
         if (other == null)
-            return;
+            return this;
 
-        other.flushHistogram();
+        Builder builder = new Builder(maxBinSize, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, roundSeconds);
 
+        // This can be optimized, but it's only called in tests atm ... maybe can remove
+        for (Map.Entry<Integer, long[]> entry : getAsMap().entrySet())
+            builder.update(entry.getKey(), (int) entry.getValue()[0]);
         for (Map.Entry<Integer, long[]> entry : other.getAsMap().entrySet())
-            update(entry.getKey(), (int) entry.getValue()[0]);
+            builder.update(entry.getKey(), (int) entry.getValue()[0]);
+
+        return builder.build();
     }
 
     /**
@@ -220,14 +257,11 @@ public class StreamingHistogram
      */
     public double sum(double b)
     {
-        flushHistogram();
-
         return bin.sum((int) b);
     }
 
     public Map<Integer, long[]> getAsMap()
     {
-        flushHistogram();
         TreeMap<Integer, long[]> bin = new TreeMap<>();
         this.bin.forEach(datum -> bin.put(datum[0], new long[]{ datum[1] }));
         return bin;
@@ -237,7 +271,6 @@ public class StreamingHistogram
     {
         public void serialize(StreamingHistogram histogram, DataOutputPlus out) throws IOException
         {
-            histogram.flushHistogram();
             out.writeInt(histogram.maxBinSize);
             Map<Integer, long[]> entries = histogram.getAsMap();
             out.writeInt(entries.size());
@@ -258,7 +291,7 @@ public class StreamingHistogram
                 tmp.put(in.readDouble(), in.readLong());
             }
 
-            return new StreamingHistogram(maxBinSize, maxBinSize, 1, tmp);
+            return new StreamingHistogram(maxBinSize, maxBinSize, tmp);
         }
 
         public long serializedSize(StreamingHistogram histogram)
@@ -283,14 +316,13 @@ public class StreamingHistogram
 
         StreamingHistogram that = (StreamingHistogram) o;
         return maxBinSize == that.maxBinSize &&
-               spool.equals(that.spool) &&
                bin.equals(that.bin);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(bin.hashCode(), spool.hashCode(), maxBinSize);
+        return Objects.hashCode(bin.hashCode(), maxBinSize);
     }
 
     private static class DistanceHolder
@@ -359,15 +391,23 @@ public class StreamingHistogram
         }
     }
 
-    class DataHolder
+    static class DataHolder
     {
         private static final long EMPTY = Long.MAX_VALUE;
         private final long[] data;
+        private final int roundSeconds;
 
-        DataHolder(int maxCapacity)
+        DataHolder(int maxCapacity, int roundSeconds)
         {
             data = new long[maxCapacity];
             Arrays.fill(data, EMPTY);
+            this.roundSeconds = roundSeconds;
+        }
+
+        DataHolder(DataHolder holder)
+        {
+            data = Arrays.copyOf(holder.data, holder.data.length);
+            roundSeconds = holder.roundSeconds;
         }
 
         NeighboursAndResult addValue(int point, int delta)
@@ -427,7 +467,7 @@ public class StreamingHistogram
 
             //let's evaluate in long values to handle overflow in multiplication
             int newPoint = (int) (((long) point1 * value1 + (long) point2 * value2) / (value1 + value2));
-            newPoint = roundKey(newPoint);
+            newPoint = roundKey(newPoint, roundSeconds);
             data[index] = wrap(newPoint, sum);
 
             System.arraycopy(data, index + 2, data, index + 1, data.length - index - 2);
@@ -550,7 +590,7 @@ public class StreamingHistogram
             return sum;
         }
 
-        class MergeResult
+        static class MergeResult
         {
             int prevPoint;
             int newPoint;
@@ -564,7 +604,7 @@ public class StreamingHistogram
             }
         }
 
-        class NeighboursAndResult
+        static class NeighboursAndResult
         {
             int prevPoint;
             int nextPoint;
@@ -576,6 +616,18 @@ public class StreamingHistogram
                 this.nextPoint = nextPoint;
                 this.result = result;
             }
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(data);
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            return o instanceof DataHolder && Arrays.equals(data, ((DataHolder) o).data);
         }
     }
 

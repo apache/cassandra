@@ -59,7 +59,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     static StreamingHistogram defaultTombstoneDropTimeHistogram()
     {
-        return new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS);
+        return StreamingHistogram.createDefault();
     }
 
     public static StatsMetadata defaultStatsMetadata()
@@ -93,7 +93,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     protected final MinMaxIntTracker localDeletionTimeTracker = new MinMaxIntTracker(Cell.NO_DELETION_TIME, Cell.NO_DELETION_TIME);
     protected final MinMaxIntTracker ttlTracker = new MinMaxIntTracker(Cell.NO_TTL, Cell.NO_TTL);
     protected double compressionRatio = NO_COMPRESSION_RATIO;
-    protected StreamingHistogram estimatedTombstoneDropTime = defaultTombstoneDropTimeHistogram();
+    protected StreamingHistogram.Builder estimatedTombstoneDropTime = new StreamingHistogram.Builder(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS);
     protected int sstableLevel;
     protected ByteBuffer[] minClusteringValues;
     protected ByteBuffer[] maxClusteringValues;
@@ -148,12 +148,6 @@ public class MetadataCollector implements PartitionStatisticsCollector
     public MetadataCollector addCellPerPartitionCount(long cellCount)
     {
         estimatedCellPerPartitionCount.add(cellCount);
-        return this;
-    }
-
-    public MetadataCollector mergeTombstoneHistogram(StreamingHistogram histogram)
-    {
-        estimatedTombstoneDropTime.merge(histogram);
         return this;
     }
 
@@ -291,7 +285,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              ttlTracker.min(),
                                                              ttlTracker.max(),
                                                              compressionRatio,
-                                                             estimatedTombstoneDropTime,
+                                                             estimatedTombstoneDropTime.build(),
                                                              sstableLevel,
                                                              makeList(minClusteringValues),
                                                              makeList(maxClusteringValues),

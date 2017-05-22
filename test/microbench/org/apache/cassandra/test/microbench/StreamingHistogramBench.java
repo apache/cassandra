@@ -68,7 +68,7 @@ public class StreamingHistogramBench
     @Benchmark
     public void test()
     {
-        StreamingHistogram histogram = new StreamingHistogram(100, b_spoolSize, 1);
+        StreamingHistogram.Builder histogram = new StreamingHistogram.Builder(100, b_spoolSize, 1);
         int[] data = selectWorkload(a_workLoad);
 
         for (int time : data)
