@@ -74,27 +74,6 @@ public class TombstoneHistogram
     }
 
     /**
-     * Merges given histogram with this histogram.
-     *
-     * @param other histogram to merge
-     */
-    public TombstoneHistogram merge(TombstoneHistogram other)
-    {
-        if (other == null)
-            return this;
-
-        StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(maxBinSize, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, roundSeconds);
-
-        // This can be optimized, but it's only called in tests atm ... maybe can remove
-        for (Map.Entry<Integer, long[]> entry : getAsMap().entrySet())
-            builder.update(entry.getKey(), (int) entry.getValue()[0]);
-        for (Map.Entry<Integer, long[]> entry : other.getAsMap().entrySet())
-            builder.update(entry.getKey(), (int) entry.getValue()[0]);
-
-        return builder.build();
-    }
-
-    /**
      * Calculates estimated number of points in interval [-inf,b].
      *
      * @param b upper bound of a interval to calculate sum
@@ -105,11 +84,16 @@ public class TombstoneHistogram
         return bin.sum((int) b);
     }
 
-    public Map<Integer, long[]> getAsMap()
+    public int size()
     {
-        TreeMap<Integer, long[]> bin = new TreeMap<>();
-        this.bin.forEach(datum -> bin.put(datum[0], new long[]{ datum[1] }));
-        return bin;
+        int[] acc = new int[1];
+        this.bin.forEach((point, value) -> acc[0]++);
+        return acc[0];
+    }
+
+    public <E extends Exception> void forEach(PointAndValueConsumer<E> pointAndValueConsumer) throws E
+    {
+        this.bin.forEach(pointAndValueConsumer);
     }
 
     public static class HistogramSerializer implements ISerializer<TombstoneHistogram>
@@ -117,13 +101,12 @@ public class TombstoneHistogram
         public void serialize(TombstoneHistogram histogram, DataOutputPlus out) throws IOException
         {
             out.writeInt(histogram.maxBinSize);
-            Map<Integer, long[]> entries = histogram.getAsMap();
-            out.writeInt(entries.size());
-            for (Map.Entry<Integer, long[]> entry : entries.entrySet())
-            {
-                out.writeDouble(entry.getKey().doubleValue());
-                out.writeLong(entry.getValue()[0]);
-            }
+            out.writeInt(histogram.size());
+            histogram.forEach((point, value) ->
+                              {
+                                  out.writeDouble((double) point);
+                                  out.writeLong((long) value);
+                              });
         }
 
         public TombstoneHistogram deserialize(DataInputPlus in) throws IOException
@@ -142,10 +125,10 @@ public class TombstoneHistogram
         public long serializedSize(TombstoneHistogram histogram)
         {
             long size = TypeSizes.sizeof(histogram.maxBinSize);
-            Map<Integer, long[]> entries = histogram.getAsMap();
-            size += TypeSizes.sizeof(entries.size());
+            final int histSize = histogram.size();
+            size += TypeSizes.sizeof(histSize);
             // size of entries = size * (8(double) + 8(long))
-            size += entries.size() * (8L + 8L);
+            size += histSize * (8L + 8L);
             return size;
         }
     }
@@ -169,6 +152,4 @@ public class TombstoneHistogram
     {
         return Objects.hashCode(bin.hashCode(), maxBinSize);
     }
-
-
 }

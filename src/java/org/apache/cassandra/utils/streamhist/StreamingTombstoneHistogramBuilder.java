@@ -19,10 +19,7 @@
 package org.apache.cassandra.utils.streamhist;
 
 import java.math.RoundingMode;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
@@ -368,8 +365,8 @@ public class StreamingTombstoneHistogramBuilder
 
         private int[] unwrap(long key)
         {
-            final int point = (int) (key >> 32);
-            final int value = (int) (key & 0xFF_FF_FF_FFL);
+            final int point = unwrapPoint(key);
+            final int value = unwrapValue(key);
             return new int[]{ point, value };
         }
 
@@ -399,7 +396,7 @@ public class StreamingTombstoneHistogramBuilder
             return data[data.length - 1] != EMPTY;
         }
 
-        public void forEach(Consumer<int[]> pointAndValueConsumer)
+        public <E extends Exception> void forEach(PointAndValueConsumer<E> pointAndValueConsumer) throws E
         {
             for (long datum : data)
             {
@@ -408,15 +405,8 @@ public class StreamingTombstoneHistogramBuilder
                     break;
                 }
 
-                pointAndValueConsumer.accept(unwrap(datum));
+                pointAndValueConsumer.consume(unwrapPoint(datum), unwrapValue(datum));
             }
-        }
-
-        public List<Integer> keySet()
-        {
-            List<Integer> result = new ArrayList<>();
-            forEach(pointAndValue -> result.add(pointAndValue[0]));
-            return result;
         }
 
         public double sum(int b)
@@ -558,7 +548,7 @@ public class StreamingTombstoneHistogramBuilder
             return (int) (i * largePrime);
         }
 
-        void forEach(PointAndValueConsumer consumer)
+        <E extends Exception> void forEach(PointAndValueConsumer<E> consumer) throws E
         {
             for (int i = 0; i < map.length; i += 2)
             {
@@ -585,11 +575,6 @@ public class StreamingTombstoneHistogramBuilder
                 return true;
             }
             return false;
-        }
-
-        interface PointAndValueConsumer
-        {
-            void consume(int point, int value);
         }
     }
 

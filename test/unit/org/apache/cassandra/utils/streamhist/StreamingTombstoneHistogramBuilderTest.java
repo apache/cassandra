@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.utils.streamhist;
 
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -35,7 +36,7 @@ public class StreamingTombstoneHistogramBuilderTest
     public void testFunction() throws Exception
     {
         StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 0, 1);
-        int[] samples = new int[]{23, 19, 10, 16, 36, 2, 9, 32, 30, 45};
+        int[] samples = new int[]{ 23, 19, 10, 16, 36, 2, 9, 32, 30, 45 };
 
         // add 7 points to histogram of 5 bins
         for (int i = 0; i < 7; i++)
@@ -53,47 +54,24 @@ public class StreamingTombstoneHistogramBuilderTest
 
         Iterator<Map.Entry<Double, Long>> expectedItr = expected1.entrySet().iterator();
         TombstoneHistogram hist = builder.build();
-        for (Map.Entry<Integer, long[]> actual : hist.getAsMap().entrySet())
-        {
-            Map.Entry<Double, Long> entry = expectedItr.next();
-            assertEquals(entry.getKey(), actual.getKey().doubleValue(), 0.01);
-            assertEquals(entry.getValue().longValue(), actual.getValue()[0]);
-        }
-
-        // merge test
-        builder = new StreamingTombstoneHistogramBuilder(3, 3, 1);
-        for (int i = 7; i < samples.length; i++)
-        {
-            builder.update(samples[i]);
-        }
-        TombstoneHistogram hist2 = builder.build();
-        hist = hist.merge(hist2);
-        // should end up (2,1),(9.5,2),(19.33,3),(32.67,3),(45,1)
-        Map<Double, Long> expected2 = new LinkedHashMap<Double, Long>(5);
-        expected2.put(2.0, 1L);
-        expected2.put(9.0, 2L);
-        expected2.put(19.0, 3L);
-        expected2.put(32.0, 3L);
-        expected2.put(45.0, 1L);
-        expectedItr = expected2.entrySet().iterator();
-        for (Map.Entry<Integer, long[]> actual : hist.getAsMap().entrySet())
-        {
-            Map.Entry<Double, Long> entry = expectedItr.next();
-            assertEquals(entry.getKey(), actual.getKey().doubleValue(), 0.01);
-            assertEquals(entry.getValue().longValue(), actual.getValue()[0]);
-        }
+        hist.forEach((point, value) ->
+                     {
+                         Map.Entry<Double, Long> entry = expectedItr.next();
+                         assertEquals(entry.getKey(), point, 0.01);
+                         assertEquals(entry.getValue().longValue(), value);
+                     });
 
         // sum test
-        assertEquals(3.38, hist.sum(15), 0.01);
+        assertEquals(3.5, hist.sum(15), 0.01);
         // sum test (b > max(hist))
-        assertEquals(10.0, hist.sum(50), 0.01);
+        assertEquals(7.0, hist.sum(50), 0.01);
     }
 
     @Test
     public void testSerDe() throws Exception
     {
         StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 0, 1);
-        int[] samples = new int[]{23, 19, 10, 16, 36, 2, 9};
+        int[] samples = new int[]{ 23, 19, 10, 16, 36, 2, 9 };
 
         // add 7 points to histogram of 5 bins
         for (int i = 0; i < samples.length; i++)
@@ -116,12 +94,12 @@ public class StreamingTombstoneHistogramBuilderTest
         expected1.put(36.0, 1L);
 
         Iterator<Map.Entry<Double, Long>> expectedItr = expected1.entrySet().iterator();
-        for (Map.Entry<Integer, long[]> actual : deserialized.getAsMap().entrySet())
-        {
-            Map.Entry<Double, Long> entry = expectedItr.next();
-            assertEquals(entry.getKey(), actual.getKey().doubleValue(), 0.01);
-            assertEquals(entry.getValue().longValue(), actual.getValue()[0]);
-        }
+        deserialized.forEach((point, value) ->
+                             {
+                                 Map.Entry<Double, Long> entry = expectedItr.next();
+                                 assertEquals(entry.getKey(), point, 0.01);
+                                 assertEquals(entry.getValue().longValue(), value);
+                             });
     }
 
 
@@ -134,10 +112,10 @@ public class StreamingTombstoneHistogramBuilderTest
         builder.update(2);
         builder.update(2);
         TombstoneHistogram hist = builder.build();
-        Map<Integer, long[]> asMap = hist.getAsMap();
+        Map<Integer, Integer> asMap = asMap(hist);
 
         assertEquals(1, asMap.size());
-        assertEquals(3L, asMap.get(2)[0]);
+        assertEquals(3, asMap.get(2).intValue());
 
         //Make sure it's working with Serde
         DataOutputBuffer out = new DataOutputBuffer();
@@ -146,19 +124,19 @@ public class StreamingTombstoneHistogramBuilderTest
 
         TombstoneHistogram deserialized = TombstoneHistogram.serializer.deserialize(new DataInputBuffer(bytes));
 
-        asMap = deserialized.getAsMap();
-        assertEquals(1, asMap.size());
-        assertEquals(3L, asMap.get(2)[0]);
+        asMap = asMap(deserialized);
+        assertEquals(1, deserialized.size());
+        assertEquals(3, asMap.get(2).intValue());
     }
 
     @Test
     public void testOverflow() throws Exception
     {
         StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 10, 1);
-        int[] samples = new int[]{23, 19, 10, 16, 36, 2, 9, 32, 30, 45, 31,
-                                    32, 32, 33, 34, 35, 70, 78, 80, 90, 100,
-                                    32, 32, 33, 34, 35, 70, 78, 80, 90, 100
-                                    };
+        int[] samples = new int[]{ 23, 19, 10, 16, 36, 2, 9, 32, 30, 45, 31,
+                                   32, 32, 33, 34, 35, 70, 78, 80, 90, 100,
+                                   32, 32, 33, 34, 35, 70, 78, 80, 90, 100
+        };
 
         // Hit the spool cap, force it to make bins
         for (int i = 0; i < samples.length; i++)
@@ -166,27 +144,33 @@ public class StreamingTombstoneHistogramBuilderTest
             builder.update(samples[i]);
         }
 
-        assertEquals(5, builder.build().getAsMap().keySet().size());
+        assertEquals(5, builder.build().size());
     }
 
     @Test
     public void testRounding() throws Exception
     {
         StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 10, 60);
-        int[] samples = new int[] { 59, 60, 119, 180, 181, 300 }; // 60, 60, 120, 180, 240, 300
-        for (int i = 0 ; i < samples.length ; i++)
+        int[] samples = new int[]{ 59, 60, 119, 180, 181, 300 }; // 60, 60, 120, 180, 240, 300
+        for (int i = 0; i < samples.length; i++)
             builder.update(samples[i]);
         TombstoneHistogram hist = builder.build();
-        assertEquals(hist.getAsMap().keySet().size(), 5);
-        assertEquals(hist.getAsMap().get(60)[0], 2);
-        assertEquals(hist.getAsMap().get(120)[0], 1);
-
+        assertEquals(hist.size(), 5);
+        assertEquals(asMap(hist).get(60).intValue(), 2);
+        assertEquals(asMap(hist).get(120).intValue(), 1);
     }
 
     @Test
     public void testLargeValues() throws Exception
     {
         StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 0, 1);
-        IntStream.range(Integer.MAX_VALUE-30, Integer.MAX_VALUE).forEach(builder::update);
+        IntStream.range(Integer.MAX_VALUE - 30, Integer.MAX_VALUE).forEach(builder::update);
+    }
+
+    private Map<Integer, Integer> asMap(TombstoneHistogram histogram)
+    {
+        Map<Integer, Integer> result = new HashMap<>();
+        histogram.forEach(result::put);
+        return result;
     }
 }
