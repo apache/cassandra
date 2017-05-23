@@ -22,7 +22,7 @@ package org.apache.cassandra.test.microbench;
 import java.util.concurrent.TimeUnit;
 import java.util.Random;
 
-import org.apache.cassandra.utils.StreamingHistogram;
+import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.profile.*;
 import org.openjdk.jmh.runner.*;
@@ -35,7 +35,7 @@ import org.openjdk.jmh.runner.options.*;
 @Fork(value = 1)
 @Threads(1)
 @State(Scope.Benchmark)
-public class StreamingHistogramBench
+public class StreamingTombstoneHistogramBuilderBench
 {
 
     static int[] secondInMonth = new int[10000000];
@@ -45,17 +45,18 @@ public class StreamingHistogramBench
 
     static
     {
+        final int now = (int) (System.currentTimeMillis() / 1000L);
         Random random = new Random();
         for(int i = 0 ; i < 10000000; i++)
         {
             // Seconds in a month
-            secondInMonth[i] = random.nextInt(3600 * 24 * 30);
+            secondInMonth[i] = now + random.nextInt(3600 * 24 * 30);
             // Seconds in a day
-            secondInDay[i] = random.nextInt(3600 * 24);
+            secondInDay[i] = now + random.nextInt(3600 * 24);
             // Seconds in 3 hours
-            secondIn3Hour[i] = random.nextInt(3600 * 3);
+            secondIn3Hour[i] = now + random.nextInt(3600 * 3);
             // Seconds in a minute
-            secondInMin[i] = random.nextInt(60);
+            secondInMin[i] = now + random.nextInt(60);
         }
     }
 
@@ -68,7 +69,7 @@ public class StreamingHistogramBench
     @Benchmark
     public void test()
     {
-        StreamingHistogram.Builder histogram = new StreamingHistogram.Builder(100, b_spoolSize, 1);
+        StreamingTombstoneHistogramBuilder histogram = new StreamingTombstoneHistogramBuilder(100, b_spoolSize, 1);
         int[] data = selectWorkload(a_workLoad);
 
         for (int time : data)
@@ -100,7 +101,7 @@ public class StreamingHistogramBench
     public static void main(String[] args) throws Exception
     {
         Options opt = new OptionsBuilder()
-                      .include(StreamingHistogramBench.class.getSimpleName())
+                      .include(StreamingTombstoneHistogramBuilderBench.class.getSimpleName())
                       .warmupIterations(3)
                       .measurementIterations(10)
                       .addProfiler(GCProfiler.class)

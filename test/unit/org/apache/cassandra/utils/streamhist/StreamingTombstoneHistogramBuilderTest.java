@@ -15,14 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.utils.streamhist;
 
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import org.apache.commons.lang.math.IntRange;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -30,12 +29,12 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 
 import static org.junit.Assert.assertEquals;
 
-public class StreamingHistogramTest
+public class StreamingTombstoneHistogramBuilderTest
 {
     @Test
     public void testFunction() throws Exception
     {
-        StreamingHistogram.Builder builder = new StreamingHistogram.Builder(5, 0, 1);
+        StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 0, 1);
         int[] samples = new int[]{23, 19, 10, 16, 36, 2, 9, 32, 30, 45};
 
         // add 7 points to histogram of 5 bins
@@ -53,7 +52,7 @@ public class StreamingHistogramTest
         expected1.put(36.0, 1L);
 
         Iterator<Map.Entry<Double, Long>> expectedItr = expected1.entrySet().iterator();
-        StreamingHistogram hist = builder.build();
+        TombstoneHistogram hist = builder.build();
         for (Map.Entry<Integer, long[]> actual : hist.getAsMap().entrySet())
         {
             Map.Entry<Double, Long> entry = expectedItr.next();
@@ -62,12 +61,12 @@ public class StreamingHistogramTest
         }
 
         // merge test
-        builder = new StreamingHistogram.Builder(3, 3, 1);
+        builder = new StreamingTombstoneHistogramBuilder(3, 3, 1);
         for (int i = 7; i < samples.length; i++)
         {
             builder.update(samples[i]);
         }
-        StreamingHistogram hist2 = builder.build();
+        TombstoneHistogram hist2 = builder.build();
         hist = hist.merge(hist2);
         // should end up (2,1),(9.5,2),(19.33,3),(32.67,3),(45,1)
         Map<Double, Long> expected2 = new LinkedHashMap<Double, Long>(5);
@@ -93,7 +92,7 @@ public class StreamingHistogramTest
     @Test
     public void testSerDe() throws Exception
     {
-        StreamingHistogram.Builder builder = new StreamingHistogram.Builder(5, 0, 1);
+        StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 0, 1);
         int[] samples = new int[]{23, 19, 10, 16, 36, 2, 9};
 
         // add 7 points to histogram of 5 bins
@@ -101,12 +100,12 @@ public class StreamingHistogramTest
         {
             builder.update(samples[i]);
         }
-        StreamingHistogram hist = builder.build();
+        TombstoneHistogram hist = builder.build();
         DataOutputBuffer out = new DataOutputBuffer();
-        StreamingHistogram.serializer.serialize(hist, out);
+        TombstoneHistogram.serializer.serialize(hist, out);
         byte[] bytes = out.toByteArray();
 
-        StreamingHistogram deserialized = StreamingHistogram.serializer.deserialize(new DataInputBuffer(bytes));
+        TombstoneHistogram deserialized = TombstoneHistogram.serializer.deserialize(new DataInputBuffer(bytes));
 
         // deserialized histogram should have following values
         Map<Double, Long> expected1 = new LinkedHashMap<Double, Long>(5);
@@ -129,12 +128,12 @@ public class StreamingHistogramTest
     @Test
     public void testNumericTypes() throws Exception
     {
-        StreamingHistogram.Builder builder = new StreamingHistogram.Builder(5, 0, 1);
+        StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 0, 1);
 
         builder.update(2);
         builder.update(2);
         builder.update(2);
-        StreamingHistogram hist = builder.build();
+        TombstoneHistogram hist = builder.build();
         Map<Integer, long[]> asMap = hist.getAsMap();
 
         assertEquals(1, asMap.size());
@@ -142,10 +141,10 @@ public class StreamingHistogramTest
 
         //Make sure it's working with Serde
         DataOutputBuffer out = new DataOutputBuffer();
-        StreamingHistogram.serializer.serialize(hist, out);
+        TombstoneHistogram.serializer.serialize(hist, out);
         byte[] bytes = out.toByteArray();
 
-        StreamingHistogram deserialized = StreamingHistogram.serializer.deserialize(new DataInputBuffer(bytes));
+        TombstoneHistogram deserialized = TombstoneHistogram.serializer.deserialize(new DataInputBuffer(bytes));
 
         asMap = deserialized.getAsMap();
         assertEquals(1, asMap.size());
@@ -155,7 +154,7 @@ public class StreamingHistogramTest
     @Test
     public void testOverflow() throws Exception
     {
-        StreamingHistogram.Builder builder = new StreamingHistogram.Builder(5, 10, 1);
+        StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 10, 1);
         int[] samples = new int[]{23, 19, 10, 16, 36, 2, 9, 32, 30, 45, 31,
                                     32, 32, 33, 34, 35, 70, 78, 80, 90, 100,
                                     32, 32, 33, 34, 35, 70, 78, 80, 90, 100
@@ -173,11 +172,11 @@ public class StreamingHistogramTest
     @Test
     public void testRounding() throws Exception
     {
-        StreamingHistogram.Builder builder = new StreamingHistogram.Builder(5, 10, 60);
+        StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 10, 60);
         int[] samples = new int[] { 59, 60, 119, 180, 181, 300 }; // 60, 60, 120, 180, 240, 300
         for (int i = 0 ; i < samples.length ; i++)
             builder.update(samples[i]);
-        StreamingHistogram hist = builder.build();
+        TombstoneHistogram hist = builder.build();
         assertEquals(hist.getAsMap().keySet().size(), 5);
         assertEquals(hist.getAsMap().get(60)[0], 2);
         assertEquals(hist.getAsMap().get(120)[0], 1);
@@ -187,7 +186,7 @@ public class StreamingHistogramTest
     @Test
     public void testLargeValues() throws Exception
     {
-        StreamingHistogram.Builder builder = new StreamingHistogram.Builder(5, 0, 1);
+        StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 0, 1);
         IntStream.range(Integer.MAX_VALUE-30, Integer.MAX_VALUE).forEach(builder::update);
     }
 }

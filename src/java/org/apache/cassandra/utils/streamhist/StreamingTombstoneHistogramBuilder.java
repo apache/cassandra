@@ -15,39 +15,61 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
 
-import java.io.IOException;
+package org.apache.cassandra.utils.streamhist;
+
 import java.math.RoundingMode;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 import com.google.common.math.IntMath;
 
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.ISerializer;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
-
-import static org.apache.cassandra.utils.StreamingHistogram.AddResult.ACCUMULATED;
-import static org.apache.cassandra.utils.StreamingHistogram.AddResult.INSERTED;
+import static org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder.AddResult.ACCUMULATED;
+import static org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder.AddResult.INSERTED;
 
 /**
  * Histogram that can be constructed from streaming of data.
  * <p>
- * The algorithm is taken from following paper:
+ * The original algorithm is taken from following paper:
  * Yael Ben-Haim and Elad Tom-Tov, "A Streaming Parallel Decision Tree Algorithm" (2010)
  * http://jmlr.csail.mit.edu/papers/volume11/ben-haim10a/ben-haim10a.pdf
+ * <p>
+ * Algorithm: Histogram is represented as collection of {point, weight} pairs. When new point <i>p</i> with weight <i>m</i> is added:
+ * <ol>
+ * <li>If point <i>p</i> is already exists in collection, add <i>m</i> to recorded value of point <i>p</i> </li>
+ * <li>If there is no point <i>p</i> in the collection, add point <i>p</i> with weight <i>m</i> </li>
+ * <li>If point was added and collection size became lorger than maxBinSize:</li>
+ * <ol type="a">
+ * <li>Find nearest points <i>p1</i> and <i>p2</i> in the collection </li>
+ * <li>Replace theese two points with one weighted point <i>p3 = (p1*m1+p2*m2)/(p1+p2)</i></li>
+ * </ol>
+ * </ol>
+ * <p>
+ * There are some optimization to make histogram builder faster:
+ * <ol>
+ *     <li>Spool: big map that saves from excessively merging of small bin. This map can contains up to maxSpoolSize points and accumulate weight from same points.
+ *     For example, if spoolSize=100, binSize=10 and there are only 50 different points. it will be only 40 merges regardless how many points will be added.</li>
+ *     <li>Spool is organized as open-addressing primitive hash map where odd elements are points and event elements are values.
+ *     Spool can not resize => when number of collisions became bigger than threashold or size became large that <i>array_size/2</i> Spool is drained to bin</li>
+ *     <li>DistanceHolder - sorted collection of distances between points in Bin. It is used to find nearest points in constant time</li>
+ *     <li>Distances and Bin organized as sorted arrays. It reduces garbage collection pressure and allows to find elements in log(binSize) time via binary search</li>
+ *     <li>To use existing Arrays.binarySearch <i></>{point, values}</i> in bin and <i></>{distance, left_point}</i> pairs is packed in one long</li>
+ * </ol>
  */
-public class StreamingHistogram
+public class StreamingTombstoneHistogramBuilder
 {
-    public static final StreamingHistogramSerializer serializer = new StreamingHistogramSerializer();
-
     // Buffer with point-value pair
     private final DataHolder bin;
+
+    // Buffer with distance between points, sorted from nearest to furthest
+    private final DistanceHolder distances;
+
+    // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
+    private final Spool spool;
 
     // maximum bin size for this histogram
     private final int maxBinSize;
@@ -55,274 +77,120 @@ public class StreamingHistogram
     // voluntarily give up resolution for speed
     private final int roundSeconds;
 
-    /**
-     * Creates a new histogram with max bin size of maxBinSize
-     *
-     * @param maxBinSize maximum number of bins this histogram can have
-     */
-    private StreamingHistogram(int maxBinSize, int roundSeconds, Map<Double, Long> bin)
+    public StreamingTombstoneHistogramBuilder(int maxBinSize, int maxSpoolSize, int roundSeconds)
     {
         this.maxBinSize = maxBinSize;
         this.roundSeconds = roundSeconds;
         this.bin = new DataHolder(maxBinSize + 1, roundSeconds);
+        distances = new DistanceHolder(maxBinSize);
 
-        for (Map.Entry<Double, Long> entry : bin.entrySet())
+        //for spool we need power-of-two cells
+        maxSpoolSize = maxSpoolSize == 0 ? 0 : IntMath.pow(2, IntMath.log2(maxSpoolSize, RoundingMode.CEILING));
+        spool = new Spool(maxSpoolSize);
+    }
+
+    /**
+     * Adds new point p to this histogram.
+     *
+     * @param p
+     */
+    public void update(int p)
+    {
+        update(p, 1);
+    }
+
+    /**
+     * Adds new point p with value m to this histogram.
+     *
+     * @param p
+     * @param m
+     */
+    public void update(int p, int m)
+    {
+        p = roundKey(p, roundSeconds);
+
+        if (spool.capacity > 0)
         {
-            final int current = entry.getKey().intValue();
-            this.bin.addValue(current, entry.getValue().intValue());
+            if (!spool.tryAddOrAccumulate(p, m))
+            {
+                flushHistogram();
+                final boolean success = spool.tryAddOrAccumulate(p, m);
+                assert success : "Can not add value to spool"; // after spool flushing we should always be able to insert new value
+            }
         }
-    }
-
-    private StreamingHistogram(int maxBinSize, int roundSeconds, DataHolder holder)
-    {
-        this.maxBinSize = maxBinSize;
-        this.roundSeconds = roundSeconds;
-        bin = new DataHolder(holder);
-    }
-
-    public static StreamingHistogram createDefault()
-    {
-        return new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS, Collections.emptyMap());
-    }
-
-    private static int roundKey(int p, int roundSeconds)
-    {
-        int d = p % roundSeconds;
-        if (d > 0)
-            return p + (roundSeconds - d);
         else
-            return p;
+        {
+            flushValue(p, m);
+        }
     }
 
-    public static class Builder
+    /**
+     * Drain the temporary spool into the final bins
+     */
+    public void flushHistogram()
     {
-        // Buffer with point-value pair
-        private final DataHolder bin;
+        spool.forEach(this::flushValue);
+        spool.clear();
+    }
 
-        // Buffer with distance between points, sorted from nearest to furthest
-        private final DistanceHolder distances;
-
-        // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
-        private final Spool spool;
-
-        // maximum bin size for this histogram
-        private final int maxBinSize;
-
-        // voluntarily give up resolution for speed
-        private final int roundSeconds;
-
-        public Builder(int maxBinSize, int maxSpoolSize, int roundSeconds)
+    private void flushValue(int key, int spoolValue)
+    {
+        DataHolder.NeighboursAndResult addResult = bin.addValue(key, spoolValue);
+        if (addResult.result == INSERTED)
         {
-            this.maxBinSize = maxBinSize;
-            this.roundSeconds = roundSeconds;
-            this.bin = new DataHolder(maxBinSize + 1, roundSeconds);
-            distances = new DistanceHolder(maxBinSize);
-
-            //for spool we need power-of-two cells
-            maxSpoolSize = maxSpoolSize == 0 ? 0 : IntMath.pow(2, IntMath.log2(maxSpoolSize, RoundingMode.CEILING));
-            spool = new Spool(maxSpoolSize);
-        }
-
-        /**
-         * Adds new point p to this histogram.
-         *
-         * @param p
-         */
-        public void update(int p)
-        {
-            update(p, 1);
-        }
-
-        /**
-         * Adds new point p with value m to this histogram.
-         *
-         * @param p
-         * @param m
-         */
-        public void update(int p, int m)
-        {
-            p = roundKey(p, roundSeconds);
-
-            if (spool.capacity > 0)
-            {
-                if (!spool.tryAddOrAccumulate(p, m))
-                {
-                    flushHistogram();
-                    final boolean success = spool.tryAddOrAccumulate(p, m);
-                    assert success : "Can not add value to spool"; // after spool flushing we should always be able to insert new value
-                }
-            }
-            else
-            {
-                flushValue(p, m);
-            }
-        }
-
-        /**
-         * Drain the temporary spool into the final bins
-         */
-        public void flushHistogram()
-        {
-            spool.forEach(this::flushValue);
-            spool.clear();
-        }
-
-        private void flushValue(int key, int spoolValue)
-        {
-            DataHolder.NeighboursAndResult addResult = bin.addValue(key, spoolValue);
-            if (addResult.result == INSERTED)
-            {
-                final int prevPoint = addResult.prevPoint;
-                final int nextPoint = addResult.nextPoint;
-                if (prevPoint != -1 && nextPoint != -1)
-                    distances.remove(prevPoint, nextPoint);
-                if (prevPoint != -1)
-                    distances.add(prevPoint, key);
-                if (nextPoint != -1)
-                    distances.add(key, nextPoint);
-            }
-
-            if (bin.isFull())
-            {
-                mergeBin();
-            }
-        }
-
-        private void mergeBin()
-        {
-            // find points point1, point2 which have smallest difference
-            final int[] smallestDifference = distances.getFirstAndRemove();
-
-            final int point1 = smallestDifference[0];
-            final int point2 = smallestDifference[1];
-
-            // merge those two
-            DataHolder.MergeResult mergeResult = bin.merge(point1, point2);
-
-            final int nextPoint = mergeResult.nextPoint;
-            final int prevPoint = mergeResult.prevPoint;
-            final int newPoint = mergeResult.newPoint;
-
-            if (nextPoint != -1)
-            {
-                distances.remove(point2, nextPoint);
-                distances.add(newPoint, nextPoint);
-            }
-
+            final int prevPoint = addResult.prevPoint;
+            final int nextPoint = addResult.nextPoint;
+            if (prevPoint != -1 && nextPoint != -1)
+                distances.remove(prevPoint, nextPoint);
             if (prevPoint != -1)
-            {
-                distances.remove(prevPoint, point1);
-                distances.add(prevPoint, newPoint);
-            }
+                distances.add(prevPoint, key);
+            if (nextPoint != -1)
+                distances.add(key, nextPoint);
         }
 
-        /**
-         * Creates a 'finished' snapshot of the current state of the historgram, but leaves this builder instance
-         * open for subsequent additions to the histograms. Basically, this allows us to have some degree of sanity
-         * wrt sstable early open.
-         */
-        public StreamingHistogram build()
+        if (bin.isFull())
         {
-            flushHistogram();
-            return new StreamingHistogram(maxBinSize, roundSeconds, bin);
+            mergeBin();
+        }
+    }
+
+    private void mergeBin()
+    {
+        // find points point1, point2 which have smallest difference
+        final int[] smallestDifference = distances.getFirstAndRemove();
+
+        final int point1 = smallestDifference[0];
+        final int point2 = smallestDifference[1];
+
+        // merge those two
+        DataHolder.MergeResult mergeResult = bin.merge(point1, point2);
+
+        final int nextPoint = mergeResult.nextPoint;
+        final int prevPoint = mergeResult.prevPoint;
+        final int newPoint = mergeResult.newPoint;
+
+        if (nextPoint != -1)
+        {
+            distances.remove(point2, nextPoint);
+            distances.add(newPoint, nextPoint);
+        }
+
+        if (prevPoint != -1)
+        {
+            distances.remove(prevPoint, point1);
+            distances.add(prevPoint, newPoint);
         }
     }
 
     /**
-     * Merges given histogram with this histogram.
-     *
-     * @param other histogram to merge
+     * Creates a 'finished' snapshot of the current state of the historgram, but leaves this builder instance
+     * open for subsequent additions to the histograms. Basically, this allows us to have some degree of sanity
+     * wrt sstable early open.
      */
-    public StreamingHistogram merge(StreamingHistogram other)
+    public TombstoneHistogram build()
     {
-        if (other == null)
-            return this;
-
-        Builder builder = new Builder(maxBinSize, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, roundSeconds);
-
-        // This can be optimized, but it's only called in tests atm ... maybe can remove
-        for (Map.Entry<Integer, long[]> entry : getAsMap().entrySet())
-            builder.update(entry.getKey(), (int) entry.getValue()[0]);
-        for (Map.Entry<Integer, long[]> entry : other.getAsMap().entrySet())
-            builder.update(entry.getKey(), (int) entry.getValue()[0]);
-
-        return builder.build();
-    }
-
-    /**
-     * Calculates estimated number of points in interval [-inf,b].
-     *
-     * @param b upper bound of a interval to calculate sum
-     * @return estimated number of points in a interval [-inf,b].
-     */
-    public double sum(double b)
-    {
-        return bin.sum((int) b);
-    }
-
-    public Map<Integer, long[]> getAsMap()
-    {
-        TreeMap<Integer, long[]> bin = new TreeMap<>();
-        this.bin.forEach(datum -> bin.put(datum[0], new long[]{ datum[1] }));
-        return bin;
-    }
-
-    public static class StreamingHistogramSerializer implements ISerializer<StreamingHistogram>
-    {
-        public void serialize(StreamingHistogram histogram, DataOutputPlus out) throws IOException
-        {
-            out.writeInt(histogram.maxBinSize);
-            Map<Integer, long[]> entries = histogram.getAsMap();
-            out.writeInt(entries.size());
-            for (Map.Entry<Integer, long[]> entry : entries.entrySet())
-            {
-                out.writeDouble(entry.getKey().doubleValue());
-                out.writeLong(entry.getValue()[0]);
-            }
-        }
-
-        public StreamingHistogram deserialize(DataInputPlus in) throws IOException
-        {
-            int maxBinSize = in.readInt();
-            int size = in.readInt();
-            Map<Double, Long> tmp = new HashMap<>(size);
-            for (int i = 0; i < size; i++)
-            {
-                tmp.put(in.readDouble(), in.readLong());
-            }
-
-            return new StreamingHistogram(maxBinSize, maxBinSize, tmp);
-        }
-
-        public long serializedSize(StreamingHistogram histogram)
-        {
-            long size = TypeSizes.sizeof(histogram.maxBinSize);
-            Map<Integer, long[]> entries = histogram.getAsMap();
-            size += TypeSizes.sizeof(entries.size());
-            // size of entries = size * (8(double) + 8(long))
-            size += entries.size() * (8L + 8L);
-            return size;
-        }
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o)
-            return true;
-
-        if (!(o instanceof StreamingHistogram))
-            return false;
-
-        StreamingHistogram that = (StreamingHistogram) o;
-        return maxBinSize == that.maxBinSize &&
-               bin.equals(that.bin);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hashCode(bin.hashCode(), maxBinSize);
+        flushHistogram();
+        return new TombstoneHistogram(maxBinSize, roundSeconds, bin);
     }
 
     private static class DistanceHolder
@@ -668,11 +536,14 @@ public class StreamingHistogram
 
         boolean tryAddOrAccumulate(int point, int delta)
         {
-            if (size > capacity){
+            if (size > capacity)
+            {
                 return false;
             }
 
             final int cell = 2 * ((capacity - 1) & hash(point));
+
+            // We use linear scanning. I think cluster of 100 elements is large enough to give up.
             for (int attempt = 0; attempt < 100; attempt++)
             {
                 if (tryCell(cell + attempt * 2, point, delta))
@@ -681,9 +552,10 @@ public class StreamingHistogram
             return false;
         }
 
-        private int hash(int i){
-            long largePrime =  948701839L;
-            return (int) (i*largePrime);
+        private int hash(int i)
+        {
+            long largePrime = 948701839L;
+            return (int) (i * largePrime);
         }
 
         void forEach(PointAndValueConsumer consumer)
@@ -719,5 +591,14 @@ public class StreamingHistogram
         {
             void consume(int point, int value);
         }
+    }
+
+    private static int roundKey(int p, int roundSeconds)
+    {
+        int d = p % roundSeconds;
+        if (d > 0)
+            return p + (roundSeconds - d);
+        else
+            return p;
     }
 }
