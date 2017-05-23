@@ -239,6 +239,8 @@
 -XX:GCLogFileSize=10M
 
 #uses 1GB for CAPI Row-Cache and /dev/sg7 for CAPI flash path
--Dcapi.devices=/dev/sg7:0:1
+#-Dcapi.devices=/dev/sg7:0:1 - Enable this if we have capi card connected and specify device path
+#uses 2GB for CAPI Row-Cache and file name for emulating CAPI flash
+#-Dcapi.devices=/dev/shm/capi.log:0:2 
 -Dcapi.hash=org.apache.cassandra.cache.capi.YCSBKeyHashFunction
 

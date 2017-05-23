@@ -49,11 +49,11 @@ public class CapiCacheProviderTest
         if (System.getProperty("java.library.path") == null)
             System.setProperty("java.library.path", "cassandra/lib/sigar-bin/");
         if (System.getProperty("capi.devices") == null)
-            System.setProperty("capi.devices", "/dev/sg7:0:1");  // Enabled this while using real capi flash
-            //System.setProperty("capi.devices", "/dev/shm/capi.log:0:2");  // Enable this while using capi-sim
+            //System.setProperty("capi.devices", "/dev/sg7:0:1");  // Enabled this while using real capi flash
+            System.setProperty("capi.devices", "/dev/shm/capi.log:0:2");  // Enable this while using capi-sim
         if (System.getProperty("capi.capacity.blocks") == null)
             System.setProperty("capi.capacity.blocks", "524288");
-        System.setProperty("capi.hash", TestHashFunction.class.getName());
+	System.setProperty("capi.hash", TestHashFunction.class.getName());
     }
 
     public static class TestHashFunction implements HashFunction
