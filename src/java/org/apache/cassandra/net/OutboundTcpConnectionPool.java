@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -138,7 +139,10 @@ public class OutboundTcpConnectionPool
         // zero means 'bind on any available port.'
         if (isEncryptedChannel(endpoint))
         {
-            return SSLFactory.getSocket(DatabaseDescriptor.getServerEncryptionOptions(), endpoint.address, DatabaseDescriptor.getSSLStoragePort());
+            //Old configurations that don't use StartTLS still need to get the port from the YAML or external config.
+            //Newer configurations are required to have StartTLS in order to use a different port for each instance.
+            boolean useYaml = DatabaseDescriptor.getServerEncryptionOptions().outgoing_encrypted_port_source == EncryptionOptions.ServerEncryptionOptions.OutgoingEncryptedPortSource.yaml;
+            return SSLFactory.getSocket(DatabaseDescriptor.getServerEncryptionOptions(), endpoint.address, useYaml ? DatabaseDescriptor.getSSLStoragePort() : endpoint.port);
         }
         else
         {

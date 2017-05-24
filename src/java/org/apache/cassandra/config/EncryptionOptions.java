@@ -45,5 +45,10 @@ public abstract class EncryptionOptions
             all, none, dc, rack
         }
         public InternodeEncryption internode_encryption = InternodeEncryption.none;
+        public enum OutgoingEncryptedPortSource
+        {
+            yaml, gossip
+        }
+        public OutgoingEncryptedPortSource outgoing_encrypted_port_source = OutgoingEncryptedPortSource.yaml;
     }
 }

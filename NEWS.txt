@@ -65,7 +65,13 @@ Upgrading
       Additionally we are moving to only using a single port for encrypted and
       unencrypted traffic and if you want multiple instances per IP you must
       first switch encrypted traffic to the storage port and not a separate
-      encrypted port.
+      encrypted port. If you want to use multiple instances per IP
+      with SSL you will need to use StartTLS on storage_port and set
+      outgoing_encrypted_port_source to gossip outbound connections
+      know what port to connect to for each instance. Before changing
+      storage port or native port at nodes you must first upgrade the entire cluster
+      and clients to 4.0 so they can handle the port not being consistent across
+      the cluster.
 
 3.11.0
 ======

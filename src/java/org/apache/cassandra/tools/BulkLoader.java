@@ -59,6 +59,7 @@ public class BulkLoader
                         options.hosts,
                         options.nativePort,
                         options.authProvider,
+                        options.sslStoragePort,
                         options.serverEncOptions,
                         buildSSLOptions(options.clientEncOptions)),
                         handler,
@@ -268,22 +269,25 @@ public class BulkLoader
 
     static class ExternalClient extends NativeSSTableLoaderClient
     {
+        private final int sslStoragePort;
         private final EncryptionOptions.ServerEncryptionOptions serverEncOptions;
 
         public ExternalClient(Set<InetSocketAddress> hosts,
                               int port,
                               AuthProvider authProvider,
+                              int sslStoragePort,
                               EncryptionOptions.ServerEncryptionOptions serverEncryptionOptions,
                               SSLOptions sslOptions)
         {
             super(hosts, port, authProvider, sslOptions);
+            this.sslStoragePort = sslStoragePort;
             serverEncOptions = serverEncryptionOptions;
         }
 
         @Override
         public StreamConnectionFactory getConnectionFactory()
         {
-            return new BulkLoadConnectionFactory(serverEncOptions, false);
+            return new BulkLoadConnectionFactory(sslStoragePort, serverEncOptions, false);
         }
     }
 

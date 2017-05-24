@@ -22,6 +22,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.channels.SocketChannel;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.SSLFactory;
@@ -31,10 +32,12 @@ import org.apache.cassandra.utils.FBUtilities;
 public class BulkLoadConnectionFactory implements StreamConnectionFactory
 {
     private final boolean outboundBindAny;
+    private final int secureStoragePort;
     private final EncryptionOptions.ServerEncryptionOptions encryptionOptions;
 
-    public BulkLoadConnectionFactory(EncryptionOptions.ServerEncryptionOptions encryptionOptions, boolean outboundBindAny)
+    public BulkLoadConnectionFactory(int secureStoragePort, EncryptionOptions.ServerEncryptionOptions encryptionOptions, boolean outboundBindAny)
     {
+        this.secureStoragePort = secureStoragePort;
         this.encryptionOptions = encryptionOptions;
         this.outboundBindAny = outboundBindAny;
     }
@@ -46,8 +49,11 @@ public class BulkLoadConnectionFactory implements StreamConnectionFactory
         // does not know which node is in which dc/rack, connecting to SSL port is always the option.
         if (encryptionOptions != null && encryptionOptions.internode_encryption != EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none)
         {
+            //Old configurations that don't use StartTLS still need to get the port from the YAML or external config
+            //Newer configurations are required to have StartTLS in order to use a different port for each instance.
+            boolean useConfigPort = encryptionOptions.outgoing_encrypted_port_source == EncryptionOptions.ServerEncryptionOptions.OutgoingEncryptedPortSource.yaml;
             if (outboundBindAny)
-                return SSLFactory.getSocket(encryptionOptions, peer.address, peer.port);
+                return SSLFactory.getSocket(encryptionOptions, peer.address, useConfigPort ? secureStoragePort : peer.port);
             else
                 return SSLFactory.getSocket(encryptionOptions, peer.address, peer.port, FBUtilities.getJustLocalAddress(), 0);
         }
