@@ -35,6 +35,7 @@
  * Fix cqlsh automatic protocol downgrade regression (CASSANDRA-13307)
  * Tracing payload not passed from QueryMessage to tracing session (CASSANDRA-12835)
 Merged from 3.0:
+ * ReverseIndexedReader may drop rows during 2.1 to 3.0 upgrade (CASSANDRA-13525)
  * Fix repair process violating start/end token limits for small ranges (CASSANDRA-13052)
  * Add storage port options to sstableloader (CASSANDRA-13518)
  * Properly handle quoted index names in cqlsh DESCRIBE output (CASSANDRA-12847)

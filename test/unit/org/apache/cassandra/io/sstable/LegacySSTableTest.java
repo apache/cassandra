@@ -166,6 +166,45 @@ public class LegacySSTableTest
             verifyReads(legacyVersion);
         }
     }
+    @Test
+    public void testReverseIterationOfLegacyIndexedSSTable() throws Exception
+    {
+        // During upgrades from 2.1 to 3.0, reverse queries can drop rows before upgradesstables is completed
+        QueryProcessor.executeInternal("CREATE TABLE legacy_tables.legacy_ka_indexed (" +
+                                       "  p int," +
+                                       "  c int," +
+                                       "  v1 int," +
+                                       "  v2 int," +
+                                       "  PRIMARY KEY(p, c)" +
+                                       ")");
+        loadLegacyTable("legacy_%s_indexed%s", "ka", "");
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * " +
+                                                             "FROM legacy_tables.legacy_ka_indexed " +
+                                                             "WHERE p=1 " +
+                                                             "ORDER BY c DESC");
+        Assert.assertEquals(5000, rs.size());
+    }
+
+    @Test
+    public void testReadingLegacyIndexedSSTableWithStaticColumns() throws Exception
+    {
+        // During upgrades from 2.1 to 3.0, reading from tables with static columns errors before upgradesstables
+        // is completed
+        QueryProcessor.executeInternal("CREATE TABLE legacy_tables.legacy_ka_indexed_static (" +
+                                       "  p int," +
+                                       "  c int," +
+                                       "  v1 int," +
+                                       "  v2 int," +
+                                       "  s1 int static," +
+                                       "  s2 int static," +
+                                       "  PRIMARY KEY(p, c)" +
+                                       ")");
+        loadLegacyTable("legacy_%s_indexed_static%s", "ka", "");
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * " +
+                                                             "FROM legacy_tables.legacy_ka_indexed_static " +
+                                                             "WHERE p=1 ");
+        Assert.assertEquals(5000, rs.size());
+    }
 
     private void streamLegacyTables(String legacyVersion) throws Exception
     {
