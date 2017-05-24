@@ -18,13 +18,9 @@
 package org.apache.cassandra.utils.streamhist;
 
 import java.io.IOException;
-import java.util.*;
-
-import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder.DataHolder;
@@ -37,40 +33,18 @@ public class TombstoneHistogram
     // Buffer with point-value pair
     private final DataHolder bin;
 
-    // maximum bin size for this histogram
-    private final int maxBinSize;
-
-    // voluntarily give up resolution for speed
-    private final int roundSeconds;
-
     /**
      * Creates a new histogram with max bin size of maxBinSize
      *
-     * @param maxBinSize maximum number of bins this histogram can have
      */
-    private TombstoneHistogram(int maxBinSize, int roundSeconds, Map<Double, Long> bin)
+    TombstoneHistogram(DataHolder holder)
     {
-        this.maxBinSize = maxBinSize;
-        this.roundSeconds = roundSeconds;
-        this.bin = new DataHolder(maxBinSize + 1, roundSeconds);
-
-        for (Map.Entry<Double, Long> entry : bin.entrySet())
-        {
-            final int current = entry.getKey().intValue();
-            this.bin.addValue(current, entry.getValue().intValue());
-        }
-    }
-
-    TombstoneHistogram(int maxBinSize, int roundSeconds, DataHolder holder)
-    {
-        this.maxBinSize = maxBinSize;
-        this.roundSeconds = roundSeconds;
         bin = new DataHolder(holder);
     }
 
     public static TombstoneHistogram createDefault()
     {
-        return new TombstoneHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS, Collections.emptyMap());
+        return new TombstoneHistogram(new DataHolder(0, 1));
     }
 
     /**
@@ -86,22 +60,22 @@ public class TombstoneHistogram
 
     public int size()
     {
-        int[] acc = new int[1];
-        this.bin.forEach((point, value) -> acc[0]++);
-        return acc[0];
+        return this.bin.size();
     }
 
-    public <E extends Exception> void forEach(PointAndValueConsumer<E> pointAndValueConsumer) throws E
+    public <E extends Exception> void forEach(HistogramDataConsumer<E> histogramDataConsumer) throws E
     {
-        this.bin.forEach(pointAndValueConsumer);
+        this.bin.forEach(histogramDataConsumer);
     }
 
     public static class HistogramSerializer implements ISerializer<TombstoneHistogram>
     {
         public void serialize(TombstoneHistogram histogram, DataOutputPlus out) throws IOException
         {
-            out.writeInt(histogram.maxBinSize);
-            out.writeInt(histogram.size());
+            final int size = histogram.size();
+            final int maxBinSize = size; // we write this for legacy reasons
+            out.writeInt(maxBinSize);
+            out.writeInt(size);
             histogram.forEach((point, value) ->
                               {
                                   out.writeDouble((double) point);
@@ -111,20 +85,21 @@ public class TombstoneHistogram
 
         public TombstoneHistogram deserialize(DataInputPlus in) throws IOException
         {
-            int maxBinSize = in.readInt();
+            in.readInt(); // max bin size
             int size = in.readInt();
-            Map<Double, Long> tmp = new HashMap<>(size);
+            DataHolder dataHolder = new DataHolder(size, 1);
             for (int i = 0; i < size; i++)
             {
-                tmp.put(in.readDouble(), in.readLong());
+                dataHolder.addValue((int)in.readDouble(), (int)in.readLong());
             }
 
-            return new TombstoneHistogram(maxBinSize, maxBinSize, tmp);
+            return new TombstoneHistogram(dataHolder);
         }
 
         public long serializedSize(TombstoneHistogram histogram)
         {
-            long size = TypeSizes.sizeof(histogram.maxBinSize);
+            int maxBinSize = 0;
+            long size = TypeSizes.sizeof(maxBinSize);
             final int histSize = histogram.size();
             size += TypeSizes.sizeof(histSize);
             // size of entries = size * (8(double) + 8(long))
@@ -143,13 +118,12 @@ public class TombstoneHistogram
             return false;
 
         TombstoneHistogram that = (TombstoneHistogram) o;
-        return maxBinSize == that.maxBinSize &&
-               bin.equals(that.bin);
+        return bin.equals(that.bin);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(bin.hashCode(), maxBinSize);
+        return bin.hashCode();
     }
 }

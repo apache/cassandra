@@ -22,7 +22,6 @@ import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
-import com.google.common.base.Objects;
 import com.google.common.math.IntMath;
 
 import static org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder.AddResult.ACCUMULATED;
@@ -68,15 +67,11 @@ public class StreamingTombstoneHistogramBuilder
     // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
     private final Spool spool;
 
-    // maximum bin size for this histogram
-    private final int maxBinSize;
-
     // voluntarily give up resolution for speed
     private final int roundSeconds;
 
     public StreamingTombstoneHistogramBuilder(int maxBinSize, int maxSpoolSize, int roundSeconds)
     {
-        this.maxBinSize = maxBinSize;
         this.roundSeconds = roundSeconds;
         this.bin = new DataHolder(maxBinSize + 1, roundSeconds);
         distances = new DistanceHolder(maxBinSize);
@@ -187,7 +182,7 @@ public class StreamingTombstoneHistogramBuilder
     public TombstoneHistogram build()
     {
         flushHistogram();
-        return new TombstoneHistogram(maxBinSize, roundSeconds, bin);
+        return new TombstoneHistogram(bin);
     }
 
     private static class DistanceHolder
@@ -396,7 +391,7 @@ public class StreamingTombstoneHistogramBuilder
             return data[data.length - 1] != EMPTY;
         }
 
-        public <E extends Exception> void forEach(PointAndValueConsumer<E> pointAndValueConsumer) throws E
+        public <E extends Exception> void forEach(HistogramDataConsumer<E> histogramDataConsumer) throws E
         {
             for (long datum : data)
             {
@@ -405,8 +400,15 @@ public class StreamingTombstoneHistogramBuilder
                     break;
                 }
 
-                pointAndValueConsumer.consume(unwrapPoint(datum), unwrapValue(datum));
+                histogramDataConsumer.consume(unwrapPoint(datum), unwrapValue(datum));
             }
+        }
+
+        public int size()
+        {
+            int[] accumulator = new int[1];
+            forEach((point, value) -> accumulator[0]++);
+            return accumulator[0];
         }
 
         public double sum(int b)
@@ -479,13 +481,27 @@ public class StreamingTombstoneHistogramBuilder
         @Override
         public int hashCode()
         {
-            return Objects.hashCode(data);
+            return Arrays.hashCode(data);
         }
 
         @Override
         public boolean equals(Object o)
         {
-            return o instanceof DataHolder && Arrays.equals(data, ((DataHolder) o).data);
+            if (!(o instanceof DataHolder))
+                return false;
+
+
+            final DataHolder other = ((DataHolder) o);
+
+            if (this.size()!=other.size())
+                return false;
+
+            for (int i=0; i<size(); i++){
+                if (data[i]!=other.data[i]){
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
@@ -548,7 +564,7 @@ public class StreamingTombstoneHistogramBuilder
             return (int) (i * largePrime);
         }
 
-        <E extends Exception> void forEach(PointAndValueConsumer<E> consumer) throws E
+        <E extends Exception> void forEach(HistogramDataConsumer<E> consumer) throws E
         {
             for (int i = 0; i < map.length; i += 2)
             {

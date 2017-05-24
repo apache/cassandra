@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.utils.streamhist;
 
-public interface PointAndValueConsumer<T extends Exception>
+/**
+ * This interface exists to avoid boxing primitive ints to Integers (otherwise <i>{@link java.util.function.BiConsumer}&lt;Integer, Integer&gt;</i> would have been sufficient).
+ */
+public interface HistogramDataConsumer<T extends Exception>
 {
     void consume(int point, int value) throws T;
 }
