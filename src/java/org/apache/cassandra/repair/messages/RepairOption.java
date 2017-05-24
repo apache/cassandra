@@ -167,6 +167,10 @@ public class RepairOption
                 }
                 Token parsedBeginToken = partitioner.getTokenFactory().fromString(rangeStr[0].trim());
                 Token parsedEndToken = partitioner.getTokenFactory().fromString(rangeStr[1].trim());
+                if (parsedBeginToken.equals(parsedEndToken))
+                {
+                    throw new IllegalArgumentException("Start and end tokens must be different.");
+                }
                 ranges.add(new Range<>(parsedBeginToken, parsedEndToken));
             }
         }
