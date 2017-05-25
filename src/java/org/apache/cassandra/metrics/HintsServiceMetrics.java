@@ -48,7 +48,7 @@ public final class HintsServiceMetrics
     /** Histograms per-endpoint of hint delivery delays, This is not a cache. */
     private static final LoadingCache<InetAddressAndPort, Histogram> delayByEndpoint = Caffeine.newBuilder()
                                                                                                .executor(MoreExecutors.directExecutor())
-                                                                                               .build(address -> Metrics.histogram(factory.createMetricName("Hint_delays-"+address.address.getHostAddress().replace(':', '.') + ":" + address.port), false));
+                                                                                               .build(address -> Metrics.histogram(factory.createMetricName("Hint_delays-"+address.toString().replace(':', '.')), false));
 
     public static void updateDelayMetrics(InetAddressAndPort endpoint, long delay)
     {
