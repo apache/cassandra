@@ -101,4 +101,17 @@ public class ColumnIdentifierTest
         Assert.assertEquals(text, c3.toString());
     }
 
+    @Test
+    public void testInterningUsesMinimalByteBuffer()
+    {
+        byte[] bytes = new byte[2];
+        bytes[0] = 0x63;
+        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        byteBuffer.limit(1);
+
+        ColumnIdentifier c1 = ColumnIdentifier.getInterned(byteBuffer, UTF8Type.instance);
+
+        Assert.assertEquals(2, byteBuffer.capacity());
+        Assert.assertEquals(1, c1.bytes.capacity());
+    }
 }

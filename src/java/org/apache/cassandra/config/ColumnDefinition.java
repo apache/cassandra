@@ -35,7 +35,9 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.github.jamm.Unmetered;
 
+@Unmetered
 public class ColumnDefinition extends ColumnSpecification implements Selectable, Comparable<ColumnDefinition>
 {
     public static final Comparator<Object> asymmetricColumnDataComparator =

@@ -141,6 +141,8 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
 
     public static ColumnIdentifier getInterned(AbstractType<?> type, ByteBuffer bytes, String text)
     {
+        bytes = ByteBufferUtil.minimalBufferFor(bytes);
+
         InternedKey key = new InternedKey(type, bytes);
         ColumnIdentifier id = internedInstances.get(key);
         if (id != null)
