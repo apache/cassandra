@@ -29,6 +29,8 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.base.Predicate;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
@@ -72,6 +74,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
@@ -90,6 +93,12 @@ import org.apache.cassandra.utils.UUIDGen;
  */
 public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener, ActiveRepairServiceMBean
 {
+
+    public enum ParentRepairStatus
+    {
+        IN_PROGRESS, COMPLETED, FAILED
+    }
+
     public static class ConsistentSessions
     {
         public final LocalSessions local = new LocalSessions();
@@ -118,11 +127,21 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     private final IFailureDetector failureDetector;
     private final Gossiper gossiper;
+    private final Cache<Integer, Pair<ParentRepairStatus, List<String>>> repairStatusByCmd;
 
     public ActiveRepairService(IFailureDetector failureDetector, Gossiper gossiper)
     {
         this.failureDetector = failureDetector;
         this.gossiper = gossiper;
+        this.repairStatusByCmd = CacheBuilder.newBuilder()
+                                             .expireAfterWrite(
+                                             Long.getLong("cassandra.parent_repair_status_expiry_seconds",
+                                                          TimeUnit.SECONDS.convert(1, TimeUnit.DAYS)), TimeUnit.SECONDS)
+                                             // using weight wouldn't work so well, since it doesn't reflect mutation of cached data
+                                             // see https://github.com/google/guava/wiki/CachesExplained
+                                             // We assume each entry is unlikely to be much more than 100 bytes, so bounding the size should be sufficient.
+                                             .maximumSize(Long.getLong("cassandra.parent_repair_status_cache_size", 100_000))
+                                             .build();
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
@@ -228,6 +247,17 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             session.forceShutdown(cause);
         }
         parentRepairSessions.clear();
+    }
+
+    public void recordRepairStatus(int cmd, ParentRepairStatus parentRepairStatus, List<String> messages)
+    {
+        repairStatusByCmd.put(cmd, Pair.create(parentRepairStatus, messages));
+    }
+
+
+    Pair<ParentRepairStatus, List<String>> getRepairStatus(Integer cmd)
+    {
+        return repairStatusByCmd.getIfPresent(cmd);
     }
 
     /**
