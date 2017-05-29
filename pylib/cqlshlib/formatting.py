@@ -396,11 +396,7 @@ def format_value_time(val, colormap, **_):
 
 @formatter_for('Duration')
 def format_value_duration(val, colormap, **_):
-    buf = six.iterbytes(val)
-    months = decode_vint(buf)
-    days = decode_vint(buf)
-    nanoseconds = decode_vint(buf)
-    return format_python_formatted_type(duration_as_str(months, days, nanoseconds), colormap, 'duration')
+    return format_python_formatted_type(duration_as_str(val.months, val.days, val.nanoseconds), colormap, 'duration')
 
 
 def duration_as_str(months, days, nanoseconds):
