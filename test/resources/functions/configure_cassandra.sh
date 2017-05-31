@@ -45,39 +45,24 @@ function configure_cassandra() {
       ;;
   esac
   
-  OH_SIX_CONFIG="/etc/cassandra/conf/storage-conf.xml"
-  
-  if [[ -e "$OH_SIX_CONFIG" ]] ; then 
-    config_file=$OH_SIX_CONFIG
-    seeds=""
+  config_file="/etc/cassandra/conf/cassandra.yaml"
+  if [[ "x"`grep -e '^seeds:' $config_file` == "x" ]]; then
+    seeds="$1" # 08 format seeds
+    shift
     for server in "$@"; do
-      seeds="${seeds}<Seed>${server}</Seed>"
+      seeds="${seeds},${server}"
     done
-  
-    #TODO set replication
-    sed -i -e "s|<Seed>127.0.0.1</Seed>|$seeds|" $config_file
-    sed -i -e "s|<ListenAddress>localhost</ListenAddress>|<ListenAddress>$PRIVATE_SELF_HOST</ListenAddress>|" $config_file
-    sed -i -e "s|<ThriftAddress>localhost</ThriftAddress>|<ThriftAddress>$PUBLIC_SELF_HOST</ThriftAddress>|" $config_file
+    sed -i -e "s|- seeds: \"127.0.0.1\"|- seeds: \"${seeds}\"|" $config_file
   else
-    config_file="/etc/cassandra/conf/cassandra.yaml"
-    if [[ "x"`grep -e '^seeds:' $config_file` == "x" ]]; then
-      seeds="$1" # 08 format seeds
-      shift
-      for server in "$@"; do
-        seeds="${seeds},${server}"
-      done
-      sed -i -e "s|- seeds: \"127.0.0.1\"|- seeds: \"${seeds}\"|" $config_file
-    else
-      seeds="" # 07 format seeds
-      for server in "$@"; do
-        seeds="${seeds}\n    - ${server}"
-      done
-      sed -i -e "/^seeds:/,/^/d" $config_file ; echo -e "seeds:${seeds}" >> $config_file
-    fi
-  
-    sed -i -e "s|listen_address: localhost|listen_address: $PRIVATE_SELF_HOST|" $config_file
-    sed -i -e "s|rpc_address: localhost|rpc_address: $PUBLIC_SELF_HOST|" $config_file
+    seeds="" # 07 format seeds
+    for server in "$@"; do
+      seeds="${seeds}\n    - ${server}"
+    done
+    sed -i -e "/^seeds:/,/^/d" $config_file ; echo -e "seeds:${seeds}" >> $config_file
   fi
+  
+  sed -i -e "s|listen_address: localhost|listen_address: $PRIVATE_SELF_HOST|" $config_file
+  sed -i -e "s|rpc_address: localhost|rpc_address: $PUBLIC_SELF_HOST|" $config_file
   
   # Now that it's configured, start Cassandra
   nohup /etc/rc.local &

@@ -20,7 +20,7 @@ package org.apache.cassandra.cql3.selection;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -51,13 +51,13 @@ public abstract class Selector
          * Returns the column specification corresponding to the output value of the selector instances created by
          * this factory.
          *
-         * @param cfm the column family meta data
+         * @param table the table meta data
          * @return a column specification
          */
-        public final ColumnSpecification getColumnSpecification(CFMetaData cfm)
+        public final ColumnSpecification getColumnSpecification(TableMetadata table)
         {
-            return new ColumnSpecification(cfm.ksName,
-                                           cfm.cfName,
+            return new ColumnSpecification(table.keyspace,
+                                           table.name,
                                            new ColumnIdentifier(getColumnName(), true), // note that the name is not necessarily
                                                                                         // a true column name so we shouldn't intern it
                                            getReturnType());
@@ -170,17 +170,6 @@ public abstract class Selector
      * @return the <code>Selector</code> output type.
      */
     public abstract AbstractType<?> getType();
-
-    /**
-     * Checks if this <code>Selector</code> is creating aggregates.
-     *
-     * @return <code>true</code> if this <code>Selector</code> is creating aggregates <code>false</code>
-     * otherwise.
-     */
-    public boolean isAggregate()
-    {
-        return false;
-    }
 
     /**
      * Reset the internal state of this <code>Selector</code>.

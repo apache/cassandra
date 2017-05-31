@@ -31,7 +31,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.*;
-import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.db.marshal.*;
@@ -87,25 +86,23 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
                                                     typeB),
                                       true);
 
-        CFMetaData cfm = CFMetaData.Builder.create(keyspace, table)
-                                           .addPartitionKey("pk1", IntegerType.instance)
-                                           .addClusteringColumn("ck1", IntegerType.instance)
-                                           .addRegularColumn("reg1", typeC)
-                                           .addRegularColumn("reg2", ListType.getInstance(IntegerType.instance, false))
-                                           .addRegularColumn("reg3", MapType.getInstance(AsciiType.instance, IntegerType.instance, true))
-                                           .build();
+        TableMetadata cfm =
+            TableMetadata.builder(keyspace, table)
+                         .addPartitionKeyColumn("pk1", IntegerType.instance)
+                         .addClusteringColumn("ck1", IntegerType.instance)
+                         .addRegularColumn("reg1", typeC)
+                         .addRegularColumn("reg2", ListType.getInstance(IntegerType.instance, false))
+                         .addRegularColumn("reg3", MapType.getInstance(AsciiType.instance, IntegerType.instance, true))
+                         .build();
 
-        SchemaLoader.createKeyspace(keyspace,
-                                    KeyspaceParams.simple(1),
-                                    Tables.of(cfm),
-                                    Types.of(typeA, typeB, typeC));
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), Tables.of(cfm), Types.of(typeA, typeB, typeC));
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertEquals(ImmutableList.of("CREATE TYPE cql_test_keyspace_user_types.a(a1 varint, a2 varint, a3 varint);",
-                                      "CREATE TYPE cql_test_keyspace_user_types.b(b1 a, b2 a, b3 a);",
-                                      "CREATE TYPE cql_test_keyspace_user_types.c(c1 b, c2 b, c3 b);"),
-                     ColumnFamilyStoreCQLHelper.getUserTypesAsCQL(cfs.metadata));
+        assertEquals(ImmutableList.of("CREATE TYPE cql_test_keyspace_user_types.a (a1 varint, a2 varint, a3 varint);",
+                                      "CREATE TYPE cql_test_keyspace_user_types.b (b1 a, b2 a, b3 a);",
+                                      "CREATE TYPE cql_test_keyspace_user_types.c (c1 b, c2 b, c3 b);"),
+                     ColumnFamilyStoreCQLHelper.getUserTypesAsCQL(cfs.metadata()));
     }
 
     @Test
@@ -114,39 +111,36 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         String keyspace = "cql_test_keyspace_dropped_columns";
         String table = "test_table_dropped_columns";
 
-        CFMetaData cfm = CFMetaData.Builder.create(keyspace, table)
-                                           .addPartitionKey("pk1", IntegerType.instance)
-                                           .addClusteringColumn("ck1", IntegerType.instance)
-                                           .addRegularColumn("reg1", IntegerType.instance)
-                                           .addRegularColumn("reg2", IntegerType.instance)
-                                           .addRegularColumn("reg3", IntegerType.instance)
-                                           .build();
+        TableMetadata.Builder builder =
+            TableMetadata.builder(keyspace, table)
+                         .addPartitionKeyColumn("pk1", IntegerType.instance)
+                         .addClusteringColumn("ck1", IntegerType.instance)
+                         .addRegularColumn("reg1", IntegerType.instance)
+                         .addRegularColumn("reg2", IntegerType.instance)
+                         .addRegularColumn("reg3", IntegerType.instance);
 
+        ColumnMetadata reg1 = builder.getColumn(ByteBufferUtil.bytes("reg1"));
+        ColumnMetadata reg2 = builder.getColumn(ByteBufferUtil.bytes("reg2"));
+        ColumnMetadata reg3 = builder.getColumn(ByteBufferUtil.bytes("reg3"));
 
-        ColumnDefinition reg1 = cfm.getColumnDefinition(ByteBufferUtil.bytes("reg1"));
-        ColumnDefinition reg2 = cfm.getColumnDefinition(ByteBufferUtil.bytes("reg2"));
-        ColumnDefinition reg3 = cfm.getColumnDefinition(ByteBufferUtil.bytes("reg3"));
+        builder.removeRegularOrStaticColumn(reg1.name)
+               .removeRegularOrStaticColumn(reg2.name)
+               .removeRegularOrStaticColumn(reg3.name);
 
-        cfm.removeColumnDefinition(reg1);
-        cfm.removeColumnDefinition(reg2);
-        cfm.removeColumnDefinition(reg3);
+        builder.recordColumnDrop(reg1, 10000)
+               .recordColumnDrop(reg2, 20000)
+               .recordColumnDrop(reg3, 30000);
 
-        cfm.recordColumnDrop(reg1, 10000);
-        cfm.recordColumnDrop(reg2, 20000);
-        cfm.recordColumnDrop(reg3, 30000);
-
-        SchemaLoader.createKeyspace(keyspace,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), builder);
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
         assertEquals(ImmutableList.of("ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg1 USING TIMESTAMP 10000;",
                                       "ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg3 USING TIMESTAMP 30000;",
                                       "ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg2 USING TIMESTAMP 20000;"),
-                     ColumnFamilyStoreCQLHelper.getDroppedColumnsAsCQL(cfs.metadata));
+                     ColumnFamilyStoreCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_dropped_columns.test_table_dropped_columns (\n" +
         "\tpk1 varint,\n" +
         "\tck1 varint,\n" +
@@ -162,34 +156,32 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         String keyspace = "cql_test_keyspace_readded_columns";
         String table = "test_table_readded_columns";
 
-        CFMetaData cfm = CFMetaData.Builder.create(keyspace, table)
-                                           .addPartitionKey("pk1", IntegerType.instance)
-                                           .addClusteringColumn("ck1", IntegerType.instance)
-                                           .addRegularColumn("reg1", IntegerType.instance)
-                                           .addStaticColumn("reg2", IntegerType.instance)
-                                           .addRegularColumn("reg3", IntegerType.instance)
-                                           .build();
+        TableMetadata.Builder builder =
+            TableMetadata.builder(keyspace, table)
+                         .addPartitionKeyColumn("pk1", IntegerType.instance)
+                         .addClusteringColumn("ck1", IntegerType.instance)
+                         .addRegularColumn("reg1", IntegerType.instance)
+                         .addStaticColumn("reg2", IntegerType.instance)
+                         .addRegularColumn("reg3", IntegerType.instance);
 
-        ColumnDefinition reg1 = cfm.getColumnDefinition(ByteBufferUtil.bytes("reg1"));
-        ColumnDefinition reg2 = cfm.getColumnDefinition(ByteBufferUtil.bytes("reg2"));
+        ColumnMetadata reg1 = builder.getColumn(ByteBufferUtil.bytes("reg1"));
+        ColumnMetadata reg2 = builder.getColumn(ByteBufferUtil.bytes("reg2"));
 
-        cfm.removeColumnDefinition(reg1);
-        cfm.removeColumnDefinition(reg2);
+        builder.removeRegularOrStaticColumn(reg1.name);
+        builder.removeRegularOrStaticColumn(reg2.name);
 
-        cfm.recordColumnDrop(reg1, 10000);
-        cfm.recordColumnDrop(reg2, 20000);
+        builder.recordColumnDrop(reg1, 10000);
+        builder.recordColumnDrop(reg2, 20000);
 
-        cfm.addColumnDefinition(reg1);
-        cfm.addColumnDefinition(reg2);
+        builder.addColumn(reg1);
+        builder.addColumn(reg2);
 
-        SchemaLoader.createKeyspace(keyspace,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), builder);
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
         // when re-adding, column is present in CREATE, then in DROP and then in ADD again, to record DROP with a proper timestamp
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_readded_columns.test_table_readded_columns (\n" +
         "\tpk1 varint,\n" +
         "\tck1 varint,\n" +
@@ -202,7 +194,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns ADD reg1 varint;",
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns DROP reg2 USING TIMESTAMP 20000;",
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns ADD reg2 varint static;"),
-                     ColumnFamilyStoreCQLHelper.getDroppedColumnsAsCQL(cfs.metadata));
+                     ColumnFamilyStoreCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
     }
 
     @Test
@@ -211,24 +203,22 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         String keyspace = "cql_test_keyspace_create_table";
         String table = "test_table_create_table";
 
-        CFMetaData cfm = CFMetaData.Builder.create(keyspace, table)
-                                           .addPartitionKey("pk1", IntegerType.instance)
-                                           .addPartitionKey("pk2", AsciiType.instance)
-                                           .addClusteringColumn("ck1", ReversedType.getInstance(IntegerType.instance))
-                                           .addClusteringColumn("ck2", IntegerType.instance)
-                                           .addStaticColumn("st1", AsciiType.instance)
-                                           .addRegularColumn("reg1", AsciiType.instance)
-                                           .addRegularColumn("reg2", ListType.getInstance(IntegerType.instance, false))
-                                           .addRegularColumn("reg3", MapType.getInstance(AsciiType.instance, IntegerType.instance, true))
-                                           .build();
+        TableMetadata.Builder metadata =
+            TableMetadata.builder(keyspace, table)
+                         .addPartitionKeyColumn("pk1", IntegerType.instance)
+                         .addPartitionKeyColumn("pk2", AsciiType.instance)
+                         .addClusteringColumn("ck1", ReversedType.getInstance(IntegerType.instance))
+                         .addClusteringColumn("ck2", IntegerType.instance)
+                         .addStaticColumn("st1", AsciiType.instance)
+                         .addRegularColumn("reg1", AsciiType.instance)
+                         .addRegularColumn("reg2", ListType.getInstance(IntegerType.instance, false))
+                         .addRegularColumn("reg3", MapType.getInstance(AsciiType.instance, IntegerType.instance, true));
 
-        SchemaLoader.createKeyspace(keyspace,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), metadata);
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_create_table.test_table_create_table (\n" +
         "\tpk1 varint,\n" +
         "\tpk2 ascii,\n" +
@@ -239,7 +229,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         "\treg2 frozen<list<varint>>,\n" +
         "\treg3 map<ascii, varint>,\n" +
         "\tPRIMARY KEY ((pk1, pk2), ck1, ck2))\n" +
-        "\tWITH ID = " + cfs.metadata.cfId + "\n" +
+        "\tWITH ID = " + cfs.metadata.id + "\n" +
         "\tAND CLUSTERING ORDER BY (ck1 DESC, ck2 ASC)"));
     }
 
@@ -249,21 +239,20 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         String keyspace = "cql_test_keyspace_compact";
         String table = "test_table_compact";
 
-        CFMetaData cfm = CFMetaData.Builder.createDense(keyspace, table, true, false)
-                                           .addPartitionKey("pk1", IntegerType.instance)
-                                           .addPartitionKey("pk2", AsciiType.instance)
-                                           .addClusteringColumn("ck1", ReversedType.getInstance(IntegerType.instance))
-                                           .addClusteringColumn("ck2", IntegerType.instance)
-                                           .addRegularColumn("reg", IntegerType.instance)
-                                           .build();
+        TableMetadata.Builder metadata =
+            TableMetadata.builder(keyspace, table)
+                         .isDense(true)
+                         .addPartitionKeyColumn("pk1", IntegerType.instance)
+                         .addPartitionKeyColumn("pk2", AsciiType.instance)
+                         .addClusteringColumn("ck1", ReversedType.getInstance(IntegerType.instance))
+                         .addClusteringColumn("ck2", IntegerType.instance)
+                         .addRegularColumn("reg", IntegerType.instance);
 
-        SchemaLoader.createKeyspace(keyspace,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), metadata);
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_compact.test_table_compact (\n" +
         "\tpk1 varint,\n" +
         "\tpk2 ascii,\n" +
@@ -271,7 +260,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         "\tck2 varint,\n" +
         "\treg varint,\n" +
         "\tPRIMARY KEY ((pk1, pk2), ck1, ck2))\n" +
-        "\tWITH ID = " + cfm.cfId + "\n" +
+        "\tWITH ID = " + cfs.metadata.id + "\n" +
         "\tAND COMPACT STORAGE\n" +
         "\tAND CLUSTERING ORDER BY (ck1 DESC, ck2 ASC)"));
     }
@@ -282,21 +271,21 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         String keyspace = "cql_test_keyspace_counter";
         String table = "test_table_counter";
 
-        CFMetaData cfm = CFMetaData.Builder.createDense(keyspace, table, true, true)
-                                           .addPartitionKey("pk1", IntegerType.instance)
-                                           .addPartitionKey("pk2", AsciiType.instance)
-                                           .addClusteringColumn("ck1", ReversedType.getInstance(IntegerType.instance))
-                                           .addClusteringColumn("ck2", IntegerType.instance)
-                                           .addRegularColumn("cnt", CounterColumnType.instance)
-                                           .build();
+        TableMetadata.Builder metadata =
+            TableMetadata.builder(keyspace, table)
+                         .isDense(true)
+                         .isCounter(true)
+                         .addPartitionKeyColumn("pk1", IntegerType.instance)
+                         .addPartitionKeyColumn("pk2", AsciiType.instance)
+                         .addClusteringColumn("ck1", ReversedType.getInstance(IntegerType.instance))
+                         .addClusteringColumn("ck2", IntegerType.instance)
+                         .addRegularColumn("cnt", CounterColumnType.instance);
 
-        SchemaLoader.createKeyspace(keyspace,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), metadata);
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_counter.test_table_counter (\n" +
         "\tpk1 varint,\n" +
         "\tpk2 ascii,\n" +
@@ -304,7 +293,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         "\tck2 varint,\n" +
         "\tcnt counter,\n" +
         "\tPRIMARY KEY ((pk1, pk2), ck1, ck2))\n" +
-        "\tWITH ID = " + cfm.cfId + "\n" +
+        "\tWITH ID = " + cfs.metadata.id + "\n" +
         "\tAND COMPACT STORAGE\n" +
         "\tAND CLUSTERING ORDER BY (ck1 DESC, ck2 ASC)"));
     }
@@ -315,35 +304,32 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         String keyspace = "cql_test_keyspace_options";
         String table = "test_table_options";
 
-        CFMetaData cfm = CFMetaData.Builder.create(keyspace, table)
-                                           .addPartitionKey("pk1", IntegerType.instance)
-                                           .addClusteringColumn("cl1", IntegerType.instance)
-                                           .addRegularColumn("reg1", AsciiType.instance)
-                                           .build();
+        TableMetadata.Builder builder = TableMetadata.builder(keyspace, table);
+        builder.addPartitionKeyColumn("pk1", IntegerType.instance)
+               .addClusteringColumn("cl1", IntegerType.instance)
+               .addRegularColumn("reg1", AsciiType.instance)
+               .bloomFilterFpChance(1.0)
+               .comment("comment")
+               .compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")))
+               .compression(CompressionParams.lz4(1 << 16, 1 << 15))
+               .dcLocalReadRepairChance(0.2)
+               .crcCheckChance(0.3)
+               .defaultTimeToLive(4)
+               .gcGraceSeconds(5)
+               .minIndexInterval(6)
+               .maxIndexInterval(7)
+               .memtableFlushPeriod(8)
+               .readRepairChance(0.9)
+               .speculativeRetry(SpeculativeRetryParam.always())
+               .extensions(ImmutableMap.of("ext1", ByteBuffer.wrap("val1".getBytes())))
+               .recordColumnDrop(ColumnMetadata.regularColumn(keyspace, table, "reg1", AsciiType.instance),
+                                 FBUtilities.timestampMicros());
 
-        cfm.recordColumnDrop(cfm.getColumnDefinition(ByteBuffer.wrap("reg1".getBytes())), FBUtilities.timestampMicros());
-        cfm.bloomFilterFpChance(1.0);
-        cfm.comment("comment");
-        cfm.compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")));
-        cfm.compression(CompressionParams.lz4(1 << 16));
-        cfm.dcLocalReadRepairChance(0.2);
-        cfm.crcCheckChance(0.3);
-        cfm.defaultTimeToLive(4);
-        cfm.gcGraceSeconds(5);
-        cfm.minIndexInterval(6);
-        cfm.maxIndexInterval(7);
-        cfm.memtableFlushPeriod(8);
-        cfm.readRepairChance(0.9);
-        cfm.speculativeRetry(SpeculativeRetryParam.always());
-        cfm.extensions(ImmutableMap.of("ext1",
-                                       ByteBuffer.wrap("val1".getBytes())));
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), builder);
 
-        SchemaLoader.createKeyspace(keyspace,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).endsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).endsWith(
         "AND bloom_filter_fp_chance = 1.0\n" +
         "\tAND dclocal_read_repair_chance = 0.2\n" +
         "\tAND crc_check_chance = 0.3\n" +
@@ -357,7 +343,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         "\tAND comment = 'comment'\n" +
         "\tAND caching = { 'keys': 'ALL', 'rows_per_partition': 'NONE' }\n" +
         "\tAND compaction = { 'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy', 'sstable_size_in_mb': '1' }\n" +
-        "\tAND compression = { 'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor' }\n" +
+        "\tAND compression = { 'chunk_length_in_kb': '64', 'min_compress_ratio': '2.0', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor' }\n" +
         "\tAND cdc = false\n" +
         "\tAND extensions = { 'ext1': 0x76616c31 };"
         ));
@@ -369,52 +355,46 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         String keyspace = "cql_test_keyspace_3";
         String table = "test_table_3";
 
-        CFMetaData cfm = CFMetaData.Builder.create(keyspace, table)
-                                           .addPartitionKey("pk1", IntegerType.instance)
-                                           .addClusteringColumn("cl1", IntegerType.instance)
-                                           .addRegularColumn("reg1", AsciiType.instance)
-                                           .build();
+        TableMetadata.Builder builder =
+            TableMetadata.builder(keyspace, table)
+                         .addPartitionKeyColumn("pk1", IntegerType.instance)
+                         .addClusteringColumn("cl1", IntegerType.instance)
+                         .addRegularColumn("reg1", AsciiType.instance);
 
-        cfm.indexes(cfm.getIndexes()
-                       .with(IndexMetadata.fromIndexTargets(cfm,
-                                                            Collections.singletonList(new IndexTarget(cfm.getColumnDefinition(ByteBufferUtil.bytes("reg1")).name,
-                                                                                                      IndexTarget.Type.VALUES)),
-                                                            "indexName",
-                                                            IndexMetadata.Kind.COMPOSITES,
-                                                            Collections.emptyMap()))
-                       .with(IndexMetadata.fromIndexTargets(cfm,
-                                                            Collections.singletonList(new IndexTarget(cfm.getColumnDefinition(ByteBufferUtil.bytes("reg1")).name,
-                                                                                                      IndexTarget.Type.KEYS)),
-                                                            "indexName2",
-                                                            IndexMetadata.Kind.COMPOSITES,
-                                                            Collections.emptyMap()))
-                       .with(IndexMetadata.fromIndexTargets(cfm,
-                                                            Collections.singletonList(new IndexTarget(cfm.getColumnDefinition(ByteBufferUtil.bytes("reg1")).name,
-                                                                                                      IndexTarget.Type.KEYS_AND_VALUES)),
-                                                            "indexName3",
-                                                            IndexMetadata.Kind.COMPOSITES,
-                                                            Collections.emptyMap()))
-                       .with(IndexMetadata.fromIndexTargets(cfm,
-                                                            Collections.singletonList(new IndexTarget(cfm.getColumnDefinition(ByteBufferUtil.bytes("reg1")).name,
-                                                                                                      IndexTarget.Type.KEYS_AND_VALUES)),
-                                                            "indexName4",
-                                                            IndexMetadata.Kind.CUSTOM,
-                                                            Collections.singletonMap(IndexTarget.CUSTOM_INDEX_OPTION_NAME,
-                                                                                     SASIIndex.class.getName()))
-                       ));
+        ColumnIdentifier reg1 = ColumnIdentifier.getInterned("reg1", true);
+
+        builder.indexes(
+            Indexes.of(IndexMetadata.fromIndexTargets(
+            Collections.singletonList(new IndexTarget(reg1, IndexTarget.Type.VALUES)),
+                                                      "indexName",
+                                                      IndexMetadata.Kind.COMPOSITES,
+                                                      Collections.emptyMap()),
+                       IndexMetadata.fromIndexTargets(
+                       Collections.singletonList(new IndexTarget(reg1, IndexTarget.Type.KEYS)),
+                                                      "indexName2",
+                                                      IndexMetadata.Kind.COMPOSITES,
+                                                      Collections.emptyMap()),
+                       IndexMetadata.fromIndexTargets(
+                       Collections.singletonList(new IndexTarget(reg1, IndexTarget.Type.KEYS_AND_VALUES)),
+                                                      "indexName3",
+                                                      IndexMetadata.Kind.COMPOSITES,
+                                                      Collections.emptyMap()),
+                       IndexMetadata.fromIndexTargets(
+                       Collections.singletonList(new IndexTarget(reg1, IndexTarget.Type.KEYS_AND_VALUES)),
+                                                      "indexName4",
+                                                      IndexMetadata.Kind.CUSTOM,
+                                                      Collections.singletonMap(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName()))));
 
 
-        SchemaLoader.createKeyspace(keyspace,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), builder);
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertEquals(ImmutableList.of("CREATE INDEX \"indexName\" ON cql_test_keyspace_3.test_table_3 (reg1);",
-                                      "CREATE INDEX \"indexName2\" ON cql_test_keyspace_3.test_table_3 (reg1);",
-                                      "CREATE INDEX \"indexName3\" ON cql_test_keyspace_3.test_table_3 (reg1);",
-                                      "CREATE CUSTOM INDEX \"indexName4\" ON cql_test_keyspace_3.test_table_3 (reg1) USING 'org.apache.cassandra.index.sasi.SASIIndex';"),
-                     ColumnFamilyStoreCQLHelper.getIndexesAsCQL(cfs.metadata));
+        assertEquals(ImmutableList.of("CREATE INDEX \"indexName\" ON cql_test_keyspace_3.test_table_3 (values(reg1));",
+                                      "CREATE INDEX \"indexName2\" ON cql_test_keyspace_3.test_table_3 (keys(reg1));",
+                                      "CREATE INDEX \"indexName3\" ON cql_test_keyspace_3.test_table_3 (entries(reg1));",
+                                      "CREATE CUSTOM INDEX \"indexName4\" ON cql_test_keyspace_3.test_table_3 (entries(reg1)) USING 'org.apache.cassandra.index.sasi.SASIIndex';"),
+                     ColumnFamilyStoreCQLHelper.getIndexesAsCQL(cfs.metadata()));
     }
 
     private final static String SNAPSHOT = "testsnapshot";
@@ -447,10 +427,10 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         cfs.snapshot(SNAPSHOT);
 
         String schema = Files.toString(cfs.getDirectories().getSnapshotSchemaFile(SNAPSHOT), Charset.defaultCharset());
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s(a1 varint, a2 varint, a3 varint);", keyspace(), typeA)));
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s(a1 varint, a2 varint, a3 varint);", keyspace(), typeA)));
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s(b1 frozen<%s>, b2 frozen<%s>, b3 frozen<%s>);", keyspace(), typeB, typeA, typeA, typeA)));
-        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s(c1 frozen<%s>, c2 frozen<%s>, c3 frozen<%s>);", keyspace(), typeC, typeB, typeB, typeB)));
+        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (a1 varint, a2 varint, a3 varint);", keyspace(), typeA)));
+        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (a1 varint, a2 varint, a3 varint);", keyspace(), typeA)));
+        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (b1 frozen<%s>, b2 frozen<%s>, b3 frozen<%s>);", keyspace(), typeB, typeA, typeA, typeA)));
+        assertTrue(schema.contains(String.format("CREATE TYPE %s.%s (c1 frozen<%s>, c2 frozen<%s>, c3 frozen<%s>);", keyspace(), typeC, typeB, typeB, typeB)));
 
         schema = schema.substring(schema.indexOf("CREATE TABLE")); // trim to ensure order
 
@@ -463,7 +443,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
                                      "\treg3 int,\n" +
                                      "\treg1 " + typeC + ",\n" +
                                      "\tPRIMARY KEY ((pk1, pk2), ck1, ck2))\n" +
-                                     "\tWITH ID = " + cfs.metadata.cfId + "\n" +
+                                     "\tWITH ID = " + cfs.metadata.id + "\n" +
                                      "\tAND CLUSTERING ORDER BY (ck1 ASC, ck2 DESC)"));
 
         schema = schema.substring(schema.indexOf("ALTER"));
@@ -539,11 +519,11 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
         "\tpk1 varint PRIMARY KEY,\n" +
         "\treg1 int)\n" +
-        "\tWITH ID = " + cfs.metadata.cfId + "\n" +
+        "\tWITH ID = " + cfs.metadata.id + "\n" +
         "\tAND COMPACT STORAGE"));
     }
 
@@ -558,12 +538,12 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
         "\tpk1 varint PRIMARY KEY,\n" +
         "\treg1 int,\n" +
         "\treg2 int)\n" +
-        "\tWITH ID = " + cfs.metadata.cfId + "\n" +
+        "\tWITH ID = " + cfs.metadata.id + "\n" +
         "\tAND COMPACT STORAGE"));
     }
 
@@ -579,12 +559,12 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
         "\tpk1 varint PRIMARY KEY,\n" +
         "\treg1 counter,\n" +
         "\treg2 counter)\n" +
-        "\tWITH ID = " + cfs.metadata.cfId + "\n" +
+        "\tWITH ID = " + cfs.metadata.id + "\n" +
         "\tAND COMPACT STORAGE"));
     }
 
@@ -599,12 +579,12 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
         "\tpk1 varint,\n" +
         "\tck1 int,\n" +
         "\tPRIMARY KEY (pk1, ck1))\n" +
-        "\tWITH ID = " + cfs.metadata.cfId + "\n" +
+        "\tWITH ID = " + cfs.metadata.id + "\n" +
         "\tAND COMPACT STORAGE"));
     }
 
@@ -620,13 +600,13 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS " + keyspace() + "." + tableName + " (\n" +
         "\tpk1 varint,\n" +
         "\tck1 int,\n" +
         "\treg int,\n" +
         "\tPRIMARY KEY (pk1, ck1))\n" +
-        "\tWITH ID = " + cfs.metadata.cfId + "\n" +
+        "\tWITH ID = " + cfs.metadata.id + "\n" +
         "\tAND COMPACT STORAGE"));
     }
 
@@ -647,13 +627,13 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(DYNAMIC_COMPOSITE).getColumnFamilyStore(DYNAMIC_COMPOSITE);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS " + DYNAMIC_COMPOSITE + "." + DYNAMIC_COMPOSITE + " (\n" +
         "\tkey ascii,\n" +
         "\tcols 'org.apache.cassandra.db.marshal.DynamicCompositeType(a=>org.apache.cassandra.db.marshal.BytesType,b=>org.apache.cassandra.db.marshal.BytesType,c=>org.apache.cassandra.db.marshal.BytesType)',\n" +
         "\tval ascii,\n" +
         "\tPRIMARY KEY (key, cols))\n" +
-        "\tWITH ID = " + cfs.metadata.cfId + "\n" +
+        "\tWITH ID = " + cfs.metadata.id + "\n" +
         "\tAND COMPACT STORAGE"));
     }
 
@@ -663,20 +643,19 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         final String KEYSPACE = "thrift_compact_table_with_supercolumns_test";
         final String TABLE = "test_table_1";
 
-        CFMetaData cfm = CFMetaData.Builder.createSuper(KEYSPACE, TABLE, false)
-                                           .addPartitionKey("pk", BytesType.instance)
-                                           .addClusteringColumn("c1", AsciiType.instance)
-                                           .addClusteringColumn("c2", AsciiType.instance)
-                                           .addRegularColumn("", MapType.getInstance(Int32Type.instance, AsciiType.instance, true))
-                                           .build();
+        TableMetadata.Builder table =
+            TableMetadata.builder(KEYSPACE, TABLE)
+                         .isSuper(true)
+                         .addPartitionKeyColumn("pk", BytesType.instance)
+                         .addClusteringColumn("c1", AsciiType.instance)
+                         .addClusteringColumn("c2", AsciiType.instance)
+                         .addRegularColumn("", MapType.getInstance(Int32Type.instance, AsciiType.instance, true));
 
-        SchemaLoader.createKeyspace(KEYSPACE,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
+        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), table);
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getCFMetadataAsCQL(cfs.metadata, true).startsWith(
+        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "/*\n" +
         "Warning: Table " + KEYSPACE + "." + TABLE + " omitted because it has constructs not compatible with CQL (was created via legacy API).\n\n" +
         "Approximate structure, for reference:\n" +
@@ -687,7 +666,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         "\tc2 ascii,\n" +
         "\t\"\" map<int, ascii>,\n" +
         "\tPRIMARY KEY (pk, c1, c2))\n" +
-        "\tWITH ID = " + cfs.metadata.cfId + "\n" +
+        "\tWITH ID = " + cfs.metadata.id + "\n" +
         "\tAND COMPACT STORAGE"));
     }
 }

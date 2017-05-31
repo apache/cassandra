@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.util.Calendar;
+import java.util.Locale;
+import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,6 +29,7 @@ import org.apache.cassandra.serializers.MarshalException;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.commons.lang3.time.DateUtils.MILLIS_PER_DAY;
 
 /**
  * Represents a duration. A durations store separately months, days, and seconds due to the fact that
@@ -265,6 +269,53 @@ public final class Duration
         return nanoseconds;
     }
 
+    /**
+     * Adds this duration to the specified time in milliseconds.
+     * @param timeInMillis the time to which the duration must be added
+     * @return the specified time plus this duration
+     */
+    public long addTo(long timeInMillis)
+    {
+        return add(timeInMillis, months, days, nanoseconds);
+    }
+
+    /**
+     * Substracts this duration from the specified time in milliseconds.
+     * @param timeInMillis the time from which the duration must be substracted
+     * @return the specified time minus this duration
+     */
+    public long substractFrom(long timeInMillis)
+    {
+        return add(timeInMillis, -months, -days, -nanoseconds);
+    }
+
+    /**
+     * Adds the specified months, days and nanoseconds to the specified time in milliseconds.
+     *
+     * @param timeInMillis the time to which the months, days and nanoseconds must be added
+     * @param months the number of months to add
+     * @param days the number of days to add
+     * @param nanoseconds the number of nanoseconds to add
+     * @return the specified time plus the months, days and nanoseconds
+     */
+    private static long add(long timeInMillis, int months, int days, long nanoseconds)
+    {
+        // If the duration does not contains any months we can can ignore daylight saving,
+        // as time zones are not supported, and simply look at the milliseconds
+        if (months == 0)
+        {
+            long durationInMillis = (days * MILLIS_PER_DAY) + (nanoseconds / NANOS_PER_MILLI);
+            return timeInMillis + durationInMillis;
+        }
+
+        Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.US);
+        calendar.setTimeInMillis(timeInMillis);
+        calendar.add(Calendar.MONTH, months);
+        calendar.add(Calendar.DAY_OF_MONTH, days);
+        calendar.add(Calendar.MILLISECOND, (int) (nanoseconds / NANOS_PER_MILLI));
+        return calendar.getTimeInMillis();
+    }
+
     @Override
     public int hashCode()
     {
@@ -306,6 +357,27 @@ public final class Duration
             append(builder, remainder, 1, "ns");
         }
         return builder.toString();
+    }
+
+    /**
+     * Checks if that duration has a day precision (nothing bellow the day level).
+     * @return {@code true} if that duration has a day precision, {@code false} otherwise
+     */
+    public boolean hasDayPrecision()
+    {
+        return getNanoseconds() == 0;
+    }
+
+    /**
+     * Checks if that duration has a millisecond precision (nothing bellow the millisecond level).
+     * @return {@code true} if that duration has a millisecond precision, {@code false} otherwise
+     */
+    public boolean hasMillisecondPrecision()
+    {
+        // Checks that the duration has no data bellow milliseconds. We can do that by checking that the last
+        // 6 bits of the number of nanoseconds are all zeros. The compiler will replace the call to
+        // numberOfTrailingZeros by a TZCNT instruction.
+        return Long.numberOfTrailingZeros(getNanoseconds()) >= 6;
     }
 
     /**

@@ -98,5 +98,4 @@ appender reference in the root level section below.
   </root>
 
   <logger name="org.apache.cassandra" level="DEBUG"/>
-  <logger name="com.thinkaurelius.thrift" level="ERROR"/>
 </configuration>

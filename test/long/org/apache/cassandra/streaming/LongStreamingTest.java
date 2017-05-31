@@ -24,14 +24,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.io.Files;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
@@ -110,9 +109,9 @@ public class LongStreamingTest
                 this.ks = keyspace;
             }
 
-            public CFMetaData getTableMetadata(String cfName)
+            public TableMetadataRef getTableMetadata(String cfName)
             {
-                return Schema.instance.getCFMetaData(ks, cfName);
+                return Schema.instance.getTableMetadataRef(ks, cfName);
             }
         }, new OutputHandler.SystemOutput(false, false));
 
@@ -137,9 +136,9 @@ public class LongStreamingTest
                 this.ks = keyspace;
             }
 
-            public CFMetaData getTableMetadata(String cfName)
+            public TableMetadataRef getTableMetadata(String cfName)
             {
-                return Schema.instance.getCFMetaData(ks, cfName);
+                return Schema.instance.getTableMetadataRef(ks, cfName);
             }
         }, new OutputHandler.SystemOutput(false, false));
 

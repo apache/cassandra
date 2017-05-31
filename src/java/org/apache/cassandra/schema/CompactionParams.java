@@ -249,7 +249,7 @@ public final class CompactionParams
         return create(classFromName(className), options);
     }
 
-    private static Class<? extends AbstractCompactionStrategy> classFromName(String name)
+    public static Class<? extends AbstractCompactionStrategy> classFromName(String name)
     {
         String className = name.contains(".")
                          ? name

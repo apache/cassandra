@@ -18,17 +18,23 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
-import java.util.*;
+import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 
+import javax.annotation.Nullable;
+
+import com.google.common.primitives.Ints;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
@@ -51,10 +57,11 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 public final class Hint
 {
     public static final Serializer serializer = new Serializer();
+    static final int maxHintTTL = Integer.getInteger("cassandra.maxHintTTL", Integer.MAX_VALUE);
 
     final Mutation mutation;
     final long creationTime;  // time of hint creation (in milliseconds)
-    final int gcgs; // the smallest gc gs of all involved tables
+    final int gcgs; // the smallest gc gs of all involved tables (in seconds)
 
     private Hint(Mutation mutation, long creationTime, int gcgs)
     {
@@ -89,9 +96,9 @@ public final class Hint
     {
         if (isLive())
         {
-            // filter out partition update for table that have been truncated since hint's creation
+            // filter out partition update for tables that have been truncated since hint's creation
             Mutation filtered = mutation;
-            for (UUID id : mutation.getColumnFamilyIds())
+            for (TableId id : mutation.getTableIds())
                 if (creationTime <= SystemKeyspace.getTruncatedAt(id))
                     filtered = filtered.without(id);
 
@@ -115,13 +122,25 @@ public final class Hint
     }
 
     /**
+     * @return the overall ttl of the hint - the minimum of all mutation's tables' gc gs now and at the time of creation
+     */
+    int ttl()
+    {
+        return Math.min(gcgs, mutation.smallestGCGS());
+    }
+
+    /**
      * @return calculates whether or not it is safe to apply the hint without risking to resurrect any deleted data
      */
     boolean isLive()
     {
-        int smallestGCGS = Math.min(gcgs, mutation.smallestGCGS());
-        long expirationTime = creationTime + TimeUnit.SECONDS.toMillis(smallestGCGS);
-        return expirationTime > System.currentTimeMillis();
+        return isLive(creationTime, System.currentTimeMillis(), ttl());
+    }
+
+    static boolean isLive(long creationTime, long now, int hintTTL)
+    {
+        long expirationTime = creationTime + TimeUnit.SECONDS.toMillis(Math.min(hintTTL, maxHintTTL));
+        return expirationTime > now;
     }
 
     static final class Serializer implements IVersionedSerializer<Hint>
@@ -146,6 +165,66 @@ public final class Hint
             long creationTime = in.readLong();
             int gcgs = (int) in.readUnsignedVInt();
             return new Hint(Mutation.serializer.deserialize(in, version), creationTime, gcgs);
+        }
+
+        public long getHintCreationTime(ByteBuffer hintBuffer, int version)
+        {
+            return hintBuffer.getLong(0);
+        }
+
+        /**
+         * Will short-circuit Mutation deserialization if the hint is definitely dead. If a Hint instance is
+         * returned, there is a chance it's live, if gcgs on one of the table involved got reduced between
+         * hint creation and deserialization, but this does not impact correctness - an extra liveness check will
+         * also be performed on the receiving end.
+         *
+         * @return null if the hint is definitely dead, a Hint instance if it's likely live
+         */
+        @Nullable
+        Hint deserializeIfLive(DataInputPlus in, long now, long size, int version) throws IOException
+        {
+            long creationTime = in.readLong();
+            int gcgs = (int) in.readUnsignedVInt();
+            int bytesRead = sizeof(creationTime) + sizeofUnsignedVInt(gcgs);
+
+            if (isLive(creationTime, now, gcgs))
+                return new Hint(Mutation.serializer.deserialize(in, version), creationTime, gcgs);
+
+            in.skipBytesFully(Ints.checkedCast(size) - bytesRead);
+            return null;
+        }
+
+        /**
+         * Will short-circuit ByteBuffer allocation if the hint is definitely dead. If a ByteBuffer instance is
+         * returned, there is a chance it's live, if gcgs on one of the table involved got reduced between
+         * hint creation and deserialization, but this does not impact correctness - an extra liveness check will
+         * also be performed on the receiving end.
+         *
+         * @return null if the hint is definitely dead, a ByteBuffer instance if it's likely live
+         */
+        @Nullable
+        ByteBuffer readBufferIfLive(DataInputPlus in, long now, int size, int version) throws IOException
+        {
+            int maxHeaderSize = Math.min(sizeof(Long.MAX_VALUE) + VIntCoding.MAX_SIZE, size);
+            byte[] header = new byte[maxHeaderSize];
+            in.readFully(header);
+
+            try (DataInputBuffer input = new DataInputBuffer(header))
+            {
+                long creationTime = input.readLong();
+                int gcgs = (int) input.readUnsignedVInt();
+
+                if (!isLive(creationTime, now, gcgs))
+                {
+                    in.skipBytesFully(size - maxHeaderSize);
+                    return null;
+                }
+            }
+
+            byte[] bytes = new byte[size];
+            System.arraycopy(header, 0, bytes, 0, header.length);
+            in.readFully(bytes, header.length, size - header.length);
+            return ByteBuffer.wrap(bytes);
         }
     }
 }

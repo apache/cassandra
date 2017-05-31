@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Objects;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.context.CounterContext;
@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  */
 public abstract class AbstractCell extends Cell
 {
-    protected AbstractCell(ColumnDefinition column)
+    protected AbstractCell(ColumnMetadata column)
     {
         super(column);
     }
@@ -139,7 +139,7 @@ public abstract class AbstractCell extends Cell
             throw new MarshalException("Shoud not have a TTL without an associated local deletion time");
 
         // non-frozen UDTs require both the cell path & value to validate,
-        // so that logic is pushed down into ColumnDefinition. Tombstone
+        // so that logic is pushed down into ColumnMetadata. Tombstone
         // validation is done there too as it also involves the cell path
         // for complex columns
         column().validateCell(this);

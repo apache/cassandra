@@ -20,14 +20,12 @@ package org.apache.cassandra.streaming.messages;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.util.UUID;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.utils.UUIDSerializer;
 
 public class ReceivedMessage extends StreamMessage
 {
@@ -37,23 +35,23 @@ public class ReceivedMessage extends StreamMessage
         public ReceivedMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
         {
             DataInputPlus input = new DataInputStreamPlus(Channels.newInputStream(in));
-            return new ReceivedMessage(UUIDSerializer.serializer.deserialize(input, MessagingService.current_version), input.readInt());
+            return new ReceivedMessage(TableId.deserialize(input), input.readInt());
         }
 
         public void serialize(ReceivedMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
         {
-            UUIDSerializer.serializer.serialize(message.cfId, out, MessagingService.current_version);
+            message.tableId.serialize(out);
             out.writeInt(message.sequenceNumber);
         }
     };
 
-    public final UUID cfId;
+    public final TableId tableId;
     public final int sequenceNumber;
 
-    public ReceivedMessage(UUID cfId, int sequenceNumber)
+    public ReceivedMessage(TableId tableId, int sequenceNumber)
     {
         super(Type.RECEIVED);
-        this.cfId = cfId;
+        this.tableId = tableId;
         this.sequenceNumber = sequenceNumber;
     }
 
@@ -61,7 +59,7 @@ public class ReceivedMessage extends StreamMessage
     public String toString()
     {
         final StringBuilder sb = new StringBuilder("Received (");
-        sb.append(cfId).append(", #").append(sequenceNumber).append(')');
+        sb.append(tableId).append(", #").append(sequenceNumber).append(')');
         return sb.toString();
     }
 }

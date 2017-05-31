@@ -22,9 +22,12 @@ import java.util.List;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.commons.lang3.text.StrBuilder;
+
+import static java.util.stream.Collectors.toList;
 
 /**
  * Base class for our native/hardcoded functions.
@@ -55,6 +58,14 @@ public abstract class AbstractFunction implements Function
     public AbstractType<?> returnType()
     {
         return returnType;
+    }
+
+    public List<String> argumentsList()
+    {
+        return argTypes().stream()
+                         .map(AbstractType::asCQL3Type)
+                         .map(CQL3Type::toString)
+                         .collect(toList());
     }
 
     @Override

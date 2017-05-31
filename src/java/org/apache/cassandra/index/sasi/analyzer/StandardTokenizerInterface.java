@@ -46,7 +46,7 @@ public interface StandardTokenizerInterface
      * Resumes scanning until the next regular expression is matched,
      * the end of input is encountered or an I/O-Error occurs.
      *
-     * @return      the next token, {@link #YYEOF} on end of stream
+     * @return      the next token, {@link StandardTokenizerImpl#YYEOF} on end of stream
      * @exception   java.io.IOException  if any I/O-Error occurs
      */
     int getNextToken() throws IOException;

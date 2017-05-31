@@ -57,7 +57,7 @@ public class PartitionKeyIndex extends CassandraIndex
                                       CellPath path,
                                       ByteBuffer cellValue)
     {
-        CompositeType keyComparator = (CompositeType)baseCfs.metadata.getKeyValidator();
+        CompositeType keyComparator = (CompositeType)baseCfs.metadata().partitionKeyType;
         ByteBuffer[] components = keyComparator.split(partitionKey);
         return components[indexedColumn.position()];
     }
@@ -75,7 +75,7 @@ public class PartitionKeyIndex extends CassandraIndex
 
     public IndexEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
-        int ckCount = baseCfs.metadata.clusteringColumns().size();
+        int ckCount = baseCfs.metadata().clusteringColumns().size();
         Clustering clustering = indexEntry.clustering();
         CBuilder builder = CBuilder.create(baseCfs.getComparator());
         for (int i = 0; i < ckCount; i++)

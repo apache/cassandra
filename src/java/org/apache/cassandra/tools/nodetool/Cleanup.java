@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.airlift.command.Option;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 

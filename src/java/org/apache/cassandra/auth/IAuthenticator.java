@@ -65,12 +65,10 @@ public interface IAuthenticator
     SaslNegotiator newSaslNegotiator(InetAddress clientAddress);
 
     /**
-     * For implementations which support the Thrift login method that accepts arbitrary
-     * key/value pairs containing credentials data.
-     * Also used by CQL native protocol v1, in which username and password are sent from
-     * client to server in a {@link org.apache.cassandra.transport.messages.CredentialsMessage}
-     * Implementations where support for Thrift and CQL protocol v1 is not required should make
-     * this an unsupported operation.
+     * A legacy method that is still used by JMX authentication.
+     *
+     * You should implement this for having JMX authentication through your
+     * authenticator.
      *
      * Should never return null - always throw AuthenticationException instead.
      * Returning AuthenticatedUser.ANONYMOUS_USER is an option as well if authentication is not required.

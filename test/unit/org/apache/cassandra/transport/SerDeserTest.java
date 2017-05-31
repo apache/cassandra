@@ -32,7 +32,6 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.serializers.CollectionSerializer;
-import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.Event.TopologyChange;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.StatusChange;
@@ -315,15 +314,30 @@ public class SerDeserTest
 
     private void queryOptionsSerDeserTest(ProtocolVersion version) throws Exception
     {
-        QueryOptions options = QueryOptions.create(ConsistencyLevel.ALL,
-                                                   Collections.singletonList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 })),
-                                                   false,
-                                                   5000,
-                                                   Util.makeSomePagingState(version),
-                                                   ConsistencyLevel.SERIAL,
-                                                   version
-                                                   );
+        queryOptionsSerDeserTest(version, QueryOptions.create(ConsistencyLevel.ALL,
+                                                              Collections.singletonList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 })),
+                                                              false,
+                                                              5000,
+                                                              Util.makeSomePagingState(version),
+                                                              ConsistencyLevel.SERIAL,
+                                                              version,
+                                                              null
+        ));
 
+        queryOptionsSerDeserTest(version, QueryOptions.create(ConsistencyLevel.LOCAL_ONE,
+                                                              Arrays.asList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 }),
+                                                                            ByteBuffer.wrap(new byte[] { 0x03, 0x04, 0x05, 0x03, 0x04, 0x05 })),
+                                                              true,
+                                                              10,
+                                                              Util.makeSomePagingState(version),
+                                                              ConsistencyLevel.SERIAL,
+                                                              version,
+                                                              "some_keyspace"
+        ));
+    }
+
+    private void queryOptionsSerDeserTest(ProtocolVersion version, QueryOptions options)
+    {
         ByteBuf buf = Unpooled.buffer(QueryOptions.codec.encodedSize(options, version));
         QueryOptions.codec.encode(options, buf, version);
         QueryOptions decodedOptions = QueryOptions.codec.decode(buf, version);
@@ -336,5 +350,6 @@ public class SerDeserTest
         assertEquals(options.getValues(), decodedOptions.getValues());
         assertEquals(options.getPagingState(), decodedOptions.getPagingState());
         assertEquals(options.skipMetadata(), decodedOptions.skipMetadata());
+        assertEquals(options.getKeyspace(), decodedOptions.getKeyspace());
     }
 }

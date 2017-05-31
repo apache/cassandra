@@ -38,18 +38,18 @@ final class BloomFilterSerializer
         bf.bitset.serialize(out);
     }
 
-    public static BloomFilter deserialize(DataInput in, boolean oldBfHashOrder) throws IOException
+    public static BloomFilter deserialize(DataInput in) throws IOException
     {
-        return deserialize(in, false, oldBfHashOrder);
+        return deserialize(in, false);
     }
 
     @SuppressWarnings("resource")
-    public static BloomFilter deserialize(DataInput in, boolean offheap, boolean oldBfHashOrder) throws IOException
+    public static BloomFilter deserialize(DataInput in, boolean offheap) throws IOException
     {
         int hashes = in.readInt();
         IBitSet bs = offheap ? OffHeapBitSet.deserialize(in) : OpenBitSet.deserialize(in);
 
-        return new BloomFilter(hashes, bs, oldBfHashOrder);
+        return new BloomFilter(hashes, bs);
     }
 
     /**

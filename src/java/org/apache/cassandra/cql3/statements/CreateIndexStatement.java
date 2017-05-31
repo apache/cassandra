@@ -27,23 +27,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.IndexName;
-import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -79,20 +77,20 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
     public void validate(ClientState state) throws RequestValidationException
     {
-        CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+        TableMetadata table = Schema.instance.validateTable(keyspace(), columnFamily());
 
-        if (cfm.isCounter())
+        if (table.isCounter())
             throw new InvalidRequestException("Secondary indexes are not supported on counter tables");
 
-        if (cfm.isView())
+        if (table.isView())
             throw new InvalidRequestException("Secondary indexes are not supported on materialized views");
 
-        if (cfm.isCompactTable() && !cfm.isStaticCompactTable())
+        if (table.isCompactTable() && !table.isStaticCompactTable())
             throw new InvalidRequestException("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns");
 
         List<IndexTarget> targets = new ArrayList<>(rawTargets.size());
         for (IndexTarget.Raw rawTarget : rawTargets)
-            targets.add(rawTarget.prepare(cfm));
+            targets.add(rawTarget.prepare(table));
 
         if (targets.isEmpty() && !properties.isCustom)
             throw new InvalidRequestException("Only CUSTOM indexes can be created without specifying a target column");
@@ -102,7 +100,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
         for (IndexTarget target : targets)
         {
-            ColumnDefinition cd = cfm.getColumnDefinition(target.column);
+            ColumnMetadata cd = table.getColumn(target.column);
 
             if (cd == null)
                 throw new InvalidRequestException("No column definition found for column " + target.column);
@@ -116,10 +114,10 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             }
 
             // TODO: we could lift that limitation
-            if (cfm.isCompactTable() && cd.isPrimaryKeyColumn())
+            if (table.isCompactTable() && cd.isPrimaryKeyColumn())
                 throw new InvalidRequestException("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables");
 
-            if (cd.kind == ColumnDefinition.Kind.PARTITION_KEY && cfm.getKeyValidatorAsClusteringComparator().size() == 1)
+            if (cd.kind == ColumnMetadata.Kind.PARTITION_KEY && table.partitionKeyColumns().size() == 1)
                 throw new InvalidRequestException(String.format("Cannot create secondary index on partition key column %s", target.column));
 
             boolean isMap = cd.type instanceof MapType;
@@ -140,7 +138,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
         if (!Strings.isNullOrEmpty(indexName))
         {
-            if (Schema.instance.getKSMetaData(keyspace()).existingIndexNames(null).contains(indexName))
+            if (Schema.instance.getKeyspaceMetadata(keyspace()).existingIndexNames(null).contains(indexName))
             {
                 if (ifNotExists)
                     return;
@@ -166,7 +164,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("full() indexes can only be created on frozen collections");
     }
 
-    private void validateIsSimpleIndexIfTargetColumnNotCollection(ColumnDefinition cd, IndexTarget target) throws InvalidRequestException
+    private void validateIsSimpleIndexIfTargetColumnNotCollection(ColumnMetadata cd, IndexTarget target) throws InvalidRequestException
     {
         if (!cd.type.isCollection() && target.type != IndexTarget.Type.SIMPLE)
             throw new InvalidRequestException(String.format("Cannot create %s() index on %s. " +
@@ -197,10 +195,10 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
     public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws RequestValidationException
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
+        TableMetadata current = Schema.instance.getTableMetadata(keyspace(), columnFamily());
         List<IndexTarget> targets = new ArrayList<>(rawTargets.size());
         for (IndexTarget.Raw rawTarget : rawTargets)
-            targets.add(rawTarget.prepare(cfm));
+            targets.add(rawTarget.prepare(current));
 
         String acceptedName = indexName;
         if (Strings.isNullOrEmpty(acceptedName))
@@ -210,7 +208,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                                                          targets.size() == 1 ? targets.get(0).column.toString() : null);
         }
 
-        if (Schema.instance.getKSMetaData(keyspace()).existingIndexNames(null).contains(acceptedName))
+        if (Schema.instance.getKeyspaceMetadata(keyspace()).existingIndexNames(null).contains(acceptedName))
         {
             if (ifNotExists)
                 return null;
@@ -228,13 +226,13 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         else
         {
             indexOptions = Collections.emptyMap();
-            kind = cfm.isCompound() ? IndexMetadata.Kind.COMPOSITES : IndexMetadata.Kind.KEYS;
+            kind = current.isCompound() ? IndexMetadata.Kind.COMPOSITES : IndexMetadata.Kind.KEYS;
         }
 
-        IndexMetadata index = IndexMetadata.fromIndexTargets(cfm, targets, acceptedName, kind, indexOptions);
+        IndexMetadata index = IndexMetadata.fromIndexTargets(targets, acceptedName, kind, indexOptions);
 
         // check to disallow creation of an index which duplicates an existing one in all but name
-        Optional<IndexMetadata> existingIndex = Iterables.tryFind(cfm.getIndexes(), existing -> existing.equalsWithoutName(index));
+        Optional<IndexMetadata> existingIndex = Iterables.tryFind(current.indexes, existing -> existing.equalsWithoutName(index));
         if (existingIndex.isPresent())
         {
             if (ifNotExists)
@@ -245,10 +243,14 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                                                                 existingIndex.get().name));
         }
 
-        logger.trace("Updating index definition for {}", indexName);
-        cfm.indexes(cfm.getIndexes().with(index));
+        TableMetadata updated =
+            current.unbuild()
+                   .indexes(current.indexes.with(index))
+                   .build();
 
-        MigrationManager.announceColumnFamilyUpdate(cfm, isLocalOnly);
+        logger.trace("Updating index definition for {}", indexName);
+
+        MigrationManager.announceTableUpdate(updated, isLocalOnly);
 
         // Creating an index is akin to updating the CF
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());

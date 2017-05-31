@@ -20,9 +20,9 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -74,17 +74,16 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public abstract class CompactTables
 {
     // We use an empty value for the 1) this can't conflict with a user-defined column and 2) this actually
-    // validate with any comparator which makes it convenient for columnDefinitionComparator().
+    // validate with any comparator.
     public static final ByteBuffer SUPER_COLUMN_MAP_COLUMN = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-    public static final String SUPER_COLUMN_MAP_COLUMN_STR = UTF8Type.instance.compose(SUPER_COLUMN_MAP_COLUMN);
 
     private CompactTables() {}
 
-    public static ColumnDefinition getCompactValueColumn(PartitionColumns columns, boolean isSuper)
+    public static ColumnMetadata getCompactValueColumn(RegularAndStaticColumns columns, boolean isSuper)
     {
         if (isSuper)
         {
-            for (ColumnDefinition column : columns.regulars)
+            for (ColumnMetadata column : columns.regulars)
                 if (column.name.bytes.equals(SUPER_COLUMN_MAP_COLUMN))
                     return column;
             throw new AssertionError("Invalid super column table definition, no 'dynamic' map column");
@@ -93,64 +92,33 @@ public abstract class CompactTables
         return columns.regulars.getSimple(0);
     }
 
-    public static AbstractType<?> columnDefinitionComparator(String kind, boolean isSuper, AbstractType<?> rawComparator, AbstractType<?> rawSubComparator)
+    public static boolean hasEmptyCompactValue(TableMetadata metadata)
     {
-        if (!"regular".equals(kind))
-            return UTF8Type.instance;
-
-        return isSuper ? rawSubComparator : rawComparator;
+        return metadata.compactValueColumn.type instanceof EmptyType;
     }
 
-    public static boolean hasEmptyCompactValue(CFMetaData metadata)
+    public static boolean isSuperColumnMapColumn(ColumnMetadata column)
     {
-        return metadata.compactValueColumn().type instanceof EmptyType;
-    }
-
-    public static boolean isSuperColumnMapColumn(ColumnDefinition column)
-    {
-        return column.kind == ColumnDefinition.Kind.REGULAR && column.name.bytes.equals(SUPER_COLUMN_MAP_COLUMN);
+        return column.kind == ColumnMetadata.Kind.REGULAR && column.name.bytes.equals(SUPER_COLUMN_MAP_COLUMN);
     }
 
     public static DefaultNames defaultNameGenerator(Set<String> usedNames)
     {
-        return new DefaultNames(new HashSet<String>(usedNames));
-    }
-
-    public static DefaultNames defaultNameGenerator(Iterable<ColumnDefinition> defs)
-    {
-        Set<String> usedNames = new HashSet<>();
-        for (ColumnDefinition def : defs)
-            usedNames.add(def.name.toString());
-        return new DefaultNames(usedNames);
+        return new DefaultNames(new HashSet<>(usedNames));
     }
 
     public static class DefaultNames
     {
-        private static final String DEFAULT_PARTITION_KEY_NAME = "key";
         private static final String DEFAULT_CLUSTERING_NAME = "column";
         private static final String DEFAULT_COMPACT_VALUE_NAME = "value";
 
         private final Set<String> usedNames;
-        private int partitionIndex = 0;
         private int clusteringIndex = 1;
         private int compactIndex = 0;
 
         private DefaultNames(Set<String> usedNames)
         {
             this.usedNames = usedNames;
-        }
-
-        public String defaultPartitionKeyName()
-        {
-            while (true)
-            {
-                // For compatibility sake, we call the first alias 'key' rather than 'key1'. This
-                // is inconsistent with column alias, but it's probably not worth risking breaking compatibility now.
-                String candidate = partitionIndex == 0 ? DEFAULT_PARTITION_KEY_NAME : DEFAULT_PARTITION_KEY_NAME + (partitionIndex + 1);
-                ++partitionIndex;
-                if (usedNames.add(candidate))
-                    return candidate;
-            }
         }
 
         public String defaultClusteringName()

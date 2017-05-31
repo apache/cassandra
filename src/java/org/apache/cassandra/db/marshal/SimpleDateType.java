@@ -21,14 +21,18 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class SimpleDateType extends AbstractType<Integer>
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+
+public class SimpleDateType extends TemporalType<Integer>
 {
     public static final SimpleDateType instance = new SimpleDateType();
 
@@ -39,11 +43,13 @@ public class SimpleDateType extends AbstractType<Integer>
         return ByteBufferUtil.bytes(SimpleDateSerializer.dateStringToDays(source));
     }
 
+    @Override
     public ByteBuffer fromTimeInMillis(long millis) throws MarshalException
     {
         return ByteBufferUtil.bytes(SimpleDateSerializer.timeInMillisToDay(millis));
     }
 
+    @Override
     public long toTimeInMillis(ByteBuffer buffer) throws MarshalException
     {
         return SimpleDateSerializer.dayToTimeInMillis(ByteBufferUtil.toInt(buffer));
@@ -84,5 +90,13 @@ public class SimpleDateType extends AbstractType<Integer>
     public TypeSerializer<Integer> getSerializer()
     {
         return SimpleDateSerializer.instance;
+    }
+
+    @Override
+    protected void validateDuration(Duration duration)
+    {
+        // Checks that the duration has no data below days.
+        if (!duration.hasDayPrecision())
+            throw invalidRequest("The duration must have a day precision. Was: %s", duration);
     }
 }

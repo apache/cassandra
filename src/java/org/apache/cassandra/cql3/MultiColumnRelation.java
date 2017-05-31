@@ -21,8 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.Term.MultiColumnRaw;
 import org.apache.cassandra.cql3.Term.Raw;
 import org.apache.cassandra.cql3.restrictions.MultiColumnRestriction;
@@ -46,7 +46,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  */
 public class MultiColumnRelation extends Relation
 {
-    private final List<ColumnDefinition.Raw> entities;
+    private final List<ColumnMetadata.Raw> entities;
 
     /** A Tuples.Literal or Tuples.Raw marker */
     private final Term.MultiColumnRaw valuesOrMarker;
@@ -56,7 +56,7 @@ public class MultiColumnRelation extends Relation
 
     private final Tuples.INRaw inMarker;
 
-    private MultiColumnRelation(List<ColumnDefinition.Raw> entities, Operator relationType, Term.MultiColumnRaw valuesOrMarker, List<? extends Term.MultiColumnRaw> inValues, Tuples.INRaw inMarker)
+    private MultiColumnRelation(List<ColumnMetadata.Raw> entities, Operator relationType, Term.MultiColumnRaw valuesOrMarker, List<? extends Term.MultiColumnRaw> inValues, Tuples.INRaw inMarker)
     {
         this.entities = entities;
         this.relationType = relationType;
@@ -76,7 +76,7 @@ public class MultiColumnRelation extends Relation
      * @param valuesOrMarker a Tuples.Literal instance or a Tuples.Raw marker
      * @return a new <code>MultiColumnRelation</code> instance
      */
-    public static MultiColumnRelation createNonInRelation(List<ColumnDefinition.Raw> entities, Operator relationType, Term.MultiColumnRaw valuesOrMarker)
+    public static MultiColumnRelation createNonInRelation(List<ColumnMetadata.Raw> entities, Operator relationType, Term.MultiColumnRaw valuesOrMarker)
     {
         assert relationType != Operator.IN;
         return new MultiColumnRelation(entities, relationType, valuesOrMarker, null, null);
@@ -89,7 +89,7 @@ public class MultiColumnRelation extends Relation
      * @param inValues a list of Tuples.Literal instances or a Tuples.Raw markers
      * @return a new <code>MultiColumnRelation</code> instance
      */
-    public static MultiColumnRelation createInRelation(List<ColumnDefinition.Raw> entities, List<? extends Term.MultiColumnRaw> inValues)
+    public static MultiColumnRelation createInRelation(List<ColumnMetadata.Raw> entities, List<? extends Term.MultiColumnRaw> inValues)
     {
         return new MultiColumnRelation(entities, Operator.IN, null, inValues, null);
     }
@@ -101,12 +101,12 @@ public class MultiColumnRelation extends Relation
      * @param inMarker a single IN marker
      * @return a new <code>MultiColumnRelation</code> instance
      */
-    public static MultiColumnRelation createSingleMarkerInRelation(List<ColumnDefinition.Raw> entities, Tuples.INRaw inMarker)
+    public static MultiColumnRelation createSingleMarkerInRelation(List<ColumnMetadata.Raw> entities, Tuples.INRaw inMarker)
     {
         return new MultiColumnRelation(entities, Operator.IN, null, null, inMarker);
     }
 
-    public List<ColumnDefinition.Raw> getEntities()
+    public List<ColumnMetadata.Raw> getEntities()
     {
         return entities;
     }
@@ -133,23 +133,21 @@ public class MultiColumnRelation extends Relation
     }
 
     @Override
-    protected Restriction newEQRestriction(CFMetaData cfm,
-                                           VariableSpecifications boundNames) throws InvalidRequestException
+    protected Restriction newEQRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
-        List<ColumnDefinition> receivers = receivers(cfm);
-        Term term = toTerm(receivers, getValue(), cfm.ksName, boundNames);
+        List<ColumnMetadata> receivers = receivers(table);
+        Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
         return new MultiColumnRestriction.EQRestriction(receivers, term);
     }
 
     @Override
-    protected Restriction newINRestriction(CFMetaData cfm,
-                                           VariableSpecifications boundNames) throws InvalidRequestException
+    protected Restriction newINRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
-        List<ColumnDefinition> receivers = receivers(cfm);
-        List<Term> terms = toTerms(receivers, inValues, cfm.ksName, boundNames);
+        List<ColumnMetadata> receivers = receivers(table);
+        List<Term> terms = toTerms(receivers, inValues, table.keyspace, boundNames);
         if (terms == null)
         {
-            Term term = toTerm(receivers, getValue(), cfm.ksName, boundNames);
+            Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
             return new MultiColumnRestriction.InRestrictionWithMarker(receivers, (AbstractMarker) term);
         }
 
@@ -160,34 +158,28 @@ public class MultiColumnRelation extends Relation
     }
 
     @Override
-    protected Restriction newSliceRestriction(CFMetaData cfm,
-                                              VariableSpecifications boundNames,
-                                              Bound bound,
-                                              boolean inclusive) throws InvalidRequestException
+    protected Restriction newSliceRestriction(TableMetadata table, VariableSpecifications boundNames, Bound bound, boolean inclusive)
     {
-        List<ColumnDefinition> receivers = receivers(cfm);
-        Term term = toTerm(receivers(cfm), getValue(), cfm.ksName, boundNames);
+        List<ColumnMetadata> receivers = receivers(table);
+        Term term = toTerm(receivers(table), getValue(), table.keyspace, boundNames);
         return new MultiColumnRestriction.SliceRestriction(receivers, bound, inclusive, term);
     }
 
     @Override
-    protected Restriction newContainsRestriction(CFMetaData cfm,
-                                                 VariableSpecifications boundNames,
-                                                 boolean isKey) throws InvalidRequestException
+    protected Restriction newContainsRestriction(TableMetadata table, VariableSpecifications boundNames, boolean isKey)
     {
         throw invalidRequest("%s cannot be used for multi-column relations", operator());
     }
 
     @Override
-    protected Restriction newIsNotRestriction(CFMetaData cfm,
-                                              VariableSpecifications boundNames) throws InvalidRequestException
+    protected Restriction newIsNotRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
         // this is currently disallowed by the grammar
         throw new AssertionError(String.format("%s cannot be used for multi-column relations", operator()));
     }
 
     @Override
-    protected Restriction newLikeRestriction(CFMetaData cfm, VariableSpecifications boundNames, Operator operator) throws InvalidRequestException
+    protected Restriction newLikeRestriction(TableMetadata table, VariableSpecifications boundNames, Operator operator)
     {
         throw invalidRequest("%s cannot be used for multi-column relations", operator());
     }
@@ -203,13 +195,13 @@ public class MultiColumnRelation extends Relation
         return term;
     }
 
-    protected List<ColumnDefinition> receivers(CFMetaData cfm) throws InvalidRequestException
+    protected List<ColumnMetadata> receivers(TableMetadata table) throws InvalidRequestException
     {
-        List<ColumnDefinition> names = new ArrayList<>(getEntities().size());
+        List<ColumnMetadata> names = new ArrayList<>(getEntities().size());
         int previousPosition = -1;
-        for (ColumnDefinition.Raw raw : getEntities())
+        for (ColumnMetadata.Raw raw : getEntities())
         {
-            ColumnDefinition def = raw.prepare(cfm);
+            ColumnMetadata def = raw.prepare(table);
             checkTrue(def.isClusteringColumn(), "Multi-column relations can only be applied to clustering columns but was applied to: %s", def.name);
             checkFalse(names.contains(def), "Column \"%s\" appeared twice in a relation: %s", def.name, this);
 
@@ -223,12 +215,12 @@ public class MultiColumnRelation extends Relation
         return names;
     }
 
-    public Relation renameIdentifier(ColumnDefinition.Raw from, ColumnDefinition.Raw to)
+    public Relation renameIdentifier(ColumnMetadata.Raw from, ColumnMetadata.Raw to)
     {
         if (!entities.contains(from))
             return this;
 
-        List<ColumnDefinition.Raw> newEntities = entities.stream().map(e -> e.equals(from) ? to : e).collect(Collectors.toList());
+        List<ColumnMetadata.Raw> newEntities = entities.stream().map(e -> e.equals(from) ? to : e).collect(Collectors.toList());
         return new MultiColumnRelation(newEntities, operator(), valuesOrMarker, inValues, inMarker);
     }
 

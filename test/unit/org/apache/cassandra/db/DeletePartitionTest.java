@@ -23,7 +23,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -59,10 +59,10 @@ public class DeletePartitionTest
     public void testDeletePartition(DecoratedKey key, boolean flushBeforeRemove, boolean flushAfterRemove)
     {
         ColumnFamilyStore store = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
-        ColumnDefinition column = store.metadata.getColumnDefinition(ByteBufferUtil.bytes("val"));
+        ColumnMetadata column = store.metadata().getColumn(ByteBufferUtil.bytes("val"));
 
         // write
-        new RowUpdateBuilder(store.metadata, 0, key.getKey())
+        new RowUpdateBuilder(store.metadata(), 0, key.getKey())
                 .clustering("Column1")
                 .add("val", "asdf")
                 .build()
@@ -79,7 +79,7 @@ public class DeletePartitionTest
 
         // delete the partition
         new Mutation(KEYSPACE1, key)
-                .add(PartitionUpdate.fullPartitionDelete(store.metadata, key, 0, FBUtilities.nowInSeconds()))
+                .add(PartitionUpdate.fullPartitionDelete(store.metadata(), key, 0, FBUtilities.nowInSeconds()))
                 .applyUnsafe();
 
         if (flushAfterRemove)

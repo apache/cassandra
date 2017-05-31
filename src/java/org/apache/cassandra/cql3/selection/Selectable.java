@@ -18,21 +18,26 @@
  */
 package org.apache.cassandra.cql3.selection;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.text.StrBuilder;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.cql3.selection.Selector.Factory;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.cql3.selection.SelectorFactories.createFactoriesAndCollectColumnDefinitions;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 public interface Selectable extends AssignmentTestable
 {
-    public Selector.Factory newSelectorFactory(CFMetaData cfm, AbstractType<?> expectedType, List<ColumnDefinition> defs, VariableSpecifications boundNames);
+    public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames);
 
     /**
      * The type of the {@code Selectable} if it can be infered.
@@ -53,7 +58,7 @@ public interface Selectable extends AssignmentTestable
         return type == null ? TestResult.NOT_ASSIGNABLE : type.testAssignment(keyspace, receiver);
     }
 
-    default int addAndGetIndex(ColumnDefinition def, List<ColumnDefinition> l)
+    default int addAndGetIndex(ColumnMetadata def, List<ColumnMetadata> l)
     {
         int idx = l.indexOf(def);
         if (idx < 0)
@@ -66,7 +71,7 @@ public interface Selectable extends AssignmentTestable
 
     public static abstract class Raw
     {
-        public abstract Selectable prepare(CFMetaData cfm);
+        public abstract Selectable prepare(TableMetadata table);
 
         /**
          * Returns true if any processing is performed on the selected column.
@@ -106,7 +111,7 @@ public interface Selectable extends AssignmentTestable
             return rawTerm.testAssignment(keyspace, receiver);
         }
 
-        public Selector.Factory newSelectorFactory(CFMetaData cfm, AbstractType<?> expectedType, List<ColumnDefinition> defs, VariableSpecifications boundNames) throws InvalidRequestException
+        public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames) throws InvalidRequestException
         {
             /*
              * expectedType will be null if we have no constraint on what the type should be. For instance, if this term is a bind marker:
@@ -128,7 +133,7 @@ public interface Selectable extends AssignmentTestable
              * Lastly, note that if the term is a terminal literal, we don't have to check it's compatibility with 'expectedType' as any incompatibility
              * would have been found at preparation time.
              */
-            AbstractType<?> type = getExactTypeIfKnown(cfm.ksName);
+            AbstractType<?> type = getExactTypeIfKnown(table.keyspace);
             if (type == null)
             {
                 type = expectedType;
@@ -140,7 +145,7 @@ public interface Selectable extends AssignmentTestable
             // selection will have this name. Which isn't terribly helpful, but it's unclear how to provide
             // something a lot more helpful and in practice user can bind those markers by position or, even better,
             // use bind markers.
-            Term term = rawTerm.prepare(cfm.ksName, new ColumnSpecification(cfm.ksName, cfm.cfName, bindMarkerNameInSelection, type));
+            Term term = rawTerm.prepare(table.keyspace, new ColumnSpecification(table.keyspace, table.name, bindMarkerNameInSelection, type));
             term.collectMarkerSpecification(boundNames);
             return TermSelector.newFactory(rawTerm.getText(), term, type);
         }
@@ -154,7 +159,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public String toString()
         {
-            return rawTerm.toString();
+            return rawTerm.getText();
         }
 
         public static class Raw extends Selectable.Raw
@@ -166,7 +171,7 @@ public interface Selectable extends AssignmentTestable
                 this.term = term;
             }
 
-            public Selectable prepare(CFMetaData cfm)
+            public Selectable prepare(TableMetadata table)
             {
                 return new WithTerm(term);
             }
@@ -175,10 +180,10 @@ public interface Selectable extends AssignmentTestable
 
     public static class WritetimeOrTTL implements Selectable
     {
-        public final ColumnDefinition column;
+        public final ColumnMetadata column;
         public final boolean isWritetime;
 
-        public WritetimeOrTTL(ColumnDefinition column, boolean isWritetime)
+        public WritetimeOrTTL(ColumnMetadata column, boolean isWritetime)
         {
             this.column = column;
             this.isWritetime = isWritetime;
@@ -190,9 +195,9 @@ public interface Selectable extends AssignmentTestable
             return (isWritetime ? "writetime" : "ttl") + "(" + column.name + ")";
         }
 
-        public Selector.Factory newSelectorFactory(CFMetaData cfm,
+        public Selector.Factory newSelectorFactory(TableMetadata table,
                                                    AbstractType<?> expectedType,
-                                                   List<ColumnDefinition> defs,
+                                                   List<ColumnMetadata> defs,
                                                    VariableSpecifications boundNames)
         {
             if (column.isPrimaryKeyColumn())
@@ -214,18 +219,18 @@ public interface Selectable extends AssignmentTestable
 
         public static class Raw extends Selectable.Raw
         {
-            private final ColumnDefinition.Raw id;
+            private final ColumnMetadata.Raw id;
             private final boolean isWritetime;
 
-            public Raw(ColumnDefinition.Raw id, boolean isWritetime)
+            public Raw(ColumnMetadata.Raw id, boolean isWritetime)
             {
                 this.id = id;
                 this.isWritetime = isWritetime;
             }
 
-            public WritetimeOrTTL prepare(CFMetaData cfm)
+            public WritetimeOrTTL prepare(TableMetadata table)
             {
-                return new WritetimeOrTTL(id.prepare(cfm), isWritetime);
+                return new WritetimeOrTTL(id.prepare(table), isWritetime);
             }
         }
     }
@@ -244,16 +249,12 @@ public interface Selectable extends AssignmentTestable
         @Override
         public String toString()
         {
-            return new StrBuilder().append(function.name())
-                                   .append("(")
-                                   .appendWithSeparators(args, ", ")
-                                   .append(")")
-                                   .toString();
+            return function.columnName(args.stream().map(Object::toString).collect(Collectors.toList()));
         }
 
-        public Selector.Factory newSelectorFactory(CFMetaData cfm, AbstractType<?> expectedType, List<ColumnDefinition> defs, VariableSpecifications boundNames)
+        public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames)
         {
-            SelectorFactories factories = SelectorFactories.createFactoriesAndCollectColumnDefinitions(args, function.argTypes(), cfm, defs, boundNames);
+            SelectorFactories factories = SelectorFactories.createFactoriesAndCollectColumnDefinitions(args, function.argTypes(), table, defs, boundNames);
             return AbstractFunctionSelector.newFactory(function, factories);
         }
 
@@ -279,11 +280,23 @@ public interface Selectable extends AssignmentTestable
                                Collections.emptyList());
             }
 
-            public Selectable prepare(CFMetaData cfm)
+            public static Raw newOperation(char operator, Selectable.Raw left, Selectable.Raw right)
+            {
+                return new Raw(OperationFcts.getFunctionNameFromOperator(operator),
+                               Arrays.asList(left, right));
+            }
+
+            public static Raw newNegation(Selectable.Raw arg)
+            {
+                return new Raw(FunctionName.nativeFunction(OperationFcts.NEGATION_FUNCTION_NAME),
+                               Collections.singletonList(arg));
+            }
+
+            public Selectable prepare(TableMetadata table)
             {
                 List<Selectable> preparedArgs = new ArrayList<>(args.size());
                 for (Selectable.Raw arg : args)
-                    preparedArgs.add(arg.prepare(cfm));
+                    preparedArgs.add(arg.prepare(table));
 
                 FunctionName name = functionName;
                 // We need to circumvent the normal function lookup process for toJson() because instances of the function
@@ -306,7 +319,7 @@ public interface Selectable extends AssignmentTestable
                     preparedArgs = Collections.emptyList();
                 }
 
-                Function fun = FunctionResolver.get(cfm.ksName, name, preparedArgs, cfm.ksName, cfm.cfName, null);
+                Function fun = FunctionResolver.get(table.keyspace, name, preparedArgs, table.keyspace, table.name, null);
 
                 if (fun == null)
                     throw new InvalidRequestException(String.format("Unknown function '%s'", functionName));
@@ -338,9 +351,9 @@ public interface Selectable extends AssignmentTestable
                                    .toString();
         }
 
-        public Selector.Factory newSelectorFactory(CFMetaData cfm, AbstractType<?> expectedType, List<ColumnDefinition> defs, VariableSpecifications boundNames)
+        public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames)
         {
-            SelectorFactories factories = SelectorFactories.createFactoriesAndCollectColumnDefinitions(args, null, cfm, defs, boundNames);
+            SelectorFactories factories = SelectorFactories.createFactoriesAndCollectColumnDefinitions(args, null, table, defs, boundNames);
             Function fun = ToJsonFct.getInstance(factories.getReturnTypes());
             return AbstractFunctionSelector.newFactory(fun, factories);
         }
@@ -368,10 +381,10 @@ public interface Selectable extends AssignmentTestable
             return String.format("cast(%s as %s)", arg, type.toString().toLowerCase());
         }
 
-        public Selector.Factory newSelectorFactory(CFMetaData cfm, AbstractType<?> expectedType, List<ColumnDefinition> defs, VariableSpecifications boundNames)
+        public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames)
         {
             List<Selectable> args = Collections.singletonList(arg);
-            SelectorFactories factories = SelectorFactories.createFactoriesAndCollectColumnDefinitions(args, null, cfm, defs, boundNames);
+            SelectorFactories factories = SelectorFactories.createFactoriesAndCollectColumnDefinitions(args, null, table, defs, boundNames);
 
             Selector.Factory factory = factories.get(0);
 
@@ -380,7 +393,7 @@ public interface Selectable extends AssignmentTestable
                 return factory;
 
             FunctionName name = FunctionName.nativeFunction(CastFcts.getFunctionName(type));
-            Function fun = FunctionResolver.get(cfm.ksName, name, args, cfm.ksName, cfm.cfName, null);
+            Function fun = FunctionResolver.get(table.keyspace, name, args, table.keyspace, table.name, null);
 
             if (fun == null)
             {
@@ -407,9 +420,9 @@ public interface Selectable extends AssignmentTestable
                 this.type = type;
             }
 
-            public WithCast prepare(CFMetaData cfm)
+            public WithCast prepare(TableMetadata table)
             {
-                return new WithCast(arg.prepare(cfm), type);
+                return new WithCast(arg.prepare(table), type);
             }
         }
     }
@@ -431,10 +444,19 @@ public interface Selectable extends AssignmentTestable
             return String.format("%s.%s", selected, field);
         }
 
-        public Selector.Factory newSelectorFactory(CFMetaData cfm, AbstractType<?> expectedType, List<ColumnDefinition> defs, VariableSpecifications boundNames)
+        public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames)
         {
-            Selector.Factory factory = selected.newSelectorFactory(cfm, null, defs, boundNames);
-            AbstractType<?> type = factory.getColumnSpecification(cfm).type;
+            AbstractType<?> expectedUdtType = null;
+
+            // If the UDT is between parentheses, we know that it is not a tuple with a single element.
+            if (selected instanceof BetweenParenthesesOrWithTuple)
+            {
+                BetweenParenthesesOrWithTuple betweenParentheses = (BetweenParenthesesOrWithTuple) selected;
+                expectedUdtType = betweenParentheses.selectables.get(0).getExactTypeIfKnown(table.keyspace);
+            }
+
+            Selector.Factory factory = selected.newSelectorFactory(table, expectedUdtType, defs, boundNames);
+            AbstractType<?> type = factory.getColumnSpecification(table).type;
             if (!type.isUDT())
             {
                 throw new InvalidRequestException(
@@ -479,10 +501,615 @@ public interface Selectable extends AssignmentTestable
                 this.field = field;
             }
 
-            public WithFieldSelection prepare(CFMetaData cfm)
+            public WithFieldSelection prepare(TableMetadata table)
             {
-                return new WithFieldSelection(selected.prepare(cfm), field);
+                return new WithFieldSelection(selected.prepare(table), field);
             }
+        }
+    }
+
+    /**
+     * {@code Selectable} for {@code Selectable} between parentheses or tuples.
+     * <p>The parser cannot differentiate between a single element between parentheses or a single element tuple.
+     * By consequence, we are forced to wait until the type is known to be able to differentiate them.</p>
+     */
+    public static class BetweenParenthesesOrWithTuple implements Selectable
+    {
+        /**
+         * The tuple elements or the element between the parentheses
+         */
+        private final List<Selectable> selectables;
+
+        public BetweenParenthesesOrWithTuple(List<Selectable> selectables)
+        {
+            this.selectables = selectables;
+        }
+
+        @Override
+        public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+        {
+            if (selectables.size() == 1 && !receiver.type.isTuple())
+                return selectables.get(0).testAssignment(keyspace, receiver);
+
+            return Tuples.testTupleAssignment(receiver, selectables);
+        }
+
+        @Override
+        public Factory newSelectorFactory(TableMetadata cfm,
+                                          AbstractType<?> expectedType,
+                                          List<ColumnMetadata> defs,
+                                          VariableSpecifications boundNames)
+        {
+            AbstractType<?> type = getExactTypeIfKnown(cfm.keyspace);
+            if (type == null)
+            {
+                type = expectedType;
+                if (type == null)
+                    throw invalidRequest("Cannot infer type for term %s in selection clause (try using a cast to force a type)",
+                                         this);
+            }
+
+            if (selectables.size() == 1 && !type.isTuple())
+                return newBetweenParenthesesSelectorFactory(cfm, expectedType, defs, boundNames);
+
+            return newTupleSelectorFactory(cfm, (TupleType) type, defs, boundNames);
+        }
+
+        private Factory newBetweenParenthesesSelectorFactory(TableMetadata cfm,
+                                                             AbstractType<?> expectedType,
+                                                             List<ColumnMetadata> defs,
+                                                             VariableSpecifications boundNames)
+        {
+            Selectable selectable = selectables.get(0);
+            final Factory factory = selectable.newSelectorFactory(cfm, expectedType, defs, boundNames);
+
+            return new ForwardingFactory()
+            {
+                protected Factory delegate()
+                {
+                    return factory;
+                }
+
+                protected String getColumnName()
+                {
+                    return String.format("(%s)", factory.getColumnName());
+                }
+            };
+        }
+
+        private Factory newTupleSelectorFactory(TableMetadata cfm,
+                                                TupleType tupleType,
+                                                List<ColumnMetadata> defs,
+                                                VariableSpecifications boundNames)
+        {
+            SelectorFactories factories = createFactoriesAndCollectColumnDefinitions(selectables,
+                                                                                     tupleType.allTypes(),
+                                                                                     cfm,
+                                                                                     defs,
+                                                                                     boundNames);
+
+            return TupleSelector.newFactory(tupleType, factories);
+        }
+
+        @Override
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            // If there is only one element we cannot know if it is an element between parentheses or a tuple
+            // with only one element. By consequence, we need to force the user to specify the type.
+            if (selectables.size() == 1)
+                return null;
+
+            return Tuples.getExactTupleTypeIfKnown(selectables, p -> p.getExactTypeIfKnown(keyspace));
+        }
+
+        @Override
+        public String toString()
+        {
+            return Tuples.tupleToString(selectables);
+        }
+
+        public static class Raw extends Selectable.Raw
+        {
+            private final List<Selectable.Raw> raws;
+
+            public Raw(List<Selectable.Raw> raws)
+            {
+                this.raws = raws;
+            }
+
+            public Selectable prepare(TableMetadata cfm)
+            {
+                return new BetweenParenthesesOrWithTuple(raws.stream().map(p -> p.prepare(cfm)).collect(Collectors.toList()));
+            }
+        }
+    }
+
+    /**
+     * <code>Selectable</code> for literal Lists.
+     */
+    public static class WithList implements Selectable
+    {
+        /**
+         * The list elements
+         */
+        private final List<Selectable> selectables;
+
+        public WithList(List<Selectable> selectables)
+        {
+            this.selectables = selectables;
+        }
+
+        @Override
+        public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+        {
+            return Lists.testListAssignment(receiver, selectables);
+        }
+
+        @Override
+        public Factory newSelectorFactory(TableMetadata cfm,
+                                          AbstractType<?> expectedType,
+                                          List<ColumnMetadata> defs,
+                                          VariableSpecifications boundNames)
+        {
+            AbstractType<?> type = getExactTypeIfKnown(cfm.keyspace);
+            if (type == null)
+            {
+                type = expectedType;
+                if (type == null)
+                    throw invalidRequest("Cannot infer type for term %s in selection clause (try using a cast to force a type)",
+                                         this);
+            }
+
+            ListType<?> listType = (ListType<?>) type;
+
+            List<AbstractType<?>> expectedTypes = new ArrayList<>(selectables.size());
+            for (int i = 0, m = selectables.size(); i < m; i++)
+                expectedTypes.add(listType.getElementsType());
+
+            SelectorFactories factories = createFactoriesAndCollectColumnDefinitions(selectables,
+                                                                                     expectedTypes,
+                                                                                     cfm,
+                                                                                     defs,
+                                                                                     boundNames);
+            return ListSelector.newFactory(type, factories);
+        }
+
+        @Override
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            return Lists.getExactListTypeIfKnown(selectables, p -> p.getExactTypeIfKnown(keyspace));
+        }
+
+        @Override
+        public String toString()
+        {
+            return Lists.listToString(selectables);
+        }
+
+        public static class Raw extends Selectable.Raw
+        {
+            private final List<Selectable.Raw> raws;
+
+            public Raw(List<Selectable.Raw> raws)
+            {
+                this.raws = raws;
+            }
+
+            public Selectable prepare(TableMetadata cfm)
+            {
+                return new WithList(raws.stream().map(p -> p.prepare(cfm)).collect(Collectors.toList()));
+            }
+        }
+    }
+
+    /**
+     * <code>Selectable</code> for literal Sets.
+     */
+    public static class WithSet implements Selectable
+    {
+        /**
+         * The set elements
+         */
+        private final List<Selectable> selectables;
+
+        public WithSet(List<Selectable> selectables)
+        {
+            this.selectables = selectables;
+        }
+
+        @Override
+        public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+        {
+            return Sets.testSetAssignment(receiver, selectables);
+        }
+
+        @Override
+        public Factory newSelectorFactory(TableMetadata cfm,
+                                          AbstractType<?> expectedType,
+                                          List<ColumnMetadata> defs,
+                                          VariableSpecifications boundNames)
+        {
+            AbstractType<?> type = getExactTypeIfKnown(cfm.keyspace);
+            if (type == null)
+            {
+                type = expectedType;
+                if (type == null)
+                    throw invalidRequest("Cannot infer type for term %s in selection clause (try using a cast to force a type)",
+                                         this);
+            }
+
+            // The parser treats empty Maps as Sets so if the type is a MapType we know that the Map is empty
+            if (type instanceof MapType)
+                return MapSelector.newFactory(type, Collections.emptyList());
+
+            SetType<?> setType = (SetType<?>) type;
+
+            if (setType.getElementsType() == DurationType.instance)
+                throw invalidRequest("Durations are not allowed inside sets: %s", setType.asCQL3Type());
+
+            List<AbstractType<?>> expectedTypes = new ArrayList<>(selectables.size());
+            for (int i = 0, m = selectables.size(); i < m; i++)
+                expectedTypes.add(setType.getElementsType());
+
+            SelectorFactories factories = createFactoriesAndCollectColumnDefinitions(selectables,
+                                                                                     expectedTypes,
+                                                                                     cfm,
+                                                                                     defs,
+                                                                                     boundNames);
+
+            return SetSelector.newFactory(type, factories);
+        }
+
+        @Override
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            return Sets.getExactSetTypeIfKnown(selectables, p -> p.getExactTypeIfKnown(keyspace));
+        }
+
+        @Override
+        public String toString()
+        {
+            return Sets.setToString(selectables);
+        }
+
+        public static class Raw extends Selectable.Raw
+        {
+            private final List<Selectable.Raw> raws;
+
+            public Raw(List<Selectable.Raw> raws)
+            {
+                this.raws = raws;
+            }
+
+            public Selectable prepare(TableMetadata cfm)
+            {
+                return new WithSet(raws.stream().map(p -> p.prepare(cfm)).collect(Collectors.toList()));
+            }
+        }
+    }
+
+    /**
+     * {@code Selectable} for literal Maps or UDTs.
+     * <p>The parser cannot differentiate between a Map or a UDT in the selection cause because a
+     * {@code ColumnMetadata} is equivalent to a {@code FieldIdentifier} from a syntax point of view.
+     * By consequence, we are forced to wait until the type is known to be able to differentiate them.</p>
+     */
+    public static class WithMapOrUdt implements Selectable
+    {
+        /**
+         * The column family metadata. We need to store them to be able to build the proper data once the type has been
+         * identified.
+         */
+        private final TableMetadata cfm;
+
+        /**
+         * The Map or UDT raw elements.
+         */
+        private final List<Pair<Selectable.Raw, Selectable.Raw>> raws;
+
+        public WithMapOrUdt(TableMetadata cfm, List<Pair<Selectable.Raw, Selectable.Raw>> raws)
+        {
+            this.cfm = cfm;
+            this.raws = raws;
+        }
+
+        @Override
+        public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+        {
+            return receiver.type.isUDT() ? UserTypes.testUserTypeAssignment(receiver, getUdtFields((UserType) receiver.type))
+                                         : Maps.testMapAssignment(receiver, getMapEntries(cfm));
+        }
+
+        @Override
+        public Factory newSelectorFactory(TableMetadata cfm,
+                                          AbstractType<?> expectedType,
+                                          List<ColumnMetadata> defs,
+                                          VariableSpecifications boundNames)
+        {
+            AbstractType<?> type = getExactTypeIfKnown(cfm.keyspace);
+            if (type == null)
+            {
+                type = expectedType;
+                if (type == null)
+                    throw invalidRequest("Cannot infer type for term %s in selection clause (try using a cast to force a type)",
+                                         this);
+            }
+
+            if (type.isUDT())
+                return newUdtSelectorFactory(cfm, expectedType, defs, boundNames);
+
+            return newMapSelectorFactory(cfm, defs, boundNames, type);
+        }
+
+        private Factory newMapSelectorFactory(TableMetadata cfm,
+                                              List<ColumnMetadata> defs,
+                                              VariableSpecifications boundNames,
+                                              AbstractType<?> type)
+        {
+            MapType<?, ?> mapType = (MapType<?, ?>) type;
+
+            if (mapType.getKeysType() == DurationType.instance)
+                throw invalidRequest("Durations are not allowed as map keys: %s", mapType.asCQL3Type());
+
+            return MapSelector.newFactory(type, getMapEntries(cfm).stream()
+                                                                  .map(p -> Pair.create(p.left.newSelectorFactory(cfm, mapType.getKeysType(), defs, boundNames),
+                                                                                        p.right.newSelectorFactory(cfm, mapType.getValuesType(), defs, boundNames)))
+                                                                  .collect(Collectors.toList()));
+        }
+
+        private Factory newUdtSelectorFactory(TableMetadata cfm,
+                                              AbstractType<?> expectedType,
+                                              List<ColumnMetadata> defs,
+                                              VariableSpecifications boundNames)
+        {
+            UserType ut = (UserType) expectedType;
+            Map<FieldIdentifier, Factory> factories = new LinkedHashMap<>(ut.size());
+
+            for (Pair<Selectable.Raw, Selectable.Raw> raw : raws)
+            {
+                if (!(raw.left instanceof RawIdentifier))
+                    throw invalidRequest("%s is not a valid field identifier of type %s ",
+                                         raw.left,
+                                         ut.getNameAsString());
+
+                FieldIdentifier fieldName = ((RawIdentifier) raw.left).toFieldIdentifier();
+                int fieldPosition = ut.fieldPosition(fieldName);
+
+                if (fieldPosition == -1)
+                    throw invalidRequest("Unknown field '%s' in value of user defined type %s",
+                                         fieldName,
+                                         ut.getNameAsString());
+
+                AbstractType<?> fieldType = ut.fieldType(fieldPosition);
+                factories.put(fieldName,
+                              raw.right.prepare(cfm).newSelectorFactory(cfm, fieldType, defs, boundNames));
+            }
+
+            return UserTypeSelector.newFactory(expectedType, factories);
+        }
+
+        @Override
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            // Lets force the user to specify the type.
+            return null;
+        }
+
+        @Override
+        public String toString()
+        {
+            return raws.stream()
+                       .map(p -> String.format("%s: %s",
+                                               p.left instanceof RawIdentifier ? p.left : p.left.prepare(cfm),
+                                               p.right.prepare(cfm)))
+                       .collect(Collectors.joining(", ", "{", "}"));
+        }
+
+        private List<Pair<Selectable, Selectable>> getMapEntries(TableMetadata cfm)
+        {
+            return raws.stream()
+                       .map(p -> Pair.create(p.left.prepare(cfm), p.right.prepare(cfm)))
+                       .collect(Collectors.toList());
+        }
+
+        private Map<FieldIdentifier, Selectable> getUdtFields(UserType ut)
+        {
+            Map<FieldIdentifier, Selectable> fields = new LinkedHashMap<>(ut.size());
+
+            for (Pair<Selectable.Raw, Selectable.Raw> raw : raws)
+            {
+                if (!(raw.left instanceof RawIdentifier))
+                    throw invalidRequest("%s is not a valid field identifier of type %s ",
+                                         raw.left,
+                                         ut.getNameAsString());
+
+                FieldIdentifier fieldName = ((RawIdentifier) raw.left).toFieldIdentifier();
+                int fieldPosition = ut.fieldPosition(fieldName);
+
+                if (fieldPosition == -1)
+                    throw invalidRequest("Unknown field '%s' in value of user defined type %s",
+                                         fieldName,
+                                         ut.getNameAsString());
+
+                fields.put(fieldName, raw.right.prepare(cfm));
+            }
+
+            return fields;
+        }
+
+        public static class Raw extends Selectable.Raw
+        {
+            private final List<Pair<Selectable.Raw, Selectable.Raw>> raws;
+
+            public Raw(List<Pair<Selectable.Raw, Selectable.Raw>> raws)
+            {
+                this.raws = raws;
+            }
+
+            public Selectable prepare(TableMetadata cfm)
+            {
+                return new WithMapOrUdt(cfm, raws);
+            }
+        }
+    }
+
+    /**
+     * <code>Selectable</code> for type hints (e.g. (int) ?).
+     */
+    public static class WithTypeHint implements Selectable
+    {
+
+        /**
+         * The name of the type as specified in the query.
+         */
+        private final String typeName;
+
+        /**
+         * The type specified by the hint.
+         */
+        private final AbstractType<?> type;
+
+       /**
+         * The selectable to which the hint should be applied.
+         */
+        private final Selectable selectable;
+
+        public WithTypeHint(String typeName, AbstractType<?> type, Selectable selectable)
+        {
+            this.typeName = typeName;
+            this.type = type;
+            this.selectable = selectable;
+        }
+
+        @Override
+        public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+        {
+            if (receiver.type.equals(type))
+                return AssignmentTestable.TestResult.EXACT_MATCH;
+            else if (receiver.type.isValueCompatibleWith(type))
+                return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+            else
+                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+        }
+
+        @Override
+        public Factory newSelectorFactory(TableMetadata cfm,
+                                          AbstractType<?> expectedType,
+                                          List<ColumnMetadata> defs,
+                                          VariableSpecifications boundNames)
+        {
+            final ColumnSpecification receiver = new ColumnSpecification(cfm.keyspace, cfm.name, new ColumnIdentifier(toString(), true), type);
+
+            if (!selectable.testAssignment(cfm.keyspace, receiver).isAssignable())
+                throw new InvalidRequestException(String.format("Cannot assign value %s to %s of type %s", this, receiver.name, receiver.type.asCQL3Type()));
+
+            final Factory factory = selectable.newSelectorFactory(cfm, type, defs, boundNames);
+
+            return new ForwardingFactory()
+            {
+                protected Factory delegate()
+                {
+                    return factory;
+                }
+
+                protected AbstractType<?> getReturnType()
+                {
+                    return type;
+                }
+
+                protected String getColumnName()
+                {
+                    return String.format("(%s)%s", typeName, factory.getColumnName());
+                }
+            };
+        }
+
+        @Override
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            return type;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("(%s)%s", typeName, selectable);
+        }
+
+        public static class Raw extends Selectable.Raw
+        {
+            private final CQL3Type.Raw typeRaw;
+
+            private final Selectable.Raw raw;
+
+            public Raw( CQL3Type.Raw typeRaw, Selectable.Raw raw)
+            {
+                this.typeRaw = typeRaw;
+                this.raw = raw;
+            }
+
+            public Selectable prepare(TableMetadata cfm)
+            {
+                Selectable selectable = raw.prepare(cfm);
+                AbstractType<?> type = this.typeRaw.prepare(cfm.keyspace).getType();
+                if (type.isFreezable())
+                    type = type.freeze();
+                return new WithTypeHint(typeRaw.toString(), type, selectable);
+            }
+        }
+    }
+
+    /**
+     * In the selection clause, the parser cannot differentiate between Maps and UDTs as a column identifier and field
+     * identifier have the same syntax. By consequence, we need to wait until the type is known to create the proper
+     * Object: {@code ColumnMetadata} or {@code FieldIdentifier}.
+     */
+    public static final class RawIdentifier extends Selectable.Raw
+    {
+        private final String text;
+
+        private final boolean quoted;
+
+        /**
+         * Creates a {@code RawIdentifier} from an unquoted identifier string.
+         */
+        public static Raw forUnquoted(String text)
+        {
+            return new RawIdentifier(text, false);
+        }
+
+        /**
+         * Creates a {@code RawIdentifier} from a quoted identifier string.
+         */
+        public static Raw forQuoted(String text)
+        {
+            return new RawIdentifier(text, true);
+        }
+
+        private RawIdentifier(String text, boolean quoted)
+        {
+            this.text = text;
+            this.quoted = quoted;
+        }
+
+        @Override
+        public Selectable prepare(TableMetadata cfm)
+        {
+            ColumnMetadata.Raw raw = quoted ? ColumnMetadata.Raw.forQuoted(text)
+                                            : ColumnMetadata.Raw.forUnquoted(text);
+            return raw.prepare(cfm);
+        }
+
+        public FieldIdentifier toFieldIdentifier()
+        {
+            return quoted ? FieldIdentifier.forQuoted(text)
+                          : FieldIdentifier.forUnquoted(text);
+        }
+
+        @Override
+        public String toString()
+        {
+            return text;
         }
     }
 }

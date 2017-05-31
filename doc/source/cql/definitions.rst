@@ -119,9 +119,10 @@ Terms
 CQL has the notion of a *term*, which denotes the kind of values that CQL support. Terms are defined by:
 
 .. productionlist::
-   term: `constant` | `literal` | `function_call` | `type_hint` | `bind_marker`
+   term: `constant` | `literal` | `function_call` | `arithmetic_operation` | `type_hint` | `bind_marker`
    literal: `collection_literal` | `udt_literal` | `tuple_literal`
    function_call: `identifier` '(' [ `term` (',' `term`)* ] ')'
+   arithmetic_operation: '-' `term` | `term` ('+' | '-' | '*' | '/' | '%') `term`
    type_hint: '(' `cql_type` `)` term
    bind_marker: '?' | ':' `identifier`
 
@@ -132,6 +133,7 @@ A term is thus one of:
   (see the linked sections for details).
 - A function call: see :ref:`the section on functions <cql-functions>` for details on which :ref:`native function
   <native-functions>` exists and how to define your own :ref:`user-defined ones <udfs>`.
+- An arithmetic operation between terms. see :ref:`the section on arithmetic operations <arithmetic_operators>`
 - A *type hint*: see the :ref:`related section <type-hints>` for details.
 - A bind marker, which denotes a variable to be bound at execution time. See the section on :ref:`prepared-statements`
   for details. A bind marker can be either anonymous (``?``) or named (``:some_name``). The latter form provides a more

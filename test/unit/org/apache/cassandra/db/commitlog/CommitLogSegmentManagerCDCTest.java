@@ -29,7 +29,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Keyspace;
@@ -61,7 +61,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     {
         createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
         CommitLogSegmentManagerCDC cdcMgr = (CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager;
-        CFMetaData cfm = currentTableMetadata();
+        TableMetadata cfm = currentTableMetadata();
 
         // Confirm that logic to check for whether or not we can allocate new CDC segments works
         Integer originalCDCSize = DatabaseDescriptor.getCDCSpaceInMB();
@@ -159,7 +159,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         try
         {
             DatabaseDescriptor.setCDCSpaceInMB(16);
-            CFMetaData ccfm = Keyspace.open(keyspace()).getColumnFamilyStore(ct).metadata;
+            TableMetadata ccfm = Keyspace.open(keyspace()).getColumnFamilyStore(ct).metadata();
             // Spin until we hit CDC capacity and make sure we get a WriteTimeout
             try
             {

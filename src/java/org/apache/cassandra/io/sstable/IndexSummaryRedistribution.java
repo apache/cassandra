@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +39,7 @@ import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -57,12 +57,12 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     static final double DOWNSAMPLE_THESHOLD = 0.75;
 
     private final List<SSTableReader> compacting;
-    private final Map<UUID, LifecycleTransaction> transactions;
+    private final Map<TableId, LifecycleTransaction> transactions;
     private final long memoryPoolBytes;
     private final UUID compactionId;
     private volatile long remainingSpace;
 
-    public IndexSummaryRedistribution(List<SSTableReader> compacting, Map<UUID, LifecycleTransaction> transactions, long memoryPoolBytes)
+    public IndexSummaryRedistribution(List<SSTableReader> compacting, Map<TableId, LifecycleTransaction> transactions, long memoryPoolBytes)
     {
         this.compacting = compacting;
         this.transactions = transactions;
@@ -73,21 +73,9 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     public List<SSTableReader> redistributeSummaries() throws IOException
     {
         logger.info("Redistributing index summaries");
-        List<SSTableReader> oldFormatSSTables = new ArrayList<>();
         List<SSTableReader> redistribute = new ArrayList<>();
         for (LifecycleTransaction txn : transactions.values())
         {
-            for (SSTableReader sstable : ImmutableList.copyOf(txn.originals()))
-            {
-                // We can't change the sampling level of sstables with the old format, because the serialization format
-                // doesn't include the sampling level.  Leave this one as it is.  (See CASSANDRA-8993 for details.)
-                logger.trace("SSTable {} cannot be re-sampled due to old sstable format", sstable);
-                if (!sstable.descriptor.version.hasSamplingLevel())
-                {
-                    oldFormatSSTables.add(sstable);
-                    txn.cancel(sstable);
-                }
-            }
             redistribute.addAll(txn.originals());
         }
 
@@ -119,7 +107,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         Collections.sort(sstablesByHotness, new ReadRateComparator(readRates));
 
         long remainingBytes = memoryPoolBytes;
-        for (SSTableReader sstable : Iterables.concat(compacting, oldFormatSSTables))
+        for (SSTableReader sstable : compacting)
             remainingBytes -= sstable.getIndexSummaryOffHeapSize();
 
         logger.trace("Index summaries for compacting SSTables are using {} MB of space",
@@ -130,7 +118,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             txn.finish();
 
         total = 0;
-        for (SSTableReader sstable : Iterables.concat(compacting, oldFormatSSTables, newSSTables))
+        for (SSTableReader sstable : Iterables.concat(compacting, newSSTables))
             total += sstable.getIndexSummaryOffHeapSize();
         logger.trace("Completed resizing of index summaries; current approximate memory used: {}",
                      FBUtilities.prettyPrintMemory(total));
@@ -139,7 +127,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     }
 
     private List<SSTableReader> adjustSamplingLevels(List<SSTableReader> sstables,
-                                                     Map<UUID, LifecycleTransaction> transactions,
+                                                     Map<TableId, LifecycleTransaction> transactions,
                                                      double totalReadsPerSec, long memoryPoolCapacity) throws IOException
     {
         List<ResampleEntry> toDownsample = new ArrayList<>(sstables.size() / 4);
@@ -156,8 +144,8 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             if (isStopRequested())
                 throw new CompactionInterruptedException(getCompactionInfo());
 
-            int minIndexInterval = sstable.metadata.params.minIndexInterval;
-            int maxIndexInterval = sstable.metadata.params.maxIndexInterval;
+            int minIndexInterval = sstable.metadata().params.minIndexInterval;
+            int maxIndexInterval = sstable.metadata().params.maxIndexInterval;
 
             double readsPerSec = sstable.getReadMeter() == null ? 0.0 : sstable.getReadMeter().fifteenMinuteRate();
             long idealSpace = Math.round(remainingSpace * (readsPerSec / totalReadsPerSec));
@@ -229,7 +217,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                 logger.trace("SSTable {} is within thresholds of ideal sampling", sstable);
                 remainingSpace -= sstable.getIndexSummaryOffHeapSize();
                 newSSTables.add(sstable);
-                transactions.get(sstable.metadata.cfId).cancel(sstable);
+                transactions.get(sstable.metadata().id).cancel(sstable);
             }
             totalReadsPerSec -= readsPerSec;
         }
@@ -240,7 +228,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             toDownsample = result.right;
             newSSTables.addAll(result.left);
             for (SSTableReader sstable : result.left)
-                transactions.get(sstable.metadata.cfId).cancel(sstable);
+                transactions.get(sstable.metadata().id).cancel(sstable);
         }
 
         // downsample first, then upsample
@@ -256,10 +244,10 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             logger.trace("Re-sampling index summary for {} from {}/{} to {}/{} of the original number of entries",
                          sstable, sstable.getIndexSummarySamplingLevel(), Downsampling.BASE_SAMPLING_LEVEL,
                          entry.newSamplingLevel, Downsampling.BASE_SAMPLING_LEVEL);
-            ColumnFamilyStore cfs = Keyspace.open(sstable.metadata.ksName).getColumnFamilyStore(sstable.metadata.cfId);
+            ColumnFamilyStore cfs = Keyspace.open(sstable.metadata().keyspace).getColumnFamilyStore(sstable.metadata().id);
             SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(cfs, entry.newSamplingLevel);
             newSSTables.add(replacement);
-            transactions.get(sstable.metadata.cfId).update(replacement, true);
+            transactions.get(sstable.metadata().id).update(replacement, true);
         }
 
         return newSSTables;

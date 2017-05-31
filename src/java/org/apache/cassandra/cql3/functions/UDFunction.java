@@ -42,10 +42,9 @@ import org.slf4j.LoggerFactory;
 
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.TypeCodec;
-import com.datastax.driver.core.UserType;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
@@ -53,10 +52,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
@@ -212,7 +209,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         this.argCodecs = UDHelper.codecsFor(argDataTypes);
         this.returnCodec = UDHelper.codecFor(returnDataType);
         this.calledOnNullInput = calledOnNullInput;
-        KeyspaceMetadata keyspaceMetadata = Schema.instance.getKSMetaData(name.keyspace);
+        KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(name.keyspace);
         this.udfContext = new UDFContextImpl(argNames, argCodecs, returnCodec,
                                              keyspaceMetadata);
     }
@@ -603,37 +600,6 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     public int hashCode()
     {
         return Objects.hashCode(name, Functions.typeHashCode(argTypes), Functions.typeHashCode(returnType), returnType, language, body);
-    }
-
-    public void userTypeUpdated(String ksName, String typeName)
-    {
-        boolean updated = false;
-
-        for (int i = 0; i < argCodecs.length; i++)
-        {
-            DataType dataType = argCodecs[i].getCqlType();
-            if (dataType instanceof UserType)
-            {
-                UserType userType = (UserType) dataType;
-                if (userType.getKeyspace().equals(ksName) && userType.getTypeName().equals(typeName))
-                {
-                    KeyspaceMetadata ksm = Schema.instance.getKSMetaData(ksName);
-                    assert ksm != null;
-
-                    org.apache.cassandra.db.marshal.UserType ut = ksm.types.get(ByteBufferUtil.bytes(typeName)).get();
-
-                    DataType newUserType = UDHelper.driverType(ut);
-                    argCodecs[i] = UDHelper.codecFor(newUserType);
-
-                    argTypes.set(i, ut);
-
-                    updated = true;
-                }
-            }
-        }
-
-        if (updated)
-            MigrationManager.announceNewFunction(this, true);
     }
 
     private static class UDFClassLoader extends ClassLoader

@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
@@ -45,27 +45,27 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     /**
      * The definition of the column to which apply the restriction.
      */
-    protected final ColumnDefinition columnDef;
+    protected final ColumnMetadata columnDef;
 
-    public SingleColumnRestriction(ColumnDefinition columnDef)
+    public SingleColumnRestriction(ColumnMetadata columnDef)
     {
         this.columnDef = columnDef;
     }
 
     @Override
-    public List<ColumnDefinition> getColumnDefs()
+    public List<ColumnMetadata> getColumnDefs()
     {
         return Collections.singletonList(columnDef);
     }
 
     @Override
-    public ColumnDefinition getFirstColumn()
+    public ColumnMetadata getFirstColumn()
     {
         return columnDef;
     }
 
     @Override
-    public ColumnDefinition getLastColumn()
+    public ColumnMetadata getLastColumn()
     {
         return columnDef;
     }
@@ -125,7 +125,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     {
         private final Term value;
 
-        public EQRestriction(ColumnDefinition columnDef, Term value)
+        public EQRestriction(ColumnMetadata columnDef, Term value)
         {
             super(columnDef);
             this.value = value;
@@ -187,7 +187,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
     public static abstract class INRestriction extends SingleColumnRestriction
     {
-        public INRestriction(ColumnDefinition columnDef)
+        public INRestriction(ColumnMetadata columnDef)
         {
             super(columnDef);
         }
@@ -234,7 +234,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     {
         protected final List<Term> values;
 
-        public InRestrictionWithValues(ColumnDefinition columnDef, List<Term> values)
+        public InRestrictionWithValues(ColumnMetadata columnDef, List<Term> values)
         {
             super(columnDef);
             this.values = values;
@@ -272,7 +272,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     {
         protected final AbstractMarker marker;
 
-        public InRestrictionWithMarker(ColumnDefinition columnDef, AbstractMarker marker)
+        public InRestrictionWithMarker(ColumnMetadata columnDef, AbstractMarker marker)
         {
             super(columnDef);
             this.marker = marker;
@@ -310,7 +310,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     {
         private final TermSlice slice;
 
-        public SliceRestriction(ColumnDefinition columnDef, Bound bound, boolean inclusive, Term term)
+        public SliceRestriction(ColumnMetadata columnDef, Bound bound, boolean inclusive, Term term)
         {
             super(columnDef);
             slice = TermSlice.newInstance(bound, inclusive, term);
@@ -404,7 +404,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             return String.format("SLICE%s", slice);
         }
 
-        private SliceRestriction(ColumnDefinition columnDef, TermSlice slice)
+        private SliceRestriction(ColumnMetadata columnDef, TermSlice slice)
         {
             super(columnDef);
             this.slice = slice;
@@ -419,7 +419,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         private List<Term> entryKeys = new ArrayList<>(); // for map[key] = value
         private List<Term> entryValues = new ArrayList<>(); // for map[key] = value
 
-        public ContainsRestriction(ColumnDefinition columnDef, Term t, boolean isKey)
+        public ContainsRestriction(ColumnMetadata columnDef, Term t, boolean isKey)
         {
             super(columnDef);
             if (isKey)
@@ -428,7 +428,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                 values.add(t);
         }
 
-        public ContainsRestriction(ColumnDefinition columnDef, Term mapKey, Term mapValue)
+        public ContainsRestriction(ColumnMetadata columnDef, Term mapKey, Term mapValue)
         {
             super(columnDef);
             entryKeys.add(mapKey);
@@ -583,7 +583,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             to.entryValues.addAll(from.entryValues);
         }
 
-        private ContainsRestriction(ColumnDefinition columnDef)
+        private ContainsRestriction(ColumnMetadata columnDef)
         {
             super(columnDef);
         }
@@ -591,7 +591,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
     public static final class IsNotNullRestriction extends SingleColumnRestriction
     {
-        public IsNotNullRestriction(ColumnDefinition columnDef)
+        public IsNotNullRestriction(ColumnMetadata columnDef)
         {
             super(columnDef);
         }
@@ -652,7 +652,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         private final Operator operator;
         private final Term value;
 
-        public LikeRestriction(ColumnDefinition columnDef, Operator operator, Term value)
+        public LikeRestriction(ColumnMetadata columnDef, Operator operator, Term value)
         {
             super(columnDef);
             this.operator = operator;

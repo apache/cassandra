@@ -104,7 +104,7 @@ public class MessageOut<T>
     {
         CompactEndpointSerializationHelper.serialize(from, out);
 
-        out.writeInt(MessagingService.Verb.convertForMessagingServiceVersion(verb, version).ordinal());
+        out.writeInt(verb.getId());
         out.writeInt(parameters.size());
         for (Map.Entry<String, byte[]> entry : parameters.entrySet())
         {
@@ -134,7 +134,7 @@ public class MessageOut<T>
     {
         int size = CompactEndpointSerializationHelper.serializedSize(from);
 
-        size += TypeSizes.sizeof(verb.ordinal());
+        size += TypeSizes.sizeof(verb.getId());
         size += TypeSizes.sizeof(parameters.size());
         for (Map.Entry<String, byte[]> entry : parameters.entrySet())
         {

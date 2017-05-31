@@ -28,7 +28,6 @@ fi
 # it's just used here in constructing the classpath.
 cassandra_bin="$CASSANDRA_HOME/build/classes/main"
 cassandra_bin="$cassandra_bin:$CASSANDRA_HOME/build/classes/stress"
-cassandra_bin="$cassandra_bin:$CASSANDRA_HOME/build/classes/thrift"
 #cassandra_bin="$cassandra_home/build/cassandra.jar"
 
 # the default location for commitlogs, sstables, and saved caches

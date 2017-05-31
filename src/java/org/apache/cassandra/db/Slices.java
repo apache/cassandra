@@ -23,8 +23,8 @@ import java.util.*;
 
 import com.google.common.collect.Iterators;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -140,7 +140,7 @@ public abstract class Slices implements Iterable<Slice>
      */
     public abstract boolean intersects(List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues);
 
-    public abstract String toCQLString(CFMetaData metadata);
+    public abstract String toCQLString(TableMetadata metadata);
 
     /**
      * Checks if this <code>Slices</code> is empty.
@@ -323,7 +323,7 @@ public abstract class Slices implements Iterable<Slice>
             return size;
         }
 
-        public Slices deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
+        public Slices deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             int size = (int)in.readUnsignedVInt();
 
@@ -548,7 +548,7 @@ public abstract class Slices implements Iterable<Slice>
             return sb.append("}").toString();
         }
 
-        public String toCQLString(CFMetaData metadata)
+        public String toCQLString(TableMetadata metadata)
         {
             StringBuilder sb = new StringBuilder();
 
@@ -572,7 +572,7 @@ public abstract class Slices implements Iterable<Slice>
             boolean needAnd = false;
             for (int i = 0; i < clusteringSize; i++)
             {
-                ColumnDefinition column = metadata.clusteringColumns().get(i);
+                ColumnMetadata column = metadata.clusteringColumns().get(i);
                 List<ComponentOfSlice> componentInfo = columnComponents.get(i);
                 if (componentInfo.isEmpty())
                     break;
@@ -634,7 +634,7 @@ public abstract class Slices implements Iterable<Slice>
             return sb.toString();
         }
 
-        // An somewhat adhoc utility class only used by toCQLString
+        // An somewhat adhoc utility class only used by nameAsCQLString
         private static class ComponentOfSlice
         {
             public final boolean startInclusive;
@@ -751,7 +751,7 @@ public abstract class Slices implements Iterable<Slice>
             return "ALL";
         }
 
-        public String toCQLString(CFMetaData metadata)
+        public String toCQLString(TableMetadata metadata)
         {
             return "";
         }
@@ -826,7 +826,7 @@ public abstract class Slices implements Iterable<Slice>
             return "NONE";
         }
 
-        public String toCQLString(CFMetaData metadata)
+        public String toCQLString(TableMetadata metadata)
         {
             return "";
         }

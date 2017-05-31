@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -27,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.db.Directories;
@@ -319,6 +319,22 @@ public class CompactionTask extends AbstractCompactionTask
         return minRepairedAt;
     }
 
+    public static UUID getPendingRepair(Set<SSTableReader> sstables)
+    {
+        if (sstables.isEmpty())
+        {
+            return ActiveRepairService.NO_PENDING_REPAIR;
+        }
+        Set<UUID> ids = new HashSet<>();
+        for (SSTableReader sstable: sstables)
+            ids.add(sstable.getSSTableMetadata().pendingRepair);
+
+        if (ids.size() != 1)
+            throw new RuntimeException(String.format("Attempting to compact pending repair sstables with sstables from other repair, or sstables not pending repair: %s", ids));
+
+        return ids.iterator().next();
+    }
+
     /*
     Checks if we have enough disk space to execute the compaction.  Drops the largest sstable out of the Task until
     there's enough space (in theory) to handle the compaction.  Does not take into account space that will be taken by
@@ -333,23 +349,35 @@ public class CompactionTask extends AbstractCompactionTask
         }
 
         CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
-
+        int sstablesRemoved = 0;
         while(true)
         {
             long expectedWriteSize = cfs.getExpectedCompactedFileSize(transaction.originals(), compactionType);
             long estimatedSSTables = Math.max(1, expectedWriteSize / strategy.getMaxSSTableBytes());
 
             if(cfs.getDirectories().hasAvailableDiskSpace(estimatedSSTables, expectedWriteSize))
+            {
+                // we're ok now on space so now we track the failures, if any
+                if(sstablesRemoved > 0)
+                {
+                    CompactionManager.instance.incrementCompactionsReduced();
+                    CompactionManager.instance.incrementSstablesDropppedFromCompactions(sstablesRemoved);
+                }
+
                 break;
+            }
 
             if (!reduceScopeForLimitedSpace(expectedWriteSize))
             {
                 // we end up here if we can't take any more sstables out of the compaction.
                 // usually means we've run out of disk space
                 String msg = String.format("Not enough space for compaction, estimated sstables = %d, expected write size = %d", estimatedSSTables, expectedWriteSize);
+
                 logger.warn(msg);
+                CompactionManager.instance.incrementAborted();
                 throw new RuntimeException(msg);
             }
+            sstablesRemoved++;
             logger.warn("Not enough space for compaction, {}MB estimated.  Reducing scope.",
                             (float) expectedWriteSize / 1024 / 1024);
         }

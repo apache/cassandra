@@ -23,7 +23,7 @@ import java.util.List;
 
 import org.junit.Test;
 
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -65,7 +65,10 @@ public class InsertUpdateIfConditionTest extends CQLTester
                              "UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 = ?", unset());
 
         // Shouldn't apply
+
         assertRows(execute("UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 = ?", 4), row(false));
+        assertRows(execute("UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 IN (?, ?)", 1, 2), row(false));
+        assertRows(execute("UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 IN ?", list(1, 2)), row(false));
         assertRows(execute("UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF EXISTS"), row(false));
 
         // Should apply
@@ -81,11 +84,15 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
         // Should apply (note: we want v2 before v1 in the statement order to exercise #5786)
         assertRows(execute("UPDATE %s SET v2 = 'bar', v1 = 3 WHERE k = 0 IF v1 = ?", 2), row(true));
+        assertRows(execute("UPDATE %s SET v2 = 'bar', v1 = 2 WHERE k = 0 IF v1 IN (?, ?)", 2, 3), row(true));
+        assertRows(execute("UPDATE %s SET v2 = 'bar', v1 = 3 WHERE k = 0 IF v1 IN ?", list(2, 3)), row(true));
+        assertRows(execute("UPDATE %s SET v2 = 'bar', v1 = 3 WHERE k = 0 IF v1 IN ?", list(1, null, 3)), row(true));
         assertRows(execute("UPDATE %s SET v2 = 'bar', v1 = 3 WHERE k = 0 IF EXISTS"), row(true));
         assertRows(execute("SELECT * FROM %s"), row(0, 3, "bar", null));
 
         // Shouldn't apply, only one condition is ok
         assertRows(execute("UPDATE %s SET v1 = 5, v2 = 'foobar' WHERE k = 0 IF v1 = ? AND v2 = ?", 3, "foo"), row(false, 3, "bar"));
+        assertRows(execute("UPDATE %s SET v1 = 5, v2 = 'foobar' WHERE k = 0 IF v1 = 3 AND v2 = 'foo'"), row(false, 3, "bar"));
         assertRows(execute("SELECT * FROM %s"), row(0, 3, "bar", null));
 
         // Should apply
@@ -161,7 +168,6 @@ public class InsertUpdateIfConditionTest extends CQLTester
                              "UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 >= ?", unset());
         assertInvalidMessage("Invalid 'unset' value in condition",
                              "UPDATE %s SET v1 = 3, v2 = 'bar' WHERE k = 0 IF v1 != ?", unset());
-
     }
 
     /**
@@ -1968,23 +1974,36 @@ public class InsertUpdateIfConditionTest extends CQLTester
         String typename = createType("CREATE TYPE %s (a int, b text)");
         String myType = KEYSPACE + '.' + typename;
 
-            createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<" + myType + "> )");
+        for (boolean frozen : new boolean[] {false, true})
+        {
+            createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, v %s)",
+                                      frozen
+                                      ? "frozen<" + myType + ">"
+                                      : myType));
 
             Object v = userType("a", 0, "b", "abc");
-            execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, v);
+            execute("INSERT INTO %s (k, v) VALUES (0, ?)", v);
 
             // Does not apply
             assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType("a", 1, "b", "abc"), userType("a", 0, "b", "ac")),
                        row(false, v));
             assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType("a", 1, "b", "abc"), null),
                        row(false, v));
-            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType("a", 1, "b", "abc"), unset()),
-                       row(false, v));
             assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", null, null),
+                       row(false, v));
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType("a", 1, "b", "abc"), unset()),
                        row(false, v));
             assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", unset(), unset()),
                        row(false, v));
             assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN ?", list(userType("a", 1, "b", "abc"), userType("a", 0, "b", "ac"))),
+                       row(false, v));
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v.a IN (?, ?)", 1, 2),
+                       row(false, v));
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v.a IN (?, ?)", 1, null),
+                       row(false, v));
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v.a IN ?", list(1, 2)),
+                       row(false, v));
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v.a IN (?, ?)", 1, unset()),
                        row(false, v));
 
             // Does apply
@@ -1992,71 +2011,25 @@ public class InsertUpdateIfConditionTest extends CQLTester
                        row(true));
             assertRows(execute("UPDATE %s SET v = {a: 1, b: 'bc'} WHERE k = 0 IF v IN (?, ?)", userType("a", 0, "b", "bc"), null),
                        row(true));
-            assertRows(execute("UPDATE %s SET v = {a: 1, b: 'ac'} WHERE k = 0 IF v IN (?, ?, ?)", userType("a", 0, "b", "bc"), unset(), userType("a", 1, "b", "bc")),
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'abc'} WHERE k = 0 IF v IN ?", list(userType("a", 1, "b", "bc"), userType("a", 0, "b", "ac"))),
                        row(true));
-            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'abc'} WHERE k = 0 IF v IN ?", list(userType("a", 1, "b", "ac"), userType("a", 0, "b", "ac"))),
+            assertRows(execute("UPDATE %s SET v = {a: 1, b: 'bc'} WHERE k = 0 IF v IN (?, ?, ?)", userType("a", 1, "b", "bc"), unset(), userType("a", 0, "b", "abc")),
+                       row(true));
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v.a IN (?, ?)", 1, 0),
+                       row(true));
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'abc'} WHERE k = 0 IF v.a IN (?, ?)", 0, null),
+                       row(true));
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v.a IN ?", list(0, 1)),
+                       row(true));
+            assertRows(execute("UPDATE %s SET v = {a: 0, b: 'abc'} WHERE k = 0 IF v.a IN (?, ?, ?)", 1, unset(), 0),
                        row(true));
 
             assertInvalidMessage("Invalid null list in IN condition",
                                  "UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN ?", (List<ByteBuffer>) null);
             assertInvalidMessage("Invalid 'unset' value in condition",
                                  "UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v IN ?", unset());
-    }
-
-    @Test
-    public void testInMarkerWithLists() throws Throwable
-    {
-        for (boolean frozen : new boolean[]{false, true})
-        {
-            createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, l %s)",
-                                      frozen
-                                      ? "frozen<list<text>>"
-                                      : "list<text>"));
-
-            execute("INSERT INTO %s(k, l) VALUES (0, ['foo', 'bar', 'foobar'])");
-
-            // Does not apply
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?)", list("foo", "foobar"), list("bar", "foobar")),
-                       row(false, list("foo", "bar", "foobar")));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?)", list("foo", "foobar"), null),
-                       row(false, list("foo", "bar", "foobar")));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?)", list("foo", "foobar"), unset()),
-                       row(false, list("foo", "bar", "foobar")));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?)", null, null),
-                       row(false, list("foo", "bar", "foobar")));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN ?", list(list("foo", "foobar"), list("bar", "foobar"))),
-                       row(false, list("foo", "bar", "foobar")));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN ?", 1, list("foo", "foobar")),
-                       row(false, list("foo", "bar", "foobar")));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN (?, ?)", 1, "foo", "foobar"),
-                       row(false, list("foo", "bar", "foobar")));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN (?, ?)", 1, "foo", null),
-                       row(false, list("foo", "bar", "foobar")));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN (?, ?)", 1, "foo", unset()),
-                       row(false, list("foo", "bar", "foobar")));
-
-            // Does apply
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?)", list("foo", "bar", "foobar"), list("bar", "foobar")),
-                       row(true));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'foobar'] WHERE k = 0 IF l IN (?, ?, ?)", list("foo", "bar", "foobar"), null, list("foo", "bar")),
-                       row(true));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?, ?)", list("foo", "bar", "foobar"), unset(), list("foo", "foobar")),
-                       row(true));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'foobar'] WHERE k = 0 IF l IN (?, ?)", list("bar", "foobar"), list("foo", "bar")),
-                       row(true));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN ?", 1, list("bar", "foobar")),
-                       row(true));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'foobar'] WHERE k = 0 IF l[?] IN (?, ?, ?)", 1, "bar", null, "foobar"),
-                       row(true));
-            assertRows(execute("UPDATE %s SET l = ['foo', 'foobar'] WHERE k = 0 IF l[?] IN (?, ?, ?)", 1, "bar", unset(), "foobar"),
-                       row(true));
-
-            assertInvalidMessage("Invalid null list in IN condition",
-                                 "UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN ?", (List<ByteBuffer>) null);
             assertInvalidMessage("Invalid 'unset' value in condition",
-                                 "UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN ?", unset());
-            assertInvalidMessage("Invalid 'unset' value in condition",
-                                 "UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN ?", 1, unset());
+                                 "UPDATE %s SET v = {a: 0, b: 'bc'} WHERE k = 0 IF v.a IN ?", unset());
         }
     }
 
@@ -2154,59 +2127,59 @@ public class InsertUpdateIfConditionTest extends CQLTester
     }
 
     @Test
-    public void testInMarkerWithMaps() throws Throwable
+    public void testInMarkerWithLists() throws Throwable
     {
-        for (boolean frozen : new boolean[] {false, true})
+        for (boolean frozen : new boolean[]{false, true})
         {
-            createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)",
+            createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, l %s)",
                                       frozen
-                                      ? "frozen<map<text, text>>"
-                                      : "map<text, text>"));
+                                      ? "frozen<list<text>>"
+                                      : "list<text>"));
 
-            execute("INSERT INTO %s (k, m) VALUES (0, {'foo' : 'bar'})");
+            execute("INSERT INTO %s(k, l) VALUES (0, ['foo', 'bar', 'foobar'])");
 
             // Does not apply
-            assertRows(execute("UPDATE %s SET m = {'foo' : 'foobar'} WHERE k = 0 IF m IN (?, ?)", map("foo", "foobar"), map("bar", "foobar")),
-                       row(false, map("foo", "bar")));
-            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN (?, ?)", map("foo", "foobar"), null),
-                       row(false, map("foo", "bar")));
-            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN (?, ?)", map("foo", "foobar"), unset()),
-                       row(false, map("foo", "bar")));
-            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN (?, ?)", null, null),
-                       row(false, map("foo", "bar")));
-            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN ?", list(map("foo", "foobar"), map("bar", "foobar"))),
-                       row(false, map("foo", "bar")));
-            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN ?", "foo", list("foo", "foobar")),
-                       row(false, map("foo", "bar")));
-            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN (?, ?)", "foo", "foo", "foobar"),
-                       row(false, map("foo", "bar")));
-            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN (?, ?)", "foo", "foo", null),
-                       row(false, map("foo", "bar")));
-            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN (?, ?)", "foo", "foo", unset()),
-                       row(false, map("foo", "bar")));
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?)", list("foo", "foobar"), list("bar", "foobar")),
+                       row(false, list("foo", "bar", "foobar")));
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?)", list("foo", "foobar"), null),
+                       row(false, list("foo", "bar", "foobar")));
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?)", list("foo", "foobar"), unset()),
+                       row(false, list("foo", "bar", "foobar")));
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?)", null, null),
+                       row(false, list("foo", "bar", "foobar")));
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN ?", list(list("foo", "foobar"), list("bar", "foobar"))),
+                       row(false, list("foo", "bar", "foobar")));
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN ?", 1, list("foo", "foobar")),
+                       row(false, list("foo", "bar", "foobar")));
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN (?, ?)", 1, "foo", "foobar"),
+                       row(false, list("foo", "bar", "foobar")));
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN (?, ?)", 1, "foo", null),
+                       row(false, list("foo", "bar", "foobar")));
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN (?, ?)", 1, "foo", unset()),
+                       row(false, list("foo", "bar", "foobar")));
 
             // Does apply
-            assertRows(execute("UPDATE %s SET m = {'foo' : 'foobar'} WHERE k = 0 IF m IN (?, ?)", map("foo", "foobar"), map("foo", "bar")),
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?)", list("foo", "bar", "foobar"), list("bar", "foobar")),
                        row(true));
-            assertRows(execute("UPDATE %s SET m = {'foo' : 'bar'} WHERE k = 0 IF m IN (?, ?, ?)", map("bar", "foobar"), null, map("foo", "foobar")),
+            assertRows(execute("UPDATE %s SET l = ['foo', 'foobar'] WHERE k = 0 IF l IN (?, ?, ?)", list("foo", "bar", "foobar"), null, list("foo", "bar")),
                        row(true));
-            assertRows(execute("UPDATE %s SET m = {'foo' : 'bar'} WHERE k = 0 IF m IN (?, ?, ?)", map("bar", "foobar"), unset(), map("foo", "bar")),
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN (?, ?, ?)", list("foo", "bar", "foobar"), unset(), list("foo", "foobar")),
                        row(true));
-            assertRows(execute("UPDATE %s SET m = {'foo' : 'foobar'} WHERE k = 0 IF m IN ?", list(map("foo", "bar"), map("bar", "foobar"))),
+            assertRows(execute("UPDATE %s SET l = ['foo', 'foobar'] WHERE k = 0 IF l IN (?, ?)", list("bar", "foobar"), list("foo", "bar")),
                        row(true));
-            assertRows(execute("UPDATE %s SET m = {'foo' : 'bar'} WHERE k = 0 IF m[?] IN ?", "foo", list("bar", "foobar")),
+            assertRows(execute("UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN ?", 1, list("bar", "foobar")),
                        row(true));
-            assertRows(execute("UPDATE %s SET m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN (?, ?, ?)", "foo", "bar", null, "foobar"),
+            assertRows(execute("UPDATE %s SET l = ['foo', 'foobar'] WHERE k = 0 IF l[?] IN (?, ?, ?)", 1, "bar", null, "foobar"),
                        row(true));
-            assertRows(execute("UPDATE %s SET m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN (?, ?, ?)", "foo", "bar", unset(), "foobar"),
+            assertRows(execute("UPDATE %s SET l = ['foo', 'foobar'] WHERE k = 0 IF l[?] IN (?, ?, ?)", 1, "bar", unset(), "foobar"),
                        row(true));
 
             assertInvalidMessage("Invalid null list in IN condition",
-                                 "UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN ?", (List<ByteBuffer>) null);
+                                 "UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN ?", (List<ByteBuffer>) null);
             assertInvalidMessage("Invalid 'unset' value in condition",
-                                 "UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN ?", unset());
+                                 "UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l IN ?", unset());
             assertInvalidMessage("Invalid 'unset' value in condition",
-                                 "UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN ?", "foo", unset());
+                                 "UPDATE %s SET l = ['foo', 'bar'] WHERE k = 0 IF l[?] IN ?", 1, unset());
         }
     }
 
@@ -2268,6 +2241,63 @@ public class InsertUpdateIfConditionTest extends CQLTester
             assertRows(execute("UPDATE %s SET m = {1: 6s, 2: 12s} WHERE k = 1 IF m[1] IN (5s, 10s)"), row(true));
 
             assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, map(1, Duration.from("6s"), 2, Duration.from("12s")), 6));
+        }
+    }
+
+    @Test
+    public void testInMarkerWithMaps() throws Throwable
+    {
+        for (boolean frozen : new boolean[] {false, true})
+        {
+            createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)",
+                                      frozen
+                                      ? "frozen<map<text, text>>"
+                                      : "map<text, text>"));
+
+            execute("INSERT INTO %s (k, m) VALUES (0, {'foo' : 'bar'})");
+
+            // Does not apply
+            assertRows(execute("UPDATE %s SET m = {'foo' : 'foobar'} WHERE k = 0 IF m IN (?, ?)", map("foo", "foobar"), map("bar", "foobar")),
+                       row(false, map("foo", "bar")));
+            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN (?, ?)", map("foo", "foobar"), null),
+                       row(false, map("foo", "bar")));
+            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN (?, ?)", map("foo", "foobar"), unset()),
+                       row(false, map("foo", "bar")));
+            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN (?, ?)", null, null),
+                       row(false, map("foo", "bar")));
+            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN ?", list(map("foo", "foobar"), map("bar", "foobar"))),
+                       row(false, map("foo", "bar")));
+            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN ?", "foo", list("foo", "foobar")),
+                       row(false, map("foo", "bar")));
+            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN (?, ?)", "foo", "foo", "foobar"),
+                       row(false, map("foo", "bar")));
+            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN (?, ?)", "foo", "foo", null),
+                       row(false, map("foo", "bar")));
+            assertRows(execute("UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN (?, ?)", "foo", "foo", unset()),
+                       row(false, map("foo", "bar")));
+
+            // Does apply
+            assertRows(execute("UPDATE %s SET m = {'foo' : 'foobar'} WHERE k = 0 IF m IN (?, ?)", map("foo", "foobar"), map("foo", "bar")),
+                       row(true));
+            assertRows(execute("UPDATE %s SET m = {'foo' : 'bar'} WHERE k = 0 IF m IN (?, ?, ?)", map("bar", "foobar"), null, map("foo", "foobar")),
+                       row(true));
+            assertRows(execute("UPDATE %s SET m = {'foo' : 'bar'} WHERE k = 0 IF m IN (?, ?, ?)", map("bar", "foobar"), unset(), map("foo", "bar")),
+                       row(true));
+            assertRows(execute("UPDATE %s SET m = {'foo' : 'foobar'} WHERE k = 0 IF m IN ?", list(map("foo", "bar"), map("bar", "foobar"))),
+                       row(true));
+            assertRows(execute("UPDATE %s SET m = {'foo' : 'bar'} WHERE k = 0 IF m[?] IN ?", "foo", list("bar", "foobar")),
+                       row(true));
+            assertRows(execute("UPDATE %s SET m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN (?, ?, ?)", "foo", "bar", null, "foobar"),
+                       row(true));
+            assertRows(execute("UPDATE %s SET m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN (?, ?, ?)", "foo", "bar", unset(), "foobar"),
+                       row(true));
+
+            assertInvalidMessage("Invalid null list in IN condition",
+                                 "UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN ?", (List<ByteBuffer>) null);
+            assertInvalidMessage("Invalid 'unset' value in condition",
+                                 "UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m IN ?", unset());
+            assertInvalidMessage("Invalid 'unset' value in condition",
+                                 "UPDATE %s SET  m = {'foo' : 'foobar'} WHERE k = 0 IF m[?] IN ?", "foo", unset());
         }
     }
 

@@ -46,7 +46,15 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
     public void response(MessageIn<T> message)
     {
         if (message == null || waitingFor(message.from))
+        {
             super.response(message);
+        }
+        else
+        {
+            //WriteResponseHandler.response will call logResonseToIdealCLDelegate so only do it if not calling WriteResponseHandler.response.
+            //Must be last after all subclass processing
+            logResponseToIdealCLDelegate(message);
+        }
     }
 
     @Override

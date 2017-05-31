@@ -17,25 +17,25 @@
  */
 package org.apache.cassandra.db.rows;
 
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 
 public abstract class AbstractUnfilteredRowIterator extends AbstractIterator<Unfiltered> implements UnfilteredRowIterator
 {
-    protected final CFMetaData metadata;
+    protected final TableMetadata metadata;
     protected final DecoratedKey partitionKey;
     protected final DeletionTime partitionLevelDeletion;
-    protected final PartitionColumns columns;
+    protected final RegularAndStaticColumns columns;
     protected final Row staticRow;
     protected final boolean isReverseOrder;
     protected final EncodingStats stats;
 
-    protected AbstractUnfilteredRowIterator(CFMetaData metadata,
+    protected AbstractUnfilteredRowIterator(TableMetadata metadata,
                                             DecoratedKey partitionKey,
                                             DeletionTime partitionLevelDeletion,
-                                            PartitionColumns columns,
+                                            RegularAndStaticColumns columns,
                                             Row staticRow,
                                             boolean isReverseOrder,
                                             EncodingStats stats)
@@ -49,12 +49,12 @@ public abstract class AbstractUnfilteredRowIterator extends AbstractIterator<Unf
         this.stats = stats;
     }
 
-    public CFMetaData metadata()
+    public TableMetadata metadata()
     {
         return metadata;
     }
 
-    public PartitionColumns columns()
+    public RegularAndStaticColumns columns()
     {
         return columns;
     }

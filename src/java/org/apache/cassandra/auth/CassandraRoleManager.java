@@ -32,14 +32,13 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -162,7 +161,7 @@ public class CassandraRoleManager implements IRoleManager
         // it, so we can continue to use the old tables while the cluster is upgraded.
         // Otherwise, we may need to create a default superuser role to enable others
         // to be added.
-        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, "users") != null)
+        if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, "users") != null)
         {
             legacySelectUserStatement = prepareLegacySelectUserStatement();
 
@@ -375,16 +374,6 @@ public class CassandraRoleManager implements IRoleManager
         {
             public void run()
             {
-                // If not all nodes are on 2.2, we don't want to initialize the role manager as this will confuse 2.1
-                // nodes (see CASSANDRA-9761 for details). So we re-schedule the setup for later, hoping that the upgrade
-                // will be finished by then.
-                if (!MessagingService.instance().areAllNodesAtLeast22())
-                {
-                    logger.trace("Not all nodes are upgraded to a version that supports Roles yet, rescheduling setup task");
-                    scheduleSetupTask(setupTask);
-                    return;
-                }
-
                 isClusterReady = true;
                 try
                 {
@@ -409,7 +398,7 @@ public class CassandraRoleManager implements IRoleManager
         try
         {
             // read old data at QUORUM as it may contain the data for the default superuser
-            if (Schema.instance.getCFMetaData("system_auth", "users") != null)
+            if (Schema.instance.getTableMetadata("system_auth", "users") != null)
             {
                 logger.info("Converting legacy users");
                 UntypedResultSet users = QueryProcessor.process("SELECT * FROM system_auth.users",
@@ -424,7 +413,7 @@ public class CassandraRoleManager implements IRoleManager
                 logger.info("Completed conversion of legacy users");
             }
 
-            if (Schema.instance.getCFMetaData("system_auth", "credentials") != null)
+            if (Schema.instance.getTableMetadata("system_auth", "credentials") != null)
             {
                 logger.info("Migrating legacy credentials data to new system table");
                 UntypedResultSet credentials = QueryProcessor.process("SELECT * FROM system_auth.credentials",
@@ -494,23 +483,16 @@ public class CassandraRoleManager implements IRoleManager
      */
     private Role getRole(String name)
     {
-        try
+        // If it exists, try the legacy users table in case the cluster
+        // is in the process of being upgraded and so is running with mixed
+        // versions of the authn schema.
+        if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, "users") == null)
+            return getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
+        else
         {
-            // If it exists, try the legacy users table in case the cluster
-            // is in the process of being upgraded and so is running with mixed
-            // versions of the authn schema.
-            if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, "users") == null)
-                return getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
-            else
-            {
-                if (legacySelectUserStatement == null)
-                    legacySelectUserStatement = prepareLegacySelectUserStatement();
-                return getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE);
-            }
-        }
-        catch (RequestExecutionException | RequestValidationException e)
-        {
-            throw new RuntimeException(e);
+            if (legacySelectUserStatement == null)
+                legacySelectUserStatement = prepareLegacySelectUserStatement();
+            return getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE);
         }
     }
 

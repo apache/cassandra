@@ -29,6 +29,7 @@ import java.nio.file.Paths;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -36,13 +37,14 @@ import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
-import org.apache.cassandra.config.Config.RequestSchedulerId;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
@@ -56,11 +58,8 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.net.BackPressureStrategy;
 import org.apache.cassandra.net.RateBasedBackPressure;
-import org.apache.cassandra.scheduler.IRequestScheduler;
-import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.service.CacheService.CacheType;
-import org.apache.cassandra.thrift.ThriftServer.ThriftServerType;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.commons.lang3.StringUtils;
@@ -83,7 +82,7 @@ public class DatabaseDescriptor
     private static InetAddress rpcAddress;
     private static InetAddress broadcastRpcAddress;
     private static SeedProvider seedProvider;
-    private static IInternodeAuthenticator internodeAuthenticator;
+    private static IInternodeAuthenticator internodeAuthenticator = new AllowAllInternodeAuthenticator();
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
@@ -97,12 +96,7 @@ public class DatabaseDescriptor
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
 
-    private static IRequestScheduler requestScheduler;
-    private static RequestSchedulerId requestSchedulerId;
-    private static RequestSchedulerOptions requestSchedulerOptions;
-
     private static long preparedStatementsCacheSizeInMB;
-    private static long thriftPreparedStatementsCacheSizeInMB;
 
     private static long keyCacheSizeInMB;
     private static long counterCacheSizeInMB;
@@ -312,11 +306,7 @@ public class DatabaseDescriptor
 
         applyAddressConfig();
 
-        applyThriftHSHA();
-
         applySnitch();
-
-        applyRequestScheduler();
 
         applyInitialTokens();
 
@@ -422,9 +412,6 @@ public class DatabaseDescriptor
             logger.info("Global memtable off-heap threshold is disabled, HeapAllocator will be used instead");
         else
             logger.info("Global memtable off-heap threshold is enabled at {}MB", conf.memtable_offheap_space_in_mb);
-
-        if (conf.thrift_framed_transport_size_in_mb <= 0)
-            throw new ConfigurationException("thrift_framed_transport_size_in_mb must be positive, but was " + conf.thrift_framed_transport_size_in_mb, false);
 
         if (conf.native_transport_max_frame_size_in_mb <= 0)
             throw new ConfigurationException("native_transport_max_frame_size_in_mb must be positive, but was " + conf.native_transport_max_frame_size_in_mb, false);
@@ -575,6 +562,9 @@ public class DatabaseDescriptor
         if (conf.concurrent_compactors == null)
             conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
 
+        if (conf.concurrent_validations < 1)
+            conf.concurrent_validations = Integer.MAX_VALUE;
+
         if (conf.concurrent_compactors <= 0)
             throw new ConfigurationException("concurrent_compactors should be strictly greater than 0, but was " + conf.concurrent_compactors, false);
 
@@ -595,22 +585,6 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException("prepared_statements_cache_size_mb option was set incorrectly to '"
                                              + conf.prepared_statements_cache_size_mb + "', supported values are <integer> >= 0.", false);
-        }
-
-        try
-        {
-            // if thrift_prepared_statements_cache_size_mb option was set to "auto" then size of the cache should be "max(1/256 of Heap (in MB), 10MB)"
-            thriftPreparedStatementsCacheSizeInMB = (conf.thrift_prepared_statements_cache_size_mb == null)
-                                                    ? Math.max(10, (int) (Runtime.getRuntime().maxMemory() / 1024 / 1024 / 256))
-                                                    : conf.thrift_prepared_statements_cache_size_mb;
-
-            if (thriftPreparedStatementsCacheSizeInMB <= 0)
-                throw new NumberFormatException(); // to escape duplicating error message
-        }
-        catch (NumberFormatException e)
-        {
-            throw new ConfigurationException("thrift_prepared_statements_cache_size_mb option was set incorrectly to '"
-                                             + conf.thrift_prepared_statements_cache_size_mb + "', supported values are <integer> >= 0.", false);
         }
 
         try
@@ -653,9 +627,6 @@ public class DatabaseDescriptor
         if (indexSummaryCapacityInMB < 0)
             throw new ConfigurationException("index_summary_capacity_in_mb option was set incorrectly to '"
                                              + conf.index_summary_capacity_in_mb + "', it should be a non-negative integer.", false);
-
-        if (conf.index_interval != null)
-            logger.warn("index_interval has been deprecated and should be removed from cassandra.yaml");
 
         if(conf.encryption_options != null)
         {
@@ -839,18 +810,6 @@ public class DatabaseDescriptor
         }
     }
 
-    public static void applyThriftHSHA()
-    {
-        // fail early instead of OOMing (see CASSANDRA-8116)
-        if (ThriftServerType.HSHA.equals(conf.rpc_server_type) && conf.rpc_max_threads == Integer.MAX_VALUE)
-            throw new ConfigurationException("The hsha rpc_server_type is not compatible with an rpc_max_threads " +
-                                             "setting of 'unlimited'.  Please see the comments in cassandra.yaml " +
-                                             "for rpc_server_type and rpc_max_threads.",
-                                             false);
-        if (ThriftServerType.HSHA.equals(conf.rpc_server_type) && conf.rpc_max_threads > (FBUtilities.getAvailableProcessors() * 2 + 1024))
-            logger.warn("rpc_max_threads setting of {} may be too high for the hsha server and cause unnecessary thread contention, reducing performance", conf.rpc_max_threads);
-    }
-
     public static void applyEncryptionContext()
     {
         // always attempt to load the cipher factory, as we could be in the situation where the user has disabled encryption,
@@ -889,47 +848,6 @@ public class DatabaseDescriptor
 
             for (String token : tokens)
                 partitioner.getTokenFactory().validate(token);
-        }
-    }
-
-    // Maybe safe for clients + tools
-    public static void applyRequestScheduler()
-    {
-        /* Request Scheduler setup */
-        requestSchedulerOptions = conf.request_scheduler_options;
-        if (conf.request_scheduler != null)
-        {
-            try
-            {
-                if (requestSchedulerOptions == null)
-                {
-                    requestSchedulerOptions = new RequestSchedulerOptions();
-                }
-                Class<?> cls = Class.forName(conf.request_scheduler);
-                requestScheduler = (IRequestScheduler) cls.getConstructor(RequestSchedulerOptions.class).newInstance(requestSchedulerOptions);
-            }
-            catch (ClassNotFoundException e)
-            {
-                throw new ConfigurationException("Invalid Request Scheduler class " + conf.request_scheduler, false);
-            }
-            catch (Exception e)
-            {
-                throw new ConfigurationException("Unable to instantiate request scheduler", e);
-            }
-        }
-        else
-        {
-            requestScheduler = new NoScheduler();
-        }
-
-        if (conf.request_scheduler_id == RequestSchedulerId.keyspace)
-        {
-            requestSchedulerId = conf.request_scheduler_id;
-        }
-        else
-        {
-            // Default to Keyspace
-            requestSchedulerId = RequestSchedulerId.keyspace;
         }
     }
 
@@ -1133,11 +1051,6 @@ public class DatabaseDescriptor
         return conf.credentials_cache_max_entries = maxEntries;
     }
 
-    public static int getThriftFramedTransportSize()
-    {
-        return conf.thrift_framed_transport_size_in_mb * 1024 * 1024;
-    }
-
     public static int getMaxValueSize()
     {
         return conf.max_value_size_in_mb * 1024 * 1024;
@@ -1215,21 +1128,6 @@ public class DatabaseDescriptor
     public static void setEndpointSnitch(IEndpointSnitch eps)
     {
         snitch = eps;
-    }
-
-    public static IRequestScheduler getRequestScheduler()
-    {
-        return requestScheduler;
-    }
-
-    public static RequestSchedulerOptions getRequestSchedulerOptions()
-    {
-        return requestSchedulerOptions;
-    }
-
-    public static RequestSchedulerId getRequestSchedulerId()
-    {
-        return requestSchedulerId;
     }
 
     public static int getColumnIndexSize()
@@ -1353,16 +1251,6 @@ public class DatabaseDescriptor
     public static int getSSLStoragePort()
     {
         return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "ssl_storage_port", Integer.toString(conf.ssl_storage_port)));
-    }
-
-    public static int getRpcPort()
-    {
-        return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "rpc_port", Integer.toString(conf.rpc_port)));
-    }
-
-    public static int getRpcListenBacklog()
-    {
-        return conf.rpc_listen_backlog;
     }
 
     public static long getRpcTimeout()
@@ -1515,6 +1403,17 @@ public class DatabaseDescriptor
 
     public static int getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold_mb * 1024 * 1024; }
 
+    public static int getConcurrentValidations()
+    {
+        return conf.concurrent_validations;
+    }
+
+    public static void setConcurrentValidations(int value)
+    {
+        value = value > 0 ? value : Integer.MAX_VALUE;
+        conf.concurrent_validations = value;
+    }
+
     public static long getMinFreeSpacePerDriveInBytes()
     {
         return conf.min_free_space_per_drive_in_mb * 1024L * 1024L;
@@ -1656,17 +1555,13 @@ public class DatabaseDescriptor
 
     public static void setInternodeAuthenticator(IInternodeAuthenticator internodeAuthenticator)
     {
+        Preconditions.checkNotNull(internodeAuthenticator);
         DatabaseDescriptor.internodeAuthenticator = internodeAuthenticator;
     }
 
     public static void setBroadcastAddress(InetAddress broadcastAdd)
     {
         broadcastAddress = broadcastAdd;
-    }
-
-    public static boolean startRpc()
-    {
-        return conf.start_rpc;
     }
 
     public static InetAddress getRpcAddress()
@@ -1687,34 +1582,9 @@ public class DatabaseDescriptor
         return broadcastRpcAddress;
     }
 
-    public static String getRpcServerType()
-    {
-        return conf.rpc_server_type;
-    }
-
     public static boolean getRpcKeepAlive()
     {
         return conf.rpc_keepalive;
-    }
-
-    public static Integer getRpcMinThreads()
-    {
-        return conf.rpc_min_threads;
-    }
-
-    public static Integer getRpcMaxThreads()
-    {
-        return conf.rpc_max_threads;
-    }
-
-    public static Integer getRpcSendBufferSize()
-    {
-        return conf.rpc_send_buff_size_in_bytes;
-    }
-
-    public static Integer getRpcRecvBufferSize()
-    {
-        return conf.rpc_recv_buff_size_in_bytes;
     }
 
     public static int getInternodeSendBufferSize()
@@ -2167,7 +2037,7 @@ public class DatabaseDescriptor
     }
 
     /**
-     * @deprecated use {@link this#getStreamingKeepAlivePeriod()} instead
+     * @deprecated use {@link #getStreamingKeepAlivePeriod()} instead
      * @return streaming_socket_timeout_in_ms property
      */
     @Deprecated
@@ -2179,6 +2049,11 @@ public class DatabaseDescriptor
     public static int getStreamingKeepAlivePeriod()
     {
         return conf.streaming_keep_alive_period_in_secs;
+    }
+
+    public static int getStreamingConnectionsPerHost()
+    {
+        return conf.streaming_connections_per_host;
     }
 
     public static String getLocalDataCenter()
@@ -2290,11 +2165,6 @@ public class DatabaseDescriptor
     public static long getPreparedStatementsCacheSizeMB()
     {
         return preparedStatementsCacheSizeInMB;
-    }
-
-    public static long getThriftPreparedStatementsCacheSizeMB()
-    {
-        return thriftPreparedStatementsCacheSizeInMB;
     }
 
     public static boolean enableUserDefinedFunctions()
@@ -2423,5 +2293,15 @@ public class DatabaseDescriptor
     public static BackPressureStrategy getBackPressureStrategy()
     {
         return backPressureStrategy;
+    }
+
+    public static ConsistencyLevel getIdealConsistencyLevel()
+    {
+        return conf.ideal_consistency_level;
+    }
+
+    public static void setIdealConsistencyLevel(ConsistencyLevel cl)
+    {
+        conf.ideal_consistency_level = cl;
     }
 }

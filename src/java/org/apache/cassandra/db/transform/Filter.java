@@ -25,7 +25,7 @@ import org.apache.cassandra.db.rows.*;
 
 final class Filter extends Transformation
 {
-    private final boolean filterEmpty; // generally maps to !isForThrift, but also false for direct row filtration
+    private final boolean filterEmpty; // generally true except for direct row filtration
     private final int nowInSec;
     public Filter(boolean filterEmpty, int nowInSec)
     {

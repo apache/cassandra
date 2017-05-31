@@ -15,6 +15,7 @@
 .. limitations under the License.
 
 .. highlight:: none
+.. _patches:
 
 Contributing Code Changes
 *************************
@@ -92,7 +93,7 @@ So you've finished coding and the great moment arrives: it's time to submit your
 
  1. Create a branch for your changes if you haven't done already. Many contributors name their branches based on ticket number and Cassandra version, e.g. ``git checkout -b 12345-3.0``
  2. Verify that you follow Cassandra's :doc:`code_style`
- 3. Make sure all tests (including yours) pass using ant as described in :doc:`testing`. If you suspect a test failure is unrelated to your change, it may be useful to check the test's status by searching the issue tracker or looking at `CI <https://cassci.datastax.com/>`_ results for the relevant upstream version.  Note that the full test suites take many hours to complete, so it is common to only run specific relevant tests locally before uploading a patch.  Once a patch has been uploaded, the reviewer or committer can help setup CI jobs to run the full test suites.
+ 3. Make sure all tests (including yours) pass using ant as described in :doc:`testing`. If you suspect a test failure is unrelated to your change, it may be useful to check the test's status by searching the issue tracker or looking at `CI <https://builds.apache.org/>`_ results for the relevant upstream version.  Note that the full test suites take many hours to complete, so it is common to only run specific relevant tests locally before uploading a patch.  Once a patch has been uploaded, the reviewer or committer can help setup CI jobs to run the full test suites.
  4. Consider going through the :doc:`how_to_review` for your code. This will help you to understand how others will consider your change for inclusion.
  5. Don’t make the committer squash commits for you in the root branch either. Multiple commits are fine - and often preferable - during review stage, especially for incremental review, but once +1d, do either:
 

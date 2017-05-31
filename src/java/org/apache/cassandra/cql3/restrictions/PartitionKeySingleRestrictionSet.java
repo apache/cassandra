@@ -20,7 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -59,7 +59,7 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     {
         List<ByteBuffer> l = new ArrayList<>(clusterings.size());
         for (ClusteringPrefix clustering : clusterings)
-            l.add(CFMetaData.serializePartitionKey(clustering));
+            l.add(clustering.serializeAsPartitionKey());
         return l;
     }
 
@@ -131,19 +131,19 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     }
 
     @Override
-    public boolean needFiltering(CFMetaData cfm)
+    public boolean needFiltering(TableMetadata table)
     {
         if (isEmpty())
             return false;
 
         // slice or has unrestricted key component
-        return hasUnrestrictedPartitionKeyComponents(cfm) || hasSlice() || hasContains();
+        return hasUnrestrictedPartitionKeyComponents(table) || hasSlice() || hasContains();
     }
 
     @Override
-    public boolean hasUnrestrictedPartitionKeyComponents(CFMetaData cfm)
+    public boolean hasUnrestrictedPartitionKeyComponents(TableMetadata table)
     {
-        return size() < cfm.partitionKeyColumns().size();
+        return size() < table.partitionKeyColumns().size();
     }
 
     @Override

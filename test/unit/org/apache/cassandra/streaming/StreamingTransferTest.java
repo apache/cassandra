@@ -35,7 +35,7 @@ import junit.framework.Assert;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -54,6 +54,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.apache.cassandra.SchemaLoader.compositeIndexCFMD;
+import static org.apache.cassandra.SchemaLoader.createKeyspace;
+import static org.apache.cassandra.SchemaLoader.standardCFMD;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -83,25 +86,26 @@ public class StreamingTransferTest
     {
         SchemaLoader.prepareServer();
         StorageService.instance.initServer();
-        SchemaLoader.createKeyspace(KEYSPACE1,
-                                    KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
-                                    CFMetaData.Builder.create(KEYSPACE1, CF_COUNTER, false, true, true)
-                                                      .addPartitionKey("key", BytesType.instance)
-                                                      .build(),
-                                    CFMetaData.Builder.create(KEYSPACE1, CF_STANDARDINT)
-                                                      .addPartitionKey("key", AsciiType.instance)
-                                                      .addClusteringColumn("cols", Int32Type.instance)
-                                                      .addRegularColumn("val", BytesType.instance)
-                                                      .build(),
-                                    SchemaLoader.compositeIndexCFMD(KEYSPACE1, CF_INDEX, true));
-        SchemaLoader.createKeyspace(KEYSPACE2,
-                                    KeyspaceParams.simple(1));
-        SchemaLoader.createKeyspace(KEYSPACE_CACHEKEY,
-                                    KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD),
-                                    SchemaLoader.standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD2),
-                                    SchemaLoader.standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD3));
+
+        createKeyspace(KEYSPACE1,
+                       KeyspaceParams.simple(1),
+                       standardCFMD(KEYSPACE1, CF_STANDARD),
+                       TableMetadata.builder(KEYSPACE1, CF_COUNTER)
+                                    .isCounter(true)
+                                    .addPartitionKeyColumn("key", BytesType.instance),
+                       TableMetadata.builder(KEYSPACE1, CF_STANDARDINT)
+                                    .addPartitionKeyColumn("key", AsciiType.instance)
+                                    .addClusteringColumn("cols", Int32Type.instance)
+                                    .addRegularColumn("val", BytesType.instance),
+                       compositeIndexCFMD(KEYSPACE1, CF_INDEX, true));
+
+        createKeyspace(KEYSPACE2, KeyspaceParams.simple(1));
+
+        createKeyspace(KEYSPACE_CACHEKEY,
+                       KeyspaceParams.simple(1),
+                       standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD),
+                       standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD2),
+                       standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD3));
     }
 
     /**
@@ -110,14 +114,14 @@ public class StreamingTransferTest
     @Test
     public void testEmptyStreamPlan() throws Exception
     {
-        StreamResultFuture futureResult = new StreamPlan("StreamingTransferTest").execute();
+        StreamResultFuture futureResult = new StreamPlan(StreamOperation.OTHER).execute();
         final UUID planId = futureResult.planId;
         Futures.addCallback(futureResult, new FutureCallback<StreamState>()
         {
             public void onSuccess(StreamState result)
             {
                 assert planId.equals(result.planId);
-                assert result.description.equals("StreamingTransferTest");
+                assert result.streamOperation == StreamOperation.OTHER;
                 assert result.sessions.isEmpty();
             }
 
@@ -139,14 +143,14 @@ public class StreamingTransferTest
         ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
 
-        StreamResultFuture futureResult = new StreamPlan("StreamingTransferTest")
+        StreamResultFuture futureResult = new StreamPlan(StreamOperation.OTHER)
                                                   .requestRanges(LOCAL, LOCAL, KEYSPACE2, ranges)
                                                   .execute();
 
         UUID planId = futureResult.planId;
         StreamState result = futureResult.get();
         assert planId.equals(result.planId);
-        assert result.description.equals("StreamingTransferTest");
+        assert result.streamOperation == StreamOperation.OTHER;
 
         // we should have completed session with empty transfer
         assert result.sessions.size() == 1;
@@ -234,14 +238,14 @@ public class StreamingTransferTest
         List<Range<Token>> ranges = new ArrayList<>();
         // wrapped range
         ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key0"))));
-        StreamPlan streamPlan = new StreamPlan("StreamingTransferTest").transferRanges(LOCAL, cfs.keyspace.getName(), ranges, cfs.getColumnFamilyName());
+        StreamPlan streamPlan = new StreamPlan(StreamOperation.OTHER).transferRanges(LOCAL, cfs.keyspace.getName(), ranges, cfs.getTableName());
         streamPlan.execute().get();
         verifyConnectionsAreClosed();
 
         //cannot add ranges after stream session is finished
         try
         {
-            streamPlan.transferRanges(LOCAL, cfs.keyspace.getName(), ranges, cfs.getColumnFamilyName());
+            streamPlan.transferRanges(LOCAL, cfs.keyspace.getName(), ranges, cfs.getTableName());
             fail("Should have thrown exception");
         }
         catch (RuntimeException e)
@@ -252,7 +256,7 @@ public class StreamingTransferTest
 
     private void transfer(SSTableReader sstable, List<Range<Token>> ranges) throws Exception
     {
-        StreamPlan streamPlan = new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, makeStreamingDetails(ranges, Refs.tryRef(Arrays.asList(sstable))));
+        StreamPlan streamPlan = new StreamPlan(StreamOperation.OTHER).transferFiles(LOCAL, makeStreamingDetails(ranges, Refs.tryRef(Arrays.asList(sstable))));
         streamPlan.execute().get();
         verifyConnectionsAreClosed();
 
@@ -295,7 +299,7 @@ public class StreamingTransferTest
         {
             details.add(new StreamSession.SSTableStreamingSections(sstables.get(sstable),
                                                                    sstable.getPositionsForRanges(ranges),
-                                                                   sstable.estimatedKeysForRanges(ranges), sstable.getSSTableMetadata().repairedAt));
+                                                                   sstable.estimatedKeysForRanges(ranges)));
         }
         return details;
     }
@@ -311,7 +315,7 @@ public class StreamingTransferTest
             {
                 long val = key.hashCode();
 
-                RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, timestamp, key);
+                RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), timestamp, key);
                 builder.clustering(col).add("birthdate", ByteBufferUtil.bytes(val));
                 builder.build().applyUnsafe();
             }
@@ -324,7 +328,7 @@ public class StreamingTransferTest
 
             // test we can search:
             UntypedResultSet result = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".\"%s\" WHERE birthdate = %d",
-                    cfs.metadata.ksName, cfs.metadata.cfName, val));
+                                                                                   cfs.metadata.keyspace, cfs.metadata.name, val));
             assertEquals(1, result.size());
 
             assert result.iterator().next().getBytes("key").equals(ByteBufferUtil.bytes(key));
@@ -346,7 +350,7 @@ public class StreamingTransferTest
         String key = "key1";
 
 
-        RowUpdateBuilder updates = new RowUpdateBuilder(cfs.metadata, FBUtilities.timestampMicros(), key);
+        RowUpdateBuilder updates = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros(), key);
 
         // add columns of size slightly less than column_index_size to force insert column index
         updates.clustering(1)
@@ -354,7 +358,7 @@ public class StreamingTransferTest
                 .build()
                 .apply();
 
-        updates = new RowUpdateBuilder(cfs.metadata, FBUtilities.timestampMicros(), key);
+        updates = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros(), key);
         updates.clustering(6)
                 .add("val", ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize()]))
                 .build()
@@ -367,7 +371,7 @@ public class StreamingTransferTest
         //        .apply();
 
 
-        updates = new RowUpdateBuilder(cfs.metadata, FBUtilities.timestampMicros() + 1, key);
+        updates = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros() + 1, key);
         updates.addRangeTombstone(5, 7)
                 .build()
                 .apply();

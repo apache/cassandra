@@ -28,6 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -47,6 +48,7 @@ public class RepairOption
     public static final String TRACE_KEY = "trace";
     public static final String SUB_RANGE_REPAIR_KEY = "sub_range_repair";
     public static final String PULL_REPAIR_KEY = "pullRepair";
+    public static final String PREVIEW = "previewKind";
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -136,6 +138,7 @@ public class RepairOption
         RepairParallelism parallelism = RepairParallelism.fromName(options.get(PARALLELISM_KEY));
         boolean primaryRange = Boolean.parseBoolean(options.get(PRIMARY_RANGE_KEY));
         boolean incremental = Boolean.parseBoolean(options.get(INCREMENTAL_KEY));
+        PreviewKind previewKind = PreviewKind.valueOf(options.getOrDefault(PREVIEW, PreviewKind.NONE.toString()));
         boolean trace = Boolean.parseBoolean(options.get(TRACE_KEY));
         boolean pullRepair = Boolean.parseBoolean(options.get(PULL_REPAIR_KEY));
 
@@ -175,7 +178,7 @@ public class RepairOption
             }
         }
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, previewKind);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -241,6 +244,11 @@ public class RepairOption
             }
         }
 
+        if (option.isIncremental() && !option.isGlobal())
+        {
+            throw new IllegalArgumentException("Incremental repairs cannot be run against a subset of tokens or ranges");
+        }
+
         return option;
     }
 
@@ -251,13 +259,14 @@ public class RepairOption
     private final int jobThreads;
     private final boolean isSubrangeRepair;
     private final boolean pullRepair;
+    private final PreviewKind previewKind;
 
     private final Collection<String> columnFamilies = new HashSet<>();
     private final Collection<String> dataCenters = new HashSet<>();
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, PreviewKind previewKind)
     {
         if (FBUtilities.isWindows &&
             (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard) &&
@@ -276,6 +285,7 @@ public class RepairOption
         this.ranges.addAll(ranges);
         this.isSubrangeRepair = isSubrangeRepair;
         this.pullRepair = pullRepair;
+        this.previewKind = previewKind;
     }
 
     public RepairParallelism getParallelism()
@@ -338,6 +348,16 @@ public class RepairOption
         return isSubrangeRepair;
     }
 
+    public PreviewKind getPreviewKind()
+    {
+        return previewKind;
+    }
+
+    public boolean isPreview()
+    {
+        return previewKind.isPreview();
+    }
+
     public boolean isInLocalDCOnly() {
         return dataCenters.size() == 1 && dataCenters.contains(DatabaseDescriptor.getLocalDataCenter());
     }
@@ -346,16 +366,17 @@ public class RepairOption
     public String toString()
     {
         return "repair options (" +
-                       "parallelism: " + parallelism +
-                       ", primary range: " + primaryRange +
-                       ", incremental: " + incremental +
-                       ", job threads: " + jobThreads +
-                       ", ColumnFamilies: " + columnFamilies +
-                       ", dataCenters: " + dataCenters +
-                       ", hosts: " + hosts +
-                       ", # of ranges: " + ranges.size() +
-                       ", pull repair: " + pullRepair +
-                       ')';
+               "parallelism: " + parallelism +
+               ", primary range: " + primaryRange +
+               ", incremental: " + incremental +
+               ", job threads: " + jobThreads +
+               ", ColumnFamilies: " + columnFamilies +
+               ", dataCenters: " + dataCenters +
+               ", hosts: " + hosts +
+               ", previewKind: " + previewKind +
+               ", # of ranges: " + ranges.size() +
+               ", pull repair: " + pullRepair +
+               ')';
     }
 
     public Map<String, String> asMap()
@@ -372,6 +393,7 @@ public class RepairOption
         options.put(TRACE_KEY, Boolean.toString(trace));
         options.put(RANGES_KEY, Joiner.on(",").join(ranges));
         options.put(PULL_REPAIR_KEY, Boolean.toString(pullRepair));
+        options.put(PREVIEW, previewKind.toString());
         return options;
     }
 }

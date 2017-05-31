@@ -27,7 +27,7 @@ import java.util.stream.StreamSupport;
 
 import org.apache.commons.cli.*;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.DecoratedKey;
@@ -43,6 +43,7 @@ import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -88,20 +89,20 @@ public class SSTableExport
      * Construct table schema from info stored in SSTable's Stats.db
      *
      * @param desc SSTable's descriptor
-     * @return Restored CFMetaData
+     * @return Restored TableMetadata
      * @throws IOException when Stats.db cannot be read
      */
-    public static CFMetaData metadataFromSSTable(Descriptor desc) throws IOException
+    public static TableMetadata metadataFromSSTable(Descriptor desc) throws IOException
     {
-        if (!desc.version.storeRows())
-            throw new IOException("pre-3.0 SSTable is not supported.");
+        if (!desc.version.isCompatible())
+            throw new IOException("Cannot process old and unsupported SSTable version.");
 
         EnumSet<MetadataType> types = EnumSet.of(MetadataType.STATS, MetadataType.HEADER);
         Map<MetadataType, MetadataComponent> sstableMetadata = desc.getMetadataSerializer().deserialize(desc, types);
         SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
         IPartitioner partitioner = FBUtilities.newPartitioner(desc);
 
-        CFMetaData.Builder builder = CFMetaData.Builder.create("keyspace", "table").withPartitioner(partitioner);
+        TableMetadata.Builder builder = TableMetadata.builder("keyspace", "table").partitioner(partitioner);
         header.getStaticColumns().entrySet().stream()
                 .forEach(entry -> {
                     ColumnIdentifier ident = ColumnIdentifier.getInterned(UTF8Type.instance.getString(entry.getKey()), true);
@@ -112,7 +113,7 @@ public class SSTableExport
                     ColumnIdentifier ident = ColumnIdentifier.getInterned(UTF8Type.instance.getString(entry.getKey()), true);
                     builder.addRegularColumn(ident, entry.getValue());
                 });
-        builder.addPartitionKey("PartitionKey", header.getKeyType());
+        builder.addPartitionKeyColumn("PartitionKey", header.getKeyType());
         for (int i = 0; i < header.getClusteringTypes().size(); i++)
         {
             builder.addClusteringColumn("clustering" + (i > 0 ? i : ""), header.getClusteringTypes().get(i));
@@ -162,11 +163,6 @@ public class SSTableExport
                         : cmd.getOptionValues(EXCLUDE_KEY_OPTION)));
         String ssTableFileName = new File(cmd.getArgs()[0]).getAbsolutePath();
 
-        if (Descriptor.isLegacyFile(new File(ssTableFileName)))
-        {
-            System.err.println("Unsupported legacy sstable");
-            System.exit(1);
-        }
         if (!new File(ssTableFileName).exists())
         {
             System.err.println("Cannot find file " + ssTableFileName);
@@ -175,7 +171,7 @@ public class SSTableExport
         Descriptor desc = Descriptor.fromFilename(ssTableFileName);
         try
         {
-            CFMetaData metadata = metadataFromSSTable(desc);
+            TableMetadata metadata = metadataFromSSTable(desc);
             if (cmd.hasOption(ENUMERATE_KEYS_OPTION))
             {
                 try (KeyIterator iter = new KeyIterator(desc, metadata))
@@ -188,14 +184,14 @@ public class SSTableExport
             }
             else
             {
-                SSTableReader sstable = SSTableReader.openNoValidation(desc, metadata);
+                SSTableReader sstable = SSTableReader.openNoValidation(desc, TableMetadataRef.forOfflineTools(metadata));
                 IPartitioner partitioner = sstable.getPartitioner();
                 final ISSTableScanner currentScanner;
                 if ((keys != null) && (keys.length > 0))
                 {
                     List<AbstractBounds<PartitionPosition>> bounds = Arrays.stream(keys)
                             .filter(key -> !excludes.contains(key))
-                            .map(metadata.getKeyValidator()::fromString)
+                            .map(metadata.partitionKeyType::fromString)
                             .map(partitioner::decorateKey)
                             .sorted()
                             .map(DecoratedKey::getToken)
@@ -207,7 +203,7 @@ public class SSTableExport
                     currentScanner = sstable.getScanner();
                 }
                 Stream<UnfilteredRowIterator> partitions = iterToStream(currentScanner).filter(i ->
-                    excludes.isEmpty() || !excludes.contains(metadata.getKeyValidator().getString(i.partitionKey().getKey()))
+                    excludes.isEmpty() || !excludes.contains(metadata.partitionKeyType.getString(i.partitionKey().getKey()))
                 );
                 if (cmd.hasOption(DEBUG_OUTPUT_OPTION))
                 {
@@ -218,19 +214,19 @@ public class SSTableExport
 
                         if (!partition.partitionLevelDeletion().isLive())
                         {
-                            System.out.println("[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "]@" +
+                            System.out.println("[" + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@" +
                                                position.get() + " " + partition.partitionLevelDeletion());
                         }
                         if (!partition.staticRow().isEmpty())
                         {
-                            System.out.println("[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "]@" +
+                            System.out.println("[" + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@" +
                                                position.get() + " " + partition.staticRow().toString(metadata, true));
                         }
                         partition.forEachRemaining(row ->
                         {
                             System.out.println(
-                                    "[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "]@"
-                                            + position.get() + " " + row.toString(metadata, false, true));
+                            "[" + metadata.partitionKeyType.getString(partition.partitionKey().getKey()) + "]@"
+                            + position.get() + " " + row.toString(metadata, false, true));
                             position.set(currentScanner.getCurrentPosition());
                         });
                     });

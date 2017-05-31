@@ -71,24 +71,4 @@ public interface CachedPartition extends Partition, IRowCacheEntry
      * @return the last row of the partition, or {@code null} if the partition is empty.
      */
     public Row lastRow();
-
-    /**
-     * The number of {@code cell} objects that are not tombstone in this cached partition.
-     *
-     * Please note that this is <b>not</b> the number of <em>live</em> cells since
-     * some of the cells might be expired.
-     *
-     * @return the number of non tombstone cells in the partition.
-     */
-    public int nonTombstoneCellCount();
-
-    /**
-     * The number of cells in this cached partition that are neither tombstone nor expiring.
-     *
-     * Note that this is generally not a very meaningful number, but this is used by
-     * {@link org.apache.cassandra.db.filter.DataLimits#hasEnoughLiveData} as an optimization.
-     *
-     * @return the number of cells that are neither tombstones nor expiring.
-     */
-    public int nonExpiringLiveCells();
 }

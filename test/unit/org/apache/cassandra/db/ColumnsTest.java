@@ -30,14 +30,14 @@ import org.junit.AfterClass;
 import org.junit.Test;
 
 import junit.framework.Assert;
-import org.apache.cassandra.MockSchema;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.MockSchema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -49,7 +49,7 @@ public class ColumnsTest
         DatabaseDescriptor.daemonInitialization();
     }
 
-    private static final CFMetaData cfMetaData = MockSchema.newCFS().metadata;
+    private static final TableMetadata TABLE_METADATA = MockSchema.newCFS().metadata();
 
     // this tests most of our functionality, since each subset we perform
     // reasonably comprehensive tests of basic functionality against
@@ -64,8 +64,8 @@ public class ColumnsTest
     {
         // pick some arbitrary groupings of columns to remove at-once (to avoid factorial complexity)
         // whatever is left after each removal, we perform this logic on again, recursively
-        List<List<ColumnDefinition>> removeGroups = shuffleAndGroup(Lists.newArrayList(input.definitions));
-        for (List<ColumnDefinition> defs : removeGroups)
+        List<List<ColumnMetadata>> removeGroups = shuffleAndGroup(Lists.newArrayList(input.definitions));
+        for (List<ColumnMetadata> defs : removeGroups)
         {
             ColumnsCheck subset = input.remove(defs);
 
@@ -77,7 +77,7 @@ public class ColumnsTest
 
             // test .mergeTo
             Columns otherSubset = input.columns;
-            for (ColumnDefinition def : subset.definitions)
+            for (ColumnMetadata def : subset.definitions)
             {
                 otherSubset = otherSubset.without(def);
                 assertContents(otherSubset.mergeTo(subset.columns), input.definitions);
@@ -102,7 +102,7 @@ public class ColumnsTest
             testSerialize(randomColumns.columns, randomColumns.definitions);
     }
 
-    private void testSerialize(Columns columns, List<ColumnDefinition> definitions) throws IOException
+    private void testSerialize(Columns columns, List<ColumnMetadata> definitions) throws IOException
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
@@ -136,7 +136,7 @@ public class ColumnsTest
         for (int i = 0; i < 50; i++)
             names.add("clustering_" + i);
 
-        List<ColumnDefinition> defs = new ArrayList<>();
+        List<ColumnMetadata> defs = new ArrayList<>();
         addClustering(names, defs);
 
         Columns columns = Columns.from(new HashSet<>(defs));
@@ -153,8 +153,8 @@ public class ColumnsTest
     {
         testSerializeSubset(input.columns, input.columns, input.definitions);
         testSerializeSubset(input.columns, Columns.NONE, Collections.emptyList());
-        List<List<ColumnDefinition>> removeGroups = shuffleAndGroup(Lists.newArrayList(input.definitions));
-        for (List<ColumnDefinition> defs : removeGroups)
+        List<List<ColumnMetadata>> removeGroups = shuffleAndGroup(Lists.newArrayList(input.definitions));
+        for (List<ColumnMetadata> defs : removeGroups)
         {
             Collections.sort(defs);
             ColumnsCheck subset = input.remove(defs);
@@ -162,7 +162,7 @@ public class ColumnsTest
         }
     }
 
-    private void testSerializeSubset(Columns superset, Columns subset, List<ColumnDefinition> subsetDefinitions) throws IOException
+    private void testSerializeSubset(Columns superset, Columns subset, List<ColumnMetadata> subsetDefinitions) throws IOException
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
@@ -175,17 +175,17 @@ public class ColumnsTest
         }
     }
 
-    private static void assertContents(Columns columns, List<ColumnDefinition> defs)
+    private static void assertContents(Columns columns, List<ColumnMetadata> defs)
     {
         Assert.assertEquals(defs, Lists.newArrayList(columns));
         boolean hasSimple = false, hasComplex = false;
         int firstComplexIdx = 0;
         int i = 0;
-        Iterator<ColumnDefinition> simple = columns.simpleColumns();
-        Iterator<ColumnDefinition> complex = columns.complexColumns();
-        Iterator<ColumnDefinition> all = columns.iterator();
-        Predicate<ColumnDefinition> predicate = columns.inOrderInclusionTester();
-        for (ColumnDefinition def : defs)
+        Iterator<ColumnMetadata> simple = columns.simpleColumns();
+        Iterator<ColumnMetadata> complex = columns.complexColumns();
+        Iterator<ColumnMetadata> all = columns.iterator();
+        Predicate<ColumnMetadata> predicate = columns.inOrderInclusionTester();
+        for (ColumnMetadata def : defs)
         {
             Assert.assertEquals(def, all.next());
             Assert.assertTrue(columns.contains(def));
@@ -218,9 +218,9 @@ public class ColumnsTest
         // check select order
         if (!columns.hasSimple() || !columns.getSimple(0).kind.isPrimaryKeyKind())
         {
-            List<ColumnDefinition> selectOrderDefs = new ArrayList<>(defs);
+            List<ColumnMetadata> selectOrderDefs = new ArrayList<>(defs);
             Collections.sort(selectOrderDefs, (a, b) -> a.name.bytes.compareTo(b.name.bytes));
-            List<ColumnDefinition> selectOrderColumns = new ArrayList<>();
+            List<ColumnMetadata> selectOrderColumns = new ArrayList<>();
             Iterators.addAll(selectOrderColumns, columns.selectOrderIterator());
             Assert.assertEquals(selectOrderDefs, selectOrderColumns);
         }
@@ -262,27 +262,27 @@ public class ColumnsTest
     private static class ColumnsCheck
     {
         final Columns columns;
-        final List<ColumnDefinition> definitions;
+        final List<ColumnMetadata> definitions;
 
-        private ColumnsCheck(Columns columns, List<ColumnDefinition> definitions)
+        private ColumnsCheck(Columns columns, List<ColumnMetadata> definitions)
         {
             this.columns = columns;
             this.definitions = definitions;
         }
 
-        private ColumnsCheck(List<ColumnDefinition> definitions)
+        private ColumnsCheck(List<ColumnMetadata> definitions)
         {
             this.columns = Columns.from(BTreeSet.of(definitions));
             this.definitions = definitions;
         }
 
-        ColumnsCheck remove(List<ColumnDefinition> remove)
+        ColumnsCheck remove(List<ColumnMetadata> remove)
         {
             Columns subset = columns;
-            for (ColumnDefinition def : remove)
+            for (ColumnMetadata def : remove)
                 subset = subset.without(def);
             Assert.assertEquals(columns.size() - remove.size(), subset.size());
-            List<ColumnDefinition> remainingDefs = Lists.newArrayList(columns);
+            List<ColumnMetadata> remainingDefs = Lists.newArrayList(columns);
             remainingDefs.removeAll(remove);
             return new ColumnsCheck(subset, remainingDefs);
         }
@@ -332,7 +332,7 @@ public class ColumnsTest
         for (char c = 'a' ; c <= 'z' ; c++)
             names .add(Character.toString(c));
 
-        List<ColumnDefinition> result = new ArrayList<>();
+        List<ColumnMetadata> result = new ArrayList<>();
         addPartition(select(names, pkCount), result);
         addClustering(select(names, clCount), result);
         addRegular(select(names, regularCount), result);
@@ -356,7 +356,7 @@ public class ColumnsTest
 
     private static ColumnsCheck randomHuge(int pkCount, int clCount, int regularCount, int complexCount)
     {
-        List<ColumnDefinition> result = new ArrayList<>();
+        List<ColumnMetadata> result = new ArrayList<>();
         Set<String> usedNames = new HashSet<>();
         addPartition(names(pkCount, usedNames), result);
         addClustering(names(clCount, usedNames), result);
@@ -383,43 +383,44 @@ public class ColumnsTest
         return names;
     }
 
-    private static void addPartition(List<String> names, List<ColumnDefinition> results)
+    private static void addPartition(List<String> names, List<ColumnMetadata> results)
     {
         for (String name : names)
-            results.add(ColumnDefinition.partitionKeyDef(cfMetaData, bytes(name), UTF8Type.instance, 0));
+            results.add(ColumnMetadata.partitionKeyColumn(TABLE_METADATA, bytes(name), UTF8Type.instance, 0));
     }
 
-    private static void addClustering(List<String> names, List<ColumnDefinition> results)
+    private static void addClustering(List<String> names, List<ColumnMetadata> results)
     {
         int i = 0;
         for (String name : names)
-            results.add(ColumnDefinition.clusteringDef(cfMetaData, bytes(name), UTF8Type.instance, i++));
+            results.add(ColumnMetadata.clusteringColumn(TABLE_METADATA, bytes(name), UTF8Type.instance, i++));
     }
 
-    private static void addRegular(List<String> names, List<ColumnDefinition> results)
+    private static void addRegular(List<String> names, List<ColumnMetadata> results)
     {
         for (String name : names)
-            results.add(ColumnDefinition.regularDef(cfMetaData, bytes(name), UTF8Type.instance));
+            results.add(ColumnMetadata.regularColumn(TABLE_METADATA, bytes(name), UTF8Type.instance));
     }
 
-    private static <V> void addComplex(List<String> names, List<ColumnDefinition> results)
+    private static <V> void addComplex(List<String> names, List<ColumnMetadata> results)
     {
         for (String name : names)
-            results.add(ColumnDefinition.regularDef(cfMetaData, bytes(name), SetType.getInstance(UTF8Type.instance, true)));
+            results.add(ColumnMetadata.regularColumn(TABLE_METADATA, bytes(name), SetType.getInstance(UTF8Type.instance, true)));
     }
 
-    private static CFMetaData mock(Columns columns)
+    private static TableMetadata mock(Columns columns)
     {
         if (columns.isEmpty())
-            return cfMetaData;
-        CFMetaData.Builder builder = CFMetaData.Builder.create(cfMetaData.ksName, cfMetaData.cfName);
+            return TABLE_METADATA;
+
+        TableMetadata.Builder builder = TableMetadata.builder(TABLE_METADATA.keyspace, TABLE_METADATA.name);
         boolean hasPartitionKey = false;
-        for (ColumnDefinition def : columns)
+        for (ColumnMetadata def : columns)
         {
             switch (def.kind)
             {
                 case PARTITION_KEY:
-                    builder.addPartitionKey(def.name, def.type);
+                    builder.addPartitionKeyColumn(def.name, def.type);
                     hasPartitionKey = true;
                     break;
                 case CLUSTERING:
@@ -431,7 +432,7 @@ public class ColumnsTest
             }
         }
         if (!hasPartitionKey)
-            builder.addPartitionKey("219894021498309239rufejsfjdksfjheiwfhjes", UTF8Type.instance);
+            builder.addPartitionKeyColumn("219894021498309239rufejsfjdksfjheiwfhjes", UTF8Type.instance);
         return builder.build();
     }
 }

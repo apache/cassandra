@@ -28,7 +28,7 @@ import org.apache.cassandra.db.DecoratedKey;
 /**
  * Entries in indexes on non-compact tables (tables with composite comparators)
  * can be encapsulated as IndexedEntry instances. These are not used when dealing
- * with indexes on static/compact/thrift tables (i.e. KEYS indexes).
+ * with indexes on static/compact tables (i.e. KEYS indexes).
  */
 public final class IndexEntry
 {

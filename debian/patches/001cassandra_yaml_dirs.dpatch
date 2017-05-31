@@ -24,7 +24,7 @@ diff -urNad '--exclude=CVS' '--exclude=.svn' '--exclude=.git' '--exclude=.arch' 
 +commitlog_directory: /var/lib/cassandra/commitlog
  
  # policy for data disk failures:
- # stop_paranoid: shut down gossip and Thrift even for single-sstable errors.
+ # stop_paranoid: shut down gossip even for single-sstable errors.
 @@ -203,7 +203,7 @@
  
  # saved caches

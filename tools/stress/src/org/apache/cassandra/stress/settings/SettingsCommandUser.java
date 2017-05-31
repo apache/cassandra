@@ -27,6 +27,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.StressProfile;
@@ -46,8 +50,11 @@ public class SettingsCommandUser extends SettingsCommand
     // Ratios for selecting commands - index for each Command, NaN indicates the command is not requested
     private final Map<String, Double> ratios;
     private final DistributionFactory clustering;
-    public final StressProfile profile;
+    public final Map<String,  StressProfile> profiles;
     private final Options options;
+    private String default_profile_name;
+    private static final Pattern EXTRACT_SPEC_CMD = Pattern.compile("(.+)\\.(.+)");
+
 
     public SettingsCommandUser(Options options)
     {
@@ -56,10 +63,26 @@ public class SettingsCommandUser extends SettingsCommand
         this.options = options;
         clustering = options.clustering.get();
         ratios = options.ops.ratios();
+        default_profile_name=null;
+
 
         String yamlPath = options.profile.value();
-        File yamlFile = new File(yamlPath);
-        profile = StressProfile.load(yamlFile.exists() ? yamlFile.toURI() : URI.create(yamlPath));
+        profiles = new LinkedHashMap<>();
+
+        String[] yamlPaths = yamlPath.split(",");
+        for (String curYamlPath : yamlPaths)
+        {
+            File yamlFile = new File(curYamlPath);
+            StressProfile profile = StressProfile.load(yamlFile.exists() ? yamlFile.toURI() : URI.create(curYamlPath));
+            String specName = profile.specName;
+            if (default_profile_name == null) {default_profile_name=specName;} //first file is default
+            if (profiles.containsKey(specName))
+            {
+                throw new IllegalArgumentException("Must only specify a singe YAML file per table (including keyspace qualifier).");
+            }
+            profiles.put(specName, profile);
+        }
+
 
         if (ratios.size() == 0)
             throw new IllegalArgumentException("Must specify at least one command with a non-zero ratio");
@@ -73,36 +96,54 @@ public class SettingsCommandUser extends SettingsCommand
     public OpDistributionFactory getFactory(final StressSettings settings)
     {
         final SeedManager seeds = new SeedManager(settings);
-        final TokenRangeIterator tokenRangeIterator = profile.tokenRangeQueries.isEmpty()
-                                                      ? null
-                                                      : new TokenRangeIterator(settings,
-                                                                               profile.maybeLoadTokenRanges(settings));
+
+        final Map<String, TokenRangeIterator> tokenRangeIterators = new LinkedHashMap<>();
+        profiles.forEach((k,v)->tokenRangeIterators.put(k, (v.tokenRangeQueries.isEmpty()
+                                                            ? null
+                                                            : new TokenRangeIterator(settings,
+                                                                                     v.maybeLoadTokenRanges(settings)))));
 
         return new SampledOpDistributionFactory<String>(ratios, clustering)
         {
-            protected List<? extends Operation> get(Timer timer, PartitionGenerator generator, String key, boolean isWarmup)
+            protected List<? extends Operation> get(Timer timer, String key, boolean isWarmup)
             {
-                if (key.equalsIgnoreCase("insert"))
+                Matcher m = EXTRACT_SPEC_CMD.matcher(key);
+                final String profile_name;
+                final String sub_key;
+                if (m.matches())
+                {
+                    profile_name = m.group(1);
+                    sub_key = m.group(2);
+                }
+                else
+                {
+                    profile_name = default_profile_name;
+                    sub_key = key;
+                }
+
+                if (!profiles.containsKey(profile_name))
+                {
+                    throw new IllegalArgumentException(String.format("Op name %s contains an invalid profile specname: %s", key, profile_name));
+                }
+                StressProfile profile = profiles.get(profile_name);
+                TokenRangeIterator tokenRangeIterator = tokenRangeIterators.get(profile_name);
+                PartitionGenerator generator = profile.newGenerator(settings);
+                if (sub_key.equalsIgnoreCase("insert"))
                     return Collections.singletonList(profile.getInsert(timer, generator, seeds, settings));
-                if (key.equalsIgnoreCase("validate"))
+                if (sub_key.equalsIgnoreCase("validate"))
                     return profile.getValidate(timer, generator, seeds, settings);
 
-                if (profile.tokenRangeQueries.containsKey(key))
-                    return Collections.singletonList(profile.getBulkReadQueries(key, timer, settings, tokenRangeIterator, isWarmup));
+                if (profile.tokenRangeQueries.containsKey(sub_key))
+                    return Collections.singletonList(profile.getBulkReadQueries(sub_key, timer, settings, tokenRangeIterator, isWarmup));
 
-                return Collections.singletonList(profile.getQuery(key, timer, generator, seeds, settings, isWarmup));
-            }
-
-            protected PartitionGenerator newGenerator()
-            {
-                return profile.newGenerator(settings);
+                return Collections.singletonList(profile.getQuery(sub_key, timer, generator, seeds, settings, isWarmup));
             }
         };
     }
 
     public void truncateTables(StressSettings settings)
     {
-        profile.truncateTable(settings);
+        profiles.forEach((k,v)-> v.truncateTable(settings));
     }
 
     static final class Options extends GroupedOptions
@@ -113,8 +154,8 @@ public class SettingsCommandUser extends SettingsCommand
             this.parent = parent;
         }
         final OptionDistribution clustering = new OptionDistribution("clustering=", "gaussian(1..10)", "Distribution clustering runs of operations of the same kind");
-        final OptionSimple profile = new OptionSimple("profile=", ".*", null, "Specify the path to a yaml cql3 profile", true);
-        final OptionAnyProbabilities ops = new OptionAnyProbabilities("ops", "Specify the ratios for inserts/queries to perform; e.g. ops(insert=2,<query1>=1) will perform 2 inserts for each query1");
+        final OptionSimple profile = new OptionSimple("profile=", ".*", null, "Specify the path to a yaml cql3 profile. Multiple comma separated files can be added.", true);
+        final OptionAnyProbabilities ops = new OptionAnyProbabilities("ops", "Specify the ratios for inserts/queries to perform; e.g. ops(insert=2,<query1>=1) will perform 2 inserts for each query1. When using multiple files, specify as keyspace.table.op.");
 
         @Override
         public List<? extends Option> options()
@@ -130,8 +171,7 @@ public class SettingsCommandUser extends SettingsCommand
         super.printSettings(out);
         out.printf("  Command Ratios: %s%n", ratios);
         out.printf("  Command Clustering Distribution: %s%n", options.clustering.getOptionAsString());
-        out.printf("  Profile File: %s%n", options.profile.value());
-        // profile.noSettings(out);
+        out.printf("  Profile File(s): %s%n", options.profile.value());
     }
 
 

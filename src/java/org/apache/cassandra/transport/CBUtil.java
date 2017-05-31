@@ -23,9 +23,9 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CoderResult;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -64,7 +64,7 @@ public abstract class CBUtil
         @Override
         protected CharsetDecoder initialValue()
         {
-            return Charset.forName("UTF-8").newDecoder();
+            return StandardCharsets.UTF_8.newDecoder();
         }
     };
 

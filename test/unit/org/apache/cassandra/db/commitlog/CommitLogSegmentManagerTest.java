@@ -92,7 +92,7 @@ public class CommitLogSegmentManagerTest
 
         ColumnFamilyStore cfs1 = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
 
-        final Mutation m = new RowUpdateBuilder(cfs1.metadata, 0, "k").clustering("bytes")
+        final Mutation m = new RowUpdateBuilder(cfs1.metadata(), 0, "k").clustering("bytes")
                                                                       .add("val", ByteBuffer.wrap(entropy))
                                                                       .build();
 

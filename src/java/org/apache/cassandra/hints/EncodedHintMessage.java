@@ -58,6 +58,11 @@ final class EncodedHintMessage
         return new MessageOut<>(MessagingService.Verb.HINT, this, serializer);
     }
 
+    public long getHintCreationTime()
+    {
+        return Hint.serializer.getHintCreationTime(hint, version);
+    }
+
     private static class Serializer implements IVersionedSerializer<EncodedHintMessage>
     {
         public long serializedSize(EncodedHintMessage message, int version)

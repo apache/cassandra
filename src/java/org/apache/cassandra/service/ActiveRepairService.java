@@ -18,29 +18,31 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.AbstractFuture;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
+
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -59,17 +61,18 @@ import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.AnticompactionTask;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairSession;
+import org.apache.cassandra.repair.consistent.CoordinatorSessions;
+import org.apache.cassandra.repair.consistent.LocalSessions;
 import org.apache.cassandra.repair.messages.*;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
-import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
  * ActiveRepairService is the starting point for manual "active" repairs.
@@ -85,18 +88,16 @@ import org.apache.cassandra.utils.concurrent.Refs;
  * The creation of a repair session is done through the submitRepairSession that
  * returns a future on the completion of that session.
  */
-public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
+public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener, ActiveRepairServiceMBean
 {
-    /**
-     * @deprecated this statuses are from the previous JMX notification service,
-     * which will be deprecated on 4.0. For statuses of the new notification
-     * service, see {@link org.apache.cassandra.streaming.StreamEvent.ProgressEvent}
-     */
-    @Deprecated
-    public static enum Status
+    public static class ConsistentSessions
     {
-        STARTED, SESSION_SUCCESS, SESSION_FAILED, FINISHED
+        public final LocalSessions local = new LocalSessions();
+        public final CoordinatorSessions coordinated = new CoordinatorSessions();
     }
+
+    public final ConsistentSessions consistent = new ConsistentSessions();
+
     private boolean registeredForEndpointChanges = false;
 
     public static CassandraVersion SUPPORTS_GLOBAL_PREPARE_FLAG_VERSION = new CassandraVersion("2.2.1");
@@ -106,6 +107,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public static final ActiveRepairService instance = new ActiveRepairService(FailureDetector.instance, Gossiper.instance);
 
     public static final long UNREPAIRED_SSTABLE = 0;
+    public static final UUID NO_PENDING_REPAIR = null;
 
     /**
      * A map of active coordinator session.
@@ -121,6 +123,37 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     {
         this.failureDetector = failureDetector;
         this.gossiper = gossiper;
+
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void start()
+    {
+        consistent.local.start();
+        ScheduledExecutors.optionalTasks.scheduleAtFixedRate(consistent.local::cleanup, 0,
+                                                             LocalSessions.CLEANUP_INTERVAL,
+                                                             TimeUnit.SECONDS);
+    }
+
+    @Override
+    public List<Map<String, String>> getSessions(boolean all)
+    {
+        return consistent.local.sessionInfo(all);
+    }
+
+    @Override
+    public void failSession(String session, boolean force)
+    {
+        UUID sessionID = UUID.fromString(session);
+        consistent.local.cancelSession(sessionID, force);
     }
 
     /**
@@ -133,8 +166,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
                                              Set<InetAddress> endpoints,
-                                             long repairedAt,
+                                             boolean isConsistent,
                                              boolean pullRepair,
+                                             PreviewKind previewKind,
                                              ListeningExecutorService executor,
                                              String... cfnames)
     {
@@ -144,7 +178,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace, parallelismDegree, endpoints, repairedAt, pullRepair, cfnames);
+        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace, parallelismDegree, endpoints, isConsistent, pullRepair, previewKind, cfnames);
 
         sessions.put(session.getId(), session);
         // register listeners
@@ -283,10 +317,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return neighbors;
     }
 
-    public synchronized UUID prepareForRepair(UUID parentRepairSession, InetAddress coordinator, Set<InetAddress> endpoints, RepairOption options, List<ColumnFamilyStore> columnFamilyStores)
+    public UUID prepareForRepair(UUID parentRepairSession, InetAddress coordinator, Set<InetAddress> endpoints, RepairOption options, List<ColumnFamilyStore> columnFamilyStores)
     {
-        long timestamp = Clock.instance.currentTimeMillis();
-        registerParentRepairSession(parentRepairSession, coordinator, columnFamilyStores, options.getRanges(), options.isIncremental(), timestamp, options.isGlobal());
+        // we only want repairedAt for incremental repairs, for non incremental repairs, UNREPAIRED_SSTABLE will preserve repairedAt on streamed sstables
+        long repairedAt = options.isIncremental() ? Clock.instance.currentTimeMillis() : ActiveRepairService.UNREPAIRED_SSTABLE;
+        registerParentRepairSession(parentRepairSession, coordinator, columnFamilyStores, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
         final CountDownLatch prepareLatch = new CountDownLatch(endpoints.size());
         final AtomicBoolean status = new AtomicBoolean(true);
         final Set<String> failedNodes = Collections.synchronizedSet(new HashSet<String>());
@@ -310,17 +345,17 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             }
         };
 
-        List<UUID> cfIds = new ArrayList<>(columnFamilyStores.size());
+        List<TableId> tableIds = new ArrayList<>(columnFamilyStores.size());
         for (ColumnFamilyStore cfs : columnFamilyStores)
-            cfIds.add(cfs.metadata.cfId);
+            tableIds.add(cfs.metadata.id);
 
         for (InetAddress neighbour : endpoints)
         {
             if (FailureDetector.instance.isAlive(neighbour))
             {
-                PrepareMessage message = new PrepareMessage(parentRepairSession, cfIds, options.getRanges(), options.isIncremental(), timestamp, options.isGlobal());
+                PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
                 MessageOut<RepairMessage> msg = message.createMessage();
-                MessagingService.instance().sendRR(msg, neighbour, callback, TimeUnit.HOURS.toMillis(1), true);
+                MessagingService.instance().sendRR(msg, neighbour, callback, DatabaseDescriptor.getRpcTimeout(), true);
             }
             else
             {
@@ -328,7 +363,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 failRepair(parentRepairSession, "Endpoint not alive: " + neighbour);
             }
         }
-
         try
         {
             // Failed repair is expensive so we wait for longer time.
@@ -354,8 +388,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         throw new RuntimeException(errorMsg);
     }
 
-    public void registerParentRepairSession(UUID parentRepairSession, InetAddress coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long timestamp, boolean isGlobal)
+    public void registerParentRepairSession(UUID parentRepairSession, InetAddress coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
     {
+        assert isIncremental || repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE;
         if (!registeredForEndpointChanges)
         {
             Gossiper.instance.register(this);
@@ -363,41 +398,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             registeredForEndpointChanges = true;
         }
 
-        parentRepairSessions.put(parentRepairSession, new ParentRepairSession(coordinator, columnFamilyStores, ranges, isIncremental, timestamp, isGlobal));
-    }
-
-    public Set<SSTableReader> currentlyRepairing(UUID cfId, UUID parentRepairSession)
-    {
-        Set<SSTableReader> repairing = new HashSet<>();
-        for (Map.Entry<UUID, ParentRepairSession> entry : parentRepairSessions.entrySet())
-        {
-            Collection<SSTableReader> sstables = entry.getValue().getActiveSSTables(cfId);
-            if (sstables != null && !entry.getKey().equals(parentRepairSession))
-                repairing.addAll(sstables);
-        }
-        return repairing;
-    }
-
-    /**
-     * Run final process of repair.
-     * This removes all resources held by parent repair session, after performing anti compaction if necessary.
-     *
-     * @param parentSession Parent session ID
-     * @param neighbors Repair participants (not including self)
-     * @param successfulRanges Ranges that repaired successfully
-     */
-    public synchronized ListenableFuture finishParentSession(UUID parentSession, Set<InetAddress> neighbors, Collection<Range<Token>> successfulRanges)
-    {
-        List<ListenableFuture<?>> tasks = new ArrayList<>(neighbors.size() + 1);
-        for (InetAddress neighbor : neighbors)
-        {
-            AnticompactionTask task = new AnticompactionTask(parentSession, neighbor, successfulRanges);
-            registerOnFdAndGossip(task);
-            tasks.add(task);
-            task.run(); // 'run' is just sending message
-        }
-        tasks.add(doAntiCompaction(parentSession, successfulRanges));
-        return Futures.successfulAsList(tasks);
+        parentRepairSessions.put(parentRepairSession, new ParentRepairSession(coordinator, columnFamilyStores, ranges, isIncremental, repairedAt, isGlobal, previewKind));
     }
 
     public ParentRepairSession getParentRepairSession(UUID parentSessionId)
@@ -430,53 +431,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return parentRepairSessions.remove(parentSessionId);
     }
 
-    /**
-     * Submit anti-compaction jobs to CompactionManager.
-     * When all jobs are done, parent repair session is removed whether those are suceeded or not.
-     *
-     * @param parentRepairSession parent repair session ID
-     * @return Future result of all anti-compaction jobs.
-     */
-    @SuppressWarnings("resource")
-    public ListenableFuture<List<Object>> doAntiCompaction(final UUID parentRepairSession, Collection<Range<Token>> successfulRanges)
-    {
-        assert parentRepairSession != null;
-        ParentRepairSession prs = getParentRepairSession(parentRepairSession);
-        //A repair will be marked as not global if it is a subrange repair to avoid many small anti-compactions
-        //in addition to other scenarios such as repairs not involving all DCs or hosts
-        if (!prs.isGlobal)
-        {
-            logger.info("[repair #{}] Not a global repair, will not do anticompaction", parentRepairSession);
-            removeParentRepairSession(parentRepairSession);
-            return Futures.immediateFuture(Collections.emptyList());
-        }
-        assert prs.ranges.containsAll(successfulRanges) : "Trying to perform anticompaction on unknown ranges";
-
-        List<ListenableFuture<?>> futures = new ArrayList<>();
-        // if we don't have successful repair ranges, then just skip anticompaction
-        if (!successfulRanges.isEmpty())
-        {
-            for (Map.Entry<UUID, ColumnFamilyStore> columnFamilyStoreEntry : prs.columnFamilyStores.entrySet())
-            {
-                Refs<SSTableReader> sstables = prs.getActiveRepairedSSTableRefsForAntiCompaction(columnFamilyStoreEntry.getKey(), parentRepairSession);
-                ColumnFamilyStore cfs = columnFamilyStoreEntry.getValue();
-                futures.add(CompactionManager.instance.submitAntiCompaction(cfs, successfulRanges, sstables, prs.repairedAt, parentRepairSession));
-            }
-        }
-
-        ListenableFuture<List<Object>> allAntiCompactionResults = Futures.successfulAsList(futures);
-        allAntiCompactionResults.addListener(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                removeParentRepairSession(parentRepairSession);
-            }
-        }, MoreExecutors.directExecutor());
-
-        return allAntiCompactionResults;
-    }
-
     public void handleMessage(InetAddress endpoint, RepairMessage message)
     {
         RepairJobDesc desc = message.desc;
@@ -492,7 +446,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             case SYNC_COMPLETE:
                 // one of replica is synced.
                 SyncComplete sync = (SyncComplete) message;
-                session.syncComplete(desc, sync.nodes, sync.success);
+                session.syncComplete(desc, sync.nodes, sync.success, sync.summaries);
                 break;
             default:
                 break;
@@ -503,211 +457,68 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      * We keep a ParentRepairSession around for the duration of the entire repair, for example, on a 256 token vnode rf=3 cluster
      * we would have 768 RepairSession but only one ParentRepairSession. We use the PRS to avoid anticompacting the sstables
      * 768 times, instead we take all repaired ranges at the end of the repair and anticompact once.
-     *
-     * We do an optimistic marking of sstables - when we start an incremental repair we mark all unrepaired sstables as
-     * repairing (@see markSSTablesRepairing), then while the repair is ongoing compactions might remove those sstables,
-     * and when it is time for anticompaction we will only anticompact the sstables that are still on disk.
-     *
-     * Note that validation and streaming do not care about which sstables we have marked as repairing - they operate on
-     * all unrepaired sstables (if it is incremental), otherwise we would not get a correct repair.
      */
     public static class ParentRepairSession
     {
-        private final Map<UUID, ColumnFamilyStore> columnFamilyStores = new HashMap<>();
+        private final Map<TableId, ColumnFamilyStore> columnFamilyStores = new HashMap<>();
         private final Collection<Range<Token>> ranges;
-        public final Map<UUID, Set<String>> sstableMap = new HashMap<>();
         public final boolean isIncremental;
         public final boolean isGlobal;
         public final long repairedAt;
         public final InetAddress coordinator;
-        /**
-         * Indicates whether we have marked sstables as repairing. Can only be done once per table per ParentRepairSession
-         */
-        private final Set<UUID> marked = new HashSet<>();
+        public final PreviewKind previewKind;
 
-        public ParentRepairSession(InetAddress coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal)
+        public ParentRepairSession(InetAddress coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
         {
             this.coordinator = coordinator;
             for (ColumnFamilyStore cfs : columnFamilyStores)
             {
-                this.columnFamilyStores.put(cfs.metadata.cfId, cfs);
-                sstableMap.put(cfs.metadata.cfId, new HashSet<String>());
+                this.columnFamilyStores.put(cfs.metadata.id, cfs);
             }
             this.ranges = ranges;
             this.repairedAt = repairedAt;
             this.isIncremental = isIncremental;
             this.isGlobal = isGlobal;
+            this.previewKind = previewKind;
         }
 
-        /**
-         * Mark sstables repairing - either all sstables or only the unrepaired ones depending on
-         *
-         * whether this is an incremental or full repair
-         *
-         * @param cfId the column family
-         * @param parentSessionId the parent repair session id, used to make sure we don't start multiple repairs over the same sstables
-         */
-        public synchronized void markSSTablesRepairing(UUID cfId, UUID parentSessionId)
+        public boolean isPreview()
         {
-            if (!marked.contains(cfId))
-            {
-                List<SSTableReader> sstables = columnFamilyStores.get(cfId).select(View.select(SSTableSet.CANONICAL, (s) -> !isIncremental || !s.isRepaired())).sstables;
-                Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfId, parentSessionId);
-                if (!Sets.intersection(currentlyRepairing, Sets.newHashSet(sstables)).isEmpty())
-                {
-                    logger.error("Cannot start multiple repair sessions over the same sstables");
-                    throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
-                }
-                addSSTables(cfId, sstables);
-                marked.add(cfId);
-            }
+            return previewKind != PreviewKind.NONE;
         }
 
-        /**
-         * Get the still active sstables we should run anticompaction on
-         *
-         * note that validation and streaming do not call this method - they have to work on the actual active sstables on the node, we only call this
-         * to know which sstables are still there that were there when we started the repair
-         *
-         * @param cfId
-         * @param parentSessionId for checking if there exists a snapshot for this repair
-         * @return
-         */
-        @SuppressWarnings("resource")
-        public synchronized Refs<SSTableReader> getActiveRepairedSSTableRefsForAntiCompaction(UUID cfId, UUID parentSessionId)
+        public Predicate<SSTableReader> getPreviewPredicate()
         {
-            assert marked.contains(cfId);
-            if (!columnFamilyStores.containsKey(cfId))
-                throw new RuntimeException("Not possible to get sstables for anticompaction for " + cfId);
-            boolean isSnapshotRepair = columnFamilyStores.get(cfId).snapshotExists(parentSessionId.toString());
-            ImmutableMap.Builder<SSTableReader, Ref<SSTableReader>> references = ImmutableMap.builder();
-            Iterable<SSTableReader> sstables = isSnapshotRepair ? getSSTablesForSnapshotRepair(cfId, parentSessionId) : getActiveSSTables(cfId);
-            // we check this above - if columnFamilyStores contains the cfId sstables will not be null
-            assert sstables != null;
-            for (SSTableReader sstable : sstables)
+            switch (previewKind)
             {
-                Ref<SSTableReader> ref = sstable.tryRef();
-                if (ref == null)
-                    sstableMap.get(cfId).remove(sstable.getFilename());
-                else
-                    references.put(sstable, ref);
+                case ALL:
+                    return (s) -> true;
+                case REPAIRED:
+                    return (s) -> s.isRepaired();
+                case UNREPAIRED:
+                    return (s) -> !s.isRepaired();
+                default:
+                    throw new RuntimeException("Can't get preview predicate for preview kind " + previewKind);
             }
-            return new Refs<>(references.build());
         }
 
-        /**
-         * If we are running a snapshot repair we need to find the 'real' sstables when we start anticompaction
-         *
-         * We use the generation of the sstables as identifiers instead of the file name to avoid having to parse out the
-         * actual filename.
-         *
-         * @param cfId
-         * @param parentSessionId
-         * @return
-         */
-        private Set<SSTableReader> getSSTablesForSnapshotRepair(UUID cfId, UUID parentSessionId)
-        {
-            Set<SSTableReader> activeSSTables = new HashSet<>();
-            ColumnFamilyStore cfs = columnFamilyStores.get(cfId);
-            if (cfs == null)
-                return null;
-
-            Set<Integer> snapshotGenerations = new HashSet<>();
-            try (Refs<SSTableReader> snapshottedSSTables = cfs.getSnapshotSSTableReader(parentSessionId.toString()))
-            {
-                for (SSTableReader sstable : snapshottedSSTables)
-                {
-                    snapshotGenerations.add(sstable.descriptor.generation);
-                }
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-            for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
-                if (snapshotGenerations.contains(sstable.descriptor.generation))
-                    activeSSTables.add(sstable);
-            return activeSSTables;
-        }
-
-        public synchronized void maybeSnapshot(UUID cfId, UUID parentSessionId)
+        public synchronized void maybeSnapshot(TableId tableId, UUID parentSessionId)
         {
             String snapshotName = parentSessionId.toString();
-            if (!columnFamilyStores.get(cfId).snapshotExists(snapshotName))
+            if (!columnFamilyStores.get(tableId).snapshotExists(snapshotName))
             {
-                Set<SSTableReader> snapshottedSSTables = columnFamilyStores.get(cfId).snapshot(snapshotName, new Predicate<SSTableReader>()
+                Set<SSTableReader> snapshottedSSTables = columnFamilyStores.get(tableId).snapshot(snapshotName, new Predicate<SSTableReader>()
                 {
                     public boolean apply(SSTableReader sstable)
                     {
                         return sstable != null &&
                                (!isIncremental || !sstable.isRepaired()) &&
-                               !(sstable.metadata.isIndex()) && // exclude SSTables from 2i
+                               !(sstable.metadata().isIndex()) && // exclude SSTables from 2i
                                new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges);
                     }
                 }, true, false);
-
-                if (isAlreadyRepairing(cfId, parentSessionId, snapshottedSSTables))
-                {
-                    columnFamilyStores.get(cfId).clearSnapshot(parentSessionId.toString());
-                    logger.error("Cannot start multiple repair sessions over the same sstables");
-                    throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
-                }
-                addSSTables(cfId, snapshottedSSTables);
-                marked.add(cfId);
             }
         }
-
-
-        /**
-         * Compares other repairing sstables *generation* to the ones we just snapshotted
-         *
-         * we compare generations since the sstables have different paths due to snapshot names
-         *
-         * @param cfId id of the column family store
-         * @param parentSessionId parent repair session
-         * @param sstables the newly snapshotted sstables
-         * @return
-         */
-        private boolean isAlreadyRepairing(UUID cfId, UUID parentSessionId, Collection<SSTableReader> sstables)
-        {
-            Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfId, parentSessionId);
-            Set<Integer> currentlyRepairingGenerations = new HashSet<>();
-            Set<Integer> newRepairingGenerations = new HashSet<>();
-            for (SSTableReader sstable : currentlyRepairing)
-                currentlyRepairingGenerations.add(sstable.descriptor.generation);
-            for (SSTableReader sstable : sstables)
-                newRepairingGenerations.add(sstable.descriptor.generation);
-
-            return !Sets.intersection(currentlyRepairingGenerations, newRepairingGenerations).isEmpty();
-        }
-
-        private Set<SSTableReader> getActiveSSTables(UUID cfId)
-        {
-            if (!columnFamilyStores.containsKey(cfId))
-                return null;
-
-            Set<String> repairedSSTables = sstableMap.get(cfId);
-            Set<SSTableReader> activeSSTables = new HashSet<>();
-            Set<String> activeSSTableNames = new HashSet<>();
-            ColumnFamilyStore cfs = columnFamilyStores.get(cfId);
-            for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
-            {
-                if (repairedSSTables.contains(sstable.getFilename()))
-                {
-                    activeSSTables.add(sstable);
-                    activeSSTableNames.add(sstable.getFilename());
-                }
-            }
-            sstableMap.put(cfId, activeSSTableNames);
-            return activeSSTables;
-        }
-
-        private void addSSTables(UUID cfId, Collection<SSTableReader> sstables)
-        {
-            for (SSTableReader sstable : sstables)
-                sstableMap.get(cfId).add(sstable.getFilename());
-        }
-
 
         public long getRepairedAt()
         {
@@ -716,13 +527,27 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             return ActiveRepairService.UNREPAIRED_SSTABLE;
         }
 
+        public Collection<ColumnFamilyStore> getColumnFamilyStores()
+        {
+            return ImmutableSet.<ColumnFamilyStore>builder().addAll(columnFamilyStores.values()).build();
+        }
+
+        public Set<TableId> getTableIds()
+        {
+            return ImmutableSet.copyOf(Iterables.transform(getColumnFamilyStores(), cfs -> cfs.metadata.id));
+        }
+
+        public Collection<Range<Token>> getRanges()
+        {
+            return ImmutableSet.copyOf(ranges);
+        }
+
         @Override
         public String toString()
         {
             return "ParentRepairSession{" +
                     "columnFamilyStores=" + columnFamilyStores +
                     ", ranges=" + ranges +
-                    ", sstableMap=" + sstableMap +
                     ", repairedAt=" + repairedAt +
                     '}';
         }

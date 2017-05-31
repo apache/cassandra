@@ -27,12 +27,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.QueryValidationException;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
@@ -54,7 +53,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-import static org.apache.cassandra.Util.throwAssert;
 import static org.apache.cassandra.cql3.statements.IndexTarget.CUSTOM_INDEX_OPTION_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -70,7 +68,7 @@ public class CustomIndexTest extends CQLTester
         // test to ensure that we don't deadlock when flushing CFS backed custom indexers
         // see CASSANDRA-10181
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
-        createIndex("CREATE CUSTOM INDEX myindex ON %s(c) USING 'org.apache.cassandra.index.internal.CustomCassandraIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(c) USING 'org.apache.cassandra.index.internal.CustomCassandraIndex'");
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 0, 2);
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 0, 1);
@@ -83,7 +81,7 @@ public class CustomIndexTest extends CQLTester
         // deadlocks and times out the test in the face of the synchronisation
         // issues described in the comments on CASSANDRA-9669
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a))");
-        createIndex("CREATE CUSTOM INDEX b_index ON %s(b) USING 'org.apache.cassandra.index.StubIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'org.apache.cassandra.index.StubIndex'");
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 2);
         getCurrentColumnFamilyStore().truncateBlocking();
     }
@@ -233,21 +231,21 @@ public class CustomIndexTest extends CQLTester
         createTable("CREATE TABLE %s(k int, c int, v1 int, v2 int, PRIMARY KEY(k,c))");
 
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(v1, v2) USING '%s'", StubIndex.class.getName()));
-        assertEquals(1, getCurrentColumnFamilyStore().metadata.getIndexes().size());
+        assertEquals(1, getCurrentColumnFamilyStore().metadata().indexes.size());
         assertIndexCreated(currentTable() + "_idx", "v1", "v2");
 
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c, v1, v2) USING '%s'", StubIndex.class.getName()));
-        assertEquals(2, getCurrentColumnFamilyStore().metadata.getIndexes().size());
+        assertEquals(2, getCurrentColumnFamilyStore().metadata().indexes.size());
         assertIndexCreated(currentTable() + "_idx_1", "c", "v1", "v2");
 
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c, v2) USING '%s'", StubIndex.class.getName()));
-        assertEquals(3, getCurrentColumnFamilyStore().metadata.getIndexes().size());
+        assertEquals(3, getCurrentColumnFamilyStore().metadata().indexes.size());
         assertIndexCreated(currentTable() + "_idx_2", "c", "v2");
 
         // duplicate the previous index with some additional options and check the name is generated as expected
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c, v2) USING '%s' WITH OPTIONS = {'foo':'bar'}",
                                   StubIndex.class.getName()));
-        assertEquals(4, getCurrentColumnFamilyStore().metadata.getIndexes().size());
+        assertEquals(4, getCurrentColumnFamilyStore().metadata().indexes.size());
         Map<String, String> options = new HashMap<>();
         options.put("foo", "bar");
         assertIndexCreated(currentTable() + "_idx_3", options, "c", "v2");
@@ -279,7 +277,19 @@ public class CustomIndexTest extends CQLTester
         testCreateIndex("idx_5", "c2", "v1");
         testCreateIndex("idx_6", "v1", "v2");
         testCreateIndex("idx_7", "pk2", "c2", "v2");
-        testCreateIndex("idx_8", "pk1", "c1", "v1", "mval", "sval", "lval");
+
+        createIndex(String.format("CREATE CUSTOM INDEX idx_8 ON %%s(" +
+                                  "  pk1, c1, v1, values(mval), values(sval), values(lval)" +
+                                  ") USING '%s'",
+                                  StubIndex.class.getName()));
+        assertIndexCreated("idx_8",
+                           new HashMap<>(),
+                           ImmutableList.of(indexTarget("pk1", IndexTarget.Type.SIMPLE),
+                                            indexTarget("c1", IndexTarget.Type.SIMPLE),
+                                            indexTarget("v1", IndexTarget.Type.SIMPLE),
+                                            indexTarget("mval", IndexTarget.Type.VALUES),
+                                            indexTarget("sval", IndexTarget.Type.VALUES),
+                                            indexTarget("lval", IndexTarget.Type.VALUES)));
 
         createIndex(String.format("CREATE CUSTOM INDEX inc_frozen ON %%s(" +
                                   "  pk2, c2, v2, full(fmap), full(fset), full(flist)" +
@@ -287,9 +297,9 @@ public class CustomIndexTest extends CQLTester
                                   StubIndex.class.getName()));
         assertIndexCreated("inc_frozen",
                            new HashMap<>(),
-                           ImmutableList.of(indexTarget("pk2", IndexTarget.Type.VALUES),
-                                            indexTarget("c2", IndexTarget.Type.VALUES),
-                                            indexTarget("v2", IndexTarget.Type.VALUES),
+                           ImmutableList.of(indexTarget("pk2", IndexTarget.Type.SIMPLE),
+                                            indexTarget("c2", IndexTarget.Type.SIMPLE),
+                                            indexTarget("v2", IndexTarget.Type.SIMPLE),
                                             indexTarget("fmap", IndexTarget.Type.FULL),
                                             indexTarget("fset", IndexTarget.Type.FULL),
                                             indexTarget("flist", IndexTarget.Type.FULL)));
@@ -300,12 +310,12 @@ public class CustomIndexTest extends CQLTester
                                   StubIndex.class.getName()));
         assertIndexCreated("all_teh_things",
                            new HashMap<>(),
-                           ImmutableList.of(indexTarget("pk1", IndexTarget.Type.VALUES),
-                                            indexTarget("pk2", IndexTarget.Type.VALUES),
-                                            indexTarget("c1", IndexTarget.Type.VALUES),
-                                            indexTarget("c2", IndexTarget.Type.VALUES),
-                                            indexTarget("v1", IndexTarget.Type.VALUES),
-                                            indexTarget("v2", IndexTarget.Type.VALUES),
+                           ImmutableList.of(indexTarget("pk1", IndexTarget.Type.SIMPLE),
+                                            indexTarget("pk2", IndexTarget.Type.SIMPLE),
+                                            indexTarget("c1", IndexTarget.Type.SIMPLE),
+                                            indexTarget("c2", IndexTarget.Type.SIMPLE),
+                                            indexTarget("v1", IndexTarget.Type.SIMPLE),
+                                            indexTarget("v2", IndexTarget.Type.SIMPLE),
                                             indexTarget("mval", IndexTarget.Type.KEYS),
                                             indexTarget("lval", IndexTarget.Type.VALUES),
                                             indexTarget("sval", IndexTarget.Type.VALUES),
@@ -320,16 +330,6 @@ public class CustomIndexTest extends CQLTester
         String myType = KEYSPACE + '.' + createType("CREATE TYPE %s (a int, b int)");
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 frozen<" + myType + ">)");
         testCreateIndex("udt_idx", "v1", "v2");
-        Indexes indexes = getCurrentColumnFamilyStore().metadata.getIndexes();
-        IndexMetadata expected = IndexMetadata.fromIndexTargets(getCurrentColumnFamilyStore().metadata,
-                                                                ImmutableList.of(indexTarget("v1", IndexTarget.Type.VALUES),
-                                                                                 indexTarget("v2", IndexTarget.Type.VALUES)),
-                                                                "udt_idx",
-                                                                IndexMetadata.Kind.CUSTOM,
-                                                                ImmutableMap.of(CUSTOM_INDEX_OPTION_NAME,
-                                                                                StubIndex.class.getName()));
-        IndexMetadata actual = indexes.get("udt_idx").orElseThrow(throwAssert("Index udt_idx not found"));
-        assertEquals(expected, actual);
     }
 
     @Test
@@ -355,13 +355,13 @@ public class CustomIndexTest extends CQLTester
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", row);
 
 
-        assertInvalidMessage(String.format(IndexRestrictions.INDEX_NOT_FOUND, indexName, keyspace(), currentTable()),
+        assertInvalidMessage(String.format(IndexRestrictions.INDEX_NOT_FOUND, indexName, currentTableMetadata().toString()),
                              String.format("SELECT * FROM %%s WHERE expr(%s, 'foo bar baz')", indexName));
 
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(c) USING '%s'", indexName, StubIndex.class.getName()));
 
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
-                                  String.format(IndexRestrictions.INDEX_NOT_FOUND, "no_such_index", keyspace(), currentTable()),
+                                  String.format(IndexRestrictions.INDEX_NOT_FOUND, "no_such_index", currentTableMetadata().toString()),
                                   QueryValidationException.class,
                                   "SELECT * FROM %s WHERE expr(no_such_index, 'foo bar baz ')");
 
@@ -536,7 +536,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void reloadIndexMetadataOnBaseCfsReload() throws Throwable
     {
-        // verify that whenever the base table CFMetadata is reloaded, a reload of the index
+        // verify that whenever the base table TableMetadata is reloaded, a reload of the index
         // metadata is performed
         createTable("CREATE TABLE %s (k int, v1 int, PRIMARY KEY(k))");
         createIndex(String.format("CREATE CUSTOM INDEX reload_counter ON %%s() USING '%s'",
@@ -616,13 +616,13 @@ public class CustomIndexTest extends CQLTester
     }
 
     @Test
-    public void validateOptionsWithCFMetaData() throws Throwable
+    public void validateOptionsWithTableMetadata() throws Throwable
     {
         createTable("CREATE TABLE %s(k int, c int, v1 int, v2 int, PRIMARY KEY(k,c))");
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c, v2) USING '%s' WITH OPTIONS = {'foo':'bar'}",
                                   IndexWithOverloadedValidateOptions.class.getName()));
-        CFMetaData cfm = getCurrentColumnFamilyStore().metadata;
-        assertEquals(cfm, IndexWithOverloadedValidateOptions.cfm);
+        TableMetadata table = getCurrentColumnFamilyStore().metadata();
+        assertEquals(table, IndexWithOverloadedValidateOptions.table);
         assertNotNull(IndexWithOverloadedValidateOptions.options);
         assertEquals("bar", IndexWithOverloadedValidateOptions.options.get("foo"));
     }
@@ -823,8 +823,7 @@ public class CustomIndexTest extends CQLTester
     private void assertIndexCreated(String name, Map<String, String> options, String... targetColumnNames)
     {
         List<IndexTarget> targets = Arrays.stream(targetColumnNames)
-                                          .map(s -> new IndexTarget(ColumnIdentifier.getInterned(s, true),
-                                                                    IndexTarget.Type.VALUES))
+                                          .map(s -> new IndexTarget(ColumnIdentifier.getInterned(s, true), IndexTarget.Type.SIMPLE))
                                           .collect(Collectors.toList());
         assertIndexCreated(name, options, targets);
     }
@@ -834,14 +833,13 @@ public class CustomIndexTest extends CQLTester
         // all tests here use StubIndex as the custom index class,
         // so add that to the map of options
         options.put(CUSTOM_INDEX_OPTION_NAME, StubIndex.class.getName());
-        CFMetaData cfm = getCurrentColumnFamilyStore().metadata;
-        IndexMetadata expected = IndexMetadata.fromIndexTargets(cfm, targets, name, IndexMetadata.Kind.CUSTOM, options);
-        Indexes indexes = getCurrentColumnFamilyStore().metadata.getIndexes();
+        IndexMetadata expected = IndexMetadata.fromIndexTargets(targets, name, IndexMetadata.Kind.CUSTOM, options);
+        Indexes indexes = getCurrentColumnFamilyStore().metadata().indexes;
         for (IndexMetadata actual : indexes)
             if (actual.equals(expected))
                 return;
 
-        fail(String.format("Index %s not found in CFMetaData", expected));
+        fail(String.format("Index %s not found", expected));
     }
 
     private static IndexTarget indexTarget(String name, IndexTarget.Type type)
@@ -998,7 +996,7 @@ public class CustomIndexTest extends CQLTester
 
     public static final class IndexWithOverloadedValidateOptions extends StubIndex
     {
-        public static CFMetaData cfm;
+        public static TableMetadata table;
         public static Map<String, String> options;
 
         public IndexWithOverloadedValidateOptions(ColumnFamilyStore baseCfs, IndexMetadata metadata)
@@ -1006,10 +1004,10 @@ public class CustomIndexTest extends CQLTester
             super(baseCfs, metadata);
         }
 
-        public static Map<String, String> validateOptions(Map<String, String> options, CFMetaData cfm)
+        public static Map<String, String> validateOptions(Map<String, String> options, TableMetadata table)
         {
             IndexWithOverloadedValidateOptions.options = options;
-            IndexWithOverloadedValidateOptions.cfm = cfm;
+            IndexWithOverloadedValidateOptions.table = table;
             return new HashMap<>();
         }
     }
@@ -1047,7 +1045,7 @@ public class CustomIndexTest extends CQLTester
         // various OpOrder.Groups, which it can obtain from this index.
 
         public Indexer indexerFor(final DecoratedKey key,
-                                  PartitionColumns columns,
+                                  RegularAndStaticColumns columns,
                                   int nowInSec,
                                   OpOrder.Group opGroup,
                                   IndexTransaction.Type transactionType)

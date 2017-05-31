@@ -22,7 +22,7 @@ import java.util.function.Predicate;
 
 import com.google.common.collect.Ordering;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PurgeFunction;
@@ -101,26 +101,20 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             metrics.beginCompaction(this);
 
         UnfilteredPartitionIterator merged = scanners.isEmpty()
-                                             ? EmptyIterators.unfilteredPartition(controller.cfs.metadata, false)
-                                             : UnfilteredPartitionIterators.merge(scanners, nowInSec, listener());
-        boolean isForThrift = merged.isForThrift(); // to stop capture of iterator in Purger, which is confusing for debug
+                                           ? EmptyIterators.unfilteredPartition(controller.cfs.metadata())
+                                           : UnfilteredPartitionIterators.merge(scanners, nowInSec, listener());
         merged = Transformation.apply(merged, new GarbageSkipper(controller, nowInSec));
-        this.compacted = Transformation.apply(merged, new Purger(isForThrift, controller, nowInSec));
+        this.compacted = Transformation.apply(merged, new Purger(controller, nowInSec));
     }
 
-    public boolean isForThrift()
+    public TableMetadata metadata()
     {
-        return false;
-    }
-
-    public CFMetaData metadata()
-    {
-        return controller.cfs.metadata;
+        return controller.cfs.metadata();
     }
 
     public CompactionInfo getCompactionInfo()
     {
-        return new CompactionInfo(controller.cfs.metadata,
+        return new CompactionInfo(controller.cfs.metadata(),
                                   type,
                                   bytesRead,
                                   totalBytes,
@@ -173,7 +167,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                         regulars = regulars.mergeTo(iter.columns().regulars);
                     }
                 }
-                final PartitionColumns partitionColumns = new PartitionColumns(statics, regulars);
+                final RegularAndStaticColumns regularAndStaticColumns = new RegularAndStaticColumns(statics, regulars);
 
                 // If we have a 2ndary index, we must update it with deleted/shadowed cells.
                 // we can reuse a single CleanupTransaction for the duration of a partition.
@@ -187,7 +181,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 // TODO: this should probably be done asynchronously and batched.
                 final CompactionTransaction indexTransaction =
                     controller.cfs.indexManager.newCompactionTransaction(partitionKey,
-                                                                         partitionColumns,
+                                                                         regularAndStaticColumns,
                                                                          versions.size(),
                                                                          nowInSec);
 
@@ -270,9 +264,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         private long compactedUnfiltered;
 
-        private Purger(boolean isForThrift, CompactionController controller, int nowInSec)
+        private Purger(CompactionController controller, int nowInSec)
         {
-            super(isForThrift, nowInSec, controller.gcBefore, controller.compactingRepaired() ? Integer.MAX_VALUE : Integer.MIN_VALUE, controller.cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones());
+            super(nowInSec, controller.gcBefore, controller.compactingRepaired() ? Integer.MAX_VALUE : Integer.MIN_VALUE, controller.cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones());
             this.controller = controller;
         }
 
@@ -326,7 +320,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final Row staticRow;
         final ColumnFilter cf;
         final int nowInSec;
-        final CFMetaData metadata;
+        final TableMetadata metadata;
         final boolean cellLevelGC;
 
         DeletionTime tombOpenDeletionTime = DeletionTime.LIVE;

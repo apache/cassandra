@@ -19,6 +19,7 @@ package org.apache.cassandra.tools;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -129,12 +130,13 @@ public class SSTableMetadataViewer
                             minValues[i] = clusteringTypes.get(i).getString(minClusteringValues.get(i));
                             maxValues[i] = clusteringTypes.get(i).getString(maxClusteringValues.get(i));
                         }
-                        out.printf("minClustringValues: %s%n", Arrays.toString(minValues));
-                        out.printf("maxClustringValues: %s%n", Arrays.toString(maxValues));
+                        out.printf("minClusteringValues: %s%n", Arrays.toString(minValues));
+                        out.printf("maxClusteringValues: %s%n", Arrays.toString(maxValues));
                     }
                     out.printf("Estimated droppable tombstones: %s%n", stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000) - gcgs));
                     out.printf("SSTable Level: %d%n", stats.sstableLevel);
                     out.printf("Repaired at: %d%n", stats.repairedAt);
+                    out.printf("Pending repair: %s%n", stats.pendingRepair);
                     out.printf("Replay positions covered: %s%n", stats.commitLogIntervals);
                     out.printf("totalColumnsSet: %s%n", stats.totalColumnsSet);
                     out.printf("totalRows: %s%n", stats.totalRows);
@@ -213,9 +215,9 @@ public class SSTableMetadataViewer
         if (!summariesFile.exists())
             return;
 
-        try (DataInputStream iStream = new DataInputStream(new FileInputStream(summariesFile)))
+        try (DataInputStream iStream = new DataInputStream(Files.newInputStream(summariesFile.toPath())))
         {
-            Pair<DecoratedKey, DecoratedKey> firstLast = new IndexSummary.IndexSummarySerializer().deserializeFirstLastKey(iStream, partitioner, descriptor.version.hasSamplingLevel());
+            Pair<DecoratedKey, DecoratedKey> firstLast = new IndexSummary.IndexSummarySerializer().deserializeFirstLastKey(iStream, partitioner);
             out.printf("First token: %s (key=%s)%n", firstLast.left.getToken(), keyType.getString(firstLast.left.getKey()));
             out.printf("Last token: %s (key=%s)%n", firstLast.right.getToken(), keyType.getString(firstLast.right.getKey()));
         }

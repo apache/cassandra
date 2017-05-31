@@ -17,8 +17,9 @@
  */
 package org.apache.cassandra.security;
 
-
-import java.io.FileInputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.io.InputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -155,8 +156,8 @@ public final class SSLFactory
     @SuppressWarnings("resource")
     public static SSLContext createSSLContext(EncryptionOptions options, boolean buildTruststore) throws IOException
     {
-        FileInputStream tsf = null;
-        FileInputStream ksf = null;
+        InputStream tsf = null;
+        InputStream ksf = null;
         SSLContext ctx;
         try
         {
@@ -165,7 +166,7 @@ public final class SSLFactory
 
             if(buildTruststore)
             {
-                tsf = new FileInputStream(options.truststore);
+                tsf = Files.newInputStream(Paths.get(options.truststore));
                 TrustManagerFactory tmf = TrustManagerFactory.getInstance(options.algorithm);
                 KeyStore ts = KeyStore.getInstance(options.store_type);
                 ts.load(tsf, options.truststore_password.toCharArray());
@@ -173,7 +174,7 @@ public final class SSLFactory
                 trustManagers = tmf.getTrustManagers();
             }
 
-            ksf = new FileInputStream(options.keystore);
+            ksf = Files.newInputStream(Paths.get((options.keystore)));
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(options.algorithm);
             KeyStore ks = KeyStore.getInstance(options.store_type);
             ks.load(ksf, options.keystore_password.toCharArray());

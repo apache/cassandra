@@ -27,7 +27,7 @@ import java.util.concurrent.*;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.rows.Row;
@@ -82,7 +82,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
     private final AbstractType<?> keyValidator;
 
     @VisibleForTesting
-    protected final Map<ColumnDefinition, Index> indexes;
+    protected final Map<ColumnMetadata, Index> indexes;
 
     private DecoratedKey currentKey;
     private long currentKeyPosition;
@@ -91,13 +91,13 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
     public PerSSTableIndexWriter(AbstractType<?> keyValidator,
                                  Descriptor descriptor,
                                  OperationType source,
-                                 Map<ColumnDefinition, ColumnIndex> supportedIndexes)
+                                 Map<ColumnMetadata, ColumnIndex> supportedIndexes)
     {
         this.keyValidator = keyValidator;
         this.descriptor = descriptor;
         this.source = source;
         this.indexes = new HashMap<>();
-        for (Map.Entry<ColumnDefinition, ColumnIndex> entry : supportedIndexes.entrySet())
+        for (Map.Entry<ColumnMetadata, ColumnIndex> entry : supportedIndexes.entrySet())
             indexes.put(entry.getKey(), newIndex(entry.getValue()));
     }
 
@@ -151,7 +151,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         }
     }
 
-    public Index getIndex(ColumnDefinition columnDef)
+    public Index getIndex(ColumnMetadata columnDef)
     {
         return indexes.get(columnDef);
     }

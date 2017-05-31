@@ -19,9 +19,7 @@
 package org.apache.cassandra.transport;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.Test;
 

@@ -140,7 +140,7 @@ public abstract class AbstractMarker extends Term.NonTerminal
      *
      * Because a single type is used, a List is used to represent the values.
      */
-    public static class INRaw extends Raw
+    public static final class INRaw extends Raw
     {
         public INRaw(int bindIndex)
         {
@@ -154,7 +154,7 @@ public abstract class AbstractMarker extends Term.NonTerminal
         }
 
         @Override
-        public AbstractMarker prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+        public Lists.Marker prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             return new Lists.Marker(bindIndex, makeInReceiver(receiver));
         }

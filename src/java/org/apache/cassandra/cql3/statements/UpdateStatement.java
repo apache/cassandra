@@ -21,14 +21,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.conditions.ColumnCondition;
+import org.apache.cassandra.cql3.conditions.Conditions;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -46,13 +48,13 @@ public class UpdateStatement extends ModificationStatement
 
     private UpdateStatement(StatementType type,
                             int boundTerms,
-                            CFMetaData cfm,
+                            TableMetadata metadata,
                             Operations operations,
                             StatementRestrictions restrictions,
                             Conditions conditions,
                             Attributes attrs)
     {
-        super(type, boundTerms, cfm, operations, restrictions, conditions, attrs);
+        super(type, boundTerms, metadata, operations, restrictions, conditions, attrs);
     }
 
     public boolean requireFullClusteringKey()
@@ -70,24 +72,21 @@ public class UpdateStatement extends ModificationStatement
             // We update the row timestamp (ex-row marker) only on INSERT (#6782)
             // Further, COMPACT tables semantic differs from "CQL3" ones in that a row exists only if it has
             // a non-null column, so we don't want to set the row timestamp for them.
-            if (type.isInsert() && cfm.isCQLTable())
+            if (type.isInsert() && metadata().isCQLTable())
                 params.addPrimaryKeyLivenessInfo();
 
             List<Operation> updates = getRegularOperations();
 
-            // For compact table, when we translate it to thrift, we don't have a row marker. So we don't accept an insert/update
-            // that only sets the PK unless the is no declared non-PK columns (in the latter we just set the value empty).
-
-            // For a dense layout, when we translate it to thrift, we don't have a row marker. So we don't accept an insert/update
-            // that only sets the PK unless the is no declared non-PK columns (which we recognize because in that case the compact
-            // value is of type "EmptyType").
-            if (cfm.isCompactTable() && updates.isEmpty())
+            // For compact table, we don't accept an insert/update that only sets the PK unless the is no
+            // declared non-PK columns (which we recognize because in that case
+            // the compact value is of type "EmptyType").
+            if (metadata().isCompactTable() && updates.isEmpty())
             {
-                checkTrue(CompactTables.hasEmptyCompactValue(cfm),
+                checkTrue(CompactTables.hasEmptyCompactValue(metadata),
                           "Column %s is mandatory for this COMPACT STORAGE table",
-                          cfm.compactValueColumn().name);
+                          metadata().compactValueColumn.name);
 
-                updates = Collections.<Operation>singletonList(new Constants.Setter(cfm.compactValueColumn(), EMPTY));
+                updates = Collections.<Operation>singletonList(new Constants.Setter(metadata().compactValueColumn, EMPTY));
             }
 
             for (Operation op : updates)
@@ -113,7 +112,7 @@ public class UpdateStatement extends ModificationStatement
 
     public static class ParsedInsert extends ModificationStatement.Parsed
     {
-        private final List<ColumnDefinition.Raw> columnNames;
+        private final List<ColumnMetadata.Raw> columnNames;
         private final List<Term.Raw> columnValues;
 
         /**
@@ -127,7 +126,7 @@ public class UpdateStatement extends ModificationStatement
          */
         public ParsedInsert(CFName name,
                             Attributes.Raw attrs,
-                            List<ColumnDefinition.Raw> columnNames,
+                            List<ColumnMetadata.Raw> columnNames,
                             List<Term.Raw> columnValues,
                             boolean ifNotExists)
         {
@@ -137,14 +136,14 @@ public class UpdateStatement extends ModificationStatement
         }
 
         @Override
-        protected ModificationStatement prepareInternal(CFMetaData cfm,
+        protected ModificationStatement prepareInternal(TableMetadata metadata,
                                                         VariableSpecifications boundNames,
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
 
             // Created from an INSERT
-            checkFalse(cfm.isCounter(), "INSERT statements are not allowed on counter tables, use UPDATE instead");
+            checkFalse(metadata.isCounter(), "INSERT statements are not allowed on counter tables, use UPDATE instead");
 
             checkFalse(columnNames == null, "Column names for INSERT must be provided when using VALUES");
             checkFalse(columnNames.isEmpty(), "No columns provided to INSERT");
@@ -157,7 +156,7 @@ public class UpdateStatement extends ModificationStatement
 
             for (int i = 0; i < columnNames.size(); i++)
             {
-                ColumnDefinition def = getColumnDefinition(cfm, columnNames.get(i));
+                ColumnMetadata def = getColumnDefinition(metadata, columnNames.get(i));
 
                 if (def.isClusteringColumn())
                     hasClusteringColumnsSet = true;
@@ -170,7 +169,7 @@ public class UpdateStatement extends ModificationStatement
                 }
                 else
                 {
-                    Operation operation = new Operation.SetValue(value).prepare(cfm, def);
+                    Operation operation = new Operation.SetValue(value).prepare(metadata, def);
                     operation.collectMarkerSpecification(boundNames);
                     operations.add(operation);
                 }
@@ -179,17 +178,16 @@ public class UpdateStatement extends ModificationStatement
             boolean applyOnlyToStaticColumns = !hasClusteringColumnsSet && appliesOnlyToStaticColumns(operations, conditions);
 
             StatementRestrictions restrictions = new StatementRestrictions(type,
-                                                                           cfm,
+                                                                           metadata,
                                                                            whereClause.build(),
                                                                            boundNames,
                                                                            applyOnlyToStaticColumns,
-                                                                           false,
                                                                            false,
                                                                            false);
 
             return new UpdateStatement(type,
                                        boundNames.size(),
-                                       cfm,
+                                       metadata,
                                        operations,
                                        restrictions,
                                        conditions,
@@ -213,21 +211,21 @@ public class UpdateStatement extends ModificationStatement
         }
 
         @Override
-        protected ModificationStatement prepareInternal(CFMetaData cfm,
+        protected ModificationStatement prepareInternal(TableMetadata metadata,
                                                         VariableSpecifications boundNames,
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
-            checkFalse(cfm.isCounter(), "INSERT statements are not allowed on counter tables, use UPDATE instead");
+            checkFalse(metadata.isCounter(), "INSERT statements are not allowed on counter tables, use UPDATE instead");
 
-            Collection<ColumnDefinition> defs = cfm.allColumns();
-            Json.Prepared prepared = jsonValue.prepareAndCollectMarkers(cfm, defs, boundNames);
+            Collection<ColumnMetadata> defs = metadata.columns();
+            Json.Prepared prepared = jsonValue.prepareAndCollectMarkers(metadata, defs, boundNames);
 
             WhereClause.Builder whereClause = new WhereClause.Builder();
             Operations operations = new Operations(type);
             boolean hasClusteringColumnsSet = false;
 
-            for (ColumnDefinition def : defs)
+            for (ColumnMetadata def : defs)
             {
                 if (def.isClusteringColumn())
                     hasClusteringColumnsSet = true;
@@ -235,11 +233,11 @@ public class UpdateStatement extends ModificationStatement
                 Term.Raw raw = prepared.getRawTermForColumn(def, defaultUnset);
                 if (def.isPrimaryKeyColumn())
                 {
-                    whereClause.add(new SingleColumnRelation(ColumnDefinition.Raw.forColumn(def), Operator.EQ, raw));
+                    whereClause.add(new SingleColumnRelation(ColumnMetadata.Raw.forColumn(def), Operator.EQ, raw));
                 }
                 else
                 {
-                    Operation operation = new Operation.SetValue(raw).prepare(cfm, def);
+                    Operation operation = new Operation.SetValue(raw).prepare(metadata, def);
                     operation.collectMarkerSpecification(boundNames);
                     operations.add(operation);
                 }
@@ -248,17 +246,16 @@ public class UpdateStatement extends ModificationStatement
             boolean applyOnlyToStaticColumns = !hasClusteringColumnsSet && appliesOnlyToStaticColumns(operations, conditions);
 
             StatementRestrictions restrictions = new StatementRestrictions(type,
-                                                                           cfm,
+                                                                           metadata,
                                                                            whereClause.build(),
                                                                            boundNames,
                                                                            applyOnlyToStaticColumns,
-                                                                           false,
                                                                            false,
                                                                            false);
 
             return new UpdateStatement(type,
                                        boundNames.size(),
-                                       cfm,
+                                       metadata,
                                        operations,
                                        restrictions,
                                        conditions,
@@ -269,7 +266,7 @@ public class UpdateStatement extends ModificationStatement
     public static class ParsedUpdate extends ModificationStatement.Parsed
     {
         // Provided for an UPDATE
-        private final List<Pair<ColumnDefinition.Raw, Operation.RawUpdate>> updates;
+        private final List<Pair<ColumnMetadata.Raw, Operation.RawUpdate>> updates;
         private final WhereClause whereClause;
 
         /**
@@ -284,9 +281,9 @@ public class UpdateStatement extends ModificationStatement
          * */
         public ParsedUpdate(CFName name,
                             Attributes.Raw attrs,
-                            List<Pair<ColumnDefinition.Raw, Operation.RawUpdate>> updates,
+                            List<Pair<ColumnMetadata.Raw, Operation.RawUpdate>> updates,
                             WhereClause whereClause,
-                            List<Pair<ColumnDefinition.Raw, ColumnCondition.Raw>> conditions,
+                            List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> conditions,
                             boolean ifExists)
         {
             super(name, StatementType.UPDATE, attrs, conditions, false, ifExists);
@@ -295,25 +292,25 @@ public class UpdateStatement extends ModificationStatement
         }
 
         @Override
-        protected ModificationStatement prepareInternal(CFMetaData cfm,
+        protected ModificationStatement prepareInternal(TableMetadata metadata,
                                                         VariableSpecifications boundNames,
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
             Operations operations = new Operations(type);
 
-            for (Pair<ColumnDefinition.Raw, Operation.RawUpdate> entry : updates)
+            for (Pair<ColumnMetadata.Raw, Operation.RawUpdate> entry : updates)
             {
-                ColumnDefinition def = getColumnDefinition(cfm, entry.left);
+                ColumnMetadata def = getColumnDefinition(metadata, entry.left);
 
                 checkFalse(def.isPrimaryKeyColumn(), "PRIMARY KEY part %s found in SET part", def.name);
 
-                Operation operation = entry.right.prepare(cfm, def);
+                Operation operation = entry.right.prepare(metadata, def);
                 operation.collectMarkerSpecification(boundNames);
                 operations.add(operation);
             }
 
-            StatementRestrictions restrictions = newRestrictions(cfm,
+            StatementRestrictions restrictions = newRestrictions(metadata,
                                                                  boundNames,
                                                                  operations,
                                                                  whereClause,
@@ -321,7 +318,7 @@ public class UpdateStatement extends ModificationStatement
 
             return new UpdateStatement(type,
                                        boundNames.size(),
-                                       cfm,
+                                       metadata,
                                        operations,
                                        restrictions,
                                        conditions,

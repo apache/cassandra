@@ -989,12 +989,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void markAlive(final InetAddress addr, final EndpointState localState)
     {
-        if (MessagingService.instance().getVersion(addr) < MessagingService.VERSION_20)
-        {
-            realMarkAlive(addr, localState);
-            return;
-        }
-
         localState.markDead();
 
         MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.ECHO, EchoMessage.instance, EchoMessage.serializer);
@@ -1355,6 +1349,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * Do a single 'shadow' round of gossip by retrieving endpoint states that will be stored exclusively in the
      * map return value, instead of endpointStateMap.
      *
+     * Used when preparing to join the ring:
      * <ul>
      *     <li>when replacing a node, to get and assume its tokens</li>
      *     <li>when joining, to check that the local host id matches any previous id for the endpoint address</li>

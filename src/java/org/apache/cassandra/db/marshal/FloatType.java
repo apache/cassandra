@@ -29,13 +29,19 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class FloatType extends AbstractType<Float>
+public class FloatType extends NumberType<Float>
 {
     public static final FloatType instance = new FloatType();
 
     FloatType() {super(ComparisonType.CUSTOM);} // singleton
 
     public boolean isEmptyValueMeaningless()
+    {
+        return true;
+    }
+
+    @Override
+    public boolean isFloatingPoint()
     {
         return true;
     }
@@ -56,8 +62,7 @@ public class FloatType extends AbstractType<Float>
 
       try
       {
-          float f = Float.parseFloat(source);
-          return ByteBufferUtil.bytes(f);
+          return decompose(Float.parseFloat(source));
       }
       catch (NumberFormatException e1)
       {
@@ -99,8 +104,56 @@ public class FloatType extends AbstractType<Float>
     }
 
     @Override
-    protected int valueLengthIfFixed()
+    public int valueLengthIfFixed()
     {
         return 4;
+    }
+
+    @Override
+    protected int toInt(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected float toFloat(ByteBuffer value)
+    {
+        return ByteBufferUtil.toFloat(value);
+    }
+
+    @Override
+    protected double toDouble(ByteBuffer value)
+    {
+        return toFloat(value);
+    }
+
+    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toFloat(left) + rightType.toFloat(right));
+    }
+
+    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toFloat(left) - rightType.toFloat(right));
+    }
+
+    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toFloat(left) * rightType.toFloat(right));
+    }
+
+    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toFloat(left) / rightType.toFloat(right));
+    }
+
+    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toFloat(left) % rightType.toFloat(right));
+    }
+
+    public ByteBuffer negate(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes(-toFloat(input));
     }
 }

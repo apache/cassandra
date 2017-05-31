@@ -59,6 +59,7 @@ import net.nicoulaj.compilecommand.annotations.Inline;
  */
 public class VIntCoding
 {
+    public static final int MAX_SIZE = 10;
 
     public static long readUnsignedVInt(DataInput input) throws IOException
     {

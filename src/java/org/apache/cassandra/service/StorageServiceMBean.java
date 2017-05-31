@@ -322,61 +322,13 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public int repairAsync(String keyspace, Map<String, String> options);
 
-    /**
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     */
-    @Deprecated
-    public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts,  boolean primaryRange, boolean fullRepair, String... tableNames) throws IOException;
-
-    /**
-     * Invoke repair asynchronously.
-     * You can track repair progress by subscribing JMX notification sent from this StorageServiceMBean.
-     * Notification format is:
-     *   type: "repair"
-     *   userObject: int array of length 2, [0]=command number, [1]=ordinal of ActiveRepairService.Status
-     *
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     *
-     * @param parallelismDegree 0: sequential, 1: parallel, 2: DC parallel
-     * @return Repair command number, or 0 if nothing to repair
-     */
-    @Deprecated
-    public int forceRepairAsync(String keyspace, int parallelismDegree, Collection<String> dataCenters, Collection<String> hosts, boolean primaryRange, boolean fullRepair, String... tableNames);
-
-    /**
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     */
-    @Deprecated
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, String... tableNames) throws IOException;
-
-    /**
-     * Same as forceRepairAsync, but handles a specified range
-     *
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     *
-     * @param parallelismDegree 0: sequential, 1: parallel, 2: DC parallel
-     */
-    @Deprecated
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, int parallelismDegree, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, String... tableNames);
-
-    /**
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     */
-    @Deprecated
-    public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, String... tableNames);
-
-    /**
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     */
-    @Deprecated
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean fullRepair, String... tableNames);
-
     public void forceTerminateAllRepairSessions();
 
     /**
      * transfer this node's data to other machines and remove it from service.
+     * @param force Decommission even if this will reduce N to be less than RF.
      */
-    public void decommission() throws InterruptedException;
+    public void decommission(boolean force) throws InterruptedException;
 
     /**
      * @param newToken token to move this node to.
@@ -510,15 +462,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     // to determine if initialization has completed
     public boolean isInitialized();
 
-    // allows a user to disable thrift
-    public void stopRPCServer();
-
-    // allows a user to reenable thrift
-    public void startRPCServer();
-
-    // to determine if thrift is running
-    public boolean isRPCServerRunning();
-
     public void stopNativeTransport();
     public void startNativeTransport();
     public boolean isNativeTransportRunning();
@@ -564,6 +507,9 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public int getConcurrentCompactors();
     public void setConcurrentCompactors(int value);
+
+    public int getConcurrentValidators();
+    public void setConcurrentValidators(int value);
 
     public boolean isIncrementalBackupsEnabled();
     public void setIncrementalBackupsEnabled(boolean value);
@@ -624,7 +570,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void resetLocalSchema() throws IOException;
 
     /**
-     * Enables/Disables tracing for the whole system. Only thrift requests can start tracing currently.
+     * Enables/Disables tracing for the whole system.
      *
      * @param probability
      *            ]0,1[ will enable tracing on a partial number of requests with the provided probability. 0 will

@@ -127,6 +127,8 @@ public class RangeIntersectionIterator
 
         protected D computeNext()
         {
+            List<RangeIterator<K, D>> processed = null;
+
             while (!ranges.isEmpty())
             {
                 RangeIterator<K, D> head = ranges.poll();
@@ -142,7 +144,8 @@ public class RangeIntersectionIterator
                     return endOfData();
                 }
 
-                List<RangeIterator<K, D>> processed = new ArrayList<>();
+                if (processed == null)
+                    processed = new ArrayList<>();
 
                 boolean intersectsAll = true, exhausted = false;
                 while (!ranges.isEmpty())
@@ -183,8 +186,8 @@ public class RangeIntersectionIterator
 
                 ranges.add(head);
 
-                for (RangeIterator<K, D> range : processed)
-                    ranges.add(range);
+                ranges.addAll(processed);
+                processed.clear();
 
                 if (exhausted)
                     return endOfData();

@@ -133,6 +133,11 @@ public final class TableParams
                             .cdc(params.cdc);
     }
 
+    public Builder unbuild()
+    {
+        return builder(this);
+    }
+
     public void validate()
     {
         compaction.validate();

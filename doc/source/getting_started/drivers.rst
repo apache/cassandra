@@ -105,3 +105,8 @@ Rust
 ^^^^
 
 - `Rust CQL <https://github.com/neich/rust-cql>`__
+
+Perl
+^^^^
+
+- `Cassandra::Client and DBD::Cassandra <https://github.com/tvdw/perl-dbd-cassandra>`__

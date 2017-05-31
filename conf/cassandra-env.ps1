@@ -47,7 +47,7 @@ Function BuildClassPath
     }
 
     # Add build/classes/main so it works in development
-    $cp = $cp + ";" + """$env:CASSANDRA_HOME\build\classes\main"";""$env:CASSANDRA_HOME\build\classes\thrift"""
+    $cp = $cp + ";" + """$env:CASSANDRA_HOME\build\classes\main"""
     $env:CLASSPATH=$cp
 }
 

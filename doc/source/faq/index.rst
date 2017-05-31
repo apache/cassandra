@@ -58,7 +58,7 @@ What ports does Cassandra use?
 ------------------------------
 
 By default, Cassandra uses 7000 for cluster communication (7001 if SSL is enabled),  9042 for native protocol clients,
-and 7199 for JMX (and 9160 for the deprecated Thrift interface). The internode communication and native protocol ports
+and 7199 for JMX. The internode communication and native protocol ports
 are configurable in the :ref:`cassandra-yaml`. The JMX port is configurable in ``cassandra-env.sh`` (through JVM
 options). All ports are TCP.
 
@@ -98,15 +98,16 @@ token on the next restart.
 Can I change the replication factor (a a keyspace) on a live cluster?
 ---------------------------------------------------------------------
 
-Yes, but it will require running repair (or cleanup) to change the replica count of existing data:
+Yes, but it will require running a full repair (or cleanup) to change the replica count of existing data:
 
 - :ref:`Alter <alter-keyspace-statement>` the replication factor for desired keyspace (using cqlsh for instance).
 - If you're reducing the replication factor, run ``nodetool cleanup`` on the cluster to remove surplus replicated data.
   Cleanup runs on a per-node basis.
-- If you're increasing the replication factor, run ``nodetool repair`` to ensure data is replicated according to the new
+- If you're increasing the replication factor, run ``nodetool repair -full`` to ensure data is replicated according to the new
   configuration. Repair runs on a per-replica set basis. This is an intensive process that may result in adverse cluster
   performance. It's highly recommended to do rolling repairs, as an attempt to repair the entire cluster at once will
-  most likely swamp it.
+  most likely swamp it. Note that you will need to run a full repair (``-full``) to make sure that already repaired
+  sstables are not skipped.
 
 .. _can-large-blob:
 

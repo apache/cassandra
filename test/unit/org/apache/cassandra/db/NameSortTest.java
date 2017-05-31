@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -77,7 +77,7 @@ public class NameSortTest
         for (int i = 0; i < N; i++)
         {
             ByteBuffer key = ByteBufferUtil.bytes(Integer.toString(i));
-            RowUpdateBuilder rub = new RowUpdateBuilder(cfs.metadata, 0, key);
+            RowUpdateBuilder rub = new RowUpdateBuilder(cfs.metadata(), 0, key);
             rub.clustering("cc");
             for (int j = 0; j < 8; j++)
                 rub.add("val" + j, j % 2 == 0 ? "a" : "b");
@@ -94,7 +94,7 @@ public class NameSortTest
         {
             for (Row r : partition)
             {
-                for (ColumnDefinition cd : r.columns())
+                for (ColumnMetadata cd : r.columns())
                 {
                     if (r.getCell(cd) == null)
                         continue;

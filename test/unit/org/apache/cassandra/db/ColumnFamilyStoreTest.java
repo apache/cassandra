@@ -34,7 +34,6 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.common.collect.Iterators;
 import org.apache.cassandra.*;
-import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.rows.*;
@@ -46,6 +45,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.ClearableHistogram;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -97,14 +97,14 @@ public class ColumnFamilyStoreTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
 
-        new RowUpdateBuilder(cfs.metadata, 0, "key1")
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1")
                 .clustering("Column1")
                 .add("val", "asdf")
                 .build()
                 .applyUnsafe();
         cfs.forceBlockingFlush();
 
-        new RowUpdateBuilder(cfs.metadata, 1, "key1")
+        new RowUpdateBuilder(cfs.metadata(), 1, "key1")
                 .clustering("Column1")
                 .add("val", "asdf")
                 .build()
@@ -123,7 +123,7 @@ public class ColumnFamilyStoreTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
 
         List<Mutation> rms = new LinkedList<>();
-        rms.add(new RowUpdateBuilder(cfs.metadata, 0, "key1")
+        rms.add(new RowUpdateBuilder(cfs.metadata(), 0, "key1")
                 .clustering("Column1")
                 .add("val", "asdf")
                 .build());
@@ -142,7 +142,7 @@ public class ColumnFamilyStoreTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD2);
 
-        RowUpdateBuilder.deleteRow(cfs.metadata, FBUtilities.timestampMicros(), "key1", "Column1").applyUnsafe();
+        RowUpdateBuilder.deleteRow(cfs.metadata(), FBUtilities.timestampMicros(), "key1", "Column1").applyUnsafe();
 
         Runnable r = new WrappedRunnable()
         {
@@ -157,93 +157,6 @@ public class ColumnFamilyStoreTest
         reTest(cfs, r);
     }
 
-    // TODO: Implement this once we have hooks to super columns available in CQL context
-//    @Test
-//    public void testDeleteSuperRowSticksAfterFlush() throws Throwable
-//    {
-//        String keyspaceName = KEYSPACE1;
-//        String cfName= CF_SUPER1;
-//
-//        Keyspace keyspace = Keyspace.open(keyspaceName);
-//        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
-//
-//        ByteBuffer scfName = ByteBufferUtil.bytes("SuperDuper");
-//        DecoratedKey key = Util.dk("flush-resurrection");
-//
-//        // create an isolated sstable.
-//        putColSuper(cfs, key, 0, ByteBufferUtil.bytes("val"), ByteBufferUtil.bytes(1L), ByteBufferUtil.bytes(1L), ByteBufferUtil.bytes("val1"));
-
-//        putColsSuper(cfs, key, scfName,
-//                new BufferCell(cellname(1L), ByteBufferUtil.bytes("val1"), 1),
-//                new BufferCell(cellname(2L), ByteBufferUtil.bytes("val2"), 1),
-//                new BufferCell(cellname(3L), ByteBufferUtil.bytes("val3"), 1));
-//        cfs.forceBlockingFlush();
-//
-//        // insert, don't flush.
-//        putColsSuper(cfs, key, scfName,
-//                new BufferCell(cellname(4L), ByteBufferUtil.bytes("val4"), 1),
-//                new BufferCell(cellname(5L), ByteBufferUtil.bytes("val5"), 1),
-//                new BufferCell(cellname(6L), ByteBufferUtil.bytes("val6"), 1));
-//
-//        // verify insert.
-//        final SlicePredicate sp = new SlicePredicate();
-//        sp.setSlice_range(new SliceRange());
-//        sp.getSlice_range().setCount(100);
-//        sp.getSlice_range().setStart(ArrayUtils.EMPTY_BYTE_ARRAY);
-//        sp.getSlice_range().setFinish(ArrayUtils.EMPTY_BYTE_ARRAY);
-//
-//        assertRowAndColCount(1, 6, false, cfs.getRangeSlice(Util.range("f", "g"), null, ThriftValidation.asIFilter(sp, cfs.metadata, scfName), 100));
-//
-//        // delete
-//        Mutation rm = new Mutation(keyspace.getName(), key.getKey());
-//        rm.deleteRange(cfName, SuperColumns.startOf(scfName), SuperColumns.endOf(scfName), 2);
-//        rm.applyUnsafe();
-//
-//        // verify delete.
-//        assertRowAndColCount(1, 0, false, cfs.getRangeSlice(Util.range("f", "g"), null, ThriftValidation.asIFilter(sp, cfs.metadata, scfName), 100));
-//
-//        // flush
-//        cfs.forceBlockingFlush();
-//
-//        // re-verify delete.
-//        assertRowAndColCount(1, 0, false, cfs.getRangeSlice(Util.range("f", "g"), null, ThriftValidation.asIFilter(sp, cfs.metadata, scfName), 100));
-//
-//        // late insert.
-//        putColsSuper(cfs, key, scfName,
-//                new BufferCell(cellname(4L), ByteBufferUtil.bytes("val4"), 1L),
-//                new BufferCell(cellname(7L), ByteBufferUtil.bytes("val7"), 1L));
-//
-//        // re-verify delete.
-//        assertRowAndColCount(1, 0, false, cfs.getRangeSlice(Util.range("f", "g"), null, ThriftValidation.asIFilter(sp, cfs.metadata, scfName), 100));
-//
-//        // make sure new writes are recognized.
-//        putColsSuper(cfs, key, scfName,
-//                new BufferCell(cellname(3L), ByteBufferUtil.bytes("val3"), 3),
-//                new BufferCell(cellname(8L), ByteBufferUtil.bytes("val8"), 3),
-//                new BufferCell(cellname(9L), ByteBufferUtil.bytes("val9"), 3));
-//        assertRowAndColCount(1, 3, false, cfs.getRangeSlice(Util.range("f", "g"), null, ThriftValidation.asIFilter(sp, cfs.metadata, scfName), 100));
-//    }
-
-//    private static void assertRowAndColCount(int rowCount, int colCount, boolean isDeleted, Collection<Row> rows) throws CharacterCodingException
-//    {
-//        assert rows.size() == rowCount : "rowcount " + rows.size();
-//        for (Row row : rows)
-//        {
-//            assert row.cf != null : "cf was null";
-//            assert row.cf.getColumnCount() == colCount : "colcount " + row.cf.getColumnCount() + "|" + str(row.cf);
-//            if (isDeleted)
-//                assert row.cf.isMarkedForDelete() : "cf not marked for delete";
-//        }
-//    }
-//
-//    private static String str(ColumnFamily cf) throws CharacterCodingException
-//    {
-//        StringBuilder sb = new StringBuilder();
-//        for (Cell col : cf.getSortedColumns())
-//            sb.append(String.format("(%s,%s,%d),", ByteBufferUtil.string(col.name().toByteBuffer()), ByteBufferUtil.string(col.value()), col.timestamp()));
-//        return sb.toString();
-//    }
-
     @Test
     public void testDeleteStandardRowSticksAfterFlush() throws Throwable
     {
@@ -257,22 +170,22 @@ public class ColumnFamilyStoreTest
         ByteBuffer val = ByteBufferUtil.bytes("val1");
 
         // insert
-        ColumnDefinition newCol = ColumnDefinition.regularDef(cfs.metadata, ByteBufferUtil.bytes("val2"), AsciiType.instance);
-        new RowUpdateBuilder(cfs.metadata, 0, "key1").clustering("Column1").add("val", "val1").build().applyUnsafe();
-        new RowUpdateBuilder(cfs.metadata, 0, "key2").clustering("Column1").add("val", "val1").build().applyUnsafe();
+        ColumnMetadata newCol = ColumnMetadata.regularColumn(cfs.metadata(), ByteBufferUtil.bytes("val2"), AsciiType.instance);
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1").clustering("Column1").add("val", "val1").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 0, "key2").clustering("Column1").add("val", "val1").build().applyUnsafe();
         assertRangeCount(cfs, col, val, 2);
 
         // flush.
         cfs.forceBlockingFlush();
 
         // insert, don't flush
-        new RowUpdateBuilder(cfs.metadata, 1, "key3").clustering("Column1").add("val", "val1").build().applyUnsafe();
-        new RowUpdateBuilder(cfs.metadata, 1, "key4").clustering("Column1").add("val", "val1").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 1, "key3").clustering("Column1").add("val", "val1").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 1, "key4").clustering("Column1").add("val", "val1").build().applyUnsafe();
         assertRangeCount(cfs, col, val, 4);
 
         // delete (from sstable and memtable)
-        RowUpdateBuilder.deleteRow(cfs.metadata, 5, "key1", "Column1").applyUnsafe();
-        RowUpdateBuilder.deleteRow(cfs.metadata, 5, "key3", "Column1").applyUnsafe();
+        RowUpdateBuilder.deleteRow(cfs.metadata(), 5, "key1", "Column1").applyUnsafe();
+        RowUpdateBuilder.deleteRow(cfs.metadata(), 5, "key3", "Column1").applyUnsafe();
 
         // verify delete
         assertRangeCount(cfs, col, val, 2);
@@ -284,15 +197,15 @@ public class ColumnFamilyStoreTest
         assertRangeCount(cfs, col, val, 2);
 
         // simulate a 'late' insertion that gets put in after the deletion. should get inserted, but fail on read.
-        new RowUpdateBuilder(cfs.metadata, 2, "key1").clustering("Column1").add("val", "val1").build().applyUnsafe();
-        new RowUpdateBuilder(cfs.metadata, 2, "key3").clustering("Column1").add("val", "val1").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 2, "key1").clustering("Column1").add("val", "val1").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 2, "key3").clustering("Column1").add("val", "val1").build().applyUnsafe();
 
         // should still be nothing there because we deleted this row. 2nd breakage, but was undetected because of 1837.
         assertRangeCount(cfs, col, val, 2);
 
         // make sure that new writes are recognized.
-        new RowUpdateBuilder(cfs.metadata, 10, "key5").clustering("Column1").add("val", "val1").build().applyUnsafe();
-        new RowUpdateBuilder(cfs.metadata, 10, "key6").clustering("Column1").add("val", "val1").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 10, "key5").clustering("Column1").add("val", "val1").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 10, "key6").clustering("Column1").add("val", "val1").build().applyUnsafe();
         assertRangeCount(cfs, col, val, 4);
 
         // and it remains so after flush. (this wasn't failing before, but it's good to check.)
@@ -344,9 +257,9 @@ public class ColumnFamilyStoreTest
     public void testBackupAfterFlush() throws Throwable
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD1);
-        new RowUpdateBuilder(cfs.metadata, 0, ByteBufferUtil.bytes("key1")).clustering("Column1").add("val", "asdf").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes("key1")).clustering("Column1").add("val", "asdf").build().applyUnsafe();
         cfs.forceBlockingFlush();
-        new RowUpdateBuilder(cfs.metadata, 0, ByteBufferUtil.bytes("key2")).clustering("Column1").add("val", "asdf").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes("key2")).clustering("Column1").add("val", "asdf").build().applyUnsafe();
         cfs.forceBlockingFlush();
 
         for (int version = 1; version <= 2; ++version)
@@ -406,7 +319,7 @@ public class ColumnFamilyStoreTest
 //        ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(cf);
 //        SSTableDeletingTask.waitForDeletions();
 //
-//        final CFMetaData cfmeta = Schema.instance.getCFMetaData(ks, cf);
+//        final CFMetaData cfmeta = Schema.instance.getTableMetadataRef(ks, cf);
 //        Directories dir = new Directories(cfs.metadata);
 //
 //        // clear old SSTables (probably left by CFS.clearUnsafe() calls in other tests)
@@ -492,10 +405,10 @@ public class ColumnFamilyStoreTest
 
     private void assertRangeCount(ColumnFamilyStore cfs, ByteBuffer col, ByteBuffer val, int count)
     {
-        assertRangeCount(cfs, cfs.metadata.getColumnDefinition(col), val, count);
+        assertRangeCount(cfs, cfs.metadata().getColumn(col), val, count);
     }
 
-    private void assertRangeCount(ColumnFamilyStore cfs, ColumnDefinition col, ByteBuffer val, int count)
+    private void assertRangeCount(ColumnFamilyStore cfs, ColumnMetadata col, ByteBuffer val, int count)
     {
 
         int found = 0;
@@ -518,9 +431,9 @@ public class ColumnFamilyStoreTest
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
 
-        ColumnFamilyStore.scrubDataDirectories(cfs.metadata);
+        ColumnFamilyStore.scrubDataDirectories(cfs.metadata());
 
-        new RowUpdateBuilder(cfs.metadata, 2, "key").clustering("name").add("val", "2").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 2, "key").clustering("name").add("val", "2").build().applyUnsafe();
         cfs.forceBlockingFlush();
 
         // Nuke the metadata and reload that sstable
@@ -534,9 +447,9 @@ public class ColumnFamilyStoreTest
 
         ssTable.selfRef().release();
 
-        ColumnFamilyStore.scrubDataDirectories(cfs.metadata);
+        ColumnFamilyStore.scrubDataDirectories(cfs.metadata());
 
-        List<File> ssTableFiles = new Directories(cfs.metadata).sstableLister(Directories.OnTxnErr.THROW).listFiles();
+        List<File> ssTableFiles = new Directories(cfs.metadata()).sstableLister(Directories.OnTxnErr.THROW).listFiles();
         assertNotNull(ssTableFiles);
         assertEquals(0, ssTableFiles.size());
     }

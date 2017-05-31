@@ -24,7 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
@@ -49,12 +49,12 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
     private final ColumnFamilyStore cfs;
     private final UUID compactionId = UUIDGen.getTimeUUID();
 
-    private final SortedMap<SSTableReader, Map<ColumnDefinition, ColumnIndex>> sstables;
+    private final SortedMap<SSTableReader, Map<ColumnMetadata, ColumnIndex>> sstables;
 
     private long bytesProcessed = 0;
     private final long totalSizeInBytes;
 
-    public SASIIndexBuilder(ColumnFamilyStore cfs, SortedMap<SSTableReader, Map<ColumnDefinition, ColumnIndex>> sstables)
+    public SASIIndexBuilder(ColumnFamilyStore cfs, SortedMap<SSTableReader, Map<ColumnMetadata, ColumnIndex>> sstables)
     {
         long totalIndexBytes = 0;
         for (SSTableReader sstable : sstables.keySet())
@@ -67,18 +67,18 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
 
     public void build()
     {
-        AbstractType<?> keyValidator = cfs.metadata.getKeyValidator();
-        for (Map.Entry<SSTableReader, Map<ColumnDefinition, ColumnIndex>> e : sstables.entrySet())
+        AbstractType<?> keyValidator = cfs.metadata().partitionKeyType;
+        for (Map.Entry<SSTableReader, Map<ColumnMetadata, ColumnIndex>> e : sstables.entrySet())
         {
             SSTableReader sstable = e.getKey();
-            Map<ColumnDefinition, ColumnIndex> indexes = e.getValue();
+            Map<ColumnMetadata, ColumnIndex> indexes = e.getValue();
 
             try (RandomAccessReader dataFile = sstable.openDataReader())
             {
                 PerSSTableIndexWriter indexWriter = SASIIndex.newWriter(keyValidator, sstable.descriptor, indexes, OperationType.COMPACTION);
 
                 long previousKeyPosition = 0;
-                try (KeyIterator keys = new KeyIterator(sstable.descriptor, cfs.metadata))
+                try (KeyIterator keys = new KeyIterator(sstable.descriptor, cfs.metadata()))
                 {
                     while (keys.hasNext())
                     {
@@ -99,7 +99,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
                             try (SSTableIdentityIterator partition = SSTableIdentityIterator.create(sstable, dataFile, key))
                             {
                                 // if the row has statics attached, it has to be indexed separately
-                                if (cfs.metadata.hasStaticColumns())
+                                if (cfs.metadata().hasStaticColumns())
                                     indexWriter.nextUnfilteredCluster(partition.staticRow());
 
                                 while (partition.hasNext())
@@ -123,7 +123,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
 
     public CompactionInfo getCompactionInfo()
     {
-        return new CompactionInfo(cfs.metadata,
+        return new CompactionInfo(cfs.metadata(),
                                   OperationType.INDEX_BUILD,
                                   bytesProcessed,
                                   totalSizeInBytes,

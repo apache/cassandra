@@ -73,7 +73,7 @@ public abstract class CollectionKeyIndexBase extends CassandraIndex
             indexedEntryClustering = Clustering.STATIC_CLUSTERING;
         else
         {
-            int count = 1 + baseCfs.metadata.clusteringColumns().size();
+            int count = 1 + baseCfs.metadata().clusteringColumns().size();
             CBuilder builder = CBuilder.create(baseCfs.getComparator());
             for (int i = 0; i < count - 1; i++)
                 builder.add(clustering.get(i + 1));

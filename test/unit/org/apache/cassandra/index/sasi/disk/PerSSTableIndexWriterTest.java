@@ -24,8 +24,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -43,10 +41,12 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import com.google.common.util.concurrent.Futures;
@@ -67,7 +67,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         SchemaLoader.loadSchema();
         MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(KS_NAME,
                                                                      KeyspaceParams.simpleTransient(1),
-                                                                     Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME))));
+                                                                     Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME).build())));
     }
 
     @Test
@@ -78,12 +78,12 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         final long timestamp = System.currentTimeMillis();
 
         ColumnFamilyStore cfs = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
-        ColumnDefinition column = cfs.metadata.getColumnDefinition(UTF8Type.instance.decompose("age"));
+        ColumnMetadata column = cfs.metadata().getColumn(UTF8Type.instance.decompose("age"));
 
-        SASIIndex sasi = (SASIIndex) cfs.indexManager.getIndexByName("age");
+        SASIIndex sasi = (SASIIndex) cfs.indexManager.getIndexByName(cfs.name + "_age");
 
         File directory = cfs.getDirectories().getDirectoryForNewSSTables();
-        Descriptor descriptor = Descriptor.fromFilename(cfs.getSSTablePath(directory));
+        Descriptor descriptor = cfs.newSSTableDescriptor(directory);
         PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, OperationType.FLUSH);
 
         SortedMap<DecoratedKey, Row> expectedKeys = new TreeMap<>(DecoratedKey.comparator);
@@ -91,7 +91,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         for (int i = 0; i < maxKeys; i++)
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.format(keyFormat, i));
-            expectedKeys.put(cfs.metadata.partitioner.decorateKey(key),
+            expectedKeys.put(cfs.metadata().partitioner.decorateKey(key),
                              BTreeRow.singleCellRow(Clustering.EMPTY,
                                                     BufferCell.live(column, timestamp, Int32Type.instance.decompose(i))));
         }
@@ -136,7 +136,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
 
         OnDiskIndex index = new OnDiskIndex(new File(indexFile), Int32Type.instance, keyPosition -> {
             ByteBuffer key = ByteBufferUtil.bytes(String.format(keyFormat, keyPosition));
-            return cfs.metadata.partitioner.decorateKey(key);
+            return cfs.metadata().partitioner.decorateKey(key);
         });
 
         Assert.assertEquals(0, UTF8Type.instance.compare(index.minKey(), ByteBufferUtil.bytes(String.format(keyFormat, 0))));
@@ -170,12 +170,12 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         final String columnName = "timestamp";
 
         ColumnFamilyStore cfs = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
-        ColumnDefinition column = cfs.metadata.getColumnDefinition(UTF8Type.instance.decompose(columnName));
+        ColumnMetadata column = cfs.metadata().getColumn(UTF8Type.instance.decompose(columnName));
 
-        SASIIndex sasi = (SASIIndex) cfs.indexManager.getIndexByName(columnName);
+        SASIIndex sasi = (SASIIndex) cfs.indexManager.getIndexByName(cfs.name + "_" + columnName);
 
         File directory = cfs.getDirectories().getDirectoryForNewSSTables();
-        Descriptor descriptor = Descriptor.fromFilename(cfs.getSSTablePath(directory));
+        Descriptor descriptor = cfs.newSSTableDescriptor(directory);
         PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, OperationType.FLUSH);
 
         final long now = System.currentTimeMillis();
@@ -183,7 +183,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         indexWriter.begin();
         indexWriter.indexes.put(column, indexWriter.newIndex(sasi.getIndex()));
 
-        populateSegment(cfs.metadata, indexWriter.getIndex(column), new HashMap<Long, Set<Integer>>()
+        populateSegment(cfs.metadata(), indexWriter.getIndex(column), new HashMap<Long, Set<Integer>>()
         {{
             put(now,     new HashSet<>(Arrays.asList(0, 1)));
             put(now + 1, new HashSet<>(Arrays.asList(2, 3)));
@@ -201,7 +201,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         // now let's test multiple correct segments with yield incorrect final segment
         for (int i = 0; i < 3; i++)
         {
-            populateSegment(cfs.metadata, index, new HashMap<Long, Set<Integer>>()
+            populateSegment(cfs.metadata(), index, new HashMap<Long, Set<Integer>>()
             {{
                 put(now,     new HashSet<>(Arrays.asList(random.nextInt(), random.nextInt(), random.nextInt())));
                 put(now + 1, new HashSet<>(Arrays.asList(random.nextInt(), random.nextInt(), random.nextInt())));
@@ -236,7 +236,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         Assert.assertFalse(new File(index.outputFile).exists());
     }
 
-    private static void populateSegment(CFMetaData metadata, PerSSTableIndexWriter.Index index, Map<Long, Set<Integer>> data)
+    private static void populateSegment(TableMetadata metadata, PerSSTableIndexWriter.Index index, Map<Long, Set<Integer>> data)
     {
         for (Map.Entry<Long, Set<Integer>> value : data.entrySet())
         {

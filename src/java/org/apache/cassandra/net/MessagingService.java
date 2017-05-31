@@ -45,6 +45,8 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.carrotsearch.hppc.IntObjectMap;
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
@@ -75,6 +77,8 @@ import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.metrics.DroppedMessageMetrics;
 import org.apache.cassandra.metrics.MessagingMetrics;
 import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.paxos.Commit;
@@ -89,12 +93,9 @@ public final class MessagingService implements MessagingServiceMBean
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=MessagingService";
 
     // 8 bits version, so don't waste versions
-    public static final int VERSION_12 = 6;
-    public static final int VERSION_20 = 7;
-    public static final int VERSION_21 = 8;
-    public static final int VERSION_22 = 9;
     public static final int VERSION_30 = 10;
-    public static final int current_version = VERSION_30;
+    public static final int VERSION_40 = 11;
+    public static final int current_version = VERSION_40;
 
     public static final String FAILURE_CALLBACK_PARAM = "CAL_BAC";
     public static final byte[] ONE_BYTE = new byte[1];
@@ -105,9 +106,6 @@ public final class MessagingService implements MessagingServiceMBean
      * we preface every message with this number so the recipient can validate the sender is sane
      */
     public static final int PROTOCOL_MAGIC = 0xCA552DFA;
-
-    private boolean allNodesAtLeast22 = true;
-    private boolean allNodesAtLeast30 = true;
 
     public final MessagingMetrics metrics = new MessagingMetrics();
 
@@ -237,23 +235,42 @@ public final class MessagingService implements MessagingServiceMBean
         UNUSED_5,
         ;
 
-        // This is to support a "late" choice of the verb based on the messaging service version.
-        // See CASSANDRA-12249 for more details.
-        public static Verb convertForMessagingServiceVersion(Verb verb, int version)
+        private int id;
+        Verb()
         {
-            if (verb == PAGED_RANGE && version >= VERSION_30)
-                return RANGE_SLICE;
+            id = ordinal();
+        }
 
-            return verb;
+        /**
+         * Unused, but it is an extension point for adding custom verbs
+         * @param id
+         */
+        Verb(int id)
+        {
+            this.id = id;
         }
 
         public long getTimeout()
         {
             return DatabaseDescriptor.getRpcTimeout();
         }
-    }
 
-    public static final Verb[] verbValues = Verb.values();
+        public int getId()
+        {
+            return id;
+        }
+        private static final IntObjectMap<Verb> idToVerbMap = new IntObjectOpenHashMap<>(values().length);
+        static
+        {
+            for (Verb v : values())
+                idToVerbMap.put(v.getId(), v);
+        }
+
+        public static Verb fromId(int id)
+        {
+            return idToVerbMap.get(id);
+        }
+    }
 
     public static final EnumMap<MessagingService.Verb, Stage> verbStages = new EnumMap<MessagingService.Verb, Stage>(MessagingService.Verb.class)
     {{
@@ -320,9 +337,9 @@ public final class MessagingService implements MessagingServiceMBean
 
         put(Verb.MUTATION, Mutation.serializer);
         put(Verb.READ_REPAIR, Mutation.serializer);
-        put(Verb.READ, ReadCommand.readSerializer);
-        put(Verb.RANGE_SLICE, ReadCommand.rangeSliceSerializer);
-        put(Verb.PAGED_RANGE, ReadCommand.pagedRangeSerializer);
+        put(Verb.READ, ReadCommand.serializer);
+        put(Verb.RANGE_SLICE, ReadCommand.serializer);
+        put(Verb.PAGED_RANGE, ReadCommand.serializer);
         put(Verb.BOOTSTRAP_TOKEN, BootStrapper.StringSerializer.instance);
         put(Verb.REPAIR_MESSAGE, RepairMessage.serializer);
         put(Verb.GOSSIP_DIGEST_ACK, GossipDigestAck.serializer);
@@ -351,8 +368,8 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.HINT, HintResponse.serializer);
         put(Verb.READ_REPAIR, WriteResponse.serializer);
         put(Verb.COUNTER_MUTATION, WriteResponse.serializer);
-        put(Verb.RANGE_SLICE, ReadResponse.rangeSliceSerializer);
-        put(Verb.PAGED_RANGE, ReadResponse.rangeSliceSerializer);
+        put(Verb.RANGE_SLICE, ReadResponse.serializer);
+        put(Verb.PAGED_RANGE, ReadResponse.serializer);
         put(Verb.READ, ReadResponse.serializer);
         put(Verb.TRUNCATE, TruncateResponse.serializer);
         put(Verb.SNAPSHOT, null);
@@ -399,7 +416,8 @@ public final class MessagingService implements MessagingServiceMBean
     /* Lookup table for registering message handlers based on the verb. */
     private final Map<Verb, IVerbHandler> verbHandlers;
 
-    private final ConcurrentMap<InetAddress, OutboundTcpConnectionPool> connectionManagers = new NonBlockingHashMap<>();
+    @VisibleForTesting
+    final ConcurrentMap<InetAddress, OutboundTcpConnectionPool> connectionManagers = new NonBlockingHashMap<>();
 
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
     private static final int LOG_DROPPED_INTERVAL_IN_MS = 5000;
@@ -514,7 +532,9 @@ public final class MessagingService implements MessagingServiceMBean
                 maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, pair.right.timeout);
 
                 ConnectionMetrics.totalTimeouts.mark();
-                getConnectionPool(expiredCallbackInfo.target).incrementTimeout();
+                OutboundTcpConnectionPool cp = getConnectionPool(expiredCallbackInfo.target);
+                if (cp != null)
+                    cp.incrementTimeout();
 
                 if (expiredCallbackInfo.callback.supportsBackPressure())
                 {
@@ -585,8 +605,12 @@ public final class MessagingService implements MessagingServiceMBean
     {
         if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
         {
-            BackPressureState backPressureState = getConnectionPool(host).getBackPressureState();
-            backPressureState.onMessageSent(message);
+            OutboundTcpConnectionPool cp = getConnectionPool(host);
+            if (cp != null)
+            {
+                BackPressureState backPressureState = cp.getBackPressureState();
+                backPressureState.onMessageSent(message);
+            }
         }
     }
 
@@ -601,11 +625,15 @@ public final class MessagingService implements MessagingServiceMBean
     {
         if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
         {
-            BackPressureState backPressureState = getConnectionPool(host).getBackPressureState();
-            if (!timeout)
-                backPressureState.onResponseReceived();
-            else
-                backPressureState.onResponseTimeout();
+            OutboundTcpConnectionPool cp = getConnectionPool(host);
+            if (cp != null)
+            {
+                BackPressureState backPressureState = cp.getBackPressureState();
+                if (!timeout)
+                    backPressureState.onResponseReceived();
+                else
+                    backPressureState.onResponseTimeout();
+            }
         }
     }
 
@@ -622,10 +650,16 @@ public final class MessagingService implements MessagingServiceMBean
     {
         if (DatabaseDescriptor.backPressureEnabled())
         {
-            backPressure.apply(StreamSupport.stream(hosts.spliterator(), false)
-                    .filter(h -> !h.equals(FBUtilities.getBroadcastAddress()))
-                    .map(h -> getConnectionPool(h).getBackPressureState())
-                    .collect(Collectors.toSet()), timeoutInNanos, TimeUnit.NANOSECONDS);
+            Set<BackPressureState> states = new HashSet<BackPressureState>();
+            for (InetAddress host : hosts)
+            {
+                if (host.equals(FBUtilities.getBroadcastAddress()))
+                    continue;
+                OutboundTcpConnectionPool cp = getConnectionPool(host);
+                if (cp != null)
+                    states.add(cp.getBackPressureState());
+            }
+            backPressure.apply(states, timeoutInNanos, TimeUnit.NANOSECONDS);
         }
     }
 
@@ -653,8 +687,16 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void convict(InetAddress ep)
     {
-        logger.trace("Resetting pool for {}", ep);
-        getConnectionPool(ep).reset();
+        OutboundTcpConnectionPool cp = getConnectionPool(ep);
+        if (cp != null)
+        {
+            logger.trace("Resetting pool for {}", ep);
+            cp.reset();
+        }
+        else
+        {
+            logger.debug("Not resetting pool for {} because internode authenticator said not to connect", ep);
+        }
     }
 
     public void listen()
@@ -778,11 +820,22 @@ public final class MessagingService implements MessagingServiceMBean
         connectionManagers.remove(to);
     }
 
+    /**
+     * Get a connection pool to the specified endpoint. Constructs one if none exists.
+     *
+     * Can return null if the InternodeAuthenticator fails to authenticate the node.
+     * @param to
+     * @return The connection pool or null if internode authenticator says not to
+     */
     public OutboundTcpConnectionPool getConnectionPool(InetAddress to)
     {
         OutboundTcpConnectionPool cp = connectionManagers.get(to);
         if (cp == null)
         {
+            //Don't attempt to connect to nodes that won't (or shouldn't) authenticate anyways
+            if (!DatabaseDescriptor.getInternodeAuthenticator().authenticate(to, OutboundTcpConnectionPool.portFor(to)))
+                return null;
+
             cp = new OutboundTcpConnectionPool(to, backPressure.newState(to));
             OutboundTcpConnectionPool existingPool = connectionManagers.putIfAbsent(to, cp);
             if (existingPool != null)
@@ -794,10 +847,17 @@ public final class MessagingService implements MessagingServiceMBean
         return cp;
     }
 
-
+    /**
+     * Get a connection for a message to a specific endpoint. Constructs one if none exists.
+     *
+     * Can return null if the InternodeAuthenticator fails to authenticate the node.
+     * @param to
+     * @return The connection or null if internode authenticator says not to
+     */
     public OutboundTcpConnection getConnection(InetAddress to, MessageOut msg)
     {
-        return getConnectionPool(to).getConnection(msg);
+        OutboundTcpConnectionPool cp = getConnectionPool(to);
+        return cp == null ? null : cp.getConnection(msg);
     }
 
     /**
@@ -951,7 +1011,8 @@ public final class MessagingService implements MessagingServiceMBean
         OutboundTcpConnection connection = getConnection(to, message);
 
         // write it
-        connection.enqueue(message, id);
+        if (connection != null)
+            connection.enqueue(message, id);
     }
 
     public <T> AsyncOneResponse<T> sendRR(MessageOut message, InetAddress to)
@@ -1056,16 +1117,6 @@ public final class MessagingService implements MessagingServiceMBean
         return packed >>> (start + 1) - count & ~(-1 << count);
     }
 
-    public boolean areAllNodesAtLeast22()
-    {
-        return allNodesAtLeast22;
-    }
-
-    public boolean areAllNodesAtLeast30()
-    {
-        return allNodesAtLeast30;
-    }
-
     /**
      * @return the last version associated with address, or @param version if this is the first such version
      */
@@ -1073,47 +1124,14 @@ public final class MessagingService implements MessagingServiceMBean
     {
         logger.trace("Setting version {} for {}", version, endpoint);
 
-        if (version < VERSION_22)
-            allNodesAtLeast22 = false;
-        if (version < VERSION_30)
-            allNodesAtLeast30 = false;
-
         Integer v = versions.put(endpoint, version);
-
-        // if the version was increased to 2.2 or later see if the min version across the cluster has changed
-        if (v != null && (v < VERSION_30 && version >= VERSION_22))
-            refreshAllNodeMinVersions();
-
         return v == null ? version : v;
     }
 
     public void resetVersion(InetAddress endpoint)
     {
         logger.trace("Resetting version for {}", endpoint);
-        Integer removed = versions.remove(endpoint);
-        if (removed != null && Math.min(removed, current_version) <= VERSION_30)
-            refreshAllNodeMinVersions();
-    }
-
-    private void refreshAllNodeMinVersions()
-    {
-        boolean anyNodeLowerThan30 = false;
-        for (Integer version : versions.values())
-        {
-            if (version < MessagingService.VERSION_30)
-            {
-                anyNodeLowerThan30 = true;
-                allNodesAtLeast30 = false;
-            }
-
-            if (version < MessagingService.VERSION_22)
-            {
-                allNodesAtLeast22 = false;
-                return;
-            }
-        }
-        allNodesAtLeast22 = true;
-        allNodesAtLeast30 = !anyNodeLowerThan30;
+        versions.remove(endpoint);
     }
 
     /**
@@ -1198,9 +1216,9 @@ public final class MessagingService implements MessagingServiceMBean
     {
         assert mutation != null : "Mutation should not be null when updating dropped mutations count";
 
-        for (UUID columnFamilyId : mutation.getColumnFamilyIds())
+        for (TableId tableId : mutation.getTableIds())
         {
-            ColumnFamilyStore cfs = Keyspace.open(mutation.getKeyspaceName()).getColumnFamilyStore(columnFamilyId);
+            ColumnFamilyStore cfs = Keyspace.open(mutation.getKeyspaceName()).getColumnFamilyStore(tableId);
             if (cfs != null)
             {
                 cfs.metric.droppedMutations.inc();

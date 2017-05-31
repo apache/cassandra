@@ -37,16 +37,24 @@ public abstract class RepairMessage
 
     public static interface MessageSerializer<T extends RepairMessage> extends IVersionedSerializer<T> {}
 
-    public static enum Type
+    public enum Type
     {
         VALIDATION_REQUEST(0, ValidationRequest.serializer),
         VALIDATION_COMPLETE(1, ValidationComplete.serializer),
         SYNC_REQUEST(2, SyncRequest.serializer),
         SYNC_COMPLETE(3, SyncComplete.serializer),
-        ANTICOMPACTION_REQUEST(4, AnticompactionRequest.serializer),
         PREPARE_MESSAGE(5, PrepareMessage.serializer),
         SNAPSHOT(6, SnapshotMessage.serializer),
-        CLEANUP(7, CleanupMessage.serializer);
+        CLEANUP(7, CleanupMessage.serializer),
+
+        CONSISTENT_REQUEST(8, PrepareConsistentRequest.serializer),
+        CONSISTENT_RESPONSE(9, PrepareConsistentResponse.serializer),
+        FINALIZE_PROPOSE(10, FinalizePropose.serializer),
+        FINALIZE_PROMISE(11, FinalizePromise.serializer),
+        FINALIZE_COMMIT(12, FinalizeCommit.serializer),
+        FAILED_SESSION(13, FailSession.serializer),
+        STATUS_REQUEST(14, StatusRequest.serializer),
+        STATUS_RESPONSE(15, StatusResponse.serializer);
 
         private final byte type;
         private final MessageSerializer<RepairMessage> serializer;

@@ -189,7 +189,7 @@ public class SimpleClient implements Closeable
 
     public ResultMessage.Prepared prepare(String query)
     {
-        Message.Response msg = execute(new PrepareMessage(query));
+        Message.Response msg = execute(new PrepareMessage(query, null));
         assert msg instanceof ResultMessage.Prepared;
         return (ResultMessage.Prepared)msg;
     }

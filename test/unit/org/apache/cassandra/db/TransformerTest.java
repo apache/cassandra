@@ -25,7 +25,7 @@ import org.junit.Test;
 
 import junit.framework.Assert;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -44,18 +44,18 @@ public class TransformerTest
         DatabaseDescriptor.daemonInitialization();
     }
 
-    static final CFMetaData metadata = metadata();
+    static final TableMetadata metadata = metadata();
     static final DecoratedKey partitionKey = new BufferDecoratedKey(new Murmur3Partitioner.LongToken(0L), ByteBufferUtil.EMPTY_BYTE_BUFFER);
-    static final Row staticRow = BTreeRow.singleCellRow(Clustering.STATIC_CLUSTERING, new BufferCell(metadata.partitionColumns().columns(true).getSimple(0), 0L, 0, 0, ByteBufferUtil.bytes(-1), null));
+    static final Row staticRow = BTreeRow.singleCellRow(Clustering.STATIC_CLUSTERING, new BufferCell(metadata.regularAndStaticColumns().columns(true).getSimple(0), 0L, 0, 0, ByteBufferUtil.bytes(-1), null));
 
-    static CFMetaData metadata()
+    static TableMetadata metadata()
     {
-        CFMetaData.Builder builder = CFMetaData.Builder.create("", "");
-        builder.addPartitionKey("pk", BytesType.instance);
-        builder.addClusteringColumn("c", Int32Type.instance);
-        builder.addStaticColumn("s", Int32Type.instance);
-        builder.addRegularColumn("v", Int32Type.instance);
-        return builder.build();
+        return TableMetadata.builder("", "")
+                            .addPartitionKeyColumn("pk", BytesType.instance)
+                            .addClusteringColumn("c", Int32Type.instance)
+                            .addStaticColumn("s", Int32Type.instance)
+                            .addRegularColumn("v", Int32Type.instance)
+                            .build();
     }
 
     // Mock Data
@@ -78,7 +78,7 @@ public class TransformerTest
             return (U) row(i);
         }
 
-        public CFMetaData metadata()
+        public TableMetadata metadata()
         {
             return metadata;
         }
@@ -88,9 +88,9 @@ public class TransformerTest
             return false;
         }
 
-        public PartitionColumns columns()
+        public RegularAndStaticColumns columns()
         {
-            return metadata.partitionColumns();
+            return metadata.regularAndStaticColumns();
         }
 
         public DecoratedKey partitionKey()
@@ -150,7 +150,7 @@ public class TransformerTest
     private static Row row(int i)
     {
         return BTreeRow.singleCellRow(Util.clustering(metadata.comparator, i),
-                                      new BufferCell(metadata.partitionColumns().columns(false).getSimple(0), 1L, BufferCell.NO_TTL, BufferCell.NO_DELETION_TIME, ByteBufferUtil.bytes(i), null));
+                                      new BufferCell(metadata.regularAndStaticColumns().columns(false).getSimple(0), 1L, BufferCell.NO_TTL, BufferCell.NO_DELETION_TIME, ByteBufferUtil.bytes(i), null));
     }
 
     // Transformations that check mock data ranges

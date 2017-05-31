@@ -23,8 +23,9 @@ import java.util.*;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
@@ -45,11 +46,11 @@ public class ViewUpdateGenerator
     private final View view;
     private final int nowInSec;
 
-    private final CFMetaData baseMetadata;
+    private final TableMetadata baseMetadata;
     private final DecoratedKey baseDecoratedKey;
     private final ByteBuffer[] basePartitionKey;
 
-    private final CFMetaData viewMetadata;
+    private final TableMetadata viewMetadata;
 
     private final Map<DecoratedKey, PartitionUpdate> updates = new HashMap<>();
 
@@ -87,9 +88,9 @@ public class ViewUpdateGenerator
 
         this.baseMetadata = view.getDefinition().baseTableMetadata();
         this.baseDecoratedKey = basePartitionKey;
-        this.basePartitionKey = extractKeyComponents(basePartitionKey, baseMetadata.getKeyValidator());
+        this.basePartitionKey = extractKeyComponents(basePartitionKey, baseMetadata.partitionKeyType);
 
-        this.viewMetadata = view.getDefinition().metadata;
+        this.viewMetadata = Schema.instance.getTableMetadata(view.getDefinition().metadata.id);
 
         this.currentViewEntryPartitionKey = new ByteBuffer[viewMetadata.partitionKeyColumns().size()];
         this.currentViewEntryBuilder = BTreeRow.sortedBuilder();
@@ -191,7 +192,7 @@ public class ViewUpdateGenerator
                  : (mergedHasLiveData ? UpdateAction.NEW_ENTRY : UpdateAction.NONE);
         }
 
-        ColumnDefinition baseColumn = view.baseNonPKColumnsInViewPK.get(0);
+        ColumnMetadata baseColumn = view.baseNonPKColumnsInViewPK.get(0);
         assert !baseColumn.isComplex() : "A complex column couldn't be part of the view PK";
         Cell before = existingBaseRow == null ? null : existingBaseRow.getCell(baseColumn);
         Cell after = mergedBaseRow.getCell(baseColumn);
@@ -237,7 +238,7 @@ public class ViewUpdateGenerator
 
         for (ColumnData data : baseRow)
         {
-            ColumnDefinition viewColumn = view.getViewColumn(data.column());
+            ColumnMetadata viewColumn = view.getViewColumn(data.column());
             // If that base table column is not denormalized in the view, we had nothing to do.
             // Alose, if it's part of the view PK it's already been taken into account in the clustering.
             if (viewColumn == null || viewColumn.isPrimaryKeyColumn())
@@ -293,8 +294,8 @@ public class ViewUpdateGenerator
         PeekingIterator<ColumnData> existingIter = Iterators.peekingIterator(existingBaseRow.iterator());
         for (ColumnData mergedData : mergedBaseRow)
         {
-            ColumnDefinition baseColumn = mergedData.column();
-            ColumnDefinition viewColumn = view.getViewColumn(baseColumn);
+            ColumnMetadata baseColumn = mergedData.column();
+            ColumnMetadata viewColumn = view.getViewColumn(baseColumn);
             // If that base table column is not denormalized in the view, we had nothing to do.
             // Alose, if it's part of the view PK it's already been taken into account in the clustering.
             if (viewColumn == null || viewColumn.isPrimaryKeyColumn())
@@ -397,9 +398,9 @@ public class ViewUpdateGenerator
     private void startNewUpdate(Row baseRow)
     {
         ByteBuffer[] clusteringValues = new ByteBuffer[viewMetadata.clusteringColumns().size()];
-        for (ColumnDefinition viewColumn : viewMetadata.primaryKeyColumns())
+        for (ColumnMetadata viewColumn : viewMetadata.primaryKeyColumns())
         {
-            ColumnDefinition baseColumn = view.getBaseColumn(viewColumn);
+            ColumnMetadata baseColumn = view.getBaseColumn(viewColumn);
             ByteBuffer value = getValueForPK(baseColumn, baseRow);
             if (viewColumn.isPartitionKey())
                 currentViewEntryPartitionKey[viewColumn.position()] = value;
@@ -457,7 +458,7 @@ public class ViewUpdateGenerator
                  : LivenessInfo.withExpirationTime(baseLiveness.timestamp(), ttl, expirationTime);
         }
 
-        ColumnDefinition baseColumn = view.baseNonPKColumnsInViewPK.get(0);
+        ColumnMetadata baseColumn = view.baseNonPKColumnsInViewPK.get(0);
         Cell cell = baseRow.getCell(baseColumn);
         assert isLive(cell) : "We shouldn't have got there if the base row had no associated entry";
 
@@ -486,7 +487,7 @@ public class ViewUpdateGenerator
         return timestamp;
     }
 
-    private void addColumnData(ColumnDefinition viewColumn, ColumnData baseTableData)
+    private void addColumnData(ColumnMetadata viewColumn, ColumnData baseTableData)
     {
         assert viewColumn.isComplex() == baseTableData.column().isComplex();
         if (!viewColumn.isComplex())
@@ -501,7 +502,7 @@ public class ViewUpdateGenerator
             addCell(viewColumn, cell);
     }
 
-    private void addCell(ColumnDefinition viewColumn, Cell baseTableCell)
+    private void addCell(ColumnMetadata viewColumn, Cell baseTableCell)
     {
         assert !viewColumn.isPrimaryKeyColumn();
         currentViewEntryBuilder.addCell(baseTableCell.withUpdatedColumn(viewColumn));
@@ -525,7 +526,7 @@ public class ViewUpdateGenerator
         {
             // We can't really know which columns of the view will be updated nor how many row will be updated for this key
             // so we rely on hopefully sane defaults.
-            update = new PartitionUpdate(viewMetadata, partitionKey, viewMetadata.partitionColumns(), 4);
+            update = new PartitionUpdate(viewMetadata, partitionKey, viewMetadata.regularAndStaticColumns(), 4);
             updates.put(partitionKey, update);
         }
         update.add(row);
@@ -537,10 +538,10 @@ public class ViewUpdateGenerator
                           ? currentViewEntryPartitionKey[0]
                           : CompositeType.build(currentViewEntryPartitionKey);
 
-        return viewMetadata.decorateKey(rawKey);
+        return viewMetadata.partitioner.decorateKey(rawKey);
     }
 
-    private ByteBuffer getValueForPK(ColumnDefinition column, Row row)
+    private ByteBuffer getValueForPK(ColumnMetadata column, Row row)
     {
         switch (column.kind)
         {

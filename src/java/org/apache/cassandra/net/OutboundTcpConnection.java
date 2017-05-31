@@ -60,7 +60,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
 import org.apache.cassandra.utils.UUIDGen;
-import org.xerial.snappy.SnappyOutputStream;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
@@ -84,6 +83,9 @@ public class OutboundTcpConnection extends FastThreadLocalThread
      */
     private static final String BUFFER_SIZE_PROPERTY = PREFIX + "otc_buffer_size";
     private static final int BUFFER_SIZE = Integer.getInteger(BUFFER_SIZE_PROPERTY, 1024 * 64);
+
+    //Size of 3 elements added to every message
+    private static final int PROTOCOL_MAGIC_ID_TIMESTAMP_SIZE = 12;
 
     public static final int MAX_COALESCED_MESSAGES = 128;
 
@@ -191,7 +193,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     /**
      * This is a helper method for unit testing. Disclaimer: Do not use this method outside unit tests, as
      * this method is iterating the queue which can be an expensive operation (CPU time, queue locking).
-     * 
+     *
      * @return true, if the queue contains at least one expired element
      */
     @VisibleForTesting // (otherwise = VisibleForTesting.NONE)
@@ -271,6 +273,12 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                         break inner;
                     }
                 }
+                catch (InternodeAuthFailed e)
+                {
+                    logger.warn("Internode auth failed connecting to {}", poolReference.endPoint());
+                    //Remove the connection pool and other thread so messages aren't queued
+                    MessagingService.instance().destroyConnectionPool(poolReference.endPoint());
+                }
                 catch (Exception e)
                 {
                     JVMStabilityInspector.inspectThrowable(e);
@@ -317,7 +325,9 @@ public class OutboundTcpConnection extends FastThreadLocalThread
             {
                 UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
                 TraceState state = Tracing.instance.get(sessionId);
-                String message = String.format("Sending %s message to %s", qm.message.verb, poolReference.endPoint());
+                String message = String.format("Sending %s message to %s message size %d bytes", qm.message.verb,
+                                               poolReference.endPoint(),
+                                               qm.message.serializedSize(targetVersion) + PROTOCOL_MAGIC_ID_TIMESTAMP_SIZE);
                 // session may have already finished; see CASSANDRA-5668
                 if (state == null)
                 {
@@ -372,12 +382,9 @@ public class OutboundTcpConnection extends FastThreadLocalThread
 
     private void writeInternal(MessageOut<?> message, int id, long timestamp) throws IOException
     {
+        //If you add/remove fields before the message don't forget to update PROTOCOL_MAGIC_ID_TIMESTAMP_SIZE
         out.writeInt(MessagingService.PROTOCOL_MAGIC);
-
-        if (targetVersion < MessagingService.VERSION_20)
-            out.writeUTF(String.valueOf(id));
-        else
-            out.writeInt(id);
+        out.writeInt(id);
 
         // int cast cuts off the high-order half of the timestamp, which we can assume remains
         // the same between now and when the recipient reconstructs it.
@@ -419,20 +426,27 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     }
 
     @SuppressWarnings("resource")
-    private boolean connect()
+    private boolean connect() throws InternodeAuthFailed
     {
-        logger.debug("Attempting to connect to {}", poolReference.endPoint());
+        InetAddress endpoint = poolReference.endPoint();
+        if (!DatabaseDescriptor.getInternodeAuthenticator().authenticate(endpoint, poolReference.portFor(endpoint)))
+        {
+            throw new InternodeAuthFailed();
+        }
+
+        logger.debug("Attempting to connect to {}", endpoint);
+
 
         long start = System.nanoTime();
         long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getRpcTimeout());
         while (System.nanoTime() - start < timeout)
         {
-            targetVersion = MessagingService.instance().getVersion(poolReference.endPoint());
+            targetVersion = MessagingService.instance().getVersion(endpoint);
             try
             {
                 socket = poolReference.newSocket();
                 socket.setKeepAlive(true);
-                if (isLocalDC(poolReference.endPoint()))
+                if (isLocalDC(endpoint))
                 {
                     socket.setTcpNoDelay(INTRADC_TCP_NODELAY);
                 }
@@ -464,16 +478,14 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                 int maxTargetVersion = handshakeVersion(in);
                 if (maxTargetVersion == NO_VERSION)
                 {
-                    // no version is returned, so disconnect an try again: we will either get
-                    // a different target version (targetVersion < MessagingService.VERSION_12)
-                    // or if the same version the handshake will finally succeed
+                    // no version is returned, so disconnect an try again
                     logger.trace("Target max version is {}; no version information yet, will retry", maxTargetVersion);
                     disconnect();
                     continue;
                 }
                 else
                 {
-                    MessagingService.instance().setVersion(poolReference.endPoint(), maxTargetVersion);
+                    MessagingService.instance().setVersion(endpoint, maxTargetVersion);
                 }
 
                 if (targetVersion > maxTargetVersion)
@@ -481,7 +493,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                     logger.trace("Target max version is {}; will reconnect with that version", maxTargetVersion);
                     try
                     {
-                        if (DatabaseDescriptor.getSeeds().contains(poolReference.endPoint()))
+                        if (DatabaseDescriptor.getSeeds().contains(endpoint))
                             logger.warn("Seed gossip version is {}; will not connect with that version", maxTargetVersion);
                     }
                     catch (Throwable e)
@@ -511,25 +523,18 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                 if (shouldCompressConnection())
                 {
                     out.flush();
-                    logger.trace("Upgrading OutputStream to {} to be compressed", poolReference.endPoint());
-                    if (targetVersion < MessagingService.VERSION_21)
-                    {
-                        // Snappy is buffered, so no need for extra buffering output stream
-                        out = new WrappedDataOutputStreamPlus(new SnappyOutputStream(socket.getOutputStream()));
-                    }
-                    else
-                    {
-                        // TODO: custom LZ4 OS that supports BB write methods
-                        LZ4Compressor compressor = LZ4Factory.fastestInstance().fastCompressor();
-                        Checksum checksum = XXHashFactory.fastestInstance().newStreamingHash32(LZ4_HASH_SEED).asChecksum();
-                        out = new WrappedDataOutputStreamPlus(new LZ4BlockOutputStream(socket.getOutputStream(),
-                                                                            1 << 14,  // 16k block size
-                                                                            compressor,
-                                                                            checksum,
-                                                                            true)); // no async flushing
-                    }
+                    logger.trace("Upgrading OutputStream to {} to be compressed", endpoint);
+
+                    // TODO: custom LZ4 OS that supports BB write methods
+                    LZ4Compressor compressor = LZ4Factory.fastestInstance().fastCompressor();
+                    Checksum checksum = XXHashFactory.fastestInstance().newStreamingHash32(LZ4_HASH_SEED).asChecksum();
+                    out = new WrappedDataOutputStreamPlus(new LZ4BlockOutputStream(socket.getOutputStream(),
+                                                                        1 << 14,  // 16k block size
+                                                                        compressor,
+                                                                        checksum,
+                                                                        true)); // no async flushing
                 }
-                logger.debug("Done connecting to {}", poolReference.endPoint());
+                logger.debug("Done connecting to {}", endpoint);
                 return true;
             }
             catch (SSLHandshakeException e)
@@ -542,7 +547,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
             catch (IOException e)
             {
                 socket = null;
-                logger.debug("Unable to connect to {}", poolReference.endPoint(), e);
+                logger.debug("Unable to connect to {}", endpoint, e);
                 Uninterruptibles.sleepUninterruptibly(OPEN_RETRY_DELAY, TimeUnit.MILLISECONDS);
             }
         }
@@ -589,7 +594,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     /**
      * Expire elements from the queue if the queue is pretty full and expiration is not already in progress.
      * This method will only remove droppable expired entries. If no such element exists, nothing is removed from the queue.
-     * 
+     *
      * @param timestampNanos The current time as from System.nanoTime()
      */
     @VisibleForTesting
@@ -683,4 +688,6 @@ public class OutboundTcpConnection extends FastThreadLocalThread
             return false;
         }
     }
+
+    private static class InternodeAuthFailed extends Exception {}
 }

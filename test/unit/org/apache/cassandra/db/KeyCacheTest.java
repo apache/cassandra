@@ -269,8 +269,8 @@ public class KeyCacheTest
         Mutation rm;
 
         // inserts
-        new RowUpdateBuilder(cfs.metadata, 0, "key1").clustering("1").build().applyUnsafe();
-        new RowUpdateBuilder(cfs.metadata, 0, "key2").clustering("2").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1").clustering("1").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 0, "key2").clustering("2").build().applyUnsafe();
 
         // to make sure we have SSTable
         cfs.forceBlockingFlush();

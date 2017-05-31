@@ -19,7 +19,7 @@ package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
@@ -54,7 +54,7 @@ public class TermSelector extends Selector
 
             protected void addColumnMapping(SelectionColumnMapping mapping, ColumnSpecification resultColumn)
             {
-               mapping.addMapping(resultColumn, (ColumnDefinition)null);
+               mapping.addMapping(resultColumn, (ColumnMetadata)null);
             }
 
             public Selector newInstance(QueryOptions options)

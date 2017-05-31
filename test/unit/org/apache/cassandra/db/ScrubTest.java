@@ -33,7 +33,6 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.*;
 import org.apache.cassandra.cache.ChunkCache;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -59,8 +58,14 @@ import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.SchemaLoader.counterCFMD;
+import static org.apache.cassandra.SchemaLoader.createKeyspace;
+import static org.apache.cassandra.SchemaLoader.getCompressionParameters;
+import static org.apache.cassandra.SchemaLoader.loadSchema;
+import static org.apache.cassandra.SchemaLoader.standardCFMD;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -91,19 +96,18 @@ public class ScrubTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        SchemaLoader.loadSchema();
-        SchemaLoader.createKeyspace(KEYSPACE,
-                                    KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF2),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF3),
-                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF)
-                                                .compression(SchemaLoader.getCompressionParameters(COMPRESSION_CHUNK_LENGTH)),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF_UUID, 0, UUIDType.instance),
-                                    SchemaLoader.keysIndexCFMD(KEYSPACE, CF_INDEX1, true),
-                                    SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2, true),
-                                    SchemaLoader.keysIndexCFMD(KEYSPACE, CF_INDEX1_BYTEORDERED, true).copy(ByteOrderedPartitioner.instance),
-                                    SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2_BYTEORDERED, true).copy(ByteOrderedPartitioner.instance));
+        loadSchema();
+        createKeyspace(KEYSPACE,
+                       KeyspaceParams.simple(1),
+                       standardCFMD(KEYSPACE, CF),
+                       standardCFMD(KEYSPACE, CF2),
+                       standardCFMD(KEYSPACE, CF3),
+                       counterCFMD(KEYSPACE, COUNTER_CF).compression(getCompressionParameters(COMPRESSION_CHUNK_LENGTH)),
+                       standardCFMD(KEYSPACE, CF_UUID, 0, UUIDType.instance),
+                       SchemaLoader.keysIndexCFMD(KEYSPACE, CF_INDEX1, true),
+                       SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2, true),
+                       SchemaLoader.keysIndexCFMD(KEYSPACE, CF_INDEX1_BYTEORDERED, true).partitioner(ByteOrderedPartitioner.instance),
+                       SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2_BYTEORDERED, true).partitioner(ByteOrderedPartitioner.instance));
     }
 
     @Test
@@ -327,8 +331,7 @@ public class ScrubTest
             cfs.clearUnsafe();
 
             List<String> keys = Arrays.asList("t", "a", "b", "z", "c", "y", "d");
-            String filename = cfs.getSSTablePath(tempDataDir);
-            Descriptor desc = Descriptor.fromFilename(filename);
+            Descriptor desc = cfs.newSSTableDescriptor(tempDataDir);
 
             LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
             try (SSTableTxnWriter writer = new SSTableTxnWriter(txn, createTestWriter(desc, (long) keys.size(), cfs.metadata, txn)))
@@ -336,7 +339,7 @@ public class ScrubTest
 
                 for (String k : keys)
                 {
-                    PartitionUpdate update = UpdateBuilder.create(cfs.metadata, Util.dk(k))
+                    PartitionUpdate update = UpdateBuilder.create(cfs.metadata(), Util.dk(k))
                                                           .newRow("someName").add("val", "someValue")
                                                           .build();
 
@@ -448,7 +451,7 @@ public class ScrubTest
     {
         for (int i = 0; i < partitionsPerSSTable; i++)
         {
-            PartitionUpdate update = UpdateBuilder.create(cfs.metadata, String.valueOf(i))
+            PartitionUpdate update = UpdateBuilder.create(cfs.metadata(), String.valueOf(i))
                                                   .newRow("r1").add("val", "1")
                                                   .newRow("r1").add("val", "1")
                                                   .build();
@@ -464,7 +467,7 @@ public class ScrubTest
         assertTrue(values.length % 2 == 0);
         for (int i = 0; i < values.length; i +=2)
         {
-            UpdateBuilder builder = UpdateBuilder.create(cfs.metadata, String.valueOf(i));
+            UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), String.valueOf(i));
             if (composite)
             {
                 builder.newRow("c" + i)
@@ -487,7 +490,7 @@ public class ScrubTest
     {
         for (int i = 0; i < partitionsPerSSTable; i++)
         {
-            PartitionUpdate update = UpdateBuilder.create(cfs.metadata, String.valueOf(i))
+            PartitionUpdate update = UpdateBuilder.create(cfs.metadata(), String.valueOf(i))
                                                   .newRow("r1").add("val", 100L)
                                                   .build();
             new CounterMutation(new Mutation(update), ConsistencyLevel.ONE).apply();
@@ -511,7 +514,7 @@ public class ScrubTest
         QueryProcessor.process("CREATE TABLE \"Keyspace1\".test_scrub_validation (a text primary key, b int)", ConsistencyLevel.ONE);
         ColumnFamilyStore cfs2 = keyspace.getColumnFamilyStore("test_scrub_validation");
 
-        new Mutation(UpdateBuilder.create(cfs2.metadata, "key").newRow().add("b", LongType.instance.decompose(1L)).build()).apply();
+        new Mutation(UpdateBuilder.create(cfs2.metadata(), "key").newRow().add("b", LongType.instance.decompose(1L)).build()).apply();
         cfs2.forceBlockingFlush();
 
         CompactionManager.instance.performScrub(cfs2, false, false, 2);
@@ -635,11 +638,11 @@ public class ScrubTest
         assertOrdered(Util.cmd(cfs).filterOn(colName, Operator.EQ, 1L).build(), numRows / 2);
     }
 
-    private static SSTableMultiWriter createTestWriter(Descriptor descriptor, long keyCount, CFMetaData metadata, LifecycleTransaction txn)
+    private static SSTableMultiWriter createTestWriter(Descriptor descriptor, long keyCount, TableMetadataRef metadata, LifecycleTransaction txn)
     {
-        SerializationHeader header = new SerializationHeader(true, metadata, metadata.partitionColumns(), EncodingStats.NO_STATS);
-        MetadataCollector collector = new MetadataCollector(metadata.comparator).sstableLevel(0);
-        return new TestMultiWriter(new TestWriter(descriptor, keyCount, 0, metadata, collector, header, txn), txn);
+        SerializationHeader header = new SerializationHeader(true, metadata.get(), metadata.get().regularAndStaticColumns(), EncodingStats.NO_STATS);
+        MetadataCollector collector = new MetadataCollector(metadata.get().comparator).sstableLevel(0);
+        return new TestMultiWriter(new TestWriter(descriptor, keyCount, 0, null, metadata, collector, header, txn), txn);
     }
 
     private static class TestMultiWriter extends SimpleSSTableMultiWriter
@@ -655,10 +658,10 @@ public class ScrubTest
      */
     private static class TestWriter extends BigTableWriter
     {
-        TestWriter(Descriptor descriptor, long keyCount, long repairedAt, CFMetaData metadata,
+        TestWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, TableMetadataRef metadata,
                    MetadataCollector collector, SerializationHeader header, LifecycleTransaction txn)
         {
-            super(descriptor, keyCount, repairedAt, metadata, collector, header, Collections.emptySet(), txn);
+            super(descriptor, keyCount, repairedAt, pendingRepair, metadata, collector, header, Collections.emptySet(), txn);
         }
 
         @Override
@@ -707,43 +710,6 @@ public class ScrubTest
         assertEquals(1, rs.size());
         QueryProcessor.executeInternal(String.format("DELETE FROM \"%s\".cf_with_duplicates_3_0 WHERE a=1 AND b =2", KEYSPACE));
         rs = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".cf_with_duplicates_3_0", KEYSPACE));
-        assertEquals(0, rs.size());
-    }
-
-    @Test
-    public void testUpgradeSstablesWithDuplicates() throws Exception
-    {
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        String cf = "cf_with_duplicates_2_0";
-        QueryProcessor.process(String.format("CREATE TABLE \"%s\".%s (a int, b int, c int, PRIMARY KEY (a, b))", KEYSPACE, cf), ConsistencyLevel.ONE);
-
-        Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cf);
-
-        Path legacySSTableRoot = Paths.get(System.getProperty(INVALID_LEGACY_SSTABLE_ROOT_PROP),
-                                           "Keyspace1",
-                                           cf);
-
-        for (String filename : new String[]{ "lb-1-big-CompressionInfo.db",
-                                             "lb-1-big-Data.db",
-                                             "lb-1-big-Digest.adler32",
-                                             "lb-1-big-Filter.db",
-                                             "lb-1-big-Index.db",
-                                             "lb-1-big-Statistics.db",
-                                             "lb-1-big-Summary.db",
-                                             "lb-1-big-TOC.txt" })
-        {
-            Files.copy(Paths.get(legacySSTableRoot.toString(), filename), cfs.getDirectories().getDirectoryForNewSSTables().toPath().resolve(filename));
-        }
-
-        cfs.loadNewSSTables();
-
-        cfs.sstablesRewrite(true, 1);
-
-        UntypedResultSet rs = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".%s", KEYSPACE, cf));
-        assertEquals(1, rs.size());
-        QueryProcessor.executeInternal(String.format("DELETE FROM \"%s\".%s WHERE a=1 AND b =2", KEYSPACE, cf));
-        rs = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".%s", KEYSPACE, cf));
         assertEquals(0, rs.size());
     }
 }

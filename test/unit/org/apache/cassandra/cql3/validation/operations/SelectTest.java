@@ -2307,8 +2307,7 @@ public class SelectTest extends CQLTester
     public void testIndexQueryWithValueOver64K() throws Throwable
     {
         String tableName = createTable("CREATE TABLE %s (a int, b int, c blob, PRIMARY KEY (a, b))");
-        String idx = tableName + "_c_idx";
-        createIndex("CREATE INDEX " + idx + " ON %s (c)");
+        String idx = createIndex("CREATE INDEX ON %s (c)");
 
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, bytes(1));
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, bytes(2));
@@ -4531,6 +4530,16 @@ public class SelectTest extends CQLTester
                            row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1"), bytes("4")));
             });
         }
+    }
+
+    @Test
+    public void testWithDistinctAndJsonAsColumnName() throws Throwable
+    {
+        createTable("CREATE TABLE %s (distinct int, json int, value int, PRIMARY KEY(distinct, json))");
+        execute("INSERT INTO %s (distinct, json, value) VALUES (0, 0, 0)");
+
+        assertRows(execute("SELECT distinct, json FROM %s"), row(0, 0));
+        assertRows(execute("SELECT distinct distinct FROM %s"), row(0));
     }
 
     @Test

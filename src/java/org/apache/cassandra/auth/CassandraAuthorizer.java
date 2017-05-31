@@ -30,8 +30,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
@@ -82,20 +82,9 @@ public class CassandraAuthorizer implements IAuthorizer
             return resource.applicablePermissions();
 
         Set<Permission> permissions = EnumSet.noneOf(Permission.class);
-        try
-        {
-            for (RoleResource role: user.getRoles())
-                addPermissionsForRole(permissions, resource, role);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new AssertionError(e); // not supposed to happen
-        }
-        catch (RequestExecutionException e)
-        {
-            logger.warn("CassandraAuthorizer failed to authorize {} for {}", user, resource);
-            throw new RuntimeException(e);
-        }
+
+        for (RoleResource role: user.getRoles())
+            addPermissionsForRole(permissions, resource, role);
 
         return permissions;
     }
@@ -218,7 +207,7 @@ public class CassandraAuthorizer implements IAuthorizer
         SelectStatement statement;
         // If it exists, read from the legacy user permissions table to handle the case where the cluster
         // is being upgraded and so is running with mixed versions of the authz schema
-        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, USER_PERMISSIONS) == null)
+        if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, USER_PERMISSIONS) == null)
             statement = authorizeRoleStatement;
         else
         {
@@ -305,7 +294,7 @@ public class CassandraAuthorizer implements IAuthorizer
         Set<PermissionDetails> details = new HashSet<>();
         // If it exists, try the legacy user permissions table first. This is to handle the case
         // where the cluster is being upgraded and so is running with mixed versions of the perms table
-        boolean useLegacyTable = Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, USER_PERMISSIONS) != null;
+        boolean useLegacyTable = Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, USER_PERMISSIONS) != null;
         String entityColumnName = useLegacyTable ? USERNAME : ROLE;
         for (UntypedResultSet.Row row : process(buildListQuery(resource, role, useLegacyTable)))
         {
@@ -370,7 +359,7 @@ public class CassandraAuthorizer implements IAuthorizer
 
         // If old user permissions table exists, migrate the legacy authz data to the new table
         // The delay is to give the node a chance to see its peers before attempting the conversion
-        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, "permissions") != null)
+        if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, "permissions") != null)
         {
             legacyAuthorizeRoleStatement = prepare(USERNAME, USER_PERMISSIONS);
 
@@ -404,7 +393,7 @@ public class CassandraAuthorizer implements IAuthorizer
     {
         try
         {
-            if (Schema.instance.getCFMetaData("system_auth", "permissions") != null)
+            if (Schema.instance.getTableMetadata("system_auth", "permissions") != null)
             {
                 logger.info("Converting legacy permissions data");
                 CQLStatement insertStatement =

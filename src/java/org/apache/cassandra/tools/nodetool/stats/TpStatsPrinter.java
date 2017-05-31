@@ -20,7 +20,6 @@ package org.apache.cassandra.tools.nodetool.stats;
 
 import java.io.PrintStream;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class TpStatsPrinter
@@ -61,12 +60,25 @@ public class TpStatsPrinter
                            values.get("TotalBlockedTasks"));
             }
 
-            out.printf("%n%-20s%10s%n", "Message type", "Dropped");
+            out.printf("%n%-20s%10s%18s%18s%18s%18s%n", "Message type", "Dropped", "", "Latency waiting in queue (micros)", "", "");
+            out.printf("%-20s%10s%18s%18s%18s%18s%n", "", "", "50%", "95%", "99%", "Max");
 
             Map<Object, Object> droppedMessages = convertData.get("DroppedMessage") instanceof Map<?, ?> ? (Map)convertData.get("DroppedMessage") : Collections.emptyMap();
+            Map<Object, double[]> waitLatencies = convertData.get("WaitLatencies") instanceof Map<?, ?> ? (Map)convertData.get("WaitLatencies") : Collections.emptyMap();
             for (Map.Entry<Object, Object> entry : droppedMessages.entrySet())
             {
-                out.printf("%-20s%10s%n", entry.getKey(), entry.getValue());
+                out.printf("%-20s%10s", entry.getKey(), entry.getValue());
+                if (waitLatencies.containsKey(entry.getKey()))
+                {
+                    double[] latencies = waitLatencies.get(entry.getKey());
+                    out.printf("%18.2f%18.2f%18.2f%18.2f", latencies[0], latencies[2], latencies[4], latencies[6]);
+                }
+                else
+                {
+                    out.printf("%18s%18s%18s%18s", "N/A", "N/A", "N/A", "N/A");
+                }
+
+                out.printf("%n");
             }
         }
     }
