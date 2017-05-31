@@ -1,4 +1,5 @@
 3.0.14
+ * Ensure consistent view of partition columns between coordinator and replica in ColumnFilter (CASSANDRA-13004)
  * Failed unregistering mbean during drop keyspace (CASSANDRA-13346)
  * nodetool scrub/cleanup/upgradesstables exit code is wrong (CASSANDRA-13542)
  * Fix the reported number of sstable data files accessed per read (CASSANDRA-13120)

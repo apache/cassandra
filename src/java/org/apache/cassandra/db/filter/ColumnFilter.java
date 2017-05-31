@@ -31,6 +31,7 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 
 /**
  * Represents which (non-PK) columns (and optionally which sub-part of a column for complex columns) are selected
@@ -52,23 +53,27 @@ public class ColumnFilter
     public static final Serializer serializer = new Serializer();
 
     // Distinguish between the 2 cases described above: if 'isFetchAll' is true, then all columns will be retrieved
-    // by the query, but the values for column/cells not selected by 'selection' and 'subSelections' will be skipped.
-    // Otherwise, only the column/cells returned by 'selection' and 'subSelections' will be returned at all.
+    // by the query, but the values for column/cells not selected by 'queried' and 'subSelections' will be skipped.
+    // Otherwise, only the column/cells returned by 'queried' and 'subSelections' will be returned at all.
     private final boolean isFetchAll;
 
-    private final CFMetaData metadata; // can be null if !isFetchAll
-
-    private final PartitionColumns selection; // can be null if isFetchAll and we don't want to skip any value
+    private final PartitionColumns queried; // can be null if isFetchAll and we don't want to skip any value
+    private final PartitionColumns fetched;
     private final SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections; // can be null
 
+    /**
+     * Used on replica for deserialisation
+     */
     private ColumnFilter(boolean isFetchAll,
-                         CFMetaData metadata,
-                         PartitionColumns columns,
+                         PartitionColumns fetched,
+                         PartitionColumns queried,
                          SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections)
     {
+        assert !isFetchAll || fetched != null;
+        assert isFetchAll || queried != null;
         this.isFetchAll = isFetchAll;
-        this.metadata = metadata;
-        this.selection = columns;
+        this.fetched = isFetchAll ? fetched : queried;
+        this.queried = queried;
         this.subSelections = subSelections;
     }
 
@@ -77,7 +82,7 @@ public class ColumnFilter
      */
     public static ColumnFilter all(CFMetaData metadata)
     {
-        return new ColumnFilter(true, metadata, null, null);
+        return new ColumnFilter(true, metadata.partitionColumns(), null, null);
     }
 
     /**
@@ -98,7 +103,7 @@ public class ColumnFilter
      */
     public static ColumnFilter selection(CFMetaData metadata, PartitionColumns queried)
     {
-        return new ColumnFilter(true, metadata, queried, null);
+        return new ColumnFilter(true, metadata.partitionColumns(), queried, null);
     }
 
     /**
@@ -111,7 +116,7 @@ public class ColumnFilter
      */
     public PartitionColumns fetchedColumns()
     {
-        return isFetchAll ? metadata.partitionColumns() : selection;
+        return fetched;
     }
 
     public boolean includesAllColumns()
@@ -124,7 +129,7 @@ public class ColumnFilter
      */
     public boolean includes(ColumnDefinition column)
     {
-        return isFetchAll || selection.contains(column);
+        return isFetchAll || queried.contains(column);
     }
 
     /**
@@ -301,7 +306,7 @@ public class ColumnFilter
             boolean isFetchAll = metadata != null;
 
             PartitionColumns selectedColumns = selection == null ? null : selection.build();
-            // It's only ok to have selection == null in ColumnFilter if isFetchAll. So deal with the case of a "selection" builder
+            // It's only ok to have queried == null in ColumnFilter if isFetchAll. So deal with the case of a "selection" builder
             // with nothing selected (we can at least happen on some backward compatible queries - CASSANDRA-10471).
             if (!isFetchAll && selectedColumns == null)
                 selectedColumns = PartitionColumns.NONE;
@@ -314,20 +319,37 @@ public class ColumnFilter
                     s.put(subSelection.column().name, subSelection);
             }
 
-            return new ColumnFilter(isFetchAll, metadata, selectedColumns, s);
+            return new ColumnFilter(isFetchAll, isFetchAll ? metadata.partitionColumns() : selectedColumns, selectedColumns, s);
         }
     }
 
+    @Override
+    public boolean equals(Object other)
+    {
+        if (other == this)
+            return true;
+
+        if (!(other instanceof ColumnFilter))
+            return false;
+
+        ColumnFilter otherCf = (ColumnFilter) other;
+
+        return otherCf.isFetchAll == this.isFetchAll &&
+               Objects.equals(otherCf.fetched, this.fetched) &&
+               Objects.equals(otherCf.queried, this.queried) &&
+               Objects.equals(otherCf.subSelections, this.subSelections);
+
+    }
     @Override
     public String toString()
     {
         if (isFetchAll)
             return "*";
 
-        if (selection.isEmpty())
+        if (queried.isEmpty())
             return "";
 
-        Iterator<ColumnDefinition> defs = selection.selectOrderIterator();
+        Iterator<ColumnDefinition> defs = queried.selectOrderIterator();
         if (!defs.hasNext())
             return "<none>";
 
@@ -367,7 +389,7 @@ public class ColumnFilter
         private static int makeHeaderByte(ColumnFilter selection)
         {
             return (selection.isFetchAll ? IS_FETCH_ALL_MASK : 0)
-                 | (selection.selection != null ? HAS_SELECTION_MASK : 0)
+                 | (selection.queried != null ? HAS_SELECTION_MASK : 0)
                  | (selection.subSelections != null ? HAS_SUB_SELECTIONS_MASK : 0);
         }
 
@@ -375,10 +397,16 @@ public class ColumnFilter
         {
             out.writeByte(makeHeaderByte(selection));
 
-            if (selection.selection != null)
+            if (version >= MessagingService.VERSION_3014 && selection.isFetchAll)
             {
-                Columns.serializer.serialize(selection.selection.statics, out);
-                Columns.serializer.serialize(selection.selection.regulars, out);
+                Columns.serializer.serialize(selection.fetched.statics, out);
+                Columns.serializer.serialize(selection.fetched.regulars, out);
+            }
+
+            if (selection.queried != null)
+            {
+                Columns.serializer.serialize(selection.queried.statics, out);
+                Columns.serializer.serialize(selection.queried.regulars, out);
             }
 
             if (selection.subSelections != null)
@@ -396,7 +424,23 @@ public class ColumnFilter
             boolean hasSelection = (header & HAS_SELECTION_MASK) != 0;
             boolean hasSubSelections = (header & HAS_SUB_SELECTIONS_MASK) != 0;
 
+            PartitionColumns fetched = null;
             PartitionColumns selection = null;
+
+            if (isFetchAll)
+            {
+                if (version >= MessagingService.VERSION_3014)
+                {
+                    Columns statics = Columns.serializer.deserialize(in, metadata);
+                    Columns regulars = Columns.serializer.deserialize(in, metadata);
+                    fetched = new PartitionColumns(statics, regulars);
+                }
+                else
+                {
+                    fetched = metadata.partitionColumns();
+                }
+            }
+
             if (hasSelection)
             {
                 Columns statics = Columns.serializer.deserialize(in, metadata);
@@ -416,17 +460,23 @@ public class ColumnFilter
                 }
             }
 
-            return new ColumnFilter(isFetchAll, isFetchAll ? metadata : null, selection, subSelections);
+            return new ColumnFilter(isFetchAll, fetched, selection, subSelections);
         }
 
         public long serializedSize(ColumnFilter selection, int version)
         {
             long size = 1; // header byte
 
-            if (selection.selection != null)
+            if (version >= MessagingService.VERSION_3014 && selection.isFetchAll)
             {
-                size += Columns.serializer.serializedSize(selection.selection.statics);
-                size += Columns.serializer.serializedSize(selection.selection.regulars);
+                size += Columns.serializer.serializedSize(selection.fetched.statics);
+                size += Columns.serializer.serializedSize(selection.fetched.regulars);
+            }
+
+            if (selection.queried != null)
+            {
+                size += Columns.serializer.serializedSize(selection.queried.statics);
+                size += Columns.serializer.serializedSize(selection.queried.regulars);
             }
 
             if (selection.subSelections != null)
