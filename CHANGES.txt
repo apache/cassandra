@@ -163,6 +163,7 @@ Merged from 3.0:
  * Nodetool upgradesstables/scrub/compact ignores system tables (CASSANDRA-13410)
  * Fix schema version calculation for rolling upgrades (CASSANDRA-13441)
 Merged from 2.2:
+ * Upgrade JNA to version 4.4.0 (CASSANDRA-13072)
  * Avoid starting gossiper in RemoveTest (CASSANDRA-13407)
  * Fix weightedSize() for row-cache reported by JMX and NodeTool (CASSANDRA-13393)
  * Fix JVM metric names (CASSANDRA-13103)
