@@ -1,4 +1,5 @@
 3.0.14
+ * Fix schema digest mismatch during rolling upgrades from versions before 3.0.12 (CASSANDRA-13559)
  * Upgrade JNA version to 4.4.0 (CASSANDRA-13072)
  * Interned ColumnIdentifiers should use minimal ByteBuffers (CASSANDRA-13533)
  * ReverseIndexedReader may drop rows during 2.1 to 3.0 upgrade (CASSANDRA-13525)
@@ -11,9 +12,10 @@
  * Fail repair if insufficient responses received (CASSANDRA-13397)
  * Fix SSTableLoader fail when the loaded table contains dropped columns (CASSANDRA-13276)
  * Avoid name clashes in CassandraIndexTest (CASSANDRA-13427)
- * Handling partially written hint files (CASSANDRA-12728) 
+ * Handling partially written hint files (CASSANDRA-12728)
  * Interrupt replaying hints on decommission (CASSANDRA-13308)
  * Fix schema version calculation for rolling upgrades (CASSANDRA-13441)
+
 
 3.0.13
  * Make reading of range tombstones more reliable (CASSANDRA-12811)
@@ -49,6 +51,7 @@ Merged from 2.2:
 Merged from 2.1:
  * Fix 2ndary index queries on partition keys for tables with static columns CASSANDRA-13147
  * Fix ParseError unhashable type list in cqlsh copy from (CASSANDRA-13364)
+
 
 3.0.12
  * Prevent data loss on upgrade 2.1 - 3.0 by adding component separator to LogRecord absolute path (CASSANDRA-13294)
