@@ -108,6 +108,7 @@
  * Fix cqlsh automatic protocol downgrade regression (CASSANDRA-13307)
  * Tracing payload not passed from QueryMessage to tracing session (CASSANDRA-12835)
 Merged from 3.0:
+ * Fix schema digest mismatch during rolling upgrades from versions before 3.0.12 (CASSANDRA-13559)
  * Upgrade JNA version to 4.4.0 (CASSANDRA-13072)
  * Interned ColumnIdentifiers should use minimal ByteBuffers (CASSANDRA-13533)
  * Fix repair process violating start/end token limits for small ranges (CASSANDRA-13052)
@@ -189,6 +190,7 @@ Merged from 2.1:
  * Fix Thread Leak in OutboundTcpConnection (CASSANDRA-13204)
  * Upgrade netty version to fix memory leak with client encryption (CASSANDRA-13114)
  * Coalescing strategy can enter infinite loop (CASSANDRA-13159)
+
 
 3.10
  * Fix secondary index queries regression (CASSANDRA-13013)
