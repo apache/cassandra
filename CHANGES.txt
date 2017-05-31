@@ -1,4 +1,5 @@
 3.0.14
+ * Upgrade JNA version to 4.4.0 (CASSANDRA-13072)
  * Interned ColumnIdentifiers should use minimal ByteBuffers (CASSANDRA-13533)
  * ReverseIndexedReader may drop rows during 2.1 to 3.0 upgrade (CASSANDRA-13525)
  * Fix repair process violating start/end token limits for small ranges (CASSANDRA-13052)
@@ -36,8 +37,6 @@
  * Nodetool upgradesstables/scrub/compact ignores system tables (CASSANDRA-13410)
  * Fix NPE issue in StorageService (CASSANDRA-13060)
 Merged from 2.2:
- * upgrade JNA version to 4.4.0 (CASSANDRA-13072)
- * nodetool upgradesstables should upgrade system tables (CASSANDRA-13119)
  * Avoid starting gossiper in RemoveTest (CASSANDRA-13407)
  * Fix weightedSize() for row-cache reported by JMX and NodeTool (CASSANDRA-13393)
  * Honor truststore-password parameter in cassandra-stress (CASSANDRA-12773)
