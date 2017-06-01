@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
+import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
@@ -115,6 +116,22 @@ final class SelectorFactories implements Iterable<Selector.Factory>
     public Selector.Factory get(int i)
     {
         return factories.get(i);
+    }
+
+    /**
+     * Returns the index of the {@code SimpleSelector.Factory} for the specified column.
+     *
+     * @param columnIndex the index of the column
+     * @return the index of the {@code SimpleSelector.Factory} for the specified column or -1 if it does not exist.
+     */
+    public int indexOfSimpleSelectorFactory(int columnIndex)
+    {
+        for (int i = 0, m = factories.size(); i < m; i++)
+        {
+            if (factories.get(i).isSimpleSelectorFactoryFor(columnIndex))
+                return i;
+        }
+        return -1;
     }
 
     /**
@@ -209,6 +226,22 @@ final class SelectorFactories implements Iterable<Selector.Factory>
                 return factory.getReturnType();
             }
         });
+    }
+
+    boolean areAllFetchedColumnsKnown()
+    {
+        for (Factory factory : factories)
+        {
+            if (!factory.areAllFetchedColumnsKnown())
+                return false;
+        }
+        return true;
+    }
+
+    void addFetchedColumns(Builder builder)
+    {
+        for (Factory factory : factories)
+            factory.addFetchedColumns(builder);
     }
 
     /**

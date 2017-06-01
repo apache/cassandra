@@ -334,10 +334,29 @@ selectionGroup returns [Selectable.Raw s]
     ;
 
 selectionGroupWithField returns [Selectable.Raw s]
-    @init { Selectable.Raw tmp = null; }
-    @after { $s = tmp; }
-    : g=selectionGroupWithoutField {tmp=g;} ( '.' fi=fident { tmp = new Selectable.WithFieldSelection.Raw(tmp, fi); } )+
+    : g=selectionGroupWithoutField m=selectorModifier[g] {$s = m;}
     ;
+
+selectorModifier[Selectable.Raw receiver] returns [Selectable.Raw s]
+    : f=fieldSelectorModifier[receiver] m=selectorModifier[f] { $s = m; }
+    | '[' ss=collectionSubSelection[receiver] ']' m=selectorModifier[ss] { $s = m; }
+    | { $s = receiver; }
+    ;
+
+fieldSelectorModifier[Selectable.Raw receiver] returns [Selectable.Raw s]
+    : '.' fi=fident { $s = new Selectable.WithFieldSelection.Raw(receiver, fi); }
+    ;
+
+collectionSubSelection [Selectable.Raw receiver] returns [Selectable.Raw s]
+    @init { boolean isSlice=false; }
+    : ( t1=term ( { isSlice=true; } RANGE (t2=term)? )?
+      | RANGE { isSlice=true; } t2=term
+      ) {
+          $s = isSlice
+             ? new Selectable.WithSliceSelection.Raw(receiver, t1, t2)
+             : new Selectable.WithElementSelection.Raw(receiver, t1);
+      }
+     ;
 
 selectionGroupWithoutField returns [Selectable.Raw s]
     @init { Selectable.Raw tmp = null; }

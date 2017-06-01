@@ -21,11 +21,13 @@ import java.io.IOException;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.SortedSetMultimap;
 import com.google.common.collect.TreeMultimap;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -245,6 +247,23 @@ public class ColumnFilter
     }
 
     /**
+     * Given an iterator on the cell of a complex column, returns an iterator that only include the cells selected by
+     * this filter.
+     *
+     * @param column the (complex) column for which the cells are.
+     * @param cells the cells to filter.
+     * @return a filtered iterator that only include the cells from {@code cells} that are included by this filter.
+     */
+    public Iterator<Cell> filterComplexCells(ColumnMetadata column, Iterator<Cell> cells)
+    {
+        Tester tester = newTester(column);
+        if (tester == null)
+            return cells;
+
+        return Iterators.filter(cells, cell -> tester.fetchedCellIsQueried(cell.path()));
+    }
+
+    /**
      * Returns a {@code ColumnFilter}} builder that fetches all regular columns (and queries the columns
      * added to the builder, or everything if no column is added).
      */
@@ -317,12 +336,20 @@ public class ColumnFilter
      * all columns, not querying none (but if you know you want to query all columns, prefer
      * {@link ColumnFilter#all(TableMetadata)}. For selectionBuilder, adding no queried columns means no column will be
      * fetched (so the builder will return {@code PartitionColumns.NONE}).
+     *
+     * Also, if only a subselection of a complex column should be queried, then only the corresponding
+     * subselection method of the builder ({@link #slice} or {@link #select}) should be called for the
+     * column, but {@link #add} shouldn't. if {@link #add} is also called, the whole column will be
+     * queried and the subselection(s) will be ignored. This is done for correctness of CQL where
+     * if you do "SELECT m, m[2..5]", you are really querying the whole collection.
      */
     public static class Builder
     {
         private final TableMetadata metadata; // null if we don't fetch all columns
         private RegularAndStaticColumns.Builder queriedBuilder;
         private List<ColumnSubselection> subSelections;
+
+        private Set<ColumnMetadata> fullySelectedComplexColumns;
 
         private Builder(TableMetadata metadata)
         {
@@ -331,23 +358,38 @@ public class ColumnFilter
 
         public Builder add(ColumnMetadata c)
         {
+            if (c.isComplex() && c.type.isMultiCell())
+            {
+                if (fullySelectedComplexColumns == null)
+                    fullySelectedComplexColumns = new HashSet<>();
+                fullySelectedComplexColumns.add(c);
+            }
+            return addInternal(c);
+        }
+
+        public Builder addAll(Iterable<ColumnMetadata> columns)
+        {
+            for (ColumnMetadata column : columns)
+                add(column);
+            return this;
+        }
+
+        private Builder addInternal(ColumnMetadata c)
+        {
+            if (c.isPrimaryKeyColumn())
+                return this;
+
             if (queriedBuilder == null)
                 queriedBuilder = RegularAndStaticColumns.builder();
             queriedBuilder.add(c);
             return this;
         }
 
-        public Builder addAll(Iterable<ColumnMetadata> columns)
-        {
-            if (queriedBuilder == null)
-                queriedBuilder = RegularAndStaticColumns.builder();
-            queriedBuilder.addAll(columns);
-            return this;
-        }
-
         private Builder addSubSelection(ColumnSubselection subSelection)
         {
-            add(subSelection.column());
+            ColumnMetadata column = subSelection.column();
+            assert column.isComplex() && column.type.isMultiCell();
+            addInternal(column);
             if (subSelections == null)
                 subSelections = new ArrayList<>();
             subSelections.add(subSelection);
@@ -379,7 +421,10 @@ public class ColumnFilter
             {
                 s = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), Comparator.<ColumnSubselection>naturalOrder());
                 for (ColumnSubselection subSelection : subSelections)
-                    s.put(subSelection.column().name, subSelection);
+                {
+                    if (fullySelectedComplexColumns == null || !fullySelectedComplexColumns.contains(subSelection.column()))
+                        s.put(subSelection.column().name, subSelection);
+                }
             }
 
             return new ColumnFilter(isFetchAll, metadata, queried, s);

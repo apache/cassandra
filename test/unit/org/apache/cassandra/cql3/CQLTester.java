@@ -1561,7 +1561,7 @@ public abstract class CQLTester
     protected Object map(Object...values)
     {
         if (values.length % 2 != 0)
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("Invalid number of arguments, got " + values.length);
 
         int size = values.length / 2;
         Map m = new LinkedHashMap(size);

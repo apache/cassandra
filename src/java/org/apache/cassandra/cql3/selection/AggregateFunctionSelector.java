@@ -22,7 +22,6 @@ import java.util.List;
 
 import org.apache.cassandra.cql3.functions.AggregateFunction;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
 

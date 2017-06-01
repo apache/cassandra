@@ -716,7 +716,7 @@ syntax_rules += r'''
                  ;
 <udtSubfieldSelection> ::= <identifier> "." <identifier>
                          ;
-<selector> ::= [colname]=<cident>
+<selector> ::= [colname]=<cident> ( "[" ( <term> ( ".." <term> "]" )? | <term> ".." ) )?
              | <udtSubfieldSelection>
              | "WRITETIME" "(" [colname]=<cident> ")"
              | "TTL" "(" [colname]=<cident> ")"

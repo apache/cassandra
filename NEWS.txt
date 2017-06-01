@@ -25,6 +25,7 @@ New features
    - Support for arithmetic operations on number has been added. See CASSANDRA-11935
    - Preview expected streaming required for a repair (nodetool repair --preview), and validate the
      consistency of repaired data between nodes (nodetool repair --validate). See CASSANDRA-13257
+   - Support for selecting Map values and Set elements has been added for SELECT queries. See CASSANDRA-7396 
 
 Upgrading
 ---------

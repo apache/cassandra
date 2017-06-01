@@ -23,6 +23,7 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
+import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
@@ -83,8 +84,26 @@ abstract class ForwardingFactory extends Factory
     }
 
     @Override
-    public boolean isSimpleSelectorFactory(int index)
+    public boolean isSimpleSelectorFactory()
     {
-        return delegate().isSimpleSelectorFactory(index);
+        return delegate().isSimpleSelectorFactory();
+    }
+
+    @Override
+    public boolean isSimpleSelectorFactoryFor(int index)
+    {
+        return delegate().isSimpleSelectorFactoryFor(index);
+    }
+
+    @Override
+    boolean areAllFetchedColumnsKnown()
+    {
+        return delegate().areAllFetchedColumnsKnown();
+    }
+
+    @Override
+    void addFetchedColumns(Builder builder)
+    {
+        delegate().addFetchedColumns(builder);
     }
 }

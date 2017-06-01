@@ -226,15 +226,16 @@ public class ResultSet
         }
 
         /**
-         * Adds the specified column which will not be serialized.
+         * Adds the specified columns which will not be serialized.
          *
-         * @param name the column
+         * @param columns the columns
          */
-        public void addNonSerializedColumn(ColumnSpecification name)
+        public ResultMetadata addNonSerializedColumns(Collection<? extends ColumnSpecification> columns)
         {
             // See comment above. Because columnCount doesn't account the newly added name, it
             // won't be serialized.
-            names.add(name);
+            names.addAll(columns);
+            return this;
         }
 
         public void setHasMorePages(PagingState pagingState)

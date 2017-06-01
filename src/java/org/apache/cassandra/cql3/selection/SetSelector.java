@@ -24,7 +24,7 @@ import java.util.TreeSet;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Sets;
-import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
+import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -61,6 +61,13 @@ final class SetSelector extends Selector
                 return new SetSelector(type, factories.newInstances(options));
             }
         };
+    }
+
+    @Override
+    public void addFetchedColumns(Builder builder)
+    {
+        for (int i = 0, m = elements.size(); i < m; i++)
+            elements.get(i).addFetchedColumns(builder);
     }
 
     public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException

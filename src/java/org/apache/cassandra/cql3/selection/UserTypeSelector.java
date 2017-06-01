@@ -29,7 +29,8 @@ import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UserTypes;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UserType;
@@ -130,7 +131,31 @@ final class UserTypeSelector extends Selector
                 }
                 return false;
             }
+
+            @Override
+            boolean areAllFetchedColumnsKnown()
+            {
+                for (Factory factory : factories.values())
+                {
+                    if (!factory.areAllFetchedColumnsKnown())
+                        return false;
+                }
+                return true;
+            }
+
+            @Override
+            void addFetchedColumns(Builder builder)
+            {
+                for (Factory factory : factories.values())
+                    factory.addFetchedColumns(builder);
+            }
         };
+    }
+
+    public void addFetchedColumns(ColumnFilter.Builder builder)
+    {
+        for (Selector field : fields.values())
+            field.addFetchedColumns(builder);
     }
 
     public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException

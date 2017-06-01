@@ -45,11 +45,12 @@ public class RawSelector
      */
     public static List<Selectable> toSelectables(List<RawSelector> raws, final TableMetadata table)
     {
-        return Lists.transform(raws, raw -> raw.selectable.prepare(table));
+        return Lists.transform(raws, raw -> raw.prepare(table));
     }
 
-    public boolean processesSelection()
+    private Selectable prepare(TableMetadata table)
     {
-        return selectable.processesSelection();
+        Selectable s = selectable.prepare(table);
+        return alias != null ? new AliasedSelectable(s, alias) : s;
     }
 }

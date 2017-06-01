@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
@@ -310,6 +311,18 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return kind.isPrimaryKeyKind();
     }
 
+    @Override
+    public boolean selectColumns(Predicate<ColumnMetadata> predicate)
+    {
+        return predicate.test(this);
+    }
+
+    @Override
+    public boolean processesSelection()
+    {
+        return false;
+    }
+
     /**
      * Converts the specified column definitions into column identifiers.
      *
@@ -482,12 +495,6 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
         @Override
         public abstract ColumnMetadata prepare(TableMetadata table);
-
-        @Override
-        public boolean processesSelection()
-        {
-            return false;
-        }
 
         @Override
         public final int hashCode()

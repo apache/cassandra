@@ -36,7 +36,9 @@ import org.apache.cassandra.cql3.conditions.ColumnConditions;
 import org.apache.cassandra.cql3.conditions.Conditions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
+import org.apache.cassandra.cql3.selection.ResultSetBuilder;
 import org.apache.cassandra.cql3.selection.Selection;
+import org.apache.cassandra.cql3.selection.Selection.Selectors;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -536,7 +538,7 @@ public abstract class ModificationStatement implements CQLStatement
         Selection selection;
         if (columnsWithConditions == null)
         {
-            selection = Selection.wildcard(metadata);
+            selection = Selection.wildcard(metadata, false);
         }
         else
         {
@@ -552,7 +554,8 @@ public abstract class ModificationStatement implements CQLStatement
 
         }
 
-        Selection.ResultSetBuilder builder = selection.resultSetBuilder(options, false);
+        Selectors selectors = selection.newSelectors(options);
+        ResultSetBuilder builder = new ResultSetBuilder(selection.getResultMetadata(), selectors);
         SelectStatement.forSelection(metadata, selection).processPartition(partition,
                                                                       options,
                                                                       builder,

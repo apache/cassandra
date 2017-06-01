@@ -23,7 +23,7 @@ import java.util.List;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Lists;
-import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
+import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.CollectionSerializer;
@@ -59,6 +59,13 @@ final class ListSelector extends Selector
                 return new ListSelector(type, factories.newInstances(options));
             }
         };
+    }
+
+    @Override
+    public void addFetchedColumns(Builder builder)
+    {
+        for (int i = 0, m = elements.size(); i < m; i++)
+            elements.get(i).addFetchedColumns(builder);
     }
 
     public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
