@@ -46,6 +46,7 @@ import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -182,7 +183,7 @@ public class SSTableScannerTest
         assert boundaries.length % 2 == 0;
         for (DataRange range : dataRanges(sstable.metadata, scanStart, scanEnd))
         {
-            try(ISSTableScanner scanner = sstable.getScanner(ColumnFilter.all(sstable.metadata), range, false))
+            try(ISSTableScanner scanner = sstable.getScanner(ColumnFilter.all(sstable.metadata), range, false, SSTableReadsListener.NOOP_LISTENER))
             {
                 for (int b = 0; b < boundaries.length; b += 2)
                     for (int i = boundaries[b]; i <= boundaries[b + 1]; i++)

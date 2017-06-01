@@ -90,7 +90,7 @@ CompressionRatio                        Gauge<Double>  Current compression ratio
 EstimatedPartitionSizeHistogram         Gauge<long[]>  Histogram of estimated partition size (in bytes).
 EstimatedPartitionCount                 Gauge<Long>    Approximate number of keys in table.
 EstimatedColumnCountHistogram           Gauge<long[]>  Histogram of estimated number of columns.
-SSTablesPerReadHistogram                Histogram      Histogram of the number of sstable data files accessed per read.
+SSTablesPerReadHistogram                Histogram      Histogram of the number of sstable data files accessed per single partition read. SSTables skipped due to Bloom Filters, min-max key or partition index lookup are not taken into acoount.
 ReadLatency                             Latency        Local read latency for this table.
 RangeLatency                            Latency        Local range scan latency for this table.
 WriteLatency                            Latency        Local write latency for this table.

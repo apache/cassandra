@@ -42,6 +42,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.*;
@@ -210,7 +211,12 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
             for (int i = 0; i < numberOfPks; i++)
             {
                 DecoratedKey dk = Util.dk(String.format("pkvalue_%07d", i));
-                try (UnfilteredRowIterator rowIter = sstable.iterator(dk, Slices.ALL, ColumnFilter.all(cfs.metadata), false, false))
+                try (UnfilteredRowIterator rowIter = sstable.iterator(dk,
+                                                                      Slices.ALL,
+                                                                      ColumnFilter.all(cfs.metadata),
+                                                                      false,
+                                                                      false,
+                                                                      SSTableReadsListener.NOOP_LISTENER))
                 {
                     while (rowIter.hasNext())
                     {

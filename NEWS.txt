@@ -28,6 +28,8 @@ Upgrading
      to be a performance regression. The default for 3.11.0 and newer has
      been reverted to 'DISABLED'. Users upgrading from Cassandra 2.2 or 3.0 should
      be aware that the default has changed.
+   - The StorageHook interface has been modified to allow to retrieve read information from
+     SSTableReader (CASSANDRA-13120).
 
 3.10
 ====

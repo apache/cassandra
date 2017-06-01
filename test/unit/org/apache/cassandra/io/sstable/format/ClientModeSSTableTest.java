@@ -105,7 +105,12 @@ public class ClientModeSSTableTest
 
             ByteBuffer key = bytes(Integer.toString(100));
 
-            try (UnfilteredRowIterator iter = reader.iterator(metadata.decorateKey(key), Slices.ALL, ColumnFilter.selection(metadata.partitionColumns()), false, false))
+            try (UnfilteredRowIterator iter = reader.iterator(metadata.decorateKey(key),
+                                                              Slices.ALL,
+                                                              ColumnFilter.selection(metadata.partitionColumns()),
+                                                              false,
+                                                              false,
+                                                              SSTableReadsListener.NOOP_LISTENER))
             {
                 assert iter.next().clustering().get(0).equals(key);
             }
