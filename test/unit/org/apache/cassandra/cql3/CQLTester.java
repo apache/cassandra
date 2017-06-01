@@ -367,21 +367,36 @@ public abstract class CQLTester
         return list.isEmpty() ? Collections.<String>emptyList() : new ArrayList<>(list);
     }
 
-    public ColumnFamilyStore getCurrentColumnFamilyStore()
+    public ColumnFamilyStore getCurrentColumnFamilyStore(String keyspace)
     {
         String currentTable = currentTable();
         return currentTable == null
              ? null
-             : Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable);
+             : Keyspace.open(keyspace).getColumnFamilyStore(currentTable);
+    }
+
+    public ColumnFamilyStore getCurrentColumnFamilyStore()
+    {
+        return getCurrentColumnFamilyStore(KEYSPACE);
     }
 
     public void flush()
     {
-        ColumnFamilyStore store = getCurrentColumnFamilyStore();
+        flush(KEYSPACE);
+    }
+
+    public void flush(String keyspace)
+    {
+        ColumnFamilyStore store = getCurrentColumnFamilyStore(keyspace);
         if (store != null)
             store.forceBlockingFlush();
     }
 
+    public void disableCompaction(String keyspace)
+    {
+        ColumnFamilyStore store = getCurrentColumnFamilyStore(keyspace);
+        store.disableAutoCompaction();
+    }
 
     public void flush(boolean forceFlush)
     {

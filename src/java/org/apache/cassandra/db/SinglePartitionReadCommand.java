@@ -38,6 +38,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
@@ -551,12 +552,12 @@ public class SinglePartitionReadCommand extends ReadCommand
              * In other words, iterating in maxTimestamp order allow to do our mostRecentPartitionTombstone elimination
              * in one pass, and minimize the number of sstables for which we read a partition tombstone.
              */
-            int sstablesIterated = 0;
             Collections.sort(view.sstables, SSTableReader.maxTimestampComparator);
             List<SSTableReader> skippedSSTables = null;
             long mostRecentPartitionTombstone = Long.MIN_VALUE;
             long minTimestamp = Long.MAX_VALUE;
             int nonIntersectingSSTables = 0;
+            SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
 
             for (SSTableReader sstable : view.sstables)
             {
@@ -579,15 +580,17 @@ public class SinglePartitionReadCommand extends ReadCommand
                     continue;
                 }
 
-                sstable.incrementReadCount();
                 @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
-                UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(), columnFilter(), filter.isReversed(), isForThrift()));
+                UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(),
+                                                                            columnFilter(),
+                                                                            filter.isReversed(),
+                                                                            isForThrift(),
+                                                                            metricsCollector));
                 if (!sstable.isRepaired())
                     oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, sstable.getMinLocalDeletionTime());
 
                 iterators.add(isForThrift() ? ThriftResultsMerger.maybeWrap(iter, nowInSec()) : iter);
                 mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone, iter.partitionLevelDeletion().markedForDeleteAt());
-                sstablesIterated++;
             }
 
             int includedDueToTombstones = 0;
@@ -599,16 +602,19 @@ public class SinglePartitionReadCommand extends ReadCommand
                     if (sstable.getMaxTimestamp() <= minTimestamp)
                         continue;
 
-                    sstable.incrementReadCount();
                     @SuppressWarnings("resource") // 'iter' is either closed right away, or added to iterators which is close on exception, or through the closing of the final merged iterator
-                    UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(), columnFilter(), filter.isReversed(), isForThrift()));
+                    UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(),
+                                                                                columnFilter(),
+                                                                                filter.isReversed(),
+                                                                                isForThrift(),
+                                                                                metricsCollector));
+
                     if (iter.partitionLevelDeletion().markedForDeleteAt() > minTimestamp)
                     {
                         iterators.add(iter);
                         if (!sstable.isRepaired())
                             oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, sstable.getMinLocalDeletionTime());
                         includedDueToTombstones++;
-                        sstablesIterated++;
                     }
                     else
                     {
@@ -620,12 +626,12 @@ public class SinglePartitionReadCommand extends ReadCommand
                 Tracing.trace("Skipped {}/{} non-slice-intersecting sstables, included {} due to tombstones",
                               nonIntersectingSSTables, view.sstables.size(), includedDueToTombstones);
 
-            cfs.metric.updateSSTableIterated(sstablesIterated);
+            cfs.metric.updateSSTableIterated(metricsCollector.getMergedSSTables());
 
             if (iterators.isEmpty())
                 return EmptyIterators.unfilteredRow(cfs.metadata, partitionKey(), filter.isReversed());
 
-            Tracing.trace("Merging data from memtables and {} sstables", sstablesIterated);
+            Tracing.trace("Merging data from memtables and {} sstables", metricsCollector.getMergedSSTables());
 
             @SuppressWarnings("resource") //  Closed through the closing of the result of that method.
             UnfilteredRowIterator merged = UnfilteredRowIterators.merge(iterators, nowInSec());
@@ -709,9 +715,9 @@ public class SinglePartitionReadCommand extends ReadCommand
 
         /* add the SSTables on disk */
         Collections.sort(view.sstables, SSTableReader.maxTimestampComparator);
-        int sstablesIterated = 0;
         boolean onlyUnrepaired = true;
         // read sorted sstables
+        SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
         for (SSTableReader sstable : view.sstables)
         {
             // if we've already seen a partition tombstone with a timestamp greater
@@ -735,10 +741,12 @@ public class SinglePartitionReadCommand extends ReadCommand
                     continue; // Means no tombstone at all, we can skip that sstable
 
                 // We need to get the partition deletion and include it if it's live. In any case though, we're done with that sstable.
-                sstable.incrementReadCount();
-                try (UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(), columnFilter(), filter.isReversed(), isForThrift())))
+                try (UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(),
+                                                                                 columnFilter(),
+                                                                                 filter.isReversed(),
+                                                                                 isForThrift(),
+                                                                                 metricsCollector)))
                 {
-                    sstablesIterated++;
                     if (!iter.partitionLevelDeletion().isLive())
                         result = add(UnfilteredRowIterators.noRowsIterator(iter.metadata(), iter.partitionKey(), Rows.EMPTY_STATIC_ROW, iter.partitionLevelDeletion(), filter.isReversed()), result, filter, sstable.isRepaired());
                     else
@@ -748,20 +756,22 @@ public class SinglePartitionReadCommand extends ReadCommand
             }
 
             Tracing.trace("Merging data from sstable {}", sstable.descriptor.generation);
-            sstable.incrementReadCount();
-            try (UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(), columnFilter(), filter.isReversed(), isForThrift())))
+            try (UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(),
+                                                                             columnFilter(),
+                                                                             filter.isReversed(),
+                                                                             isForThrift(),
+                                                                             metricsCollector)))
             {
                 if (iter.isEmpty())
                     continue;
 
                 if (sstable.isRepaired())
                     onlyUnrepaired = false;
-                sstablesIterated++;
                 result = add(isForThrift() ? ThriftResultsMerger.maybeWrap(iter, nowInSec()) : iter, result, filter, sstable.isRepaired());
             }
         }
 
-        cfs.metric.updateSSTableIterated(sstablesIterated);
+        cfs.metric.updateSSTableIterated(metricsCollector.getMergedSSTables());
 
         if (result == null || result.isEmpty())
             return EmptyIterators.unfilteredRow(metadata(), partitionKey(), false);
@@ -770,7 +780,7 @@ public class SinglePartitionReadCommand extends ReadCommand
         cfs.metric.samplers.get(TableMetrics.Sampler.READS).addSample(key.getKey(), key.hashCode(), 1);
 
         // "hoist up" the requested data into a more recent sstable
-        if (sstablesIterated > cfs.getMinimumCompactionThreshold()
+        if (metricsCollector.getMergedSSTables() > cfs.getMinimumCompactionThreshold()
             && onlyUnrepaired
             && !cfs.isAutoCompactionDisabled()
             && cfs.getCompactionStrategyManager().shouldDefragment())
@@ -1020,6 +1030,34 @@ public class SinglePartitionReadCommand extends ReadCommand
             DecoratedKey key = metadata.decorateKey(metadata.getKeyValidator().readValue(in, DatabaseDescriptor.getMaxValueSize()));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
             return new SinglePartitionReadCommand(isDigest, digestVersion, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter);
+        }
+    }
+
+    /**
+     * {@code SSTableReaderListener} used to collect metrics about SSTable read access.
+     */
+    private static final class SSTableReadMetricsCollector implements SSTableReadsListener
+    {
+        /**
+         * The number of SSTables that need to be merged. This counter is only updated for single partition queries
+         * since this has been the behavior so far.
+         */
+        private int mergedSSTables;
+
+        @Override
+        public void onSSTableSelected(SSTableReader sstable, RowIndexEntry<?> indexEntry, SelectionReason reason)
+        {
+            sstable.incrementReadCount();
+            mergedSSTables++;
+        }
+
+        /**
+         * Returns the number of SSTables that need to be merged.
+         * @return the number of SSTables that need to be merged.
+         */
+        public int getMergedSSTables()
+        {
+            return mergedSSTables;
         }
     }
 }

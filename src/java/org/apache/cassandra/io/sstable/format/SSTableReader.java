@@ -1504,14 +1504,19 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * Get position updating key cache and stats.
      * @see #getPosition(PartitionPosition, SSTableReader.Operator, boolean)
      */
-    public RowIndexEntry getPosition(PartitionPosition key, Operator op)
+    public final RowIndexEntry getPosition(PartitionPosition key, Operator op)
     {
-        return getPosition(key, op, true, false);
+        return getPosition(key, op, SSTableReadsListener.NOOP_LISTENER);
     }
 
-    public RowIndexEntry getPosition(PartitionPosition key, Operator op, boolean updateCacheAndStats)
+    public final RowIndexEntry getPosition(PartitionPosition key, Operator op, SSTableReadsListener listener)
     {
-        return getPosition(key, op, updateCacheAndStats, false);
+        return getPosition(key, op, true, false, listener);
+    }
+
+    public final RowIndexEntry getPosition(PartitionPosition key, Operator op, boolean updateCacheAndStats)
+    {
+        return getPosition(key, op, updateCacheAndStats, false, SSTableReadsListener.NOOP_LISTENER);
     }
     /**
      * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
@@ -1520,10 +1525,24 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @param updateCacheAndStats true if updating stats and cache
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    protected abstract RowIndexEntry getPosition(PartitionPosition key, Operator op, boolean updateCacheAndStats, boolean permitMatchPastLast);
+    protected abstract RowIndexEntry getPosition(PartitionPosition key,
+                                                 Operator op,
+                                                 boolean updateCacheAndStats,
+                                                 boolean permitMatchPastLast,
+                                                 SSTableReadsListener listener);
 
-    public abstract SliceableUnfilteredRowIterator iterator(DecoratedKey key, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift);
-    public abstract SliceableUnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift);
+    public abstract SliceableUnfilteredRowIterator iterator(DecoratedKey key,
+                                                            ColumnFilter selectedColumns,
+                                                            boolean reversed,
+                                                            boolean isForThrift,
+                                                            SSTableReadsListener listener);
+
+    public abstract SliceableUnfilteredRowIterator iterator(FileDataInput file,
+                                                            DecoratedKey key,
+                                                            RowIndexEntry indexEntry,
+                                                            ColumnFilter selectedColumns,
+                                                            boolean reversed,
+                                                            boolean isForThrift);
 
     /**
      * Finds and returns the first key beyond a given token in this SSTable or null if no such key exists.
@@ -1656,11 +1675,15 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     /**
      * @param columns the columns to return.
      * @param dataRange filter to use when reading the columns
+     * @param listener a listener used to handle internal read events
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, boolean isForThrift)
+    public ISSTableScanner getScanner(ColumnFilter columns,
+                                      DataRange dataRange,
+                                      boolean isForThrift,
+                                      SSTableReadsListener listener)
     {
-        return getScanner(columns, dataRange, null, isForThrift);
+        return getScanner(columns, dataRange, null, isForThrift, listener);
     }
 
     /**
@@ -1702,9 +1725,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     /**
      * @param columns the columns to return.
      * @param dataRange filter to use when reading the columns
+     * @param listener a listener used to handle internal read events
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public abstract ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, RateLimiter limiter, boolean isForThrift);
+    public abstract ISSTableScanner getScanner(ColumnFilter columns,
+                                               DataRange dataRange,
+                                               RateLimiter limiter,
+                                               boolean isForThrift,
+                                               SSTableReadsListener listener);
 
     public FileDataInput getFileDataInput(long position)
     {
@@ -1953,8 +1981,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     }
 
     /**
-     * Increment the total row read count and read rate for this SSTable.  This should not be incremented for range
-     * slice queries, row cache hits, or non-query reads, like compaction.
+     * Increment the total read count and read rate for this SSTable.  This should not be incremented for non-query reads,
+     * like compaction.
      */
     public void incrementReadCount()
     {

@@ -33,6 +33,9 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SkippingReason;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SelectionReason;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.tracing.Tracing;
@@ -57,11 +60,15 @@ public class BigTableReader extends SSTableReader
         super(desc, components, metadata, maxDataAge, sstableMetadata, openReason, header);
     }
 
-    public SliceableUnfilteredRowIterator iterator(DecoratedKey key, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
+    public SliceableUnfilteredRowIterator iterator(DecoratedKey key,
+                                                   ColumnFilter selectedColumns,
+                                                   boolean reversed,
+                                                   boolean isForThrift,
+                                                   SSTableReadsListener listener)
     {
         return reversed
-             ? new SSTableReversedIterator(this, key, selectedColumns, isForThrift)
-             : new SSTableIterator(this, key, selectedColumns, isForThrift);
+             ? new SSTableReversedIterator(this, key, selectedColumns, isForThrift, listener)
+             : new SSTableIterator(this, key, selectedColumns, isForThrift, listener);
     }
 
     public SliceableUnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
@@ -71,14 +78,14 @@ public class BigTableReader extends SSTableReader
              : new SSTableIterator(this, file, key, indexEntry, selectedColumns, isForThrift);
     }
 
-    /**
-     * @param columns the columns to return.
-     * @param dataRange filter to use when reading the columns
-     * @return A Scanner for seeking over the rows of the SSTable.
-     */
-    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, RateLimiter limiter, boolean isForThrift)
+    @Override
+    public ISSTableScanner getScanner(ColumnFilter columns,
+                                      DataRange dataRange,
+                                      RateLimiter limiter,
+                                      boolean isForThrift,
+                                      SSTableReadsListener listener)
     {
-        return BigTableScanner.getScanner(this, columns, dataRange, limiter, isForThrift);
+        return BigTableScanner.getScanner(this, columns, dataRange, limiter, isForThrift, listener);
     }
 
     /**
@@ -122,15 +129,21 @@ public class BigTableReader extends SSTableReader
      * allow key selection by token bounds but only if op != * EQ
      * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param updateCacheAndStats true if updating stats and cache
+     * @param listener a listener used to handle internal events
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    protected RowIndexEntry getPosition(PartitionPosition key, Operator op, boolean updateCacheAndStats, boolean permitMatchPastLast)
+    protected RowIndexEntry getPosition(PartitionPosition key,
+                                        Operator op,
+                                        boolean updateCacheAndStats,
+                                        boolean permitMatchPastLast,
+                                        SSTableReadsListener listener)
     {
         if (op == Operator.EQ)
         {
             assert key instanceof DecoratedKey; // EQ only make sense if the key is a valid row key
             if (!bf.isPresent((DecoratedKey)key))
             {
+                listener.onSSTableSkipped(this, SkippingReason.BLOOM_FILTER);
                 Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.generation);
                 return null;
             }
@@ -144,6 +157,7 @@ public class BigTableReader extends SSTableReader
             RowIndexEntry cachedPosition = getCachedPosition(cacheKey, updateCacheAndStats);
             if (cachedPosition != null)
             {
+                listener.onSSTableSelected(this, cachedPosition, SelectionReason.KEY_CACHE_HIT);
                 Tracing.trace("Key cache hit for sstable {}", descriptor.generation);
                 return cachedPosition;
             }
@@ -172,6 +186,7 @@ public class BigTableReader extends SSTableReader
         {
             if (op == Operator.EQ && updateCacheAndStats)
                 bloomFilterTracker.addFalsePositive();
+            listener.onSSTableSkipped(this, SkippingReason.MIN_MAX_KEYS);
             Tracing.trace("Check against min and max keys allows skipping sstable {}", descriptor.generation);
             return null;
         }
@@ -219,6 +234,7 @@ public class BigTableReader extends SSTableReader
                     exactMatch = (comparison == 0);
                     if (v < 0)
                     {
+                        listener.onSSTableSkipped(this, SkippingReason.PARTITION_INDEX_LOOKUP);
                         Tracing.trace("Partition index lookup allows skipping sstable {}", descriptor.generation);
                         return null;
                     }
@@ -249,6 +265,7 @@ public class BigTableReader extends SSTableReader
                     }
                     if (op == Operator.EQ && updateCacheAndStats)
                         bloomFilterTracker.addTruePositive();
+                    listener.onSSTableSelected(this, indexEntry, SelectionReason.INDEX_ENTRY_FOUND);
                     Tracing.trace("Partition index with {} entries found for sstable {}", indexEntry.columnsIndex().size(), descriptor.generation);
                     return indexEntry;
                 }
@@ -264,6 +281,7 @@ public class BigTableReader extends SSTableReader
 
         if (op == SSTableReader.Operator.EQ && updateCacheAndStats)
             bloomFilterTracker.addFalsePositive();
+        listener.onSSTableSkipped(this, SkippingReason.INDEX_ENTRY_NOT_FOUND);
         Tracing.trace("Partition index lookup complete (bloom filter false positive) for sstable {}", descriptor.generation);
         return null;
     }

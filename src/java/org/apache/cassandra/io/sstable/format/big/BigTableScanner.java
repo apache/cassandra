@@ -39,6 +39,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -62,18 +63,30 @@ public class BigTableScanner implements ISSTableScanner
     private final DataRange dataRange;
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final boolean isForThrift;
+    private final SSTableReadsListener listener;
 
     protected Iterator<UnfilteredRowIterator> iterator;
 
     // Full scan of the sstables
     public static ISSTableScanner getScanner(SSTableReader sstable, RateLimiter limiter)
     {
-        return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata), null, limiter, false, Iterators.singletonIterator(fullRange(sstable)));
+        return new BigTableScanner(sstable, limiter, Iterators.singletonIterator(fullRange(sstable)));
     }
 
-    public static ISSTableScanner getScanner(SSTableReader sstable, ColumnFilter columns, DataRange dataRange, RateLimiter limiter, boolean isForThrift)
+    public static ISSTableScanner getScanner(SSTableReader sstable,
+                                             ColumnFilter columns,
+                                             DataRange dataRange,
+                                             RateLimiter limiter,
+                                             boolean isForThrift,
+                                             SSTableReadsListener listener)
     {
-        return new BigTableScanner(sstable, columns, dataRange, limiter, isForThrift, makeBounds(sstable, dataRange).iterator());
+        return new BigTableScanner(sstable,
+                                   columns,
+                                   dataRange,
+                                   limiter,
+                                   isForThrift,
+                                   makeBounds(sstable, dataRange).iterator(),
+                                   listener);
     }
 
     public static ISSTableScanner getScanner(SSTableReader sstable, Collection<Range<Token>> tokenRanges, RateLimiter limiter)
@@ -83,15 +96,28 @@ public class BigTableScanner implements ISSTableScanner
         if (positions.isEmpty())
             return new EmptySSTableScanner(sstable);
 
-        return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata), null, limiter, false, makeBounds(sstable, tokenRanges).iterator());
+        return new BigTableScanner(sstable, limiter, makeBounds(sstable, tokenRanges).iterator());
     }
 
     public static ISSTableScanner getScanner(SSTableReader sstable, Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
     {
-        return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata), null, null, false, rangeIterator);
+        return new BigTableScanner(sstable, null, rangeIterator);
     }
 
-    private BigTableScanner(SSTableReader sstable, ColumnFilter columns, DataRange dataRange, RateLimiter limiter, boolean isForThrift, Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
+    private BigTableScanner(SSTableReader sstable,
+                            RateLimiter limiter,
+                            Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
+    {
+        this(sstable, ColumnFilter.all(sstable.metadata), null, limiter, false, rangeIterator, SSTableReadsListener.NOOP_LISTENER);
+    }
+
+    private BigTableScanner(SSTableReader sstable,
+                            ColumnFilter columns,
+                            DataRange dataRange,
+                            RateLimiter limiter,
+                            boolean isForThrift,
+                            Iterator<AbstractBounds<PartitionPosition>> rangeIterator,
+                            SSTableReadsListener listener)
     {
         assert sstable != null;
 
@@ -105,6 +131,7 @@ public class BigTableScanner implements ISSTableScanner
                                                                                                         sstable.header);
         this.isForThrift = isForThrift;
         this.rangeIterator = rangeIterator;
+        this.listener = listener;
     }
 
     private static List<AbstractBounds<PartitionPosition>> makeBounds(SSTableReader sstable, Collection<Range<Token>> tokenRanges)
@@ -259,6 +286,7 @@ public class BigTableScanner implements ISSTableScanner
 
     private Iterator<UnfilteredRowIterator> createIterator()
     {
+        listener.onScanningStarted(sstable);
         return new KeyScanningIterator();
     }
 

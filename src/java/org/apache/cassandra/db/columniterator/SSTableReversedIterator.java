@@ -26,6 +26,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.btree.BTree;
@@ -35,9 +36,13 @@ import org.apache.cassandra.utils.btree.BTree;
  */
 public class SSTableReversedIterator extends AbstractSSTableIterator
 {
-    public SSTableReversedIterator(SSTableReader sstable, DecoratedKey key, ColumnFilter columns, boolean isForThrift)
+    public SSTableReversedIterator(SSTableReader sstable,
+                                   DecoratedKey key,
+                                   ColumnFilter columns,
+                                   boolean isForThrift,
+                                   SSTableReadsListener listener)
     {
-        this(sstable, null, key, sstable.getPosition(key, SSTableReader.Operator.EQ), columns, isForThrift);
+        this(sstable, null, key, sstable.getPosition(key, SSTableReader.Operator.EQ, listener), columns, isForThrift);
     }
 
     public SSTableReversedIterator(SSTableReader sstable,
