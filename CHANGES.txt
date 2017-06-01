@@ -1,3 +1,7 @@
+3.0.15
+ * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)
+
+
 3.0.14
  * Ensure int overflow doesn't occur when calculating large partition warning size (CASSANDRA-13172)
  * Ensure consistent view of partition columns between coordinator and replica in ColumnFilter (CASSANDRA-13004)
