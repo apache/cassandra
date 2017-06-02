@@ -1068,11 +1068,11 @@ class ImportErrorHandler(object):
             shell.printerr("Failed to import %d rows: %s - %s,  given up without retries"
                            % (len(err.rows), err.name, err.msg))
         else:
-            self.insert_errors += len(err.rows)
             if not err.final:
                 shell.printerr("Failed to import %d rows: %s - %s,  will retry later, attempt %d of %d"
                                % (len(err.rows), err.name, err.msg, err.attempts, self.max_attempts))
             else:
+                self.insert_errors += len(err.rows)
                 self.add_failed_rows(err.rows)
                 shell.printerr("Failed to import %d rows: %s - %s,  given up after %d attempts"
                                % (len(err.rows), err.name, err.msg, err.attempts))
