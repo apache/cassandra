@@ -110,7 +110,7 @@ public class ProtocolBetaVersionTest extends CQLTester
         }
         catch (Exception e)
         {
-            assertEquals("Beta version of server used (5/v5-beta), but USE_BETA flag is not set",
+            assertEquals("Beta version of server used (6/v6-beta), but USE_BETA flag is not set",
                          e.getMessage());
         }
     }

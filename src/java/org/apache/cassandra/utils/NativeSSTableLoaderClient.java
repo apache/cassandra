@@ -49,14 +49,15 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     private final int port;
     private final AuthProvider authProvider;
     private final SSLOptions sslOptions;
+    private final boolean allowServerPortDiscovery;
 
 
-    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int port, String username, String password, SSLOptions sslOptions)
+    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int port, String username, String password, SSLOptions sslOptions, boolean allowServerPortDiscovery)
     {
-        this(hosts, port, new PlainTextAuthProvider(username, password), sslOptions);
+        this(hosts, port, new PlainTextAuthProvider(username, password), sslOptions, allowServerPortDiscovery);
     }
 
-    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int port, AuthProvider authProvider, SSLOptions sslOptions)
+    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int port, AuthProvider authProvider, SSLOptions sslOptions, boolean allowServerPortDiscovery)
     {
         super();
         this.tables = new HashMap<>();
@@ -64,13 +65,18 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         this.port = port;
         this.authProvider = authProvider;
         this.sslOptions = sslOptions;
+        this.allowServerPortDiscovery = allowServerPortDiscovery;
     }
 
     public void init(String keyspace)
     {
         //TODO this needs to be updated once the client library exposes information correctly
         Set<InetAddress> hostAddresses = hosts.stream().map(host -> host.getAddress()).collect(Collectors.toSet());
-        Cluster.Builder builder = Cluster.builder().addContactPoints(hostAddresses).withPort(port);
+        Cluster.Builder builder = Cluster.builder().addContactPoints(hostAddresses).withPort(port).allowBetaProtocolVersion();
+
+        if (allowServerPortDiscovery)
+            builder = builder.allowServerPortDiscovery();
+
         if (sslOptions != null)
             builder.withSSL(sslOptions);
         if (authProvider != null)
@@ -92,8 +98,18 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
                 Range<Token> range = new Range<>(tokenFactory.fromString(tokenRange.getStart().getValue().toString()),
                                                  tokenFactory.fromString(tokenRange.getEnd().getValue().toString()));
                 for (Host endpoint : endpoints)
-                    //TODO Need to get the ports with the updated client
-                    addRangeForEndpoint(range, InetAddressAndPort.getByNameOverrideDefaults(endpoint.getAddress().getHostAddress(), 7000));
+                {
+                    int portToUse;
+                    if (allowServerPortDiscovery)
+                    {
+                        portToUse = endpoint.getBroadcastAddressOptPort().portOrElse(port);
+                    }
+                    else
+                    {
+                        portToUse = port;
+                    }
+                    addRangeForEndpoint(range, InetAddressAndPort.getByNameOverrideDefaults(endpoint.getAddress().getHostAddress(), portToUse));
+                }
             }
 
             Types types = fetchTypes(keyspace, session);

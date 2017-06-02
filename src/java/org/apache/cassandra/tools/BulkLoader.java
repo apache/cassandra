@@ -61,7 +61,8 @@ public class BulkLoader
                         options.authProvider,
                         options.sslStoragePort,
                         options.serverEncOptions,
-                        buildSSLOptions(options.clientEncOptions)),
+                        buildSSLOptions(options.clientEncOptions),
+                        options.allowServerPortDiscovery),
                         handler,
                         options.connectionsPerHost);
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
@@ -277,9 +278,10 @@ public class BulkLoader
                               AuthProvider authProvider,
                               int sslStoragePort,
                               EncryptionOptions.ServerEncryptionOptions serverEncryptionOptions,
-                              SSLOptions sslOptions)
+                              SSLOptions sslOptions,
+                              boolean allowServerPortDiscovery)
         {
-            super(hosts, port, authProvider, sslOptions);
+            super(hosts, port, authProvider, sslOptions, allowServerPortDiscovery);
             this.sslStoragePort = sslStoragePort;
             serverEncOptions = serverEncryptionOptions;
         }

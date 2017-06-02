@@ -386,11 +386,19 @@ public abstract class CQLTester
             if (clusters.containsKey(version))
                 continue;
 
-            Cluster cluster = Cluster.builder()
+            Cluster.Builder builder = Cluster.builder();
+            if (version.isBeta())
+            {
+                builder.allowBetaProtocolVersion();
+            }
+            else
+            {
+                builder = builder.withProtocolVersion(com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt()));
+            }
+            Cluster cluster = builder
                                      .addContactPoints(nativeAddr)
                                      .withClusterName("Test Cluster")
                                      .withPort(nativePort)
-                                     .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt()))
                                      .build();
             clusters.put(version, cluster);
             sessions.put(version, cluster.connect());

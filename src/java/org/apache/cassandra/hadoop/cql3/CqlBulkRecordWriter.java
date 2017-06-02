@@ -290,7 +290,8 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
                   CqlConfigHelper.getOutputNativePort(conf),
                   ConfigHelper.getOutputKeyspaceUserName(conf),
                   ConfigHelper.getOutputKeyspacePassword(conf),
-                  CqlConfigHelper.getSSLOptions(conf).orNull());
+                  CqlConfigHelper.getSSLOptions(conf).orNull(),
+                  CqlConfigHelper.getAllowServerPortDiscovery(conf));
         }
 
         private static Collection<InetSocketAddress> resolveHostAddresses(Configuration conf)

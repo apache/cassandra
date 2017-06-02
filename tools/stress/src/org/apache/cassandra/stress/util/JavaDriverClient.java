@@ -166,7 +166,7 @@ public class JavaDriverClient
         for (Host host : metadata.getAllHosts())
         {
             System.out.printf("Datacenter: %s; Host: %s; Rack: %s%n",
-                    host.getDatacenter(), host.getAddress(), host.getRack());
+                    host.getDatacenter(), host.getAddress() + ":" + host.getSocketAddress().getPort(), host.getRack());
         }
 
         session = cluster.connect();
