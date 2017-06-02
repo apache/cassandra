@@ -288,29 +288,47 @@ public class NodeProbe implements AutoCloseable
     public void forceKeyspaceCleanup(PrintStream out, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         checkJobs(out, jobs);
-        if (forceKeyspaceCleanup(jobs, keyspaceName, tableNames) != 0)
+        switch (forceKeyspaceCleanup(jobs, keyspaceName, tableNames))
         {
-            failed = true;
-            out.println("Aborted cleaning up at least one table in keyspace "+keyspaceName+", check server logs for more information.");
+            case 1:
+                failed = true;
+                out.println("Aborted cleaning up at least one table in keyspace "+keyspaceName+", check server logs for more information.");
+                break;
+            case 2:
+                failed = true;
+                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
+                break;
         }
     }
 
     public void scrub(PrintStream out, boolean disableSnapshot, boolean skipCorrupted, boolean checkData, int jobs, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
     {
         checkJobs(out, jobs);
-        if (scrub(disableSnapshot, skipCorrupted, checkData, jobs, keyspaceName, tables) != 0)
+        switch (scrub(disableSnapshot, skipCorrupted, checkData, jobs, keyspaceName, tables))
         {
-            failed = true;
-            out.println("Aborted scrubbing at least one table in keyspace "+keyspaceName+", check server logs for more information.");
+            case 1:
+                failed = true;
+                out.println("Aborted scrubbing at least one table in keyspace "+keyspaceName+", check server logs for more information.");
+                break;
+            case 2:
+                failed = true;
+                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
+                break;
         }
     }
 
     public void verify(PrintStream out, boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        if (verify(extendedVerify, keyspaceName, tableNames) != 0)
+        switch (verify(extendedVerify, keyspaceName, tableNames))
         {
-            failed = true;
-            out.println("Aborted verifying at least one table in keyspace "+keyspaceName+", check server logs for more information.");
+            case 1:
+                failed = true;
+                out.println("Aborted verifying at least one table in keyspace "+keyspaceName+", check server logs for more information.");
+                break;
+            case 2:
+                failed = true;
+                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
+                break;
         }
     }
 
@@ -318,10 +336,16 @@ public class NodeProbe implements AutoCloseable
     public void upgradeSSTables(PrintStream out, String keyspaceName, boolean excludeCurrentVersion, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         checkJobs(out, jobs);
-        if (upgradeSSTables(keyspaceName, excludeCurrentVersion, jobs, tableNames) != 0)
+        switch (upgradeSSTables(keyspaceName, excludeCurrentVersion, jobs, tableNames))
         {
-            failed = true;
-            out.println("Aborted upgrading sstables for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
+            case 1:
+                failed = true;
+                out.println("Aborted upgrading sstables for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
+                break;
+            case 2:
+                failed = true;
+                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
+                break;
         }
     }
 

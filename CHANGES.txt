@@ -110,6 +110,7 @@
  * Fix cqlsh automatic protocol downgrade regression (CASSANDRA-13307)
  * Tracing payload not passed from QueryMessage to tracing session (CASSANDRA-12835)
 Merged from 3.0:
+ * nodetool scrub/cleanup/upgradesstables exit code is wrong (CASSANDRA-13542)
  * Fix the reported number of sstable data files accessed per read (CASSANDRA-13120)
  * Fix schema digest mismatch during rolling upgrades from versions before 3.0.12 (CASSANDRA-13559)
  * Upgrade JNA version to 4.4.0 (CASSANDRA-13072)
