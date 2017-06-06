@@ -755,8 +755,12 @@ public class TableMetrics
         {
             CassandraMetricsRegistry.MetricName name = factory.createMetricName(entry.getKey());
             CassandraMetricsRegistry.MetricName alias = aliasFactory.createMetricName(entry.getValue());
-            allTableMetrics.get(entry.getKey()).remove(Metrics.getMetrics().get(name.getMetricName()));
-            Metrics.remove(name, alias);
+            final Metric metric = Metrics.getMetrics().get(name.getMetricName());
+            if (metric != null)
+            {   // Metric will be null if it's a view metric we are releasing. Views have null for ViewLockAcquireTime and ViewLockReadTime
+                allTableMetrics.get(entry.getKey()).remove(metric);
+                Metrics.remove(name, alias);
+            }
         }
         readLatency.release();
         writeLatency.release();
