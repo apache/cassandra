@@ -17,7 +17,8 @@
  * Handling partially written hint files (CASSANDRA-12728)
  * Interrupt replaying hints on decommission (CASSANDRA-13308)
  * Fix schema version calculation for rolling upgrades (CASSANDRA-13441)
-
+Merged from 2.2:
+ * cqlsh COPY FROM: increment error count only for failures, not for attempts (CASSANDRA-13209)
 
 3.0.13
  * Make reading of range tombstones more reliable (CASSANDRA-12811)
