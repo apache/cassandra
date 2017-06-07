@@ -34,7 +34,7 @@ public class SerializingCacheProvider implements CacheProvider<RowCacheKey, IRow
     }
 
     // Package protected for tests
-    static class RowCacheSerializer implements ISerializer<IRowCacheEntry>
+    public static class RowCacheSerializer implements ISerializer<IRowCacheEntry>
     {
         public void serialize(IRowCacheEntry entry, DataOutputPlus out) throws IOException
         {
