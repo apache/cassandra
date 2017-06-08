@@ -2328,4 +2328,14 @@ public class DatabaseDescriptor
     {
         conf.ideal_consistency_level = cl;
     }
+
+    public static int getRepairCommandPoolSize()
+    {
+        return conf.repair_command_pool_size;
+    }
+
+    public static Config.RepairCommandPoolFullStrategy getRepairCommandPoolFullStrategy()
+    {
+        return conf.repair_command_pool_full_strategy;
+    }
 }
