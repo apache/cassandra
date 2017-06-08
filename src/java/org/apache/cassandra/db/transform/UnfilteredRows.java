@@ -21,18 +21,31 @@
 package org.apache.cassandra.db.transform;
 
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.PartitionColumns;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
 final class UnfilteredRows extends BaseRows<Unfiltered, UnfilteredRowIterator> implements UnfilteredRowIterator
 {
+    private PartitionColumns columns;
     private DeletionTime partitionLevelDeletion;
 
     public UnfilteredRows(UnfilteredRowIterator input)
     {
+        this(input, input.columns());
+    }
+
+    public UnfilteredRows(UnfilteredRowIterator input, PartitionColumns columns)
+    {
         super(input);
+        this.columns = columns;
         partitionLevelDeletion = input.partitionLevelDeletion();
+    }
+
+    public PartitionColumns columns()
+    {
+        return columns;
     }
 
     @Override

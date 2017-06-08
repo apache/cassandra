@@ -194,7 +194,6 @@ public abstract class UnfilteredRowIterators
             && iter1.partitionKey().equals(iter2.partitionKey())
             && iter1.partitionLevelDeletion().equals(iter2.partitionLevelDeletion())
             && iter1.isReverseOrder() == iter2.isReverseOrder()
-            && iter1.columns().equals(iter2.columns())
             && iter1.staticRow().equals(iter2.staticRow());
 
         class Extend implements MoreRows<UnfilteredRowIterator>
@@ -209,7 +208,7 @@ public abstract class UnfilteredRowIterators
             }
         }
 
-        return MoreRows.extend(iter1, new Extend());
+        return MoreRows.extend(iter1, new Extend(), iter1.columns().mergeTo(iter2.columns()));
     }
 
     /**

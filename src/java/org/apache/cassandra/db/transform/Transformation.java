@@ -21,6 +21,7 @@
 package org.apache.cassandra.db.transform;
 
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.PartitionColumns;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
@@ -149,6 +150,29 @@ public abstract class Transformation<I extends BaseRowIterator<?>>
         return iterator instanceof FilteredRows
                ? (FilteredRows) iterator
                : new FilteredRows(iterator);
+    }
+
+    /**
+     * Even though this method is sumilar to `mutable`, it supresses the optimisation of avoiding creating an additional
+     * wrapping interator object (which both creates an extra object and grows the call stack during the iteration), it
+     * should be used with caution.
+     *
+     * It is useful in cases when the input has to be checked for more contents rather than directly checking if it
+     * is stopped. For example, when concatenating two iterators (pseudocode):
+     *
+     *    iter1 = [row(1), row(2), row(3)]
+     *    iter2 = [row(4), row(5), row(6)]
+     *
+     *    UnfilteredRowIterators.concat(DataLimits.cqlLimits(1).filter(iter1), DataLimits.cqlLimits(1).filter(iter1))
+     *
+     * Which should yield two rows: [row(1), row(4)].
+     *
+     * Using stacked transformations instead of wrapping would result into returning a single row, since the first
+     * iterator will signal the iterator is stopped.
+     */
+    static UnfilteredRows wrapIterator(UnfilteredRowIterator iterator, PartitionColumns columns)
+    {
+        return new UnfilteredRows(iterator, columns);
     }
 
     static <E extends BaseIterator> E add(E to, Transformation add)
