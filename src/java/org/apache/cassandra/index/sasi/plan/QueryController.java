@@ -153,8 +153,13 @@ public class QueryController
 
     public void checkpoint()
     {
-        if ((System.nanoTime() - executionStart) >= executionQuota)
-            throw new TimeQuotaExceededException();
+	long executionTime = (System.nanoTime() - executionStart);
+
+        if (executionTime >= executionQuota)
+            throw new TimeQuotaExceededException(
+	            "Command '" + command + "' took too long " +
+                "(" + TimeUnit.NANOSECONDS.toMillis(executionTime) +
+                " >= " + TimeUnit.NANOSECONDS.toMillis(executionQuota) + "ms).");
     }
 
     public void releaseIndexes(Operation operation)
