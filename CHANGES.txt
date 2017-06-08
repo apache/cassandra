@@ -1,4 +1,5 @@
 4.0
+ * Allow sub-range repairs for a preview of repaired data (CASSANDRA-13570)
  * NPE in IR cleanup when columnfamily has no sstables (CASSANDRA-13585)
  * Fix Randomness of stress values (CASSANDRA-12744)
  * Allow selecting Map values and Set elements (CASSANDRA-7396)
