@@ -255,6 +255,20 @@ public class PendingAntiCompactionTest
         result.abort();  // releases sstable refs
     }
 
+    @Test
+    public void pendingRepairNoSSTablesExist() throws Exception
+    {
+        cfs.disableAutoCompaction();
+
+        Assert.assertEquals(0, cfs.getLiveSSTables().size());
+
+        PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, UUIDGen.getTimeUUID());
+        PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
+        Assert.assertNotNull(result);
+
+        result.abort();  // There's nothing to release, but we should exit cleanly
+    }
+
     /**
      * anti compaction task should be submitted if everything is ok
      */
