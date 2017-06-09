@@ -150,6 +150,7 @@ public class CommitLog implements CommitLogMBean
 
         File[] files = new File(DatabaseDescriptor.getCommitLogLocation()).listFiles(unmanagedFilesFilter);
         int replayed = 0;
+        allocator.enableReserveSegmentCreation();
         if (files.length == 0)
         {
             logger.info("No commitlog files found; skipping replay");
@@ -165,7 +166,6 @@ public class CommitLog implements CommitLogMBean
                 allocator.recycleSegment(f);
         }
 
-        allocator.enableReserveSegmentCreation();
         return replayed;
     }
 
