@@ -19,6 +19,7 @@
  * Interrupt replaying hints on decommission (CASSANDRA-13308)
  * Fix schema version calculation for rolling upgrades (CASSANDRA-13441)
 Merged from 2.2:
+ * Nodes started with join_ring=False should be able to serve requests when authentication is enabled (CASSANDRA-11381)
  * cqlsh COPY FROM: increment error count only for failures, not for attempts (CASSANDRA-13209)
 
 3.0.13
