@@ -41,6 +41,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.mindrot.jbcrypt.BCrypt;
@@ -337,6 +338,9 @@ public class CassandraRoleManager implements IRoleManager
      */
     private static void setupDefaultRole()
     {
+        if (StorageService.instance.getTokenMetadata().sortedTokens().isEmpty())
+            throw new IllegalStateException("CassandraRoleManager skipped default role setup: no known tokens in ring");
+
         try
         {
             if (!hasExistingRoles())
