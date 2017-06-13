@@ -32,6 +32,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.*;
+import java.util.regex.Matcher;
 
 import com.google.common.collect.Iterables;
 import com.codahale.metrics.Timer;
@@ -101,7 +103,13 @@ public class MessagingServiceTest
 
         List<String> logs = messagingService.getDroppedMessagesLogs();
         assertEquals(1, logs.size());
-        assertEquals("READ messages were dropped in last 5000 ms: 2500 internal and 2500 cross node. Mean internal dropped latency: 2730 ms and Mean cross-node dropped latency: 2731 ms", logs.get(0));
+        Pattern regexp = Pattern.compile("READ messages were dropped in last 5000 ms: (\\d+) internal and (\\d+) cross node. Mean internal dropped latency: (\\d+) ms and Mean cross-node dropped latency: (\\d+) ms");
+        Matcher matcher = regexp.matcher(logs.get(0));
+        assertTrue(matcher.find());
+        assertEquals(2500, Integer.parseInt(matcher.group(1)));
+        assertEquals(2500, Integer.parseInt(matcher.group(2)));
+        assertTrue(Integer.parseInt(matcher.group(3)) > 0);
+        assertTrue(Integer.parseInt(matcher.group(4)) > 0);
         assertEquals(5000, (int) messagingService.getDroppedMessages().get(verb.toString()));
 
         logs = messagingService.getDroppedMessagesLogs();
@@ -111,7 +119,13 @@ public class MessagingServiceTest
             messagingService.incrementDroppedMessages(verb, i, i % 2 == 0);
 
         logs = messagingService.getDroppedMessagesLogs();
-        assertEquals("READ messages were dropped in last 5000 ms: 1250 internal and 1250 cross node. Mean internal dropped latency: 2277 ms and Mean cross-node dropped latency: 2278 ms", logs.get(0));
+        assertEquals(1, logs.size());
+        matcher = regexp.matcher(logs.get(0));
+        assertTrue(matcher.find());
+        assertEquals(1250, Integer.parseInt(matcher.group(1)));
+        assertEquals(1250, Integer.parseInt(matcher.group(2)));
+        assertTrue(Integer.parseInt(matcher.group(3)) > 0);
+        assertTrue(Integer.parseInt(matcher.group(4)) > 0);
         assertEquals(7500, (int) messagingService.getDroppedMessages().get(verb.toString()));
     }
 
