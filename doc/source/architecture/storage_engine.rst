@@ -187,6 +187,10 @@ Version 2
   * tracks presense of legacy (local and remote) counter shards
 * la (2.2.0): new file name format
 * lb (2.2.7): commit log lower bound included
+
+Version 3
+~~~~~~~~~
+
 * ma (3.0.0):
 
   * swap bf hash order
@@ -199,4 +203,6 @@ Example Code
 
 The following example is useful for finding all sstables that do not match the "ib" SSTable version
 
-`find /var/lib/cassandra/data/ -type f | grep -v -- -ib- | grep -v "/snapshots"`
+.. code-block:: bash
+
+    find /var/lib/cassandra/data/ -type f | grep -v -- -ib- | grep -v "/snapshots"
