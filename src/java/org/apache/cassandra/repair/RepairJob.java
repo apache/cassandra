@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
@@ -69,6 +70,9 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      */
     public void run()
     {
+        Keyspace ks = Keyspace.open(desc.keyspace);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(desc.columnFamily);
+        cfs.metric.repairsStarted.inc();
         List<InetAddress> allEndpoints = new ArrayList<>(session.endpoints);
         allEndpoints.add(FBUtilities.getBroadcastAddress());
 
@@ -158,6 +162,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     logger.info("{} {} is fully synced", previewKind.logPrefix(session.getId()), desc.columnFamily);
                     SystemDistributedKeyspace.successfulRepairJob(session.getId(), desc.keyspace, desc.columnFamily);
                 }
+                cfs.metric.repairsCompleted.inc();
                 set(new RepairResult(desc, stats));
             }
 
@@ -171,6 +176,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     logger.warn("{} {} sync failed", previewKind.logPrefix(session.getId()), desc.columnFamily);
                     SystemDistributedKeyspace.failedRepairJob(session.getId(), desc.keyspace, desc.columnFamily, t);
                 }
+                cfs.metric.repairsCompleted.inc();
                 setException(t);
             }
         }, taskExecutor);

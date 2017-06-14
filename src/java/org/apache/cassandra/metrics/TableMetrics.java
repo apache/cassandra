@@ -146,6 +146,10 @@ public class TableMetrics
     public final LatencyMetrics casCommit;
     /** percent of the data that is repaired */
     public final Gauge<Double> percentRepaired;
+    /** Number of started repairs as coordinator on this table */
+    public final Counter repairsStarted;
+    /** Number of completed repairs as coordinator on this table */
+    public final Counter repairsCompleted;
     /** time spent anticompacting data before participating in a consistent repair */
     public final TableTimer anticompactionTime;
     /** time spent creating merkle trees */
@@ -722,6 +726,9 @@ public class TableMetrics
         casPrepare = new LatencyMetrics(factory, "CasPrepare", cfs.keyspace.metric.casPrepare);
         casPropose = new LatencyMetrics(factory, "CasPropose", cfs.keyspace.metric.casPropose);
         casCommit = new LatencyMetrics(factory, "CasCommit", cfs.keyspace.metric.casCommit);
+
+        repairsStarted = createTableCounter("RepairJobsStarted");
+        repairsCompleted = createTableCounter("RepairJobsCompleted");
 
         anticompactionTime = createTableTimer("AnticompactionTime", cfs.keyspace.metric.anticompactionTime);
         validationTime = createTableTimer("ValidationTime", cfs.keyspace.metric.validationTime);
