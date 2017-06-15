@@ -105,7 +105,7 @@ public class MessageIn<T>
         }
 
         int payloadSize = in.readInt();
-        IVersionedSerializer<T2> serializer = (IVersionedSerializer<T2>) MessagingService.verbSerializers.get(verb);
+        IVersionedSerializer<T2> serializer = (IVersionedSerializer<T2>) MessagingService.instance().verbSerializers.get(verb);
         if (serializer instanceof MessagingService.CallbackDeterminedSerializer)
         {
             CallbackInfo callback = MessagingService.instance().getRegisteredCallback(id);
