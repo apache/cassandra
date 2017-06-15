@@ -145,8 +145,15 @@ public class MigrationManager
          * Don't request schema from fat clients
          */
         return MessagingService.instance().knowsVersion(endpoint)
-                && MessagingService.instance().getRawVersion(endpoint) == MessagingService.current_version
+                && is30Compatible(MessagingService.instance().getRawVersion(endpoint))
                 && !Gossiper.instance.isGossipOnlyMember(endpoint);
+    }
+
+    // Since 3.0.14 protocol contains only a CASSANDRA-13004 bugfix, it is safe to accept schema changes
+    // from both 3.0 and 3.0.14.
+    private static boolean is30Compatible(int version)
+    {
+        return version == MessagingService.current_version || version == MessagingService.VERSION_3014;
     }
 
     public static boolean isReadyForBootstrap()
@@ -545,8 +552,8 @@ public class MigrationManager
         {
             // only push schema to nodes with known and equal versions
             if (!endpoint.equals(FBUtilities.getBroadcastAddress()) &&
-                    MessagingService.instance().knowsVersion(endpoint) &&
-                    MessagingService.instance().getRawVersion(endpoint) == MessagingService.current_version)
+                MessagingService.instance().knowsVersion(endpoint) &&
+                is30Compatible(MessagingService.instance().getRawVersion(endpoint)))
                 pushSchemaMutation(endpoint, schema);
         }
 

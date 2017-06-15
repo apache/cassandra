@@ -18,6 +18,34 @@ using the provided 'sstableupgrade' tool.
 
 Upgrading
 ---------
+
+Upgrading
+---------
+   - ALTER TABLE (ADD/DROP COLUMN) operations concurrent with a read might
+     result into data corruption (see CASSANDRA-13004 for more details).
+     Fixing this bug required a messaging protocol version bump. By default,
+     Cassandra 3.11 will use 3014 version for messaging.
+
+     Since Schema Migrations rely the on exact messaging protocol version
+     match between nodes, if you need schema changes during the upgrade
+     process, you have to start your nodes with `-Dcassandra.force_3_0_protocol_version=true`
+     first, in order to temporarily force a backwards compatible protocol.
+     After the whole cluster is upgraded to 3.11, do a rolling
+     restart of the cluster without setting that flag.
+
+     3.11 nodes with and withouot the flag set will be able to do schema
+     migrations with other 3.x and 3.0.x releases.
+
+     While running the cluster with the flag set to true on 3.11 (in
+     compatibility mode), avoid adding or removing any columns to/from
+     existing tables.
+
+     If your cluster can do without schema migrations during the upgrade
+     time, just start the cluster normally without setting aforementioned
+     flag.
+
+     If you are upgrading from 3.0.14+ (of 3.0.x branch), you do not have
+     to set an flag while upgrading to ensure schema migrations.
    - The NativeAccessMBean isAvailable method will only return true if the
      native library has been successfully linked. Previously it was returning
      true if JNA could be found but was not taking into account link failures.
