@@ -1393,7 +1393,7 @@
     </testmacro>
   </target>
     
-  <target name="test-compression" depends="build-test" description="Execute unit tests with sstable compression enabled">
+  <target name="test-compression" depends="build-test,stress-build" description="Execute unit tests with sstable compression enabled">
     <property name="compressed_yaml" value="${build.test.dir}/cassandra.compressed.yaml"/>
     <concat destfile="${compressed_yaml}">
       <fileset file="${test.conf}/cassandra.yaml"/>
