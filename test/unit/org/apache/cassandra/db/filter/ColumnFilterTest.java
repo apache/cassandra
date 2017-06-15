@@ -53,7 +53,7 @@ public class ColumnFilterTest
 
         columnFilter = ColumnFilter.all(metadata);
         testRoundTrip(columnFilter, ColumnFilter.Serializer.maybeUpdateForBackwardCompatility(columnFilter, MessagingService.VERSION_30), metadata, MessagingService.VERSION_30);
-        testRoundTrip(ColumnFilter.all(metadata), metadata, MessagingService.VERSION_3014);
+        testRoundTrip(columnFilter, ColumnFilter.Serializer.maybeUpdateForBackwardCompatility(columnFilter, MessagingService.VERSION_3014), metadata, MessagingService.VERSION_3014);
         testRoundTrip(ColumnFilter.all(metadata), metadata, MessagingService.VERSION_40);
 
         testRoundTrip(ColumnFilter.selection(metadata.regularAndStaticColumns().without(v1)), metadata, MessagingService.VERSION_30);
@@ -62,7 +62,7 @@ public class ColumnFilterTest
 
         columnFilter = ColumnFilter.selection(metadata, metadata.regularAndStaticColumns().without(v1));
         testRoundTrip(columnFilter, ColumnFilter.Serializer.maybeUpdateForBackwardCompatility(columnFilter, MessagingService.VERSION_30), metadata, MessagingService.VERSION_30);
-        testRoundTrip(ColumnFilter.selection(metadata, metadata.regularAndStaticColumns().without(v1)), metadata, MessagingService.VERSION_3014);
+        testRoundTrip(columnFilter, ColumnFilter.Serializer.maybeUpdateForBackwardCompatility(columnFilter, MessagingService.VERSION_3014), metadata, MessagingService.VERSION_3014);
         testRoundTrip(ColumnFilter.selection(metadata, metadata.regularAndStaticColumns().without(v1)), metadata, MessagingService.VERSION_40);
     }
 

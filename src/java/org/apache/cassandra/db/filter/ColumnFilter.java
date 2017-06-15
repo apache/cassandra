@@ -533,7 +533,7 @@ public class ColumnFilter
         @VisibleForTesting
         public static ColumnFilter maybeUpdateForBackwardCompatility(ColumnFilter selection, int version)
         {
-            if (version > MessagingService.VERSION_30 || !selection.fetchAllRegulars || selection.queried == null)
+            if (version > MessagingService.VERSION_3014 || !selection.fetchAllRegulars || selection.queried == null)
                 return selection;
 
             // The meaning of fetchAllRegulars changed (at least when queried != null) due to CASSANDRA-12768: in
