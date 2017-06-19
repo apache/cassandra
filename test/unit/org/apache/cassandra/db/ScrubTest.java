@@ -349,7 +349,7 @@ public class ScrubTest
                 SSTableReader.open(desc, cfs.metadata);
                 fail("SSTR validation should have caught the out-of-order rows");
             }
-            catch (IllegalStateException ise)
+            catch (CorruptSSTableException ise)
             { /* this is expected */ }
 
             // open without validation for scrubbing
