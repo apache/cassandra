@@ -37,6 +37,7 @@
  * Fix cqlsh automatic protocol downgrade regression (CASSANDRA-13307)
  * Tracing payload not passed from QueryMessage to tracing session (CASSANDRA-12835)
 Merged from 3.0:
+ * Ensure int overflow doesn't occur when calculating large partition warning size (CASSANDRA-13172)
  * Ensure consistent view of partition columns between coordinator and replica in ColumnFilter (CASSANDRA-13004)
  * Failed unregistering mbean during drop keyspace (CASSANDRA-13346)
  * nodetool scrub/cleanup/upgradesstables exit code is wrong (CASSANDRA-13542)
