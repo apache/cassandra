@@ -885,11 +885,6 @@ enable_user_defined_functions: false
 # setting.
 windows_timer_interval: 1
 
-# Maximum size of any value in SSTables. Safety measure to detect SSTable corruption
-# early. Any value size larger than this threshold will result into marking an SSTable
-# as corrupted.
-# max_value_size_in_mb: 256
-
 # Coalescing Strategies #
 # Coalescing multiples messages turns out to significantly boost message processing throughput (think doubling or more).
 # On bare metal, the floor for packet processing throughput is high enough that many applications won't notice, but in

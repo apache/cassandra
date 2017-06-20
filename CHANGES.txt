@@ -1,3 +1,7 @@
+2.2.11
+ * Remove unused max_value_size_in_mb config setting from yaml (CASSANDRA-13625
+
+
 2.2.10
  * Nodes started with join_ring=False should be able to serve requests when authentication is enabled (CASSANDRA-11381)
  * cqlsh COPY FROM: increment error count only for failures, not for attempts (CASSANDRA-13209)
