@@ -58,6 +58,7 @@ public class BulkLoader
                 new ExternalClient(
                         options.hosts,
                         options.nativePort,
+                        options.storagePort,
                         options.authProvider,
                         options.sslStoragePort,
                         options.serverEncOptions,
@@ -274,14 +275,15 @@ public class BulkLoader
         private final EncryptionOptions.ServerEncryptionOptions serverEncOptions;
 
         public ExternalClient(Set<InetSocketAddress> hosts,
-                              int port,
+                              int nativePort,
+                              int storagePort,
                               AuthProvider authProvider,
                               int sslStoragePort,
                               EncryptionOptions.ServerEncryptionOptions serverEncryptionOptions,
                               SSLOptions sslOptions,
                               boolean allowServerPortDiscovery)
         {
-            super(hosts, port, authProvider, sslOptions, allowServerPortDiscovery);
+            super(hosts, nativePort, storagePort, authProvider, sslOptions, allowServerPortDiscovery);
             this.sslStoragePort = sslStoragePort;
             serverEncOptions = serverEncryptionOptions;
         }

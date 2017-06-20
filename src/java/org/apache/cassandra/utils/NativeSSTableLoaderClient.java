@@ -47,30 +47,31 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     protected final Map<String, TableMetadataRef> tables;
     private final Collection<InetSocketAddress> hosts;
     private final int port;
+    private final int storagePort;
     private final AuthProvider authProvider;
     private final SSLOptions sslOptions;
     private final boolean allowServerPortDiscovery;
 
 
-    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int port, String username, String password, SSLOptions sslOptions, boolean allowServerPortDiscovery)
+    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int nativePort, int storagePort, String username, String password, SSLOptions sslOptions, boolean allowServerPortDiscovery)
     {
-        this(hosts, port, new PlainTextAuthProvider(username, password), sslOptions, allowServerPortDiscovery);
+        this(hosts, nativePort, storagePort, new PlainTextAuthProvider(username, password), sslOptions, allowServerPortDiscovery);
     }
 
-    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int port, AuthProvider authProvider, SSLOptions sslOptions, boolean allowServerPortDiscovery)
+    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int nativePort, int storagePort, AuthProvider authProvider, SSLOptions sslOptions, boolean allowServerPortDiscovery)
     {
         super();
         this.tables = new HashMap<>();
         this.hosts = hosts;
-        this.port = port;
+        this.port = nativePort;
         this.authProvider = authProvider;
         this.sslOptions = sslOptions;
         this.allowServerPortDiscovery = allowServerPortDiscovery;
+        this.storagePort = storagePort;
     }
 
     public void init(String keyspace)
     {
-        //TODO this needs to be updated once the client library exposes information correctly
         Set<InetAddress> hostAddresses = hosts.stream().map(host -> host.getAddress()).collect(Collectors.toSet());
         Cluster.Builder builder = Cluster.builder().addContactPoints(hostAddresses).withPort(port).allowBetaProtocolVersion();
 
@@ -102,11 +103,11 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
                     int portToUse;
                     if (allowServerPortDiscovery)
                     {
-                        portToUse = endpoint.getBroadcastAddressOptPort().portOrElse(port);
+                        portToUse = endpoint.getBroadcastAddressOptPort().portOrElse(storagePort);
                     }
                     else
                     {
-                        portToUse = port;
+                        portToUse = storagePort;
                     }
                     addRangeForEndpoint(range, InetAddressAndPort.getByNameOverrideDefaults(endpoint.getAddress().getHostAddress(), portToUse));
                 }
