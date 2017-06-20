@@ -76,6 +76,7 @@
  * Add histogram for delay to deliver hints (CASSANDRA-13234)
  * Fix cqlsh automatic protocol downgrade regression (CASSANDRA-13307)
  * Changing `max_hint_window_in_ms` at runtime (CASSANDRA-11720)
+ * Trivial format error in StorageProxy (CASSANDRA-13551)
 
 
 3.11.0
