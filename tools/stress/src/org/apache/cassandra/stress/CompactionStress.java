@@ -74,7 +74,7 @@ public abstract class CompactionStress implements Runnable
 
     static
     {
-        DatabaseDescriptor.toolInitialization();
+        DatabaseDescriptor.daemonInitialization();
     }
 
     List<File> getDataDirectories()

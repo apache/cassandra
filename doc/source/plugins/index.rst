@@ -16,8 +16,7 @@
 
 Cassandra's Plugins
 =====================
-
-The below lists out the different plugins supported in Apache Cassandra
+The below lists out the different third-party plugins contributed for Apache Cassandra
 
 .. toctree::
    :maxdepth: 1

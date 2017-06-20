@@ -171,6 +171,8 @@ public class Config
     public volatile int compaction_large_partition_warning_threshold_mb = 100;
     public int min_free_space_per_drive_in_mb = 50;
 
+    public volatile int concurrent_validations = Integer.MAX_VALUE;
+
     /**
      * @deprecated retry support removed on CASSANDRA-10992
      */
@@ -295,6 +297,12 @@ public class Config
     public static final int otc_coalescing_window_us_default = 200;
     public int otc_coalescing_window_us = otc_coalescing_window_us_default;
     public int otc_coalescing_enough_coalesced_messages = 8;
+
+    /**
+     * Backlog expiration interval in milliseconds for the OutboundTcpConnection.
+     */
+    public static final int otc_backlog_expiration_interval_ms_default = 200;
+    public volatile int otc_backlog_expiration_interval_ms = otc_backlog_expiration_interval_ms_default;
 
     public int windows_timer_interval = 0;
 

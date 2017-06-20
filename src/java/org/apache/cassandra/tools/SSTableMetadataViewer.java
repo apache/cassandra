@@ -19,6 +19,7 @@ package org.apache.cassandra.tools;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -141,10 +142,9 @@ public class SSTableMetadataViewer
                     out.printf("totalRows: %s%n", stats.totalRows);
                     out.println("Estimated tombstone drop times:");
 
-                    for (Map.Entry<Number, long[]> entry : stats.estimatedTombstoneDropTime.getAsMap().entrySet())
-                    {
-                        out.printf("%-10s:%10s%n",entry.getKey().intValue(), entry.getValue()[0]);
-                    }
+                    stats.estimatedTombstoneDropTime.forEach((point, value) -> {
+                        out.printf("%-10s:%10s%n", point, value);
+                    });
                     printHistograms(stats, out);
                 }
                 if (compaction != null)
@@ -214,7 +214,7 @@ public class SSTableMetadataViewer
         if (!summariesFile.exists())
             return;
 
-        try (DataInputStream iStream = new DataInputStream(new FileInputStream(summariesFile)))
+        try (DataInputStream iStream = new DataInputStream(Files.newInputStream(summariesFile.toPath())))
         {
             Pair<DecoratedKey, DecoratedKey> firstLast = new IndexSummary.IndexSummarySerializer().deserializeFirstLastKey(iStream, partitioner);
             out.printf("First token: %s (key=%s)%n", firstLast.left.getToken(), keyType.getString(firstLast.left.getKey()));

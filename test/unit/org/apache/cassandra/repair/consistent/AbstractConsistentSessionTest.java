@@ -33,6 +33,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
@@ -85,7 +86,8 @@ public abstract class AbstractConsistentSessionTest
                                                                  Sets.newHashSet(RANGE1, RANGE2, RANGE3),
                                                                  true,
                                                                  System.currentTimeMillis(),
-                                                                 true);
+                                                                 true,
+                                                                 PreviewKind.NONE);
         return sessionId;
     }
 }

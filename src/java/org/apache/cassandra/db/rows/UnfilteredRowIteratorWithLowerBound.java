@@ -31,6 +31,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.utils.IteratorWithLowerBound;
 
@@ -47,18 +48,21 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     private final SSTableReader sstable;
     private final ClusteringIndexFilter filter;
     private final ColumnFilter selectedColumns;
+    private final SSTableReadsListener listener;
     private ClusteringBound lowerBound;
     private boolean firstItemRetrieved;
 
     public UnfilteredRowIteratorWithLowerBound(DecoratedKey partitionKey,
                                                SSTableReader sstable,
                                                ClusteringIndexFilter filter,
-                                               ColumnFilter selectedColumns)
+                                               ColumnFilter selectedColumns,
+                                               SSTableReadsListener listener)
     {
         super(partitionKey);
         this.sstable = sstable;
         this.filter = filter;
         this.selectedColumns = selectedColumns;
+        this.listener = listener;
         this.lowerBound = null;
         this.firstItemRetrieved = false;
     }
@@ -89,10 +93,8 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     @Override
     protected UnfilteredRowIterator initializeIterator()
     {
-        sstable.incrementReadCount();
-
         @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
-        UnfilteredRowIterator iter = sstable.iterator(partitionKey(), filter.getSlices(metadata()), selectedColumns, filter.isReversed());
+        UnfilteredRowIterator iter = sstable.iterator(partitionKey(), filter.getSlices(metadata()), selectedColumns, filter.isReversed(), listener);
         return iter;
     }
 

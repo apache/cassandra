@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 final class WritetimeOrTTLSelector extends Selector
 {
-    private final String columnName;
+    private final ColumnMetadata column;
     private final int idx;
     private final boolean isWritetime;
     private ByteBuffer current;
@@ -58,7 +58,7 @@ final class WritetimeOrTTLSelector extends Selector
 
             public Selector newInstance(QueryOptions options)
             {
-                return new WritetimeOrTTLSelector(def.name.toString(), idx, isWritetime);
+                return new WritetimeOrTTLSelector(def, idx, isWritetime);
             }
 
             public boolean isWritetimeSelectorFactory()
@@ -70,7 +70,22 @@ final class WritetimeOrTTLSelector extends Selector
             {
                 return !isWritetime;
             }
+
+            public boolean areAllFetchedColumnsKnown()
+            {
+                return true;
+            }
+
+            public void addFetchedColumns(ColumnFilter.Builder builder)
+            {
+                builder.add(def);
+            }
         };
+    }
+
+    public void addFetchedColumns(ColumnFilter.Builder builder)
+    {
+        builder.add(column);
     }
 
     public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs)
@@ -111,14 +126,13 @@ final class WritetimeOrTTLSelector extends Selector
     @Override
     public String toString()
     {
-        return columnName;
+        return column.name.toString();
     }
 
-    private WritetimeOrTTLSelector(String columnName, int idx, boolean isWritetime)
+    private WritetimeOrTTLSelector(ColumnMetadata column, int idx, boolean isWritetime)
     {
-        this.columnName = columnName;
+        this.column = column;
         this.idx = idx;
         this.isWritetime = isWritetime;
     }
-
 }

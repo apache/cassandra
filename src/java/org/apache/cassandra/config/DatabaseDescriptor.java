@@ -562,6 +562,9 @@ public class DatabaseDescriptor
         if (conf.concurrent_compactors == null)
             conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
 
+        if (conf.concurrent_validations < 1)
+            conf.concurrent_validations = Integer.MAX_VALUE;
+
         if (conf.concurrent_compactors <= 0)
             throw new ConfigurationException("concurrent_compactors should be strictly greater than 0, but was " + conf.concurrent_compactors, false);
 
@@ -1398,7 +1401,18 @@ public class DatabaseDescriptor
         conf.compaction_throughput_mb_per_sec = value;
     }
 
-    public static int getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold_mb * 1024 * 1024; }
+    public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold_mb * 1024L * 1024L; }
+
+    public static int getConcurrentValidations()
+    {
+        return conf.concurrent_validations;
+    }
+
+    public static void setConcurrentValidations(int value)
+    {
+        value = value > 0 ? value : Integer.MAX_VALUE;
+        conf.concurrent_validations = value;
+    }
 
     public static long getMinFreeSpacePerDriveInBytes()
     {
@@ -2133,6 +2147,16 @@ public class DatabaseDescriptor
         conf.otc_coalescing_enough_coalesced_messages = otc_coalescing_enough_coalesced_messages;
     }
 
+    public static int getOtcBacklogExpirationInterval()
+    {
+        return conf.otc_backlog_expiration_interval_ms;
+    }
+
+    public static void setOtcBacklogExpirationInterval(int intervalInMillis)
+    {
+        conf.otc_backlog_expiration_interval_ms = intervalInMillis;
+    }
+ 
     public static int getWindowsTimerInterval()
     {
         return conf.windows_timer_interval;

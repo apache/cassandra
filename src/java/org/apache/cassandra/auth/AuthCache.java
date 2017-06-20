@@ -19,7 +19,6 @@
 package org.apache.cassandra.auth;
 
 import java.lang.management.ManagementFactory;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -94,7 +93,7 @@ public class AuthCache<K, V> implements AuthCacheMBean
         return new ObjectName(MBEAN_NAME_BASE + name);
     }
 
-    public V get(K k) throws ExecutionException
+    public V get(K k)
     {
         if (cache == null)
             return loadFunction.apply(k);

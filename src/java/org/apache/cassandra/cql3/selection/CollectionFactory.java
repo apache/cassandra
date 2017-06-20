@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
+import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.ColumnMetadata;
 
@@ -73,6 +74,18 @@ abstract class CollectionFactory extends Factory
     public final boolean isTTLSelectorFactory()
     {
         return factories.containsTTLSelectorFactory();
+    }
+
+    @Override
+    boolean areAllFetchedColumnsKnown()
+    {
+        return factories.areAllFetchedColumnsKnown();
+    }
+
+    @Override
+    void addFetchedColumns(Builder builder)
+    {
+        factories.addFetchedColumns(builder);
     }
 
     protected final void addColumnMapping(SelectionColumnMapping mapping, ColumnSpecification resultsColumn)

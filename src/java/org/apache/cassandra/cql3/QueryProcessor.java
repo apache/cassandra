@@ -219,7 +219,7 @@ public class QueryProcessor implements QueryHandler
     public ResultMessage process(String queryString, QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
-        ParsedStatement.Prepared p = getStatement(queryString, queryState.getClientState());
+        ParsedStatement.Prepared p = getStatement(queryString, queryState.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace()));
         options.prepare(p.boundNames);
         CQLStatement prepared = p.statement;
         if (prepared.getBoundTerms() != options.getValues().size())
@@ -231,9 +231,9 @@ public class QueryProcessor implements QueryHandler
         return processStatement(prepared, queryState, options, queryStartNanoTime);
     }
 
-    public static ParsedStatement.Prepared parseStatement(String queryStr, QueryState queryState) throws RequestValidationException
+    public static ParsedStatement.Prepared parseStatement(String queryStr, ClientState clientState) throws RequestValidationException
     {
-        return getStatement(queryStr, queryState.getClientState());
+        return getStatement(queryStr, clientState);
     }
 
     public static UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
@@ -277,7 +277,7 @@ public class QueryProcessor implements QueryHandler
             return prepared;
 
         // Note: if 2 threads prepare the same query, we'll live so don't bother synchronizing
-        prepared = parseStatement(query, internalQueryState());
+        prepared = parseStatement(query, internalQueryState().getClientState());
         prepared.statement.validate(internalQueryState().getClientState());
         internalStatements.putIfAbsent(query, prepared);
         return prepared;
@@ -334,7 +334,7 @@ public class QueryProcessor implements QueryHandler
      */
     public static UntypedResultSet executeOnceInternal(String query, Object... values)
     {
-        ParsedStatement.Prepared prepared = parseStatement(query, internalQueryState());
+        ParsedStatement.Prepared prepared = parseStatement(query, internalQueryState().getClientState());
         prepared.statement.validate(internalQueryState().getClientState());
         ResultMessage result = prepared.statement.executeInternal(internalQueryState(), makeInternalOptions(prepared, values));
         if (result instanceof ResultMessage.Rows)
@@ -374,16 +374,10 @@ public class QueryProcessor implements QueryHandler
     }
 
     public ResultMessage.Prepared prepare(String query,
-                                          QueryState state,
+                                          ClientState clientState,
                                           Map<String, ByteBuffer> customPayload) throws RequestValidationException
     {
-        return prepare(query, state);
-    }
-
-    public ResultMessage.Prepared prepare(String queryString, QueryState queryState)
-    {
-        ClientState cState = queryState.getClientState();
-        return prepare(queryString, cState);
+        return prepare(query, clientState);
     }
 
     public static ResultMessage.Prepared prepare(String queryString, ClientState clientState)
@@ -485,7 +479,7 @@ public class QueryProcessor implements QueryHandler
     public ResultMessage processBatch(BatchStatement batch, QueryState queryState, BatchQueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
-        ClientState clientState = queryState.getClientState();
+        ClientState clientState = queryState.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace());
         batch.checkAccess(clientState);
         batch.validate();
         batch.validate(clientState);
@@ -500,7 +494,7 @@ public class QueryProcessor implements QueryHandler
 
         // Set keyspace for statement that require login
         if (statement instanceof CFStatement)
-            ((CFStatement)statement).prepareKeyspace(clientState);
+            ((CFStatement) statement).prepareKeyspace(clientState);
 
         Tracing.trace("Preparing statement");
         return statement.prepare();

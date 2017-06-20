@@ -40,6 +40,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.mindrot.jbcrypt.BCrypt;
@@ -336,6 +337,9 @@ public class CassandraRoleManager implements IRoleManager
      */
     private static void setupDefaultRole()
     {
+        if (StorageService.instance.getTokenMetadata().sortedTokens().isEmpty())
+            throw new IllegalStateException("CassandraRoleManager skipped default role setup: no known tokens in ring");
+
         try
         {
             if (!hasExistingRoles())
@@ -483,23 +487,16 @@ public class CassandraRoleManager implements IRoleManager
      */
     private Role getRole(String name)
     {
-        try
+        // If it exists, try the legacy users table in case the cluster
+        // is in the process of being upgraded and so is running with mixed
+        // versions of the authn schema.
+        if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, "users") == null)
+            return getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
+        else
         {
-            // If it exists, try the legacy users table in case the cluster
-            // is in the process of being upgraded and so is running with mixed
-            // versions of the authn schema.
-            if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, "users") == null)
-                return getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
-            else
-            {
-                if (legacySelectUserStatement == null)
-                    legacySelectUserStatement = prepareLegacySelectUserStatement();
-                return getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE);
-            }
-        }
-        catch (RequestExecutionException | RequestValidationException e)
-        {
-            throw new RuntimeException(e);
+            if (legacySelectUserStatement == null)
+                legacySelectUserStatement = prepareLegacySelectUserStatement();
+            return getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE);
         }
     }
 

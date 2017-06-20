@@ -90,7 +90,7 @@ CompressionRatio                        Gauge<Double>  Current compression ratio
 EstimatedPartitionSizeHistogram         Gauge<long[]>  Histogram of estimated partition size (in bytes).
 EstimatedPartitionCount                 Gauge<Long>    Approximate number of keys in table.
 EstimatedColumnCountHistogram           Gauge<long[]>  Histogram of estimated number of columns.
-SSTablesPerReadHistogram                Histogram      Histogram of the number of sstable data files accessed per read.
+SSTablesPerReadHistogram                Histogram      Histogram of the number of sstable data files accessed per single partition read. SSTables skipped due to Bloom Filters, min-max key or partition index lookup are not taken into acoount.
 ReadLatency                             Latency        Local read latency for this table.
 RangeLatency                            Latency        Local range scan latency for this table.
 WriteLatency                            Latency        Local write latency for this table.
@@ -132,6 +132,14 @@ SpeculativeInsufficientReplicas         Counter        Number of speculative ret
 SpeculativeSampleLatencyNanos           Gauge<Long>    Number of nanoseconds to wait before speculation is attempted. Value may be statically configured or updated periodically based on coordinator latency.
 WaitingOnFreeMemtableSpace              Histogram      Histogram of time spent waiting for free memtable space, either on- or off-heap.
 DroppedMutations                        Counter        Number of dropped mutations on this table.
+AnticompactionTime                      Timer          Time spent anticompacting before a consistent repair.
+ValidationTime                          Timer          Time spent doing validation compaction during repair.
+SyncTime                                Timer          Time spent doing streaming during repair.
+BytesValidated                          Histogram      Histogram over the amount of bytes read during validation.
+PartitionsValidated                     Histogram      Histogram over the number of partitions read during validation.
+BytesAnticompacted                      Counter        How many bytes we anticompacted.
+BytesMutatedAnticompaction              Counter        How many bytes we avoided anticompacting because the sstable was fully contained in the repaired range.
+MutatedAnticompactionGauge              Gauge<Double>  Ratio of bytes mutated vs total bytes repaired.
 ======================================= ============== ===========
 
 Keyspace Metrics
@@ -154,6 +162,8 @@ Name                                    Type           Description
 ======================================= ============== ===========
 WriteFailedIdeaCL                       Counter        Number of writes that failed to achieve the configured ideal consistency level or 0 if none is configured
 IdealCLWriteLatency                     Latency        Coordinator latency of writes at the configured ideal consistency level. No values are recorded if ideal consistency level is not configured
+RepairTime                              Timer          Total time spent as repair coordinator.
+RepairPrepareTime                       Timer          Total time spent preparing for repair.
 ======================================= ============== ===========
 
 ThreadPool Metrics

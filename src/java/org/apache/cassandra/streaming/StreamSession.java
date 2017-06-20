@@ -163,9 +163,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     private AtomicBoolean isAborted = new AtomicBoolean(false);
     private final boolean keepSSTableLevel;
-    private final boolean isIncremental;
     private ScheduledFuture<?> keepAliveFuture = null;
     private final UUID pendingRepair;
+    private final PreviewKind previewKind;
 
     public static enum State
     {
@@ -182,12 +182,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     /**
      * Create new streaming session with the peer.
-     *
-     * @param peer Address of streaming peer
+     *  @param peer Address of streaming peer
      * @param connecting Actual connecting address
      * @param factory is used for establishing connection
      */
-    public StreamSession(InetAddress peer, InetAddress connecting, StreamConnectionFactory factory, int index, boolean keepSSTableLevel, boolean isIncremental, UUID pendingRepair)
+    public StreamSession(InetAddress peer, InetAddress connecting, StreamConnectionFactory factory, int index, boolean keepSSTableLevel, UUID pendingRepair, PreviewKind previewKind)
     {
         this.peer = peer;
         this.connecting = connecting;
@@ -195,11 +194,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         this.factory = factory;
         this.handler = new ConnectionHandler(this, isKeepAliveSupported()?
                                                    (int)TimeUnit.SECONDS.toMillis(2 * DatabaseDescriptor.getStreamingKeepAlivePeriod()) :
-                                                   DatabaseDescriptor.getStreamingSocketTimeout());
+                                                   DatabaseDescriptor.getStreamingSocketTimeout(), previewKind.isPreview());
         this.metrics = StreamingMetrics.get(connecting);
         this.keepSSTableLevel = keepSSTableLevel;
-        this.isIncremental = isIncremental;
         this.pendingRepair = pendingRepair;
+        this.previewKind = previewKind;
     }
 
     public UUID planId()
@@ -222,14 +221,19 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         return keepSSTableLevel;
     }
 
-    public boolean isIncremental()
-    {
-        return isIncremental;
-    }
-
     public UUID getPendingRepair()
     {
         return pendingRepair;
+    }
+
+    public boolean isPreview()
+    {
+        return previewKind.isPreview();
+    }
+
+    public PreviewKind getPreviewKind()
+    {
+        return previewKind;
     }
 
     public LifecycleTransaction getTransaction(TableId tableId)
@@ -298,9 +302,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * @param ranges Ranges to retrieve data
      * @param columnFamilies ColumnFamily names. Can be empty if requesting all CF under the keyspace.
      */
-    public void addStreamRequest(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, long repairedAt)
+    public void addStreamRequest(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies)
     {
-        requests.add(new StreamRequest(keyspace, ranges, columnFamilies, repairedAt));
+        requests.add(new StreamRequest(keyspace, ranges, columnFamilies));
     }
 
     /**
@@ -312,9 +316,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * @param ranges Transfer ranges
      * @param columnFamilies Transfer ColumnFamilies
      * @param flushTables flush tables?
-     * @param repairedAt the time the repair started.
      */
-    public synchronized void addTransferRanges(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, boolean flushTables, long repairedAt)
+    public synchronized void addTransferRanges(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, boolean flushTables)
     {
         failIfFinished();
         Collection<ColumnFamilyStore> stores = getColumnFamilyStores(keyspace, columnFamilies);
@@ -322,7 +325,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             flushSSTables(stores);
 
         List<Range<Token>> normalizedRanges = Range.normalize(ranges);
-        List<SSTableStreamingSections> sections = getSSTableSectionsForRanges(normalizedRanges, stores, repairedAt, pendingRepair);
+        List<SSTableStreamingSections> sections = getSSTableSectionsForRanges(normalizedRanges, stores, pendingRepair, previewKind);
         try
         {
             addTransferFiles(sections);
@@ -364,7 +367,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
     @VisibleForTesting
-    public static List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, long overriddenRepairedAt, UUID pendingRepair)
+    public static List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, UUID pendingRepair, PreviewKind previewKind)
     {
         Refs<SSTableReader> refs = new Refs<>();
         try
@@ -378,7 +381,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                     Set<SSTableReader> sstables = Sets.newHashSet();
                     SSTableIntervalTree intervalTree = SSTableIntervalTree.build(view.select(SSTableSet.CANONICAL));
                     Predicate<SSTableReader> predicate;
-                    if (pendingRepair == ActiveRepairService.NO_PENDING_REPAIR)
+                    if (previewKind.isPreview())
+                    {
+                        predicate = previewKind.getStreamingPredicate();
+                    }
+                    else if (pendingRepair == ActiveRepairService.NO_PENDING_REPAIR)
                     {
                         predicate = Predicates.alwaysTrue();
                     }
@@ -410,13 +417,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             List<SSTableStreamingSections> sections = new ArrayList<>(refs.size());
             for (SSTableReader sstable : refs)
             {
-                long repairedAt = overriddenRepairedAt;
-                if (overriddenRepairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
-                    repairedAt = sstable.getSSTableMetadata().repairedAt;
-                sections.add(new SSTableStreamingSections(refs.get(sstable),
-                                                          sstable.getPositionsForRanges(ranges),
-                                                          sstable.estimatedKeysForRanges(ranges),
-                                                          repairedAt));
+                sections.add(new SSTableStreamingSections(refs.get(sstable), sstable.getPositionsForRanges(ranges), sstable.estimatedKeysForRanges(ranges)));
             }
             return sections;
         }
@@ -452,7 +453,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 if (task == null)
                     task = newTask;
             }
-            task.addTransferFile(details.ref, details.estimatedKeys, details.sections, details.repairedAt);
+            task.addTransferFile(details.ref, details.estimatedKeys, details.sections);
             iter.remove();
         }
     }
@@ -462,14 +463,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         public final Ref<SSTableReader> ref;
         public final List<Pair<Long, Long>> sections;
         public final long estimatedKeys;
-        public final long repairedAt;
 
-        public SSTableStreamingSections(Ref<SSTableReader> ref, List<Pair<Long, Long>> sections, long estimatedKeys, long repairedAt)
+        public SSTableStreamingSections(Ref<SSTableReader> ref, List<Pair<Long, Long>> sections, long estimatedKeys)
         {
             this.ref = ref;
             this.sections = sections;
             this.estimatedKeys = estimatedKeys;
-            this.repairedAt = repairedAt;
         }
     }
 
@@ -623,7 +622,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         // prepare tasks
         state(State.PREPARING);
         for (StreamRequest request : requests)
-            addTransferRanges(request.keyspace, request.ranges, request.columnFamilies, true, request.repairedAt); // always flush on stream request
+            addTransferRanges(request.keyspace, request.ranges, request.columnFamilies, true); // always flush on stream request
         for (StreamSummary summary : summaries)
             prepareReceiving(summary);
 
@@ -634,6 +633,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             for (StreamTransferTask task : transfers.values())
                 prepare.summaries.add(task.getSummary());
             handler.sendMessage(prepare);
+        }
+
+        if (isPreview())
+        {
+            completePreview();
+            return;
         }
 
         // if there are files to stream
@@ -666,6 +671,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public void receive(IncomingFileMessage message)
     {
+        if (isPreview())
+        {
+            throw new RuntimeException("Cannot receive files for preview session");
+        }
+
         long headerSize = message.header.size();
         StreamingMetrics.totalIncomingBytes.inc(headerSize);
         metrics.incomingBytes.inc(headerSize);
@@ -769,6 +779,22 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         closeSession(State.FAILED);
     }
 
+    private void completePreview()
+    {
+        try
+        {
+            state(State.WAIT_COMPLETE);
+            closeSession(State.COMPLETE);
+        }
+        finally
+        {
+            // aborting the tasks here needs to be the last thing we do so that we
+            // accurately report expected streaming, but don't leak any sstable refs
+            for (StreamTask task : Iterables.concat(receivers.values(), transfers.values()))
+                task.abort();
+        }
+    }
+
     private boolean maybeCompleted()
     {
         boolean completed = receivers.isEmpty() && transfers.isEmpty();
@@ -819,6 +845,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         streamResult.handleSessionPrepared(this);
 
         state(State.STREAMING);
+
         for (StreamTransferTask task : transfers.values())
         {
             Collection<OutgoingFileMessage> messages = task.getFileMessages();

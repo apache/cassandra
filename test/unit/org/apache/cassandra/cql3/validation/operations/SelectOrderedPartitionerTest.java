@@ -65,7 +65,6 @@ public class SelectOrderedPartitionerTest extends CQLTester
         });
     }
 
-
     @Test
     public void testFilteringOnAllPartitionKeysWithTokenRestriction() throws Throwable
     {
@@ -120,6 +119,31 @@ public class SelectOrderedPartitionerTest extends CQLTester
             assertEmpty(execute("SELECT * FROM %s WHERE token(a, b) = token(8, 8) AND b = 9 ALLOW FILTERING"));
         });
     }
+
+    @Test
+    public void testTokenAndCollections() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a frozen<map<int, int>>, b int, c int, PRIMARY KEY (a, b))");
+
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (a,b,c) VALUES (?, ?, ?)", map(i, i), i, i);
+            execute("INSERT INTO %s (a,b,c) VALUES (?, ?, ?)", map(i, i, 100, 200), i + 10, i + 10);
+        }
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT * FROM %s WHERE token(a) > token({0: 0}) AND a CONTAINS KEY 9 ALLOW FILTERING"),
+                                    row(map(9, 9), 9, 9),
+                                    row(map(9, 9, 100, 200), 19, 19));
+
+            assertRows(execute("SELECT * FROM %s WHERE token(a) > token({0: 0}) AND a CONTAINS KEY 9 AND a CONTAINS 200 ALLOW FILTERING"),
+                       row(map(9, 9, 100, 200), 19, 19));
+
+            assertRows(execute("SELECT * FROM %s WHERE token(a) > token({0: 0}) AND a CONTAINS KEY 9 AND b = 19 ALLOW FILTERING"),
+                       row(map(9, 9, 100, 200), 19, 19));
+        });
+    }
+
 
     @Test
     public void testTokenFunctionWithSingleColumnPartitionKey() throws Throwable

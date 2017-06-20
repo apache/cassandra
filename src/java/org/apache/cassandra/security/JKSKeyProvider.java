@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.security;
 
-import java.io.FileInputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.io.InputStream;
 import java.io.IOException;
 import java.security.Key;
 import java.security.KeyStore;
@@ -46,7 +48,7 @@ public class JKSKeyProvider implements KeyProvider
     {
         this.options = options;
         logger.info("initializing keystore from file {}", options.get(PROP_KEYSTORE));
-        try (FileInputStream inputStream = new FileInputStream(options.get(PROP_KEYSTORE)))
+        try (InputStream inputStream = Files.newInputStream(Paths.get(options.get(PROP_KEYSTORE))))
         {
             store = KeyStore.getInstance(options.get(PROP_KEYSTORE_TYPE));
             store.load(inputStream, options.get(PROP_KEYSTORE_PW).toCharArray());

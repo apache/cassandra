@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.io.compress;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.io.BufferedOutputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
@@ -103,7 +105,7 @@ public class CompressionMetadata
     {
         this.indexFilePath = indexFilePath;
 
-        try (DataInputStream stream = new DataInputStream(new FileInputStream(indexFilePath)))
+        try (DataInputStream stream = new DataInputStream(Files.newInputStream(Paths.get(indexFilePath))))
         {
             String compressorName = stream.readUTF();
             int optionCount = stream.readInt();

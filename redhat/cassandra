@@ -3,9 +3,23 @@
 # /etc/init.d/cassandra
 #
 # Startup script for Cassandra
-# 
-# chkconfig: 2345 20 80
+#
+# chkconfig: 2345 80 20
 # description: Starts and stops Cassandra
+# pidfile: /var/run/cassandra/cassandra.pid
+
+### BEGIN INIT INFO
+# Provides:          cassandra
+# Required-Start:    $remote_fs $network $named $time
+# Required-Stop:     $remote_fs $network $named $time
+# Should-Start:      ntp mdadm
+# Should-Stop:       ntp mdadm
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: distributed storage system for structured data
+# Description:       Cassandra is a distributed (peer-to-peer) system for
+#                    the management and storage of structured data.
+### END INIT INFO
 
 . /etc/rc.d/init.d/functions
 
@@ -66,16 +80,26 @@ case "$1" in
         su $CASSANDRA_OWNR -c "kill `cat $pid_file`"
         retval=$?
         [ $retval -eq 0 ] && rm -f $lock_file
-        for t in `seq 40`; do $0 status > /dev/null 2>&1 && sleep 0.5 || break; done
+        for t in `seq 40`; do
+            status -p $pid_file cassandra > /dev/null 2>&1
+            retval=$?
+            if [ $retval -eq 3 ]; then
+                echo "OK"
+                exit 0
+            else
+                sleep 0.5
+            fi;
+        done
         # Adding a sleep here to give jmx time to wind down (CASSANDRA-4483). Not ideal...
         # Adam Holmberg suggests this, but that would break if the jmx port is changed
         # for t in `seq 40`; do netstat -tnlp | grep "0.0.0.0:7199" > /dev/null 2>&1 && sleep 0.1 || break; done
         sleep 5
-        STATUS=`$0 status`
-        if [[ $STATUS == "$NAME is stopped" ]]; then
+        status -p $pid_file cassandra > /dev/null 2>&1
+        retval=$?
+        if [ $retval -eq 3 ]; then
             echo "OK"
         else
-            echo "ERROR: could not stop $NAME:  $STATUS"
+            echo "ERROR: could not stop $NAME"
             exit 1
         fi
         ;;

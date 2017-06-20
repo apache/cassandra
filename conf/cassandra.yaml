@@ -748,6 +748,10 @@ column_index_cache_size_in_kb: 2
 # to the number of cores.
 #concurrent_compactors: 1
 
+# Number of simultaneous repair validations to allow. Default is unbounded
+# Values less than one are interpreted as unbounded (the default)
+# concurrent_validations: 0
+
 # Throttles compaction to the given total throughput across the entire
 # system. The faster you insert data, the faster you need to compact in
 # order to keep the sstable count down, but in general, setting this to
@@ -1120,6 +1124,15 @@ back_pressure_strategy:
 
 # Do not try to coalesce messages if we already got that many messages. This should be more than 2 and less than 128.
 # otc_coalescing_enough_coalesced_messages: 8
+
+# How many milliseconds to wait between two expiration runs on the backlog (queue) of the OutboundTcpConnection.
+# Expiration is done if messages are piling up in the backlog. Droppable messages are expired to free the memory
+# taken by expired messages. The interval should be between 0 and 1000, and in most installations the default value
+# will be appropriate. A smaller value could potentially expire messages slightly sooner at the expense of more CPU
+# time and queue contention while iterating the backlog of messages.
+# An interval of 0 disables any wait time, which is the behavior of former Cassandra versions.
+#
+# otc_backlog_expiration_interval_ms: 200
 
 # Track a metric per keyspace indicating whether replication achieved the ideal consistency
 # level for writes without timing out. This is different from the consistency level requested by

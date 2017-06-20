@@ -65,7 +65,7 @@ public class OutgoingFileMessage extends StreamMessage
     private boolean completed = false;
     private boolean transferring = false;
 
-    public OutgoingFileMessage(Ref<SSTableReader> ref, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt, boolean keepSSTableLevel)
+    public OutgoingFileMessage(Ref<SSTableReader> ref, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, boolean keepSSTableLevel)
     {
         super(Type.FILE);
         this.ref = ref;
@@ -79,7 +79,8 @@ public class OutgoingFileMessage extends StreamMessage
                                             estimatedKeys,
                                             sections,
                                             sstable.compression ? sstable.getCompressionMetadata() : null,
-                                            repairedAt,
+                                            sstable.getRepairedAt(),
+                                            sstable.getPendingRepair(),
                                             keepSSTableLevel ? sstable.getSSTableLevel() : 0,
                                             sstable.header.toComponent());
     }

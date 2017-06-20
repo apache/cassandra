@@ -53,8 +53,8 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.service:type=GCInspector";
     private static final Logger logger = LoggerFactory.getLogger(GCInspector.class);
-    private volatile static long gcLogThreshholdInMs = DatabaseDescriptor.getGCLogThreshold();
-    private volatile static long gcWarnThreasholdInMs = DatabaseDescriptor.getGCWarnThreshold();
+    private volatile long gcLogThreshholdInMs = DatabaseDescriptor.getGCLogThreshold();
+    private volatile long gcWarnThreasholdInMs = DatabaseDescriptor.getGCWarnThreshold();
 
     /*
      * The field from java.nio.Bits that tracks the total number of allocated
@@ -335,24 +335,21 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         }
     }
 
-    @Override
     public void setGcWarnThresholdInMs(long threshold)
     {
         if (threshold < 0)
-            throw new IllegalArgumentException("Threashold must be greater than 0");
+            throw new IllegalArgumentException("Threshold must be greater than or equal to 0");
         if (threshold != 0 && threshold <= gcLogThreshholdInMs)
-            throw new IllegalArgumentException("Threashold must be greater than gcLogTreasholdInMs which is currently " 
+            throw new IllegalArgumentException("Threshold must be greater than gcLogTreasholdInMs which is currently " 
                     + gcLogThreshholdInMs);
         gcWarnThreasholdInMs = threshold;
     }
 
-    @Override
     public long getGcWarnThresholdInMs()
     {
         return gcWarnThreasholdInMs;
     }
 
-    @Override
     public void setGcLogThresholdInMs(long threshold)
     {
         if (threshold <= 0)
@@ -363,13 +360,11 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         gcLogThreshholdInMs = threshold;
     }
 
-    @Override
     public long getGcLogThresholdInMs()
     {
         return gcLogThreshholdInMs;
     }
 
-    @Override
     public long getStatusThresholdInMs()
     {
         return gcWarnThreasholdInMs != 0 ? gcWarnThreasholdInMs : gcLogThreshholdInMs;

@@ -36,10 +36,11 @@ import java.util.Map;
 
 public class AbstractSerializationsTester
 {
-    protected static final String CUR_VER = System.getProperty("cassandra.version", "3.0");
+    protected static final String CUR_VER = System.getProperty("cassandra.version", "4.0");
     protected static final Map<String, Integer> VERSION_MAP = new HashMap<String, Integer> ()
     {{
         put("3.0", MessagingService.VERSION_30);
+        put("4.0", MessagingService.VERSION_40);
     }};
 
     protected static final boolean EXECUTE_WRITES = Boolean.getBoolean("cassandra.test-serialization-writes");

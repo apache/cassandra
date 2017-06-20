@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -27,11 +28,13 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
 import org.junit.After;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -47,6 +50,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -68,6 +72,7 @@ public class AntiCompactionTest
     private static final String KEYSPACE1 = "AntiCompactionTest";
     private static final String CF = "AntiCompactionTest";
     private static TableMetadata metadata;
+    private static ColumnFamilyStore cfs;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -75,6 +80,7 @@ public class AntiCompactionTest
         SchemaLoader.prepareServer();
         metadata = SchemaLoader.standardCFMD(KEYSPACE1, CF).build();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), metadata);
+        cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
     }
 
     @After
@@ -83,6 +89,15 @@ public class AntiCompactionTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
         store.truncateBlocking();
+    }
+
+    private void registerParentRepairSession(UUID sessionID, Collection<Range<Token>> ranges, long repairedAt, UUID pendingRepair) throws IOException
+    {
+        ActiveRepairService.instance.registerParentRepairSession(sessionID,
+                                                                 InetAddress.getByName("10.0.0.1"),
+                                                                 Lists.newArrayList(cfs), ranges,
+                                                                 pendingRepair != null || repairedAt != UNREPAIRED_SSTABLE,
+                                                                 repairedAt, true, PreviewKind.NONE);
     }
 
     private void antiCompactOne(long repairedAt, UUID pendingRepair) throws Exception
@@ -103,7 +118,8 @@ public class AntiCompactionTest
         {
             if (txn == null)
                 throw new IllegalStateException();
-            UUID parentRepairSession = UUID.randomUUID();
+            UUID parentRepairSession = pendingRepair == null ? UUID.randomUUID() : pendingRepair;
+            registerParentRepairSession(parentRepairSession, ranges, repairedAt, pendingRepair);
             CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, repairedAt, pendingRepair, parentRepairSession);
         }
 
@@ -246,6 +262,7 @@ public class AntiCompactionTest
 
         long repairedAt = 1000;
         UUID parentRepairSession = UUID.randomUUID();
+        registerParentRepairSession(parentRepairSession, ranges, repairedAt, null);
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
@@ -293,7 +310,8 @@ public class AntiCompactionTest
         assertEquals(store.getLiveSSTables().size(), sstables.size());
         Range<Token> range = new Range<Token>(new BytesToken("0".getBytes()), new BytesToken("9999".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
-        UUID parentRepairSession = UUID.randomUUID();
+        UUID parentRepairSession = pendingRepair == null ? UUID.randomUUID() : pendingRepair;
+        registerParentRepairSession(parentRepairSession, ranges, repairedAt, pendingRepair);
 
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
@@ -337,6 +355,7 @@ public class AntiCompactionTest
         Range<Token> range = new Range<Token>(new BytesToken("-1".getBytes()), new BytesToken("-10".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
         UUID parentRepairSession = UUID.randomUUID();
+        registerParentRepairSession(parentRepairSession, ranges, UNREPAIRED_SSTABLE, null);
 
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))

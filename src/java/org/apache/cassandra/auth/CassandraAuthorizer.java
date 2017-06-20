@@ -82,20 +82,9 @@ public class CassandraAuthorizer implements IAuthorizer
             return resource.applicablePermissions();
 
         Set<Permission> permissions = EnumSet.noneOf(Permission.class);
-        try
-        {
-            for (RoleResource role: user.getRoles())
-                addPermissionsForRole(permissions, resource, role);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new AssertionError(e); // not supposed to happen
-        }
-        catch (RequestExecutionException e)
-        {
-            logger.warn("CassandraAuthorizer failed to authorize {} for {}", user, resource);
-            throw new RuntimeException(e);
-        }
+
+        for (RoleResource role: user.getRoles())
+            addPermissionsForRole(permissions, resource, role);
 
         return permissions;
     }

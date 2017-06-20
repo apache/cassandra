@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -397,9 +399,9 @@ public class CommitLogReader
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t);
-            File f = File.createTempFile("mutation", "dat");
+            Path p = Files.createTempFile("mutation", "dat");
 
-            try (DataOutputStream out = new DataOutputStream(new FileOutputStream(f)))
+            try (DataOutputStream out = new DataOutputStream(Files.newOutputStream(p)))
             {
                 out.write(inputBuffer, 0, size);
             }
@@ -409,7 +411,7 @@ public class CommitLogReader
                 String.format(
                     "Unexpected error deserializing mutation; saved to %s.  " +
                     "This may be caused by replaying a mutation against a table with the same name but incompatible schema.  " +
-                    "Exception follows: %s", f.getAbsolutePath(), t),
+                    "Exception follows: %s", p.toString(), t),
                 CommitLogReadErrorReason.MUTATION_ERROR,
                 false));
             return;

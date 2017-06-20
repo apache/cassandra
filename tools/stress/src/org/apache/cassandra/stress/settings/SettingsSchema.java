@@ -46,7 +46,7 @@ public class SettingsSchema implements Serializable
     public SettingsSchema(Options options, SettingsCommand command)
     {
         if (command instanceof SettingsCommandUser)
-            keyspace = ((SettingsCommandUser) command).profile.keyspaceName;
+            keyspace = null; //this should never be used - StressProfile passes keyspace name directly
         else
             keyspace = options.keyspace.value();
 

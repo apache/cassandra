@@ -173,6 +173,15 @@ public class LocalSessionTest extends AbstractRepairTest
         {
             return true;
         }
+
+        public Map<UUID, Integer> completedSessions = new HashMap<>();
+
+        protected void sessionCompleted(LocalSession session)
+        {
+            UUID sessionID = session.sessionID;
+            int calls = completedSessions.getOrDefault(sessionID, 0);
+            completedSessions.put(sessionID, calls + 1);
+        }
     }
 
     private static TableMetadata cfm;
@@ -450,6 +459,7 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.maybeSetRepairing(sessionID);
         sessions.handleFinalizeProposeMessage(COORDINATOR, new FinalizePropose(sessionID));
 
+        Assert.assertEquals(0, (int) sessions.completedSessions.getOrDefault(sessionID, 0));
         sessions.sentMessages.clear();
         LocalSession session = sessions.getSession(sessionID);
         sessions.handleFinalizeCommitMessage(PARTICIPANT1, new FinalizeCommit(sessionID));
@@ -457,6 +467,7 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertEquals(FINALIZED, session.getState());
         Assert.assertEquals(session, sessions.loadUnsafe(sessionID));
         Assert.assertTrue(sessions.sentMessages.isEmpty());
+        Assert.assertEquals(1, (int) sessions.completedSessions.getOrDefault(sessionID, 0));
     }
 
     @Test
@@ -482,9 +493,11 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.sentMessages.clear();
 
         // fail session
+        Assert.assertEquals(0, (int) sessions.completedSessions.getOrDefault(sessionID, 0));
         sessions.failSession(sessionID);
         Assert.assertEquals(FAILED, session.getState());
         assertMessagesSent(sessions, COORDINATOR, new FailSession(sessionID));
+        Assert.assertEquals(1, (int) sessions.completedSessions.getOrDefault(sessionID, 0));
     }
 
     /**

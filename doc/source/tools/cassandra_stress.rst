@@ -107,7 +107,12 @@ doesn't scale.
 Profile
 +++++++
 
-User mode requires a profile defined in YAML. 
+User mode requires a profile defined in YAML.
+Multiple YAML files may be specified in which case operations in the ops argument are referenced as specname.opname.
+
+An identifier for the profile::
+
+  specname: staff_activities
 
 The keyspace for the test::
 
@@ -208,6 +213,12 @@ This will create the schema then run tests for 1 minute with an equal number of 
 queries. Additionally the table will be truncated once before the test.
 
 The full example can be found here :download:`yaml <./stress-example.yaml>`
+
+Running a user mode test with multiple yaml files::
+    cassandra-stress user profile=./example.yaml,./example2.yaml duration=1m "ops(ex1.insert=1,ex1.latest_event=1,ex2.insert=2)" truncate=once
+
+This will run operations as specified in both the example.yaml and example2.yaml files. example.yaml and example2.yaml can reference the same table
+ although care must be taken that the table definition is identical (data generation specs can be different).
 
 Graphing
 ^^^^^^^^

@@ -1923,6 +1923,17 @@ public class SASIIndexTest
 
         try
         {
+            // unsupported partition key column
+            SASIIndex.validateOptions(Collections.singletonMap("target", "id"), store.metadata());
+            Assert.fail();
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.assertTrue(e.getMessage().contains("partition key columns are not yet supported by SASI"));
+        }
+
+        try
+        {
             // invalid index mode
             SASIIndex.validateOptions(new HashMap<String, String>()
                                       {{ put("target", "address"); put("mode", "NORMAL"); }},

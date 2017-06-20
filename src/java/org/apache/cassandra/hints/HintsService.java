@@ -295,10 +295,11 @@ public final class HintsService implements HintsServiceMBean
     /**
      * Cleans up hints-related state after a node with id = hostId left.
      *
-     * Dispatcher should stop itself (isHostAlive() will start returning false for the leaving host), but we'll wait for
-     * completion anyway.
+     * Dispatcher can not stop itself (isHostAlive() can not start returning false for the leaving host because this
+     * method is called by the same thread as gossip, which blocks gossip), so we can't simply wait for
+     * completion.
      *
-     * We should also flush the buffer is there are any thints for the node there, and close the writer (if any),
+     * We should also flush the buffer if there are any hints for the node there, and close the writer (if any),
      * so that we don't leave any hint files lying around.
      *
      * Once that is done, we can simply delete all hint files and remove the host id from the catalog.
@@ -327,8 +328,8 @@ public final class HintsService implements HintsServiceMBean
             throw new RuntimeException(e);
         }
 
-        // wait for the current dispatch session to end (if any), so that the currently dispatched file gets removed
-        dispatchExecutor.completeDispatchBlockingly(store);
+        // interrupt the current dispatch session to end (if any), so that the currently dispatched file gets removed
+        dispatchExecutor.interruptDispatch(store.hostId);
 
         // delete all the hints files and remove the HintsStore instance from the map in the catalog
         catalog.exciseStore(hostId);

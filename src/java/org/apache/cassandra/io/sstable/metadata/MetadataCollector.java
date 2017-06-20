@@ -39,7 +39,8 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MurmurHash;
-import org.apache.cassandra.utils.StreamingHistogram;
+import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
+import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder;
 
 public class MetadataCollector implements PartitionStatisticsCollector
 {
@@ -57,9 +58,9 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return new EstimatedHistogram(150);
     }
 
-    static StreamingHistogram defaultTombstoneDropTimeHistogram()
+    static TombstoneHistogram defaultTombstoneDropTimeHistogram()
     {
-        return new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS);
+        return TombstoneHistogram.createDefault();
     }
 
     public static StatsMetadata defaultStatsMetadata()
@@ -93,7 +94,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     protected final MinMaxIntTracker localDeletionTimeTracker = new MinMaxIntTracker(Cell.NO_DELETION_TIME, Cell.NO_DELETION_TIME);
     protected final MinMaxIntTracker ttlTracker = new MinMaxIntTracker(Cell.NO_TTL, Cell.NO_TTL);
     protected double compressionRatio = NO_COMPRESSION_RATIO;
-    protected StreamingHistogram estimatedTombstoneDropTime = defaultTombstoneDropTimeHistogram();
+    protected StreamingTombstoneHistogramBuilder estimatedTombstoneDropTime = new StreamingTombstoneHistogramBuilder(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS);
     protected int sstableLevel;
     protected ByteBuffer[] minClusteringValues;
     protected ByteBuffer[] maxClusteringValues;
@@ -148,12 +149,6 @@ public class MetadataCollector implements PartitionStatisticsCollector
     public MetadataCollector addCellPerPartitionCount(long cellCount)
     {
         estimatedCellPerPartitionCount.add(cellCount);
-        return this;
-    }
-
-    public MetadataCollector mergeTombstoneHistogram(StreamingHistogram histogram)
-    {
-        estimatedTombstoneDropTime.merge(histogram);
         return this;
     }
 
@@ -291,7 +286,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              ttlTracker.min(),
                                                              ttlTracker.max(),
                                                              compressionRatio,
-                                                             estimatedTombstoneDropTime,
+                                                             estimatedTombstoneDropTime.build(),
                                                              sstableLevel,
                                                              makeList(minClusteringValues),
                                                              makeList(maxClusteringValues),

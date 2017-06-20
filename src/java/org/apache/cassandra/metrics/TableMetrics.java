@@ -146,6 +146,22 @@ public class TableMetrics
     public final LatencyMetrics casCommit;
     /** percent of the data that is repaired */
     public final Gauge<Double> percentRepaired;
+    /** time spent anticompacting data before participating in a consistent repair */
+    public final TableTimer anticompactionTime;
+    /** time spent creating merkle trees */
+    public final TableTimer validationTime;
+    /** time spent syncing data in a repair */
+    public final TableTimer syncTime;
+    /** approximate number of bytes read while creating merkle trees */
+    public final TableHistogram bytesValidated;
+    /** number of partitions read creating merkle trees */
+    public final TableHistogram partitionsValidated;
+    /** number of bytes read while doing anticompaction */
+    public final Counter bytesAnticompacted;
+    /** number of bytes where the whole sstable was contained in a repairing range so that we only mutated the repair status */
+    public final Counter bytesMutatedAnticompaction;
+    /** ratio of how much we anticompact vs how much we could mutate the repair status*/
+    public final Gauge<Double> mutatedAnticompactionGauge;
 
     public final Timer coordinatorReadLatency;
     public final Timer coordinatorScanLatency;
@@ -706,6 +722,23 @@ public class TableMetrics
         casPrepare = new LatencyMetrics(factory, "CasPrepare", cfs.keyspace.metric.casPrepare);
         casPropose = new LatencyMetrics(factory, "CasPropose", cfs.keyspace.metric.casPropose);
         casCommit = new LatencyMetrics(factory, "CasCommit", cfs.keyspace.metric.casCommit);
+
+        anticompactionTime = createTableTimer("AnticompactionTime", cfs.keyspace.metric.anticompactionTime);
+        validationTime = createTableTimer("ValidationTime", cfs.keyspace.metric.validationTime);
+        syncTime = createTableTimer("SyncTime", cfs.keyspace.metric.repairSyncTime);
+
+        bytesValidated = createTableHistogram("BytesValidated", cfs.keyspace.metric.bytesValidated, false);
+        partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
+        bytesAnticompacted = createTableCounter("BytesAnticompacted");
+        bytesMutatedAnticompaction = createTableCounter("BytesMutatedAnticompaction");
+        mutatedAnticompactionGauge = createTableGauge("MutatedAnticompactionGauge", () ->
+        {
+            double bytesMutated = bytesMutatedAnticompaction.getCount();
+            double bytesAnticomp = bytesAnticompacted.getCount();
+            if (bytesAnticomp + bytesMutated > 0)
+                return bytesMutated / (bytesAnticomp + bytesMutated);
+            return 0.0;
+        });
     }
 
     public void updateSSTableIterated(int count)
@@ -722,8 +755,12 @@ public class TableMetrics
         {
             CassandraMetricsRegistry.MetricName name = factory.createMetricName(entry.getKey());
             CassandraMetricsRegistry.MetricName alias = aliasFactory.createMetricName(entry.getValue());
-            allTableMetrics.get(entry.getKey()).remove(Metrics.getMetrics().get(name.getMetricName()));
-            Metrics.remove(name, alias);
+            final Metric metric = Metrics.getMetrics().get(name.getMetricName());
+            if (metric != null)
+            {   // Metric will be null if it's a view metric we are releasing. Views have null for ViewLockAcquireTime and ViewLockReadTime
+                allTableMetrics.get(entry.getKey()).remove(metric);
+                Metrics.remove(name, alias);
+            }
         }
         readLatency.release();
         writeLatency.release();
@@ -916,6 +953,30 @@ public class TableMetrics
             for(Timer timer : all)
             {
                 timer.update(i, unit);
+            }
+        }
+
+        public Context time()
+        {
+            return new Context(all);
+        }
+
+        public static class Context implements AutoCloseable
+        {
+            private final long start;
+            private final Timer [] all;
+
+            private Context(Timer [] all)
+            {
+                this.all = all;
+                start = System.nanoTime();
+            }
+
+            public void close()
+            {
+                long duration = System.nanoTime() - start;
+                for (Timer t : all)
+                    t.update(duration, TimeUnit.NANOSECONDS);
             }
         }
     }

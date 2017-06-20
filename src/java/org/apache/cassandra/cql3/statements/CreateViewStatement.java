@@ -160,6 +160,10 @@ public class CreateViewStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("Cannot use function when defining a materialized view");
             if (selectable instanceof Selectable.WritetimeOrTTL.Raw)
                 throw new InvalidRequestException("Cannot use function when defining a materialized view");
+            if (selectable instanceof Selectable.WithElementSelection.Raw)
+                throw new InvalidRequestException("Cannot use collection element selection when defining a materialized view");
+            if (selectable instanceof Selectable.WithSliceSelection.Raw)
+                throw new InvalidRequestException("Cannot use collection slice selection when defining a materialized view");
             if (selector.alias != null)
                 throw new InvalidRequestException("Cannot use alias when defining a materialized view");
 

@@ -52,6 +52,7 @@ import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -146,7 +147,7 @@ public class PendingAntiCompactionTest
 
         // create a session so the anti compaction can fine it
         UUID sessionID = UUIDGen.getTimeUUID();
-        ActiveRepairService.instance.registerParentRepairSession(sessionID, InetAddress.getLocalHost(), Lists.newArrayList(cfs), ranges, true, 1, true);
+        ActiveRepairService.instance.registerParentRepairSession(sessionID, InetAddress.getLocalHost(), Lists.newArrayList(cfs), ranges, true, 1, true, PreviewKind.NONE);
 
         PendingAntiCompaction pac;
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -252,6 +253,20 @@ public class PendingAntiCompactionTest
         Assert.assertEquals(1, result.txn.originals().size());
         Assert.assertTrue(result.txn.originals().contains(unrepaired));
         result.abort();  // releases sstable refs
+    }
+
+    @Test
+    public void pendingRepairNoSSTablesExist() throws Exception
+    {
+        cfs.disableAutoCompaction();
+
+        Assert.assertEquals(0, cfs.getLiveSSTables().size());
+
+        PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, UUIDGen.getTimeUUID());
+        PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
+        Assert.assertNotNull(result);
+
+        result.abort();  // There's nothing to release, but we should exit cleanly
     }
 
     /**

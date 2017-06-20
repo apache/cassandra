@@ -26,6 +26,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 import com.google.common.util.concurrent.RateLimiter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -43,6 +45,8 @@ import org.apache.cassandra.utils.concurrent.SimpleCondition;
  */
 final class HintsDispatcher implements AutoCloseable
 {
+    private static final Logger logger = LoggerFactory.getLogger(HintsDispatcher.class);
+
     private enum Action { CONTINUE, ABORT }
 
     private final HintsReader reader;
@@ -194,7 +198,7 @@ final class HintsDispatcher implements AutoCloseable
 
     private static final class Callback implements IAsyncCallbackWithFailure
     {
-        enum Outcome { SUCCESS, TIMEOUT, FAILURE }
+        enum Outcome { SUCCESS, TIMEOUT, FAILURE, INTERRUPTED }
 
         private final long start = System.nanoTime();
         private final SimpleCondition condition = new SimpleCondition();
@@ -217,7 +221,8 @@ final class HintsDispatcher implements AutoCloseable
             }
             catch (InterruptedException e)
             {
-                throw new AssertionError(e);
+                logger.warn("Hint dispatch was interrupted", e);
+                return Outcome.INTERRUPTED;
             }
 
             return timedOut ? Outcome.TIMEOUT : outcome;

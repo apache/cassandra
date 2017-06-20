@@ -32,6 +32,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
@@ -64,6 +65,11 @@ public class RepairJobDesc
     public String toString()
     {
         return "[repair #" + sessionId + " on " + keyspace + "/" + columnFamily + ", " + ranges + "]";
+    }
+
+    public String toString(PreviewKind previewKind)
+    {
+        return '[' + previewKind.logPrefix() + " #" + sessionId + " on " + keyspace + "/" + columnFamily + ", " + ranges + "]";
     }
 
     @Override

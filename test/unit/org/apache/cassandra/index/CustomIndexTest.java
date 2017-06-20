@@ -68,7 +68,7 @@ public class CustomIndexTest extends CQLTester
         // test to ensure that we don't deadlock when flushing CFS backed custom indexers
         // see CASSANDRA-10181
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
-        createIndex("CREATE CUSTOM INDEX myindex ON %s(c) USING 'org.apache.cassandra.index.internal.CustomCassandraIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(c) USING 'org.apache.cassandra.index.internal.CustomCassandraIndex'");
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 0, 2);
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 0, 1);
@@ -81,7 +81,7 @@ public class CustomIndexTest extends CQLTester
         // deadlocks and times out the test in the face of the synchronisation
         // issues described in the comments on CASSANDRA-9669
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a))");
-        createIndex("CREATE CUSTOM INDEX b_index ON %s(b) USING 'org.apache.cassandra.index.StubIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'org.apache.cassandra.index.StubIndex'");
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 2);
         getCurrentColumnFamilyStore().truncateBlocking();
     }

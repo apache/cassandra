@@ -2796,4 +2796,12 @@ public class StorageProxy implements StorageProxyMBean
         DatabaseDescriptor.setIdealConsistencyLevel(newCL);
         return String.format("Updating ideal consistency level new value: %s old value %s", newCL, original.toString());
     }
+
+    public int getOtcBacklogExpirationInterval() {
+        return DatabaseDescriptor.getOtcBacklogExpirationInterval();
+    }
+
+    public void setOtcBacklogExpirationInterval(int intervalInMillis) {
+        DatabaseDescriptor.setOtcBacklogExpirationInterval(intervalInMillis);
+    }
 }

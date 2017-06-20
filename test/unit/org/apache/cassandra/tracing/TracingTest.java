@@ -32,7 +32,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.progress.ProgressEvent;
-import org.apache.cassandra.utils.progress.ProgressListener;
+import org.apache.commons.lang3.StringUtils;
 
 public final class TracingTest
 {
@@ -154,25 +154,25 @@ public final class TracingTest
         tracing.begin("test-request", Collections.<String,String>emptyMap());
         tracing.get().enableActivityNotification("test-tag");
 
-        tracing.get().addProgressListener(
-                new ProgressListener()
-                {
-                    public void progress(String tag, ProgressEvent pe)
-                    {
-                        assert "test-tag".equals(tag);
-                        assert "test-trace".equals(pe.getMessage());
-                    }
-                });
+        tracing.get().addProgressListener((String tag, ProgressEvent pe) -> {
+            assert "test-tag".equals(tag);
+            assert "test-trace".equals(pe.getMessage());
+        });
 
         tracing.get().trace("test-trace");
         tracing.stopSession();
         assert null == tracing.get();
     }
 
-    private class TracingImpl extends Tracing
+    private static final class TracingImpl extends Tracing
     {
         private final List<String> traces;
         private final Map<String,ByteBuffer> payloads = new HashMap<>();
+
+        public TracingImpl()
+        {
+            this(new ArrayList<>());
+        }
 
         public TracingImpl(List<String> traces)
         {
@@ -190,6 +190,9 @@ public final class TracingTest
 
         protected UUID newSession(UUID sessionId, TraceType traceType, Map<String,ByteBuffer> customPayload)
         {
+            if (!customPayload.isEmpty())
+                logger.info("adding custom payload items {}", StringUtils.join(customPayload.keySet(), ','));
+
             payloads.putAll(customPayload);
             return super.newSession(sessionId, traceType, customPayload);
         }

@@ -81,8 +81,8 @@ public class LocalSession extends ConsistentSession
     public String toString()
     {
         return "LocalSession{" +
-               "state=" + getState() +
-               ", sessionID=" + sessionID +
+               "sessionID=" + sessionID +
+               ", state=" + getState() +
                ", coordinator=" + coordinator +
                ", tableIds=" + tableIds +
                ", repairedAt=" + repairedAt +

@@ -160,7 +160,7 @@ public class BatchMessage extends Message.Request
 
             if (state.traceNextQuery())
             {
-                state.createTracingSession();
+                state.createTracingSession(getCustomPayload());
 
                 ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
                 if(options.getConsistency() != null)
@@ -180,7 +180,8 @@ public class BatchMessage extends Message.Request
                 ParsedStatement.Prepared p;
                 if (query instanceof String)
                 {
-                    p = QueryProcessor.parseStatement((String)query, state);
+                    p = QueryProcessor.parseStatement((String)query,
+                                                      state.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace()));
                 }
                 else
                 {

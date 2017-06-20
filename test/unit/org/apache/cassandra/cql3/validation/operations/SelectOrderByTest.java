@@ -455,6 +455,23 @@ public class SelectOrderByTest extends CQLTester
     }
 
     @Test
+    public void testOrderByForInClauseWithCollectionElementSelection() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c frozen<set<int>>, v int, PRIMARY KEY (pk, c))");
+
+        execute("INSERT INTO %s (pk, c, v) VALUES (0, {1, 2}, 0)");
+        execute("INSERT INTO %s (pk, c, v) VALUES (0, {1, 2, 3}, 1)");
+        execute("INSERT INTO %s (pk, c, v) VALUES (1, {2, 3}, 2)");
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT c[2], v FROM %s WHERE pk = 0 ORDER BY c"),
+                       row(2, 0), row(2, 1));
+            assertRows(execute("SELECT c[2], v FROM %s WHERE pk IN (0, 1) ORDER BY c"),
+                       row(2, 0), row(2, 1), row(2, 2));
+        });
+    }
+
+    @Test
     public void testOrderByForInClauseWithNullValue() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, s int static, d int, PRIMARY KEY (a, b, c))");

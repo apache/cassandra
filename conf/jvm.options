@@ -79,6 +79,9 @@
 # 10000 rows per page.
 #-Dcassandra.force_default_indexing_page_size=true
 
+# Imposes an upper bound on hint lifetime below the normal min gc_grace_seconds
+#-Dcassandra.maxHintTTL=max_hint_ttl_in_seconds
+
 ########################
 # GENERAL JVM SETTINGS #
 ########################

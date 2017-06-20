@@ -493,17 +493,7 @@ public class AuthorizationProxy implements InvocationHandler
 
         public Set<PermissionDetails> get(RoleResource roleResource)
         {
-            try
-            {
-                return super.get(roleResource);
-            }
-            catch (Exception e)
-            {
-                // because the outer class uses this method as Function<RoleResource, Set<PermissionDetails>>,
-                // which can be overridden for testing, it cannot throw checked exceptions. So here we simply
-                // use guava's propagation helper.
-                throw Throwables.propagate(e);
-            }
+            return super.get(roleResource);
         }
     }
 }

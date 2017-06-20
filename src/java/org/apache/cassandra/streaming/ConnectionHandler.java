@@ -64,10 +64,12 @@ public class ConnectionHandler
 
     private IncomingMessageHandler incoming;
     private OutgoingMessageHandler outgoing;
+    private final boolean isPreview;
 
-    ConnectionHandler(StreamSession session, int incomingSocketTimeout)
+    ConnectionHandler(StreamSession session, int incomingSocketTimeout, boolean isPreview)
     {
         this.session = session;
+        this.isPreview = isPreview;
         this.incoming = new IncomingMessageHandler(session, incomingSocketTimeout);
         this.outgoing = new OutgoingMessageHandler(session);
     }
@@ -142,6 +144,9 @@ public class ConnectionHandler
         if (outgoing.isClosed())
             throw new RuntimeException("Outgoing stream handler has been closed");
 
+        if (message.type == StreamMessage.Type.FILE && isPreview)
+            throw new RuntimeException("Cannot send file messages for preview streaming sessions");
+
         outgoing.enqueue(message);
     }
 
@@ -191,15 +196,14 @@ public class ConnectionHandler
         @SuppressWarnings("resource")
         private void sendInitMessage() throws IOException
         {
-            StreamInitMessage message = new StreamInitMessage(
-                    FBUtilities.getBroadcastAddress(),
-                    session.sessionIndex(),
-                    session.planId(),
-                    session.streamOperation(),
-                    !isOutgoingHandler,
-                    session.keepSSTableLevel(),
-                    session.isIncremental(),
-                    session.getPendingRepair());
+            StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddress(),
+                                                              session.sessionIndex(),
+                                                              session.planId(),
+                                                              session.streamOperation(),
+                                                              !isOutgoingHandler,
+                                                              session.keepSSTableLevel(),
+                                                              session.getPendingRepair(),
+                                                              session.getPreviewKind());
             ByteBuffer messageBuf = message.createMessage(false, protocolVersion);
             DataOutputStreamPlus out = getWriteChannel(socket);
             out.write(messageBuf);

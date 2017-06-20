@@ -332,7 +332,7 @@ Table of Contents
     <query><query_parameters>
   where <query> is a [long string] representing the query and
   <query_parameters> must be
-    <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
+    <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>][<keyspace>]
   where:
     - <consistency> is the [consistency] level for the operation.
     - <flags> is a [int] whose bits define the options for this query and
@@ -375,6 +375,9 @@ Table of Contents
               since the names for the expected values was returned during preparation,
               a client can always provide values in the right order without any names
               and using this flag, while supported, is almost surely inefficient.
+        0x80: With keyspace. If set, <keyspace> must be present. <keyspace> is a
+              [string] indicating the keyspace that the query should be executed in.
+              It supercedes the keyspace that the connection is bound to, if any.
 
   Note that the consistency is ignored by some queries (USE, CREATE, ALTER,
   TRUNCATE, ...).
@@ -385,8 +388,17 @@ Table of Contents
 
 4.1.5. PREPARE
 
-  Prepare a query for later execution (through EXECUTE). The body consists of
-  the CQL query to prepare as a [long string].
+  Prepare a query for later execution (through EXECUTE). The body of the message must be:
+    <query><flags>[<keyspace>]
+  where:
+    - <query> is a [long string] representing the CQL query.
+    - <flags> is a [int] whose bits define the options for this statement and in particular
+      influence what the remainder of the message contains.
+      A flag is set if the bit corresponding to its `mask` is set. Supported
+      flags are, given their mask:
+        0x01: With keyspace. If set, <keyspace> must be present. <keyspace> is a
+              [string] indicating the keyspace that the query should be executed in.
+              It supercedes the keyspace that the connection is bound to, if any.
 
   The server will respond with a RESULT message with a `prepared` kind (0x0004,
   see Section 4.2.5).
@@ -408,7 +420,7 @@ Table of Contents
   Allows executing a list of queries (prepared or not) as a batch (note that
   only DML statements are accepted in a batch). The body of the message must
   be:
-    <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>]
+    <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>][<keyspace>]
   where:
     - <type> is a [byte] indicating the type of batch to use:
         - If <type> == 0, the batch will be "logged". This is equivalent to a
@@ -440,6 +452,9 @@ Table of Contents
               to implement. This will be fixed in a future version of the native
               protocol. See https://issues.apache.org/jira/browse/CASSANDRA-10246 for
               more details].
+        0x80: With keyspace. If set, <keyspace> must be present. <keyspace> is a
+              [string] indicating the keyspace that the query should be executed in.
+              It supercedes the keyspace that the connection is bound to, if any.
     - <n> is a [short] indicating the number of following queries.
     - <query_1>...<query_n> are the queries to execute. A <query_i> must be of the
       form:
@@ -905,6 +920,8 @@ Table of Contents
   A duration is composed of 3 signed variable length integers ([vint]s).
   The first [vint] represents a number of months, the second [vint] represents
   a number of days, and the last [vint] represents a number of nanoseconds.
+  The number of months and days must be valid 32 bits integers whereas the
+  number of nanoseconds must be a valid 64 bits integer.
   A duration can either be positive or negative. If a duration is positive
   all the integers must be positive or zero. If a duration is
   negative all the numbers must be negative or zero.
@@ -1211,3 +1228,5 @@ Table of Contents
   * Enlarged flag's bitmaps for QUERY, EXECUTE and BATCH messages from [byte] to [int]
     (Sections 4.1.4, 4.1.6 and 4.1.7).
   * Add the duration data type
+  * Added keyspace field in QUERY, PREPARE, and BATCH messages (Sections 4.1.4, 4.1.5, and 4.1.7).
+  * Added [int] flags field in PREPARE message (Section 4.1.5).

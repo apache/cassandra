@@ -458,6 +458,32 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     /**
+     * Tests whether a CQL value having this type can be assigned to the provided receiver.
+     *
+     * @param keyspace the keyspace from which the receiver is.
+     * @param receiver the receiver for which we want to test type compatibility with.
+     */
+    public AssignmentTestable.TestResult testAssignment(AbstractType<?> receiverType)
+    {
+        // testAssignement is for CQL literals and native protocol values, none of which make a meaningful
+        // difference between frozen or not and reversed or not.
+
+        if (isFreezable() && !isMultiCell())
+            receiverType = receiverType.freeze();
+
+        if (isReversed() && !receiverType.isReversed())
+            receiverType = ReversedType.getInstance(receiverType);
+
+        if (equals(receiverType))
+            return AssignmentTestable.TestResult.EXACT_MATCH;
+
+        if (receiverType.isValueCompatibleWith(this))
+            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+
+        return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+    }
+
+    /**
      * This must be overriden by subclasses if necessary so that for any
      * AbstractType, this == TypeParser.parse(toString()).
      *
@@ -493,24 +519,5 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public final AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
     {
         return testAssignment(receiver.type);
-    }
-
-    public final AssignmentTestable.TestResult testAssignment(AbstractType<?> receiverType)
-    {
-        // We should ignore the fact that the output type is frozen in our comparison as functions do not support
-        // frozen types for arguments
-        if (isFreezable() && !isMultiCell())
-            receiverType = receiverType.freeze();
-
-        if (isReversed())
-            receiverType = ReversedType.getInstance(receiverType);
-
-        if (equals(receiverType))
-            return AssignmentTestable.TestResult.EXACT_MATCH;
-
-        if (receiverType.isValueCompatibleWith(this))
-            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
-
-        return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
     }
 }

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.hints;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -34,7 +35,6 @@ import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * A paged non-compressed hints reader that provides two iterators:
@@ -164,6 +164,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
     final class HintsIterator extends AbstractIterator<Hint>
     {
         private final InputPosition offset;
+        private final long now = System.currentTimeMillis();
 
         HintsIterator(InputPosition offset)
         {
@@ -188,6 +189,11 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 try
                 {
                     hint = computeNextInternal();
+                }
+                catch (EOFException e)
+                {
+                    logger.warn("Unexpected EOF replaying hints ({}), likely due to unflushed hint file on shutdown; continuing", descriptor.fileName(), e);
+                    return endOfData();
                 }
                 catch (IOException e)
                 {
@@ -222,7 +228,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
             Hint hint;
             try
             {
-                hint = Hint.serializer.deserialize(input, descriptor.messagingVersion());
+                hint = Hint.serializer.deserializeIfLive(input, now, size, descriptor.messagingVersion());
                 input.checkLimit(0);
             }
             catch (UnknownTableException e)
@@ -256,6 +262,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
     final class BuffersIterator extends AbstractIterator<ByteBuffer>
     {
         private final InputPosition offset;
+        private final long now = System.currentTimeMillis();
 
         BuffersIterator(InputPosition offset)
         {
@@ -280,6 +287,11 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 try
                 {
                     buffer = computeNextInternal();
+                }
+                catch (EOFException e)
+                {
+                    logger.warn("Unexpected EOF replaying hints ({}), likely due to unflushed hint file on shutdown; continuing", descriptor.fileName(), e);
+                    return endOfData();
                 }
                 catch (IOException e)
                 {
@@ -311,7 +323,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 rateLimiter.acquire(size);
             input.limit(size);
 
-            ByteBuffer buffer = ByteBufferUtil.read(input, size);
+            ByteBuffer buffer = Hint.serializer.readBufferIfLive(input, now, size, descriptor.messagingVersion());
             if (input.checkCrc())
                 return buffer;
 

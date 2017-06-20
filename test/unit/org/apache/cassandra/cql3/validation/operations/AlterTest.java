@@ -272,6 +272,25 @@ public class AlterTest extends CQLTester
         execute("DROP KEYSPACE IF EXISTS testABC");
     }
 
+    @Test
+    public void testAlterKeyspaceWithMultipleInstancesOfSameDCThrowsSyntaxException() throws Throwable
+    {
+        try
+        {
+            // Create a keyspace
+            execute("CREATE KEYSPACE testABC WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2}");
+
+            // try modifying the keyspace
+            assertInvalidThrow(SyntaxException.class, "ALTER KEYSPACE testABC WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2, '" + DATA_CENTER + "' : 3 }");
+            execute("ALTER KEYSPACE testABC WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 3}");
+        }
+        finally
+        {
+            // clean-up
+            execute("DROP KEYSPACE IF EXISTS testABC");
+        }
+    }
+
     /**
      * Test for bug of 5232,
      * migrated from cql_tests.py:TestCQL.alter_bug_test()

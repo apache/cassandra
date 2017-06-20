@@ -23,6 +23,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -61,6 +62,15 @@ public class TermSelector extends Selector
             {
                 return new TermSelector(term.bindAndGet(options), type);
             }
+
+            public void addFetchedColumns(ColumnFilter.Builder builder)
+            {
+            }
+
+            public boolean areAllFetchedColumnsKnown()
+            {
+                return true;
+            }
         };
     }
 
@@ -70,7 +80,11 @@ public class TermSelector extends Selector
         this.type = type;
     }
 
-    public void addInput(ProtocolVersion protocolVersion, Selection.ResultSetBuilder rs) throws InvalidRequestException
+    public void addFetchedColumns(ColumnFilter.Builder builder)
+    {
+    }
+
+    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
     }
 
