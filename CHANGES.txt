@@ -1,4 +1,5 @@
 3.11.3
+ * Update metrics to 3.1.5 (CASSANDRA-12924)
  * Detect OpenJDK jvm type and architecture (CASSANDRA-12793)
  * Don't use guava collections in the non-system keyspace jmx attributes (CASSANDRA-12271)
  * Allow existing nodes to use all peers in shadow round (CASSANDRA-13851)
