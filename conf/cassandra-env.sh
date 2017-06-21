@@ -42,6 +42,17 @@ calculate_heap_sizes()
             system_cpu_cores="2"
         ;;
     esac
+    
+    # Adding a check if arch==ppc64le 
+    # Increase the stack size to 512k,
+    # Tickets reference: #13345 #13601
+    case "`uname -m`" in
+        ppc64le)
+           # Per-thread stack size.
+           JVM_OPTS="$JVM_OPTS -Xss512k"
+
+       ;;
+    esac
 
     # some systems like the raspberry pi don't report cores, use at least 1
     if [ "$system_cpu_cores" -lt "1" ]
