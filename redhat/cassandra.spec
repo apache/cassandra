@@ -2,10 +2,13 @@
 # Turn off the brp-python-bytecompile script
 %global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
 
+# rpmbuild should not barf when it spots we ship
+# binary executable files in our 'noarch' package
+%define _binaries_in_noarch_packages_terminate_build   0
+
 %global username cassandra
 
 %define relname apache-cassandra-%{version}
-%define revision 1
 
 Name:          cassandra
 Version:       %{version}
@@ -18,7 +21,7 @@ URL:           http://cassandra.apache.org/
 Source0:       %{relname}-src.tar.gz
 BuildRoot:     %{_tmppath}/%{relname}root-%(%{__id_u} -n)
 
-BuildRequires: ant
+BuildRequires: ant >= 1.9
 
 Requires:      jre >= 1.7.0
 Requires:      python(abi) >= 2.7
