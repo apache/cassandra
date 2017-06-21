@@ -333,9 +333,10 @@ public class LocalSessions
                        "coordinator, " +
                        "coordinator_port, " +
                        "participants, " +
+                       "participants_wp," +
                        "ranges, " +
                        "cfids) " +
-                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         QueryProcessor.executeInternal(String.format(query, keyspace, table),
                                        session.sessionID,
@@ -345,6 +346,7 @@ public class LocalSessions
                                        session.getState().ordinal(),
                                        session.coordinator.address,
                                        session.coordinator.port,
+                                       session.participants.stream().map(participant -> participant.address.getHostAddress()).collect(Collectors.toSet()),
                                        session.participants.stream().map(participant -> participant.toString()).collect(Collectors.toSet()),
                                        serializeRanges(session.ranges),
                                        tableIdToUuid(session.tableIds));

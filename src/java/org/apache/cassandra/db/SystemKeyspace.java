@@ -320,6 +320,7 @@ public final class SystemKeyspace
           + "coordinator inet, "
           + "coordinator_port int,"
           + "participants set<text>,"
+          + "participants_wp set<text>,"
           + "ranges set<blob>, "
           + "cfids set<uuid>, "
           + "PRIMARY KEY (parent_id))").build();
