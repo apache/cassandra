@@ -80,6 +80,11 @@
  * Trivial format error in StorageProxy (CASSANDRA-13551)
 
 
+3.11.1
+Merged from 3.0:
+  * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)
+
+
 3.11.0
  * Replace string comparison with regex/number checks in MessagingService test (CASSANDRA-13216)
  * Fix formatting of duration columns in CQLSH (CASSANDRA-13549)

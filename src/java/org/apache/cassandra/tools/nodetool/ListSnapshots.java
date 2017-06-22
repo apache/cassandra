@@ -42,7 +42,7 @@ public class ListSnapshots extends NodeToolCmd
             final Map<String,TabularData> snapshotDetails = probe.getSnapshotDetails();
             if (snapshotDetails.isEmpty())
             {
-                System.out.printf("There are no snapshots");
+                System.out.println("There are no snapshots");
                 return;
             }
 
