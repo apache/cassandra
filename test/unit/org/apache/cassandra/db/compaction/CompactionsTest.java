@@ -22,8 +22,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
+import java.util.concurrent.CancellationException;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -42,6 +44,10 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.metrics.CompactionMetrics;
+import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.Validator;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -381,6 +387,80 @@ public class CompactionsTest
         sstables = cfs.getSSTables();
         assertEquals(1, sstables.size());
         assertEquals( prevGeneration + 1, sstables.iterator().next().descriptor.generation);
+    }
+
+    @Test(expected = CompactionInterruptedException.class)
+    public void testInterruptCompactionFor() throws Throwable
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        final String cfname = CF_STANDARD2;
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+
+        // disable compaction while flushing
+        cfs.disableAutoCompaction();
+
+        populate(KEYSPACE1, CF_STANDARD2, 0, 9, 3); //ttl=3s
+        cfs.forceBlockingFlush();
+        populate(KEYSPACE1, CF_STANDARD2, 0, 9, 3); //ttl=3s
+        cfs.forceBlockingFlush();
+        populate(KEYSPACE1, CF_STANDARD2, 0, 9, 3); //ttl=3s
+        cfs.forceBlockingFlush();
+        populate(KEYSPACE1, CF_STANDARD2, 0, 9, 3); //ttl=3s
+        cfs.forceBlockingFlush();
+
+        assertEquals(4, cfs.getSSTables().size());
+
+        // wait enough to force single compaction
+        TimeUnit.SECONDS.sleep(5);
+
+        // kick off a validation we can interrupt
+        Range<Token> range = new Range<>(Util.token(""), Util.token(""));
+        int gcBefore = keyspace.getColumnFamilyStore(cfname).gcBefore(System.currentTimeMillis());
+        UUID parentRepSession = UUID.randomUUID();
+        ActiveRepairService.instance.registerParentRepairSession(parentRepSession, FBUtilities.getBroadcastAddress(), Arrays.asList(cfs), Arrays.asList(range), false, true);
+        RepairJobDesc desc = new RepairJobDesc(parentRepSession, UUID.randomUUID(), KEYSPACE1, cfname, range);
+        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddress(), gcBefore);
+
+        List<OperationType> interrupt = new ArrayList<>();
+        interrupt.add(OperationType.VALIDATION);
+
+        // submit a normal compaction to ensure it doesn't get interrupted
+        cfs.enableAutoCompaction();
+        List<Future<?>> compactions = CompactionManager.instance.submitBackground(cfs);
+        assertTrue(compactions.size() == 1);
+        Future<?> compaction = compactions.get(0);
+        while (!compaction.isDone() && !(CompactionManager.instance.getActiveCompactions() > 0))
+        {
+            Thread.sleep(10);
+        }
+        CompactionManager.instance.interruptCompactionFor(new ArrayList<CFMetaData>(Collections.singletonList(cfs.metadata)), interrupt);
+
+        try
+        {
+            // should not throw exception as we didn't interrupt.
+            compaction.get();
+        }
+        catch (Exception ex)
+        {
+            fail("Compaction was interrupted when it should not have been");
+        }
+
+        Future<?> validation = CompactionManager.instance.submitValidation(cfs, validator);
+
+        while (!validation.isDone() && !(CompactionManager.instance.getActiveCompactions() > 0))
+        {
+            Thread.sleep(10);
+        }
+
+        CompactionManager.instance.interruptCompactionFor(new ArrayList<CFMetaData>(Collections.singletonList(cfs.metadata)), interrupt);
+
+        try
+        {
+            validation.get();
+        } catch (ExecutionException e)
+        {
+            throw (CompactionInterruptedException) e.getCause();
+        }
     }
 
     @Test
