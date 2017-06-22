@@ -19,6 +19,7 @@
 package org.apache.cassandra.repair.consistent;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
@@ -369,19 +370,20 @@ public class LocalSessions
         builder.withTableIds(uuidToTableId(row.getSet("cfids", UUIDType.instance)));
         builder.withRepairedAt(row.getTimestamp("repaired_at").getTime());
         builder.withRanges(deserializeRanges(row.getSet("ranges", BytesType.instance)));
-        Set<String> participants = row.getSet("participants", UTF8Type.instance);
+        //There is no cross version streaming and thus no cross version repair so assume that
+        //any valid repair sessions has the participants_wp column and any that doesn't is malformed
+        Set<String> participants = row.getSet("participants_wp", UTF8Type.instance);
         builder.withParticipants(participants.stream().map(participant ->
-                                                           {
-                                                               try
-                                                               {
-                                                                   return InetAddressAndPort.getByName(participant);
-                                                               }
-                                                               catch (UnknownHostException e)
-                                                               {
-                                                                   throw new RuntimeException(e);
-                                                               }
-                                                           }).collect(Collectors.toSet()));
-
+                                                             {
+                                                                 try
+                                                                 {
+                                                                     return InetAddressAndPort.getByName(participant);
+                                                                 }
+                                                                 catch (UnknownHostException e)
+                                                                 {
+                                                                     throw new RuntimeException(e);
+                                                                 }
+                                                             }).collect(Collectors.toSet()));
         builder.withStartedAt(dateToSeconds(row.getTimestamp("started_at")));
         builder.withLastUpdate(dateToSeconds(row.getTimestamp("last_update")));
 
