@@ -632,7 +632,6 @@ public class CustomCassandraIndex implements Index
                             baseCfs.metadata.keyspace,
                             baseCfs.metadata.name,
                             metadata.name);
-                baseCfs.indexManager.markIndexBuilt(metadata.name);
                 return;
             }
 
@@ -646,7 +645,6 @@ public class CustomCassandraIndex implements Index
             Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
             FBUtilities.waitOnFuture(future);
             indexCfs.forceBlockingFlush();
-            baseCfs.indexManager.markIndexBuilt(metadata.name);
         }
         logger.info("Index build of {} complete", metadata.name);
     }

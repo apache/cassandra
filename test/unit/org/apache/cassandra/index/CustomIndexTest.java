@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.QueryValidationException;
@@ -111,7 +112,7 @@ public class CustomIndexTest extends CQLTester
         excluded.reset();
         assertTrue(excluded.rowsInserted.isEmpty());
 
-        indexManager.buildAllIndexesBlocking(getCurrentColumnFamilyStore().getLiveSSTables());
+        indexManager.rebuildIndexesBlocking(Sets.newHashSet(toInclude, toExclude));
 
         assertEquals(3, included.rowsInserted.size());
         assertTrue(excluded.rowsInserted.isEmpty());

@@ -1,4 +1,5 @@
 4.0
+ * Improve secondary index (re)build failure and concurrency handling (CASSANDRA-10130)
  * Improve calculation of available disk space for compaction (CASSANDRA-13068)
  * Change the accessibility of RowCacheSerializer for third party row cache plugins (CASSANDRA-13579)
  * Allow sub-range repairs for a preview of repaired data (CASSANDRA-13570)
