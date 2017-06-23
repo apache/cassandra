@@ -425,7 +425,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
             for (InetAddressAndPort endpoint : StorageService.instance.getNaturalAndPendingEndpoints(ks, tk))
             {
-                if (endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()))
+                if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                 {
                     mutation.apply();
                 }
@@ -482,7 +482,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             @Override
             public void response(MessageIn<T> m)
             {
-                boolean removed = undelivered.remove(m == null ? FBUtilities.getBroadcastAddressAndPorts() : m.from);
+                boolean removed = undelivered.remove(m == null ? FBUtilities.getBroadcastAddressAndPort() : m.from);
                 assert removed;
                 super.response(m);
             }
@@ -557,7 +557,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         @VisibleForTesting
         protected boolean isValid(InetAddressAndPort input)
         {
-            return !input.equals(FBUtilities.getBroadcastAddressAndPorts()) && FailureDetector.instance.isAlive(input);
+            return !input.equals(FBUtilities.getBroadcastAddressAndPort()) && FailureDetector.instance.isAlive(input);
         }
 
         @VisibleForTesting

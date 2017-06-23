@@ -42,7 +42,7 @@ public class WriteCallbackInfo extends CallbackInfo
         assert message != null;
         this.mutation = shouldHint(allowHints, message, consistencyLevel);
         //Local writes shouldn't go through messaging service (https://issues.apache.org/jira/browse/CASSANDRA-10477)
-        assert (!target.equals(FBUtilities.getBroadcastAddressAndPorts()));
+        assert (!target.equals(FBUtilities.getBroadcastAddressAndPort()));
     }
 
     public boolean shouldHint()

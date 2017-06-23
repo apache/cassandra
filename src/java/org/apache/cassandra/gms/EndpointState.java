@@ -145,7 +145,7 @@ public class EndpointState
 
     public String getStatus()
     {
-        VersionedValue status = getApplicationState(ApplicationState.STATUS_WITH_PORTS);
+        VersionedValue status = getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (status == null)
         {
             status = getApplicationState(ApplicationState.STATUS);

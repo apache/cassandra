@@ -193,7 +193,7 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
 
     public void response(ReadResponse result)
     {
-        MessageIn<ReadResponse> message = MessageIn.create(FBUtilities.getBroadcastAddressAndPorts(),
+        MessageIn<ReadResponse> message = MessageIn.create(FBUtilities.getBroadcastAddressAndPort(),
                                                            result,
                                                            Collections.emptyMap(),
                                                            MessagingService.Verb.INTERNAL_RESPONSE,

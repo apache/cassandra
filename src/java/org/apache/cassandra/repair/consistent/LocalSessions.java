@@ -145,9 +145,9 @@ public class LocalSessions
     }
 
     @VisibleForTesting
-    protected InetAddressAndPort getBroadcastAddressAndPorts()
+    protected InetAddressAndPort getBroadcastAddressAndPort()
     {
-        return FBUtilities.getBroadcastAddressAndPorts();
+        return FBUtilities.getBroadcastAddressAndPort();
     }
 
     @VisibleForTesting
@@ -181,14 +181,14 @@ public class LocalSessions
         logger.info("Cancelling local repair session {}", sessionID);
         LocalSession session = getSession(sessionID);
         Preconditions.checkArgument(session != null, "Session {} does not exist", sessionID);
-        Preconditions.checkArgument(force || session.coordinator.equals(getBroadcastAddressAndPorts()),
+        Preconditions.checkArgument(force || session.coordinator.equals(getBroadcastAddressAndPort()),
                                     "Cancel session %s from it's coordinator (%s) or use --force",
                                     sessionID, session.coordinator);
 
         setStateAndSave(session, FAILED);
         for (InetAddressAndPort participant : session.participants)
         {
-            if (!participant.equals(getBroadcastAddressAndPorts()))
+            if (!participant.equals(getBroadcastAddressAndPort()))
                 sendMessage(participant, new FailSession(sessionID));
         }
     }
@@ -577,7 +577,7 @@ public class LocalSessions
             {
                 logger.debug("Prepare phase for incremental repair session {} completed", sessionID);
                 setStateAndSave(session, PREPARED);
-                sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPorts(), true));
+                sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), true));
                 executor.shutdown();
             }
 
@@ -615,7 +615,7 @@ public class LocalSessions
         try
         {
             setStateAndSave(session, FINALIZE_PROMISED);
-            sendMessage(from, new FinalizePromise(sessionID, getBroadcastAddressAndPorts(), true));
+            sendMessage(from, new FinalizePromise(sessionID, getBroadcastAddressAndPort(), true));
             logger.debug("Received FinalizePropose message for incremental repair session {}, responded with FinalizePromise");
         }
         catch (IllegalArgumentException e)
@@ -672,7 +672,7 @@ public class LocalSessions
         StatusRequest request = new StatusRequest(session.sessionID);
         for (InetAddressAndPort participant : session.participants)
         {
-            if (!getBroadcastAddressAndPorts().equals(participant) && isAlive(participant))
+            if (!getBroadcastAddressAndPort().equals(participant) && isAlive(participant))
             {
                 sendMessage(participant, request);
             }

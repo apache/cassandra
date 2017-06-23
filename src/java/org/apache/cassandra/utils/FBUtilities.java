@@ -142,7 +142,7 @@ public class FBUtilities
         return localInetAddress;
     }
 
-    public static InetAddressAndPort getLocalAddressAndPorts()
+    public static InetAddressAndPort getLocalAddressAndPort()
     {
         if (localInetAddressAndPort == null)
         {
@@ -160,7 +160,7 @@ public class FBUtilities
         return broadcastInetAddress;
     }
 
-    public static InetAddressAndPort getBroadcastAddressAndPorts()
+    public static InetAddressAndPort getBroadcastAddressAndPort()
     {
         if (broadcastInetAddressAndPort == null)
         {

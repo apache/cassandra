@@ -226,7 +226,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
 
         // Add data center of localhost.
-        validDataCenters.add(snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPorts()));
+        validDataCenters.add(snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort()));
         // Fetch and add DCs of all peers.
         for (final InetAddressAndPort peer : StorageService.instance.getTokenMetadata().getAllEndpoints())
         {

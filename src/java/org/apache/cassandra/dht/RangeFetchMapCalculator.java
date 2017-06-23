@@ -252,7 +252,7 @@ public class RangeFetchMapCalculator
             }
 
             //We could not find any source for this range which passed the filters. Ignore if localhost is part of the endpoints for this range
-            if (!sourceFound && !rangesWithSources.get(range).contains(FBUtilities.getBroadcastAddressAndPorts()))
+            if (!sourceFound && !rangesWithSources.get(range).contains(FBUtilities.getBroadcastAddressAndPort()))
                 throw new IllegalStateException("Unable to find sufficient sources for streaming range " + range + " in keyspace " + keyspace);
 
         }
@@ -303,7 +303,7 @@ public class RangeFetchMapCalculator
                 return false;
         }
 
-        if(endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if(endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return false;
 
         return !localDCCheck || isInLocalDC(endpoint);

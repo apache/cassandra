@@ -76,7 +76,7 @@ public class ActiveRepairServiceTest
             SchemaLoader.startGossiper();
             initialized = true;
 
-            LOCAL = FBUtilities.getBroadcastAddressAndPorts();
+            LOCAL = FBUtilities.getBroadcastAddressAndPort();
             // generate a fake endpoint for which we can spoof receiving/sending trees
             REMOTE = InetAddressAndPort.getByName("127.0.0.2");
         }
@@ -93,7 +93,7 @@ public class ActiveRepairServiceTest
     {
         // generate rf+1 nodes, and ensure that all nodes are returned
         Set<InetAddressAndPort> expected = addTokens(1 + Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor());
-        expected.remove(FBUtilities.getBroadcastAddressAndPorts());
+        expected.remove(FBUtilities.getBroadcastAddressAndPort());
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(KEYSPACE5);
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
@@ -112,11 +112,11 @@ public class ActiveRepairServiceTest
         addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor());
         AbstractReplicationStrategy ars = Keyspace.open(KEYSPACE5).getReplicationStrategy();
         Set<InetAddressAndPort> expected = new HashSet<>();
-        for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPorts()))
+        for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPort()))
         {
             expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange));
         }
-        expected.remove(FBUtilities.getBroadcastAddressAndPorts());
+        expected.remove(FBUtilities.getBroadcastAddressAndPort());
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(KEYSPACE5);
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
@@ -133,7 +133,7 @@ public class ActiveRepairServiceTest
 
         // generate rf+1 nodes, and ensure that all nodes are returned
         Set<InetAddressAndPort> expected = addTokens(1 + Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor());
-        expected.remove(FBUtilities.getBroadcastAddressAndPorts());
+        expected.remove(FBUtilities.getBroadcastAddressAndPort());
         // remove remote endpoints
         TokenMetadata.Topology topology = tmd.cloneOnlyTokenMap().getTopology();
         HashSet<InetAddressAndPort> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
@@ -157,11 +157,11 @@ public class ActiveRepairServiceTest
         addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor());
         AbstractReplicationStrategy ars = Keyspace.open(KEYSPACE5).getReplicationStrategy();
         Set<InetAddressAndPort> expected = new HashSet<>();
-        for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPorts()))
+        for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPort()))
         {
             expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange));
         }
-        expected.remove(FBUtilities.getBroadcastAddressAndPorts());
+        expected.remove(FBUtilities.getBroadcastAddressAndPort());
         // remove remote endpoints
         TokenMetadata.Topology topology = tmd.cloneOnlyTokenMap().getTopology();
         HashSet<InetAddressAndPort> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
@@ -185,13 +185,13 @@ public class ActiveRepairServiceTest
         addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor());
         AbstractReplicationStrategy ars = Keyspace.open(KEYSPACE5).getReplicationStrategy();
         List<InetAddressAndPort> expected = new ArrayList<>();
-        for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPorts()))
+        for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPort()))
         {
             expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange));
         }
 
-        expected.remove(FBUtilities.getBroadcastAddressAndPorts());
-        Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPorts().toString(),expected.get(0).toString());
+        expected.remove(FBUtilities.getBroadcastAddressAndPort());
+        Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().toString(),expected.get(0).toString());
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(KEYSPACE5);
 
         assertEquals(expected.get(0), ActiveRepairService.getNeighbors(KEYSPACE5, ranges,
@@ -228,14 +228,14 @@ public class ActiveRepairServiceTest
         ColumnFamilyStore store = prepareColumnFamilyStore();
         UUID prsId = UUID.randomUUID();
         Set<SSTableReader> original = Sets.newHashSet(store.select(View.select(SSTableSet.CANONICAL, (s) -> !s.isRepaired())).sstables);
-        ActiveRepairService.instance.registerParentRepairSession(prsId, FBUtilities.getBroadcastAddressAndPorts(), Collections.singletonList(store),
+        ActiveRepairService.instance.registerParentRepairSession(prsId, FBUtilities.getBroadcastAddressAndPort(), Collections.singletonList(store),
                                                                  Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(),
                                                                                                    store.getPartitioner().getMinimumToken())),
                                                                  true, System.currentTimeMillis(), true, PreviewKind.NONE);
         ActiveRepairService.instance.getParentRepairSession(prsId).maybeSnapshot(store.metadata.id, prsId);
 
         UUID prsId2 = UUID.randomUUID();
-        ActiveRepairService.instance.registerParentRepairSession(prsId2, FBUtilities.getBroadcastAddressAndPorts(),
+        ActiveRepairService.instance.registerParentRepairSession(prsId2, FBUtilities.getBroadcastAddressAndPort(),
                                                                  Collections.singletonList(store),
                                                                  Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(),
                                                                                                    store.getPartitioner().getMinimumToken())),

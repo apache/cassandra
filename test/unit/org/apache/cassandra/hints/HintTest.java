@@ -81,7 +81,7 @@ public class HintTest
     public void resetGcGraceSeconds()
     {
         TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         tokenMeta.clearUnsafe();
         tokenMeta.updateHostId(UUID.randomUUID(), local);
         tokenMeta.updateNormalTokens(BootStrapper.getRandomTokens(tokenMeta, 1), local);
@@ -230,7 +230,7 @@ public class HintTest
 
         // Prepare metadata with injected stale endpoint serving the mutation key.
         TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort endpoint = InetAddressAndPort.getByName("1.1.1.1");
         UUID localId = StorageService.instance.getLocalHostUUID();
         UUID targetId = UUID.randomUUID();
@@ -271,7 +271,7 @@ public class HintTest
 
         // Prepare metadata with injected stale endpoint.
         TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort endpoint = InetAddressAndPort.getByName("1.1.1.1");
         UUID localId = StorageService.instance.getLocalHostUUID();
         UUID targetId = UUID.randomUUID();

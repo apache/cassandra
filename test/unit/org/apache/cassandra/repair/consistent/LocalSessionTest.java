@@ -160,7 +160,7 @@ public class LocalSessionTest extends AbstractRepairTest
         }
 
         @Override
-        protected InetAddressAndPort getBroadcastAddressAndPorts()
+        protected InetAddressAndPort getBroadcastAddressAndPort()
         {
             return PARTICIPANT1;
         }

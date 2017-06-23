@@ -205,7 +205,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                             int schemaWaitDelay)
     {
         StorageService.instance.waitForSchema(schemaWaitDelay);
-        if (!FBUtilities.getBroadcastAddressAndPorts().equals(InetAddressAndPort.getLoopbackAddress()))
+        if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
             Gossiper.waitToSettle();
 
         Keyspace ks = Keyspace.open(allocationKeyspace);

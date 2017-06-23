@@ -114,7 +114,7 @@ public class LeaveAndBootstrapTest
 
         // Third node leaves
         ss.onChange(hosts.get(LEAVING_NODE),
-                    ApplicationState.STATUS_WITH_PORTS,
+                    ApplicationState.STATUS_WITH_PORT,
                     valueFactory.leaving(Collections.singleton(endpointTokens.get(LEAVING_NODE))));
         ss.onChange(hosts.get(LEAVING_NODE),
                 ApplicationState.STATUS,
@@ -177,7 +177,7 @@ public class LeaveAndBootstrapTest
         for (int leaving : LEAVING)
         {
             ss.onChange(hosts.get(leaving),
-                        ApplicationState.STATUS_WITH_PORTS,
+                        ApplicationState.STATUS_WITH_PORT,
                         valueFactory.leaving(Collections.singleton(endpointTokens.get(leaving))));
             ss.onChange(hosts.get(leaving),
                         ApplicationState.STATUS,
@@ -710,7 +710,7 @@ public class LeaveAndBootstrapTest
 
         // make a REMOVING state change on a non-member endpoint; without the CASSANDRA-6564 fix, this
         // would result in an ArrayIndexOutOfBoundsException
-        ss.onChange(InetAddressAndPort.getByName("192.168.1.42"), ApplicationState.STATUS_WITH_PORTS, valueFactory.removingNonlocal(UUID.randomUUID()));
+        ss.onChange(InetAddressAndPort.getByName("192.168.1.42"), ApplicationState.STATUS_WITH_PORT, valueFactory.removingNonlocal(UUID.randomUUID()));
         ss.onChange(InetAddressAndPort.getByName("192.168.1.42"), ApplicationState.STATUS, valueFactory.removingNonlocal(UUID.randomUUID()));
     }
 

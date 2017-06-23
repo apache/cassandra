@@ -35,7 +35,7 @@ public class ArrivalWindowTest
     {
         final ArrivalWindow windowWithNano = new ArrivalWindow(4);
         final long toNano = 1000000L;
-        InetAddressAndPort ep = FBUtilities.getLocalAddressAndPorts();
+        InetAddressAndPort ep = FBUtilities.getLocalAddressAndPort();
         windowWithNano.add(111 * toNano, ep);
         windowWithNano.add(222 * toNano, ep);
         windowWithNano.add(333 * toNano, ep);

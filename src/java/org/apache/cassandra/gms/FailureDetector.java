@@ -114,17 +114,17 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         return getAllEndpointStates(false);
     }
 
-    public String getAllEndpointStatesWithPorts()
+    public String getAllEndpointStatesWithPort()
     {
         return getAllEndpointStates(true);
     }
 
-    public String getAllEndpointStates(boolean withPorts)
+    public String getAllEndpointStates(boolean withPort)
     {
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
         {
-            sb.append(entry.getKey().toString(withPorts)).append("\n");
+            sb.append(entry.getKey().toString(withPort)).append("\n");
             appendEndpointState(sb, entry.getValue());
         }
         return sb.toString();
@@ -135,20 +135,20 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         return getSimpleStates(false);
     }
 
-    public Map<String, String> getSimpleStatesWithPorts()
+    public Map<String, String> getSimpleStatesWithPort()
     {
         return getSimpleStates(true);
     }
 
-    private Map<String, String> getSimpleStates(boolean withPorts)
+    private Map<String, String> getSimpleStates(boolean withPort)
     {
         Map<String, String> nodesStatus = new HashMap<String, String>(Gossiper.instance.endpointStateMap.size());
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
         {
             if (entry.getValue().isAlive())
-                nodesStatus.put(entry.getKey().toString(withPorts), "UP");
+                nodesStatus.put(entry.getKey().toString(withPort), "UP");
             else
-                nodesStatus.put(entry.getKey().toString(withPorts), "DOWN");
+                nodesStatus.put(entry.getKey().toString(withPort), "DOWN");
         }
         return nodesStatus;
     }
@@ -182,12 +182,12 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     }
 
     @Override
-    public TabularData getPhiValuesWithPorts() throws OpenDataException
+    public TabularData getPhiValuesWithPort() throws OpenDataException
     {
         return getPhiValues(true);
     }
 
-    private TabularData getPhiValues(boolean withPorts) throws OpenDataException
+    private TabularData getPhiValues(boolean withPort) throws OpenDataException
     {
         final CompositeType ct = new CompositeType("Node", "Node",
                 new String[]{"Endpoint", "PHI"},
@@ -206,7 +206,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
                     // returned values are scaled by PHI_FACTOR so that the are on the same scale as PhiConvictThreshold
                     final CompositeData data = new CompositeDataSupport(ct,
                             new String[]{"Endpoint", "PHI"},
-                            new Object[]{entry.getKey().toString(withPorts), phi * PHI_FACTOR});
+                            new Object[]{entry.getKey().toString(withPort), phi * PHI_FACTOR});
                     results.put(data);
                 }
             }
@@ -275,7 +275,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     public boolean isAlive(InetAddressAndPort ep)
     {
-        if (ep.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
             return true;
 
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);

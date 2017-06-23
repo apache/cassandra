@@ -210,7 +210,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     private String repairedNodes()
     {
         StringBuilder sb = new StringBuilder();
-        sb.append(FBUtilities.getBroadcastAddressAndPorts());
+        sb.append(FBUtilities.getBroadcastAddressAndPort());
         for (InetAddressAndPort ep : endpoints)
             sb.append(", ").append(ep);
         return sb.toString();

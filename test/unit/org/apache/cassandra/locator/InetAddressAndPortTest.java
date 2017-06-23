@@ -100,7 +100,7 @@ public class InetAddressAndPortTest
         assertEquals(address1, InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", 42));
         assertEquals(address1.hashCode(), InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", 42).hashCode());
         int originalPort = InetAddressAndPort.defaultPort;
-        InetAddressAndPort.initializeDefaultPorts(42);
+        InetAddressAndPort.initializeDefaultPort(42);
         try
         {
             assertEquals(address1, InetAddressAndPort.getByName("127.0.0.1"));
@@ -108,7 +108,7 @@ public class InetAddressAndPortTest
         }
         finally
         {
-            InetAddressAndPort.initializeDefaultPorts(originalPort);
+            InetAddressAndPort.initializeDefaultPort(originalPort);
         }
         assertTrue(!address1.equals(address4));
         assertTrue(!address1.equals(address5));

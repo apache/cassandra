@@ -195,6 +195,6 @@ public final class SessionInfo implements Serializable
 
     public SessionSummary createSummary()
     {
-        return new SessionSummary(FBUtilities.getBroadcastAddressAndPorts(), peer, receivingSummaries, sendingSummaries);
+        return new SessionSummary(FBUtilities.getBroadcastAddressAndPort(), peer, receivingSummaries, sendingSummaries);
     }
 }

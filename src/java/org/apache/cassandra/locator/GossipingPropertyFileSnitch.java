@@ -85,7 +85,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
      */
     public String getDatacenter(InetAddressAndPort endpoint)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return myDC;
 
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
@@ -113,7 +113,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
      */
     public String getRack(InetAddressAndPort endpoint)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return myRack;
 
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
@@ -137,8 +137,8 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
     {
         super.gossiperStarting();
 
-        Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORTS,
-                                                   StorageService.instance.valueFactory.internalAddressAndPorts(FBUtilities.getLocalAddressAndPorts()));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT,
+                                                   StorageService.instance.valueFactory.internalAddressAndPort(FBUtilities.getLocalAddressAndPort()));
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP,
                 StorageService.instance.valueFactory.internalIP(FBUtilities.getJustLocalAddress().getHostAddress()));
 

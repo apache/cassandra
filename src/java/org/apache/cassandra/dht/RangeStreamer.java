@@ -123,7 +123,7 @@ public class RangeStreamer
     {
         public boolean shouldInclude(InetAddressAndPort endpoint)
         {
-            return !FBUtilities.getBroadcastAddressAndPorts().equals(endpoint);
+            return !FBUtilities.getBroadcastAddressAndPort().equals(endpoint);
         }
     }
 
@@ -337,7 +337,7 @@ public class RangeStreamer
                         continue outer;
                 }
 
-                if (address.equals(FBUtilities.getBroadcastAddressAndPorts()))
+                if (address.equals(FBUtilities.getBroadcastAddressAndPort()))
                 {
                     // If localhost is a source, we have found one, but we don't add it to the map to avoid streaming locally
                     foundSource = true;
@@ -390,7 +390,7 @@ public class RangeStreamer
     {
         for (Map.Entry<InetAddressAndPort, Range<Token>> entry : rangeFetchMapMap.entries())
         {
-            if(entry.getKey().equals(FBUtilities.getBroadcastAddressAndPorts()))
+            if(entry.getKey().equals(FBUtilities.getBroadcastAddressAndPort()))
             {
                 throw new IllegalStateException("Trying to stream locally. Range: " + entry.getValue()
                                         + " in keyspace " + keyspace);

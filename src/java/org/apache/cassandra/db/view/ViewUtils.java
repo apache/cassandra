@@ -62,7 +62,7 @@ public final class ViewUtils
     {
         AbstractReplicationStrategy replicationStrategy = Keyspace.open(keyspaceName).getReplicationStrategy();
 
-        String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPorts());
+        String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
         List<InetAddressAndPort> baseEndpoints = new ArrayList<>();
         List<InetAddressAndPort> viewEndpoints = new ArrayList<>();
         for (InetAddressAndPort baseEndpoint : replicationStrategy.getNaturalEndpoints(baseToken))
@@ -76,7 +76,7 @@ public final class ViewUtils
         for (InetAddressAndPort viewEndpoint : replicationStrategy.getNaturalEndpoints(viewToken))
         {
             // If we are a base endpoint which is also a view replica, we use ourselves as our view replica
-            if (viewEndpoint.equals(FBUtilities.getBroadcastAddressAndPorts()))
+            if (viewEndpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                 return Optional.of(viewEndpoint);
 
             // We have to remove any endpoint which is shared between the base and the view, as it will select itself
@@ -92,7 +92,7 @@ public final class ViewUtils
         // Since the same replication strategy is used, the same placement should be used and we should get the same
         // number of replicas for all of the tokens in the ring.
         assert baseEndpoints.size() == viewEndpoints.size() : "Replication strategy should have the same number of endpoints for the base and the view";
-        int baseIdx = baseEndpoints.indexOf(FBUtilities.getBroadcastAddressAndPorts());
+        int baseIdx = baseEndpoints.indexOf(FBUtilities.getBroadcastAddressAndPort());
 
         if (baseIdx < 0)
             //This node is not a base replica of this key, so we return empty

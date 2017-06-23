@@ -132,9 +132,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         {
             HeartbeatSt.updateHeartBeat();
             EndpointSt.addApplicationState(ApplicationState.LOAD, vv0);
-            EndpointSt.addApplicationState(ApplicationState.STATUS_WITH_PORTS, vv1);
+            EndpointSt.addApplicationState(ApplicationState.STATUS_WITH_PORT, vv1);
             for (int i = 0; i < 100; i++)
-                Digests.add(new GossipDigest(FBUtilities.getBroadcastAddressAndPorts(), 100 + i, 1000 + 2 * i));
+                Digests.add(new GossipDigest(FBUtilities.getBroadcastAddressAndPort(), 100 + i, 1000 + 2 * i));
         }
     }
 }

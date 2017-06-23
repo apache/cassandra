@@ -139,7 +139,7 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.getHostAddress()));
         }
 
-        public VersionedValue bootReplacingWithPorts(InetAddressAndPort oldNode)
+        public VersionedValue bootReplacingWithPort(InetAddressAndPort oldNode)
         {
             return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.toString()));
         }
@@ -254,7 +254,7 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(endpoint.getHostAddress());
         }
 
-        public VersionedValue nativeaddressAndPorts(InetAddressAndPort address)
+        public VersionedValue nativeaddressAndPort(InetAddressAndPort address)
         {
             return new VersionedValue(address.toString());
         }
@@ -274,7 +274,7 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(private_ip);
         }
 
-        public VersionedValue internalAddressAndPorts(InetAddressAndPort address)
+        public VersionedValue internalAddressAndPort(InetAddressAndPort address)
         {
             return new VersionedValue(address.toString());
         }

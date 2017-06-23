@@ -115,12 +115,12 @@ public class SerDeserTest
     {
         List<Event> events = new ArrayList<>();
 
-        events.add(TopologyChange.newNode(FBUtilities.getBroadcastAddressAndPorts()));
-        events.add(TopologyChange.removedNode(FBUtilities.getBroadcastAddressAndPorts()));
-        events.add(TopologyChange.movedNode(FBUtilities.getBroadcastAddressAndPorts()));
+        events.add(TopologyChange.newNode(FBUtilities.getBroadcastAddressAndPort()));
+        events.add(TopologyChange.removedNode(FBUtilities.getBroadcastAddressAndPort()));
+        events.add(TopologyChange.movedNode(FBUtilities.getBroadcastAddressAndPort()));
 
-        events.add(StatusChange.nodeUp(FBUtilities.getBroadcastAddressAndPorts()));
-        events.add(StatusChange.nodeDown(FBUtilities.getBroadcastAddressAndPorts()));
+        events.add(StatusChange.nodeUp(FBUtilities.getBroadcastAddressAndPort()));
+        events.add(StatusChange.nodeDown(FBUtilities.getBroadcastAddressAndPort()));
 
         events.add(new SchemaChange(SchemaChange.Change.CREATED, "ks"));
         events.add(new SchemaChange(SchemaChange.Change.UPDATED, "ks"));

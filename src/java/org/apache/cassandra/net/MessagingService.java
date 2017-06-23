@@ -650,7 +650,7 @@ public final class MessagingService implements MessagingServiceMBean
             Set<BackPressureState> states = new HashSet<BackPressureState>();
             for (InetAddressAndPort host : hosts)
             {
-                if (host.equals(FBUtilities.getBroadcastAddressAndPorts()))
+                if (host.equals(FBUtilities.getBroadcastAddressAndPort()))
                     continue;
                 OutboundTcpConnectionPool cp = getConnectionPool(host);
                 if (cp != null)
@@ -699,11 +699,11 @@ public final class MessagingService implements MessagingServiceMBean
     public void listen()
     {
         callbacks.reset(); // hack to allow tests to stop/restart MS
-        listen(FBUtilities.getLocalAddressAndPorts());
+        listen(FBUtilities.getLocalAddressAndPort());
         if (DatabaseDescriptor.shouldListenOnBroadcastAddress()
-            && !FBUtilities.getLocalAddressAndPorts().equals(FBUtilities.getBroadcastAddressAndPorts()))
+            && !FBUtilities.getLocalAddressAndPort().equals(FBUtilities.getBroadcastAddressAndPort()))
         {
-            listen(FBUtilities.getBroadcastAddressAndPorts());
+            listen(FBUtilities.getBroadcastAddressAndPort());
         }
         listenGate.signalAll();
     }
@@ -995,9 +995,9 @@ public final class MessagingService implements MessagingServiceMBean
     public void sendOneWay(MessageOut message, int id, InetAddressAndPort to)
     {
         if (logger.isTraceEnabled())
-            logger.trace("{} sending {} to {}@{}", FBUtilities.getBroadcastAddressAndPorts(), message.verb, id, to);
+            logger.trace("{} sending {} to {}@{}", FBUtilities.getBroadcastAddressAndPort(), message.verb, id, to);
 
-        if (to.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (to.equals(FBUtilities.getBroadcastAddressAndPort()))
             logger.trace("Message-to-self {} going over MessagingService", message);
 
         // message sinks are a testing hook

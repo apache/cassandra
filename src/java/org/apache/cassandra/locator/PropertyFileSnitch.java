@@ -185,7 +185,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
                 reloadedMap.put(host, token);
             }
         }
-        InetAddressAndPort broadcastAddress = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort broadcastAddress = FBUtilities.getBroadcastAddressAndPort();
         String[] localInfo = reloadedMap.get(broadcastAddress);
         if (reloadedDefaultDCRack == null && localInfo == null)
             throw new ConfigurationException(String.format("Snitch definitions at %s do not define a location for " +
@@ -193,7 +193,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
                                                            SNITCH_PROPERTIES_FILENAME, broadcastAddress));
         // OutboundTcpConnectionPool.getEndpoint() converts our broadcast address to local,
         // make sure we can be found at that as well.
-        InetAddressAndPort localAddress = FBUtilities.getLocalAddressAndPorts();
+        InetAddressAndPort localAddress = FBUtilities.getLocalAddressAndPort();
         if (!localAddress.equals(broadcastAddress) && !reloadedMap.containsKey(localAddress))
             reloadedMap.put(localAddress, localInfo);
 

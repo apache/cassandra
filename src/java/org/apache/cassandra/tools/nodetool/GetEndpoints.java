@@ -42,9 +42,9 @@ public class GetEndpoints extends NodeToolCmd
         String table = args.get(1);
         String key = args.get(2);
 
-        if (withPorts)
+        if (withPort)
         {
-            for (String endpoint : probe.getEndpointsWithPorts(ks, table, key))
+            for (String endpoint : probe.getEndpointsWithPort(ks, table, key))
             {
                 System.out.println(endpoint);
             }

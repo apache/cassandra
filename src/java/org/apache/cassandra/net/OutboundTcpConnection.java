@@ -172,7 +172,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     private static boolean isLocalDC(InetAddressAndPort targetHost)
     {
         String remoteDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(targetHost);
-        String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPorts());
+        String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
         return remoteDC.equals(localDC);
     }
 
@@ -518,7 +518,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                 }
 
                 out.writeInt(MessagingService.current_version);
-                CompactEndpointSerializationHelper.instance.serialize(FBUtilities.getBroadcastAddressAndPorts(), out, targetVersion);
+                CompactEndpointSerializationHelper.instance.serialize(FBUtilities.getBroadcastAddressAndPort(), out, targetVersion);
                 if (shouldCompressConnection())
                 {
                     out.flush();

@@ -44,13 +44,13 @@ public class LocalStrategy extends AbstractReplicationStrategy
     public ArrayList<InetAddressAndPort> getNaturalEndpoints(RingPosition searchPosition)
     {
         ArrayList<InetAddressAndPort> l = new ArrayList<InetAddressAndPort>(1);
-        l.add(FBUtilities.getBroadcastAddressAndPorts());
+        l.add(FBUtilities.getBroadcastAddressAndPort());
         return l;
     }
 
     public List<InetAddressAndPort> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
-        return Collections.singletonList(FBUtilities.getBroadcastAddressAndPorts());
+        return Collections.singletonList(FBUtilities.getBroadcastAddressAndPort());
     }
 
     public int getReplicationFactor()

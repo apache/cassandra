@@ -186,7 +186,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         return InetAddressAndPort.getByAddress(InetAddress.getLocalHost());
     }
 
-    public static void initializeDefaultPorts(int port)
+    public static void initializeDefaultPort(int port)
     {
         defaultPort = port;
     }

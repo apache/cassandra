@@ -39,7 +39,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return set of IP addresses, as Strings
      */
     @Deprecated public List<String> getLiveNodes();
-    public List<String> getLiveNodesWithPorts();
+    public List<String> getLiveNodesWithPort();
 
     /**
      * Retrieve the list of unreachable nodes in the cluster, as determined
@@ -48,7 +48,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return set of IP addresses, as Strings
      */
     @Deprecated public List<String> getUnreachableNodes();
-    public List<String> getUnreachableNodesWithPorts();
+    public List<String> getUnreachableNodesWithPort();
 
     /**
      * Retrieve the list of nodes currently bootstrapping into the ring.
@@ -56,7 +56,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return set of IP addresses, as Strings
      */
     @Deprecated public List<String> getJoiningNodes();
-    public List<String> getJoiningNodesWithPorts();
+    public List<String> getJoiningNodesWithPort();
 
     /**
      * Retrieve the list of nodes currently leaving the ring.
@@ -64,7 +64,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return set of IP addresses, as Strings
      */
     @Deprecated public List<String> getLeavingNodes();
-    public List<String> getLeavingNodesWithPorts();
+    public List<String> getLeavingNodesWithPort();
 
     /**
      * Retrieve the list of nodes currently moving in the ring.
@@ -72,7 +72,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return set of IP addresses, as Strings
      */
     @Deprecated public List<String> getMovingNodes();
-    public List<String> getMovingNodesWithPorts();
+    public List<String> getMovingNodesWithPort();
 
     /**
      * Fetch string representations of the tokens for this node.
@@ -127,7 +127,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return mapping of ranges to end points
      */
     @Deprecated public Map<List<String>, List<String>> getRangeToEndpointMap(String keyspace);
-    public Map<List<String>, List<String>> getRangeToEndpointWithPortsMap(String keyspace);
+    public Map<List<String>, List<String>> getRangeToEndpointWithPortMap(String keyspace);
 
     /**
      * Retrieve a map of range to rpc addresses that describe the ring topology
@@ -146,7 +146,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return a List of TokenRange(s) converted to String for the given keyspace
      */
     @Deprecated public List <String> describeRingJMX(String keyspace) throws IOException;
-    public List<String> describeRingWithPortsJMX(String keyspace) throws IOException;
+    public List<String> describeRingWithPortJMX(String keyspace) throws IOException;
 
     /**
      * Retrieve a map of pending ranges to endpoints that describe the ring topology
@@ -154,7 +154,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return a map of pending ranges to endpoints
      */
     @Deprecated public Map<List<String>, List<String>> getPendingRangeToEndpointMap(String keyspace);
-    public Map<List<String>, List<String>> getPendingRangeToEndpointWithPortsMap(String keyspace);
+    public Map<List<String>, List<String>> getPendingRangeToEndpointWithPortMap(String keyspace);
 
     /**
      * Retrieve a map of tokens to endpoints, including the bootstrapping
@@ -163,7 +163,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return a map of tokens to endpoints in ascending order
      */
     @Deprecated public Map<String, String> getTokenToEndpointMap();
-    public Map<String, String> getTokenToEndpointWithPortsMap();
+    public Map<String, String> getTokenToEndpointWithPortMap();
 
     /** Retrieve this hosts unique ID */
     public String getLocalHostId();
@@ -174,18 +174,18 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Retrieve the mapping of endpoint to host ID */
     @Deprecated public Map<String, String> getEndpointToHostId();
-    public Map<String, String> getEndpointWithPortsToHostId();
+    public Map<String, String> getEndpointWithPortToHostId();
 
     /** Retrieve the mapping of host ID to endpoint */
     @Deprecated public Map<String, String> getHostIdToEndpoint();
-    public Map<String, String> getHostIdToEndpointWithPorts();
+    public Map<String, String> getHostIdToEndpointWithPort();
 
     /** Human-readable load value */
     public String getLoadString();
 
     /** Human-readable load value.  Keys are IP addresses. */
     @Deprecated public Map<String, String> getLoadMap();
-    public Map<String, String> getLoadMapWithPorts();
+    public Map<String, String> getLoadMapWithPort();
 
     /**
      * Return the generation value for this node.
@@ -204,9 +204,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      * the endpoint responsible for this key
      */
     @Deprecated public List<InetAddress> getNaturalEndpoints(String keyspaceName, String cf, String key);
-    public List<String> getNaturalEndpointsWithPorts(String keyspaceName, String cf, String key);
+    public List<String> getNaturalEndpointsWithPort(String keyspaceName, String cf, String key);
     @Deprecated public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key);
-    public List<String> getNaturalEndpointsWithPorts(String keysapceName, ByteBuffer key);
+    public List<String> getNaturalEndpointsWithPort(String keysapceName, ByteBuffer key);
 
     /**
      * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead.
@@ -361,7 +361,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Get the status of a token removal.
      */
     @Deprecated public String getRemovalStatus();
-    public String getRemovalStatusWithPorts();
+    public String getRemovalStatusWithPort();
 
     /**
      * Force a remove operation to finish.
@@ -417,7 +417,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      *   a mapping from {@code "token -> %age of cluster owned by that token"}
      */
     @Deprecated public Map<InetAddress, Float> getOwnership();
-    public Map<String, Float> getOwnershipWithPorts();
+    public Map<String, Float> getOwnershipWithPort();
 
     /**
      * Effective ownership is % of the data each node owns given the keyspace
@@ -427,7 +427,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * use the first else a empty Map is returned.
      */
     @Deprecated public Map<InetAddress, Float> effectiveOwnership(String keyspace) throws IllegalStateException;
-    public Map<String, Float> effectiveOwnershipWithPorts(String keyspace) throws IllegalStateException;
+    public Map<String, Float> effectiveOwnershipWithPort(String keyspace) throws IllegalStateException;
 
     public List<String> getKeyspaces();
 
@@ -436,7 +436,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public List<String> getNonLocalStrategyKeyspaces();
 
     @Deprecated public Map<String, String> getViewBuildStatuses(String keyspace, String view);
-    public Map<String, String> getViewBuildStatusesWithPorts(String keyspace, String view);
+    public Map<String, String> getViewBuildStatusesWithPort(String keyspace, String view);
 
     /**
      * Change endpointsnitch class and dynamic-ness (and dynamic attributes) at runtime.

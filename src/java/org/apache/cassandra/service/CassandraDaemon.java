@@ -384,7 +384,7 @@ public class CassandraDaemon
 
         ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
 
-        if (!FBUtilities.getBroadcastAddressAndPorts().equals(InetAddressAndPort.getLoopbackAddress()))
+        if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
             Gossiper.waitToSettle();
 
         // schedule periodic background compaction task submission. this is simply a backstop against compactions stalling

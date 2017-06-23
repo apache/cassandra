@@ -196,7 +196,7 @@ public class ConnectionHandler
         @SuppressWarnings("resource")
         private void sendInitMessage() throws IOException
         {
-            StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddressAndPorts(),
+            StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddressAndPort(),
                                                               session.sessionIndex(),
                                                               session.planId(),
                                                               session.streamOperation(),

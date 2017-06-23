@@ -57,7 +57,7 @@ public class DynamicEndpointSnitchTest
         StorageService.instance.unsafeInitialize();
         SimpleSnitch ss = new SimpleSnitch();
         DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
-        InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort host1 = InetAddressAndPort.getByName("127.0.0.2");
         InetAddressAndPort host2 = InetAddressAndPort.getByName("127.0.0.3");
         InetAddressAndPort host3 = InetAddressAndPort.getByName("127.0.0.4");

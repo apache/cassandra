@@ -93,7 +93,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
 
     public String getRack(InetAddressAndPort endpoint)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return ec2zone;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (state == null || state.getApplicationState(ApplicationState.RACK) == null)
@@ -109,7 +109,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
 
     public String getDatacenter(InetAddressAndPort endpoint)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return ec2region;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (state == null || state.getApplicationState(ApplicationState.DC) == null)

@@ -70,7 +70,7 @@ public class StreamingTransferTest
         DatabaseDescriptor.daemonInitialization();
     }
 
-    public static final InetAddressAndPort LOCAL = FBUtilities.getBroadcastAddressAndPorts();
+    public static final InetAddressAndPort LOCAL = FBUtilities.getBroadcastAddressAndPort();
     public static final String KEYSPACE1 = "StreamingTransferTest1";
     public static final String CF_STANDARD = "Standard1";
     public static final String CF_COUNTER = "Counter1";

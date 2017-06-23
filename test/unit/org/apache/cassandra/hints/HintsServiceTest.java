@@ -182,7 +182,7 @@ public class HintsServiceTest
     private MockMessagingSpy sendHintsAndResponses(int noOfHints, int noOfResponses)
     {
         // create spy for hint messages, but only create responses for noOfResponses hints
-        MessageIn<HintResponse> messageIn = MessageIn.create(FBUtilities.getBroadcastAddressAndPorts(),
+        MessageIn<HintResponse> messageIn = MessageIn.create(FBUtilities.getBroadcastAddressAndPort(),
                 HintResponse.instance,
                 Collections.emptyMap(),
                 MessagingService.Verb.REQUEST_RESPONSE,

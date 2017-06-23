@@ -188,7 +188,7 @@ public final class SystemDistributedKeyspace
 
     public static void startRepairs(UUID id, UUID parent_id, String keyspaceName, String[] cfnames, Collection<Range<Token>> ranges, Iterable<InetAddressAndPort> endpoints)
     {
-        InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPort();
         Set<String> participants = Sets.newHashSet();
         Set<String> participants_v2 = Sets.newHashSet();
 

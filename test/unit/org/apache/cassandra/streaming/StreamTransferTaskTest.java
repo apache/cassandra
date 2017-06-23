@@ -73,7 +73,7 @@ public class StreamTransferTaskTest
     @Test
     public void testScheduleTimeout() throws Exception
     {
-        InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         StreamSession session = new StreamSession(peer, peer, null, 0, true, null, PreviewKind.NONE);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
 
@@ -119,7 +119,7 @@ public class StreamTransferTaskTest
     @Test
     public void testFailSessionDuringTransferShouldNotReleaseReferences() throws Exception
     {
-        InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         StreamCoordinator streamCoordinator = new StreamCoordinator(1, true, null, false, null, PreviewKind.NONE);
         StreamResultFuture future = StreamResultFuture.init(UUID.randomUUID(), StreamOperation.OTHER, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
         StreamSession session = new StreamSession(peer, peer, null, 0, true, null, PreviewKind.NONE);

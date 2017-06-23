@@ -321,7 +321,7 @@ public class DatabaseDescriptor
     {
         //Doing this first before all other things in case other pieces of config want to construct
         //InetAddressAndPort and get the right defaults
-        InetAddressAndPort.initializeDefaultPorts(getStoragePort());
+        InetAddressAndPort.initializeDefaultPort(getStoragePort());
 
         if (conf.commitlog_sync == null)
         {
@@ -867,7 +867,7 @@ public class DatabaseDescriptor
         snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
         EndpointSnitchInfo.create();
 
-        localDC = snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPorts());
+        localDC = snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort());
         localComparator = new Comparator<InetAddressAndPort>()
         {
             public int compare(InetAddressAndPort endpoint1, InetAddressAndPort endpoint2)

@@ -35,9 +35,9 @@ public enum ApplicationState
     TOKENS,
     RPC_READY,
     // pad to allow adding new states to existing cluster
-    INTERNAL_ADDRESS_AND_PORTS, //Replacement for INTERNAL_IP with up to two ports
-    NATIVE_ADDRESS_AND_PORTS, //Replacement for RPC_ADDRESS
-    STATUS_WITH_PORTS, //Replacement for STATUS
+    INTERNAL_ADDRESS_AND_PORT, //Replacement for INTERNAL_IP with up to two ports
+    NATIVE_ADDRESS_AND_PORT, //Replacement for RPC_ADDRESS
+    STATUS_WITH_PORT, //Replacement for STATUS
     X3,
     X4,
     X5,

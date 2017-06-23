@@ -167,7 +167,7 @@ public class BootStrapperTest
         String ks = "BootStrapperTestKeyspace3";
         TokenMetadata tm = new TokenMetadata();
         generateFakeEndpoints(tm, 10, vn);
-        InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
         allocateTokensForNode(vn, ks, tm, addr);
     }
 
@@ -260,7 +260,7 @@ public class BootStrapperTest
         TokenMetadata tm = new TokenMetadata();
         generateFakeEndpoints(tm, 10, vn);
         
-        InetAddressAndPort dcaddr = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort dcaddr = FBUtilities.getBroadcastAddressAndPort();
         SummaryStatistics os3 = TokenAllocation.replicatedOwnershipStats(tm, Keyspace.open(ks3).getReplicationStrategy(), dcaddr);
         SummaryStatistics os2 = TokenAllocation.replicatedOwnershipStats(tm, Keyspace.open(ks2).getReplicationStrategy(), dcaddr);
         String cks = ks3;

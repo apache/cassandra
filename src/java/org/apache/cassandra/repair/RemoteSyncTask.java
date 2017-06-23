@@ -51,7 +51,7 @@ public class RemoteSyncTask extends SyncTask
     @Override
     protected void startSync(List<Range<Token>> differences)
     {
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         SyncRequest request = new SyncRequest(desc, local, r1.endpoint, r2.endpoint, differences, previewKind);
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);

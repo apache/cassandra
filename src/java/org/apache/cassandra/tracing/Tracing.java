@@ -105,7 +105,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     protected static final Logger logger = LoggerFactory.getLogger(Tracing.class);
 
-    private final InetAddressAndPort localAddress = FBUtilities.getLocalAddressAndPorts();
+    private final InetAddressAndPort localAddress = FBUtilities.getLocalAddressAndPort();
 
     private final FastThreadLocal<TraceState> state = new FastThreadLocal<>();
 

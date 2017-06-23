@@ -84,7 +84,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
 
     public String getRack(InetAddressAndPort endpoint)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return csZoneRack;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (state == null || state.getApplicationState(ApplicationState.RACK) == null)
@@ -100,7 +100,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
 
     public String getDatacenter(InetAddressAndPort endpoint)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return csZoneDc;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (state == null || state.getApplicationState(ApplicationState.DC) == null)

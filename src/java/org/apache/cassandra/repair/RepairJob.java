@@ -70,7 +70,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     public void run()
     {
         List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.endpoints);
-        allEndpoints.add(FBUtilities.getBroadcastAddressAndPorts());
+        allEndpoints.add(FBUtilities.getBroadcastAddressAndPort());
 
         ListenableFuture<List<TreeResponse>> validations;
         // Create a snapshot at all nodes unless we're using pure parallel repairs
@@ -118,7 +118,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         {
             public ListenableFuture<List<SyncStat>> apply(List<TreeResponse> trees)
             {
-                InetAddressAndPort local = FBUtilities.getLocalAddressAndPorts();
+                InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
 
                 List<SyncTask> syncTasks = new ArrayList<>();
                 // We need to difference all trees one against another

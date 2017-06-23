@@ -601,7 +601,7 @@ public class CQLSSTableWriterTest
             {
                 this.keyspace = keyspace;
                 for (Range<Token> range : StorageService.instance.getLocalRanges(ks))
-                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPorts());
+                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
             }
 
             public TableMetadataRef getTableMetadata(String cfName)

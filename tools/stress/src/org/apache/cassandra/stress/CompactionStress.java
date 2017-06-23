@@ -185,7 +185,7 @@ public abstract class CompactionStress implements Runnable
         tokenMetadata.clearUnsafe();
         for (int i = 1; i <= numTokens; i++)
         {
-            InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPorts();
+            InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
             List<Token> tokens = Lists.newArrayListWithCapacity(numTokens);
             for (int j = 0; j < numTokens; ++j)
                 tokens.add(p.getRandomToken(random));

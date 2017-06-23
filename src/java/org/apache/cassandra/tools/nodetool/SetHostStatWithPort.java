@@ -26,12 +26,12 @@ import java.util.Map;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-public class SetHostStatWithPorts implements Iterable<HostStatWithPorts>
+public class SetHostStatWithPort implements Iterable<HostStatWithPort>
 {
-    final List<HostStatWithPorts> hostStats = new ArrayList<>();
+    final List<HostStatWithPort> hostStats = new ArrayList<>();
     final boolean resolveIp;
 
-    public SetHostStatWithPorts(boolean resolveIp)
+    public SetHostStatWithPort(boolean resolveIp)
     {
         this.resolveIp = resolveIp;
     }
@@ -42,7 +42,7 @@ public class SetHostStatWithPorts implements Iterable<HostStatWithPorts>
     }
 
     @Override
-    public Iterator<HostStatWithPorts> iterator()
+    public Iterator<HostStatWithPort> iterator()
     {
         return hostStats.iterator();
     }
@@ -51,6 +51,6 @@ public class SetHostStatWithPorts implements Iterable<HostStatWithPorts>
     {
         InetAddressAndPort endpoint = InetAddressAndPort.getByName(host);
         Float owns = ownerships.get(endpoint);
-        hostStats.add(new HostStatWithPorts(token, endpoint, resolveIp, owns));
+        hostStats.add(new HostStatWithPort(token, endpoint, resolveIp, owns));
     }
 }

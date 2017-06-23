@@ -50,7 +50,7 @@ public class StreamStateStoreTest
         Token.TokenFactory factory = p.getTokenFactory();
         Range<Token> range = new Range<>(factory.fromString("0"), factory.fromString("100"));
 
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         StreamSession session = new StreamSession(local, local, new DefaultConnectionFactory(), 0, true, null, PreviewKind.NONE);
         session.addStreamRequest("keyspace1", Collections.singleton(range), Collections.singleton("cf"));
 

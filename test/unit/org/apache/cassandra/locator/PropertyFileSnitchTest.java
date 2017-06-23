@@ -157,14 +157,14 @@ public class PropertyFileSnitchTest
     private void setNodeShutdown(InetAddressAndPort host)
     {
         StorageService.instance.getTokenMetadata().removeEndpoint(host);
-        Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS_WITH_PORTS, valueFactory.shutdown(true));
+        Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS_WITH_PORT, valueFactory.shutdown(true));
         Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS, valueFactory.shutdown(true));
         Gossiper.instance.markDead(host, Gossiper.instance.getEndpointStateForEndpoint(host));
     }
 
     private void setNodeLive(InetAddressAndPort host)
     {
-        Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS_WITH_PORTS, valueFactory.normal(tokenMap.get(host)));
+        Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokenMap.get(host)));
         Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS, valueFactory.normal(tokenMap.get(host)));
         Gossiper.instance.realMarkAlive(host, Gossiper.instance.getEndpointStateForEndpoint(host));
         StorageService.instance.getTokenMetadata().updateNormalTokens(tokenMap.get(host), host);

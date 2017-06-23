@@ -20,14 +20,14 @@ package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-public class HostStatWithPorts
+public class HostStatWithPort
 {
     public final InetAddressAndPort endpoint;
     public final boolean resolveIp;
     public final Float owns;
     public final String token;
 
-    public HostStatWithPorts(String token, InetAddressAndPort endpoint, boolean resolveIp, Float owns)
+    public HostStatWithPort(String token, InetAddressAndPort endpoint, boolean resolveIp, Float owns)
     {
         this.token = token;
         this.endpoint = endpoint;

@@ -238,8 +238,8 @@ public class NodeTool
         @Option(type = OptionType.GLOBAL, name = {"-pwf", "--password-file"}, description = "Path to the JMX password file")
         private String passwordFilePath = EMPTY;
 
-        @Option(type = OptionType.GLOBAL, name = { "-wp", "--with-ports"}, description = "Operate in 4.0 mode with hosts disambiguated by port numbers", arity = 0)
-        protected boolean withPorts = false;
+        @Option(type = OptionType.GLOBAL, name = { "-wp", "--with-port"}, description = "Operate in 4.0 mode with hosts disambiguated by port number", arity = 0)
+        protected boolean withPort = false;
 
         @Override
         public void run()
@@ -392,11 +392,11 @@ public class NodeTool
         return ownershipByDc;
     }
 
-    public static SortedMap<String, SetHostStatWithPorts> getOwnershipByDcWithPorts(NodeProbe probe, boolean resolveIp,
+    public static SortedMap<String, SetHostStatWithPort> getOwnershipByDcWithPort(NodeProbe probe, boolean resolveIp,
                                                                   Map<String, String> tokenToEndpoint,
                                                                   Map<String, Float> ownerships)
     {
-        SortedMap<String, SetHostStatWithPorts> ownershipByDc = Maps.newTreeMap();
+        SortedMap<String, SetHostStatWithPort> ownershipByDc = Maps.newTreeMap();
         EndpointSnitchInfoMBean epSnitchInfo = probe.getEndpointSnitchInfoProxy();
         try
         {
@@ -404,7 +404,7 @@ public class NodeTool
             {
                 String dc = epSnitchInfo.getDatacenter(tokenAndEndPoint.getValue());
                 if (!ownershipByDc.containsKey(dc))
-                    ownershipByDc.put(dc, new SetHostStatWithPorts(resolveIp));
+                    ownershipByDc.put(dc, new SetHostStatWithPort(resolveIp));
                 ownershipByDc.get(dc).add(tokenAndEndPoint.getKey(), tokenAndEndPoint.getValue(), ownerships);
             }
         }

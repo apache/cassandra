@@ -454,8 +454,8 @@ public final class SystemKeyspace
                             FBUtilities.getReleaseVersionString(),
                             QueryProcessor.CQL_VERSION.toString(),
                             String.valueOf(ProtocolVersion.CURRENT.asInt()),
-                            snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPorts()),
-                            snitch.getRack(FBUtilities.getBroadcastAddressAndPorts()),
+                            snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort()),
+                            snitch.getRack(FBUtilities.getBroadcastAddressAndPort()),
                             DatabaseDescriptor.getPartitioner().getClass().getName(),
                             DatabaseDescriptor.getRpcAddress(),
                             DatabaseDescriptor.getNativeTransportPort(),
@@ -674,7 +674,7 @@ public final class SystemKeyspace
      */
     public static synchronized void updateTokens(InetAddressAndPort ep, Collection<Token> tokens)
     {
-        if (ep.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
             return;
 
         String req = "INSERT INTO system.%s (peer, tokens) VALUES (?, ?)";
@@ -698,7 +698,7 @@ public final class SystemKeyspace
 
     public static synchronized void updatePeerInfo(InetAddressAndPort ep, String columnName, Object value)
     {
-        if (ep.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
             return;
 
         String req = "INSERT INTO system.%s (peer, %s) VALUES (?, ?)";
@@ -714,7 +714,7 @@ public final class SystemKeyspace
 
     public static synchronized void updatePeerNativeAddress(InetAddressAndPort ep, InetAddressAndPort address)
     {
-        if (ep.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
             return;
 
         String req = "INSERT INTO system.%s (peer, rpc_address) VALUES (?, ?)";
@@ -884,7 +884,7 @@ public final class SystemKeyspace
     {
         try
         {
-            if (FBUtilities.getBroadcastAddressAndPorts().equals(ep))
+            if (FBUtilities.getBroadcastAddressAndPort().equals(ep))
             {
                 return new CassandraVersion(FBUtilities.getReleaseVersionString());
             }

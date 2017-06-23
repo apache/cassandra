@@ -230,7 +230,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         long repairedAt;
         try (Timer.Context ctx = Keyspace.open(keyspace).metric.repairPrepareTime.time())
         {
-            ActiveRepairService.instance.prepareForRepair(parentSession, FBUtilities.getBroadcastAddressAndPorts(), allNeighbors, options, columnFamilyStores);
+            ActiveRepairService.instance.prepareForRepair(parentSession, FBUtilities.getBroadcastAddressAndPort(), allNeighbors, options, columnFamilyStores);
             repairedAt = ActiveRepairService.instance.getParentRepairSession(parentSession).getRepairedAt();
             progress.incrementAndGet();
         }
@@ -310,7 +310,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         // the local node also needs to be included in the set of
         // participants, since coordinator sessions aren't persisted
         Set<InetAddressAndPort> allParticipants = new HashSet<>(allNeighbors);
-        allParticipants.add(FBUtilities.getBroadcastAddressAndPorts());
+        allParticipants.add(FBUtilities.getBroadcastAddressAndPort());
 
         CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants);
         ListeningExecutorService executor = createExecutor();
@@ -579,7 +579,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                 SelectStatement statement = (SelectStatement) QueryProcessor.parseStatement(query).prepare().statement;
 
                 ByteBuffer sessionIdBytes = ByteBufferUtil.bytes(sessionId);
-                InetAddressAndPort source = FBUtilities.getBroadcastAddressAndPorts();
+                InetAddressAndPort source = FBUtilities.getBroadcastAddressAndPort();
 
                 HashSet<UUID>[] seen = new HashSet[] { new HashSet<>(), new HashSet<>() };
                 int si = 0;

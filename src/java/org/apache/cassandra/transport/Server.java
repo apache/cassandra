@@ -492,7 +492,7 @@ public class Server implements CassandraDaemon.Server
             // then don't send the notification. This covers the case of rpc_address set to "localhost",
             // which is not useful to any driver and in fact may cauase serious problems to some drivers,
             // see CASSANDRA-10052
-            if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()) &&
+            if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) &&
                 event.nodeAddress().equals(FBUtilities.getJustBroadcastNativeAddress()))
                 return;
 

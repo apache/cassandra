@@ -70,7 +70,7 @@ public class MessageOut<T>
 
     private MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, List<Object> parameters)
     {
-        this(FBUtilities.getBroadcastAddressAndPorts(), verb, payload, serializer, parameters);
+        this(FBUtilities.getBroadcastAddressAndPort(), verb, payload, serializer, parameters);
     }
 
     @VisibleForTesting

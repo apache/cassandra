@@ -63,7 +63,7 @@ public class MigrationManager
     {
         VersionedValue value = state.getApplicationState(ApplicationState.SCHEMA);
 
-        if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()) && value != null)
+        if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) && value != null)
             maybeScheduleSchemaPull(UUID.fromString(value.value), endpoint);
     }
 
@@ -411,7 +411,7 @@ public class MigrationManager
         for (InetAddressAndPort endpoint : Gossiper.instance.getLiveMembers())
         {
             // only push schema to nodes with known and equal versions
-            if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()) &&
+            if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) &&
                     MessagingService.instance().knowsVersion(endpoint) &&
                     MessagingService.instance().getRawVersion(endpoint) == MessagingService.current_version)
                 pushSchemaMutation(endpoint, schema);
@@ -449,7 +449,7 @@ public class MigrationManager
         Schema.instance.clear();
 
         Set<InetAddressAndPort> liveEndpoints = Gossiper.instance.getLiveMembers();
-        liveEndpoints.remove(FBUtilities.getBroadcastAddressAndPorts());
+        liveEndpoints.remove(FBUtilities.getBroadcastAddressAndPort());
 
         // force migration if there are nodes around
         for (InetAddressAndPort node : liveEndpoints)

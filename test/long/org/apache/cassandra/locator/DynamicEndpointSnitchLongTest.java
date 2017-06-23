@@ -52,7 +52,7 @@ public class DynamicEndpointSnitchLongTest
             StorageService.instance.unsafeInitialize();
             SimpleSnitch ss = new SimpleSnitch();
             DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
-            InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPorts();
+            InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
 
             List<InetAddressAndPort> hosts = new ArrayList<>();
             // We want a big list of hosts so  sorting takes time, making it much more likely to reproduce the

@@ -159,8 +159,8 @@ public class OutboundTcpConnectionPool
 
     public InetAddressAndPort endPoint()
     {
-        if (id.equals(FBUtilities.getBroadcastAddressAndPorts()))
-            return FBUtilities.getLocalAddressAndPorts();
+        if (id.equals(FBUtilities.getBroadcastAddressAndPort()))
+            return FBUtilities.getLocalAddressAndPort();
         return resetEndpoint;
     }
 
@@ -174,13 +174,13 @@ public class OutboundTcpConnectionPool
             case all:
                 break;
             case dc:
-                if (snitch.getDatacenter(address).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPorts())))
+                if (snitch.getDatacenter(address).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort())))
                     return false;
                 break;
             case rack:
                 // for rack then check if the DC's are the same.
-                if (snitch.getRack(address).equals(snitch.getRack(FBUtilities.getBroadcastAddressAndPorts()))
-                        && snitch.getDatacenter(address).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPorts())))
+                if (snitch.getRack(address).equals(snitch.getRack(FBUtilities.getBroadcastAddressAndPort()))
+                        && snitch.getDatacenter(address).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort())))
                     return false;
                 break;
         }

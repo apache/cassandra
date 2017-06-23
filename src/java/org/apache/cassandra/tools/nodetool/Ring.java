@@ -53,7 +53,7 @@ public class Ring extends NodeToolCmd
     {
         try
         {
-            Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(withPorts);
+            Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(withPort);
             LinkedHashMultimap<String, String> endpointsToTokens = LinkedHashMultimap.create();
             boolean haveVnodes = false;
             for (Map.Entry<String, String> entry : tokensToEndpoints.entrySet())
@@ -77,17 +77,17 @@ public class Ring extends NodeToolCmd
             StringBuilder errors = new StringBuilder();
             boolean showEffectiveOwnership = true;
 
-            if (withPorts)
+            if (withPort)
             {
                 // Calculate per-token ownership of the ring
                 Map<String, Float> ownerships;
                 try
                 {
-                    ownerships = probe.effectiveOwnershipWithPorts(keyspace);
+                    ownerships = probe.effectiveOwnershipWithPort(keyspace);
                 }
                 catch (IllegalStateException ex)
                 {
-                    ownerships = probe.getOwnershipWithPorts();
+                    ownerships = probe.getOwnershipWithPort();
                     errors.append("Note: ").append(ex.getMessage()).append("%n");
                     showEffectiveOwnership = false;
                 }
@@ -99,7 +99,7 @@ public class Ring extends NodeToolCmd
 
 
                 System.out.println();
-                for (Entry<String, SetHostStatWithPorts> entry : NodeTool.getOwnershipByDcWithPorts(probe, resolveIp, tokensToEndpoints, ownerships).entrySet())
+                for (Entry<String, SetHostStatWithPort> entry : NodeTool.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships).entrySet())
                     printDc(probe, format, entry.getKey(), endpointsToTokens, entry.getValue(), showEffectiveOwnership);
 
                 if (haveVnodes)
@@ -222,7 +222,7 @@ public class Ring extends NodeToolCmd
     private void printDc(NodeProbe probe, String format,
                          String dc,
                          LinkedHashMultimap<String, String> endpointsToTokens,
-                         SetHostStatWithPorts hoststats,boolean showEffectiveOwnership)
+                         SetHostStatWithPort hoststats,boolean showEffectiveOwnership)
     {
         Collection<String> liveNodes = probe.getLiveNodes(true);
         Collection<String> deadNodes = probe.getUnreachableNodes(true);
@@ -238,7 +238,7 @@ public class Ring extends NodeToolCmd
         List<String> tokens = new ArrayList<>();
         String lastToken = "";
 
-        for (HostStatWithPorts stat : hoststats)
+        for (HostStatWithPort stat : hoststats)
         {
             tokens.addAll(endpointsToTokens.get(stat.endpoint.toString()));
             lastToken = tokens.get(tokens.size() - 1);
@@ -251,7 +251,7 @@ public class Ring extends NodeToolCmd
         else
             System.out.println();
 
-        for (HostStatWithPorts stat : hoststats)
+        for (HostStatWithPort stat : hoststats)
         {
             String endpoint = stat.endpoint.toString();
             String rack;

@@ -88,10 +88,10 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
     {
         if (preferLocal && !Gossiper.instance.isDeadState(epState))
         {
-            VersionedValue address = epState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORTS);
+            VersionedValue address = epState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
             if (address == null)
             {
-                address = epState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORTS);
+                address = epState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
             }
             if (address != null)
             {
@@ -106,14 +106,14 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
     {
         if (preferLocal && !Gossiper.instance.isDeadState(Gossiper.instance.getEndpointStateForEndpoint(endpoint)))
         {
-            if (state == ApplicationState.INTERNAL_ADDRESS_AND_PORTS)
+            if (state == ApplicationState.INTERNAL_ADDRESS_AND_PORT)
             {
                 reconnect(endpoint, value);
             }
             else if (state == ApplicationState.INTERNAL_IP &&
-                     null == Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORTS))
+                     null == Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT))
             {
-                //Only use INTERNAL_IP if INTERNAL_ADDRESS_AND_PORTS is unavailable
+                //Only use INTERNAL_IP if INTERNAL_ADDRESS_AND_PORT is unavailable
                 reconnect(endpoint, value);
             }
         }
@@ -122,7 +122,7 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
     public void onAlive(InetAddressAndPort endpoint, EndpointState state)
     {
         VersionedValue internalIP = state.getApplicationState(ApplicationState.INTERNAL_IP);
-        VersionedValue internalIPAndPorts = state.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORTS);
+        VersionedValue internalIPAndPorts = state.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
         if (preferLocal && internalIP != null)
             reconnect(endpoint, internalIPAndPorts != null ? internalIPAndPorts : internalIP);
     }

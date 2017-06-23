@@ -144,9 +144,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 taskLock.lock();
 
                 /* Update the local heartbeat counter. */
-                endpointStateMap.get(FBUtilities.getBroadcastAddressAndPorts()).getHeartBeatState().updateHeartBeat();
+                endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).getHeartBeatState().updateHeartBeat();
                 if (logger.isTraceEnabled())
-                    logger.trace("My heartbeat is now {}", endpointStateMap.get(FBUtilities.getBroadcastAddressAndPorts()).getHeartBeatState().getHeartBeatVersion());
+                    logger.trace("My heartbeat is now {}", endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).getHeartBeatState().getHeartBeatVersion());
                 final List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
                 Gossiper.instance.makeRandomGossipDigest(gDigests);
 
@@ -231,11 +231,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             try
             {
                 VersionedValue internalIp = entry.getValue().getApplicationState(ApplicationState.INTERNAL_IP);
-                VersionedValue internalIpAndPorts = entry.getValue().getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORTS);
+                VersionedValue internalIpAndPort = entry.getValue().getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
                 InetAddressAndPort endpoint = null;
-                if (internalIpAndPorts != null)
+                if (internalIpAndPort != null)
                 {
-                    endpoint = InetAddressAndPort.getByName(internalIpAndPorts.value);
+                    endpoint = InetAddressAndPort.getByName(internalIpAndPort.value);
                 }
                 else if (internalIp != null)
                 {
@@ -278,8 +278,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public Set<InetAddressAndPort> getLiveMembers()
     {
         Set<InetAddressAndPort> liveMembers = new HashSet<>(liveEndpoints);
-        if (!liveMembers.contains(FBUtilities.getBroadcastAddressAndPorts()))
-            liveMembers.add(FBUtilities.getBroadcastAddressAndPorts());
+        if (!liveMembers.contains(FBUtilities.getBroadcastAddressAndPort()))
+            liveMembers.add(FBUtilities.getBroadcastAddressAndPort());
         return liveMembers;
     }
 
@@ -331,7 +331,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return false;
         }
 
-        VersionedValue versionedValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORTS);
+        VersionedValue versionedValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (versionedValue == null)
         {
             versionedValue = epState.getApplicationState(ApplicationState.STATUS);
@@ -385,7 +385,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState epState = endpointStateMap.get(endpoint);
         if (epState == null)
             return;
-        epState.addApplicationState(ApplicationState.STATUS_WITH_PORTS, StorageService.instance.valueFactory.shutdown(true));
+        epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
         epState.addApplicationState(ApplicationState.RPC_READY, StorageService.instance.valueFactory.rpcReady(false));
         epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
@@ -556,7 +556,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
         Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
-        states.put(ApplicationState.STATUS_WITH_PORTS, StorageService.instance.valueFactory.removingNonlocal(hostId));
+        states.put(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.removingNonlocal(hostId));
         states.put(ApplicationState.STATUS, StorageService.instance.valueFactory.removingNonlocal(hostId));
         states.put(ApplicationState.REMOVAL_COORDINATOR, StorageService.instance.valueFactory.removalCoordinator(localHostId));
         epState.addApplicationStates(states);
@@ -576,7 +576,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
         long expireTime = computeExpireTime();
-        epState.addApplicationState(ApplicationState.STATUS_WITH_PORTS, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
+        epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
         logger.info("Completing removal of {}", endpoint);
         addExpireTimeForEndpoint(endpoint, expireTime);
@@ -641,7 +641,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         // do not pass go, do not collect 200 dollars, just gtfo
-        epState.addApplicationState(ApplicationState.STATUS_WITH_PORTS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
+        epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
         handleMajorStateChange(endpoint, epState);
         Uninterruptibles.sleepUninterruptibly(intervalInMillis * 4, TimeUnit.MILLISECONDS);
@@ -713,7 +713,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         int size = seeds.size();
         if (size > 0)
         {
-            if (size == 1 && seeds.contains(FBUtilities.getBroadcastAddressAndPorts()))
+            if (size == 1 && seeds.contains(FBUtilities.getBroadcastAddressAndPort()))
             {
                 return;
             }
@@ -813,7 +813,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         Set<InetAddressAndPort> eps = endpointStateMap.keySet();
         for (InetAddressAndPort endpoint : eps)
         {
-            if (endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()))
+            if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                 continue;
 
             FailureDetector.instance.interpret(endpoint);
@@ -1134,7 +1134,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return "";
         }
 
-        VersionedValue versionedValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORTS);
+        VersionedValue versionedValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (versionedValue == null)
         {
             versionedValue = epState.getApplicationState(ApplicationState.STATUS);
@@ -1156,7 +1156,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         for (Entry<InetAddressAndPort, EndpointState> entry : epStateMap.entrySet())
         {
             InetAddressAndPort ep = entry.getKey();
-            if ( ep.equals(FBUtilities.getBroadcastAddressAndPorts()) && !isInShadowRound())
+            if ( ep.equals(FBUtilities.getBroadcastAddressAndPort()) && !isInShadowRound())
                 continue;
             if (justRemovedEndpoints.containsKey(ep))
             {
@@ -1242,11 +1242,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
            switch (entry.getKey())
            {
                case INTERNAL_IP:
-                    return remoteState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORTS) == null;
+                    return remoteState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT) == null;
                case STATUS:
-                   return remoteState.getApplicationState(ApplicationState.STATUS_WITH_PORTS) == null;
+                   return remoteState.getApplicationState(ApplicationState.STATUS_WITH_PORT) == null;
                case RPC_ADDRESS:
-                   return remoteState.getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORTS) == null;
+                   return remoteState.getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT) == null;
                default:
                    return true;
            }
@@ -1378,7 +1378,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         buildSeedsList();
         /* initialize the heartbeat state for this localEndpoint */
         maybeInitializeLocalState(generationNbr);
-        EndpointState localState = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPorts());
+        EndpointState localState = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort());
         localState.addApplicationStates(preloadLocalStates);
 
         //notify snitches that Gossiper is about to start
@@ -1451,8 +1451,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 if (slept > StorageService.RING_DELAY)
                 {
                     // if we don't consider ourself to be a seed, fail out
-                    if (!DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPorts()))
-                        throw new RuntimeException("Unable to gossip with any seeds " + DatabaseDescriptor.getSeeds() + " and " + FBUtilities.getBroadcastAddressAndPorts());
+                    if (!DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPort()))
+                        throw new RuntimeException("Unable to gossip with any seeds " + DatabaseDescriptor.getSeeds() + " and " + FBUtilities.getBroadcastAddressAndPort());
 
                     logger.warn("Unable to gossip with any seeds but continuing since node is in its own seed list");
                     inShadowRound = false;
@@ -1473,7 +1473,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         for (InetAddressAndPort seed : DatabaseDescriptor.getSeeds())
         {
-            if (seed.equals(FBUtilities.getBroadcastAddressAndPorts()))
+            if (seed.equals(FBUtilities.getBroadcastAddressAndPort()))
                 continue;
             seeds.add(seed);
         }
@@ -1485,12 +1485,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         HeartBeatState hbState = new HeartBeatState(generationNbr);
         EndpointState localState = new EndpointState(hbState);
         localState.markAlive();
-        endpointStateMap.putIfAbsent(FBUtilities.getBroadcastAddressAndPorts(), localState);
+        endpointStateMap.putIfAbsent(FBUtilities.getBroadcastAddressAndPort(), localState);
     }
 
     public void forceNewerGeneration()
     {
-        EndpointState epstate = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPorts());
+        EndpointState epstate = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort());
         epstate.getHeartBeatState().forceNewerGenerationUnsafe();
     }
 
@@ -1500,7 +1500,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void addSavedEndpoint(InetAddressAndPort ep)
     {
-        if (ep.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
         {
             logger.debug("Attempt to add self as saved endpoint");
             return;
@@ -1528,8 +1528,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private void addLocalApplicationStateInternal(ApplicationState state, VersionedValue value)
     {
         assert taskLock.isHeldByCurrentThread();
-        EndpointState epState = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPorts());
-        InetAddressAndPort epAddr = FBUtilities.getBroadcastAddressAndPorts();
+        EndpointState epState = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort());
+        InetAddressAndPort epAddr = FBUtilities.getBroadcastAddressAndPort();
         assert epState != null;
         // Fire "before change" notifications:
         doBeforeChangeNotifications(epAddr, epState, state, value);
@@ -1566,11 +1566,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public void stop()
     {
-        EndpointState mystate = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPorts());
+        EndpointState mystate = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort());
         if (mystate != null && !isSilentShutdownState(mystate) && StorageService.instance.isJoined())
         {
             logger.info("Announcing shutdown");
-            addLocalApplicationState(ApplicationState.STATUS_WITH_PORTS, StorageService.instance.valueFactory.shutdown(true));
+            addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
             addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
             MessageOut message = new MessageOut(MessagingService.Verb.GOSSIP_SHUTDOWN);
             for (InetAddressAndPort ep : liveEndpoints)

@@ -49,7 +49,7 @@ public class ForwardToContainerTest
 
     private void testVersion(int version) throws Exception
     {
-        InetAddressAndPort.initializeDefaultPorts(65532);
+        InetAddressAndPort.initializeDefaultPort(65532);
         List<InetAddressAndPort> addresses = ImmutableList.of(InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", 42),
                                                               InetAddressAndPort.getByName("127.0.0.1"),
                                                               InetAddressAndPort.getByName("127.0.0.1:7000"),

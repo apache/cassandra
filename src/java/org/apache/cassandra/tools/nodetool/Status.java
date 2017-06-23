@@ -56,30 +56,30 @@ public class Status extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        joiningNodes = probe.getJoiningNodes(withPorts);
-        leavingNodes = probe.getLeavingNodes(withPorts);
-        movingNodes = probe.getMovingNodes(withPorts);
-        loadMap = probe.getLoadMap(withPorts);
-        Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(withPorts);
-        liveNodes = probe.getLiveNodes(withPorts);
-        unreachableNodes = probe.getUnreachableNodes(withPorts);
-        hostIDMap = probe.getHostIdMap(withPorts);
+        joiningNodes = probe.getJoiningNodes(withPort);
+        leavingNodes = probe.getLeavingNodes(withPort);
+        movingNodes = probe.getMovingNodes(withPort);
+        loadMap = probe.getLoadMap(withPort);
+        Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(withPort);
+        liveNodes = probe.getLiveNodes(withPort);
+        unreachableNodes = probe.getUnreachableNodes(withPort);
+        hostIDMap = probe.getHostIdMap(withPort);
         epSnitchInfo = probe.getEndpointSnitchInfoProxy();
 
         StringBuilder errors = new StringBuilder();
 
-        if (withPorts)
+        if (withPort)
         {
             Map<String, Float> ownerships = null;
             boolean hasEffectiveOwns = false;
             try
             {
-                ownerships = probe.effectiveOwnershipWithPorts(keyspace);
+                ownerships = probe.effectiveOwnershipWithPort(keyspace);
                 hasEffectiveOwns = true;
             }
             catch (IllegalStateException e)
             {
-                ownerships = probe.getOwnershipWithPorts();
+                ownerships = probe.getOwnershipWithPort();
                 errors.append("Note: ").append(e.getMessage()).append("%n");
             }
             catch (IllegalArgumentException ex)
@@ -88,16 +88,16 @@ public class Status extends NodeToolCmd
                 System.exit(1);
             }
 
-            SortedMap<String, SetHostStatWithPorts> dcs = NodeTool.getOwnershipByDcWithPorts(probe, resolveIp, tokensToEndpoints, ownerships);
+            SortedMap<String, SetHostStatWithPort> dcs = NodeTool.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships);
 
             // More tokens than nodes (aka vnodes)?
             if (dcs.values().size() < tokensToEndpoints.keySet().size())
                 isTokenPerNode = false;
 
-            findMaxAddressLengthWithPorts(dcs);
+            findMaxAddressLengthWithPort(dcs);
 
             // Datacenters
-            for (Map.Entry<String, SetHostStatWithPorts> dc : dcs.entrySet())
+            for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())
             {
                 String dcHeader = String.format("Datacenter: %s%n", dc.getKey());
                 System.out.printf(dcHeader);
@@ -110,15 +110,15 @@ public class Status extends NodeToolCmd
 
                 printNodesHeader(hasEffectiveOwns, isTokenPerNode);
 
-                ArrayListMultimap<InetAddressAndPort, HostStatWithPorts> hostToTokens = ArrayListMultimap.create();
-                for (HostStatWithPorts stat : dc.getValue())
+                ArrayListMultimap<InetAddressAndPort, HostStatWithPort> hostToTokens = ArrayListMultimap.create();
+                for (HostStatWithPort stat : dc.getValue())
                     hostToTokens.put(stat.endpoint, stat);
 
                 for (InetAddressAndPort endpoint : hostToTokens.keySet())
                 {
                     Float owns = ownerships.get(endpoint);
-                    List<HostStatWithPorts> tokens = hostToTokens.get(endpoint);
-                    printNodeWithPorts(endpoint.toString(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
+                    List<HostStatWithPort> tokens = hostToTokens.get(endpoint);
+                    printNodeWithPort(endpoint.toString(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
                 }
             }
 
@@ -194,12 +194,12 @@ public class Status extends NodeToolCmd
         }
     }
 
-    private void findMaxAddressLengthWithPorts(Map<String, SetHostStatWithPorts> dcs)
+    private void findMaxAddressLengthWithPort(Map<String, SetHostStatWithPort> dcs)
     {
         maxAddressLength = 0;
-        for (Map.Entry<String, SetHostStatWithPorts> dc : dcs.entrySet())
+        for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())
         {
-            for (HostStatWithPorts stat : dc.getValue())
+            for (HostStatWithPort stat : dc.getValue())
             {
                 maxAddressLength = Math.max(maxAddressLength, stat.ipOrDns().length());
             }
@@ -248,7 +248,7 @@ public class Status extends NodeToolCmd
             System.out.printf(fmt, status, state, endpointDns, load, tokens.size(), strOwns, hostID, rack);
     }
 
-    private void printNodeWithPorts(String endpoint, Float owns, List<HostStatWithPorts> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode)
+    private void printNodeWithPort(String endpoint, Float owns, List<HostStatWithPort> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode)
     {
         String status, state, load, strOwns, hostID, rack, fmt;
         fmt = getFormat(hasEffectiveOwns, isTokenPerNode);

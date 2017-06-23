@@ -266,7 +266,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             return Collections.emptySet();
 
         Set<InetAddressAndPort> neighbors = new HashSet<>(replicaSets.get(rangeSuperSet));
-        neighbors.remove(FBUtilities.getBroadcastAddressAndPorts());
+        neighbors.remove(FBUtilities.getBroadcastAddressAndPort());
 
         if (dataCenters != null && !dataCenters.isEmpty())
         {
@@ -289,7 +289,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 try
                 {
                     final InetAddressAndPort endpoint = InetAddressAndPort.getByName(host.trim());
-                    if (endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()) || neighbors.contains(endpoint))
+                    if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) || neighbors.contains(endpoint))
                         specifiedHost.add(endpoint);
                 }
                 catch (UnknownHostException e)
@@ -298,7 +298,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 }
             }
 
-            if (!specifiedHost.contains(FBUtilities.getBroadcastAddressAndPorts()))
+            if (!specifiedHost.contains(FBUtilities.getBroadcastAddressAndPort()))
                 throw new IllegalArgumentException("The current host must be part of the repair");
 
             if (specifiedHost.size() <= 1)
@@ -309,7 +309,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 throw new IllegalArgumentException(String.format(msg, hosts, toRepair, neighbors));
             }
 
-            specifiedHost.remove(FBUtilities.getBroadcastAddressAndPorts());
+            specifiedHost.remove(FBUtilities.getBroadcastAddressAndPort());
             return specifiedHost;
 
         }

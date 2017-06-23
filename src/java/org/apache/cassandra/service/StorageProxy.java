@@ -353,7 +353,7 @@ public class StorageProxy implements StorageProxyMBean
         if (consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL)
         {
             // Restrict naturalEndpoints and pendingEndpoints to node in the local DC only
-            String localDc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPorts());
+            String localDc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
             Predicate<InetAddressAndPort> isLocalDc = sameDCPredicateFor(localDc);
             naturalEndpoints = ImmutableList.copyOf(Iterables.filter(naturalEndpoints, isLocalDc));
             pendingEndpoints = ImmutableList.copyOf(Iterables.filter(pendingEndpoints, isLocalDc));
@@ -622,7 +622,7 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, OverloadedException, WriteTimeoutException, WriteFailureException
     {
         Tracing.trace("Determining replicas for mutation");
-        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPorts());
+        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
 
         long startTime = System.nanoTime();
         List<AbstractWriteResponseHandler<IMutation>> responseHandlers = new ArrayList<>(mutations.size());
@@ -725,7 +725,7 @@ public class StorageProxy implements StorageProxyMBean
         // local writes can timeout, but cannot be dropped (see LocalMutationRunnable and CASSANDRA-6510),
         // so there is no need to hint or retry.
         for (InetAddressAndPort target : endpoints)
-            if (!target.equals(FBUtilities.getBroadcastAddressAndPorts()) && shouldHint(target))
+            if (!target.equals(FBUtilities.getBroadcastAddressAndPort()) && shouldHint(target))
                 endpointsToHint.add(target);
 
         submitHint(mutation, endpointsToHint, null);
@@ -735,7 +735,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         String keyspaceName = mutation.getKeyspaceName();
         Token token = mutation.key().getToken();
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPorts();
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
 
         return StorageService.instance.getNaturalEndpoints(keyspaceName, token).contains(local)
                || StorageService.instance.getTokenMetadata().pendingEndpointsFor(token, keyspaceName).contains(local);
@@ -754,7 +754,7 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
         Tracing.trace("Determining replicas for mutation");
-        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPorts());
+        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
 
         long startTime = System.nanoTime();
 
@@ -778,7 +778,7 @@ public class StorageProxy implements StorageProxyMBean
                 ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
 
                 //Since the base -> view replication is 1:1 we only need to store the BL locally
-                final Collection<InetAddressAndPort> batchlogEndpoints = Collections.singleton(FBUtilities.getBroadcastAddressAndPorts());
+                final Collection<InetAddressAndPort> batchlogEndpoints = Collections.singleton(FBUtilities.getBroadcastAddressAndPort());
                 BatchlogResponseHandler.BatchlogCleanup cleanup = new BatchlogResponseHandler.BatchlogCleanup(mutations.size(),
                                                                                                               () -> asyncRemoveFromBatchlog(batchlogEndpoints, batchUUID));
                 // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
@@ -793,7 +793,7 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         // When local node is the endpoint and there are no pending nodes we can
                         // Just apply the mutation locally.
-                        if (pairedEndpoint.get().equals(FBUtilities.getBroadcastAddressAndPorts())
+                        if (pairedEndpoint.get().equals(FBUtilities.getBroadcastAddressAndPort())
                             && pendingEndpoints.isEmpty() && StorageService.instance.isJoined())
                             try
                             {
@@ -902,7 +902,7 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.nanoTime();
 
         List<WriteResponseHandlerWrapper> wrappers = new ArrayList<WriteResponseHandlerWrapper>(mutations.size());
-        String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPorts());
+        String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddressAndPort());
 
         try
         {
@@ -977,7 +977,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public static boolean canDoLocalRequest(InetAddressAndPort replica)
     {
-        return replica.equals(FBUtilities.getBroadcastAddressAndPorts());
+        return replica.equals(FBUtilities.getBroadcastAddressAndPort());
     }
 
     private static void syncWriteToBatchlog(Collection<Mutation> mutations, Collection<InetAddressAndPort> endpoints, UUID uuid, long queryStartNanoTime)
@@ -1032,7 +1032,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (OverloadedException | WriteTimeoutException e)
             {
-                wrapper.handler.onFailure(FBUtilities.getBroadcastAddressAndPorts(), RequestFailureReason.UNKNOWN);
+                wrapper.handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.UNKNOWN);
             }
         }
     }
@@ -1160,13 +1160,13 @@ public class StorageProxy implements StorageProxyMBean
     {
         TokenMetadata.Topology topology = StorageService.instance.getTokenMetadata().cachedOnlyTokenMap().getTopology();
         Multimap<String, InetAddressAndPort> localEndpoints = HashMultimap.create(topology.getDatacenterRacks().get(localDataCenter));
-        String localRack = DatabaseDescriptor.getEndpointSnitch().getRack(FBUtilities.getBroadcastAddressAndPorts());
+        String localRack = DatabaseDescriptor.getEndpointSnitch().getRack(FBUtilities.getBroadcastAddressAndPort());
 
         Collection<InetAddressAndPort> chosenEndpoints = new BatchlogManager.EndpointFilter(localRack, localEndpoints).filter();
         if (chosenEndpoints.isEmpty())
         {
             if (consistencyLevel == ConsistencyLevel.ANY)
-                return Collections.singleton(FBUtilities.getBroadcastAddressAndPorts());
+                return Collections.singleton(FBUtilities.getBroadcastAddressAndPort());
 
             throw new UnavailableException(ConsistencyLevel.ONE, 1, 0);
         }
@@ -1408,7 +1408,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         InetAddressAndPort endpoint = findSuitableEndpoint(cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency());
 
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPorts()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
         {
             return applyCounterMutationOnCoordinator(cm, localDataCenter, queryStartNanoTime);
         }
@@ -1460,7 +1460,7 @@ public class StorageProxy implements StorageProxyMBean
         if (localEndpoints.isEmpty())
         {
             // No endpoint in local DC, pick the closest endpoint according to the snitch
-            snitch.sortByProximity(FBUtilities.getBroadcastAddressAndPorts(), endpoints);
+            snitch.sortByProximity(FBUtilities.getBroadcastAddressAndPort(), endpoints);
             return endpoints.get(0);
         }
         else
@@ -1501,7 +1501,7 @@ public class StorageProxy implements StorageProxyMBean
                 responseHandler.response(null);
 
                 Set<InetAddressAndPort> remotes = Sets.difference(ImmutableSet.copyOf(targets),
-                                                                  ImmutableSet.of(FBUtilities.getBroadcastAddressAndPorts()));
+                                                                  ImmutableSet.of(FBUtilities.getBroadcastAddressAndPort()));
                 if (!remotes.isEmpty())
                     sendToHintedEndpoints(result, remotes, responseHandler, localDataCenter, Stage.COUNTER_MUTATION);
             }
@@ -1848,21 +1848,21 @@ public class StorageProxy implements StorageProxyMBean
                 else
                 {
                     MessagingService.instance().incrementDroppedMessages(verb, System.currentTimeMillis() - constructionTime);
-                    handler.onFailure(FBUtilities.getBroadcastAddressAndPorts(), RequestFailureReason.UNKNOWN);
+                    handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.UNKNOWN);
                 }
 
-                MessagingService.instance().addLatency(FBUtilities.getBroadcastAddressAndPorts(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+                MessagingService.instance().addLatency(FBUtilities.getBroadcastAddressAndPort(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
             }
             catch (Throwable t)
             {
                 if (t instanceof TombstoneOverwhelmingException)
                 {
-                    handler.onFailure(FBUtilities.getBroadcastAddressAndPorts(), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
+                    handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
                     logger.error(t.getMessage());
                 }
                 else
                 {
-                    handler.onFailure(FBUtilities.getBroadcastAddressAndPorts(), RequestFailureReason.UNKNOWN);
+                    handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.UNKNOWN);
                     throw t;
                 }
             }
@@ -1877,7 +1877,7 @@ public class StorageProxy implements StorageProxyMBean
     public static List<InetAddressAndPort> getLiveSortedEndpoints(Keyspace keyspace, RingPosition pos)
     {
         List<InetAddressAndPort> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(keyspace, pos);
-        DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddressAndPorts(), liveEndpoints);
+        DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddressAndPort(), liveEndpoints);
         return liveEndpoints;
     }
 
@@ -2246,7 +2246,7 @@ public class StorageProxy implements StorageProxyMBean
         return describeSchemaVersions(false);
     }
 
-    public Map<String, List<String>> getSchemaVersionsWithPorts()
+    public Map<String, List<String>> getSchemaVersionsWithPort()
     {
         return describeSchemaVersions(true);
     }
@@ -2256,7 +2256,7 @@ public class StorageProxy implements StorageProxyMBean
      * migration id. This is useful for determining if a schema change has propagated through the cluster. Disagreement
      * is assumed if any node fails to respond.
      */
-    public static Map<String, List<String>> describeSchemaVersions(boolean withPorts)
+    public static Map<String, List<String>> describeSchemaVersions(boolean withPort)
     {
         final String myVersion = Schema.instance.getVersion().toString();
         final Map<InetAddressAndPort, UUID> versions = new ConcurrentHashMap<>();
@@ -2305,7 +2305,7 @@ public class StorageProxy implements StorageProxyMBean
                 hosts = new ArrayList<String>();
                 results.put(stringVersion, hosts);
             }
-            hosts.add(host.getHostAddress(withPorts));
+            hosts.add(host.getHostAddress(withPort));
         }
 
         // we're done: the results map is ready to return to the client.  the rest is just debug logging:
@@ -2586,7 +2586,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (MessagingService.DROPPABLE_VERBS.contains(verb))
                     MessagingService.instance().incrementDroppedMutations(mutationOpt, timeTaken);
-                HintRunnable runnable = new HintRunnable(Collections.singleton(FBUtilities.getBroadcastAddressAndPorts()))
+                HintRunnable runnable = new HintRunnable(Collections.singleton(FBUtilities.getBroadcastAddressAndPort()))
                 {
                     protected void runMayThrow() throws Exception
                     {

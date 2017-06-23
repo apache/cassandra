@@ -72,7 +72,7 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch
         {
             throw new RuntimeException(e);
         }
-        Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORTS, StorageService.instance.valueFactory.internalAddressAndPorts(address));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT, StorageService.instance.valueFactory.internalAddressAndPort(address));
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP, StorageService.instance.valueFactory.internalIP(localPrivateAddress));
         Gossiper.instance.register(new ReconnectableSnitchHelper(this, ec2region, true));
     }

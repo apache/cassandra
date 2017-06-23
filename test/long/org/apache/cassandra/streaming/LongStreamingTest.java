@@ -104,7 +104,7 @@ public class LongStreamingTest
             public void init(String keyspace)
             {
                 for (Range<Token> range : StorageService.instance.getLocalRanges("cql_keyspace"))
-                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPorts());
+                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
 
                 this.ks = keyspace;
             }
@@ -131,7 +131,7 @@ public class LongStreamingTest
             public void init(String keyspace)
             {
                 for (Range<Token> range : StorageService.instance.getLocalRanges("cql_keyspace"))
-                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPorts());
+                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
 
                 this.ks = keyspace;
             }
