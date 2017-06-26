@@ -1020,7 +1020,7 @@ public class SelectStatement implements CQLStatement
          */
         private boolean selectOnlyStaticColumns(TableMetadata table, List<Selectable> selectables)
         {
-            if (!table.hasStaticColumns() || selectables.isEmpty())
+            if (table.isStaticCompactTable() || !table.hasStaticColumns() || selectables.isEmpty())
                 return false;
 
             return Selectable.selectColumns(selectables, (column) -> column.isStatic())
