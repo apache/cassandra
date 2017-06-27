@@ -20,17 +20,17 @@
  */
 package org.apache.cassandra.metrics;
 
+import static org.junit.Assert.*;
+
 import java.lang.management.ManagementFactory;
 import java.util.Collection;
 
+import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
 import org.junit.Test;
 
 import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
-
-import static org.junit.Assert.*;
 
 
 public class CassandraMetricsRegistryTest
@@ -86,4 +86,25 @@ public class CassandraMetricsRegistryTest
         }
     }
 
+    @Test
+    public void testDeltaBaseCase()
+    {
+        long[] last = new long[10];
+        long[] now = new long[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        // difference between all zeros and a value should be the value
+        assertArrayEquals(now, CassandraMetricsRegistry.delta(now, last));
+        // the difference between itself should be all 0s
+        assertArrayEquals(last, CassandraMetricsRegistry.delta(now, now));
+        // verifying each value is calculated
+        assertArrayEquals(new long[] {1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                CassandraMetricsRegistry.delta(new long[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, now));
+    }
+
+    @Test
+    public void testDeltaHistogramSizeChange()
+    {
+        long[] count = new long[]{0, 1, 2, 3, 4, 5};
+        assertArrayEquals(count, CassandraMetricsRegistry.delta(count, new long[3]));
+        assertArrayEquals(new long[6], CassandraMetricsRegistry.delta(count, new long[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
+    }
 }
