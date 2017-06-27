@@ -1,4 +1,5 @@
 3.0.15
+ * Purge tombstones created by expired cells (CASSANDRA-13643)
  * Make concat work with iterators that have different subsets of columns (CASSANDRA-13482)
  * Set test.runners based on cores and memory size (CASSANDRA-13078)
  * Allow different NUMACTL_ARGS to be passed in (CASSANDRA-13557)
