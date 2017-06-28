@@ -82,6 +82,7 @@
 
 
 3.11.1
+ * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
   * Fix secondary index queries on COMPACT tables (CASSANDRA-13627) 
   * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)
