@@ -1488,6 +1488,12 @@ public final class SystemKeyspace
                         key.byteBuffer());
     }
 
+    public static void resetPreparedStatements()
+    {
+        ColumnFamilyStore availableRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(PREPARED_STATEMENTS);
+        availableRanges.truncateBlocking();
+    }
+
     public static List<Pair<String, String>> loadPreparedStatements()
     {
         String query = String.format("SELECT logged_keyspace, query_string FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, PREPARED_STATEMENTS);

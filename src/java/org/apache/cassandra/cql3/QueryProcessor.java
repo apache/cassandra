@@ -88,6 +88,7 @@ public class QueryProcessor implements QueryHandler
                              .listener((md5Digest, prepared) -> {
                                  metrics.preparedStatementsEvicted.inc();
                                  lastMinuteEvictionsCount.incrementAndGet();
+                                 SystemKeyspace.removePreparedStatement(md5Digest);
                              }).build();
 
         thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, ParsedStatement.Prepared>()
@@ -162,11 +163,17 @@ public class QueryProcessor implements QueryHandler
         logger.info("Preloaded {} prepared statements", count);
     }
 
+    /**
+     * Clears the prepared statement cache.
+     * @param memoryOnly {@code true} if only the in memory caches must be cleared, {@code false} otherwise.
+     */
     @VisibleForTesting
-    public static void clearPrepraredStatements()
+    public static void clearPreparedStatements(boolean memoryOnly)
     {
         preparedStatements.clear();
         thriftPreparedStatements.clear();
+        if (!memoryOnly)
+            SystemKeyspace.resetPreparedStatements();
     }
 
     private static QueryState internalQueryState()
