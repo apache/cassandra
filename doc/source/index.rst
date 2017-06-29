@@ -36,7 +36,7 @@ Contents:
    troubleshooting/index
    development/index
    faq/index
-   plugins/CAPI-Power
+   plugins/index
 
    bugs
    contactus
