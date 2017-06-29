@@ -6,6 +6,7 @@ Merged from 3.0:
 
 
 3.11.0
+ * Allow native function calls in CQLSSTableWriter (CASSANDRA-12606)
  * Replace string comparison with regex/number checks in MessagingService test (CASSANDRA-13216)
  * Fix formatting of duration columns in CQLSH (CASSANDRA-13549)
  * Fix the problem with duplicated rows when using paging with SASI (CASSANDRA-13302)
