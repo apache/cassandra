@@ -36,6 +36,7 @@ Contents:
    troubleshooting/index
    development/index
    faq/index
+   plugins/index
 
    bugs
    contactus
