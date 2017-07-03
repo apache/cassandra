@@ -374,6 +374,13 @@ public class LocalSessions
         QueryProcessor.executeInternal(String.format(query, keyspace, table), sessionID);
     }
 
+    private void syncTable()
+    {
+        TableId tid = Schema.instance.getTableMetadata(keyspace, table).id;
+        ColumnFamilyStore cfm = Schema.instance.getColumnFamilyStoreInstance(tid);
+        cfm.forceBlockingFlush();
+    }
+
     /**
      * Loads a session directly from the table. Should be used for testing only
      */
@@ -585,7 +592,7 @@ public class LocalSessions
         LocalSession session = getSession(sessionID);
         if (session == null)
         {
-            logger.debug("Received FinalizePropose message for unknown repair session {}, responding with failure");
+            logger.debug("Received FinalizePropose message for unknown repair session {}, responding with failure", sessionID);
             sendMessage(from, new FailSession(sessionID));
             return;
         }
@@ -593,8 +600,18 @@ public class LocalSessions
         try
         {
             setStateAndSave(session, FINALIZE_PROMISED);
+
+            /*
+             Flushing the repairs table here, *before* responding to the coordinator prevents a scenario where we respond
+             with a promise to the coordinator, but there is a failure before the commit log mutation with the
+             FINALIZE_PROMISED status is synced to disk. This could cause the state for this session to revert to an
+             earlier status on startup, which would prevent the failure recovery mechanism from ever being able to promote
+             this session to FINALIZED, likely creating inconsistencies in the repaired data sets across nodes.
+             */
+            syncTable();
+
             sendMessage(from, new FinalizePromise(sessionID, getBroadcastAddress(), true));
-            logger.debug("Received FinalizePropose message for incremental repair session {}, responded with FinalizePromise");
+            logger.debug("Received FinalizePropose message for incremental repair session {}, responded with FinalizePromise", sessionID);
         }
         catch (IllegalArgumentException e)
         {
