@@ -170,12 +170,14 @@ public abstract class ConsistentSession
             put(REPAIRING, ImmutableSet.of(FINALIZE_PROMISED, FAILED));
             put(FINALIZE_PROMISED, ImmutableSet.of(FINALIZED, FAILED));
             put(FINALIZED, ImmutableSet.of());
-            put(FAILED, ImmutableSet.of(FAILED));
+            put(FAILED, ImmutableSet.of());
         }};
 
         public boolean canTransitionTo(State state)
         {
-            return transitions.get(this).contains(state);
+            // redundant transitions are allowed because the failure recovery  mechanism can
+            // send redundant status changes out, and they shouldn't throw exceptions
+            return state == this || transitions.get(this).contains(state);
         }
 
         public static State valueOf(int ordinal)

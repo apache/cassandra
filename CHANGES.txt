@@ -1,4 +1,5 @@
 4.0
+ * Allow noop incremental repair state transitions (CASSANDRA-13658)
  * Run repair with down replicas (CASSANDRA-10446)
  * Added started & completed repair metrics (CASSANDRA-13598)
  * Added started & completed repair metrics (CASSANDRA-13598)
