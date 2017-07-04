@@ -88,7 +88,7 @@ public abstract class Message
         STARTUP        (1,  Direction.REQUEST,  StartupMessage.codec),
         READY          (2,  Direction.RESPONSE, ReadyMessage.codec),
         AUTHENTICATE   (3,  Direction.RESPONSE, AuthenticateMessage.codec),
-        CREDENTIALS    (4,  Direction.REQUEST,  CredentialsMessage.codec),
+        CREDENTIALS    (4,  Direction.REQUEST,  UnsupportedMessageCodec.instance),
         OPTIONS        (5,  Direction.REQUEST,  OptionsMessage.codec),
         SUPPORTED      (6,  Direction.RESPONSE, SupportedMessage.codec),
         QUERY          (7,  Direction.REQUEST,  QueryMessage.codec),

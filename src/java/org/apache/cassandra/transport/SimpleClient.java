@@ -44,7 +44,6 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.transport.messages.CredentialsMessage;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.transport.messages.ExecuteMessage;
@@ -164,13 +163,6 @@ public class SimpleClient implements Closeable
             bootstrap.group().shutdownGracefully();
             throw new IOException("Connection Error", future.cause());
         }
-    }
-
-    public void login(Map<String, String> credentials)
-    {
-        CredentialsMessage msg = new CredentialsMessage();
-        msg.credentials.putAll(credentials);
-        execute(msg);
     }
 
     public ResultMessage execute(String query, ConsistencyLevel consistency)
