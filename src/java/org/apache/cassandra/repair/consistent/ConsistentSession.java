@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Executor;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
@@ -96,8 +95,8 @@ import org.apache.cassandra.tools.nodetool.RepairAdmin;
  *  conflicts with in progress compactions. The sstables will be marked repaired as part of the normal compaction process.
  *  <p/>
  *
- *  On the coordinator side, see {@link CoordinatorSession#finalizePropose(Executor)}, {@link CoordinatorSession#handleFinalizePromise(InetAddress, boolean)},
- *  & {@link CoordinatorSession#finalizeCommit(Executor)}
+ *  On the coordinator side, see {@link CoordinatorSession#finalizePropose()}, {@link CoordinatorSession#handleFinalizePromise(InetAddress, boolean)},
+ *  & {@link CoordinatorSession#finalizeCommit()}
  *  <p/>
  *
  *  On the local session side, see {@link LocalSessions#handleFinalizeProposeMessage(InetAddress, FinalizePropose)}

@@ -24,14 +24,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 
 import org.junit.Assert;
@@ -118,26 +116,26 @@ public class CoordinatorSessionTest extends AbstractRepairTest
 
         Runnable onFinalizeCommit = null;
         boolean finalizeCommitCalled = false;
-        public synchronized void finalizeCommit(Executor executor)
+        public synchronized void finalizeCommit()
         {
             finalizeCommitCalled = true;
             if (onFinalizeCommit != null)
             {
                 onFinalizeCommit.run();
             }
-            super.finalizeCommit(executor);
+            super.finalizeCommit();
         }
 
         Runnable onFail = null;
         boolean failCalled = false;
-        public synchronized void fail(Executor executor)
+        public synchronized void fail()
         {
             failCalled = true;
             if (onFail != null)
             {
                 onFail.run();
             }
-            super.fail(executor);
+            super.fail();
         }
     }
 
@@ -209,7 +207,6 @@ public class CoordinatorSessionTest extends AbstractRepairTest
     public void successCase()
     {
         InstrumentedCoordinatorSession coordinator = createInstrumentedSession();
-        Executor executor = MoreExecutors.directExecutor();
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
         SettableFuture<List<RepairSessionResult>> repairFuture = SettableFuture.create();
         Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSupplier = () ->
@@ -222,7 +219,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         AtomicBoolean hasFailures = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertTrue(coordinator.sentMessages.isEmpty());
-        ListenableFuture sessionResult = coordinator.execute(executor, sessionSupplier, hasFailures);
+        ListenableFuture sessionResult = coordinator.execute(sessionSupplier, hasFailures);
 
         for (InetAddress participant : PARTICIPANTS)
         {
@@ -294,7 +291,6 @@ public class CoordinatorSessionTest extends AbstractRepairTest
     public void failedRepairs()
     {
         InstrumentedCoordinatorSession coordinator = createInstrumentedSession();
-        Executor executor = MoreExecutors.directExecutor();
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
         SettableFuture<List<RepairSessionResult>> repairFuture = SettableFuture.create();
         Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSupplier = () ->
@@ -307,7 +303,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         AtomicBoolean hasFailures = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertTrue(coordinator.sentMessages.isEmpty());
-        ListenableFuture sessionResult = coordinator.execute(executor, sessionSupplier, hasFailures);
+        ListenableFuture sessionResult = coordinator.execute(sessionSupplier, hasFailures);
         for (InetAddress participant : PARTICIPANTS)
         {
             PrepareConsistentRequest expected = new PrepareConsistentRequest(coordinator.sessionID, COORDINATOR, new HashSet<>(PARTICIPANTS));
@@ -357,7 +353,6 @@ public class CoordinatorSessionTest extends AbstractRepairTest
     public void failedPrepare()
     {
         InstrumentedCoordinatorSession coordinator = createInstrumentedSession();
-        Executor executor = MoreExecutors.directExecutor();
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
         SettableFuture<List<RepairSessionResult>> repairFuture = SettableFuture.create();
         Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSupplier = () ->
@@ -370,7 +365,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         AtomicBoolean hasFailures = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertTrue(coordinator.sentMessages.isEmpty());
-        ListenableFuture sessionResult = coordinator.execute(executor, sessionSupplier, hasFailures);
+        ListenableFuture sessionResult = coordinator.execute(sessionSupplier, hasFailures);
         for (InetAddress participant : PARTICIPANTS)
         {
             PrepareConsistentRequest expected = new PrepareConsistentRequest(coordinator.sessionID, COORDINATOR, new HashSet<>(PARTICIPANTS));
@@ -413,7 +408,6 @@ public class CoordinatorSessionTest extends AbstractRepairTest
     public void failedPropose()
     {
         InstrumentedCoordinatorSession coordinator = createInstrumentedSession();
-        Executor executor = MoreExecutors.directExecutor();
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
         SettableFuture<List<RepairSessionResult>> repairFuture = SettableFuture.create();
         Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSupplier = () ->
@@ -426,7 +420,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         AtomicBoolean hasFailures = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertTrue(coordinator.sentMessages.isEmpty());
-        ListenableFuture sessionResult = coordinator.execute(executor, sessionSupplier, hasFailures);
+        ListenableFuture sessionResult = coordinator.execute(sessionSupplier, hasFailures);
 
         for (InetAddress participant : PARTICIPANTS)
         {

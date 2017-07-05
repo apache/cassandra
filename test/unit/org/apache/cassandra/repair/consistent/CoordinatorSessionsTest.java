@@ -21,7 +21,6 @@ package org.apache.cassandra.repair.consistent;
 import java.net.InetAddress;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Executor;
 
 import com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -76,7 +75,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         }
 
         int failCalls = 0;
-        public synchronized void fail(Executor executor)
+        public synchronized void fail()
         {
             failCalls++;
         }

@@ -22,7 +22,6 @@ import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -34,7 +33,6 @@ import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
@@ -139,7 +137,7 @@ public class CoordinatorSession extends ConsistentSession
         MessagingService.instance().sendOneWay(messageOut, destination);
     }
 
-    public ListenableFuture<Boolean> prepare(Executor executor)
+    public ListenableFuture<Boolean> prepare()
     {
         Preconditions.checkArgument(allStates(State.PREPARING));
 
@@ -147,7 +145,7 @@ public class CoordinatorSession extends ConsistentSession
         PrepareConsistentRequest message = new PrepareConsistentRequest(sessionID, coordinator, participants);
         for (final InetAddress participant : participants)
         {
-            executor.execute(() -> sendMessage(participant, message));
+            sendMessage(participant, message);
         }
         return prepareFuture;
     }
@@ -181,14 +179,14 @@ public class CoordinatorSession extends ConsistentSession
         setAll(State.REPAIRING);
     }
 
-    public synchronized ListenableFuture<Boolean> finalizePropose(Executor executor)
+    public synchronized ListenableFuture<Boolean> finalizePropose()
     {
         Preconditions.checkArgument(allStates(State.REPAIRING));
         logger.debug("Proposing finalization of repair session {}", sessionID);
         FinalizePropose message = new FinalizePropose(sessionID);
         for (final InetAddress participant : participants)
         {
-            executor.execute(() -> sendMessage(participant, message));
+            sendMessage(participant, message);
         }
         return finalizeProposeFuture;
     }
@@ -217,25 +215,20 @@ public class CoordinatorSession extends ConsistentSession
         }
     }
 
-    public synchronized void finalizeCommit(Executor executor)
+    public synchronized void finalizeCommit()
     {
         Preconditions.checkArgument(allStates(State.FINALIZE_PROMISED));
         logger.debug("Committing finalization of repair session {}", sessionID);
         FinalizeCommit message = new FinalizeCommit(sessionID);
         for (final InetAddress participant : participants)
         {
-            executor.execute(() -> sendMessage(participant, message));
+            sendMessage(participant, message);
         }
         setAll(State.FINALIZED);
         logger.info("Incremental repair session {} completed", sessionID);
     }
 
-    public void fail()
-    {
-        fail(MoreExecutors.directExecutor());
-    }
-
-    public synchronized void fail(Executor executor)
+    public synchronized void fail()
     {
         logger.info("Incremental repair session {} failed", sessionID);
         FailSession message = new FailSession(sessionID);
@@ -243,7 +236,7 @@ public class CoordinatorSession extends ConsistentSession
         {
             if (participantStates.get(participant) != State.FAILED)
             {
-                executor.execute(() -> sendMessage(participant, message));
+                sendMessage(participant, message);
             }
         }
         setAll(State.FAILED);
@@ -262,12 +255,12 @@ public class CoordinatorSession extends ConsistentSession
     /**
      * Runs the asynchronous consistent repair session. Actual repair sessions are scheduled via a submitter to make unit testing easier
      */
-    public ListenableFuture execute(Executor executor, Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSubmitter, AtomicBoolean hasFailure)
+    public ListenableFuture execute(Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSubmitter, AtomicBoolean hasFailure)
     {
         logger.info("Beginning coordination of incremental repair session {}", sessionID);
 
         sessionStart = System.currentTimeMillis();
-        ListenableFuture<Boolean> prepareResult = prepare(executor);
+        ListenableFuture<Boolean> prepareResult = prepare();
 
         // run repair sessions normally
         ListenableFuture<List<RepairSessionResult>> repairSessionResults = Futures.transform(prepareResult, new AsyncFunction<Boolean, List<RepairSessionResult>>()
@@ -309,7 +302,7 @@ public class CoordinatorSession extends ConsistentSession
                 }
                 else
                 {
-                    return finalizePropose(executor);
+                    return finalizePropose();
                 }
             }
         });
@@ -325,7 +318,7 @@ public class CoordinatorSession extends ConsistentSession
                     {
                         logger.debug("Incremental repair {} finalization phase completed in {}", sessionID, formatDuration(finalizeStart, System.currentTimeMillis()));
                     }
-                    finalizeCommit(executor);
+                    finalizeCommit();
                     if (logger.isDebugEnabled())
                     {
                         logger.debug("Incremental repair {} phase completed in {}", sessionID, formatDuration(sessionStart, System.currentTimeMillis()));
@@ -334,7 +327,7 @@ public class CoordinatorSession extends ConsistentSession
                 else
                 {
                     hasFailure.set(true);
-                    fail(executor);
+                    fail();
                 }
             }
 
@@ -345,7 +338,7 @@ public class CoordinatorSession extends ConsistentSession
                     logger.debug("Incremental repair {} phase failed in {}", sessionID, formatDuration(sessionStart, System.currentTimeMillis()));
                 }
                 hasFailure.set(true);
-                fail(executor);
+                fail();
             }
         });
 

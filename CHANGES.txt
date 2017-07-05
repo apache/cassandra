@@ -1,4 +1,5 @@
 4.0
+ * Send IR coordinator messages synchronously (CASSANDRA-13673)
  * Flush system.repair table before IR finalize promise (CASSANDRA-13660)
  * Fix column filter creation for wildcard queries (CASSANDRA-13650)
  * Add 'nodetool getbatchlogreplaythrottle' and 'nodetool setbatchlogreplaythrottle' (CASSANDRA-13614)
