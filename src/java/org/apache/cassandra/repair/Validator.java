@@ -58,7 +58,7 @@ public class Validator implements Runnable
 
     public final RepairJobDesc desc;
     public final InetAddress initiator;
-    public final int gcBefore;
+    public final int nowInSec;
     private final boolean evenTreeDistribution;
     public final boolean isConsistent;
 
@@ -74,21 +74,21 @@ public class Validator implements Runnable
 
     private final PreviewKind previewKind;
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, PreviewKind previewKind)
     {
-        this(desc, initiator, gcBefore, false, false, previewKind);
+        this(desc, initiator, nowInSec, false, false, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore, boolean isConsistent, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, boolean isConsistent, PreviewKind previewKind)
     {
-        this(desc, initiator, gcBefore, false, isConsistent, previewKind);
+        this(desc, initiator, nowInSec, false, isConsistent, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore, boolean evenTreeDistribution, boolean isConsistent, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, boolean evenTreeDistribution, boolean isConsistent, PreviewKind previewKind)
     {
         this.desc = desc;
         this.initiator = initiator;
-        this.gcBefore = gcBefore;
+        this.nowInSec = nowInSec;
         this.isConsistent = isConsistent;
         this.previewKind = previewKind;
         validated = 0;
