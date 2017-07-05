@@ -568,8 +568,21 @@ public class LocalSessions
 
             public void onFailure(Throwable t)
             {
-                logger.error(String.format("Prepare phase for incremental repair session %s failed", sessionID), t);
-                failSession(sessionID);
+                logger.error("Prepare phase for incremental repair session {} failed", sessionID, t);
+                if (t instanceof PendingAntiCompaction.SSTableAcquisitionException)
+                {
+                    logger.warn("Prepare phase for incremental repair session {} was unable to " +
+                                "acquire exclusive access to the neccesary sstables. " +
+                                "This is usually caused by running multiple incremental repairs on nodes that share token ranges",
+                                sessionID);
+
+                }
+                else
+                {
+                    logger.error("Prepare phase for incremental repair session {} failed", sessionID, t);
+                }
+                sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddress(), false));
+                failSession(sessionID, false);
                 executor.shutdown();
             }
         });

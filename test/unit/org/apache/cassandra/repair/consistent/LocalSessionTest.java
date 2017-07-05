@@ -303,7 +303,7 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertEquals(session, sessions.loadUnsafe(sessionID));
 
         // ...and we should have sent a success message back to the coordinator
-        assertMessagesSent(sessions, COORDINATOR, new FailSession(sessionID));
+        assertMessagesSent(sessions, COORDINATOR, new PrepareConsistentResponse(sessionID, PARTICIPANT1, false));
 
     }
 
