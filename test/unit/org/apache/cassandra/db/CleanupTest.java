@@ -24,9 +24,11 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -36,6 +38,8 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -44,12 +48,14 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class CleanupTest
 {
@@ -57,6 +63,11 @@ public class CleanupTest
     public static final String KEYSPACE1 = "CleanupTest1";
     public static final String CF_INDEXED1 = "Indexed1";
     public static final String CF_STANDARD1 = "Standard1";
+
+    public static final String KEYSPACE2 = "CleanupTestMultiDc";
+    public static final String CF_INDEXED2 = "Indexed2";
+    public static final String CF_STANDARD2 = "Standard2";
+
     public static final ByteBuffer COLUMN = ByteBufferUtil.bytes("birthdate");
     public static final ByteBuffer VALUE = ByteBuffer.allocate(8);
     static
@@ -73,6 +84,27 @@ public class CleanupTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, CF_INDEXED1, true));
+
+
+        DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
+        {
+            @Override
+            public String getRack(InetAddress endpoint)
+            {
+                return "RC1";
+            }
+
+            @Override
+            public String getDatacenter(InetAddress endpoint)
+            {
+                return "DC1";
+            }
+        });
+
+        SchemaLoader.createKeyspace(KEYSPACE2,
+                                    KeyspaceParams.nts("DC1", 1),
+                                    SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD2),
+                                    SchemaLoader.compositeIndexCFMD(KEYSPACE2, CF_INDEXED2, true));
     }
 
     /*
@@ -174,6 +206,36 @@ public class CleanupTest
     }
 
     @Test
+    public void testCleanupWithNoTokenRange() throws Exception
+    {
+
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        tmd.clearUnsafe();
+        tmd.updateHostId(UUID.randomUUID(), InetAddress.getByName("127.0.0.1"));
+        byte[] tk1 = {2};
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
+
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE2);
+        keyspace.setMetadata(KeyspaceMetadata.create(KEYSPACE2, KeyspaceParams.nts("DC1", 1)));
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD2);
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, "val", LOOPS);
+        assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
+
+        // remove replication on DC1
+        keyspace.setMetadata(KeyspaceMetadata.create(KEYSPACE2, KeyspaceParams.nts("DC1", 0)));
+
+        // clear token range for localhost on DC1
+
+        CompactionManager.instance.performCleanup(cfs, 2);
+        assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
+        assertTrue(cfs.getLiveSSTables().isEmpty());
+    }
+
+
+    @Test
     public void testNeedsCleanup() throws Exception
     {
         // setup
@@ -223,6 +285,7 @@ public class CleanupTest
                 add(entry(true, Arrays.asList(range(ssTableMin, ssTableMax)))); // first token of SSTable is not owned
                 add(entry(false, Arrays.asList(range(before4, max)))); // first token of SSTable is not owned
                 add(entry(false, Arrays.asList(range(min, before1), range(before2, before3), range(before4, max)))); // SSTable owned by the last range
+                add(entry(true, Collections.EMPTY_LIST)); // empty token range means discard entire sstable
             }
         };
 

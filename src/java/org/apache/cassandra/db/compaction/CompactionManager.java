@@ -435,12 +435,8 @@ public class CompactionManager implements CompactionManagerMBean
             logger.info("Cleanup cannot run before a node has joined the ring");
             return AllSSTableOpStatus.ABORTED;
         }
+        // if local ranges is empty, it means no data should remain
         final Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace.getName());
-        if (ranges.isEmpty())
-        {
-            logger.info("Node owns no data for keyspace {}", keyspace.getName());
-            return AllSSTableOpStatus.SUCCESSFUL;
-        }
         final boolean hasIndexes = cfStore.indexManager.hasIndexes();
 
         return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
@@ -783,7 +779,10 @@ public class CompactionManager implements CompactionManagerMBean
     @VisibleForTesting
     public static boolean needsCleanup(SSTableReader sstable, Collection<Range<Token>> ownedRanges)
     {
-        assert !ownedRanges.isEmpty(); // cleanup checks for this
+        if (ownedRanges.isEmpty())
+        {
+            return true; // all data will be cleaned
+        }
 
         // unwrap and sort the ranges by LHS token
         List<Range<Token>> sortedRanges = Range.normalize(ownedRanges);
@@ -842,6 +841,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         SSTableReader sstable = txn.onlyOne();
 
+        // if ranges is empty and no index, entire sstable is discarded
         if (!hasIndexes && !new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges))
         {
             txn.obsoleteOriginals();
