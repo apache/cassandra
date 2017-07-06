@@ -26,3 +26,10 @@ The Coherent Accelerator Process Interface (CAPI) is a general term for the infr
 
 The official page for the `CAPI-Rowcache plugin <https://github.com/hhorii/capi-rowcache>`__ contains further details how to build/run/download the plugin.
 
+
+Stratio's Cassandra Lucene Index
+--------------------------------
+
+Stratio's Lucene index is a cassandra secondary index implementation based on Apache Lucene. It extends Cassandra’s functionality to provide near real-time distributed search engine capabilities such as with ElasticSearch or Solr, including full text search capabilities, free multivariable, geospatial and bitemporal search, relevance queries and relevance, column value and distance sorting. Each node indexes its own data, so high availability and scalability is guaranteed.
+
+The official github repository `Cassandra Lucene Index <http://www.github.com/stratio/cassandra-lucene-index>`__ contains everything you need to build/run/configure the plugin.
