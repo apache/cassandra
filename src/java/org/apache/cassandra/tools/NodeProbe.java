@@ -1028,6 +1028,16 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getCompactionThroughputMbPerSec();
     }
 
+    public void setBatchlogReplayThrottle(int value)
+    {
+        ssProxy.setBatchlogReplayThrottleInKB(value);
+    }
+
+    public int getBatchlogReplayThrottle()
+    {
+        return ssProxy.getBatchlogReplayThrottleInKB();
+    }
+
     public void setConcurrentCompactors(int value)
     {
         ssProxy.setConcurrentCompactors(value);

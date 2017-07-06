@@ -76,6 +76,8 @@ public class BatchlogManager implements BatchlogManagerMBean
     // Single-thread executor service for scheduling and serializing log replay.
     private final ScheduledExecutorService batchlogTasks;
 
+    private final RateLimiter rateLimiter = RateLimiter.create(Double.MAX_VALUE);
+
     public BatchlogManager()
     {
         ScheduledThreadPoolExecutor executor = new DebuggableScheduledThreadPoolExecutor("BatchlogTasks");
@@ -194,8 +196,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             logger.trace("Replay cancelled as there are no peers in the ring.");
             return;
         }
-        int throttleInKB = DatabaseDescriptor.getBatchlogReplayThrottleInKB() / endpointsCount;
-        RateLimiter rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
+        setRate(DatabaseDescriptor.getBatchlogReplayThrottleInKB());
 
         UUID limitUuid = UUIDGen.maxTimeUUID(System.currentTimeMillis() - getBatchlogTimeout());
         ColumnFamilyStore store = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES);
@@ -210,6 +211,27 @@ public class BatchlogManager implements BatchlogManagerMBean
         processBatchlogEntries(batches, pageSize, rateLimiter);
         lastReplayedUuid = limitUuid;
         logger.trace("Finished replayFailedBatches");
+    }
+
+    /**
+     * Sets the rate for the current rate limiter. When {@code throttleInKB} is 0, this sets the rate to
+     * {@link Double#MAX_VALUE} bytes per second.
+     *
+     * @param throttleInKB throughput to set in KB per second
+     */
+    public void setRate(final int throttleInKB)
+    {
+        int endpointsCount = StorageService.instance.getTokenMetadata().getSizeOfAllEndpoints();
+        if (endpointsCount > 0)
+        {
+            int endpointThrottleInKB = throttleInKB / endpointsCount;
+            double throughput = endpointThrottleInKB == 0 ? Double.MAX_VALUE : endpointThrottleInKB * 1024.0;
+            if (rateLimiter.getRate() != throughput)
+            {
+                logger.debug("Updating batchlog replay throttle to {} KB/s, {} KB/s per endpoint", throttleInKB, endpointThrottleInKB);
+                rateLimiter.setRate(throughput);
+            }
+        }
     }
 
     // read less rows (batches) per page if they are very large

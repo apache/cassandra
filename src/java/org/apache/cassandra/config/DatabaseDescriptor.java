@@ -1844,14 +1844,19 @@ public class DatabaseDescriptor
         return conf.hinted_handoff_throttle_in_kb;
     }
 
+    public static void setHintedHandoffThrottleInKB(int throttleInKB)
+    {
+        conf.hinted_handoff_throttle_in_kb = throttleInKB;
+    }
+
     public static int getBatchlogReplayThrottleInKB()
     {
         return conf.batchlog_replay_throttle_in_kb;
     }
 
-    public static void setHintedHandoffThrottleInKB(int throttleInKB)
+    public static void setBatchlogReplayThrottleInKB(int throttleInKB)
     {
-        conf.hinted_handoff_throttle_in_kb = throttleInKB;
+        conf.batchlog_replay_throttle_in_kb = throttleInKB;
     }
 
     public static int getMaxHintsDeliveryThreads()
