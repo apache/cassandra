@@ -3,7 +3,8 @@
  * Allow native function calls in CQLSSTableWriter (CASSANDRA-12606)
  * Fix secondary index queries on COMPACT tables (CASSANDRA-13627)
  * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)
-
+ Merged from 2.2:
+* Fix nested Tuples/UDTs validation (CASSANDRA-13646)
 
 3.0.14
  * Ensure int overflow doesn't occur when calculating large partition warning size (CASSANDRA-13172)

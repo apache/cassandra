@@ -54,6 +54,15 @@ public class UserTypesTest extends CQLTester
                              "INSERT INTO %s (pk, t) VALUES (?, ?)", 1, "test");
         assertInvalidMessage("Not enough bytes to read 0th field f",
                              "INSERT INTO %s (pk, t) VALUES (?, ?)", 1, Long.MAX_VALUE);
+
+        String type = createType("CREATE TYPE %s (a int, b tuple<int, text, double>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<" + type + ">)");
+        assertInvalidMessage("Invalid remaining data after end of tuple value",
+                             "INSERT INTO %s (k, t) VALUES (0, ?)",
+                             userType(1, tuple(1, "1", 1.0, 1)));
+
+        assertInvalidMessage("Invalid user type literal for t: field b is not of type frozen<tuple<int, text, double>>",
+                             "INSERT INTO %s (k, t) VALUES (0, {a: 1, b: (1, '1', 1.0, 1)})");
     }
 
     @Test
