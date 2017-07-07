@@ -225,13 +225,14 @@ public class ListType<T> extends CollectionType<List<T>>
 
     public static String setOrListToJsonString(ByteBuffer buffer, AbstractType elementsType, ProtocolVersion protocolVersion)
     {
+        ByteBuffer value = buffer.duplicate();
         StringBuilder sb = new StringBuilder("[");
-        int size = CollectionSerializer.readCollectionSize(buffer, protocolVersion);
+        int size = CollectionSerializer.readCollectionSize(value, protocolVersion);
         for (int i = 0; i < size; i++)
         {
             if (i > 0)
                 sb.append(", ");
-            sb.append(elementsType.toJSONString(CollectionSerializer.readValue(buffer, protocolVersion), protocolVersion));
+            sb.append(elementsType.toJSONString(CollectionSerializer.readValue(value, protocolVersion), protocolVersion));
         }
         return sb.append("]").toString();
     }

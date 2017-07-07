@@ -100,6 +100,7 @@ Merged from 3.0:
   * Fix secondary index queries on COMPACT tables (CASSANDRA-13627) 
   * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)
 Merged from 2.2:
+  * Fix toJSONString for the UDT, tuple and collection types (CASSANDRA-13592)
   * Fix nested Tuples/UDTs validation (CASSANDRA-13646)
 
 3.11.0

@@ -319,13 +319,14 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+        ByteBuffer duplicated = buffer.duplicate();
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < types.size(); i++)
         {
             if (i > 0)
                 sb.append(", ");
 
-            ByteBuffer value = CollectionSerializer.readValue(buffer, protocolVersion);
+            ByteBuffer value = CollectionSerializer.readValue(duplicated, protocolVersion);
             if (value == null)
                 sb.append("null");
             else
