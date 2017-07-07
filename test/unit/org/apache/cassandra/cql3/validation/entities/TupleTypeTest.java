@@ -123,6 +123,14 @@ public class TupleTypeTest extends CQLTester
 
         assertInvalidMessage("Invalid tuple literal for t: too many elements. Type tuple<int, text, double> expects 3 but got 4",
                              "INSERT INTO %s (k, t) VALUES (0, (2, 'foo', 3.1, 'bar'))");
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<int, tuple<int, text, double>>>)");
+        assertInvalidMessage("Invalid remaining data after end of tuple value",
+                             "INSERT INTO %s (k, t) VALUES (0, ?)",
+                             tuple(1, tuple(1, "1", 1.0, 1)));
+
+        assertInvalidMessage("Invalid tuple literal for t: component 1 is not of type tuple<int, text, double>",
+                             "INSERT INTO %s (k, t) VALUES (0, (1, (1, '1', 1.0, 1)))");
     }
 
     @Test
@@ -137,7 +145,7 @@ public class TupleTypeTest extends CQLTester
         // select using unset
         assertInvalidMessage("Invalid unset value for tuple field number 0", "SELECT * FROM %s WHERE k = ? and t = (?,?,?)", unset(), unset(), unset(), unset());
     }
-	
+
     /**
      * Test the syntax introduced by #4851,
      * migrated from cql_tests.py:TestCQL.tuple_notation_test()

@@ -28,6 +28,8 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.UserTypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -42,6 +44,7 @@ public class UserType extends TupleType
     public final ByteBuffer name;
     private final List<ByteBuffer> fieldNames;
     private final List<String> stringFieldNames;
+    private final UserTypeSerializer serializer;
 
     public UserType(String keyspace, ByteBuffer name, List<ByteBuffer> fieldNames, List<AbstractType<?>> fieldTypes)
     {
@@ -51,17 +54,22 @@ public class UserType extends TupleType
         this.name = name;
         this.fieldNames = fieldNames;
         this.stringFieldNames = new ArrayList<>(fieldNames.size());
-        for (ByteBuffer fieldName : fieldNames)
+        LinkedHashMap<String , TypeSerializer<?>> fieldSerializers = new LinkedHashMap<>(fieldTypes.size());
+        for (int i = 0, m = fieldNames.size(); i < m; i++)
         {
+            ByteBuffer fieldName = fieldNames.get(i);
             try
             {
-                stringFieldNames.add(ByteBufferUtil.string(fieldName, StandardCharsets.UTF_8));
+                String stringFieldName = ByteBufferUtil.string(fieldName, StandardCharsets.UTF_8);
+                stringFieldNames.add(stringFieldName);
+                fieldSerializers.put(stringFieldName, fieldTypes.get(i).getSerializer());
             }
             catch (CharacterCodingException ex)
             {
                 throw new AssertionError("Got non-UTF8 field name for user-defined type: " + ByteBufferUtil.bytesToHex(fieldName), ex);
             }
         }
+        this.serializer = new UserTypeSerializer(fieldSerializers);
     }
 
     public static UserType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
@@ -107,38 +115,6 @@ public class UserType extends TupleType
     public String getNameAsString()
     {
         return UTF8Type.instance.compose(name);
-    }
-
-    // Note: the only reason we override this is to provide nicer error message, but since that's not that much code...
-    @Override
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        ByteBuffer input = bytes.duplicate();
-        for (int i = 0; i < size(); i++)
-        {
-            // we allow the input to have less fields than declared so as to support field addition.
-            if (!input.hasRemaining())
-                return;
-
-            if (input.remaining() < 4)
-                throw new MarshalException(String.format("Not enough bytes to read size of %dth field %s", i, fieldNameAsString(i)));
-
-            int size = input.getInt();
-
-            // size < 0 means null value
-            if (size < 0)
-                continue;
-
-            if (input.remaining() < size)
-                throw new MarshalException(String.format("Not enough bytes to read %dth field %s", i, fieldNameAsString(i)));
-
-            ByteBuffer field = ByteBufferUtil.readBytes(input, size);
-            types.get(i).validate(field);
-        }
-
-        // We're allowed to get less fields than declared, but not more
-        if (input.hasRemaining())
-            throw new MarshalException("Invalid remaining data after end of UDT value");
     }
 
     @Override
@@ -242,5 +218,11 @@ public class UserType extends TupleType
     public String toString()
     {
         return getClass().getName() + TypeParser.stringifyUserTypeParameters(keyspace, name, fieldNames, types);
+    }
+
+    @Override
+    public TypeSerializer<ByteBuffer> getSerializer()
+    {
+        return serializer;
     }
 }
