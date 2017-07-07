@@ -96,7 +96,7 @@ public abstract class UserTypes
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             if (!receiver.type.isUDT())
-                throw new InvalidRequestException(String.format("Invalid user type literal for %s of type %s", receiver, receiver.type.asCQL3Type()));
+                throw new InvalidRequestException(String.format("Invalid user type literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
 
             UserType ut = (UserType)receiver.type;
             for (int i = 0; i < ut.size(); i++)
@@ -110,7 +110,7 @@ public abstract class UserTypes
                 if (!value.testAssignment(keyspace, fieldSpec).isAssignable())
                 {
                     throw new InvalidRequestException(String.format("Invalid user type literal for %s: field %s is not of type %s",
-                            receiver, field, fieldSpec.type.asCQL3Type()));
+                            receiver.name, field, fieldSpec.type.asCQL3Type()));
                 }
             }
         }
@@ -163,13 +163,7 @@ public abstract class UserTypes
 
         public static Value fromSerialized(ByteBuffer bytes, UserType type)
         {
-            ByteBuffer[] values = type.split(bytes);
-            if (values.length > type.size())
-            {
-                throw new InvalidRequestException(String.format(
-                        "UDT value contained too many fields (expected %s, got %s)", type.size(), values.length));
-            }
-
+            type.validate(bytes);
             return new Value(type, type.split(bytes));
         }
 
