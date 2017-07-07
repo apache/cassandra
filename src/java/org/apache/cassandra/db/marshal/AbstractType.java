@@ -138,7 +138,16 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
      **/
     public abstract Term fromJSONObject(Object parsed) throws MarshalException;
 
-    /** Converts a value to a JSON string. */
+    /**
+     * Converts the specified value into its JSON representation.
+     * <p>
+     * The buffer position will stay the same.
+     * </p>
+     *
+     * @param buffer the value to convert
+     * @param protocolVersion the protocol version to use for the conversion
+     * @return a JSON string representing the specified value
+     */
     public String toJSONString(ByteBuffer buffer, int protocolVersion)
     {
         return '"' + getSerializer().deserialize(buffer).toString() + '"';

@@ -72,6 +72,11 @@ public class EmptyType extends AbstractType<Void>
         return CQL3Type.Native.EMPTY;
     }
 
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        return "\"\"";
+    }
+
     public TypeSerializer<Void> getSerializer()
     {
         return EmptySerializer.instance;
