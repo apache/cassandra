@@ -99,7 +99,8 @@ Merged from 3.0:
   * Allow different NUMACTL_ARGS to be passed in (CASSANDRA-13557)
   * Fix secondary index queries on COMPACT tables (CASSANDRA-13627) 
   * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)
-
+Merged from 2.2:
+  * Fix nested Tuples/UDTs validation (CASSANDRA-13646)
 
 3.11.0
  * Allow native function calls in CQLSSTableWriter (CASSANDRA-12606)
