@@ -65,6 +65,12 @@ public class EmptyType extends AbstractType<Void>
         return new Constants.Value(ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        return "\"\"";
+    }
+
     public TypeSerializer<Void> getSerializer()
     {
         return EmptySerializer.instance;

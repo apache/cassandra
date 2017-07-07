@@ -36,13 +36,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static junit.framework.Assert.assertNotNull;
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.ColumnDefinitions;
-import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.ProtocolVersion;
+
+import com.datastax.driver.core.*;
 import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
-import com.datastax.driver.core.Session;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
@@ -557,6 +554,11 @@ public abstract class CQLTester
         return session[protocolVersion-1].execute(formatQuery(query), values);
     }
 
+    protected com.datastax.driver.core.ResultSet executeNetWithPaging(String query, int pageSize) throws Throwable
+    {
+        return sessionNet(maxProtocolVersion).execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
+    }
+
     protected Session sessionNet(int protocolVersion)
     {
         requireNetwork();
@@ -661,6 +663,11 @@ public abstract class CQLTester
 
         Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d (using protocol version %d)",
                                         rows.length>i ? "less" : "more", rows.length, i, protocolVersion), i == rows.length);
+    }
+
+    protected void assertRowsNet(ResultSet result, Object[]... rows)
+    {
+        assertRowsNet(maxProtocolVersion, result, rows);
     }
 
     protected void assertRows(UntypedResultSet result, Object[]... rows)
