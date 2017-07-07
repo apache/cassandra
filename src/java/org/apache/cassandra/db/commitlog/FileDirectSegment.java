@@ -53,14 +53,7 @@ public abstract class FileDirectSegment extends CommitLogSegment
     @Override
     protected void internalClose()
     {
-        try
-        {
-            manager.getBufferPool().releaseBuffer(buffer);
-            super.internalClose();
-        }
-        finally
-        {
-            manager.notifyBufferFreed();
-        }
+        manager.getBufferPool().releaseBuffer(buffer);
+        super.internalClose();
     }
 }
