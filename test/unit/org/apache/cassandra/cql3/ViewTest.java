@@ -1320,8 +1320,7 @@ public class ViewTest extends CQLTester
         }
     }
 
-    @Test
-    public void testViewBuilderResume() throws Throwable
+    private void testViewBuilderResume(int concurrentViewBuilders) throws Throwable
     {
         createTable("CREATE TABLE %s (" +
                     "k int, " +
@@ -1332,6 +1331,7 @@ public class ViewTest extends CQLTester
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
 
+        CompactionManager.instance.setConcurrentViewBuilders(concurrentViewBuilders);
         CompactionManager.instance.setCoreCompactorThreads(1);
         CompactionManager.instance.setMaximumCompactorThreads(1);
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -1357,21 +1357,32 @@ public class ViewTest extends CQLTester
 
         cfs.forceBlockingFlush();
 
-        createView("mv_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
+        String viewName1 = "mv_test_" + concurrentViewBuilders;
+        createView(viewName1, "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
 
         cfs.enableAutoCompaction();
         List<Future<?>> futures = CompactionManager.instance.submitBackground(cfs);
 
+        String viewName2 = viewName1 + "_2";
         //Force a second MV on the same base table, which will restart the first MV builder...
-        createView("mv_test2", "CREATE MATERIALIZED VIEW %s AS SELECT val, k, c FROM %%s WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
+        createView(viewName2, "CREATE MATERIALIZED VIEW %s AS SELECT val, k, c FROM %%s WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
 
 
         //Compact the base table
         FBUtilities.waitOnFutures(futures);
 
-        while (!SystemKeyspace.isViewBuilt(keyspace(), "mv_test"))
+        while (!SystemKeyspace.isViewBuilt(keyspace(), viewName1))
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
 
-        assertRows(execute("SELECT count(*) FROM mv_test"), row(1024L));
+        assertRows(execute("SELECT count(*) FROM " + viewName1), row(1024L));
+    }
+
+    @Test
+    public void testViewBuilderResume() throws Throwable
+    {
+        for (int i = 1; i <= 8; i *= 2)
+        {
+            testViewBuilderResume(i);
+        }
     }
 }

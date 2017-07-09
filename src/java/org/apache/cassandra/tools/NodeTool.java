@@ -110,6 +110,8 @@ public class NodeTool
                 SetCompactionThroughput.class,
                 GetConcurrentCompactors.class,
                 SetConcurrentCompactors.class,
+                GetConcurrentViewBuilders.class,
+                SetConcurrentViewBuilders.class,
                 SetTimeout.class,
                 SetStreamThroughput.class,
                 SetInterDCStreamThroughput.class,

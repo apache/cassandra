@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -519,6 +518,9 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public int getConcurrentValidators();
     public void setConcurrentValidators(int value);
+
+    public int getConcurrentViewBuilders();
+    public void setConcurrentViewBuilders(int value);
 
     public boolean isIncrementalBackupsEnabled();
     public void setIncrementalBackupsEnabled(boolean value);

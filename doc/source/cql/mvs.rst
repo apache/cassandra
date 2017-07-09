@@ -62,6 +62,11 @@ Creating a materialized view has 3 main parts:
 Attempting to create an already existing materialized view will return an error unless the ``IF NOT EXISTS`` option is
 used. If it is used, the statement will be a no-op if the materialized view already exists.
 
+.. note:: By default, materialized views are built in a single thread. The initial build can be parallelized by
+   increasing the number of threads specified by the property ``concurrent_materialized_view_builders`` in
+   ``cassandra.yaml``. This property can also be manipulated at runtime through both JMX and the
+   ``setconcurrentviewbuilders`` and ``getconcurrentviewbuilders`` nodetool commands.
+
 .. _mv-select:
 
 MV select statement

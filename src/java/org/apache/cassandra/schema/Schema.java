@@ -632,7 +632,7 @@ public final class Schema
         viewsDiff.entriesDiffering().values().forEach(diff -> alterView(diff.rightValue()));
 
         // deal with all removed, added, and altered views
-        Keyspace.open(before.name).viewManager.reload();
+        Keyspace.open(before.name).viewManager.reload(true);
 
         // notify on everything dropped
         udasDiff.entriesOnlyOnLeft().values().forEach(this::notifyDropAggregate);
@@ -691,6 +691,7 @@ public final class Schema
 
     private void dropView(ViewMetadata metadata)
     {
+        Keyspace.open(metadata.keyspace).viewManager.stopBuild(metadata.name);
         dropTable(metadata.metadata);
     }
 

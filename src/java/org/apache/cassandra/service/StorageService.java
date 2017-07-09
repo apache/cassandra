@@ -96,7 +96,6 @@ import org.apache.cassandra.service.paxos.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.ProposeVerbHandler;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.tracing.TraceKeyspace;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -1390,6 +1389,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setConcurrentValidations(value);
         CompactionManager.instance.setConcurrentValidations(DatabaseDescriptor.getConcurrentValidations());
+    }
+
+    public int getConcurrentViewBuilders()
+    {
+        return DatabaseDescriptor.getConcurrentViewBuilders();
+    }
+
+    public void setConcurrentViewBuilders(int value)
+    {
+        if (value <= 0)
+            throw new IllegalArgumentException("Number of concurrent view builders should be greater than 0.");
+        DatabaseDescriptor.setConcurrentViewBuilders(value);
+        CompactionManager.instance.setConcurrentViewBuilders(DatabaseDescriptor.getConcurrentViewBuilders());
     }
 
     public boolean isIncrementalBackupsEnabled()

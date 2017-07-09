@@ -28,7 +28,6 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -192,15 +191,22 @@ public class View
 
     public synchronized void build()
     {
-        if (this.builder != null)
+        stopBuild();
+        builder = new ViewBuilder(baseCfs, this);
+        builder.start();
+    }
+
+    /**
+     * Stops the building of this view, no-op if it isn't building.
+     */
+    synchronized void stopBuild()
+    {
+        if (builder != null)
         {
             logger.debug("Stopping current view builder due to schema change");
-            this.builder.stop();
-            this.builder = null;
+            builder.stop();
+            builder = null;
         }
-
-        this.builder = new ViewBuilder(baseCfs, this);
-        CompactionManager.instance.submitViewBuilder(builder);
     }
 
     @Nullable

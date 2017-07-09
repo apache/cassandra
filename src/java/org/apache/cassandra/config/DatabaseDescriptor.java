@@ -589,6 +589,9 @@ public class DatabaseDescriptor
         if (conf.concurrent_compactors <= 0)
             throw new ConfigurationException("concurrent_compactors should be strictly greater than 0, but was " + conf.concurrent_compactors, false);
 
+        if (conf.concurrent_materialized_view_builders <= 0)
+            throw new ConfigurationException("concurrent_materialized_view_builders should be strictly greater than 0, but was " + conf.concurrent_materialized_view_builders, false);
+
         if (conf.num_tokens > MAX_NUM_TOKENS)
             throw new ConfigurationException(String.format("A maximum number of %d tokens per node is supported", MAX_NUM_TOKENS), false);
 
@@ -1514,6 +1517,16 @@ public class DatabaseDescriptor
     {
         value = value > 0 ? value : Integer.MAX_VALUE;
         conf.concurrent_validations = value;
+    }
+
+    public static int getConcurrentViewBuilders()
+    {
+        return conf.concurrent_materialized_view_builders;
+    }
+
+    public static void setConcurrentViewBuilders(int value)
+    {
+        conf.concurrent_materialized_view_builders = value;
     }
 
     public static long getMinFreeSpacePerDriveInBytes()

@@ -227,6 +227,7 @@ PerDiskMemtableFlushWriter_0 internal       Responsible for writing a spec (ther
 Sampler                      internal       Responsible for re-sampling the index summaries of SStables
 SecondaryIndexManagement     internal       Performs updates to secondary indexes
 ValidationExecutor           internal       Performs validation compaction or scrubbing
+ViewBuildExecutor            internal       Performs materialized views initial build
 ============================ ============== ===========
 
 .. |nbsp| unicode:: 0xA0 .. nonbreaking space

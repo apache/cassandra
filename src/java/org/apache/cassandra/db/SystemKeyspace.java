@@ -99,7 +99,7 @@ public final class SystemKeyspace
     public static final String SIZE_ESTIMATES = "size_estimates";
     public static final String AVAILABLE_RANGES = "available_ranges";
     public static final String TRANSFERRED_RANGES = "transferred_ranges";
-    public static final String VIEWS_BUILDS_IN_PROGRESS = "views_builds_in_progress";
+    public static final String VIEW_BUILDS_IN_PROGRESS = "view_builds_in_progress";
     public static final String BUILT_VIEWS = "built_views";
     public static final String PREPARED_STATEMENTS = "prepared_statements";
     public static final String REPAIRS = "repairs";
@@ -262,15 +262,17 @@ public final class SystemKeyspace
               + "PRIMARY KEY ((operation, keyspace_name), peer))")
               .build();
 
-    private static final TableMetadata ViewsBuildsInProgress =
-        parse(VIEWS_BUILDS_IN_PROGRESS,
+    private static final TableMetadata ViewBuildsInProgress =
+        parse(VIEW_BUILDS_IN_PROGRESS,
               "views builds current progress",
               "CREATE TABLE %s ("
               + "keyspace_name text,"
               + "view_name text,"
+              + "start_token varchar,"
+              + "end_token varchar,"
               + "last_token varchar,"
-              + "generation_number int,"
-              + "PRIMARY KEY ((keyspace_name), view_name))")
+              + "keys_built bigint,"
+              + "PRIMARY KEY ((keyspace_name), view_name, start_token, end_token))")
               .build();
 
     private static final TableMetadata BuiltViews =
@@ -337,7 +339,7 @@ public final class SystemKeyspace
                          SizeEstimates,
                          AvailableRanges,
                          TransferredRanges,
-                         ViewsBuildsInProgress,
+                         ViewBuildsInProgress,
                          BuiltViews,
                          PreparedStatements,
                          Repairs);
@@ -457,21 +459,13 @@ public final class SystemKeyspace
 
     public static void setViewRemoved(String keyspaceName, String viewName)
     {
-        String buildReq = "DELETE FROM %S.%s WHERE keyspace_name = ? AND view_name = ? IF EXISTS";
-        executeInternal(String.format(buildReq, SchemaConstants.SYSTEM_KEYSPACE_NAME, VIEWS_BUILDS_IN_PROGRESS), keyspaceName, viewName);
-        forceBlockingFlush(VIEWS_BUILDS_IN_PROGRESS);
+        String buildReq = "DELETE FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
+        executeInternal(String.format(buildReq, SchemaConstants.SYSTEM_KEYSPACE_NAME, VIEW_BUILDS_IN_PROGRESS), keyspaceName, viewName);
+        forceBlockingFlush(VIEW_BUILDS_IN_PROGRESS);
 
         String builtReq = "DELETE FROM %s.\"%s\" WHERE keyspace_name = ? AND view_name = ? IF EXISTS";
         executeInternal(String.format(builtReq, SchemaConstants.SYSTEM_KEYSPACE_NAME, BUILT_VIEWS), keyspaceName, viewName);
         forceBlockingFlush(BUILT_VIEWS);
-    }
-
-    public static void beginViewBuild(String ksname, String viewName, int generationNumber)
-    {
-        executeInternal(format("INSERT INTO system.%s (keyspace_name, view_name, generation_number) VALUES (?, ?, ?)", VIEWS_BUILDS_IN_PROGRESS),
-                        ksname,
-                        viewName,
-                        generationNumber);
     }
 
     public static void finishViewBuildStatus(String ksname, String viewName)
@@ -482,8 +476,8 @@ public final class SystemKeyspace
         // Also, if writing to the built_view succeeds, but the view_builds_in_progress deletion fails, we will be able
         // to skip the view build next boot.
         setViewBuilt(ksname, viewName, false);
-        executeInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ? AND view_name = ? IF EXISTS", VIEWS_BUILDS_IN_PROGRESS), ksname, viewName);
-        forceBlockingFlush(VIEWS_BUILDS_IN_PROGRESS);
+        executeInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ? AND view_name = ?", VIEW_BUILDS_IN_PROGRESS), ksname, viewName);
+        forceBlockingFlush(VIEW_BUILDS_IN_PROGRESS);
     }
 
     public static void setViewBuiltReplicated(String ksname, String viewName)
@@ -491,33 +485,41 @@ public final class SystemKeyspace
         setViewBuilt(ksname, viewName, true);
     }
 
-    public static void updateViewBuildStatus(String ksname, String viewName, Token token)
+    public static void updateViewBuildStatus(String ksname, String viewName, Range<Token> range, Token lastToken, long keysBuilt)
     {
-        String req = "INSERT INTO system.%s (keyspace_name, view_name, last_token) VALUES (?, ?, ?)";
-        Token.TokenFactory factory = ViewsBuildsInProgress.partitioner.getTokenFactory();
-        executeInternal(format(req, VIEWS_BUILDS_IN_PROGRESS), ksname, viewName, factory.toString(token));
+        String req = "INSERT INTO system.%s (keyspace_name, view_name, start_token, end_token, last_token, keys_built) VALUES (?, ?, ?, ?, ?, ?)";
+        Token.TokenFactory factory = ViewBuildsInProgress.partitioner.getTokenFactory();
+        executeInternal(format(req, VIEW_BUILDS_IN_PROGRESS),
+                        ksname,
+                        viewName,
+                        factory.toString(range.left),
+                        factory.toString(range.right),
+                        factory.toString(lastToken),
+                        keysBuilt);
     }
 
-    public static Pair<Integer, Token> getViewBuildStatus(String ksname, String viewName)
+    public static Map<Range<Token>, Pair<Token, Long>> getViewBuildStatus(String ksname, String viewName)
     {
-        String req = "SELECT generation_number, last_token FROM system.%s WHERE keyspace_name = ? AND view_name = ?";
-        UntypedResultSet queryResultSet = executeInternal(format(req, VIEWS_BUILDS_IN_PROGRESS), ksname, viewName);
-        if (queryResultSet == null || queryResultSet.isEmpty())
-            return null;
+        String req = "SELECT start_token, end_token, last_token, keys_built FROM system.%s WHERE keyspace_name = ? AND view_name = ?";
+        Token.TokenFactory factory = ViewBuildsInProgress.partitioner.getTokenFactory();
+        UntypedResultSet rs = executeInternal(format(req, VIEW_BUILDS_IN_PROGRESS), ksname, viewName);
 
-        UntypedResultSet.Row row = queryResultSet.one();
+        if (rs == null || rs.isEmpty())
+            return Collections.emptyMap();
 
-        Integer generation = null;
-        Token lastKey = null;
-        if (row.has("generation_number"))
-            generation = row.getInt("generation_number");
-        if (row.has("last_key"))
+        Map<Range<Token>, Pair<Token, Long>> status = new HashMap<>();
+        for (UntypedResultSet.Row row : rs)
         {
-            Token.TokenFactory factory = ViewsBuildsInProgress.partitioner.getTokenFactory();
-            lastKey = factory.fromString(row.getString("last_key"));
-        }
+            Token start = factory.fromString(row.getString("start_token"));
+            Token end = factory.fromString(row.getString("end_token"));
+            Range<Token> range = new Range<>(start, end);
 
-        return Pair.create(generation, lastKey);
+            Token lastToken = row.has("last_token") ? factory.fromString(row.getString("last_token")) : null;
+            long keysBuilt = row.has("keys_built") ? row.getLong("keys_built") : 0;
+
+            status.put(range, Pair.create(lastToken, keysBuilt));
+        }
+        return status;
     }
 
     public static synchronized void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)

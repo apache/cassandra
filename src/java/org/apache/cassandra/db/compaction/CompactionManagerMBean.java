@@ -116,4 +116,26 @@ public interface CompactionManagerMBean
      * @param number New maximum of validator threads
      */
     public void setMaximumValidatorThreads(int number);
+
+    /**
+     * Returns core size of view build thread pool
+     */
+    public int getCoreViewBuildThreads();
+
+    /**
+     * Allows user to resize maximum size of the view build thread pool.
+     * @param number New maximum of view build threads
+     */
+    public void setCoreViewBuildThreads(int number);
+
+    /**
+     * Returns size of view build thread pool
+     */
+    public int getMaximumViewBuildThreads();
+
+    /**
+     * Allows user to resize maximum size of the view build thread pool.
+     * @param number New maximum of view build threads
+     */
+    public void setMaximumViewBuildThreads(int number);
 }
