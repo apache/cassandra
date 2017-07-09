@@ -1,4 +1,5 @@
 4.0
+ * Add additional unit tests for batch behavior, TTLs, Timestamps (CASSANDRA-13846)
  * Add keyspace and table name in schema validation exception (CASSANDRA-13845)
  * Emit metrics whenever we hit tombstone failures and warn thresholds (CASSANDRA-13771)
  * Make netty EventLoopGroups daemon threads (CASSANDRA-13837)
