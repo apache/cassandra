@@ -1,6 +1,8 @@
 3.11.1
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+3.0.15
+ * Set test.runners based on cores and memory size (CASSANDRA-13078)
  * Allow different NUMACTL_ARGS to be passed in (CASSANDRA-13557)
  * Fix secondary index queries on COMPACT tables (CASSANDRA-13627)
  * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)

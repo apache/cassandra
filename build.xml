@@ -60,7 +60,6 @@
     <property name="test.classlistfile" value="testlist.txt"/>
     <property name="benchmark.name" value=""/>
     <property name="test.methods" value=""/>
-    <property name="test.runners" value="1"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.burn.src" value="${test.dir}/burn"/>
@@ -1694,12 +1693,25 @@
   <scriptdef name="testparallelhelper" language="javascript">
     <attribute name="testdelegate"/>
     <![CDATA[
-        var Integer = java.lang.Integer;
         sep = project.getProperty("path.separator");
         all = project.getProperty("all-test-classes").split(sep);
-        dir = project.getProperty("test.unit.src");
+        runners = project.getProperty("test.runners")
+        cores = project.getProperty("cores.count")
+        mem = project.getProperty("mem.size")
 
-        numRunners = parseInt(project.getProperty("test.runners"));
+        numRunners = 1
+        if (runners != null) // there's test.runners override
+            numRunners = parseInt(runners) || 1;
+        else if (cores != null && mem != null) // only if cores and memory size is set
+            numRunners = Math.min(Math.floor(Math.sqrt(parseInt(cores) || 1)),
+                                  Math.floor((parseInt(mem) || 1)/(4*1024*1024*1024)));
+
+        if (numRunners < 1)
+            numRunners = 1
+
+        var echo = project.createTask("echo");
+        echo.setMessage("Number of test runners: " + numRunners);
+        echo.perform();
 
         var p = project.createTask('parallel');
         p.setThreadCount(numRunners);
@@ -1721,7 +1733,42 @@
     ]]>
   </scriptdef>
 
-  <target name="test" depends="build-test,stress-build" description="Parallel Test Runner">
+  <target name="get-cores">
+    <property environment="env"/>
+    <!-- support for Windows -->
+    <condition property="cores.count" value="${env.NUMBER_OF_PROCESSORS}">
+      <os family="windows" />
+    </condition>
+    <!-- support for Linux and Solaris (package SUNWgnu-coreutils is required) -->
+    <exec executable="nproc" outputproperty="cores.count" os="Linux,SunOS,Solaris" failifexecutionfails="false">
+      <arg value="--all"/>
+    </exec>
+    <!-- support for Mac OS X -->
+    <exec executable="sysctl" outputproperty="cores.count" os="Mac,Mac OS X,Darwin" failifexecutionfails="false">
+      <arg value="-n"/>
+      <arg value="hw.ncpu"/>
+    </exec>
+    <echo message="Number of cores: ${cores.count}"/>
+  </target>
+
+  <target name="get-mem">
+    <condition property="mem.size" value="unknown">
+      <os family="windows" />
+    </condition>
+    <!-- support for Linux and Solaris (package SUNWgnu-coreutils is required) -->
+    <exec executable="bash" outputproperty="mem.size" os="Linux,SunOS,Solaris" failifexecutionfails="false">
+      <arg value="-c"/>
+      <arg value="free -b | grep Mem: | awk '{print $2}'"/>
+    </exec>
+    <!-- support for Mac OS X -->
+    <exec executable="sysctl" outputproperty="mem.size" os="Mac,Mac OS X,Darwin" failifexecutionfails="false">
+      <arg value="-n"/>
+      <arg value="hw.memsize"/>
+    </exec>
+    <echo message="Mem size : ${mem.size}"/>
+  </target>
+
+  <target name="test" depends="build-test,get-cores,get-mem,stress-build" description="Parallel Test Runner">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
@@ -1985,4 +2032,5 @@
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
   </target>
+
 </project>
