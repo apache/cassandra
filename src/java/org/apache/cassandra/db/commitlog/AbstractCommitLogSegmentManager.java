@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.LockSupport;
+import java.util.function.BooleanSupplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.*;
@@ -82,6 +82,8 @@ public abstract class AbstractCommitLogSegmentManager
     private Thread managerThread;
     protected final CommitLog commitLog;
     private volatile boolean shutdown;
+    private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit()) || shutdown;
+    private final WaitQueue managerThreadWaitQueue = new WaitQueue();
 
     private static final SimpleCachedBufferPool bufferPool =
         new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(), DatabaseDescriptor.getCommitLogSegmentSize());
@@ -124,8 +126,6 @@ public abstract class AbstractCommitLogSegmentManager
                         // Writing threads are not waiting for new segments, we can spend time on other tasks.
                         // flush old Cfs if we're full
                         maybeFlushToReclaim();
-
-                        LockSupport.park();
                     }
                     catch (Throwable t)
                     {
@@ -140,8 +140,7 @@ public abstract class AbstractCommitLogSegmentManager
                         // shutting down-- nothing more can or needs to be done in that case.
                     }
 
-                    while (availableSegment != null || atSegmentBufferLimit() && !shutdown)
-                        LockSupport.park();
+                    WaitQueue.waitOnCondition(managerThreadWaitCondition, managerThreadWaitQueue);
                 }
             }
         };
@@ -530,7 +529,7 @@ public abstract class AbstractCommitLogSegmentManager
 
     void wakeManager()
     {
-        LockSupport.unpark(managerThread);
+        managerThreadWaitQueue.signalAll();
     }
 
     /**
