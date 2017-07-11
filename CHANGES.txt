@@ -91,6 +91,7 @@
  * Changing `max_hint_window_in_ms` at runtime (CASSANDRA-11720)
  * Trivial format error in StorageProxy (CASSANDRA-13551)
  * Nodetool repair can hang forever if we lose the notification for the repair completing/failing (CASSANDRA-13480)
+ * Anticompaction can cause noisy log messages (CASSANDRA-13684)
 
 
 3.11.1
