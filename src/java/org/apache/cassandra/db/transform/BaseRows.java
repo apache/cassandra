@@ -130,7 +130,7 @@ implements BaseRowIterator<R>
             Transformation[] fs = stack;
             int len = length;
 
-            while (!stop.isSignalled && input.hasNext())
+            while (!stop.isSignalled && !stopChild.isSignalled && input.hasNext())
             {
                 Unfiltered next = input.next();
 
@@ -156,7 +156,7 @@ implements BaseRowIterator<R>
                 }
             }
 
-            if (stop.isSignalled || !hasMoreContents())
+            if (stop.isSignalled || stopChild.isSignalled || !hasMoreContents())
                 return false;
         }
         return true;

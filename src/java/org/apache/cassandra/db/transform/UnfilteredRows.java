@@ -33,8 +33,13 @@ final class UnfilteredRows extends BaseRows<Unfiltered, UnfilteredRowIterator> i
 
     public UnfilteredRows(UnfilteredRowIterator input)
     {
+        this(input, input.columns());
+    }
+
+    public UnfilteredRows(UnfilteredRowIterator input, PartitionColumns columns)
+    {
         super(input);
-        partitionColumns = input.columns();
+        partitionColumns = columns;
         partitionLevelDeletion = input.partitionLevelDeletion();
     }
 

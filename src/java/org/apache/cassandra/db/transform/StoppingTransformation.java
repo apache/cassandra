@@ -26,8 +26,8 @@ import org.apache.cassandra.db.rows.BaseRowIterator;
 // A Transformation that can stop an iterator earlier than its natural exhaustion
 public abstract class StoppingTransformation<I extends BaseRowIterator<?>> extends Transformation<I>
 {
-    private BaseIterator.Stop stop;
-    private BaseIterator.Stop stopInPartition;
+    private BaseIterator rows;
+    private BaseIterator partitions;
 
     /**
      * If invoked by a subclass, any partitions iterator this transformation has been applied to will terminate
@@ -36,8 +36,12 @@ public abstract class StoppingTransformation<I extends BaseRowIterator<?>> exten
     @DontInline
     protected void stop()
     {
-        if (stop != null)
-            stop.isSignalled = true;
+        if (partitions != null)
+        {
+            partitions.stop.isSignalled = true;
+            partitions.stopChild.isSignalled = true;
+        }
+
         stopInPartition();
     }
 
@@ -48,33 +52,36 @@ public abstract class StoppingTransformation<I extends BaseRowIterator<?>> exten
     @DontInline
     protected void stopInPartition()
     {
-        if (stopInPartition != null)
-            stopInPartition.isSignalled = true;
+        if (rows != null)
+        {
+            rows.stop.isSignalled = true;
+            rows.stopChild.isSignalled = true;
+        }
     }
 
     @Override
     protected void attachTo(BasePartitions partitions)
     {
-        assert this.stop == null;
-        this.stop = partitions.stop;
+        assert this.partitions == null;
+        this.partitions = partitions;
     }
 
     @Override
     protected void attachTo(BaseRows rows)
     {
-        assert this.stopInPartition == null;
-        this.stopInPartition = rows.stop;
+        assert this.rows == null;
+        this.rows = rows;
     }
 
     @Override
     protected void onClose()
     {
-        stop = null;
+        partitions = null;
     }
 
     @Override
     protected void onPartitionClose()
     {
-        stopInPartition = null;
+        rows = null;
     }
 }
