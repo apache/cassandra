@@ -95,6 +95,7 @@
 
 
 3.11.1
+ * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
  * Set test.runners based on cores and memory size (CASSANDRA-13078)
