@@ -86,7 +86,9 @@ public class DataResolver extends ResponseResolver
         DataLimits.Counter counter = command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition());
 
         UnfilteredPartitionIterator merged = mergeWithShortReadProtection(iters, sources, counter);
-        FilteredPartitions filtered = FilteredPartitions.filter(merged, new Filter(command.nowInSec()));
+        FilteredPartitions filtered = FilteredPartitions.filter(merged,
+                                                                new Filter(command.nowInSec(),
+                                                                           command.metadata().enforceStrictLiveness()));
         PartitionIterator counted = counter.applyTo(filtered);
 
         return command.isForThrift()

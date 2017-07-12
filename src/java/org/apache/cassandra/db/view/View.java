@@ -60,7 +60,6 @@ public class View
 
     public volatile List<ColumnDefinition> baseNonPKColumnsInViewPK;
 
-    private final boolean includeAllColumns;
     private ViewBuilder builder;
 
     // Only the raw statement can be final, because the statement cannot always be prepared when the MV is initialized.
@@ -75,7 +74,6 @@ public class View
     {
         this.baseCfs = baseCfs;
         this.name = definition.viewName;
-        this.includeAllColumns = definition.includeAllColumns;
         this.rawSelect = definition.select;
 
         updateDefinition(definition);
@@ -95,8 +93,6 @@ public class View
     public void updateDefinition(ViewDefinition definition)
     {
         this.definition = definition;
-
-        CFMetaData viewCfm = definition.metadata;
         List<ColumnDefinition> nonPKDefPartOfViewPK = new ArrayList<>();
         for (ColumnDefinition baseColumn : baseCfs.metadata.allColumns())
         {
@@ -148,21 +144,7 @@ public class View
         //    neither included in the view, nor used by the view filter).
         if (!getReadQuery().selectsClustering(partitionKey, update.clustering()))
             return false;
-
-        // We want to find if the update modify any of the columns that are part of the view (in which case the view is affected).
-        // But if the view include all the base table columns, or the update has either a row deletion or a row liveness (note
-        // that for the liveness, it would be more "precise" to check if it's live, but pushing an update that is already expired
-        // is dump so it's ok not to optimize for it and it saves us from having to pass nowInSec to the method), we know the view
-        // is affected right away.
-        if (includeAllColumns || !update.deletion().isLive() || !update.primaryKeyLivenessInfo().isEmpty())
-            return true;
-
-        for (ColumnData data : update)
-        {
-            if (definition.metadata.getColumnDefinition(data.column().name) != null)
-                return true;
-        }
-        return false;
+        return true;
     }
 
     /**
@@ -292,5 +274,28 @@ public class View
         }
 
         return expressions.stream().collect(Collectors.joining(" AND "));
+    }
+
+    public boolean hasSamePrimaryKeyColumnsAsBaseTable()
+    {
+        return baseNonPKColumnsInViewPK.isEmpty();
+    }
+
+    /**
+     * When views contains a primary key column that is not part
+     * of the base table primary key, we use that column liveness
+     * info as the view PK, to ensure that whenever that column
+     * is not live in the base, the row is not live in the view.
+     *
+     * This is done to prevent cells other than the view PK from
+     * making the view row alive when the view PK column is not
+     * live in the base. So in this case we tie the row liveness,
+     * to the primary key liveness.
+     *
+     * See CASSANDRA-11500 for context.
+     */
+    public boolean enforceStrictLiveness()
+    {
+        return !baseNonPKColumnsInViewPK.isEmpty();
     }
 }

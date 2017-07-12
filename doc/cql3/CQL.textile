@@ -524,6 +524,12 @@ h4(#createMVWhere). @WHERE@ Clause
 
 The @<where-clause>@ is similar to the "where clause of a @SELECT@ statement":#selectWhere, with a few differences.  First, the where clause must contain an expression that disallows @NULL@ values in columns in the view's primary key.  If no other restriction is desired, this can be accomplished with an @IS NOT NULL@ expression.  Second, only columns which are in the base table's primary key may be restricted with expressions other than @IS NOT NULL@.  (Note that this second restriction may be lifted in the future.)
 
+h4. MV Limitations
+
+__Note:__
+Removal of columns not selected in the Materialized View (via `UPDATE base SET unselected_column = null` or `DELETE unselected_column FROM base`) may shadow missed updates to other columns received by hints or repair.
+For this reason, we advise against doing deletions on base columns not selected in views until this is fixed on CASSANDRA-13826.
+
 h3(#alterMVStmt). ALTER MATERIALIZED VIEW
 
 __Syntax:__

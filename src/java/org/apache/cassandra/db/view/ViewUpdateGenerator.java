@@ -70,7 +70,7 @@ public class ViewUpdateGenerator
         UPDATE_EXISTING, // There was an entry and the update modifies it
         SWITCH_ENTRY     // There was an entry and there is still one after update,
                          // but they are not the same one.
-    };
+    }
 
     /**
      * Creates a new {@code ViewUpdateBuilder}.
@@ -121,14 +121,14 @@ public class ViewUpdateGenerator
                 createEntry(mergedBaseRow);
                 return;
             case DELETE_OLD:
-                deleteOldEntry(existingBaseRow);
+                deleteOldEntry(existingBaseRow, mergedBaseRow);
                 return;
             case UPDATE_EXISTING:
                 updateEntry(existingBaseRow, mergedBaseRow);
                 return;
             case SWITCH_ENTRY:
                 createEntry(mergedBaseRow);
-                deleteOldEntry(existingBaseRow);
+                deleteOldEntry(existingBaseRow, mergedBaseRow);
                 return;
         }
     }
@@ -180,6 +180,7 @@ public class ViewUpdateGenerator
         }
 
         assert view.baseNonPKColumnsInViewPK.size() <= 1 : "We currently only support one base non-PK column in the view PK";
+
         if (view.baseNonPKColumnsInViewPK.isEmpty())
         {
             // The view entry is necessarily the same pre and post update.
@@ -204,7 +205,9 @@ public class ViewUpdateGenerator
         if (!isLive(before))
             return isLive(after) ? UpdateAction.NEW_ENTRY : UpdateAction.NONE;
         if (!isLive(after))
+        {
             return UpdateAction.DELETE_OLD;
+        }
 
         return baseColumn.cellValueType().compare(before.value(), after.value()) == 0
              ? UpdateAction.UPDATE_EXISTING
@@ -269,7 +272,7 @@ public class ViewUpdateGenerator
         }
         if (!matchesViewFilter(mergedBaseRow))
         {
-            deleteOldEntryInternal(existingBaseRow);
+            deleteOldEntryInternal(existingBaseRow, mergedBaseRow);
             return;
         }
 
@@ -281,6 +284,12 @@ public class ViewUpdateGenerator
         currentViewEntryBuilder.addPrimaryKeyLivenessInfo(computeLivenessInfoForEntry(mergedBaseRow));
         currentViewEntryBuilder.addRowDeletion(mergedBaseRow.deletion());
 
+        addDifferentCells(existingBaseRow, mergedBaseRow);
+        submitUpdate();
+    }
+
+    private void addDifferentCells(Row existingBaseRow, Row mergedBaseRow)
+    {
         // We only add to the view update the cells from mergedBaseRow that differs from
         // existingBaseRow. For that and for speed we can just cell pointer equality: if the update
         // hasn't touched a cell, we know it will be the same object in existingBaseRow and
@@ -362,8 +371,6 @@ public class ViewUpdateGenerator
                 addCell(viewColumn, (Cell)mergedData);
             }
         }
-
-        submitUpdate();
     }
 
     /**
@@ -371,20 +378,40 @@ public class ViewUpdateGenerator
      * <p>
      * This method checks that the base row does match the view filter before bothering.
      */
-    private void deleteOldEntry(Row existingBaseRow)
+    private void deleteOldEntry(Row existingBaseRow, Row mergedBaseRow)
     {
         // Before deleting an old entry, make sure it was matching the view filter (otherwise there is nothing to delete)
         if (!matchesViewFilter(existingBaseRow))
             return;
 
-        deleteOldEntryInternal(existingBaseRow);
+        deleteOldEntryInternal(existingBaseRow, mergedBaseRow);
     }
 
-    private void deleteOldEntryInternal(Row existingBaseRow)
+    private void deleteOldEntryInternal(Row existingBaseRow, Row mergedBaseRow)
     {
         startNewUpdate(existingBaseRow);
-        DeletionTime dt = new DeletionTime(computeTimestampForEntryDeletion(existingBaseRow), nowInSec);
-        currentViewEntryBuilder.addRowDeletion(Row.Deletion.shadowable(dt));
+        long timestamp = computeTimestampForEntryDeletion(existingBaseRow, mergedBaseRow);
+        long rowDeletion = mergedBaseRow.deletion().time().markedForDeleteAt();
+        assert timestamp >= rowDeletion;
+
+        // If computed deletion timestamp greater than row deletion, it must be coming from
+        //  1. non-pk base column used in view pk, or
+        //  2. unselected base column
+        //  any case, we need to use it as expired livenessInfo
+        // If computed deletion timestamp is from row deletion, we only need row deletion itself
+        if (timestamp > rowDeletion)
+        {
+            /**
+              * TODO: This is a hack and overload of LivenessInfo and we should probably modify
+              * the storage engine to properly support this, but on the meantime this
+              * should be fine because it only happens in some specific scenarios explained above.
+              */
+            LivenessInfo info = LivenessInfo.create(timestamp, Integer.MAX_VALUE, nowInSec);
+            currentViewEntryBuilder.addPrimaryKeyLivenessInfo(info);
+        }
+        currentViewEntryBuilder.addRowDeletion(mergedBaseRow.deletion());
+
+        addDifferentCells(existingBaseRow, mergedBaseRow);
         submitUpdate();
     }
 
@@ -413,78 +440,92 @@ public class ViewUpdateGenerator
 
     private LivenessInfo computeLivenessInfoForEntry(Row baseRow)
     {
-        /*
-         * We need to compute both the timestamp and expiration.
+        /**
+         * There 3 cases:
+         *  1. No extra primary key in view and all base columns are selected in MV. all base row's components(livenessInfo,
+         *     deletion, cells) are same as view row. Simply map base components to view row.
+         *  2. There is a base non-key column used in view pk. This base non-key column determines the liveness of view row. view's row level
+         *     info should based on this column.
+         *  3. Most tricky case is no extra primary key in view and some base columns are not selected in MV. We cannot use 1 livenessInfo or
+         *     row deletion to represent the liveness of unselected column properly, see CASSANDRA-11500.
+         *     We could make some simplification: the unselected columns will be used only when it affects view row liveness. eg. if view row
+         *     already exists and not expiring, there is no need to use unselected columns.
+         *     Note: if the view row is removed due to unselected column removal(ttl or cell tombstone), we will have problem keeping view
+         *     row alive with a smaller or equal timestamp than the max unselected column timestamp.
          *
-         * For the timestamp, it makes sense to use the bigger timestamp for all view PK columns.
-         *
-         * This is more complex for the expiration. We want to maintain consistency between the base and the view, so the
-         * entry should only exist as long as the base row exists _and_ has non-null values for all the columns that are part
-         * of the view PK.
-         * Which means we really have 2 cases:
-         *   1) either the columns for the base and view PKs are exactly the same: in that case, the view entry should live
-         *      as long as the base row lives. This means the view entry should only expire once *everything* in the base row
-         *      has expired. Which means the row TTL should be the max of any other TTL.
-         *   2) or there is a column that is not in the base PK but is in the view PK (we can only have one so far, we'll need
-         *      to slightly adapt if we allow more later): in that case, as long as that column lives the entry does too, but
-         *      as soon as it expires (or is deleted for that matter) the entry also should expire. So the expiration for the
-         *      view is the one of that column, irregarding of any other expiration.
-         *      To take an example of that case, if you have:
-         *        CREATE TABLE t (a int, b int, c int, PRIMARY KEY (a, b))
-         *        CREATE MATERIALIZED VIEW mv AS SELECT * FROM t WHERE c IS NOT NULL AND a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (c, a, b)
-         *        INSERT INTO t(a, b) VALUES (0, 0) USING TTL 3;
-         *        UPDATE t SET c = 0 WHERE a = 0 AND b = 0;
-         *      then even after 3 seconds elapsed, the row will still exist (it just won't have a "row marker" anymore) and so
-         *      the MV should still have a corresponding entry.
          */
         assert view.baseNonPKColumnsInViewPK.size() <= 1; // This may change, but is currently an enforced limitation
 
         LivenessInfo baseLiveness = baseRow.primaryKeyLivenessInfo();
 
-        if (view.baseNonPKColumnsInViewPK.isEmpty())
+        if (view.hasSamePrimaryKeyColumnsAsBaseTable())
         {
-            int ttl = baseLiveness.ttl();
-            int expirationTime = baseLiveness.localExpirationTime();
+            if (view.getDefinition().includeAllColumns)
+                return baseLiveness;
+
+            long timestamp = baseLiveness.timestamp();
+            boolean hasNonExpiringLiveCell = false;
+            Cell biggestExpirationCell = null;
             for (Cell cell : baseRow.cells())
             {
-                if (cell.ttl() > ttl)
+                if (view.getViewColumn(cell.column()) != null)
+                    continue;
+                if (!isLive(cell))
+                    continue;
+                timestamp = Math.max(timestamp, cell.maxTimestamp());
+                if (!cell.isExpiring())
+                    hasNonExpiringLiveCell = true;
+                else
                 {
-                    ttl = cell.ttl();
-                    expirationTime = cell.localDeletionTime();
+                    if (biggestExpirationCell == null)
+                        biggestExpirationCell = cell;
+                    else if (cell.localDeletionTime() > biggestExpirationCell.localDeletionTime())
+                        biggestExpirationCell = cell;
                 }
             }
-            return ttl == baseLiveness.ttl()
-                 ? baseLiveness
-                 : LivenessInfo.create(baseLiveness.timestamp(), ttl, expirationTime);
+            if (baseLiveness.isLive(nowInSec) && !baseLiveness.isExpiring())
+                return LivenessInfo.create(viewMetadata, timestamp, nowInSec);
+            if (hasNonExpiringLiveCell)
+                return LivenessInfo.create(viewMetadata, timestamp, nowInSec);
+            if (biggestExpirationCell == null)
+                return baseLiveness;
+            if (biggestExpirationCell.localDeletionTime() > baseLiveness.localExpirationTime()
+                    || !baseLiveness.isLive(nowInSec))
+                return LivenessInfo.create(timestamp,
+                                                       biggestExpirationCell.ttl(),
+                                                       biggestExpirationCell.localDeletionTime());
+            return baseLiveness;
         }
 
-        ColumnDefinition baseColumn = view.baseNonPKColumnsInViewPK.get(0);
-        Cell cell = baseRow.getCell(baseColumn);
+        Cell cell = baseRow.getCell(view.baseNonPKColumnsInViewPK.get(0));
         assert isLive(cell) : "We shouldn't have got there if the base row had no associated entry";
 
-        long timestamp = Math.max(baseLiveness.timestamp(), cell.timestamp());
-        return LivenessInfo.create(timestamp, cell.ttl(), cell.localDeletionTime());
+        return LivenessInfo.create(cell.timestamp(), cell.ttl(), cell.localDeletionTime());
     }
 
-    private long computeTimestampForEntryDeletion(Row baseRow)
+    private long computeTimestampForEntryDeletion(Row existingBaseRow, Row mergedBaseRow)
     {
-        // We delete the old row with it's row entry timestamp using a shadowable deletion.
-        // We must make sure that the deletion deletes everything in the entry (or the entry will
-        // still show up), so we must use the bigger timestamp found in the existing row (for any
-        // column included in the view at least).
-        // TODO: We have a problem though: if the entry is "resurected" by a later update, we would
-        // need to ensure that the timestamp for then entry then is bigger than the tombstone
-        // we're just inserting, which is not currently guaranteed.
-        // This is a bug for a separate ticket though.
-        long timestamp = baseRow.primaryKeyLivenessInfo().timestamp();
-        for (ColumnData data : baseRow)
+        DeletionTime deletion = mergedBaseRow.deletion().time();
+        if (view.hasSamePrimaryKeyColumnsAsBaseTable())
         {
-            if (!view.getDefinition().includes(data.column().name))
-                continue;
+            long timestamp = Math.max(deletion.markedForDeleteAt(), existingBaseRow.primaryKeyLivenessInfo().timestamp());
+            if (view.getDefinition().includeAllColumns)
+                return timestamp;
 
-            timestamp = Math.max(timestamp, data.maxTimestamp());
+            for (Cell cell : existingBaseRow.cells())
+            {
+                // selected column should not contribute to view deletion, itself is already included in view row
+                if (view.getViewColumn(cell.column()) != null)
+                    continue;
+                // unselected column is used regardless live or dead, because we don't know if it was used for liveness.
+                timestamp = Math.max(timestamp, cell.maxTimestamp());
+            }
+            return timestamp;
         }
-        return timestamp;
+        // has base non-pk column in view pk
+        Cell before = existingBaseRow.getCell(view.baseNonPKColumnsInViewPK.get(0));
+        assert isLive(before) : "We shouldn't have got there if the base row had no associated entry";
+        return deletion.deletes(before) ? deletion.markedForDeleteAt() : before.timestamp();
     }
 
     private void addColumnData(ColumnDefinition viewColumn, ColumnData baseTableData)

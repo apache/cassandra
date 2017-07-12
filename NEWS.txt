@@ -21,6 +21,24 @@ Upgrading
    - Nothing specific to this release, but please see previous upgrading sections,
      especially if you are upgrading from 2.2.
 
+Materialized Views
+-------------------
+    - Cassandra will no longer allow dropping columns on tables with Materialized Views.
+    - A change was made in the way the Materialized View timestamp is computed, which
+      may cause an old deletion to a base column which is view primary key (PK) column
+      to not be reflected in the view when repairing the base table post-upgrade. This
+      condition is only possible when a column deletion to an MV primary key (PK) column
+      not present in the base table PK (via UPDATE base SET view_pk_col = null or DELETE
+      view_pk_col FROM base) is missed before the upgrade and received by repair after the upgrade.
+      If such column deletions are done on a view PK column which is not a base PK, it's advisable
+      to run repair on the base table of all nodes prior to the upgrade. Alternatively it's possible
+      to fix potential inconsistencies by running repair on the views after upgrade or drop and
+      re-create the views. See CASSANDRA-11500 for more details.
+    - Removal of columns not selected in the Materialized View (via UPDATE base SET unselected_column
+      = null or DELETE unselected_column FROM base) may not be properly reflected in the view in some
+      situations so we advise against doing deletions on base columns not selected in views
+      until this is fixed on CASSANDRA-13826.
+
 3.0.14
 ======
 

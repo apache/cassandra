@@ -233,22 +233,10 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                                                                         .collect(Collectors.joining(","))));
                 }
 
-                // If a column is dropped which is included in a view, we don't allow the drop to take place.
-                boolean rejectAlter = false;
-                StringBuilder builder = new StringBuilder();
-                for (ViewDefinition view : views)
-                {
-                    if (!view.includes(columnName)) continue;
-                    if (rejectAlter)
-                        builder.append(',');
-                    rejectAlter = true;
-                    builder.append(view.viewName);
-                }
-                if (rejectAlter)
-                    throw new InvalidRequestException(String.format("Cannot drop column %s, depended on by materialized views (%s.{%s})",
+                if (!Iterables.isEmpty(views))
+                    throw new InvalidRequestException(String.format("Cannot drop column %s on base table with materialized views.",
                                                                     columnName.toString(),
-                                                                    keyspace(),
-                                                                    builder.toString()));
+                                                                    keyspace()));
                 break;
             case OPTS:
                 if (attrs == null)
