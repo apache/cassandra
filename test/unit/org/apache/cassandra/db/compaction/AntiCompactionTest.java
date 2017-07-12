@@ -29,6 +29,7 @@ import java.util.UUID;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.After;
 import org.junit.Ignore;
@@ -55,6 +56,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.utils.concurrent.Transactional;
 
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.hamcrest.CoreMatchers.is;
@@ -397,4 +399,42 @@ public class AntiCompactionTest
         return ImmutableSet.copyOf(cfs.getTracker().getView().sstables(SSTableSet.LIVE, (s) -> !s.isRepaired()));
     }
 
+    /**
+     * If the parent repair session is missing, we should still clean up
+     */
+    @Test
+    public void missingParentRepairSession() throws Exception
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
+        store.disableAutoCompaction();
+
+        for (int table = 0; table < 10; table++)
+        {
+            generateSStable(store,Integer.toString(table));
+        }
+        Collection<SSTableReader> sstables = getUnrepairedSSTables(store);
+        assertEquals(10, sstables.size());
+
+        Range<Token> range = new Range<Token>(new BytesToken("-1".getBytes()), new BytesToken("-10".getBytes()));
+        List<Range<Token>> ranges = Arrays.asList(range);
+
+        UUID missingRepairSession = UUIDGen.getTimeUUID();
+        try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
+             Refs<SSTableReader> refs = Refs.ref(sstables))
+        {
+            Assert.assertFalse(refs.isEmpty());
+            try
+            {
+                CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, 1, missingRepairSession, missingRepairSession);
+                Assert.fail("expected RuntimeException");
+            }
+            catch (RuntimeException e)
+            {
+                // expected
+            }
+            Assert.assertEquals(Transactional.AbstractTransactional.State.ABORTED, txn.state());
+            Assert.assertTrue(refs.isEmpty());
+        }
+    }
 }
