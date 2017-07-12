@@ -415,13 +415,39 @@ public class SinglePartitionReadCommand extends ReadCommand
 
             try
             {
-                int rowsToCache = metadata().params.caching.rowsPerPartitionToCache();
+                final int rowsToCache = metadata().params.caching.rowsPerPartitionToCache();
+
                 @SuppressWarnings("resource") // we close on exception or upon closing the result of this method
                 UnfilteredRowIterator iter = SinglePartitionReadCommand.fullPartitionRead(metadata(), nowInSec(), partitionKey()).queryMemtableAndDisk(cfs, executionController);
                 try
                 {
+                    // Use a custom iterator instead of DataLimits to avoid stopping the original iterator
+                    UnfilteredRowIterator toCacheIterator = new WrappingUnfilteredRowIterator(iter)
+                    {
+                        private int rowsCounted = 0;
+
+                        @Override
+                        public boolean hasNext()
+                        {
+                            return rowsCounted < rowsToCache && super.hasNext();
+                        }
+
+                        @Override
+                        public Unfiltered next()
+                        {
+                            Unfiltered unfiltered = super.next();
+                            if (unfiltered.isRow())
+                            {
+                                Row row = (Row) unfiltered;
+                                if (row.hasLiveData(nowInSec()))
+                                    rowsCounted++;
+                            }
+                            return unfiltered;
+                        }
+                    };
+
                     // We want to cache only rowsToCache rows
-                    CachedPartition toCache = CachedBTreePartition.create(DataLimits.cqlLimits(rowsToCache).filter(iter, nowInSec()), nowInSec());
+                    CachedPartition toCache = CachedBTreePartition.create(toCacheIterator, nowInSec());
                     if (sentinelSuccess && !toCache.isEmpty())
                     {
                         Tracing.trace("Caching {} rows", toCache.rowCount());

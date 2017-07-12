@@ -102,7 +102,7 @@ implements BasePartitionIterator<R>
                     }
                 }
 
-                if (stop.isSignalled || !hasMoreContents())
+                if (stop.isSignalled || stopChild.isSignalled || !hasMoreContents())
                     return false;
             }
             return true;

@@ -98,6 +98,7 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Make concat work with iterators that have different subsets of columns (CASSANDRA-13482)
  * Set test.runners based on cores and memory size (CASSANDRA-13078)
  * Allow different NUMACTL_ARGS to be passed in (CASSANDRA-13557)
  * Fix secondary index queries on COMPACT tables (CASSANDRA-13627)
