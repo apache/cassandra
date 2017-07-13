@@ -81,6 +81,14 @@ public class CounterContext
     private static final int COUNT_LENGTH = TypeSizes.sizeof(Long.MAX_VALUE);
     private static final int STEP_LENGTH = CounterId.LENGTH + CLOCK_LENGTH + COUNT_LENGTH;
 
+    /*
+     * A special hard-coded value we use for clock ids to differentiate between regular local shards
+     * and 'fake' local shards used to emulate pre-3.0 CounterUpdateCell-s in UpdateParameters.
+     *
+     * Important for handling counter writes and reads during rolling 2.1/2.2 -> 3.0 upgrades.
+     */
+    static final CounterId UPDATE_CLOCK_ID = CounterId.fromInt(0);
+
     private static final Logger logger = LoggerFactory.getLogger(CounterContext.class);
 
     public static enum Relationship
@@ -100,6 +108,35 @@ public class CounterContext
     }
 
     /**
+     * Creates a counter context with a single local shard with clock id of UPDATE_CLOCK_ID.
+     *
+     * This is only used in a PartitionUpdate until the update has gone through
+     * CounterMutation.apply(), at which point this special local shard will be replaced by a regular global one.
+     * It should never hit commitlog / memtable / disk, but can hit network.
+     *
+     * We use this so that if an update statement has multiple increments of the same counter we properly
+     * add them rather than keeping only one of them.
+     *
+     * NOTE: Before CASSANDRA-13691 we used a regular local shard without a hard-coded clock id value here.
+     * It was problematic, because it was possible to return a false positive, and on read path encode an old counter
+     * cell from 2.0 era with a regular local shard as a counter update, and to break the 2.1 coordinator.
+     */
+    public ByteBuffer createUpdate(long count)
+    {
+        ContextState state = ContextState.allocate(0, 1, 0);
+        state.writeLocal(UPDATE_CLOCK_ID, 1L, count);
+        return state.context;
+    }
+
+    /**
+     * Checks if a context is an update (see createUpdate() for justification).
+     */
+    public boolean isUpdate(ByteBuffer context)
+    {
+        return ContextState.wrap(context).getCounterId().equals(UPDATE_CLOCK_ID);
+    }
+
+    /**
      * Creates a counter context with a single global, 2.1+ shard (a result of increment).
      */
     public ByteBuffer createGlobal(CounterId id, long clock, long count)
@@ -111,12 +148,7 @@ public class CounterContext
 
     /**
      * Creates a counter context with a single local shard.
-     * This is only used in a PartitionUpdate until the update has gone through
-     * CounterMutation.apply(), at which point all the local shard are replaced by
-     * global ones. In other words, local shards should never hit the disk or
-     * memtables. And we use this so that if an update statement has multiple increment
-     * of the same counter we properly add them rather than keeping only one of them.
-     * (this is also used for tests of compatibility with pre-2.1 counters)
+     * For use by tests of compatibility with pre-2.1 counters only.
      */
     public ByteBuffer createLocal(long count)
     {
@@ -679,14 +711,6 @@ public class CounterContext
     public long getLocalCount(ByteBuffer context)
     {
         return getLocalClockAndCount(context).count;
-    }
-
-    /**
-     * Checks if a context is local
-     */
-    public boolean isLocal(ByteBuffer context)
-    {
-        return ContextState.wrap(context).isLocal();
     }
 
     /**

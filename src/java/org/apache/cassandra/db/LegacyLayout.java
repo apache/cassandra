@@ -511,12 +511,12 @@ public abstract class LegacyLayout
         {
             size += ByteBufferUtil.serializedSizeWithShortLength(cell.name.encode(partition.metadata()));
             size += 1;  // serialization flags
-            if (cell.kind == LegacyLayout.LegacyCell.Kind.EXPIRING)
+            if (cell.isExpiring())
             {
                 size += TypeSizes.sizeof(cell.ttl);
                 size += TypeSizes.sizeof(cell.localDeletionTime);
             }
-            else if (cell.kind == LegacyLayout.LegacyCell.Kind.DELETED)
+            else if (cell.isTombstone())
             {
                 size += TypeSizes.sizeof(cell.timestamp);
                 // localDeletionTime replaces cell.value as the body
@@ -524,7 +524,14 @@ public abstract class LegacyLayout
                 size += TypeSizes.sizeof(cell.localDeletionTime);
                 continue;
             }
-            else if (cell.kind == LegacyLayout.LegacyCell.Kind.COUNTER)
+            else if (cell.isCounterUpdate())
+            {
+                size += TypeSizes.sizeof(cell.timestamp);
+                long count = CounterContext.instance().getLocalCount(cell.value);
+                size += ByteBufferUtil.serializedSizeWithLength(ByteBufferUtil.bytes(count));
+                continue;
+            }
+            else if (cell.isCounter())
             {
                 size += TypeSizes.sizeof(Long.MIN_VALUE);  // timestampOfLastDelete
             }
@@ -1073,7 +1080,7 @@ public abstract class LegacyLayout
             ByteBuffer value = ByteBufferUtil.readWithLength(in);
             LegacyCellName name = decodeCellName(metadata, cellname, readAllAsDynamic);
             return (mask & COUNTER_UPDATE_MASK) != 0
-                ? new LegacyCell(LegacyCell.Kind.COUNTER, name, CounterContext.instance().createLocal(ByteBufferUtil.toLong(value)), ts, Cell.NO_DELETION_TIME, Cell.NO_TTL)
+                ? new LegacyCell(LegacyCell.Kind.COUNTER, name, CounterContext.instance().createUpdate(ByteBufferUtil.toLong(value)), ts, Cell.NO_DELETION_TIME, Cell.NO_TTL)
                 : ((mask & DELETION_MASK) == 0
                         ? new LegacyCell(LegacyCell.Kind.REGULAR, name, value, ts, Cell.NO_DELETION_TIME, Cell.NO_TTL)
                         : new LegacyCell(LegacyCell.Kind.DELETED, name, ByteBufferUtil.EMPTY_BYTE_BUFFER, ts, ByteBufferUtil.toInt(value), Cell.NO_TTL));
@@ -1489,11 +1496,11 @@ public abstract class LegacyLayout
             return new LegacyCell(Kind.DELETED, decodeCellName(metadata, superColumnName, name), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp, nowInSec, LivenessInfo.NO_TTL);
         }
 
-        public static LegacyCell counter(CFMetaData metadata, ByteBuffer superColumnName, ByteBuffer name, long value)
+        public static LegacyCell counterUpdate(CFMetaData metadata, ByteBuffer superColumnName, ByteBuffer name, long value)
         throws UnknownColumnException
         {
             // See UpdateParameters.addCounter() for more details on this
-            ByteBuffer counterValue = CounterContext.instance().createLocal(value);
+            ByteBuffer counterValue = CounterContext.instance().createUpdate(value);
             return counter(decodeCellName(metadata, superColumnName, name), counterValue);
         }
 
@@ -1515,10 +1522,10 @@ public abstract class LegacyLayout
             return 0;
         }
 
-        private boolean isCounterUpdate()
+        public boolean isCounterUpdate()
         {
             // See UpdateParameters.addCounter() for more details on this
-            return isCounter() && CounterContext.instance().isLocal(value);
+            return isCounter() && CounterContext.instance().isUpdate(value);
         }
 
         public ClusteringPrefix clustering()

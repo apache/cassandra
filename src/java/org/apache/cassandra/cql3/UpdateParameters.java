@@ -162,12 +162,15 @@ public class UpdateParameters
         // "counter update", which is a temporary state until we run into 'CounterMutation.updateWithCurrentValue()'
         // which does the read-before-write and sets the proper CounterId, clock and updated value.
         //
-        // We thus create a "fake" local shard here. The CounterId/clock used don't matter as this is just a temporary
+        // We thus create a "fake" local shard here. The clock used doesn't matter as this is just a temporary
         // state that will be replaced when processing the mutation in CounterMutation, but the reason we use a 'local'
         // shard is due to the merging rules: if a user includes multiple updates to the same counter in a batch, those
         // multiple updates will be merged in the PartitionUpdate *before* they even reach CounterMutation. So we need
         // such update to be added together, and that's what a local shard gives us.
-        builder.addCell(BufferCell.live(metadata, column, timestamp, CounterContext.instance().createLocal(increment)));
+        //
+        // We set counterid to a special value to differentiate between regular pre-2.0 local shards from pre-2.1 era
+        // and "counter update" temporary state cells. Please see CounterContext.createUpdate() for further details.
+        builder.addCell(BufferCell.live(metadata, column, timestamp, CounterContext.instance().createUpdate(increment)));
     }
 
     public void setComplexDeletionTime(ColumnDefinition column)

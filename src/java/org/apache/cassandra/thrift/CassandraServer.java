@@ -1016,7 +1016,7 @@ public class CassandraServer implements Cassandra.Iface
     private LegacyLayout.LegacyCell toCounterLegacyCell(CFMetaData metadata, ByteBuffer superColumnName, CounterColumn column)
     throws UnknownColumnException
     {
-        return LegacyLayout.LegacyCell.counter(metadata, superColumnName, column.name, column.value);
+        return LegacyLayout.LegacyCell.counterUpdate(metadata, superColumnName, column.name, column.value);
     }
 
     private void sortAndMerge(CFMetaData metadata, List<LegacyLayout.LegacyCell> cells, int nowInSec)
@@ -2169,7 +2169,7 @@ public class CassandraServer implements Cassandra.Iface
                 LegacyLayout.LegacyCellName name = LegacyLayout.decodeCellName(metadata, column_parent.super_column, column.name);
 
                 // See UpdateParameters.addCounter() for more details on this
-                ByteBuffer value = CounterContext.instance().createLocal(column.value);
+                ByteBuffer value = CounterContext.instance().createUpdate(column.value);
                 CellPath path = name.collectionElement == null ? null : CellPath.create(name.collectionElement);
                 Cell cell = BufferCell.live(metadata, name.column, FBUtilities.timestampMicros(), value, path);
 
