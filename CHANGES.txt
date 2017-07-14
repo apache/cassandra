@@ -1,4 +1,5 @@
 2.2.11
+ * Fix potential NPE when resume bootstrap fails (CASSANDRA-13272)
  * Fix toJSONString for the UDT, tuple and collection types (CASSANDRA-13592)
  * Fix nested Tuples/UDTs validation (CASSANDRA-13646)
  * Remove unused max_value_size_in_mb config setting from yaml (CASSANDRA-13625
