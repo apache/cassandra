@@ -45,6 +45,7 @@ public class MultiPartitionPager implements QueryPager
 {
     private final SinglePartitionPager[] pagers;
     private final DataLimits limit;
+    private final boolean selectsFullPartitions;
 
     private final int nowInSec;
 
@@ -55,6 +56,7 @@ public class MultiPartitionPager implements QueryPager
     {
         this.limit = group.limits();
         this.nowInSec = group.nowInSec();
+        this.selectsFullPartitions = group.selectsFullPartition();
 
         int i = 0;
         // If it's not the beginning (state != null), we need to find where we were and skip previous commands
@@ -72,7 +74,8 @@ public class MultiPartitionPager implements QueryPager
 
         pagers = new SinglePartitionPager[group.commands.size() - i];
         // 'i' is on the first non exhausted pager for the previous page (or the first one)
-        pagers[0] = group.commands.get(i).getPager(state, protocolVersion);
+        SinglePartitionReadCommand command = group.commands.get(i);
+        pagers[0] = command.getPager(state, protocolVersion);
 
         // Following ones haven't been started yet
         for (int j = i + 1; j < group.commands.size(); j++)
@@ -123,7 +126,7 @@ public class MultiPartitionPager implements QueryPager
     {
         int toQuery = Math.min(remaining, pageSize);
         PagersIterator iter = new PagersIterator(toQuery, consistency, clientState, null);
-        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true);
+        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true, selectsFullPartitions);
         iter.setCounter(counter);
         return counter.applyTo(iter);
     }
@@ -133,7 +136,7 @@ public class MultiPartitionPager implements QueryPager
     {
         int toQuery = Math.min(remaining, pageSize);
         PagersIterator iter = new PagersIterator(toQuery, null, null, orderGroup);
-        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true);
+        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true, selectsFullPartitions);
         iter.setCounter(counter);
         return counter.applyTo(iter);
     }
