@@ -1,4 +1,5 @@
 4.0
+ * Allow skipping equality-restricted clustering columns in ORDER BY clause (CASSANDRA-10271)
  * Use common nowInSec for validation compactions (CASSANDRA-13671)
  * Improve handling of IR prepare failures (CASSANDRA-13672)
  * Send IR coordinator messages synchronously (CASSANDRA-13673)
