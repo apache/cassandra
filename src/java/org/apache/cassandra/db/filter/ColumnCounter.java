@@ -90,6 +90,7 @@ public class ColumnCounter
     {
         protected final CellNameType type;
         protected final int toGroup;
+        protected final boolean countPartitionsWithOnlyStaticData;
         protected CellName previous;
 
         /**
@@ -101,12 +102,15 @@ public class ColumnCounter
          * @param toGroup the number of composite components on which to group
          *                column. If 0, all columns are grouped, otherwise we group
          *                those for which the {@code toGroup} first component are equals.
+         * @param countPartitionsWithOnlyStaticData if {@code true} the partitions with only static data should be
+         * counted as 1 valid row.
          */
-        public GroupByPrefix(long timestamp, CellNameType type, int toGroup)
+        public GroupByPrefix(long timestamp, CellNameType type, int toGroup, boolean countPartitionsWithOnlyStaticData)
         {
             super(timestamp);
             this.type = type;
             this.toGroup = toGroup;
+            this.countPartitionsWithOnlyStaticData = countPartitionsWithOnlyStaticData;
 
             assert toGroup == 0 || type != null;
         }
@@ -153,14 +157,16 @@ public class ColumnCounter
                 // We want to count the static group as 1 (CQL) row only if it's the only
                 // group in the partition. So, since we have already counted it at this point,
                 // just don't count the 2nd group if there is one and the first one was static
-                if (previous.isStatic())
+                if (previous.isStatic() && countPartitionsWithOnlyStaticData)
                 {
                     previous = current;
                     return true;
                 }
             }
 
-            live++;
+            if (!current.isStatic() || countPartitionsWithOnlyStaticData)
+                live++;
+
             previous = current;
 
             return true;
@@ -172,9 +178,14 @@ public class ColumnCounter
      */
     public static class GroupByPrefixReversed extends GroupByPrefix
     {
-        public GroupByPrefixReversed(long timestamp, CellNameType type, int toGroup)
+        public GroupByPrefixReversed(long timestamp, CellNameType type, int toGroup, boolean countPartitionsWithOnlyStaticData)
         {
-            super(timestamp, type, toGroup);
+            // GroupByPrefixReversed ignores countPartitionsWithOnlyStaticData because the original problem (CASSANDRA-11223)
+            // only affect range queries and multi-partition queries. Range queries do not accept an ORDER BY clause.
+            // Multi-partition queries only accept an ORDER BY clause when paging is off. The limit in this case is used
+            // only when the rows with only static data have already been discarded. So, in practice
+            // changing GroupByPrefixReversed.count() has no effect.
+            super(timestamp, type, toGroup, countPartitionsWithOnlyStaticData);
         }
 
         @Override

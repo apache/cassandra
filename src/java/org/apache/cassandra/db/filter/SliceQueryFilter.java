@@ -26,7 +26,6 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -344,12 +343,16 @@ public class SliceQueryFilter implements IDiskAtomFilter
     {
         if (compositesToGroup < 0)
             return new ColumnCounter(now);
-        else if (compositesToGroup == 0)
-            return new ColumnCounter.GroupByPrefix(now, null, 0);
-        else if (reversed)
-            return new ColumnCounter.GroupByPrefixReversed(now, comparator, compositesToGroup);
-        else
-            return new ColumnCounter.GroupByPrefix(now, comparator, compositesToGroup);
+
+        boolean countPartitionsWithOnlyStaticData = Arrays.equals(slices, ColumnSlice.ALL_COLUMNS_ARRAY);
+
+        if (compositesToGroup == 0)
+            return new ColumnCounter.GroupByPrefix(now, null, 0, countPartitionsWithOnlyStaticData);
+
+        if (reversed)
+            return new ColumnCounter.GroupByPrefixReversed(now, comparator, compositesToGroup, countPartitionsWithOnlyStaticData);
+
+        return new ColumnCounter.GroupByPrefix(now, comparator, compositesToGroup, countPartitionsWithOnlyStaticData);
     }
 
     public ColumnFamily trim(ColumnFamily cf, int trimTo, long now)

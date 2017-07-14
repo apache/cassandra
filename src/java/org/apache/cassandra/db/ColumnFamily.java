@@ -92,7 +92,7 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
     {
         ColumnCounter counter = getComparator().isDense()
                               ? new ColumnCounter(now)
-                              : new ColumnCounter.GroupByPrefix(now, getComparator(), metadata.clusteringColumns().size());
+                              : new ColumnCounter.GroupByPrefix(now, getComparator(), metadata.clusteringColumns().size(), true);
         return counter.countAll(this).live();
     }
 

@@ -183,7 +183,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
     public ColumnCounter columnCounter(CellNameType comparator, long now)
     {
         return countCQL3Rows
-             ? new ColumnCounter.GroupByPrefix(now, null, 0)
+             ? new ColumnCounter.GroupByPrefix(now, null, 0, false)
              : new ColumnCounter(now);
     }
 

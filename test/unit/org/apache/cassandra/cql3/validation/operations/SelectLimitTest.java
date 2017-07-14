@@ -129,4 +129,213 @@ public class SelectLimitTest extends CQLTester
         // strict bound (v > 1) over a range of partitions is not supported for compact storage if limit is provided
         assertInvalidThrow(InvalidRequestException.class, "SELECT * FROM %s WHERE v > 1 AND v <= 3 LIMIT 6 ALLOW FILTERING");
     }
+
+    @Test
+    public void testFilteringOnClusteringColumnsWithLimitAndStaticColumns() throws Throwable
+    {
+        // With only one clustering column
+        createTable("CREATE TABLE %s (a int, b int, s int static, c int, primary key (a, b))"
+          + " WITH caching = {'keys': 'ALL', 'rows_per_partition' : 'ALL'}");
+
+        for (int i = 0; i < 4; i++)
+        {
+            execute("INSERT INTO %s (a, s) VALUES (?, ?)", i, i);
+                for (int j = 0; j < 3; j++)
+                    if (!((i == 0 || i == 3) && j == 1))
+                        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", i, j, i + j);
+        }
+
+        for (boolean forceFlush : new boolean[]{false, true})
+        {
+            if (forceFlush)
+                flush();
+
+            assertRows(execute("SELECT * FROM %s"),
+                       row(0, 0, 0, 0),
+                       row(0, 2, 0, 2),
+                       row(1, 0, 1, 1),
+                       row(1, 1, 1, 2),
+                       row(1, 2, 1, 3),
+                       row(2, 0, 2, 2),
+                       row(2, 1, 2, 3),
+                       row(2, 2, 2, 4),
+                       row(3, 0, 3, 3),
+                       row(3, 2, 3, 5));
+
+            assertRows(execute("SELECT * FROM %s WHERE b = 1 ALLOW FILTERING"),
+                       row(1, 1, 1, 2),
+                       row(2, 1, 2, 3));
+
+            // The problem was that the static row of the partition 0 used to be only filtered in SelectStatement and was
+            // by consequence counted as a row. In which case the query was returning one row less.
+            assertRows(execute("SELECT * FROM %s WHERE b = 1 LIMIT 2 ALLOW FILTERING"),
+                       row(1, 1, 1, 2),
+                       row(2, 1, 2, 3));
+
+            assertRows(execute("SELECT * FROM %s WHERE b >= 1 AND b <= 1 LIMIT 2 ALLOW FILTERING"),
+                       row(1, 1, 1, 2),
+                       row(2, 1, 2, 3));
+
+            // Test with paging
+            for (int pageSize = 1; pageSize < 4; pageSize++)
+            {
+                assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b = 1 LIMIT 2 ALLOW FILTERING", pageSize),
+                              row(1, 1, 1, 2),
+                              row(2, 1, 2, 3));
+
+                assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b >= 1 AND b <= 1 LIMIT 2 ALLOW FILTERING", pageSize),
+                              row(1, 1, 1, 2),
+                              row(2, 1, 2, 3));
+            }
+        }
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (0, 1, 2, 3) AND b = 1 LIMIT 2 ALLOW FILTERING"),
+                   row(1, 1, 1, 2),
+                   row(2, 1, 2, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (0, 1, 2, 3) AND b >= 1 AND b <= 1 LIMIT 2 ALLOW FILTERING"),
+                   row(1, 1, 1, 2),
+                   row(2, 1, 2, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (0, 1, 2, 3) AND b = 1 ORDER BY b DESC LIMIT 2 ALLOW FILTERING"),
+                   row(2, 1, 2, 3),
+                   row(1, 1, 1, 2));
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (0, 1, 2, 3) AND b >= 1 AND b <= 1 ORDER BY b DESC LIMIT 2 ALLOW FILTERING"),
+                   row(2, 1, 2, 3),
+                   row(1, 1, 1, 2));
+
+        execute("SELECT * FROM %s WHERE a IN (0, 1, 2, 3)"); // Load all data in the row cache
+
+        assertRows(execute("SELECT * FROM %s WHERE b = 1 LIMIT 2 ALLOW FILTERING"),
+                   row(1, 1, 1, 2),
+                   row(2, 1, 2, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE b >= 1 AND b <= 1 LIMIT 2 ALLOW FILTERING"),
+                   row(1, 1, 1, 2),
+                   row(2, 1, 2, 3));
+
+        // Test with paging
+        for (int pageSize = 1; pageSize < 4; pageSize++)
+        {
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b = 1 LIMIT 2 ALLOW FILTERING", pageSize),
+                          row(1, 1, 1, 2),
+                          row(2, 1, 2, 3));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b >= 1 AND b <= 1 LIMIT 2 ALLOW FILTERING", pageSize),
+                          row(1, 1, 1, 2),
+                          row(2, 1, 2, 3));
+        }
+
+        // With multiple clustering columns
+        createTable("CREATE TABLE %s (a int, b int, c int, s int static, d int, primary key (a, b, c))"
+                + " WITH caching = {'keys': 'ALL', 'rows_per_partition' : 'ALL'}");
+
+        for (int i = 0; i < 3; i++)
+        {
+            execute("INSERT INTO %s (a, s) VALUES (?, ?)", i, i);
+            for (int j = 0; j < 3; j++)
+                if (!(i == 0 && j == 1))
+                    execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", i, j, j, i + j);
+        }
+
+        for (boolean forceFlush : new boolean[]{false, true})
+        {
+            if (forceFlush)
+                flush();
+
+            assertRows(execute("SELECT * FROM %s"),
+                       row(0, 0, 0, 0, 0),
+                       row(0, 2, 2, 0, 2),
+                       row(1, 0, 0, 1, 1),
+                       row(1, 1, 1, 1, 2),
+                       row(1, 2, 2, 1, 3),
+                       row(2, 0, 0, 2, 2),
+                       row(2, 1, 1, 2, 3),
+                       row(2, 2, 2, 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE b = 1 ALLOW FILTERING"),
+                       row(1, 1, 1, 1, 2),
+                       row(2, 1, 1, 2, 3));
+
+            assertRows(execute("SELECT * FROM %s WHERE b IN (1, 2, 3, 4) AND c >= 1 AND c <= 1 LIMIT 2 ALLOW FILTERING"),
+                       row(1, 1, 1, 1, 2),
+                       row(2, 1, 1, 2, 3));
+
+            // Test with paging
+            for (int pageSize = 1; pageSize < 4; pageSize++)
+            {
+                assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b = 1 LIMIT 2 ALLOW FILTERING", pageSize),
+                              row(1, 1, 1, 1, 2),
+                              row(2, 1, 1, 2, 3));
+
+                assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b IN (1, 2, 3, 4) AND c >= 1 AND c <= 1 LIMIT 2 ALLOW FILTERING", pageSize),
+                              row(1, 1, 1, 1, 2),
+                              row(2, 1, 1, 2, 3));
+            }
+        }
+
+        execute("SELECT * FROM %s WHERE a IN (0, 1, 2)"); // Load data in the row cache
+
+        assertRows(execute("SELECT * FROM %s WHERE b = 1 ALLOW FILTERING"),
+                   row(1, 1, 1, 1, 2),
+                   row(2, 1, 1, 2, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE b IN (1, 2, 3, 4) AND c >= 1 AND c <= 1 LIMIT 2 ALLOW FILTERING"),
+                   row(1, 1, 1, 1, 2),
+                   row(2, 1, 1, 2, 3));
+
+        // Test with paging
+        for (int pageSize = 1; pageSize < 4; pageSize++)
+        {
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b = 1 LIMIT 2 ALLOW FILTERING", pageSize),
+                          row(1, 1, 1, 1, 2),
+                          row(2, 1, 1, 2, 3));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b IN (1, 2, 3, 4) AND c >= 1 AND c <= 1 LIMIT 2 ALLOW FILTERING", pageSize),
+                          row(1, 1, 1, 1, 2),
+                          row(2, 1, 1, 2, 3));
+        }
+    }
+
+    @Test
+    public void testIndexOnRegularColumnWithPartitionWithoutRows() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c int, s int static, v int, PRIMARY KEY(pk, c))");
+        createIndex("CREATE INDEX ON %s (v)");
+
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?)", 1, 1, 9, 1);
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?)", 1, 2, 9, 2);
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?)", 3, 1, 9, 1);
+        execute("INSERT INTO %s (pk, c, s, v) VALUES (?, ?, ?, ?)", 4, 1, 9, 1);
+        flush();
+
+        assertRows(execute("SELECT * FROM %s WHERE v = ?", 1),
+                   row(1, 1, 9, 1),
+                   row(3, 1, 9, 1),
+                   row(4, 1, 9, 1));
+
+        execute("DELETE FROM %s WHERE pk = ? AND c = ?", 3, 1);
+
+        // Test without paging
+        assertRows(execute("SELECT * FROM %s WHERE v = ?", 1),
+                   row(1, 1, 9, 1),
+                   row(4, 1, 9, 1));
+
+        assertRows(execute("SELECT * FROM %s WHERE v = ? LIMIT 2", 1),
+                   row(1, 1, 9, 1),
+                   row(4, 1, 9, 1));
+
+        // Test with paging
+        for (int pageSize = 1; pageSize < 4; pageSize++)
+        {
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE v = 1", pageSize),
+                          row(1, 1, 9, 1),
+                          row(4, 1, 9, 1));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE v = 1 LIMIT 2", pageSize),
+                          row(1, 1, 9, 1),
+                          row(4, 1, 9, 1));
+        }
+    }
 }
