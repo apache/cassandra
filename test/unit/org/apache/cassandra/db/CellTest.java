@@ -250,6 +250,77 @@ public class CellTest
         Assert.assertEquals(-1, testExpiring("val", "b", 2, 1, null, "a", null, 2));
     }
 
+    class SimplePurger implements DeletionPurger
+    {
+        private final int gcBefore;
+
+        public SimplePurger(int gcBefore)
+        {
+            this.gcBefore = gcBefore;
+        }
+
+        public boolean shouldPurge(long timestamp, int localDeletionTime)
+        {
+            return localDeletionTime < gcBefore;
+        }
+    }
+
+    /**
+     * tombstones shouldn't be purged if localDeletionTime is greater than gcBefore
+     */
+    @Test
+    public void testNonPurgableTombstone()
+    {
+        int now = 100;
+        Cell cell = deleted(cfm, "val", now, now);
+        Cell purged = cell.purge(new SimplePurger(now - 1), now + 1);
+        Assert.assertEquals(cell, purged);
+    }
+
+    @Test
+    public void testPurgeableTombstone()
+    {
+        int now = 100;
+        Cell cell = deleted(cfm, "val", now, now);
+        Cell purged = cell.purge(new SimplePurger(now + 1), now + 1);
+        Assert.assertNull(purged);
+    }
+
+    @Test
+    public void testLiveExpiringCell()
+    {
+        int now = 100;
+        Cell cell = expiring(cfm, "val", "a", now, now + 10);
+        Cell purged = cell.purge(new SimplePurger(now), now + 1);
+        Assert.assertEquals(cell, purged);
+    }
+
+    /**
+     * cells that have expired should be converted to tombstones with an local deletion time
+     * of the cell's local expiration time, minus it's ttl
+     */
+    @Test
+    public void testExpiredTombstoneConversion()
+    {
+        int now = 100;
+        Cell cell = expiring(cfm, "val", "a", now, 10, now + 10);
+        Cell purged = cell.purge(new SimplePurger(now), now + 11);
+        Assert.assertEquals(deleted(cfm, "val", now, now), purged);
+    }
+
+    /**
+     * if the tombstone created by an expiring cell has a local deletion time less than gcBefore,
+     * it should be purged
+     */
+    @Test
+    public void testPurgeableExpiringCell()
+    {
+        int now = 100;
+        Cell cell = expiring(cfm, "val", "a", now, 10, now + 10);
+        Cell purged = cell.purge(new SimplePurger(now + 1), now + 11);
+        Assert.assertNull(purged);
+    }
+
     private static ByteBuffer bb(int i)
     {
         return ByteBufferUtil.bytes(i);
@@ -326,8 +397,13 @@ public class CellTest
 
     private Cell expiring(CFMetaData cfm, String columnName, String value, long timestamp, int localExpirationTime)
     {
+        return expiring(cfm, columnName, value, timestamp, 1, localExpirationTime);
+    }
+
+    private Cell expiring(CFMetaData cfm, String columnName, String value, long timestamp, int ttl, int localExpirationTime)
+    {
         ColumnDefinition cdef = cfm.getColumnDefinition(ByteBufferUtil.bytes(columnName));
-        return new BufferCell(cdef, timestamp, 1, localExpirationTime, ByteBufferUtil.bytes(value), null);
+        return new BufferCell(cdef, timestamp, ttl, localExpirationTime, ByteBufferUtil.bytes(value), null);
     }
 
     private Cell deleted(CFMetaData cfm, String columnName, int localDeletionTime, long timestamp)
