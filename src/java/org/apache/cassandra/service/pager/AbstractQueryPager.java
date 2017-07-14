@@ -126,7 +126,7 @@ abstract class AbstractQueryPager implements QueryPager
 
         private Pager(DataLimits pageLimits, int nowInSec)
         {
-            this.counter = pageLimits.newCounter(nowInSec, true);
+            this.counter = pageLimits.newCounter(nowInSec, true, command.selectsFullPartition());
             this.pageLimits = pageLimits;
         }
 

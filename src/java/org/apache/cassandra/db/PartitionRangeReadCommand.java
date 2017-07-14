@@ -331,6 +331,12 @@ public class PartitionRangeReadCommand extends ReadCommand
     }
 
     @Override
+    public boolean selectsFullPartition()
+    {
+        return dataRange.selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns();
+    }
+
+    @Override
     public String toString()
     {
         return String.format("Read(%s.%s columns=%s rowfilter=%s limits=%s %s)",

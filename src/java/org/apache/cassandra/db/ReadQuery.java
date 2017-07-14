@@ -78,6 +78,12 @@ public interface ReadQuery
         {
             return false;
         }
+
+        @Override
+        public boolean selectsFullPartition()
+        {
+            return false;
+        }
     };
 
     /**
@@ -148,4 +154,10 @@ public interface ReadQuery
      * checkRowFilter is true
      */
     public boolean selectsClustering(DecoratedKey key, Clustering clustering);
+
+    /**
+     * Checks if this {@code ReadQuery} selects full partitions, that is it has no filtering on clustering or regular columns.
+     * @return {@code true} if this {@code ReadQuery} selects full partitions, {@code false} otherwise.
+     */
+    public boolean selectsFullPartition();
 }
