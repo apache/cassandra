@@ -114,6 +114,21 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     }
 
     /**
+     * Checks if some of the expressions apply to clustering or regular columns.
+     * @return {@code true} if some of the expressions apply to clustering or regular columns, {@code false} otherwise.
+     */
+    public boolean hasExpressionOnClusteringOrRegularColumns()
+    {
+        for (Expression expression : expressions)
+        {
+            ColumnMetadata column = expression.column();
+            if (column.isClusteringColumn() || column.isRegular())
+                return true;
+        }
+        return false;
+    }
+
+    /**
      * Filters the provided iterator so that only the row satisfying the expression of this filter
      * are included in the resulting iterator.
      *

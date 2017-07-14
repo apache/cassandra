@@ -771,14 +771,14 @@ public abstract class CQLTester
         return sessionNet(protocolVersion).execute(formatQuery(query), values);
     }
 
-    protected Session sessionNet()
-    {
-        return sessionNet(getDefaultVersion());
-    }
-
     protected com.datastax.driver.core.ResultSet executeNetWithPaging(String query, int pageSize) throws Throwable
     {
         return sessionNet().execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
+    }
+
+    protected Session sessionNet()
+    {
+        return sessionNet(getDefaultVersion());
     }
 
     protected Session sessionNet(ProtocolVersion protocolVersion)

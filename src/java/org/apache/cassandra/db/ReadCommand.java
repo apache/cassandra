@@ -368,7 +368,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             // we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
             // would be more efficient (the sooner we discard stuff we know we don't care, the less useless
             // processing we do on it).
-            return limits().filter(updatedFilter.filter(resultIterator, nowInSec()), nowInSec());
+            return limits().filter(updatedFilter.filter(resultIterator, nowInSec()), nowInSec(), selectsFullPartition());
         }
         catch (RuntimeException | Error e)
         {

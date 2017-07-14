@@ -112,8 +112,8 @@ public class UnfilteredRowIteratorsTest
         iter2 = rows(metadata.regularAndStaticColumns(), 1,
                      row(3, cell(v1Metadata, 3), cell(v2Metadata, 3)),
                      row(4, cell(v1Metadata, 4), cell(v2Metadata, 4)));
-        concat = UnfilteredRowIterators.concat(DataLimits.cqlLimits(1).filter(iter1, FBUtilities.nowInSeconds()),
-                                               DataLimits.cqlLimits(1).filter(iter2, FBUtilities.nowInSeconds()));
+        concat = UnfilteredRowIterators.concat(DataLimits.cqlLimits(1).filter(iter1, FBUtilities.nowInSeconds(), true),
+                                               DataLimits.cqlLimits(1).filter(iter2, FBUtilities.nowInSeconds(), true));
         Assert.assertEquals(concat.columns(), metadata.regularAndStaticColumns());
         assertRows(concat,
                    row(1, cell(v1Metadata, 1), cell(v2Metadata, 1)),
@@ -127,13 +127,13 @@ public class UnfilteredRowIteratorsTest
                      row(3, cell(v1Metadata, 3), cell(v2Metadata, 3)),
                      row(4, cell(v1Metadata, 4), cell(v2Metadata, 4)));
 
-        concat = UnfilteredRowIterators.concat(DataLimits.cqlLimits(1).filter(iter1, FBUtilities.nowInSeconds()),
-                                               DataLimits.cqlLimits(1).filter(iter2, FBUtilities.nowInSeconds()));
+        concat = UnfilteredRowIterators.concat(DataLimits.cqlLimits(1).filter(iter1, FBUtilities.nowInSeconds(), true),
+                                               DataLimits.cqlLimits(1).filter(iter2, FBUtilities.nowInSeconds(), true));
 
         iter3 = rows(metadata.regularAndStaticColumns(), 1,
                      row(4, cell(v1Metadata, 4), cell(v2Metadata, 4)),
                      row(5, cell(v1Metadata, 5), cell(v2Metadata, 5)));
-        concat = UnfilteredRowIterators.concat(concat, DataLimits.cqlLimits(1).filter(iter3, FBUtilities.nowInSeconds()));
+        concat = UnfilteredRowIterators.concat(concat, DataLimits.cqlLimits(1).filter(iter3, FBUtilities.nowInSeconds(), true));
 
         Assert.assertEquals(concat.columns(), metadata.regularAndStaticColumns());
         assertRows(concat,
