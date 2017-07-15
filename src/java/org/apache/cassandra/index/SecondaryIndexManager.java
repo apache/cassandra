@@ -202,7 +202,6 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     private synchronized Future<?> createIndex(IndexMetadata indexDef)
     {
         final Index index = createInstance(indexDef);
-        String indexName = index.getIndexMetadata().name;
         index.register(this);
 
         // now mark as building prior to initializing
