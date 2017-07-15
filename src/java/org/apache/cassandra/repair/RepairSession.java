@@ -156,7 +156,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             {
                 if (!FailureDetector.instance.isAlive(endpoint))
                 {
-                    logger.info("Removing a dead node from Repair due to -force " + endpoint);
+                    logger.info("Removing a dead node from Repair due to -force {}", endpoint);
                     removeCandidates.add(endpoint);
                 }
             }
