@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.BooleanSupplier;
 
 import com.codahale.metrics.Timer;
 
@@ -517,5 +518,24 @@ public final class WaitQueue
     public static Signal all(Signal ... signals)
     {
         return new AllSignal(signals);
+    }
+
+    /**
+     * Loops waiting on the supplied condition and WaitQueue and will not return until the condition is true
+     */
+    public static void waitOnCondition(BooleanSupplier condition, WaitQueue queue)
+    {
+        while (!condition.getAsBoolean())
+        {
+            Signal s = queue.register();
+            if (!condition.getAsBoolean())
+            {
+                s.awaitUninterruptibly();
+            }
+            else
+            {
+                s.cancel();
+            }
+        }
     }
 }
