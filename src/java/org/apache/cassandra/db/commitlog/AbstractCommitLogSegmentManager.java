@@ -84,6 +84,7 @@ public abstract class AbstractCommitLogSegmentManager
     private Thread managerThread;
     protected final CommitLog commitLog;
     private volatile boolean shutdown;
+    private final Semaphore managerThreadSemaphore = new Semaphore(0);
 
     private static final SimpleCachedBufferPool bufferPool =
         new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(), DatabaseDescriptor.getCommitLogSegmentSize());
@@ -127,7 +128,7 @@ public abstract class AbstractCommitLogSegmentManager
                         // flush old Cfs if we're full
                         maybeFlushToReclaim();
 
-                        LockSupport.park();
+                        managerWaitForSignal();
                     }
                     catch (Throwable t)
                     {
@@ -143,7 +144,7 @@ public abstract class AbstractCommitLogSegmentManager
                     }
 
                     while (availableSegment != null || atSegmentBufferLimit() && !shutdown)
-                        LockSupport.park();
+                        managerWaitForSignal();
                 }
             }
         };
@@ -531,7 +532,13 @@ public abstract class AbstractCommitLogSegmentManager
 
     void wakeManager()
     {
-        LockSupport.unpark(managerThread);
+        managerThreadSemaphore.release();
+    }
+
+    private void managerWaitForSignal()
+    {
+        managerThreadSemaphore.acquireUninterruptibly();
+        managerThreadSemaphore.drainPermits(); // remove other permits, prevents from effects of concurrent wakeManager calls
     }
 
     /**
