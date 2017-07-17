@@ -43,8 +43,8 @@ public class SimpleCachedBufferPool
         }
     };
 
-    private Queue<ByteBuffer> bufferPool = new ConcurrentLinkedQueue<>();
-    private AtomicInteger usedBuffers = new AtomicInteger(0);
+    private final Queue<ByteBuffer> bufferPool = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger usedBuffers = new AtomicInteger(0);
 
     /**
      * Maximum number of buffers in the compression pool. Any buffers above this count that are allocated will be cleaned
@@ -67,8 +67,12 @@ public class SimpleCachedBufferPool
 
     public ByteBuffer createBuffer(BufferType bufferType)
     {
-        usedBuffers.incrementAndGet();
-        ByteBuffer buf = bufferPool.poll();
+        ByteBuffer buf;
+        synchronized (this)
+        {
+            usedBuffers.incrementAndGet();
+            buf = bufferPool.poll();
+        }
         if (buf != null)
         {
             buf.clear();
@@ -94,24 +98,34 @@ public class SimpleCachedBufferPool
         preferredReusableBufferType = type;
     }
 
-    public void releaseBuffer(ByteBuffer buffer)
+    public synchronized void releaseBuffer(ByteBuffer buffer)
     {
         usedBuffers.decrementAndGet();
 
         if (bufferPool.size() < maxBufferPoolSize)
+        {
             bufferPool.add(buffer);
+            notifyAll();
+        }
         else
             FileUtils.clean(buffer);
     }
 
-    public void shutdown()
+    public synchronized void shutdown()
     {
         bufferPool.clear();
     }
 
-    public boolean atLimit()
+    public synchronized boolean atLimit()
     {
         return usedBuffers.get() >= maxBufferPoolSize;
+    }
+
+    public synchronized void waitForFreeBufferInPool() throws InterruptedException
+    {
+        while (atLimit()){
+            wait();
+        }
     }
 
     @Override
