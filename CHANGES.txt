@@ -1,4 +1,5 @@
 4.0
+ * Default for start_native_transport now true if not set in config (CASSANDRA-13656)
  * Don't add localhost to the graph when calculating where to stream from (CASSANDRA-13583)
  * Allow skipping equality-restricted clustering columns in ORDER BY clause (CASSANDRA-10271)
  * Use common nowInSec for validation compactions (CASSANDRA-13671)
