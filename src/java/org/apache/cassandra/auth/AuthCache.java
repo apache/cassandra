@@ -55,8 +55,8 @@ public class AuthCache<K, V> implements AuthCacheMBean
     private final BooleanSupplier enableCache;
 
     protected AuthCache(String name,
-    					IntConsumer setValidityDelegate,
-    					IntSupplier getValidityDelegate,
+    			IntConsumer setValidityDelegate,
+    			IntSupplier getValidityDelegate,
                         IntConsumer setUpdateIntervalDelegate,
                         IntSupplier getUpdateIntervalDelegate,
                         IntConsumer setMaxEntriesDelegate,
