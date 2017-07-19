@@ -1157,6 +1157,11 @@ public class DatabaseDescriptor
         return conf.batch_size_warn_threshold_in_kb * 1024;
     }
 
+    public static int getBatchSizeWarnThresholdInKB()
+    {
+        return conf.batch_size_warn_threshold_in_kb;
+    }
+
     public static long getBatchSizeFailThreshold()
     {
         return conf.batch_size_fail_threshold_in_kb * 1024L;

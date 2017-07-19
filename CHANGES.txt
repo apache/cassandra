@@ -1,7 +1,8 @@
 4.0
+ * batch_size_warn_threshold_in_kb can now be set at runtime (CASSANDRA-13699)
  * Avoid always rebuilding secondary indexes at startup (CASSANDRA-13725)
- * Upgrade JMH from 1.13 to 1.19
- * Upgrade SLF4J from 1.7.7 to 1.7.25
+ * Upgrade JMH from 1.13 to 1.19 (CASSANDRA-13727)
+ * Upgrade SLF4J from 1.7.7 to 1.7.25 (CASSANDRA-12996)
  * Default for start_native_transport now true if not set in config (CASSANDRA-13656)
  * Don't add localhost to the graph when calculating where to stream from (CASSANDRA-13583)
  * Allow skipping equality-restricted clustering columns in ORDER BY clause (CASSANDRA-10271)
