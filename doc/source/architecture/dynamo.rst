@@ -22,7 +22,15 @@ Dynamo
 Gossip
 ^^^^^^
 
-.. todo:: todo
+.. Gossip/Peer-To-Peer Communiaction Protocol::
+
+Gossip is basicly a peer-to-peer communication protocol or also can be known as interprocess communication in which nodes periodically exchange state information about themselves and about other nodes they know about. 
+
+The gossip process runs every second and it exchanges state messages with up to three other nodes in the cluster. The nodes exchange metadata about themselves and about the other nodes that they have gossiped about, so all nodes gets the information of all other nodes in the cluster. To maintain the consistency in the information a gossip message has a version associated with it, so that during a gossip exchange, older information is overwritten with the most current state for a particular node.
+
+Generally to prevent problems in gossip communications,one uses the same list of seed nodes for all nodes in a cluster. This is most critical the first time a node starts up. By default, a node remembers other nodes it has gossiped with between subsequent restarts. The seed node designation has no purpose other than bootstrapping the gossip process for new nodes joining the cluster. Seed nodes are not a single point of failure, nor do they have any other special purpose in cluster operations beyond the bootstrapping of nodes.
+
+NOTE*: In multiple data-center clusters, the seed list should include at least one node from each datacenter (replication group).
 
 Failure Detection
 ^^^^^^^^^^^^^^^^^
