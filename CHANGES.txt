@@ -1,4 +1,5 @@
 2.1.19
+ * Clone HeartBeatState when building gossip messages. Make its generation/version volatile (CASSANDRA-13700)
 
 
 2.1.18
