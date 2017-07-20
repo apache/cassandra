@@ -151,7 +151,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         int compressedLength = compressed.position();
         uncompressedSize += buffer.position();
         ByteBuffer toWrite = compressed;
-        if (compressedLength > maxCompressedLength)
+        if (compressedLength >= maxCompressedLength)
         {
             toWrite = buffer;
             compressedLength = buffer.position();
@@ -240,7 +240,7 @@ public class CompressedSequentialWriter extends SequentialWriter
                 // Repopulate buffer from compressed data
                 buffer.clear();
                 compressed.flip();
-                if (chunkSize <= maxCompressedLength)
+                if (chunkSize < maxCompressedLength)
                     compressor.uncompress(compressed, buffer);
                 else
                     buffer.put(compressed);

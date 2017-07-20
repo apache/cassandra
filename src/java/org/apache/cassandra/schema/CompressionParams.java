@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
@@ -125,41 +126,52 @@ public final class CompressionParams
         return new CompressionParams((ICompressor) null, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, 0.0, Collections.emptyMap());
     }
 
+    // The shorthand methods below are only used for tests. They are a little inconsistent in their choice of
+    // parameters -- this is done on purpose to test out various compression parameter combinations.
+
+    @VisibleForTesting
     public static CompressionParams snappy()
     {
         return snappy(DEFAULT_CHUNK_LENGTH);
     }
 
+    @VisibleForTesting
     public static CompressionParams snappy(int chunkLength)
     {
-        return snappy(chunkLength, DEFAULT_MIN_COMPRESS_RATIO);
+        return snappy(chunkLength, 1.1);
     }
 
+    @VisibleForTesting
     public static CompressionParams snappy(int chunkLength, double minCompressRatio)
     {
         return new CompressionParams(SnappyCompressor.instance, chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, Collections.emptyMap());
     }
 
+    @VisibleForTesting
     public static CompressionParams deflate()
     {
         return deflate(DEFAULT_CHUNK_LENGTH);
     }
 
+    @VisibleForTesting
     public static CompressionParams deflate(int chunkLength)
     {
         return new CompressionParams(DeflateCompressor.instance, chunkLength, Integer.MAX_VALUE, 0.0, Collections.emptyMap());
     }
 
+    @VisibleForTesting
     public static CompressionParams lz4()
     {
         return lz4(DEFAULT_CHUNK_LENGTH);
     }
 
+    @VisibleForTesting
     public static CompressionParams lz4(int chunkLength)
     {
-        return lz4(chunkLength, Integer.MAX_VALUE);
+        return lz4(chunkLength, chunkLength);
     }
 
+    @VisibleForTesting
     public static CompressionParams lz4(int chunkLength, int maxCompressedLength)
     {
         return new CompressionParams(LZ4Compressor.create(Collections.emptyMap()), chunkLength, maxCompressedLength, calcMinCompressRatio(chunkLength, maxCompressedLength), Collections.emptyMap());
@@ -491,6 +503,9 @@ public final class CompressionParams
 
         if (maxCompressedLength < 0)
             throw new ConfigurationException("Invalid negative " + MIN_COMPRESS_RATIO);
+
+        if (maxCompressedLength > chunkLength && maxCompressedLength < Integer.MAX_VALUE)
+            throw new ConfigurationException(MIN_COMPRESS_RATIO + " can either be 0 or greater than or equal to 1");
     }
 
     public Map<String, String> asMap()
@@ -522,7 +537,7 @@ public final class CompressionParams
         return crcCheckChance;
     }
 
-    public boolean maybeCheckCrc()
+    public boolean shouldCheckCrc()
     {
         double checkChance = getCrcCheckChance();
         return checkChance > 0d && checkChance > ThreadLocalRandom.current().nextDouble();

@@ -1,4 +1,5 @@
 4.0
+ * Fix problem with min_compress_ratio: 1 and disallow ratio < 1 (CASSANDRA-13703)
  * Add extra information to SASI timeout exception (CASSANDRA-13677)
  * Add incremental repair support for --hosts, --force, and subrange repair (CASSANDRA-13818)
  * Rework CompactionStrategyManager.getScanners synchronization (CASSANDRA-13786)

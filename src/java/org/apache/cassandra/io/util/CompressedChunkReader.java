@@ -20,7 +20,6 @@ package org.apache.cassandra.io.util;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -50,9 +49,9 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         return metadata.parameters.getCrcCheckChance();
     }
 
-    public boolean maybeCheckCrc()
+    boolean shouldCheckCrc()
     {
-        return metadata.parameters.maybeCheckCrc();
+        return metadata.parameters.shouldCheckCrc();
     }
 
     @Override
@@ -116,7 +115,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 assert position <= fileLength;
 
                 CompressionMetadata.Chunk chunk = metadata.chunkFor(position);
-                if (chunk.length <= maxCompressedLength)
+                if (chunk.length < maxCompressedLength)
                 {
                     ByteBuffer compressed = compressedHolder.get();
                     assert compressed.capacity() >= chunk.length;
@@ -156,7 +155,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
         void maybeCheckCrc(CompressionMetadata.Chunk chunk, ByteBuffer content) throws CorruptBlockException
         {
-            if (metadata.parameters.maybeCheckCrc())
+            if (shouldCheckCrc())
             {
                 content.flip();
                 int checksum = (int) ChecksumType.CRC32.of(content);
@@ -202,7 +201,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
                 try
                 {
-                    if (chunk.length <= maxCompressedLength)
+                    if (chunk.length < maxCompressedLength)
                         metadata.compressor().uncompress(compressedChunk, uncompressed);
                     else
                         uncompressed.put(compressedChunk);
@@ -213,7 +212,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 }
                 uncompressed.flip();
 
-                if (maybeCheckCrc())
+                if (shouldCheckCrc())
                 {
                     compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
 
