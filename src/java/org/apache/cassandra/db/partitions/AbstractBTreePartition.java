@@ -99,7 +99,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     public DeletionTime partitionLevelDeletion()
     {
-        return holder().deletionInfo.getPartitionDeletion();
+        return deletionInfo().getPartitionDeletion();
     }
 
     public PartitionColumns columns()
@@ -372,17 +372,21 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
     {
         StringBuilder sb = new StringBuilder();
 
-        sb.append(String.format("[%s.%s] key=%s columns=%s",
+        sb.append(String.format("[%s.%s] key=%s partition_deletion=%s columns=%s",
                                 metadata.ksName,
                                 metadata.cfName,
                                 metadata.getKeyValidator().getString(partitionKey().getKey()),
+                                partitionLevelDeletion(),
                                 columns()));
 
         if (staticRow() != Rows.EMPTY_STATIC_ROW)
-            sb.append("\n    ").append(staticRow().toString(metadata));
+            sb.append("\n    ").append(staticRow().toString(metadata, true));
 
-        for (Row row : this)
-            sb.append("\n    ").append(row.toString(metadata));
+        try (UnfilteredRowIterator iter = unfilteredIterator())
+        {
+            while (iter.hasNext())
+                sb.append("\n    ").append(iter.next().toString(metadata, true));
+        }
 
         return sb.toString();
     }
