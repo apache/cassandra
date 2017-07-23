@@ -81,7 +81,7 @@ public class LoaderOptions
     public final int connectionsPerHost;
     public final EncryptionOptions.ServerEncryptionOptions serverEncOptions;
     public final Set<InetAddress> hosts;
-    public final Set<InetAddress> ignores = new HashSet<>();
+    public final Set<InetAddress> ignores;
 
     LoaderOptions(Builder builder)
     {
@@ -101,6 +101,7 @@ public class LoaderOptions
         connectionsPerHost = builder.connectionsPerHost;
         serverEncOptions = builder.serverEncOptions;
         hosts = builder.hosts;
+        ignores = builder.ignores;
     }
 
     static class Builder
