@@ -99,6 +99,7 @@
 
 
 3.11.1
+ * "ignore" option is ignored in sstableloader (CASSANDRA-13721)
  * Deadlock in AbstractCommitLogSegmentManager (CASSANDRA-13652)
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
