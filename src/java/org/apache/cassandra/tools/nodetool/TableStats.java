@@ -191,7 +191,7 @@ public class TableStats extends NodeToolCmd
                 {
                     estimatedPartitionCount = 0L;
                 }
-                System.out.println("\t\tNumber of keys (estimate): " + estimatedPartitionCount);
+                System.out.println("\t\tNumber of partitions (estimate): " + estimatedPartitionCount);
 
                 System.out.println("\t\tMemtable cell count: " + probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableColumnsCount"));
                 System.out.println("\t\tMemtable data size: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableLiveDataSize"), humanReadable));
