@@ -31,8 +31,8 @@ class HeartBeatState
 {
     public static final IVersionedSerializer<HeartBeatState> serializer = new HeartBeatStateSerializer();
 
-    private int generation;
-    private int version;
+    private volatile int generation;
+    private volatile int version;
 
     HeartBeatState(int gen)
     {

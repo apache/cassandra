@@ -13,6 +13,8 @@
  * Fix potential NPE when resume bootstrap fails (CASSANDRA-13272)
  * Fix toJSONString for the UDT, tuple and collection types (CASSANDRA-13592)
  * Fix nested Tuples/UDTs validation (CASSANDRA-13646)
+Merged from 2.1:
+ * Clone HeartBeatState when building gossip messages. Make its generation/version volatile (CASSANDRA-13700)
 
 3.0.14
  * Ensure int overflow doesn't occur when calculating large partition warning size (CASSANDRA-13172)
