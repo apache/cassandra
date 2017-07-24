@@ -29,3 +29,4 @@ Contributing to Cassandra
    how_to_commit
    documentation
    ci
+   dependencies
