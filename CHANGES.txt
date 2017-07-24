@@ -4,6 +4,8 @@
  * Fix toJSONString for the UDT, tuple and collection types (CASSANDRA-13592)
  * Fix nested Tuples/UDTs validation (CASSANDRA-13646)
  * Remove unused max_value_size_in_mb config setting from yaml (CASSANDRA-13625
+Merged from 2.1:
+ * Clone HeartBeatState when building gossip messages. Make its generation/version volatile (CASSANDRA-13700)
 
 
 2.2.10
