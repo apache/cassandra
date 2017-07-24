@@ -65,7 +65,7 @@ public class DefaultConnectionFactory implements StreamConnectionFactory
                     throw e;
 
                 long waitms = DatabaseDescriptor.getRpcTimeout() * (long)Math.pow(2, attempts);
-                logger.warn("Failed attempt {} to connect to {}. Retrying in {} ms. ({})", attempts, peer, waitms, e);
+                logger.warn("Failed attempt {} to connect to {}. Retrying in {} ms. ({})", attempts, peer, waitms, e.getMessage());
                 try
                 {
                     Thread.sleep(waitms);

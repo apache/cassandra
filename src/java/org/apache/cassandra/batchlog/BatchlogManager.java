@@ -272,7 +272,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
             catch (IOException e)
             {
-                logger.warn("Skipped batch replay of {} due to {}", id, e);
+                logger.warn("Skipped batch replay of {} due to {}", id, e.getMessage());
                 remove(id);
             }
 

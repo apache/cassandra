@@ -927,7 +927,7 @@ public class Directories
         }
         catch (IOException e)
         {
-            logger.error("Could not calculate the size of {}. {}", input, e);
+            logger.error("Could not calculate the size of {}. {}", input, e.getMessage());
         }
 
         return visitor.getAllocatedSize();

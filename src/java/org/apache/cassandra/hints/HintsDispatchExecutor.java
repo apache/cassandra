@@ -240,7 +240,9 @@ final class HintsDispatchExecutor
                 }
                 catch (FSReadError e)
                 {
-                    logger.error("Failed to dispatch hints file {}: file is corrupted ({})", descriptor.fileName(), e);
+                    logger.error("Failed to dispatch hints file {}: file is corrupted ({})",
+                                 descriptor.fileName(),
+                                 e.getMessage());
                     store.cleanUp(descriptor);
                     store.blacklist(descriptor);
                     throw e;

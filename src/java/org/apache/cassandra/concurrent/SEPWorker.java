@@ -142,9 +142,9 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
             if (assigned != null)
                 assigned.returnWorkPermit();
             if (task != null)
-                logger.error("Failed to execute task, unexpected exception killed worker: {}", t);
+                logger.error("Failed to execute task, unexpected exception killed worker: {}", t.getMessage());
             else
-                logger.error("Unexpected exception killed worker: {}", t);
+                logger.error("Unexpected exception killed worker: {}", t.getMessage());
         }
     }
 

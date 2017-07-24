@@ -129,7 +129,9 @@ public class CassandraAuthorizer implements IAuthorizer
         }
         catch (RequestExecutionException | RequestValidationException e)
         {
-            logger.warn("CassandraAuthorizer failed to revoke all permissions of {}: {}",  revokee.getRoleName(), e);
+            logger.warn("CassandraAuthorizer failed to revoke all permissions of {}: {}",
+                        revokee.getRoleName(),
+                        e.getMessage());
         }
     }
 
@@ -166,7 +168,7 @@ public class CassandraAuthorizer implements IAuthorizer
         }
         catch (RequestExecutionException | RequestValidationException e)
         {
-            logger.warn("CassandraAuthorizer failed to revoke all permissions on {}: {}", droppedResource, e);
+            logger.warn("CassandraAuthorizer failed to revoke all permissions on {}: {}", droppedResource, e.getMessage());
             return;
         }
     }
