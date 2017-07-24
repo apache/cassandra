@@ -72,7 +72,7 @@ public class TableStatsPrinter
                     if (table.offHeapUsed)
                         out.println("\t\tOff heap memory used (total): " + table.offHeapMemoryUsedTotal);
                     out.println("\t\tSSTable Compression Ratio: " + table.sstableCompressionRatio);
-                    out.println("\t\tNumber of keys (estimate): " + table.numberOfKeysEstimate);
+                    out.println("\t\tNumber of partitions (estimate): " + table.numberOfPartitionsEstimate);
                     out.println("\t\tMemtable cell count: " + table.memtableCellCount);
                     out.println("\t\tMemtable data size: " + table.memtableDataSize);
 
