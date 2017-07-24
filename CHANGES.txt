@@ -17,6 +17,8 @@ Merged from 2.2:
  * Fix potential NPE when resume bootstrap fails (CASSANDRA-13272)
  * Fix toJSONString for the UDT, tuple and collection types (CASSANDRA-13592)
  * Fix nested Tuples/UDTs validation (CASSANDRA-13646)
+Merged from 2.1:
+ * Clone HeartBeatState when building gossip messages. Make its generation/version volatile (CASSANDRA-13700)
 
 3.11.0
  * Allow native function calls in CQLSSTableWriter (CASSANDRA-12606)
