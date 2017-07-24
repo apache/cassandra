@@ -456,7 +456,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // create the private ColumnFamilyStores for the secondary column indexes
         indexManager = new SecondaryIndexManager(this);
         for (IndexMetadata info : metadata.get().indexes)
-            indexManager.addIndex(info);
+            indexManager.addIndex(info, true);
 
         if (registerBookeeping)
         {

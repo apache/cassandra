@@ -479,7 +479,7 @@ public class RangeTombstoneTest
             MigrationManager.announceTableUpdate(updated, true);
         }
 
-        Future<?> rebuild = cfs.indexManager.addIndex(indexDef);
+        Future<?> rebuild = cfs.indexManager.addIndex(indexDef, false);
         // If rebuild there is, wait for the rebuild to finish so it doesn't race with the following insertions
         if (rebuild != null)
             rebuild.get();
@@ -585,7 +585,7 @@ public class RangeTombstoneTest
             MigrationManager.announceTableUpdate(updated, true);
         }
 
-        Future<?> rebuild = cfs.indexManager.addIndex(indexDef);
+        Future<?> rebuild = cfs.indexManager.addIndex(indexDef, false);
         // If rebuild there is, wait for the rebuild to finish so it doesn't race with the following insertions
         if (rebuild != null)
             rebuild.get();

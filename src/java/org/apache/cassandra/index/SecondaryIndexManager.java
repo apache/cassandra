@@ -186,7 +186,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         // we call add for every index definition in the collection as
         // some may not have been created here yet, only added to schema
         for (IndexMetadata tableIndex : tableIndexes)
-            addIndex(tableIndex);
+            addIndex(tableIndex, false);
     }
 
     private Future<?> reloadIndex(IndexMetadata indexDef)
@@ -199,13 +199,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     }
 
     @SuppressWarnings("unchecked")
-    private synchronized Future<?> createIndex(IndexMetadata indexDef)
+    private synchronized Future<?> createIndex(IndexMetadata indexDef, boolean isNewCF)
     {
         final Index index = createInstance(indexDef);
         index.register(this);
 
-        // now mark as building prior to initializing
-        markIndexesBuilding(ImmutableSet.of(index), true);
+        markIndexesBuilding(ImmutableSet.of(index), true, isNewCF);
 
         Callable<?> initialBuildTask = null;
         // if the index didn't register itself, we can probably assume that no initialization needs to happen
@@ -255,13 +254,15 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * Adds and builds a index
      *
      * @param indexDef the IndexMetadata describing the index
+     * @param isNewCF true if the index is added as part of a new table/columnfamily (i.e. loading a CF at startup), 
+     * false for all other cases (i.e. newly added index)
      */
-    public synchronized Future<?> addIndex(IndexMetadata indexDef)
+    public synchronized Future<?> addIndex(IndexMetadata indexDef, boolean isNewCF)
     {
         if (indexes.containsKey(indexDef.name))
             return reloadIndex(indexDef);
         else
-            return createIndex(indexDef);
+            return createIndex(indexDef, isNewCF);
     }
 
     /**
@@ -422,7 +423,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         // Mark all indexes as building: this step must happen first, because if any index can't be marked, the whole
         // process needs to abort
-        markIndexesBuilding(indexes, isFullRebuild);
+        markIndexesBuilding(indexes, isFullRebuild, false);
 
         // Build indexes in a try/catch, so that any index not marked as either built or failed will be marked as failed:
         final Set<Index> builtIndexes = new HashSet<>();
@@ -545,7 +546,9 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * <p>
      * Marking an index as "building" practically means:
      * 1) The index is removed from the "failed" set if this is a full rebuild.
-     * 2) The index is removed from the system keyspace built indexes.
+     * 2) The index is removed from the system keyspace built indexes; this only happens if this method is not invoked
+     * for a new table initialization, as in such case there's no need to remove it (it is either already not present,
+     * or already present because already built).
      * <p>
      * Thread safety is guaranteed by having all methods managing index builds synchronized: being synchronized on
      * the SecondaryIndexManager instance, it means all invocations for all different indexes will go through the same
@@ -554,10 +557,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * {@link #markIndexBuilt(Index, boolean)} or {@link #markIndexFailed(Index)} should be always called after the
      * rebuilding has finished, so that the index build state can be correctly managed and the index rebuilt.
      *
-     * @param indexes       the index to be marked as building
+     * @param indexes the index to be marked as building
      * @param isFullRebuild {@code true} if this method is invoked as a full index rebuild, {@code false} otherwise
+     * @param isNewCF {@code true} if this method is invoked when initializing a new table/columnfamily (i.e. loading a CF at startup), 
+     * {@code false} for all other cases (i.e. newly added index)
      */
-    private synchronized void markIndexesBuilding(Set<Index> indexes, boolean isFullRebuild)
+    private synchronized void markIndexesBuilding(Set<Index> indexes, boolean isFullRebuild, boolean isNewCF)
     {
         String keyspaceName = baseCfs.keyspace.getName();
 
@@ -582,14 +587,14 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                             if (isFullRebuild)
                                 needsFullRebuild.remove(indexName);
 
-                            if (counter.getAndIncrement() == 0 && DatabaseDescriptor.isDaemonInitialized())
+                            if (counter.getAndIncrement() == 0 && DatabaseDescriptor.isDaemonInitialized() && !isNewCF)
                                 SystemKeyspace.setIndexRemoved(keyspaceName, indexName);
                         });
     }
 
     /**
      * Marks the specified index as built if there are no in progress index builds and the index is not failed.
-     * {@link #markIndexesBuilding(Set, boolean)} should always be invoked before this method.
+     * {@link #markIndexesBuilding(Set, boolean, boolean)} should always be invoked before this method.
      *
      * @param index the index to be marked as built
      * @param isFullRebuild {@code true} if this method is invoked as a full index rebuild, {@code false} otherwise
@@ -597,14 +602,15 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     private synchronized void markIndexBuilt(Index index, boolean isFullRebuild)
     {
         String indexName = index.getIndexMetadata().name;
+        if (isFullRebuild)
+            queryableIndexes.add(indexName);
+        
         AtomicInteger counter = inProgressBuilds.get(indexName);
         if (counter != null)
         {
             assert counter.get() > 0;
             if (counter.decrementAndGet() == 0)
             {
-                if (isFullRebuild)
-                    queryableIndexes.add(indexName);
                 inProgressBuilds.remove(indexName);
                 if (!needsFullRebuild.contains(indexName) && DatabaseDescriptor.isDaemonInitialized())
                     SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), indexName);
@@ -614,7 +620,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     /**
      * Marks the specified index as failed.
-     * {@link #markIndexesBuilding(Set, boolean)} should always be invoked before this method.
+     * {@link #markIndexesBuilding(Set, boolean, boolean)} should always be invoked before this method.
      *
      * @param index the index to be marked as built
      */
