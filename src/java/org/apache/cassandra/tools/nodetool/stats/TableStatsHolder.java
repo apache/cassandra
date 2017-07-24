@@ -71,7 +71,7 @@ public class TableStatsHolder implements StatsHolder
                 if (table.offHeapUsed)
                     mpTable.put("off_heap_memory_used_total", table.offHeapMemoryUsedTotal);
                 mpTable.put("sstable_compression_ratio", table.sstableCompressionRatio);
-                mpTable.put("number_of_keys_estimate", table.numberOfKeysEstimate);
+                mpTable.put("number_of_partitions_estimate", table.numberOfPartitionsEstimate);
                 mpTable.put("memtable_cell_count", table.memtableCellCount);
                 mpTable.put("memtable_data_size", table.memtableDataSize);
                 if (table.memtableOffHeapUsed)
@@ -221,7 +221,7 @@ public class TableStatsHolder implements StatsHolder
                 {
                     estimatedPartitionCount = 0L;
                 }
-                statsTable.numberOfKeysEstimate = estimatedPartitionCount;
+                statsTable.numberOfPartitionsEstimate = estimatedPartitionCount;
 
                 statsTable.memtableCellCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableColumnsCount");
                 statsTable.memtableDataSize = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableLiveDataSize"), humanReadable);
