@@ -1,4 +1,5 @@
 4.0
+ * Upgrade JMH from 1.13 to 1.19
  * Upgrade SLF4J from 1.7.7 to 1.7.25
  * Default for start_native_transport now true if not set in config (CASSANDRA-13656)
  * Don't add localhost to the graph when calculating where to stream from (CASSANDRA-13583)
