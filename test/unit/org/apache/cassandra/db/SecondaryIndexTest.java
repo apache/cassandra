@@ -503,7 +503,7 @@ public class SecondaryIndexTest
         assertFalse(cfs.getBuiltIndexes().contains(indexName));
 
         // rebuild & re-query
-        Future future = cfs.indexManager.addIndex(indexDef);
+        Future future = cfs.indexManager.addIndex(indexDef, false);
         future.get();
         assertIndexedOne(cfs, ByteBufferUtil.bytes("birthdate"), 1L);
     }
