@@ -1,6 +1,7 @@
 3.0.15
  * Fixed ambiguous output of nodetool tablestats command (CASSANDRA-13722)
  * JMXEnabledThreadPoolExecutor with corePoolSize equal to maxPoolSize (Backport CASSANDRA-13329)
+ * Fix Digest mismatch Exception if hints file has UnknownColumnFamily (CASSANDRA-13696)
  * Purge tombstones created by expired cells (CASSANDRA-13643)
  * Make concat work with iterators that have different subsets of columns (CASSANDRA-13482)
  * Set test.runners based on cores and memory size (CASSANDRA-13078)

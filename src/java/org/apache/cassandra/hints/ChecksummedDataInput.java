@@ -107,7 +107,7 @@ public class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderW
         {
             updateCrc();
 
-            // we must diable crc updates in case we rebuffer
+            // we must disable crc updates in case we rebuffer
             // when called source.readInt()
             crcUpdateDisabled = true;
             return ((int) crc.getValue()) == readInt();
