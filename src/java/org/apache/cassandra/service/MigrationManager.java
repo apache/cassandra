@@ -413,6 +413,11 @@ public class MigrationManager
 
     public static void announceColumnFamilyUpdate(CFMetaData cfm, boolean announceLocally) throws ConfigurationException
     {
+        announceColumnFamilyUpdate(cfm, null, announceLocally);
+    }
+
+    public static void announceColumnFamilyUpdate(CFMetaData cfm, Collection<ViewDefinition> views, boolean announceLocally) throws ConfigurationException
+    {
         cfm.validate();
 
         CFMetaData oldCfm = Schema.instance.getCFMetaData(cfm.ksName, cfm.cfName);
@@ -422,23 +427,38 @@ public class MigrationManager
 
         oldCfm.validateCompatibility(cfm);
 
+        long timestamp = FBUtilities.timestampMicros();
+
         logger.info(String.format("Update table '%s/%s' From %s To %s", cfm.ksName, cfm.cfName, oldCfm, cfm));
-        announce(SchemaKeyspace.makeUpdateTableMutation(ksm, oldCfm, cfm, FBUtilities.timestampMicros()), announceLocally);
+        Mutation mutation = SchemaKeyspace.makeUpdateTableMutation(ksm, oldCfm, cfm, timestamp);
+
+        if (views != null)
+            views.forEach(view -> addViewUpdateToMutation(view, mutation, timestamp));
+
+        announce(mutation, announceLocally);
     }
 
     public static void announceViewUpdate(ViewDefinition view, boolean announceLocally) throws ConfigurationException
+    {
+        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(view.ksName);
+        long timestamp = FBUtilities.timestampMicros();
+        Mutation mutation = SchemaKeyspace.makeCreateKeyspaceMutation(ksm.name, ksm.params, timestamp);
+        addViewUpdateToMutation(view, mutation, timestamp);
+        announce(mutation, announceLocally);
+    }
+
+    private static void addViewUpdateToMutation(ViewDefinition view, Mutation mutation, long timestamp)
     {
         view.metadata.validate();
 
         ViewDefinition oldView = Schema.instance.getView(view.ksName, view.viewName);
         if (oldView == null)
             throw new ConfigurationException(String.format("Cannot update non existing materialized view '%s' in keyspace '%s'.", view.viewName, view.ksName));
-        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(view.ksName);
 
         oldView.metadata.validateCompatibility(view.metadata);
 
         logger.info(String.format("Update view '%s/%s' From %s To %s", view.ksName, view.viewName, oldView, view));
-        announce(SchemaKeyspace.makeUpdateViewMutation(ksm, oldView, view, FBUtilities.timestampMicros()), announceLocally);
+        SchemaKeyspace.makeUpdateViewMutation(mutation, oldView, view, timestamp);
     }
 
     public static void announceTypeUpdate(UserType updatedType, boolean announceLocally)
