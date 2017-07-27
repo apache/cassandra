@@ -754,13 +754,10 @@ public final class SchemaKeyspace
         return builder;
     }
 
-    public static Mutation.SimpleBuilder makeUpdateViewMutation(KeyspaceMetadata keyspace,
+    public static Mutation.SimpleBuilder makeUpdateViewMutation(Mutation.SimpleBuilder builder,
                                                                 ViewDefinition oldView,
-                                                                ViewDefinition newView,
-                                                                long timestamp)
+                                                                ViewDefinition newView)
     {
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
-
         addViewToSchemaMutation(newView, false, builder);
 
         MapDifference<ByteBuffer, ColumnDefinition> columnDiff = Maps.difference(oldView.metadata.getColumnMetadata(),

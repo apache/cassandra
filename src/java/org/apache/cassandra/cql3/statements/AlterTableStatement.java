@@ -301,13 +301,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 break;
         }
 
-        MigrationManager.announceColumnFamilyUpdate(cfm, isLocalOnly);
-
-        if (viewUpdates != null)
-        {
-            for (ViewDefinition viewUpdate : viewUpdates)
-                MigrationManager.announceViewUpdate(viewUpdate, isLocalOnly);
-        }
+        MigrationManager.announceColumnFamilyUpdate(cfm, viewUpdates, isLocalOnly);
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 
