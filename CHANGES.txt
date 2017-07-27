@@ -1,4 +1,5 @@
 3.0.15
+ * Fix invalid writetime for null cells (CASSANDRA-13711)
  * Fix ALTER TABLE statement to atomically propagate changes to the table and its MVs (CASSANDRA-12952)
  * Fixed ambiguous output of nodetool tablestats command (CASSANDRA-13722)
  * JMXEnabledThreadPoolExecutor with corePoolSize equal to maxPoolSize (Backport CASSANDRA-13329)

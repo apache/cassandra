@@ -152,4 +152,33 @@ public class TimestampTest extends CQLTester
         execute("INSERT INTO %s (k, i) VALUES (1, 1) USING TIMESTAMP ?", unset()); // treat as 'now'
     }
 
+    @Test
+    public void testTimestampsOnUnsetColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, i int)");
+        execute("INSERT INTO %s (k, i) VALUES (1, 1) USING TIMESTAMP 1;");
+        execute("INSERT INTO %s (k) VALUES (2) USING TIMESTAMP 2;");
+        execute("INSERT INTO %s (k, i) VALUES (3, 3) USING TIMESTAMP 1;");
+        assertRows(execute("SELECT k, i, writetime(i) FROM %s "),
+                   row(1, 1, 1L),
+                   row(2, null, null),
+                   row(3, 3, 1L));
+    }
+
+    @Test
+    public void testTimestampsOnUnsetColumnsWide() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int , c int, i int, PRIMARY KEY (k, c))");
+        execute("INSERT INTO %s (k, c, i) VALUES (1, 1, 1) USING TIMESTAMP 1;");
+        execute("INSERT INTO %s (k, c) VALUES (1, 2) USING TIMESTAMP 1;");
+        execute("INSERT INTO %s (k, c, i) VALUES (1, 3, 1) USING TIMESTAMP 1;");
+        execute("INSERT INTO %s (k, c) VALUES (2, 2) USING TIMESTAMP 2;");
+        execute("INSERT INTO %s (k, c, i) VALUES (3, 3, 3) USING TIMESTAMP 1;");
+        assertRows(execute("SELECT k, c, i, writetime(i) FROM %s "),
+                   row(1, 1, 1, 1L),
+                   row(1, 2, null, null),
+                   row(1, 3, 1, 1L),
+                   row(2, 2, null, null),
+                   row(3, 3, 3, 1L));
+    }
 }

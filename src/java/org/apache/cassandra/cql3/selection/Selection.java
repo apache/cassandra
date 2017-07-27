@@ -346,6 +346,12 @@ public abstract class Selection
                 }
             }
             current = new ArrayList<>(columns.size());
+
+            // Timestamps and TTLs are arrays per row, we must null them out between row
+            if (timestamps != null)
+                Arrays.fill(timestamps, Long.MIN_VALUE);
+            if (ttls != null)
+                Arrays.fill(ttls, -1);
         }
 
         public ResultSet build(int protocolVersion) throws InvalidRequestException
