@@ -454,7 +454,7 @@ class ArrivalWindow
             }
             else
             {
-                logger.debug("Ignoring interval time of {} for {}", interArrivalTime, ep);
+                logger.trace("Ignoring interval time of {} for {}", interArrivalTime, ep);
             }
         }
         else
