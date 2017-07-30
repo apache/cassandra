@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData.DroppedColumn;
 import org.apache.cassandra.config.ColumnDefinition.ClusteringOrder;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
@@ -626,6 +627,9 @@ public final class SchemaKeyspace
         for (ColumnDefinition column : table.allColumns())
             dropColumnFromSchemaMutation(table, column, timestamp, mutation);
 
+        for (CFMetaData.DroppedColumn column : table.getDroppedColumns().values())
+            dropDroppedColumnFromSchemaMutation(table, column, timestamp, mutation);
+
         for (TriggerMetadata trigger : table.getTriggers())
             dropTriggerFromSchemaMutation(table, trigger, timestamp, mutation);
 
@@ -655,6 +659,11 @@ public final class SchemaKeyspace
     {
         // Note: we do want to use name.toString(), not name.bytes directly for backward compatibility (For CQL3, this won't make a difference).
         RowUpdateBuilder.deleteRow(Columns, timestamp, mutation, table.cfName, column.name.toString());
+    }
+
+    private static void dropDroppedColumnFromSchemaMutation(CFMetaData table, DroppedColumn column, long timestamp, Mutation mutation)
+    {
+        RowUpdateBuilder.deleteRow(DroppedColumns, timestamp, mutation, table.cfName, column.name);
     }
 
     private static void addDroppedColumnToSchemaMutation(CFMetaData table, CFMetaData.DroppedColumn column, long timestamp, Mutation mutation)
