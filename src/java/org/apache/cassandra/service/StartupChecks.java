@@ -23,22 +23,29 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
+import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -81,7 +88,8 @@ public class StartupChecks
                                                                       checkSSTablesFormat,
                                                                       checkSystemKeyspaceState,
                                                                       checkDatacenter,
-                                                                      checkRack);
+                                                                      checkRack,
+                                                                      checkLegacyAuthTables);
 
     public StartupChecks withDefaultTests()
     {
@@ -402,5 +410,29 @@ public class StartupChecks
                 }
             }
         }
+    };
+
+    public static final StartupCheck checkLegacyAuthTables = () -> checkLegacyAuthTablesMessage().ifPresent(logger::warn);
+
+    static final Set<String> LEGACY_AUTH_TABLES = ImmutableSet.of("credentials", "users", "permissions");
+
+    @VisibleForTesting
+    static Optional<String> checkLegacyAuthTablesMessage()
+    {
+        List<String> existing = new ArrayList<>(LEGACY_AUTH_TABLES).stream().filter((legacyAuthTable) ->
+            {
+                UntypedResultSet result = QueryProcessor.executeOnceInternal(String.format("SELECT table_name FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s'",
+                                                                                           SchemaKeyspace.NAME,
+                                                                                           "tables",
+                                                                                           AuthKeyspace.NAME,
+                                                                                           legacyAuthTable));
+                return result != null && !result.isEmpty();
+            }).collect(Collectors.toList());
+
+        if (!existing.isEmpty())
+            return Optional.of(String.format("Legacy auth tables %s in keyspace %s still exist and have not been properly migrated.",
+                        Joiner.on(", ").join(existing), AuthKeyspace.NAME));
+        else
+            return Optional.empty();
     };
 }
