@@ -4747,4 +4747,33 @@ public class SelectTest extends CQLTester
             assertRows(execute("SELECT k, v FROM %s WHERE k = 0 AND m CONTAINS KEY 'c' ALLOW FILTERING"), row(0, 2));
         });
     }
+
+    @Test
+    public void testMixedTTLOnColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, i int)");
+        execute("INSERT INTO %s (k) VALUES (2);");
+        execute("INSERT INTO %s (k, i) VALUES (1, 1) USING TTL 100;");
+        execute("INSERT INTO %s (k, i) VALUES (3, 3) USING TTL 100;");
+        assertRows(execute("SELECT k, i, TTL(i) FROM %s "),
+                   row(1, 1, 100), row(2, null, null), row(3, 3, 100));
+    }
+
+    @Test
+    public void testMixedTTLOnColumnsWide() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, i int, PRIMARY KEY (k, c))");
+        execute("INSERT INTO %s (k, c) VALUES (2, 2);");
+        execute("INSERT INTO %s (k, c, i) VALUES (1, 1, 1) USING TTL 100;");
+        execute("INSERT INTO %s (k, c) VALUES (1, 2) ;");
+        execute("INSERT INTO %s (k, c, i) VALUES (1, 3, 3) USING TTL 100;");
+        execute("INSERT INTO %s (k, c, i) VALUES (3, 3, 3) USING TTL 100;");
+        assertRows(execute("SELECT k, c, i, TTL(i) FROM %s "),
+                   row(1, 1, 1, 100),
+                   row(1, 2, null, null),
+                   row(1, 3, 3, 100),
+                   row(2, 2, null, null),
+                   row(3, 3, 3, 100));
+    }
+
 }
