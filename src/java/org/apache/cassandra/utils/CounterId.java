@@ -46,10 +46,11 @@ public class CounterId implements Comparable<CounterId>
     }
 
     /**
-     * Function for test purposes, do not use otherwise.
      * Pack an int in a valid CounterId so that the resulting ids respects the
      * numerical ordering. Used for creating handcrafted but easy to
      * understand contexts in unit tests (see CounterContextTest).
+     *
+     * Also used to generate a special ID for special-case update contexts (see CounterContext.createUpdate()).
      */
     public static CounterId fromInt(int n)
     {
