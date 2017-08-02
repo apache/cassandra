@@ -329,7 +329,8 @@ public class PartitionRangeReadCommand extends ReadCommand
     @Override
     public boolean selectsFullPartition()
     {
-        return dataRange.selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns();
+        return metadata().isStaticCompactTable() ||
+               (dataRange.selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns());
     }
 
     @Override

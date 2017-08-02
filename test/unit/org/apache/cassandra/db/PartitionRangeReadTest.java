@@ -30,12 +30,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.apache.cassandra.*;
-import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class PartitionRangeReadTest
@@ -44,6 +46,7 @@ public class PartitionRangeReadTest
     public static final String KEYSPACE2 = "PartitionRangeReadTest2";
     public static final String CF_STANDARD1 = "Standard1";
     public static final String CF_STANDARDINT = "StandardInteger1";
+    public static final String CF_COMPACT1 = "Compact1";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -52,7 +55,13 @@ public class PartitionRangeReadTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
-                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_STANDARDINT, IntegerType.instance));
+                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_STANDARDINT, IntegerType.instance),
+                                    TableMetadata.builder(KEYSPACE1, CF_COMPACT1)
+                                                 .isCompound(false)
+                                                 .addPartitionKeyColumn("key", AsciiType.instance)
+                                                 .addClusteringColumn("column1", AsciiType.instance)
+                                                 .addRegularColumn("value", AsciiType.instance)
+                                                 .addStaticColumn("val", AsciiType.instance));
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD1));
@@ -106,6 +115,30 @@ public class PartitionRangeReadTest
         // fetch by the second column name; we should get the second version of the column value
         row = Util.getOnlyRow(Util.cmd(cfs, "k1").includeRow(new BigInteger(new byte[]{0, 0, 1})).build());
         assertTrue(row.getCell(cDef).value().equals(ByteBufferUtil.bytes("val2")));
+    }
+
+    @Test
+    public void testLimits()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_COMPACT1);
+        for (int i = 0; i < 10; i++)
+        {
+            new RowUpdateBuilder(cfs.metadata(), 0, Integer.toString(i))
+            .add("val", "abcd")
+            .build()
+            .applyUnsafe();
+
+            new RowUpdateBuilder(cfs.metadata(), 0, Integer.toString(i))
+            .clustering("column1")
+            .add("value", "")
+            .build()
+            .applyUnsafe();
+        }
+
+        assertEquals(10, Util.getAll(Util.cmd(cfs).build()).size());
+
+        for (int i = 0; i < 10; i++)
+            assertEquals(i, Util.getAll(Util.cmd(cfs).withLimit(i).build()).size());
     }
 
     @Test
