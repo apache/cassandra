@@ -89,7 +89,7 @@ public class BufferCell extends AbstractCell
 
     public boolean isCounterCell()
     {
-        return !isTombstone() && column.cellValueType().isCounter();
+        return !isTombstone() && column.isCounterColumn();
     }
 
     public boolean isLive(int nowInSec)

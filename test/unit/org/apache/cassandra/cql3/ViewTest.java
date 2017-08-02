@@ -1262,4 +1262,37 @@ public class ViewTest extends CQLTester
 
         assertRows(execute("SELECT count(*) FROM mv_test"), row(1024L));
     }
+
+    @Test
+    public void testFrozenCollectionsWithComplicatedInnerType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, intval int,  listval frozen<list<tuple<text,text>>>, PRIMARY KEY (k))");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv",
+                   "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND listval IS NOT NULL PRIMARY KEY (k, listval)");
+
+        updateView("INSERT INTO %s (k, intval, listval) VALUES (?, ?, fromJson(?))",
+                   0,
+                   0,
+                   "[[\"a\", \"1\"], [\"b\", \"2\"], [\"c\", \"3\"]]");
+
+        // verify input
+        assertRows(execute("SELECT k, toJson(listval) FROM %s WHERE k = ?", 0),
+                   row(0, "[[\"a\", \"1\"], [\"b\", \"2\"], [\"c\", \"3\"]]"));
+        assertRows(execute("SELECT k, toJson(listval) from mv"),
+                   row(0, "[[\"a\", \"1\"], [\"b\", \"2\"], [\"c\", \"3\"]]"));
+
+        // update listval with the same value and it will be compared in view generator
+        updateView("INSERT INTO %s (k, listval) VALUES (?, fromJson(?))",
+                   0,
+                   "[[\"a\", \"1\"], [\"b\", \"2\"], [\"c\", \"3\"]]");
+        // verify result
+        assertRows(execute("SELECT k, toJson(listval) FROM %s WHERE k = ?", 0),
+                   row(0, "[[\"a\", \"1\"], [\"b\", \"2\"], [\"c\", \"3\"]]"));
+        assertRows(execute("SELECT k, toJson(listval) from mv"),
+                   row(0, "[[\"a\", \"1\"], [\"b\", \"2\"], [\"c\", \"3\"]]"));
+    }
 }

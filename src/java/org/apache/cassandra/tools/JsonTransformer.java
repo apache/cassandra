@@ -39,6 +39,7 @@ import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -49,6 +50,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
@@ -411,7 +413,7 @@ public final class JsonTransformer
             AbstractType<?> type = cell.column().type;
             json.writeString(cell.column().name.toCQLString());
 
-            if (cell.path() != null && cell.path().size() > 0)
+            if (type.isCollection() && type.isMultiCell()) // non-frozen collection
             {
                 CollectionType ct = (CollectionType) type;
                 json.writeFieldName("path");
@@ -437,7 +439,7 @@ public final class JsonTransformer
             else
             {
                 json.writeFieldName("value");
-                json.writeString(cell.column().cellValueType().getString(cell.value()));
+                json.writeRawValue(cell.column().cellValueType().toJSONString(cell.value(), Server.CURRENT_VERSION));
             }
             if (liveInfo.isEmpty() || cell.timestamp() != liveInfo.timestamp())
             {
