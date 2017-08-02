@@ -960,7 +960,8 @@ public class SinglePartitionReadCommand extends ReadCommand
     @Override
     public boolean selectsFullPartition()
     {
-        return clusteringIndexFilter.selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns();
+        return metadata().isStaticCompactTable() ||
+               (clusteringIndexFilter.selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns());
     }
 
     @Override
