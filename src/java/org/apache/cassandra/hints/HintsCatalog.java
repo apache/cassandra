@@ -82,6 +82,11 @@ final class HintsCatalog
             get(hostId);
     }
 
+    Map<UUID, HintsStore> getStores()
+    {
+        return stores;
+    }
+
     HintsStore get(UUID hostId)
     {
         // we intentionally don't just return stores.computeIfAbsent() because it's expensive compared to simple get(),

@@ -249,6 +249,24 @@ public final class HintsService implements HintsServiceMBean
      */
     public void deleteAllHints()
     {
+        catalog.getStores().forEach((key, value) ->
+        {
+            if (StorageService.instance.getEndpointForHostId(key) == null)
+            {
+                //close writer for orphan HintStore
+                logger.info("Discarding hint for endpoint not part of ring: {}", key.toString());
+                Future closeFuture = writeExecutor.closeWriter(value);
+                try
+                {
+                    closeFuture.get();
+                }
+                catch (InterruptedException | ExecutionException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+
         catalog.deleteAllHints();
     }
 
@@ -325,6 +343,28 @@ public final class HintsService implements HintsServiceMBean
 
         // delete all the hints files and remove the HintsStore instance from the map in the catalog
         catalog.exciseStore(hostId);
+
+        Runnable removeOrphanHintFiles = () ->
+        {
+            HintsStore orphanStore = null;
+            if ((orphanStore = catalog.getStores().get(hostId)) != null &&
+                    StorageService.instance.getEndpointForHostId(hostId) == null)
+            {
+                logger.info("Discarding hint for endpoint not part of ring: {}", hostId.toString());
+                Future closeFutureStore = writeExecutor.closeWriter(orphanStore);
+                try
+                {
+                    closeFutureStore.get();
+                }
+                catch (InterruptedException | ExecutionException e)
+                {
+                    throw new RuntimeException(e);
+                }
+
+                orphanStore.deleteAllHints();
+            }
+        };
+        ScheduledExecutors.optionalTasks.schedule(removeOrphanHintFiles, StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
     }
 
     /**
