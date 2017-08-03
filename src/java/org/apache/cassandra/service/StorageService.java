@@ -2276,7 +2276,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         UUID hostId = tokenMetadata.getHostId(endpoint);
         if (hostId != null && tokenMetadata.isMember(endpoint))
-            HintsService.instance.excise(hostId);
+        {
+            // enough time for writes to expire and MessagingService timeout reporter callback to fire, which is where
+            // hints are mostly written from - using getMinRpcTimeout() / 2 for the interval.
+            long delay = DatabaseDescriptor.getMinRpcTimeout() + DatabaseDescriptor.getWriteRpcTimeout();
+            ScheduledExecutors.optionalTasks.schedule(() -> HintsService.instance.excise(hostId), delay, TimeUnit.MILLISECONDS);
+        }
 
         removeEndpoint(endpoint);
         tokenMetadata.removeEndpoint(endpoint);
