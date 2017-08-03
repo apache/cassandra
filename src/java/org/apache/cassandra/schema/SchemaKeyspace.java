@@ -648,6 +648,9 @@ public final class SchemaKeyspace
         for (TriggerMetadata trigger : table.triggers)
             dropTriggerFromSchemaMutation(table, trigger, builder);
 
+        for (DroppedColumn column : table.droppedColumns.values())
+            dropDroppedColumnFromSchemaMutation(table, column, builder);
+
         for (IndexMetadata index : table.indexes)
             dropIndexFromSchemaMutation(table, index, builder);
 
@@ -682,6 +685,11 @@ public final class SchemaKeyspace
                .add("dropped_time", new Date(TimeUnit.MICROSECONDS.toMillis(column.droppedTime)))
                .add("type", expandUserTypes(column.column.type).asCQL3Type().toString())
                .add("kind", column.column.kind.toString().toLowerCase());
+    }
+
+    private static void dropDroppedColumnFromSchemaMutation(TableMetadata table, DroppedColumn column, Mutation.SimpleBuilder builder)
+    {
+        builder.update(DroppedColumns).row(table.name, column.column.name.toString()).delete();
     }
 
     private static void addTriggerToSchemaMutation(TableMetadata table, TriggerMetadata trigger, Mutation.SimpleBuilder builder)
