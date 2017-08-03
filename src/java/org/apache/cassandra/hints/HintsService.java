@@ -302,7 +302,7 @@ public final class HintsService implements HintsServiceMBean
      */
     public void excise(UUID hostId)
     {
-        HintsStore store = catalog.get(hostId);
+        HintsStore store = catalog.getNullable(hostId);
         if (store == null)
             return;
 

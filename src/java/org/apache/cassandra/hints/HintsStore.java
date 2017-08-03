@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,6 +76,12 @@ final class HintsStore
     {
         descriptors.sort((d1, d2) -> Long.compare(d1.timestamp, d2.timestamp));
         return new HintsStore(hostId, hintsDirectory, writerParams, descriptors);
+    }
+
+    @VisibleForTesting
+    int getDispatchQueueSize()
+    {
+        return dispatchDequeue.size();
     }
 
     InetAddress address()
