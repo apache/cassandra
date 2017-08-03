@@ -32,7 +32,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.SelectStatement;
@@ -102,20 +101,6 @@ public class CassandraRoleManager implements IRoleManager
         }
     };
 
-    public static final String LEGACY_USERS_TABLE = "users";
-    // Transform a row in the legacy system_auth.users table to a Role instance,
-    // used to fallback to previous schema on a mixed cluster during an upgrade
-    private static final Function<UntypedResultSet.Row, Role> LEGACY_ROW_TO_ROLE = new Function<UntypedResultSet.Row, Role>()
-    {
-        public Role apply(UntypedResultSet.Row row)
-        {
-            return new Role(row.getString("name"),
-                            row.getBoolean("super"),
-                            true,
-                            Collections.<String>emptySet());
-        }
-    };
-
     // 2 ** GENSALT_LOG2_ROUNDS rounds of hashing will be performed.
     private static final String GENSALT_LOG2_ROUNDS_PROPERTY = Config.PROPERTY_PREFIX + "auth_bcrypt_gensalt_log2_rounds";
     private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
@@ -134,7 +119,6 @@ public class CassandraRoleManager implements IRoleManager
     private static final Role NULL_ROLE = new Role(null, false, false, Collections.<String>emptySet());
 
     private SelectStatement loadRoleStatement;
-    private SelectStatement legacySelectUserStatement;
 
     private final Set<Option> supportedOptions;
     private final Set<Option> alterableOptions;
@@ -157,27 +141,10 @@ public class CassandraRoleManager implements IRoleManager
         loadRoleStatement = (SelectStatement) prepare("SELECT * from %s.%s WHERE role = ?",
                                                       SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLES);
-        // If the old users table exists, we may need to migrate the legacy authn
-        // data to the new table. We also need to prepare a statement to read from
-        // it, so we can continue to use the old tables while the cluster is upgraded.
-        // Otherwise, we may need to create a default superuser role to enable others
-        // to be added.
-        if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, "users") != null)
-        {
-            legacySelectUserStatement = prepareLegacySelectUserStatement();
-
-            scheduleSetupTask(() -> {
-                convertLegacyData();
-                return null;
-            });
-        }
-        else
-        {
-            scheduleSetupTask(() -> {
-                setupDefaultRole();
-                return null;
-            });
-        }
+        scheduleSetupTask(() -> {
+            setupDefaultRole();
+            return null;
+        });
     }
 
     public Set<Option> supportedOptions()
@@ -392,65 +359,6 @@ public class CassandraRoleManager implements IRoleManager
         }, AuthKeyspace.SUPERUSER_SETUP_DELAY, TimeUnit.MILLISECONDS);
     }
 
-    /*
-     * Copy legacy auth data from the system_auth.users & system_auth.credentials tables to
-     * the new system_auth.roles table. This setup is not performed if AllowAllAuthenticator
-     * is configured (see Auth#setup).
-     */
-    private void convertLegacyData() throws Exception
-    {
-        try
-        {
-            // read old data at QUORUM as it may contain the data for the default superuser
-            if (Schema.instance.getTableMetadata("system_auth", "users") != null)
-            {
-                logger.info("Converting legacy users");
-                UntypedResultSet users = QueryProcessor.process("SELECT * FROM system_auth.users",
-                                                                ConsistencyLevel.QUORUM);
-                for (UntypedResultSet.Row row : users)
-                {
-                    RoleOptions options = new RoleOptions();
-                    options.setOption(Option.SUPERUSER, row.getBoolean("super"));
-                    options.setOption(Option.LOGIN, true);
-                    createRole(null, RoleResource.role(row.getString("name")), options);
-                }
-                logger.info("Completed conversion of legacy users");
-            }
-
-            if (Schema.instance.getTableMetadata("system_auth", "credentials") != null)
-            {
-                logger.info("Migrating legacy credentials data to new system table");
-                UntypedResultSet credentials = QueryProcessor.process("SELECT * FROM system_auth.credentials",
-                                                                      ConsistencyLevel.QUORUM);
-                for (UntypedResultSet.Row row : credentials)
-                {
-                    // Write the password directly into the table to avoid doubly encrypting it
-                    QueryProcessor.process(String.format("UPDATE %s.%s SET salted_hash = '%s' WHERE role = '%s'",
-                                                         SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                         AuthKeyspace.ROLES,
-                                                         row.getString("salted_hash"),
-                                                         row.getString("username")),
-                                           consistencyForRole(row.getString("username")));
-                }
-                logger.info("Completed conversion of legacy credentials");
-            }
-        }
-        catch (Exception e)
-        {
-            logger.info("Unable to complete conversion of legacy auth data (perhaps not enough nodes are upgraded yet). " +
-                        "Conversion should not be considered complete");
-            logger.trace("Conversion error", e);
-            throw e;
-        }
-    }
-
-    private SelectStatement prepareLegacySelectUserStatement()
-    {
-        return (SelectStatement) prepare("SELECT * FROM %s.%s WHERE name = ?",
-                                         SchemaConstants.AUTH_KEYSPACE_NAME,
-                                         LEGACY_USERS_TABLE);
-    }
-
     private CQLStatement prepare(String template, String keyspace, String table)
     {
         try
@@ -487,31 +395,15 @@ public class CassandraRoleManager implements IRoleManager
      */
     private Role getRole(String name)
     {
-        // If it exists, try the legacy users table in case the cluster
-        // is in the process of being upgraded and so is running with mixed
-        // versions of the authn schema.
-        if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, "users") == null)
-            return getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
-        else
-        {
-            if (legacySelectUserStatement == null)
-                legacySelectUserStatement = prepareLegacySelectUserStatement();
-            return getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE);
-        }
-    }
-
-    private Role getRoleFromTable(String name, SelectStatement statement, Function<UntypedResultSet.Row, Role> function)
-    throws RequestExecutionException, RequestValidationException
-    {
         ResultMessage.Rows rows =
-            statement.execute(QueryState.forInternalCalls(),
+            loadRoleStatement.execute(QueryState.forInternalCalls(),
                               QueryOptions.forInternalCalls(consistencyForRole(name),
                                                             Collections.singletonList(ByteBufferUtil.bytes(name))),
                               System.nanoTime());
         if (rows.result.isEmpty())
             return NULL_ROLE;
 
-        return function.apply(UntypedResultSet.create(rows.result).one());
+        return ROW_TO_ROLE.apply(UntypedResultSet.create(rows.result).one());
     }
 
     /*

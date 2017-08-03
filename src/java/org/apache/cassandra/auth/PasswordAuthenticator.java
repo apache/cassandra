@@ -29,7 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -68,9 +67,6 @@ public class PasswordAuthenticator implements IAuthenticator
     private static final byte NUL = 0;
     private SelectStatement authenticateStatement;
 
-    public static final String LEGACY_CREDENTIALS_TABLE = "credentials";
-    private SelectStatement legacyAuthenticateStatement;
-
     private CredentialsCache cache;
 
     // No anonymous access.
@@ -90,10 +86,8 @@ public class PasswordAuthenticator implements IAuthenticator
 
     private String queryHashedPassword(String username)
     {
-        SelectStatement authenticationStatement = authenticationStatement();
-
         ResultMessage.Rows rows =
-        authenticationStatement.execute(QueryState.forInternalCalls(),
+        authenticateStatement.execute(QueryState.forInternalCalls(),
                                         QueryOptions.forInternalCalls(consistencyForRole(username),
                                                                       Lists.newArrayList(ByteBufferUtil.bytes(username))),
                                         System.nanoTime());
@@ -110,25 +104,6 @@ public class PasswordAuthenticator implements IAuthenticator
 
         return result.one().getString(SALTED_HASH);
     }
-
-    /**
-     * If the legacy users table exists try to verify credentials there. This is to handle the case
-     * where the cluster is being upgraded and so is running with mixed versions of the authn tables
-     */
-    private SelectStatement authenticationStatement()
-    {
-        if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, LEGACY_CREDENTIALS_TABLE) == null)
-            return authenticateStatement;
-        else
-        {
-            // the statement got prepared, we to try preparing it again.
-            // If the credentials was initialised only after statement got prepared, re-prepare (CASSANDRA-12813).
-            if (legacyAuthenticateStatement == null)
-                prepareLegacyAuthenticateStatement();
-            return legacyAuthenticateStatement;
-        }
-    }
-
 
     public Set<DataResource> protectedResources()
     {
@@ -148,19 +123,7 @@ public class PasswordAuthenticator implements IAuthenticator
                                      AuthKeyspace.ROLES);
         authenticateStatement = prepare(query);
 
-        if (Schema.instance.getTableMetadata(SchemaConstants.AUTH_KEYSPACE_NAME, LEGACY_CREDENTIALS_TABLE) != null)
-            prepareLegacyAuthenticateStatement();
-
         cache = new CredentialsCache(this);
-    }
-
-    private void prepareLegacyAuthenticateStatement()
-    {
-        String query = String.format("SELECT %s from %s.%s WHERE username = ?",
-                                     SALTED_HASH,
-                                     SchemaConstants.AUTH_KEYSPACE_NAME,
-                                     LEGACY_CREDENTIALS_TABLE);
-        legacyAuthenticateStatement = prepare(query);
     }
 
     public AuthenticatedUser legacyAuthenticate(Map<String, String> credentials) throws AuthenticationException

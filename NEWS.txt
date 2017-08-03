@@ -29,6 +29,11 @@ New features
 
 Upgrading
 ---------
+    - Support for legacy auth tables in the system_auth keyspace (users,
+      permissions, credentials) and the migration code has been removed. Migration
+      of these legacy auth tables must have been completed before the upgrade to
+      4.0 and the legacy tables must have been removed. See the 'Upgrading' section
+      for version 2.2 for migration instructions.
     - Cassandra 4.0 removed support for the deprecated Thrift interface. Amongst
       Tother things, this imply the removal of all yaml option related to thrift
       ('start_rpc', rpc_port, ...).
