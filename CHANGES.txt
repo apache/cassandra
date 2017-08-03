@@ -4,6 +4,7 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Log warn message until legacy auth tables have been migrated (CASSANDRA-13371)
  * Fix incorrect [2.1 <- 3.0] serialization of counter cells created in 2.0 (CASSANDRA-13691)
  * Fix invalid writetime for null cells (CASSANDRA-13711)
  * Fix ALTER TABLE statement to atomically propagate changes to the table and its MVs (CASSANDRA-12952)
