@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData.DroppedColumn;
 import org.apache.cassandra.config.ColumnDefinition.ClusteringOrder;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
@@ -656,6 +657,9 @@ public final class SchemaKeyspace
         for (ColumnDefinition column : table.allColumns())
             dropColumnFromSchemaMutation(table, column, builder);
 
+        for (CFMetaData.DroppedColumn column : table.getDroppedColumns().values())
+            dropDroppedColumnFromSchemaMutation(table, column, timestamp, builder);
+
         for (TriggerMetadata trigger : table.getTriggers())
             dropTriggerFromSchemaMutation(table, trigger, builder);
 
@@ -692,6 +696,11 @@ public final class SchemaKeyspace
                .row(table.cfName, column.name)
                .add("dropped_time", new Date(TimeUnit.MICROSECONDS.toMillis(column.droppedTime)))
                .add("type", expandUserTypes(column.type).asCQL3Type().toString());
+    }
+
+    private static void dropDroppedColumnFromSchemaMutation(CFMetaData table, DroppedColumn column, long timestamp, Mutation.SimpleBuilder builder)
+    {
+        builder.update(DroppedColumns).row(table.cfName, column.name).delete();
     }
 
     private static void addTriggerToSchemaMutation(CFMetaData table, TriggerMetadata trigger, Mutation.SimpleBuilder builder)
