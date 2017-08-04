@@ -1,4 +1,5 @@
 3.11.1
+ * Better bootstrap failure message when blocked by (potential) range movement (CASSANDRA-13744)
  * "ignore" option is ignored in sstableloader (CASSANDRA-13721)
  * Deadlock in AbstractCommitLogSegmentManager (CASSANDRA-13652)
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)

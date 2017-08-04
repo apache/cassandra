@@ -899,7 +899,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         tokenMetadata.getMovingEndpoints().size() > 0
                     ))
             {
-                throw new UnsupportedOperationException("Other bootstrapping/leaving/moving nodes detected, cannot bootstrap while cassandra.consistent.rangemovement is true");
+                String bootstrapTokens = StringUtils.join(tokenMetadata.getBootstrapTokens().valueSet(), ',');
+                String leavingTokens = StringUtils.join(tokenMetadata.getLeavingEndpoints(), ',');
+                String movingTokens = StringUtils.join(tokenMetadata.getMovingEndpoints().stream().map(e -> e.right).toArray(), ',');
+                throw new UnsupportedOperationException(String.format("Other bootstrapping/leaving/moving nodes detected, cannot bootstrap while cassandra.consistent.rangemovement is true. Nodes detected, bootstrapping: %s; leaving: %s; moving: %s;", bootstrapTokens, leavingTokens, movingTokens));
             }
 
             // get bootstrap tokens
