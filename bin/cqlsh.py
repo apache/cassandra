@@ -1084,7 +1084,9 @@ class Shell(cmd.Cmd):
                     num_rows += len(result.current_rows)
                     self.print_static_result(result, table_meta)
                 if result.has_more_pages:
-                    raw_input("---MORE---")
+                    if self.shunted_query_out is None:
+                        # Only pause when not capturing.
+                        raw_input("---MORE---")
                     result.fetch_next_page()
                 else:
                     break

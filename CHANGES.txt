@@ -107,6 +107,7 @@
  * Nodetool repair can hang forever if we lose the notification for the repair completing/failing (CASSANDRA-13480)
  * Anticompaction can cause noisy log messages (CASSANDRA-13684)
  * Switch to client init for sstabledump (CASSANDRA-13683)
+ * CQLSH: Don't pause when capturing data (CASSANDRA-13473)
 
 
 3.11.1
