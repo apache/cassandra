@@ -23,27 +23,21 @@ package org.apache.cassandra.db.transform;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.rows.*;
 
-final class Filter extends Transformation
+public final class Filter extends Transformation
 {
-    private final boolean filterEmpty; // generally maps to !isForThrift, but also false for direct row filtration
     private final int nowInSec;
-    public Filter(boolean filterEmpty, int nowInSec)
+
+    public Filter(int nowInSec)
     {
-        this.filterEmpty = filterEmpty;
         this.nowInSec = nowInSec;
     }
 
     @Override
     protected RowIterator applyToPartition(BaseRowIterator iterator)
     {
-        RowIterator filtered = iterator instanceof UnfilteredRows
-                               ? new FilteredRows(this, (UnfilteredRows) iterator)
-                               : new FilteredRows((UnfilteredRowIterator) iterator, this);
-
-        if (filterEmpty && closeIfEmpty(filtered))
-            return null;
-
-        return filtered;
+        return iterator instanceof UnfilteredRows
+             ? new FilteredRows(this, (UnfilteredRows) iterator)
+             : new FilteredRows((UnfilteredRowIterator) iterator, this);
     }
 
     @Override
@@ -66,15 +60,5 @@ final class Filter extends Transformation
     protected RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
     {
         return null;
-    }
-
-    private static boolean closeIfEmpty(BaseRowIterator<?> iter)
-    {
-        if (iter.isEmpty())
-        {
-            iter.close();
-            return true;
-        }
-        return false;
     }
 }
