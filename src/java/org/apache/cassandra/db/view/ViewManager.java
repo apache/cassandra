@@ -137,6 +137,15 @@ public class ViewManager
 
     public void addView(ViewMetadata definition)
     {
+        // Skip if the base table doesn't exist due to schema propagation issues, see CASSANDRA-13737
+        if (!keyspace.hasColumnFamilyStore(definition.baseTableId))
+        {
+            logger.warn("Not adding view {} because the base table {} is unknown",
+                        definition.name,
+                        definition.baseTableId);
+            return;
+        }
+
         View view = new View(definition, keyspace.getColumnFamilyStore(definition.baseTableId));
         forTable(view.getDefinition().baseTableId).add(view);
         viewsByName.put(definition.name, view);
