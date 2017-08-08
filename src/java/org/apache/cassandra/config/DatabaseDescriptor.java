@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.IOException;
 import java.net.*;
 import java.nio.file.FileStore;
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -55,6 +54,9 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.*;
+
+import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
+import static org.apache.cassandra.io.util.FileUtils.ONE_MB;
 
 public class DatabaseDescriptor
 {
@@ -535,7 +537,7 @@ public class DatabaseDescriptor
             try
             {
                 // use 1/4 of available space.  See discussion on #10013 and #10199
-                minSize = Ints.checkedCast((guessFileStore(conf.commitlog_directory).getTotalSpace() / 1048576) / 4);
+                minSize = Ints.saturatedCast((guessFileStore(conf.commitlog_directory).getTotalSpace() / 1048576) / 4);
             }
             catch (IOException e)
             {
@@ -583,7 +585,7 @@ public class DatabaseDescriptor
 
             try
             {
-                dataFreeBytes += guessFileStore(datadir).getUnallocatedSpace();
+                dataFreeBytes = saturatedSum(dataFreeBytes, guessFileStore(datadir).getUnallocatedSpace());
             }
             catch (IOException e)
             {
@@ -592,9 +594,9 @@ public class DatabaseDescriptor
                                                                datadir), e);
             }
         }
-        if (dataFreeBytes < 64L * 1024 * 1048576) // 64 GB
+        if (dataFreeBytes < 64 * ONE_GB)
             logger.warn("Only {} MB free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots",
-                        dataFreeBytes / 1048576);
+                        dataFreeBytes / ONE_MB);
 
 
         if (conf.commitlog_directory.equals(conf.saved_caches_directory))
@@ -739,6 +741,20 @@ public class DatabaseDescriptor
             throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be positive", false);
     }
 
+    /**
+     * Computes the sum of the 2 specified positive values returning {@code Long.MAX_VALUE} if the sum overflow.
+     *
+     * @param left the left operand
+     * @param right the right operand
+     * @return the sum of the 2 specified positive values of {@code Long.MAX_VALUE} if the sum overflow.
+     */
+    private static long saturatedSum(long left, long right)
+    {
+        assert left >= 0 && right >= 0;
+        long sum = left + right;
+        return sum < 0 ? Long.MAX_VALUE : sum;
+    }
+
     private static FileStore guessFileStore(String dir) throws IOException
     {
         Path path = Paths.get(dir);
@@ -746,7 +762,7 @@ public class DatabaseDescriptor
         {
             try
             {
-                return Files.getFileStore(path);
+                return FileUtils.getFileStore(path);
             }
             catch (IOException e)
             {
