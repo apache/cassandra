@@ -559,7 +559,7 @@ public class Directories
 
         public long getAvailableSpace()
         {
-            long availableSpace = location.getUsableSpace() - DatabaseDescriptor.getMinFreeSpacePerDriveInBytes();
+            long availableSpace = FileUtils.getUsableSpace(location) - DatabaseDescriptor.getMinFreeSpacePerDriveInBytes();
             return availableSpace > 0 ? availableSpace : 0;
         }
 
@@ -572,7 +572,6 @@ public class Directories
             DataDirectory that = (DataDirectory) o;
 
             return location.equals(that.location);
-
         }
 
         @Override

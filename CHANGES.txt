@@ -20,6 +20,7 @@ Merged from 3.0:
  * Fix secondary index queries on COMPACT tables (CASSANDRA-13627)
  * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)
 Merged from 2.2:
+ * Prevent integer overflow on exabyte filesystems (CASSANDRA-13067)
  * Fix queries with LIMIT and filtering on clustering columns (CASSANDRA-11223)
  * Fix potential NPE when resume bootstrap fails (CASSANDRA-13272)
  * Fix toJSONString for the UDT, tuple and collection types (CASSANDRA-13592)
