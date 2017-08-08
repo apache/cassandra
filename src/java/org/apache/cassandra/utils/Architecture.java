@@ -34,7 +34,8 @@ public final class Architecture
     "amd64",
     "x86_64",
     "s390x",
-    "aarch64"
+    "aarch64",
+    "ppc64le"    
     ));
 
     public static final boolean IS_UNALIGNED = UNALIGNED_ARCH.contains(System.getProperty("os.arch"));
