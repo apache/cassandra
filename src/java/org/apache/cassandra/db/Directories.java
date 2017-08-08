@@ -482,7 +482,7 @@ public class Directories
 
         public long getAvailableSpace()
         {
-            return location.getUsableSpace();
+            return FileUtils.getUsableSpace(location);
         }
     }
 
