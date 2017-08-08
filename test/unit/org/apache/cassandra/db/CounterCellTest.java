@@ -276,8 +276,8 @@ public class CounterCellTest
         ColumnDefinition cDef = cfs.metadata.getColumnDefinition(col);
         Cell cleared = BufferCell.live(cfs.metadata, cDef, 5, CounterContext.instance().clearAllLocal(state.context));
 
-        CounterContext.instance().updateDigest(digest1, original.value());
-        CounterContext.instance().updateDigest(digest2, cleared.value());
+        original.digest(digest1);
+        cleared.digest(digest2);
 
         assert Arrays.equals(digest1.digest(), digest2.digest());
     }
