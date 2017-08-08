@@ -1653,6 +1653,20 @@ public class SASIIndexTest
 
         Assert.assertEquals(true,  indexE.isIndexed());
         Assert.assertEquals(false, indexE.isLiteral());
+
+        // test frozen-collection
+        ColumnMetadata columnF = ColumnMetadata.regularColumn(KS_NAME,
+                                                              CF_NAME,
+                                                              "special-F",
+                                                              ListType.getInstance(UTF8Type.instance, false));
+
+        ColumnIndex indexF = new ColumnIndex(UTF8Type.instance, columnF, IndexMetadata.fromSchemaMetadata("special-index-F", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+        {{
+            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+        }}));
+
+        Assert.assertEquals(true,  indexF.isIndexed());
+        Assert.assertEquals(false, indexF.isLiteral());
     }
 
     @Test

@@ -431,14 +431,27 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     /**
      * The type of the cell values for cell belonging to this column.
      *
-     * This is the same than the column type, except for collections where it's the 'valueComparator'
+     * This is the same than the column type, except for non-frozen collections where it's the 'valueComparator'
      * of the collection.
+     * 
+     * This method should not be used to get value type of non-frozon UDT.
      */
     public AbstractType<?> cellValueType()
     {
-        return type instanceof CollectionType
-             ? ((CollectionType)type).valueComparator()
-             : type;
+        assert !(type instanceof UserType && type.isMultiCell());
+        return type instanceof CollectionType && type.isMultiCell()
+                ? ((CollectionType)type).valueComparator()
+                : type;
+    }
+
+    /**
+     * Check if column is counter type. For thrift, it checks collection's value type
+     */
+    public boolean isCounterColumn()
+    {
+        if (type instanceof CollectionType) // for thrift
+            return ((CollectionType) type).valueComparator().isCounter();
+        return type.isCounter();
     }
 
     public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames) throws InvalidRequestException

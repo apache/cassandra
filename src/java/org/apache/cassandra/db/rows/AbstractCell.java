@@ -46,7 +46,7 @@ public abstract class AbstractCell extends Cell
 
     public boolean isCounterCell()
     {
-        return !isTombstone() && column.cellValueType().isCounter();
+        return !isTombstone() && column.isCounterColumn();
     }
 
     public boolean isLive(int nowInSec)
