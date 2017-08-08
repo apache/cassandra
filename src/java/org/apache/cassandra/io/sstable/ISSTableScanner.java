@@ -19,7 +19,12 @@
 
 package org.apache.cassandra.io.sstable;
 
+import java.util.Collection;
+
+import com.google.common.base.Throwables;
+
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * An ISSTableScanner is an abstraction allowing multiple SSTableScanners to be
@@ -32,4 +37,33 @@ public interface ISSTableScanner extends UnfilteredPartitionIterator
     public long getCurrentPosition();
     public long getBytesScanned();
     public String getBackingFiles();
+
+    public static void closeAllAndPropagate(Collection<ISSTableScanner> scanners, Throwable throwable)
+    {
+        for (ISSTableScanner scanner: scanners)
+        {
+            try
+            {
+                scanner.close();
+            }
+            catch (Throwable t2)
+            {
+                JVMStabilityInspector.inspectThrowable(t2);
+                if (throwable == null)
+                {
+                    throwable = t2;
+                }
+                else
+                {
+                    throwable.addSuppressed(t2);
+                }
+            }
+        }
+
+        if (throwable != null)
+        {
+            Throwables.propagate(throwable);
+        }
+
+    }
 }

@@ -64,6 +64,17 @@ class PendingRepairManager
     private final CompactionParams params;
     private volatile ImmutableMap<UUID, AbstractCompactionStrategy> strategies = ImmutableMap.of();
 
+    /**
+     * Indicates we're being asked to do something with an sstable that isn't marked pending repair
+     */
+    public static class IllegalSSTableArgumentException extends IllegalArgumentException
+    {
+        public IllegalSSTableArgumentException(String s)
+        {
+            super(s);
+        }
+    }
+
     PendingRepairManager(ColumnFamilyStore cfs, CompactionParams params)
     {
         this.cfs = cfs;
@@ -88,6 +99,7 @@ class PendingRepairManager
 
     AbstractCompactionStrategy getOrCreate(UUID id)
     {
+        checkPendingID(id);
         assert id != null;
         AbstractCompactionStrategy strategy = get(id);
         if (strategy == null)
@@ -107,9 +119,16 @@ class PendingRepairManager
         return strategy;
     }
 
+    private static void checkPendingID(UUID pendingID)
+    {
+        if (pendingID == null)
+        {
+            throw new IllegalSSTableArgumentException("sstable is not pending repair");
+        }
+    }
+
     AbstractCompactionStrategy getOrCreate(SSTableReader sstable)
     {
-        assert sstable.isPendingRepair();
         return getOrCreate(sstable.getSSTableMetadata().pendingRepair);
     }
 
@@ -352,14 +371,21 @@ class PendingRepairManager
         for (SSTableReader sstable : sstables)
         {
             UUID sessionID = sstable.getSSTableMetadata().pendingRepair;
-            assert sessionID != null;
+            checkPendingID(sessionID);
             sessionSSTables.computeIfAbsent(sessionID, k -> new HashSet<>()).add(sstable);
         }
 
         Set<ISSTableScanner> scanners = new HashSet<>(sessionSSTables.size());
-        for (Map.Entry<UUID, Set<SSTableReader>> entry : sessionSSTables.entrySet())
+        try
         {
-            scanners.addAll(getOrCreate(entry.getKey()).getScanners(entry.getValue(), ranges).scanners);
+            for (Map.Entry<UUID, Set<SSTableReader>> entry : sessionSSTables.entrySet())
+            {
+                scanners.addAll(getOrCreate(entry.getKey()).getScanners(entry.getValue(), ranges).scanners);
+            }
+        }
+        catch (Throwable t)
+        {
+            ISSTableScanner.closeAllAndPropagate(scanners, t);
         }
         return scanners;
     }

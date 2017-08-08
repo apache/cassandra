@@ -240,4 +240,28 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
             tasks.stream().forEach(t -> t.transaction.abort());
         }
     }
+
+    /**
+     * Tests that a IllegalSSTableArgumentException is thrown if we try to get
+     * scanners for an sstable that isn't pending repair
+     */
+    @Test(expected = PendingRepairManager.IllegalSSTableArgumentException.class)
+    public void getScannersInvalidSSTable() throws Exception
+    {
+        PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
+        SSTableReader sstable = makeSSTable(true);
+        prm.getScanners(Collections.singleton(sstable), Collections.singleton(RANGE1));
+    }
+
+    /**
+     * Tests that a IllegalSSTableArgumentException is thrown if we try to get
+     * scanners for an sstable that isn't pending repair
+     */
+    @Test(expected = PendingRepairManager.IllegalSSTableArgumentException.class)
+    public void getOrCreateInvalidSSTable() throws Exception
+    {
+        PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
+        SSTableReader sstable = makeSSTable(true);
+        prm.getOrCreate(sstable);
+    }
 }

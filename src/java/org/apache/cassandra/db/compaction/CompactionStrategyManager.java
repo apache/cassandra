@@ -21,7 +21,6 @@ package org.apache.cassandra.db.compaction;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.function.Supplier;
@@ -735,7 +734,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @return
      */
     @SuppressWarnings("resource")
-    public AbstractCompactionStrategy.ScannerList getScanners(Collection<SSTableReader> sstables,  Collection<Range<Token>> ranges)
+    public AbstractCompactionStrategy.ScannerList maybeGetScanners(Collection<SSTableReader> sstables,  Collection<Range<Token>> ranges)
     {
         assert repaired.size() == unrepaired.size();
         assert repaired.size() == pendingRepairs.size();
@@ -781,12 +780,30 @@ public class CompactionStrategyManager implements INotificationConsumer
                 if (!unrepairedSSTables.get(i).isEmpty())
                     scanners.addAll(unrepaired.get(i).getScanners(unrepairedSSTables.get(i), ranges).scanners);
             }
-
-            return new AbstractCompactionStrategy.ScannerList(scanners);
+        }
+        catch (PendingRepairManager.IllegalSSTableArgumentException e)
+        {
+            ISSTableScanner.closeAllAndPropagate(scanners, new ConcurrentModificationException(e));
         }
         finally
         {
             readLock.unlock();
+        }
+        return new AbstractCompactionStrategy.ScannerList(scanners);
+    }
+
+    public AbstractCompactionStrategy.ScannerList getScanners(Collection<SSTableReader> sstables,  Collection<Range<Token>> ranges)
+    {
+        while (true)
+        {
+            try
+            {
+                return maybeGetScanners(sstables, ranges);
+            }
+            catch (ConcurrentModificationException e)
+            {
+                logger.debug("SSTable repairedAt/pendingRepaired values changed while getting scanners");
+            }
         }
     }
 

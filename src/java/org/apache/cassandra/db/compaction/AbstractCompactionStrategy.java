@@ -293,15 +293,7 @@ public abstract class AbstractCompactionStrategy
         }
         catch (Throwable t)
         {
-            try
-            {
-                new ScannerList(scanners).close();
-            }
-            catch (Throwable t2)
-            {
-                t.addSuppressed(t2);
-            }
-            throw t;
+            ISSTableScanner.closeAllAndPropagate(scanners, t);
         }
         return new ScannerList(scanners);
     }
@@ -385,24 +377,7 @@ public abstract class AbstractCompactionStrategy
 
         public void close()
         {
-            Throwable t = null;
-            for (ISSTableScanner scanner : scanners)
-            {
-                try
-                {
-                    scanner.close();
-                }
-                catch (Throwable t2)
-                {
-                    JVMStabilityInspector.inspectThrowable(t2);
-                    if (t == null)
-                        t = t2;
-                    else
-                        t.addSuppressed(t2);
-                }
-            }
-            if (t != null)
-                throw Throwables.propagate(t);
+            ISSTableScanner.closeAllAndPropagate(scanners, null);
         }
     }
 
