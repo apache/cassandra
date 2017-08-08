@@ -354,7 +354,7 @@ public class BTreeRow extends AbstractRow
 
     public Row markCounterLocalToBeCleared()
     {
-        return transformAndFilter(primaryKeyLivenessInfo, deletion, (cd) -> cd.column().cellValueType().isCounter()
+        return transformAndFilter(primaryKeyLivenessInfo, deletion, (cd) -> cd.column().isCounterColumn()
                                                                             ? cd.markCounterLocalToBeCleared()
                                                                             : cd);
     }
