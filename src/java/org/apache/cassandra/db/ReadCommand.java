@@ -634,7 +634,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             RowFilter.serializer.serialize(command.rowFilter(), out, version);
             DataLimits.serializer.serialize(command.limits(), out, version, command.metadata.comparator);
             if (optional.isPresent())
-                IndexMetadata.serializer.serialize(command.index.get(), out, version);
+                IndexMetadata.serializer.serialize(optional.get(), out, version);
 
             command.serializeSelection(out, version);
         }
