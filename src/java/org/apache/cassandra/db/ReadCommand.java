@@ -620,7 +620,12 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
         public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
         {
             out.writeByte(command.kind.ordinal());
-            out.writeByte(digestFlag(command.isDigestQuery()) | indexFlag(command.index.isPresent()));
+            //serialize for command.inex is optinal.
+            //command.index is lazied reload.
+            //it can be reload by the target node which will recieve the command.
+            //fix CASSANDRA-13363/CASSANDRA-12435
+            Optional<IndexMetadata> optional = command.index;
+            out.writeByte(digestFlag(command.isDigestQuery()) | indexFlag(optional.isPresent()));
             if (command.isDigestQuery())
                 out.writeUnsignedVInt(command.digestVersion());
             command.metadata.id.serialize(out);
@@ -628,7 +633,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
             RowFilter.serializer.serialize(command.rowFilter(), out, version);
             DataLimits.serializer.serialize(command.limits(), out, version, command.metadata.comparator);
-            if (command.index.isPresent())
+            if (optional.isPresent())
                 IndexMetadata.serializer.serialize(command.index.get(), out, version);
 
             command.serializeSelection(out, version);
