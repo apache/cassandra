@@ -115,6 +115,7 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Fix digest calculation for counter cells (CASSANDRA-13750)
  * Fix ColumnDefinition.cellValueType() for non-frozen collection and change SSTabledump to use type.toJSONString() (CASSANDRA-13573)
  * Skip materialized view addition if the base table doesn't exist (CASSANDRA-13737)
  * Drop table should remove corresponding entries in dropped_columns table (CASSANDRA-13730)

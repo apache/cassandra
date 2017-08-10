@@ -121,7 +121,15 @@ public abstract class AbstractCell extends Cell
 
     public void digest(MessageDigest digest)
     {
-        digest.update(value().duplicate());
+        if (isCounterCell())
+        {
+            CounterContext.instance().updateDigest(digest, value());
+        }
+        else
+        {
+            digest.update(value().duplicate());
+        }
+
         FBUtilities.updateWithLong(digest, timestamp());
         FBUtilities.updateWithInt(digest, ttl());
         FBUtilities.updateWithBoolean(digest, isCounterCell());
