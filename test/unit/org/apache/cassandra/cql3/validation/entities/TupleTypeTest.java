@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -210,5 +214,15 @@ public class TupleTypeTest extends CQLTester
                              "INSERT INTO %s (pk, t) VALUES (?, ?)", 1, "test");
         assertInvalidMessage("Not enough bytes to read 0th component",
                              "INSERT INTO %s (pk, t) VALUES (?, ?)", 1, Long.MAX_VALUE);
+    }
+
+    @Test
+    public void testReversedTypeTuple() throws Throwable
+    {
+        // CASSANDRA-13717
+        createTable("CREATE TABLE %s (id int, tdemo frozen<tuple<timestamp, varchar>>, primary key (id, tdemo)) with clustering order by (tdemo desc)");
+        execute("INSERT INTO %s (id, tdemo) VALUES (1, ('2017-02-03 03:05+0000','Europe'))");
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mmX", Locale.ENGLISH);
+        assertRows(execute("SELECT tdemo FROM %s"), row(tuple( df.parse("2017-02-03 03:05+0000"), "Europe")));
     }
 }
