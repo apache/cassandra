@@ -254,7 +254,7 @@ public class SSTableExport
 
     private static void printUsage()
     {
-        String usage = String.format("sstabledump <options> <sstable file path>%n");
+        String usage = String.format("sstabledump <sstable file path> <options>%n");
         String header = "Dump contents of given SSTable to standard output in JSON format.";
         new HelpFormatter().printHelp(usage, header, options, "");
     }
