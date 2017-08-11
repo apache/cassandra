@@ -398,6 +398,11 @@ class PendingRepairManager
         return strategies.values().contains(strategy);
     }
 
+    public synchronized boolean hasDataForSession(UUID sessionID)
+    {
+        return strategies.keySet().contains(sessionID);
+    }
+
     public Collection<AbstractCompactionTask> createUserDefinedTasks(List<SSTableReader> sstables, int gcBefore)
     {
         Map<UUID, List<SSTableReader>> group = sstables.stream().collect(Collectors.groupingBy(s -> s.getSSTableMetadata().pendingRepair));

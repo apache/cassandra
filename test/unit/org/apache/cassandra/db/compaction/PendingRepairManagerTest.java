@@ -285,4 +285,19 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         SSTableReader sstable = makeSSTable(true);
         prm.getOrCreate(sstable);
     }
+
+    @Test
+    public void sessionHasData()
+    {
+        PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
+
+        UUID repairID = registerSession(cfs, true, true);
+        LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
+
+        Assert.assertFalse(prm.hasDataForSession(repairID));
+        SSTableReader sstable = makeSSTable(true);
+        mutateRepaired(sstable, repairID);
+        prm.addSSTable(sstable);
+        Assert.assertTrue(prm.hasDataForSession(repairID));
+    }
 }

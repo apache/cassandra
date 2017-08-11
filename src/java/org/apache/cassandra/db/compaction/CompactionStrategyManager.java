@@ -339,6 +339,11 @@ public class CompactionStrategyManager implements INotificationConsumer
         return ids;
     }
 
+    public boolean hasDataForPendingRepair(UUID sessionID)
+    {
+        return Iterables.any(pendingRepairs, prm -> prm.hasDataForSession(sessionID));
+    }
+
     public void shutdown()
     {
         writeLock.lock();
