@@ -1,4 +1,5 @@
 4.0
+ * Throttle base partitions during MV repair streaming to prevent OOM (CASSANDRA-13299)
  * Use compaction threshold for STCS in L0 (CASSANDRA-13861)
  * Fix problem with min_compress_ratio: 1 and disallow ratio < 1 (CASSANDRA-13703)
  * Add extra information to SASI timeout exception (CASSANDRA-13677)
