@@ -20,7 +20,9 @@ package org.apache.cassandra.batchlog;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
@@ -87,8 +89,28 @@ public class BatchlogEndpointFilterTest
                 .put("1", InetAddress.getByName("111"))
                 .build();
         Collection<InetAddress> result = new TestEndpointFilter(LOCAL, endpoints).filter();
-        // result should contain random two distinct values
-        assertThat(new HashSet<>(result).size(), is(2));
+        // result should be the last two non-local replicas
+        // (Collections.shuffle has been replaced with Collections.reverse for testing)
+        assertThat(result.size(), is(2));
+        assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("11")));
+        assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("111")));
+    }
+
+    @Test
+    public void shouldSelectTwoRandomHostsFromSingleRack() throws UnknownHostException
+    {
+        Multimap<String, InetAddress> endpoints = ImmutableMultimap.<String, InetAddress> builder()
+                .put(LOCAL, InetAddress.getByName("1"))
+                .put(LOCAL, InetAddress.getByName("11"))
+                .put(LOCAL, InetAddress.getByName("111"))
+                .put(LOCAL, InetAddress.getByName("1111"))
+                .build();
+        Collection<InetAddress> result = new TestEndpointFilter(LOCAL, endpoints).filter();
+        // result should be the last two non-local replicas
+        // (Collections.shuffle has been replaced with Collections.reverse for testing)
+        assertThat(result.size(), is(2));
+        assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("111")));
+        assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("1111")));
     }
 
     private static class TestEndpointFilter extends BatchlogManager.EndpointFilter
@@ -110,6 +132,13 @@ public class BatchlogEndpointFilterTest
         {
             // We don't need random behavior here
             return bound - 1;
+        }
+
+        @Override
+        protected void shuffle(List<?> list)
+        {
+            // We don't need random behavior here
+            Collections.reverse(list);
         }
     }
 }
