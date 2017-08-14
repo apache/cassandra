@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.service.pager;
 
-import java.util.Optional;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,8 +25,6 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.index.Index;
-import org.apache.cassandra.schema.IndexMetadata;
 
 /**
  * Pages a PartitionRangeReadCommand.
@@ -90,9 +86,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager
             }
         }
 
-        Index index = command.getIndex(Keyspace.openAndGetStore(command.metadata()));
-        Optional<IndexMetadata> indexMetadata = index != null ? Optional.of(index.getIndexMetadata()) : Optional.empty();
-        return new PartitionRangeReadCommand(command.metadata(), command.nowInSec(), command.columnFilter(), command.rowFilter(), limits, pageRange, indexMetadata);
+        return ((PartitionRangeReadCommand) command).withUpdatedLimitsAndDataRange(limits, pageRange);
     }
 
     protected void recordLast(DecoratedKey key, Row last)

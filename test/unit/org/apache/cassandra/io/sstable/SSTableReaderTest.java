@@ -604,7 +604,7 @@ public class SSTableReaderTest
                                              .columns("birthdate")
                                              .filterOn("birthdate", Operator.EQ, 1L)
                                              .build();
-        Index.Searcher searcher = indexedCFS.indexManager.getBestIndexFor(rc).searcherFor(rc);
+        Index.Searcher searcher = rc.index().searcherFor(rc);
         assertNotNull(searcher);
         try (ReadOrderGroup orderGroup = ReadOrderGroup.forCommand(rc))
         {

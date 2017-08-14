@@ -116,13 +116,14 @@ public class SinglePartitionSliceCommandTest
         ByteBuffer zero = ByteBufferUtil.bytes(0);
         Slices slices = Slices.with(cfm.comparator, Slice.make(Slice.Bound.inclusiveStartOf(zero), Slice.Bound.inclusiveEndOf(zero)));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(slices, false);
-        ReadCommand cmd = new SinglePartitionReadCommand(false, MessagingService.VERSION_30, true, cfm,
-                                                          FBUtilities.nowInSeconds(),
-                                                          columnFilter,
-                                                          RowFilter.NONE,
-                                                          DataLimits.NONE,
-                                                          key,
-                                                          sliceFilter);
+        ReadCommand cmd = SinglePartitionReadCommand.create(true,
+                                                            cfm,
+                                                            FBUtilities.nowInSeconds(),
+                                                            columnFilter,
+                                                            RowFilter.NONE,
+                                                            DataLimits.NONE,
+                                                            key,
+                                                            sliceFilter);
 
         DataOutputBuffer out = new DataOutputBuffer((int) ReadCommand.legacyReadCommandSerializer.serializedSize(cmd, MessagingService.VERSION_21));
         ReadCommand.legacyReadCommandSerializer.serialize(cmd, out, MessagingService.VERSION_21);
@@ -166,13 +167,14 @@ public class SinglePartitionSliceCommandTest
 
         ColumnFilter columnFilter = ColumnFilter.selection(PartitionColumns.of(s));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.NONE, false);
-        ReadCommand cmd = new SinglePartitionReadCommand(false, MessagingService.VERSION_30, true, cfm,
-                                                         FBUtilities.nowInSeconds(),
-                                                         columnFilter,
-                                                         RowFilter.NONE,
-                                                         DataLimits.NONE,
-                                                         key,
-                                                         sliceFilter);
+        ReadCommand cmd = SinglePartitionReadCommand.create(true,
+                                                            cfm,
+                                                            FBUtilities.nowInSeconds(),
+                                                            columnFilter,
+                                                            RowFilter.NONE,
+                                                            DataLimits.NONE,
+                                                            key,
+                                                            sliceFilter);
 
         // check raw iterator for static cell
         try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
@@ -224,13 +226,14 @@ public class SinglePartitionSliceCommandTest
         ColumnFilter columnFilter = ColumnFilter.selection(PartitionColumns.of(s));
         Slice slice = Slice.make(Slice.Bound.BOTTOM, Slice.Bound.inclusiveEndOf(ByteBufferUtil.bytes("i1")));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.with(cfm.comparator, slice), false);
-        ReadCommand cmd = new SinglePartitionReadCommand(false, MessagingService.VERSION_30, true, cfm,
-                                                         FBUtilities.nowInSeconds(),
-                                                         columnFilter,
-                                                         RowFilter.NONE,
-                                                         DataLimits.NONE,
-                                                         key,
-                                                         sliceFilter);
+        ReadCommand cmd = SinglePartitionReadCommand.create(true,
+                                                            cfm,
+                                                            FBUtilities.nowInSeconds(),
+                                                            columnFilter,
+                                                            RowFilter.NONE,
+                                                            DataLimits.NONE,
+                                                            key,
+                                                            sliceFilter);
 
         String ret = cmd.toCQLString();
         Assert.assertNotNull(ret);

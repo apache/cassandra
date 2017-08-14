@@ -48,7 +48,6 @@ import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.metrics.ClientMetrics;
@@ -1520,16 +1519,16 @@ public class CassandraServer implements Cassandra.Iface
                 ColumnFilter columns = makeColumnFilter(metadata, column_parent, predicate);
                 ClusteringIndexFilter filter = toInternalFilter(metadata, column_parent, predicate);
                 DataLimits limits = getLimits(range.count, metadata.isSuper() && !column_parent.isSetSuper_column(), predicate);
-                PartitionRangeReadCommand cmd = new PartitionRangeReadCommand(false,
-                                                                              0,
-                                                                              true,
-                                                                              metadata,
-                                                                              nowInSec,
-                                                                              columns,
-                                                                              ThriftConversion.rowFilterFromThrift(metadata, range.row_filter),
-                                                                              limits,
-                                                                              new DataRange(bounds, filter),
-                                                                              Optional.empty());
+
+                PartitionRangeReadCommand cmd =
+                    PartitionRangeReadCommand.create(true,
+                                                     metadata,
+                                                     nowInSec,
+                                                     columns,
+                                                     ThriftConversion.rowFilterFromThrift(metadata, range.row_filter),
+                                                     limits,
+                                                     new DataRange(bounds, filter));
+
                 try (PartitionIterator results = StorageProxy.getRangeSlice(cmd, consistencyLevel))
                 {
                     assert results != null;
@@ -1614,16 +1613,16 @@ public class CassandraServer implements Cassandra.Iface
                 Clustering pageFrom = metadata.isSuper()
                                     ? new Clustering(start_column)
                                     : LegacyLayout.decodeCellName(metadata, start_column).clustering;
-                PartitionRangeReadCommand cmd = new PartitionRangeReadCommand(false,
-                                                                              0,
-                                                                              true,
-                                                                              metadata,
-                                                                              nowInSec,
-                                                                              ColumnFilter.all(metadata),
-                                                                              RowFilter.NONE,
-                                                                              limits,
-                                                                              new DataRange(bounds, filter).forPaging(bounds, metadata.comparator, pageFrom, true),
-                                                                              Optional.empty());
+
+                PartitionRangeReadCommand cmd =
+                    PartitionRangeReadCommand.create(true,
+                                                     metadata,
+                                                     nowInSec,
+                                                     ColumnFilter.all(metadata),
+                                                     RowFilter.NONE,
+                                                     limits,
+                                                     new DataRange(bounds, filter).forPaging(bounds, metadata.comparator, pageFrom, true));
+
                 try (PartitionIterator results = StorageProxy.getRangeSlice(cmd, consistencyLevel))
                 {
                     return thriftifyKeySlices(results, new ColumnParent(column_family), limits.perPartitionCount());
@@ -1706,21 +1705,17 @@ public class CassandraServer implements Cassandra.Iface
             ColumnFilter columns = makeColumnFilter(metadata, column_parent, column_predicate);
             ClusteringIndexFilter filter = toInternalFilter(metadata, column_parent, column_predicate);
             DataLimits limits = getLimits(index_clause.count, metadata.isSuper() && !column_parent.isSetSuper_column(), column_predicate);
-            PartitionRangeReadCommand cmd = new PartitionRangeReadCommand(false,
-                                                                          0,
-                                                                          true,
-                                                                          metadata,
-                                                                          nowInSec,
-                                                                          columns,
-                                                                          ThriftConversion.rowFilterFromThrift(metadata, index_clause.expressions),
-                                                                          limits,
-                                                                          new DataRange(bounds, filter),
-                                                                          Optional.empty());
-            // If there's a secondary index that the command can use, have it validate
-            // the request parameters. Note that as a side effect, if a viable Index is
-            // identified by the CFS's index manager, it will be cached in the command
-            // and serialized during distribution to replicas in order to avoid performing
-            // further lookups.
+
+            PartitionRangeReadCommand cmd =
+                PartitionRangeReadCommand.create(true,
+                                                 metadata,
+                                                 nowInSec,
+                                                 columns,
+                                                 ThriftConversion.rowFilterFromThrift(metadata, index_clause.expressions),
+                                                 limits,
+                                                 new DataRange(bounds, filter));
+
+            // If there's a secondary index that the command can use, have it validate the request parameters.
             cmd.maybeValidateIndex();
 
             try (PartitionIterator results = StorageProxy.getRangeSlice(cmd, consistencyLevel))
@@ -2533,7 +2528,7 @@ public class CassandraServer implements Cassandra.Iface
                 // We want to know if the partition exists, so just fetch a single cell.
                 ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(Slices.ALL, false);
                 DataLimits limits = DataLimits.thriftLimits(1, 1);
-                return new SinglePartitionReadCommand(false, 0, true, metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, limits, key, filter);
+                return SinglePartitionReadCommand.create(true, metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, limits, key, filter);
             }
 
             // Gather the clustering for the expected values and query those.

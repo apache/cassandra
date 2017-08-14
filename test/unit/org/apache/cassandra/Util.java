@@ -629,31 +629,7 @@ public class Util
                                                              ColumnFamilyStore cfs,
                                                              ReadOrderGroup orderGroup)
     {
-        return new InternalPartitionRangeReadCommand(command).queryStorageInternal(cfs, orderGroup);
-    }
-
-    private static final class InternalPartitionRangeReadCommand extends PartitionRangeReadCommand
-    {
-
-        private InternalPartitionRangeReadCommand(PartitionRangeReadCommand original)
-        {
-            super(original.isDigestQuery(),
-                  original.digestVersion(),
-                  original.isForThrift(),
-                  original.metadata(),
-                  original.nowInSec(),
-                  original.columnFilter(),
-                  original.rowFilter(),
-                  original.limits(),
-                  original.dataRange(),
-                  Optional.empty());
-        }
-
-        private UnfilteredPartitionIterator queryStorageInternal(ColumnFamilyStore cfs,
-                                                                 ReadOrderGroup orderGroup)
-        {
-            return queryStorage(cfs, orderGroup);
-        }
+        return command.queryStorage(cfs, orderGroup);
     }
 
     public static Closeable markDirectoriesUnwriteable(ColumnFamilyStore cfs)

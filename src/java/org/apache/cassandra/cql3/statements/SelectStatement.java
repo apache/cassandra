@@ -540,18 +540,10 @@ public class SelectStatement implements CQLStatement
         if (keyBounds == null)
             return ReadQuery.EMPTY;
 
-        PartitionRangeReadCommand command = new PartitionRangeReadCommand(cfm,
-                                                                          nowInSec,
-                                                                          queriedColumns,
-                                                                          rowFilter,
-                                                                          limit,
-                                                                          new DataRange(keyBounds, clusteringIndexFilter),
-                                                                          Optional.empty());
-        // If there's a secondary index that the command can use, have it validate
-        // the request parameters. Note that as a side effect, if a viable Index is
-        // identified by the CFS's index manager, it will be cached in the command
-        // and serialized during distribution to replicas in order to avoid performing
-        // further lookups.
+        PartitionRangeReadCommand command =
+            PartitionRangeReadCommand.create(false, cfm, nowInSec, queriedColumns, rowFilter, limit, new DataRange(keyBounds, clusteringIndexFilter));
+
+        // If there's a secondary index that the command can use, have it validate the request parameters.
         command.maybeValidateIndex();
 
         return command;
