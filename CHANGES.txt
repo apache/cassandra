@@ -1,4 +1,5 @@
 4.0
+ * Don't use RangeFetchMapCalculator when RF=1 (CASSANDRA-13576)
  * Don't optimise trivial ranges in RangeFetchMapCalculator (CASSANDRA-13664)
  * Use an ExecutorService for repair commands instead of new Thread(..).start() (CASSANDRA-13594)
  * Fix race / ref leak in anticompaction (CASSANDRA-13688)
