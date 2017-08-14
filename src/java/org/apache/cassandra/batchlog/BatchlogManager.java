@@ -525,9 +525,14 @@ public class BatchlogManager implements BatchlogManagerMBean
 
             if (validated.keySet().size() == 1)
             {
-                // we have only 1 `other` rack
-                Collection<InetAddress> otherRack = Iterables.getOnlyElement(validated.asMap().values());
-                return Lists.newArrayList(Iterables.limit(otherRack, 2));
+                /*
+                 * we have only 1 `other` rack to select replicas from (whether it be the local rack or a single non-local rack)
+                 * pick two random nodes from there; we are guaranteed to have at least two nodes in the single remaining rack
+                 * because of the preceding if block.
+                 */
+                List<InetAddress> otherRack = Lists.newArrayList(validated.values());
+                shuffle(otherRack);
+                return otherRack.subList(0, 2);
             }
 
             // randomize which racks we pick from if more than 2 remaining
@@ -539,7 +544,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             else
             {
                 racks = Lists.newArrayList(validated.keySet());
-                Collections.shuffle((List<String>) racks);
+                shuffle((List<String>) racks);
             }
 
             // grab a random member of up to two racks
@@ -563,6 +568,12 @@ public class BatchlogManager implements BatchlogManagerMBean
         protected int getRandomInt(int bound)
         {
             return ThreadLocalRandom.current().nextInt(bound);
+        }
+
+        @VisibleForTesting
+        protected void shuffle(List<?> list)
+        {
+            Collections.shuffle(list);
         }
     }
 }
