@@ -1,4 +1,5 @@
 3.11.1
+ * Add a compaction option to TWCS to ignore sstables overlapping checks (CASSANDRA-13418)
  * BTree.Builder memory leak (CASSANDRA-13754)
  * Revert CASSANDRA-10368 of supporting non-pk column filtering due to correctness (CASSANDRA-13798)
  * Fix cassandra-stress hang issues when an error during cluster connection happens (CASSANDRA-12938)
