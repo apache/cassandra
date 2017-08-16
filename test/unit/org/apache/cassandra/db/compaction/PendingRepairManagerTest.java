@@ -173,6 +173,27 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         Assert.assertNull(prm.getNextBackgroundTask(FBUtilities.nowInSeconds()));
     }
 
+    /**
+     * If all sessions should be cleaned up, getNextBackgroundTask should return null
+     */
+    @Test
+    public void getNextBackgroundTaskAllCleanup() throws Exception
+    {
+        PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
+        UUID repairID = registerSession(cfs, true, true);
+        LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);
+
+        SSTableReader sstable = makeSSTable(true);
+        mutateRepaired(sstable, repairID);
+        prm.addSSTable(sstable);
+        Assert.assertNotNull(prm.get(repairID));
+        Assert.assertNotNull(prm.get(repairID));
+        LocalSessionAccessor.finalizeUnsafe(repairID);
+
+        Assert.assertNull(prm.getNextBackgroundTask(FBUtilities.nowInSeconds()));
+
+    }
+
     @Test
     public void maximalTaskNeedsCleanup()
     {

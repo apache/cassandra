@@ -300,6 +300,9 @@ class PendingRepairManager
             sessions.add(entry.getKey());
         }
 
+        if (sessions.isEmpty())
+            return null;
+
         // we want the session with the most compactions at the head of the list
         sessions.sort((o1, o2) -> numTasks.get(o2) - numTasks.get(o1));
 
