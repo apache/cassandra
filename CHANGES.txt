@@ -1,4 +1,5 @@
 2.1.19
+ * Remove stress-test target in CircleCI as it's not existing (CASSANDRA-13775) 
  * Clone HeartBeatState when building gossip messages. Make its generation/version volatile (CASSANDRA-13700)
 
 
