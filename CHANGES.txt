@@ -19,13 +19,14 @@
  * Fix secondary index queries on COMPACT tables (CASSANDRA-13627)
  * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)
  * sstabledump reports incorrect usage for argument order (CASSANDRA-13532)
- Merged from 2.2:
+Merged from 2.2:
  * Prevent integer overflow on exabyte filesystems (CASSANDRA-13067)
  * Fix queries with LIMIT and filtering on clustering columns (CASSANDRA-11223)
  * Fix potential NPE when resume bootstrap fails (CASSANDRA-13272)
  * Fix toJSONString for the UDT, tuple and collection types (CASSANDRA-13592)
  * Fix nested Tuples/UDTs validation (CASSANDRA-13646)
 Merged from 2.1:
+ * Remove stress-test target in CircleCI as it's not existing (CASSANDRA-13775)
  * Clone HeartBeatState when building gossip messages. Make its generation/version volatile (CASSANDRA-13700)
 
 

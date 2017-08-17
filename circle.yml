@@ -7,7 +7,7 @@ test:
     - sudo apt-get update; sudo apt-get install wamerican:
         parallel: true
   override:
-    - case $CIRCLE_NODE_INDEX in 0) ant eclipse-warnings; ant test -Dtest.runners=1;; 1) ant long-test ;; 2) ant test-compression ;; 3) ant stress-test ;;esac:
+    - case $CIRCLE_NODE_INDEX in 0) ant eclipse-warnings; ant test -Dtest.runners=1;; 1) ant long-test ;; 2) ant test-compression ;;esac:
         parallel: true
 
   post:
