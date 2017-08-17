@@ -1339,6 +1339,9 @@ public class NodeProbe implements AutoCloseable
                 case "MemtableOffHeapSize":
                 case "MinPartitionSize":
                 case "PercentRepaired":
+                case "BytesRepaired":
+                case "BytesUnrepaired":
+                case "BytesPendingRepair":
                 case "RecentBloomFilterFalsePositives":
                 case "RecentBloomFilterFalseRatio":
                 case "SnapshotsSize":

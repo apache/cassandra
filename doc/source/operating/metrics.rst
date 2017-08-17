@@ -126,6 +126,9 @@ CasPrepare                              Latency        Latency of paxos prepare 
 CasPropose                              Latency        Latency of paxos propose round.
 CasCommit                               Latency        Latency of paxos commit round.
 PercentRepaired                         Gauge<Double>  Percent of table data that is repaired on disk.
+BytesRepaired                           Gauge<Long>    Size of table data repaired on disk
+BytesUnrepaired                         Gauge<Long>    Size of table data unrepaired on disk
+BytesPendingRepair                      Gauge<Long>    Size of table data isolated for an ongoing incremental repair
 SpeculativeRetries                      Counter        Number of times speculative retries were sent for this table.
 SpeculativeFailedRetries                Counter        Number of speculative retries that failed to prevent a timeout
 SpeculativeInsufficientReplicas         Counter        Number of speculative retries that couldn't be attempted due to lack of replicas
