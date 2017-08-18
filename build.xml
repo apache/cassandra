@@ -1224,11 +1224,13 @@
     classpath which only contains what we expect users to need.
   -->
   <target name="test-clientutil-jar" depends="build-test,jar" description="Test clientutil jar">
+    <mkdir dir="${build.test.dir}/output"/>
     <junit fork="on" forkmode="perTest" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
       <!-- Note that the test pass without that next line, but it prints an ugly error message -->
       <jvmarg value="-Djava.library.path=${build.lib}/sigar-bin"/>
-      <test name="org.apache.cassandra.serializers.ClientUtilsTest" />
+      <test name="org.apache.cassandra.serializers.ClientUtilsTest" todir="${build.test.dir}/output"/>
       <formatter type="brief" usefile="false" />
+      <formatter type="xml" usefile="true"/>
       <classpath>
         <pathelement location="${test.classes}" />
         <pathelement location="${build.dir}/${ant.project.name}-clientutil-${version}.jar" />
