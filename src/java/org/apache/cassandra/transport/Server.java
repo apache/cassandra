@@ -270,6 +270,7 @@ public class Server implements CassandraDaemon.Server
         private static final Frame.Decompressor frameDecompressor = new Frame.Decompressor();
         private static final Frame.Compressor frameCompressor = new Frame.Compressor();
         private static final Frame.Encoder frameEncoder = new Frame.Encoder();
+        private static final Message.ExceptionHandler exceptionHandler = new Message.ExceptionHandler();
         private static final Message.Dispatcher dispatcher = new Message.Dispatcher();
         private static final ConnectionLimitHandler connectionLimitHandler = new ConnectionLimitHandler();
 
@@ -302,6 +303,14 @@ public class Server implements CassandraDaemon.Server
 
             pipeline.addLast("messageDecoder", messageDecoder);
             pipeline.addLast("messageEncoder", messageEncoder);
+
+            // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
+            // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
+            // eventExecutorGroup may not enforce strict ordering for channel events.
+            // As the exceptionHandler runs in the EventLoop as the previous handlers we are sure all exceptions are
+            // correctly handled before the handler itself is removed.
+            // See https://issues.apache.org/jira/browse/CASSANDRA-13649
+            pipeline.addLast("exceptionHandler", exceptionHandler);
 
             pipeline.addLast(server.eventExecutorGroup, "executor", dispatcher);
         }

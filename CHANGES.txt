@@ -1,4 +1,5 @@
 2.2.11
+ * Uncaught exceptions in Netty pipeline (CASSANDRA-13649)
  * Prevent integer overflow on exabyte filesystems (CASSANDRA-13067) 
  * Fix queries with LIMIT and filtering on clustering columns (CASSANDRA-11223)
  * Fix potential NPE when resume bootstrap fails (CASSANDRA-13272)
