@@ -418,23 +418,27 @@ public class StressAction implements Runnable
             {
                 SimpleClient sclient = null;
                 JavaDriverClient jclient = null;
-
-
                 final ConnectionAPI clientType = settings.mode.api;
-                switch (clientType)
-                {
-                    case JAVA_DRIVER_NATIVE:
-                        jclient = settings.getJavaDriverClient();
-                        break;
-                    case SIMPLE_NATIVE:
-                        sclient = settings.getSimpleNativeClient();
-                        break;
-                    default:
-                        throw new IllegalStateException();
-                }
 
-                // synchronize the start of all the consumer threads
-                start.countDown();
+                try
+                {
+                    switch (clientType)
+                    {
+                        case JAVA_DRIVER_NATIVE:
+                            jclient = settings.getJavaDriverClient();
+                            break;
+                        case SIMPLE_NATIVE:
+                            sclient = settings.getSimpleNativeClient();
+                            break;
+                        default:
+                            throw new IllegalStateException();
+                    }
+                }
+                finally
+                {
+                    // synchronize the start of all the consumer threads
+                    start.countDown();
+                }
 
                 releaseConsumers.await();
 
