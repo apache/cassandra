@@ -71,7 +71,7 @@ public class TableStatsHolder implements StatsHolder
                 if (table.offHeapUsed)
                     mpTable.put("off_heap_memory_used_total", table.offHeapMemoryUsedTotal);
                 mpTable.put("sstable_compression_ratio", table.sstableCompressionRatio);
-                mpTable.put("number_of_keys_estimate", table.numberOfKeysEstimate);
+                mpTable.put("number_of_partitions_estimate", table.numberOfPartitionsEstimate);
                 mpTable.put("memtable_cell_count", table.memtableCellCount);
                 mpTable.put("memtable_data_size", table.memtableDataSize);
                 if (table.memtableOffHeapUsed)
@@ -83,6 +83,11 @@ public class TableStatsHolder implements StatsHolder
                 mpTable.put("local_write_latency_ms", String.format("%01.3f", table.localWriteLatencyMs));
                 mpTable.put("pending_flushes", table.pendingFlushes);
                 mpTable.put("percent_repaired", table.percentRepaired);
+
+                mpTable.put("bytes_repaired", table.bytesRepaired);
+                mpTable.put("bytes_unrepaired", table.bytesUnrepaired);
+                mpTable.put("bytes_pending_repair", table.bytesPendingRepair);
+
                 mpTable.put("bloom_filter_false_positives", table.bloomFilterFalsePositives);
                 mpTable.put("bloom_filter_false_ratio", String.format("%01.5f", table.bloomFilterFalseRatio));
                 mpTable.put("bloom_filter_space_used", table.bloomFilterSpaceUsed);
@@ -185,6 +190,9 @@ public class TableStatsHolder implements StatsHolder
                 Long compressionMetadataOffHeapSize = null;
                 Long offHeapSize = null;
                 Double percentRepaired = null;
+                Long bytesRepaired = null;
+                Long bytesUnrepaired = null;
+                Long bytesPendingRepair = null;
 
                 try
                 {
@@ -194,6 +202,9 @@ public class TableStatsHolder implements StatsHolder
                     compressionMetadataOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionMetadataOffHeapMemoryUsed");
                     offHeapSize = memtableOffHeapSize + bloomFilterOffHeapSize + indexSummaryOffHeapSize + compressionMetadataOffHeapSize;
                     percentRepaired = (Double) probe.getColumnFamilyMetric(keyspaceName, tableName, "PercentRepaired");
+                    bytesRepaired = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesRepaired");
+                    bytesUnrepaired = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesUnrepaired");
+                    bytesPendingRepair = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesPendingRepair");
                 }
                 catch (RuntimeException e)
                 {
@@ -215,13 +226,18 @@ public class TableStatsHolder implements StatsHolder
                 {
                     statsTable.percentRepaired = Math.round(100 * percentRepaired) / 100.0;
                 }
+
+                statsTable.bytesRepaired = bytesRepaired != null ? bytesRepaired : 0;
+                statsTable.bytesUnrepaired = bytesUnrepaired != null ? bytesUnrepaired : 0;
+                statsTable.bytesPendingRepair = bytesPendingRepair != null ? bytesPendingRepair : 0;
+
                 statsTable.sstableCompressionRatio = probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio");
                 Object estimatedPartitionCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedPartitionCount");
                 if (Long.valueOf(-1L).equals(estimatedPartitionCount))
                 {
                     estimatedPartitionCount = 0L;
                 }
-                statsTable.numberOfKeysEstimate = estimatedPartitionCount;
+                statsTable.numberOfPartitionsEstimate = estimatedPartitionCount;
 
                 statsTable.memtableCellCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableColumnsCount");
                 statsTable.memtableDataSize = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableLiveDataSize"), humanReadable);

@@ -137,6 +137,12 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
+        public boolean isEQ()
+        {
+            return true;
+        }
+
+        @Override
         public void addFunctionsTo(List<Function> functions)
         {
             value.addFunctionsTo(functions);

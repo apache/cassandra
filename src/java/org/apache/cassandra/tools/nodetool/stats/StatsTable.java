@@ -33,7 +33,7 @@ public class StatsTable
     public boolean offHeapUsed = false;
     public String offHeapMemoryUsedTotal;
     public Object sstableCompressionRatio;
-    public Object numberOfKeysEstimate;
+    public Object numberOfPartitionsEstimate;
     public Object memtableCellCount;
     public String memtableDataSize;
     public boolean memtableOffHeapUsed = false;
@@ -57,6 +57,9 @@ public class StatsTable
     public long compactedPartitionMaximumBytes;
     public long compactedPartitionMeanBytes;
     public double percentRepaired;
+    public long bytesRepaired;
+    public long bytesUnrepaired;
+    public long bytesPendingRepair;
     public double averageLiveCellsPerSliceLastFiveMinutes;
     public long maximumLiveCellsPerSliceLastFiveMinutes;
     public double averageTombstonesPerSliceLastFiveMinutes;

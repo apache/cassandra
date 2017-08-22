@@ -135,7 +135,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     }
 
                     ActiveRepairService.instance.consistent.local.maybeSetRepairing(desc.parentSessionId);
-                    Validator validator = new Validator(desc, message.from, validationRequest.gcBefore,
+                    Validator validator = new Validator(desc, message.from, validationRequest.nowInSec,
                                                         isConsistent(desc.parentSessionId), previewKind(desc.parentSessionId));
                     CompactionManager.instance.submitValidation(store, validator);
                     break;

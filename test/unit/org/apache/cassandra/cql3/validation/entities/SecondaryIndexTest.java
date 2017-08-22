@@ -1566,6 +1566,49 @@ public class SecondaryIndexTest extends CQLTester
         assertEmpty(execute("SELECT * FROM %s WHERE a = 5"));
     }
 
+    @Test
+    public void testIndicesOnCompactTable() throws Throwable
+    {
+        assertInvalidMessage("COMPACT STORAGE with composite PRIMARY KEY allows no more than one column not part of the PRIMARY KEY (got: v1, v2)",
+                             "CREATE TABLE test (pk int, c int, v1 int, v2 int, PRIMARY KEY(pk, c)) WITH COMPACT STORAGE");
+
+        createTable("CREATE TABLE %s (pk int, c int, v int, PRIMARY KEY(pk, c)) WITH COMPACT STORAGE");
+        assertInvalidMessage("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns",
+                             "CREATE INDEX ON %s(v)");
+
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH COMPACT STORAGE");
+        createIndex("CREATE INDEX ON %s(v)");
+
+        execute("INSERT INTO %s (pk, v) VALUES (?, ?)", 1, 1);
+        execute("INSERT INTO %s (pk, v) VALUES (?, ?)", 2, 1);
+        execute("INSERT INTO %s (pk, v) VALUES (?, ?)", 3, 3);
+
+        assertRows(execute("SELECT pk, v FROM %s WHERE v = 1"),
+                   row(1, 1),
+                   row(2, 1));
+
+        assertRows(execute("SELECT pk, v FROM %s WHERE v = 3"),
+                   row(3, 3));
+
+        assertEmpty(execute("SELECT pk, v FROM %s WHERE v = 5"));
+
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v1 int, v2 int) WITH COMPACT STORAGE");
+        createIndex("CREATE INDEX ON %s(v1)");
+
+        execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?)", 1, 1, 1);
+        execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?)", 2, 1, 2);
+        execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?)", 3, 3, 3);
+
+        assertRows(execute("SELECT pk, v2 FROM %s WHERE v1 = 1"),
+                   row(1, 1),
+                   row(2, 2));
+
+        assertRows(execute("SELECT pk, v2 FROM %s WHERE v1 = 3"),
+                   row(3, 3));
+
+        assertEmpty(execute("SELECT pk, v2 FROM %s WHERE v1 = 5"));
+    }
+
     private ResultMessage.Prepared prepareStatement(String cql)
     {
         return QueryProcessor.prepare(String.format(cql, KEYSPACE, currentTable()),

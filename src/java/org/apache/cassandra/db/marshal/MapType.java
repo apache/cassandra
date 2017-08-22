@@ -257,22 +257,23 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+        ByteBuffer value = buffer.duplicate();
         StringBuilder sb = new StringBuilder("{");
-        int size = CollectionSerializer.readCollectionSize(buffer, protocolVersion);
+        int size = CollectionSerializer.readCollectionSize(value, protocolVersion);
         for (int i = 0; i < size; i++)
         {
             if (i > 0)
                 sb.append(", ");
 
             // map keys must be JSON strings, so convert non-string keys to strings
-            String key = keys.toJSONString(CollectionSerializer.readValue(buffer, protocolVersion), protocolVersion);
+            String key = keys.toJSONString(CollectionSerializer.readValue(value, protocolVersion), protocolVersion);
             if (key.startsWith("\""))
                 sb.append(key);
             else
                 sb.append('"').append(Json.quoteAsJsonString(key)).append('"');
 
             sb.append(": ");
-            sb.append(values.toJSONString(CollectionSerializer.readValue(buffer, protocolVersion), protocolVersion));
+            sb.append(values.toJSONString(CollectionSerializer.readValue(value, protocolVersion), protocolVersion));
         }
         return sb.append("}").toString();
     }

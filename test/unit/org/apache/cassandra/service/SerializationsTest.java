@@ -109,7 +109,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             RepairMessage message = RepairMessage.serializer.deserialize(in, getVersion());
             assert message.messageType == RepairMessage.Type.VALIDATION_REQUEST;
             assert DESC.equals(message.desc);
-            assert ((ValidationRequest) message).gcBefore == 1234;
+            assert ((ValidationRequest) message).nowInSec == 1234;
 
             assert MessageIn.read(in, getVersion(), -1) != null;
         }

@@ -182,6 +182,12 @@ public class LocalSessionTest extends AbstractRepairTest
             int calls = completedSessions.getOrDefault(sessionID, 0);
             completedSessions.put(sessionID, calls + 1);
         }
+
+        boolean sessionHasData = false;
+        protected boolean sessionHasData(LocalSession session)
+        {
+            return sessionHasData;
+        }
     }
 
     private static TableMetadata cfm;
@@ -303,7 +309,7 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertEquals(session, sessions.loadUnsafe(sessionID));
 
         // ...and we should have sent a success message back to the coordinator
-        assertMessagesSent(sessions, COORDINATOR, new FailSession(sessionID));
+        assertMessagesSent(sessions, COORDINATOR, new PrepareConsistentResponse(sessionID, PARTICIPANT1, false));
 
     }
 
@@ -580,6 +586,19 @@ public class LocalSessionTest extends AbstractRepairTest
     }
 
     @Test
+    public void handleStatusResponseFinalizedRedundant() throws Exception
+    {
+        UUID sessionID = registerSession();
+        InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
+        sessions.start();
+        LocalSession session = sessions.prepareForTest(sessionID);
+        session.setState(FINALIZED);
+
+        sessions.handleStatusResponse(PARTICIPANT1, new StatusResponse(sessionID, FINALIZED));
+        Assert.assertEquals(FINALIZED, session.getState());
+    }
+
+    @Test
     public void handleStatusResponseFailed() throws Exception
     {
         UUID sessionID = registerSession();
@@ -587,6 +606,19 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.start();
         LocalSession session = sessions.prepareForTest(sessionID);
         session.setState(FINALIZE_PROMISED);
+
+        sessions.handleStatusResponse(PARTICIPANT1, new StatusResponse(sessionID, FAILED));
+        Assert.assertEquals(FAILED, session.getState());
+    }
+
+    @Test
+    public void handleStatusResponseFailedRedundant() throws Exception
+    {
+        UUID sessionID = registerSession();
+        InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
+        sessions.start();
+        LocalSession session = sessions.prepareForTest(sessionID);
+        session.setState(FAILED);
 
         sessions.handleStatusResponse(PARTICIPANT1, new StatusResponse(sessionID, FAILED));
         Assert.assertEquals(FAILED, session.getState());
@@ -839,10 +871,10 @@ public class LocalSessionTest extends AbstractRepairTest
     }
 
     /**
-     * Sessions past the auto delete cutoff should be deleted
+     * Sessions past the auto delete cutoff with no sstables should be deleted
      */
     @Test
-    public void cleanupDelete() throws Exception
+    public void cleanupDeleteNoSSTables() throws Exception
     {
         LocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
@@ -866,6 +898,37 @@ public class LocalSessionTest extends AbstractRepairTest
 
         Assert.assertNull(sessions.loadUnsafe(failed.sessionID));
         Assert.assertNull(sessions.loadUnsafe(finalized.sessionID));
+    }
+
+    /**
+     * Sessions past the auto delete cutoff with no sstables should be deleted
+     */
+    @Test
+    public void cleanupDeleteSSTablesRemaining() throws Exception
+    {
+        InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
+        sessions.start();
+
+        int time = FBUtilities.nowInSeconds() - LocalSessions.AUTO_FAIL_TIMEOUT - 1;
+        LocalSession failed = sessionWithTime(time - 1, time);
+        failed.setState(FAILED);
+
+        LocalSession finalized = sessionWithTime(time - 1, time);
+        finalized.setState(FINALIZED);
+
+        sessions.putSessionUnsafe(failed);
+        sessions.putSessionUnsafe(finalized);
+        Assert.assertNotNull(sessions.getSession(failed.sessionID));
+        Assert.assertNotNull(sessions.getSession(finalized.sessionID));
+
+        sessions.sessionHasData = true;
+        sessions.cleanup();
+
+        Assert.assertNotNull(sessions.getSession(failed.sessionID));
+        Assert.assertNotNull(sessions.getSession(finalized.sessionID));
+
+        Assert.assertNotNull(sessions.loadUnsafe(failed.sessionID));
+        Assert.assertNotNull(sessions.loadUnsafe(finalized.sessionID));
     }
 
     /**

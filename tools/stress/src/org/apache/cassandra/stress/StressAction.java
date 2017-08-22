@@ -55,6 +55,13 @@ public class StressAction implements Runnable
         // creating keyspace and column families
         settings.maybeCreateKeyspaces();
 
+        if (settings.command.count == 0)
+        {
+            output.println("N=0: SCHEMA CREATED, NOTHING ELSE DONE.");
+            settings.disconnect();
+            return;
+        }
+
         output.println("Sleeping 2s...");
         Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
 
@@ -97,9 +104,7 @@ public class StressAction implements Runnable
     private void warmup(OpDistributionFactory operations)
     {
         // do 25% of iterations as warmup but no more than 50k (by default hotspot compiles methods after 10k invocations)
-        int iterations = (settings.command.count > 0
-                         ? Math.min(50000, (int)(settings.command.count * 0.25))
-                         : 50000) * settings.node.nodes.size();
+        int iterations = Math.min(50000, (int) (settings.command.count * 0.25)) * settings.node.nodes.size();
         int threads = 100;
 
         if (settings.rate.maxThreads > 0)
@@ -418,23 +423,27 @@ public class StressAction implements Runnable
             {
                 SimpleClient sclient = null;
                 JavaDriverClient jclient = null;
-
-
                 final ConnectionAPI clientType = settings.mode.api;
-                switch (clientType)
-                {
-                    case JAVA_DRIVER_NATIVE:
-                        jclient = settings.getJavaDriverClient();
-                        break;
-                    case SIMPLE_NATIVE:
-                        sclient = settings.getSimpleNativeClient();
-                        break;
-                    default:
-                        throw new IllegalStateException();
-                }
 
-                // synchronize the start of all the consumer threads
-                start.countDown();
+                try
+                {
+                    switch (clientType)
+                    {
+                        case JAVA_DRIVER_NATIVE:
+                            jclient = settings.getJavaDriverClient();
+                            break;
+                        case SIMPLE_NATIVE:
+                            sclient = settings.getSimpleNativeClient();
+                            break;
+                        default:
+                            throw new IllegalStateException();
+                    }
+                }
+                finally
+                {
+                    // synchronize the start of all the consumer threads
+                    start.countDown();
+                }
 
                 releaseConsumers.await();
 

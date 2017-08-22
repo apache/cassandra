@@ -32,12 +32,13 @@ import org.apache.cassandra.db.context.CounterContext.Relationship;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 
-import static org.apache.cassandra.db.context.CounterContext.ContextState;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+
+import static org.apache.cassandra.db.context.CounterContext.ContextState;
 
 public class CounterContextTest
 {
@@ -541,5 +542,31 @@ public class CounterContextTest
         assertEquals(ClockAndCount.create(0L, 0L), cc.getClockAndCountOf(state.context, CounterId.fromInt(10)));
         assertEquals(ClockAndCount.create(0L, 0L), cc.getClockAndCountOf(state.context, CounterId.fromInt(15)));
         assertEquals(ClockAndCount.create(0L, 0L), cc.getClockAndCountOf(state.context, CounterId.fromInt(20)));
+    }
+
+    @Test // see CASSANDRA-13691
+    public void testCounterUpdate()
+    {
+        /*
+         * a context with just one 'update' shard - a local shard with a hardcoded value of CounterContext.UPDATE_CLOCK_ID
+         */
+
+        ByteBuffer updateContext = CounterContext.instance().createUpdate(10L);
+
+        assertEquals(ClockAndCount.create(1L, 10L), cc.getClockAndCountOf(updateContext, CounterContext.UPDATE_CLOCK_ID));
+        assertTrue(cc.isUpdate(updateContext));
+
+
+        /*
+         * a context with a regular local shard sorting first and a couple others in it - should *not* be identified as an update
+         */
+
+        ContextState notUpdateContextState = ContextState.allocate(1, 1, 1);
+        notUpdateContextState.writeLocal( CounterId.fromInt(1), 1L, 10L);
+        notUpdateContextState.writeRemote(CounterId.fromInt(2), 1L, 10L);
+        notUpdateContextState.writeGlobal(CounterId.fromInt(3), 1L, 10L);
+        ByteBuffer notUpdateContext = notUpdateContextState.context;
+
+        assertFalse(cc.isUpdate(notUpdateContext));
     }
 }

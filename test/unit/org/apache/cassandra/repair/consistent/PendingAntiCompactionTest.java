@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -338,5 +339,27 @@ public class PendingAntiCompactionTest
         Assert.assertEquals(1, cb.submittedCompactions.size());
         Assert.assertTrue(cb.submittedCompactions.contains(cfm.id));
         Assert.assertFalse(cb.submittedCompactions.contains(cfs2.metadata.id));
+    }
+
+
+    @Test
+    public void singleAnticompaction() throws Exception
+    {
+        cfs.disableAutoCompaction();
+        makeSSTables(2);
+
+        PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, UUIDGen.getTimeUUID());
+        PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
+        UUID sessionID = UUIDGen.getTimeUUID();
+        ActiveRepairService.instance.registerParentRepairSession(sessionID,
+                                                                 InetAddress.getByName("127.0.0.1"),
+                                                                 Lists.newArrayList(cfs),
+                                                                 FULL_RANGE,
+                                                                 true,0,
+                                                                 true,
+                                                                 PreviewKind.NONE);
+        CompactionManager.instance.performAnticompaction(result.cfs, FULL_RANGE, result.refs, result.txn,
+                                                         ActiveRepairService.UNREPAIRED_SSTABLE, sessionID, sessionID);
+
     }
 }

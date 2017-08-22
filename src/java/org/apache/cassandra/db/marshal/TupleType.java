@@ -52,6 +52,8 @@ public class TupleType extends AbstractType<ByteBuffer>
     
     protected final List<AbstractType<?>> types;
 
+    private final TupleSerializer serializer;
+
     public TupleType(List<AbstractType<?>> types)
     {
         this(types, true);
@@ -64,6 +66,16 @@ public class TupleType extends AbstractType<ByteBuffer>
             this.types = types.stream().map(AbstractType::freeze).collect(Collectors.toList());
         else
             this.types = types;
+        this.serializer = new TupleSerializer(fieldSerializers(types));
+    }
+
+    private static List<TypeSerializer<?>> fieldSerializers(List<AbstractType<?>> types)
+    {
+        int size = types.size();
+        List<TypeSerializer<?>> serializers = new ArrayList<>(size);
+        for (int i = 0; i < size; i++)
+            serializers.add(types.get(i).getSerializer());
+        return serializers;
     }
 
     public static TupleType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
@@ -154,37 +166,6 @@ public class TupleType extends AbstractType<ByteBuffer>
         }
 
         return 0;
-    }
-
-    @Override
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        ByteBuffer input = bytes.duplicate();
-        for (int i = 0; i < size(); i++)
-        {
-            // we allow the input to have less fields than declared so as to support field addition.
-            if (!input.hasRemaining())
-                return;
-
-            if (input.remaining() < Integer.BYTES)
-                throw new MarshalException(String.format("Not enough bytes to read size of %dth component", i));
-
-            int size = input.getInt();
-
-            // size < 0 means null value
-            if (size < 0)
-                continue;
-
-            if (input.remaining() < size)
-                throw new MarshalException(String.format("Not enough bytes to read %dth component", i));
-
-            ByteBuffer field = ByteBufferUtil.readBytes(input, size);
-            types.get(i).validate(field);
-        }
-
-        // We're allowed to get less fields than declared, but not more
-        if (input.hasRemaining())
-            throw new MarshalException("Invalid remaining data after end of tuple value");
     }
 
     /**
@@ -338,13 +319,14 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+        ByteBuffer duplicated = buffer.duplicate();
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < types.size(); i++)
         {
             if (i > 0)
                 sb.append(", ");
 
-            ByteBuffer value = CollectionSerializer.readValue(buffer, protocolVersion);
+            ByteBuffer value = CollectionSerializer.readValue(duplicated, protocolVersion);
             if (value == null)
                 sb.append("null");
             else
@@ -355,7 +337,7 @@ public class TupleType extends AbstractType<ByteBuffer>
 
     public TypeSerializer<ByteBuffer> getSerializer()
     {
-        return BytesSerializer.instance;
+        return serializer;
     }
 
     @Override

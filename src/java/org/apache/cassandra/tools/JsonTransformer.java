@@ -32,11 +32,11 @@ import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -49,6 +49,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
@@ -406,9 +407,10 @@ public final class JsonTransformer
             objectIndenter.setCompact(true);
             json.writeFieldName("name");
             AbstractType<?> type = cell.column().type;
+            AbstractType<?> cellType = null;
             json.writeString(cell.column().name.toCQLString());
 
-            if (cell.path() != null && cell.path().size() > 0)
+            if (type.isCollection() && type.isMultiCell()) // non-frozen collection
             {
                 CollectionType ct = (CollectionType) type;
                 json.writeFieldName("path");
@@ -420,6 +422,30 @@ public final class JsonTransformer
                 }
                 json.writeEndArray();
                 arrayIndenter.setCompact(false);
+
+                cellType = cell.column().cellValueType();
+            }
+            else if (type.isUDT() && type.isMultiCell()) // non-frozen udt
+            {
+                UserType ut = (UserType) type;
+                json.writeFieldName("path");
+                arrayIndenter.setCompact(true);
+                json.writeStartArray();
+                for (int i = 0; i < cell.path().size(); i++)
+                {
+                    Short fieldPosition = ut.nameComparator().compose(cell.path().get(i));
+                    json.writeString(ut.fieldNameAsString(fieldPosition));
+                }
+                json.writeEndArray();
+                arrayIndenter.setCompact(false);
+
+                // cellType of udt
+                Short fieldPosition = ((UserType) type).nameComparator().compose(cell.path().get(0));
+                cellType = ((UserType) type).fieldType(fieldPosition);
+            }
+            else
+            {
+                cellType = cell.column().cellValueType();
             }
             if (cell.isTombstone())
             {
@@ -434,7 +460,7 @@ public final class JsonTransformer
             else
             {
                 json.writeFieldName("value");
-                json.writeString(cell.column().cellValueType().getString(cell.value()));
+                json.writeRawValue(cellType.toJSONString(cell.value(), ProtocolVersion.CURRENT));
             }
             if (liveInfo.isEmpty() || cell.timestamp() != liveInfo.timestamp())
             {

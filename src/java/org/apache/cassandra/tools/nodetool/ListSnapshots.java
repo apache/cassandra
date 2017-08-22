@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.management.openmbean.TabularData;
 
-import io.airlift.command.Command;
+import io.airlift.airline.Command;
 
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.NodeProbe;
@@ -42,7 +42,7 @@ public class ListSnapshots extends NodeToolCmd
             final Map<String,TabularData> snapshotDetails = probe.getSnapshotDetails();
             if (snapshotDetails.isEmpty())
             {
-                System.out.printf("There are no snapshots");
+                System.out.println("There are no snapshots");
                 return;
             }
 

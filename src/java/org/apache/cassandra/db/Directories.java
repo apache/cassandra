@@ -552,7 +552,7 @@ public class Directories
 
         public long getAvailableSpace()
         {
-            long availableSpace = location.getUsableSpace() - DatabaseDescriptor.getMinFreeSpacePerDriveInBytes();
+            long availableSpace = FileUtils.getUsableSpace(location) - DatabaseDescriptor.getMinFreeSpacePerDriveInBytes();
             return availableSpace > 0 ? availableSpace : 0;
         }
 
@@ -565,7 +565,6 @@ public class Directories
             DataDirectory that = (DataDirectory) o;
 
             return location.equals(that.location);
-
         }
 
         @Override
@@ -928,7 +927,7 @@ public class Directories
         }
         catch (IOException e)
         {
-            logger.error("Could not calculate the size of {}. {}", input, e);
+            logger.error("Could not calculate the size of {}. {}", input, e.getMessage());
         }
 
         return visitor.getAllocatedSize();

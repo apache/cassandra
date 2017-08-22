@@ -34,4 +34,17 @@ public class DropTest extends CQLTester
         execute("DROP TABLE IF EXISTS keyspace_does_not_exist.table_does_not_exist");
     }
 
+    @Test
+    public void testDropTableWithDroppedColumns() throws Throwable
+    {
+        // CASSANDRA-13730: entry should be removed from dropped_columns table when table is dropped
+        String cf = createTable("CREATE TABLE %s (k1 int, c1 int , v1 int, v2 int, PRIMARY KEY (k1, c1))");
+
+        execute("ALTER TABLE %s DROP v2");
+        execute("DROP TABLE %s");
+
+        assertRowsIgnoringOrder(execute("select * from system_schema.dropped_columns where keyspace_name = '"
+                + keyspace()
+                + "' and table_name = '" + cf + "'"));
+    }
 }

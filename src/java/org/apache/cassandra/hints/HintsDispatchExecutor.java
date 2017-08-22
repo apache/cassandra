@@ -60,7 +60,7 @@ final class HintsDispatchExecutor
         this.isAlive = isAlive;
 
         scheduledDispatches = new ConcurrentHashMap<>();
-        executor = new JMXEnabledThreadPoolExecutor(maxThreads, maxThreads,1, TimeUnit.MINUTES,
+        executor = new JMXEnabledThreadPoolExecutor(maxThreads, 1, TimeUnit.MINUTES,
                                                     new LinkedBlockingQueue<>(),
                                                     new NamedThreadFactory("HintsDispatcher", Thread.MIN_PRIORITY),
                                                     "internal");
@@ -240,7 +240,9 @@ final class HintsDispatchExecutor
                 }
                 catch (FSReadError e)
                 {
-                    logger.error("Failed to dispatch hints file {}: file is corrupted ({})", descriptor.fileName(), e);
+                    logger.error("Failed to dispatch hints file {}: file is corrupted ({})",
+                                 descriptor.fileName(),
+                                 e.getMessage());
                     store.cleanUp(descriptor);
                     store.blacklist(descriptor);
                     throw e;

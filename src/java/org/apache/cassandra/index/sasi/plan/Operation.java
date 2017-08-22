@@ -286,7 +286,7 @@ public class Operation extends RangeIterator<Long, Token>
                 columnIndex = new ColumnIndex(controller.getKeyValidator(), e.column(), null);
 
             AbstractAnalyzer analyzer = columnIndex.getAnalyzer();
-            analyzer.reset(e.getIndexValue());
+            analyzer.reset(e.getIndexValue().duplicate());
 
             // EQ/LIKE_*/NOT_EQ can have multiple expressions e.g. text = "Hello World",
             // becomes text = "Hello" OR text = "World" because "space" is always interpreted as a split point (by analyzer),

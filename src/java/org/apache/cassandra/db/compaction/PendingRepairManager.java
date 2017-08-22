@@ -64,6 +64,17 @@ class PendingRepairManager
     private final CompactionParams params;
     private volatile ImmutableMap<UUID, AbstractCompactionStrategy> strategies = ImmutableMap.of();
 
+    /**
+     * Indicates we're being asked to do something with an sstable that isn't marked pending repair
+     */
+    public static class IllegalSSTableArgumentException extends IllegalArgumentException
+    {
+        public IllegalSSTableArgumentException(String s)
+        {
+            super(s);
+        }
+    }
+
     PendingRepairManager(ColumnFamilyStore cfs, CompactionParams params)
     {
         this.cfs = cfs;
@@ -88,6 +99,7 @@ class PendingRepairManager
 
     AbstractCompactionStrategy getOrCreate(UUID id)
     {
+        checkPendingID(id);
         assert id != null;
         AbstractCompactionStrategy strategy = get(id);
         if (strategy == null)
@@ -107,15 +119,22 @@ class PendingRepairManager
         return strategy;
     }
 
+    private static void checkPendingID(UUID pendingID)
+    {
+        if (pendingID == null)
+        {
+            throw new IllegalSSTableArgumentException("sstable is not pending repair");
+        }
+    }
+
     AbstractCompactionStrategy getOrCreate(SSTableReader sstable)
     {
-        assert sstable.isPendingRepair();
         return getOrCreate(sstable.getSSTableMetadata().pendingRepair);
     }
 
     private synchronized void removeSession(UUID sessionID)
     {
-        if (!strategies.containsKey(sessionID))
+        if (!strategies.containsKey(sessionID) || !strategies.get(sessionID).getSSTables().isEmpty())
             return;
 
         logger.debug("Removing compaction strategy for pending repair {} on  {}.{}", sessionID, cfs.metadata.keyspace, cfs.metadata.name);
@@ -281,6 +300,9 @@ class PendingRepairManager
             sessions.add(entry.getKey());
         }
 
+        if (sessions.isEmpty())
+            return null;
+
         // we want the session with the most compactions at the head of the list
         sessions.sort((o1, o2) -> numTasks.get(o2) - numTasks.get(o1));
 
@@ -352,14 +374,21 @@ class PendingRepairManager
         for (SSTableReader sstable : sstables)
         {
             UUID sessionID = sstable.getSSTableMetadata().pendingRepair;
-            assert sessionID != null;
+            checkPendingID(sessionID);
             sessionSSTables.computeIfAbsent(sessionID, k -> new HashSet<>()).add(sstable);
         }
 
         Set<ISSTableScanner> scanners = new HashSet<>(sessionSSTables.size());
-        for (Map.Entry<UUID, Set<SSTableReader>> entry : sessionSSTables.entrySet())
+        try
         {
-            scanners.addAll(get(entry.getKey()).getScanners(entry.getValue(), ranges).scanners);
+            for (Map.Entry<UUID, Set<SSTableReader>> entry : sessionSSTables.entrySet())
+            {
+                scanners.addAll(getOrCreate(entry.getKey()).getScanners(entry.getValue(), ranges).scanners);
+            }
+        }
+        catch (Throwable t)
+        {
+            ISSTableScanner.closeAllAndPropagate(scanners, t);
         }
         return scanners;
     }
@@ -367,6 +396,11 @@ class PendingRepairManager
     public boolean hasStrategy(AbstractCompactionStrategy strategy)
     {
         return strategies.values().contains(strategy);
+    }
+
+    public synchronized boolean hasDataForSession(UUID sessionID)
+    {
+        return strategies.keySet().contains(sessionID);
     }
 
     public Collection<AbstractCompactionTask> createUserDefinedTasks(List<SSTableReader> sstables, int gcBefore)
@@ -398,14 +432,31 @@ class PendingRepairManager
 
         protected void runMayThrow() throws Exception
         {
-            for (SSTableReader sstable : transaction.originals())
+            boolean completed = false;
+            try
             {
-                logger.debug("Setting repairedAt to {} on {} for {}", repairedAt, sstable, sessionID);
-                sstable.descriptor.getMetadataSerializer().mutateRepaired(sstable.descriptor, repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
-                sstable.reloadSSTableMetadata();
+                logger.debug("Setting repairedAt to {} on {} for {}", repairedAt, transaction.originals(), sessionID);
+                for (SSTableReader sstable : transaction.originals())
+                {
+                    sstable.descriptor.getMetadataSerializer().mutateRepaired(sstable.descriptor, repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
+                    sstable.reloadSSTableMetadata();
+                }
+                completed = true;
             }
-            cfs.getTracker().notifySSTableRepairedStatusChanged(transaction.originals());
-            transaction.abort();
+            finally
+            {
+                // even if we weren't able to rewrite all the sstable metedata, we should still move the ones that were
+                cfs.getTracker().notifySSTableRepairedStatusChanged(transaction.originals());
+
+                // we always abort because mutating metadata isn't guarded by LifecycleTransaction, so this won't roll
+                // anything back. Also, we don't want to obsolete the originals. We're only using it to prevent other
+                // compactions from marking these sstables compacting, and unmarking them when we're done
+                transaction.abort();
+                if (completed)
+                {
+                    removeSession(sessionID);
+                }
+            }
         }
 
         public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
@@ -417,18 +468,6 @@ class PendingRepairManager
         {
             run();
             return transaction.originals().size();
-        }
-
-        public int execute(CompactionManager.CompactionExecutorStatsCollector collector)
-        {
-            try
-            {
-                return super.execute(collector);
-            }
-            finally
-            {
-                removeSession(sessionID);
-            }
         }
     }
 

@@ -190,6 +190,11 @@ public class DataRange
         return startKey().isMinimum() && stopKey().isMinimum() && clusteringIndexFilter.selectsAllPartition();
     }
 
+    public boolean selectsAllPartition()
+    {
+        return clusteringIndexFilter.selectsAllPartition();
+    }
+
     /**
      * The clustering index filter to use for the provided key.
      * <p>

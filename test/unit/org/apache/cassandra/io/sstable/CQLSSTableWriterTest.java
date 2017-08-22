@@ -543,7 +543,7 @@ public class CQLSSTableWriterTest
     }
 
     @Test
-    public void testUpdateSatement() throws Exception
+    public void testUpdateStatement() throws Exception
     {
         final String KS = "cql_keyspace6";
         final String TABLE = "table6";
@@ -588,6 +588,55 @@ public class CQLSSTableWriterTest
         assertEquals(5, r2.getInt("c1"));
         assertEquals(6, r2.getInt("c2"));
         assertEquals("b", r2.getString("v"));
+        assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void testNativeFunctions() throws Exception
+    {
+        final String KS = "cql_keyspace7";
+        final String TABLE = "table7";
+
+        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+                              + "  k int,"
+                              + "  c1 int,"
+                              + "  c2 int,"
+                              + "  v blob,"
+                              + "  PRIMARY KEY (k, c1, c2)"
+                              + ")";
+
+        File tempdir = Files.createTempDir();
+        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
+        assert dataDir.mkdirs();
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + KS + "." + TABLE + " (k, c1, c2, v) VALUES (?, ?, ?, textAsBlob(?))")
+                                                  .build();
+
+        writer.addRow(1, 2, 3, "abc");
+        writer.addRow(4, 5, 6, "efg");
+
+        writer.close();
+        loadSSTables(dataDir, KS);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+        assertEquals(2, resultSet.size());
+
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        UntypedResultSet.Row r1 = iter.next();
+        assertEquals(1, r1.getInt("k"));
+        assertEquals(2, r1.getInt("c1"));
+        assertEquals(3, r1.getInt("c2"));
+        assertEquals(ByteBufferUtil.bytes("abc"), r1.getBytes("v"));
+
+        UntypedResultSet.Row r2 = iter.next();
+        assertEquals(4, r2.getInt("k"));
+        assertEquals(5, r2.getInt("c1"));
+        assertEquals(6, r2.getInt("c2"));
+        assertEquals(ByteBufferUtil.bytes("efg"), r2.getBytes("v"));
+
         assertFalse(iter.hasNext());
     }
 

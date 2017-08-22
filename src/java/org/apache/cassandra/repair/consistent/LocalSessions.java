@@ -32,7 +32,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
+import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -45,18 +45,15 @@ import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -77,6 +74,8 @@ import org.apache.cassandra.repair.messages.PrepareConsistentResponse;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.StatusRequest;
 import org.apache.cassandra.repair.messages.StatusResponse;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
@@ -260,8 +259,15 @@ public class LocalSessions
                 }
                 else if (shouldDelete(session, now))
                 {
-                    logger.debug("Auto deleting repair session {}", session);
-                    deleteSession(session.sessionID);
+                    if (!sessionHasData(session))
+                    {
+                        logger.debug("Auto deleting repair session {}", session);
+                        deleteSession(session.sessionID);
+                    }
+                    else
+                    {
+                        logger.warn("Skipping delete of LocalSession {} because it still contains sstables", session.sessionID);
+                    }
                 }
                 else if (shouldCheckStatus(session, now))
                 {
@@ -372,6 +378,13 @@ public class LocalSessions
     {
         String query = "DELETE FROM %s.%s WHERE parent_id=?";
         QueryProcessor.executeInternal(String.format(query, keyspace, table), sessionID);
+    }
+
+    private void syncTable()
+    {
+        TableId tid = Schema.instance.getTableMetadata(keyspace, table).id;
+        ColumnFamilyStore cfm = Schema.instance.getColumnFamilyStoreInstance(tid);
+        cfm.forceBlockingFlush();
     }
 
     /**
@@ -561,8 +574,21 @@ public class LocalSessions
 
             public void onFailure(Throwable t)
             {
-                logger.error(String.format("Prepare phase for incremental repair session %s failed", sessionID), t);
-                failSession(sessionID);
+                logger.error("Prepare phase for incremental repair session {} failed", sessionID, t);
+                if (t instanceof PendingAntiCompaction.SSTableAcquisitionException)
+                {
+                    logger.warn("Prepare phase for incremental repair session {} was unable to " +
+                                "acquire exclusive access to the neccesary sstables. " +
+                                "This is usually caused by running multiple incremental repairs on nodes that share token ranges",
+                                sessionID);
+
+                }
+                else
+                {
+                    logger.error("Prepare phase for incremental repair session {} failed", sessionID, t);
+                }
+                sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddress(), false));
+                failSession(sessionID, false);
                 executor.shutdown();
             }
         });
@@ -585,7 +611,7 @@ public class LocalSessions
         LocalSession session = getSession(sessionID);
         if (session == null)
         {
-            logger.debug("Received FinalizePropose message for unknown repair session {}, responding with failure");
+            logger.debug("Received FinalizePropose message for unknown repair session {}, responding with failure", sessionID);
             sendMessage(from, new FailSession(sessionID));
             return;
         }
@@ -593,8 +619,18 @@ public class LocalSessions
         try
         {
             setStateAndSave(session, FINALIZE_PROMISED);
+
+            /*
+             Flushing the repairs table here, *before* responding to the coordinator prevents a scenario where we respond
+             with a promise to the coordinator, but there is a failure before the commit log mutation with the
+             FINALIZE_PROMISED status is synced to disk. This could cause the state for this session to revert to an
+             earlier status on startup, which would prevent the failure recovery mechanism from ever being able to promote
+             this session to FINALIZED, likely creating inconsistencies in the repaired data sets across nodes.
+             */
+            syncTable();
+
             sendMessage(from, new FinalizePromise(sessionID, getBroadcastAddress(), true));
-            logger.debug("Received FinalizePropose message for incremental repair session {}, responded with FinalizePromise");
+            logger.debug("Received FinalizePropose message for incremental repair session {}, responded with FinalizePromise", sessionID);
         }
         catch (IllegalArgumentException e)
         {
@@ -705,6 +741,17 @@ public class LocalSessions
     {
         LocalSession session = getSession(sessionID);
         return session != null && session.getState() != FINALIZED && session.getState() != FAILED;
+    }
+
+    @VisibleForTesting
+    protected boolean sessionHasData(LocalSession session)
+    {
+        Predicate<TableId> predicate = tid -> {
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tid);
+            return cfs != null && cfs.getCompactionStrategyManager().hasDataForPendingRepair(session.sessionID);
+
+        };
+        return Iterables.any(session.tableIds, predicate::test);
     }
 
     /**

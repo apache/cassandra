@@ -69,11 +69,11 @@ public class ColumnFilter
 
     // True if _fetched_ includes all regular columns (and any static in _queried_), in which case metadata must not be
     // null. If false, then _fetched_ == _queried_ and we only store _queried_.
-    public final boolean fetchAllRegulars;
+    final boolean fetchAllRegulars;
 
-    private final RegularAndStaticColumns fetched;
-    private final RegularAndStaticColumns queried; // can be null if fetchAllRegulars, to represent a wildcard query (all
-                                                   // static and regular columns are both _fetched_ and _queried_).
+    final RegularAndStaticColumns fetched;
+    final RegularAndStaticColumns queried; // can be null if fetchAllRegulars, to represent a wildcard query (all
+                                           // static and regular columns are both _fetched_ and _queried_).
     private final SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections; // can be null
 
     private ColumnFilter(boolean fetchAllRegulars,
@@ -88,23 +88,17 @@ public class ColumnFilter
         if (fetchAllRegulars)
         {
             RegularAndStaticColumns all = metadata.regularAndStaticColumns();
-            if (queried == null)
-            {
-                this.fetched = this.queried = all;
-            }
-            else
-            {
-                this.fetched = all.statics.isEmpty()
-                               ? all
-                               : new RegularAndStaticColumns(queried.statics, all.regulars);
-                this.queried = queried;
-            }
+
+            this.fetched = (all.statics.isEmpty() || queried == null)
+                           ? all
+                           : new RegularAndStaticColumns(queried.statics, all.regulars);
         }
         else
         {
-            this.fetched = this.queried = queried;
+            this.fetched = queried;
         }
 
+        this.queried = queried;
         this.subSelections = subSelections;
     }
 
@@ -170,7 +164,7 @@ public class ColumnFilter
      */
     public RegularAndStaticColumns queriedColumns()
     {
-        return queried;
+        return queried == null ? fetched : queried;
     }
 
     /**

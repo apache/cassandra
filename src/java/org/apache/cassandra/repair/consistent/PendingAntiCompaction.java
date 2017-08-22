@@ -76,6 +76,8 @@ public class PendingAntiCompaction
         }
     }
 
+    static class SSTableAcquisitionException extends RuntimeException {}
+
     static class AcquisitionCallable implements Callable<AcquireResult>
     {
         private final ColumnFamilyStore cfs;
@@ -150,7 +152,7 @@ public class PendingAntiCompaction
                         result.abort();
                     }
                 }
-                return Futures.immediateFailedFuture(new RuntimeException("unable to acquire sstables"));
+                return Futures.immediateFailedFuture(new SSTableAcquisitionException());
             }
             else
             {

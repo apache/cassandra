@@ -18,9 +18,17 @@
 
 package org.apache.cassandra.dht;
 
+import java.math.BigInteger;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
@@ -63,21 +71,53 @@ import org.psjava.ds.math.Function;
 public class RangeFetchMapCalculator
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeFetchMapCalculator.class);
+    private static final long TRIVIAL_RANGE_LIMIT = 1000;
     private final Multimap<Range<Token>, InetAddress> rangesWithSources;
     private final Collection<RangeStreamer.ISourceFilter> sourceFilters;
     private final String keyspace;
     //We need two Vertices to act as source and destination in the algorithm
     private final Vertex sourceVertex = OuterVertex.getSourceVertex();
     private final Vertex destinationVertex = OuterVertex.getDestinationVertex();
+    private final Set<Range<Token>> trivialRanges;
 
-    public RangeFetchMapCalculator(Multimap<Range<Token>, InetAddress> rangesWithSources, Collection<RangeStreamer.ISourceFilter> sourceFilters, String keyspace)
+    public RangeFetchMapCalculator(Multimap<Range<Token>, InetAddress> rangesWithSources,
+                                   Collection<RangeStreamer.ISourceFilter> sourceFilters,
+                                   String keyspace)
     {
         this.rangesWithSources = rangesWithSources;
         this.sourceFilters = sourceFilters;
         this.keyspace = keyspace;
+        this.trivialRanges = rangesWithSources.keySet()
+                                              .stream()
+                                              .filter(RangeFetchMapCalculator::isTrivial)
+                                              .collect(Collectors.toSet());
+    }
+
+    static boolean isTrivial(Range<Token> range)
+    {
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        if (partitioner.splitter().isPresent())
+        {
+            BigInteger l = partitioner.splitter().get().valueForToken(range.left);
+            BigInteger r = partitioner.splitter().get().valueForToken(range.right);
+            if (r.compareTo(l) <= 0)
+                return false;
+            if (r.subtract(l).compareTo(BigInteger.valueOf(TRIVIAL_RANGE_LIMIT)) < 0)
+                return true;
+        }
+        return false;
     }
 
     public Multimap<InetAddress, Range<Token>> getRangeFetchMap()
+    {
+        Multimap<InetAddress, Range<Token>> fetchMap = HashMultimap.create();
+        fetchMap.putAll(getRangeFetchMapForNonTrivialRanges());
+        fetchMap.putAll(getRangeFetchMapForTrivialRanges(fetchMap));
+        return fetchMap;
+    }
+
+    @VisibleForTesting
+    Multimap<InetAddress, Range<Token>> getRangeFetchMapForNonTrivialRanges()
     {
         //Get the graph with edges between ranges and their source endpoints
         MutableCapacityGraph<Vertex, Integer> graph = getGraph();
@@ -107,6 +147,37 @@ public class RangeFetchMapCalculator
         return getRangeFetchMapFromGraphResult(graph, result);
     }
 
+    @VisibleForTesting
+    Multimap<InetAddress, Range<Token>> getRangeFetchMapForTrivialRanges(Multimap<InetAddress, Range<Token>> optimisedMap)
+    {
+        Multimap<InetAddress, Range<Token>> fetchMap = HashMultimap.create();
+        for (Range<Token> trivialRange : trivialRanges)
+        {
+            boolean added = false;
+            boolean localDCCheck = true;
+            while (!added)
+            {
+                List<InetAddress> srcs = new ArrayList<>(rangesWithSources.get(trivialRange));
+                // sort with the endpoint having the least number of streams first:
+                srcs.sort(Comparator.comparingInt(o -> optimisedMap.get(o).size()));
+                for (InetAddress src : srcs)
+                {
+                    if (passFilters(src, localDCCheck))
+                    {
+                        fetchMap.put(src, trivialRange);
+                        added = true;
+                        break;
+                    }
+                }
+                if (!added && !localDCCheck)
+                    throw new IllegalStateException("Unable to find sufficient sources for streaming range " + trivialRange + " in keyspace " + keyspace);
+                if (!added)
+                    logger.info("Using other DC endpoints for streaming for range: {} and keyspace {}", trivialRange, keyspace);
+                localDCCheck = false;
+            }
+        }
+        return fetchMap;
+    }
     /*
         Return the total number of range vertices in the graph
      */
@@ -240,6 +311,12 @@ public class RangeFetchMapCalculator
         //Connect all ranges with all source endpoints
         for (Range<Token> range : rangesWithSources.keySet())
         {
+            if (trivialRanges.contains(range))
+            {
+                logger.debug("Not optimising trivial range {} for keyspace {}", range, keyspace);
+                continue;
+            }
+
             final RangeVertex rangeVertex = new RangeVertex(range);
 
             //Try to only add source endpoints from same DC
@@ -251,8 +328,7 @@ public class RangeFetchMapCalculator
                 sourceFound = addEndpoints(capacityGraph, rangeVertex, false);
             }
 
-            //We could not find any source for this range which passed the filters. Ignore if localhost is part of the endpoints for this range
-            if (!sourceFound && !rangesWithSources.get(range).contains(FBUtilities.getBroadcastAddress()))
+            if (!sourceFound)
                 throw new IllegalStateException("Unable to find sufficient sources for streaming range " + range + " in keyspace " + keyspace);
 
         }
@@ -275,6 +351,9 @@ public class RangeFetchMapCalculator
             if (passFilters(endpoint, localDCCheck))
             {
                 sourceFound = true;
+                // if we pass filters, it means that we don't filter away localhost and we can count it as a source:
+                if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+                    continue; // but don't add localhost to the graph to avoid streaming locally
                 final Vertex endpointVertex = new EndpointVertex(endpoint);
                 capacityGraph.insertVertex(rangeVertex);
                 capacityGraph.insertVertex(endpointVertex);
@@ -302,9 +381,6 @@ public class RangeFetchMapCalculator
             if (!filter.shouldInclude(endpoint))
                 return false;
         }
-
-        if(endpoint.equals(FBUtilities.getBroadcastAddress()))
-            return false;
 
         return !localDCCheck || isInLocalDC(endpoint);
     }

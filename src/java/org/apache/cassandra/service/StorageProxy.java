@@ -598,7 +598,7 @@ public class StorageProxy implements StorageProxyMBean
                 catch (Exception ex)
                 {
                     if (!(ex instanceof WriteTimeoutException))
-                        logger.error("Failed to apply paxos commit locally : {}", ex);
+                        logger.error("Failed to apply paxos commit locally : ", ex);
                     responseHandler.onFailure(FBUtilities.getBroadcastAddress(), RequestFailureReason.UNKNOWN);
                 }
             }
@@ -1362,7 +1362,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 catch (Exception ex)
                 {
-                    logger.error("Failed to apply mutation locally : {}", ex);
+                    logger.error("Failed to apply mutation locally : ", ex);
                 }
             }
 
@@ -1388,7 +1388,7 @@ public class StorageProxy implements StorageProxyMBean
                 catch (Exception ex)
                 {
                     if (!(ex instanceof WriteTimeoutException))
-                        logger.error("Failed to apply mutation locally : {}", ex);
+                        logger.error("Failed to apply mutation locally : ", ex);
                     handler.onFailure(FBUtilities.getBroadcastAddress(), RequestFailureReason.UNKNOWN);
                 }
             }
@@ -1652,7 +1652,7 @@ public class StorageProxy implements StorageProxyMBean
             // If we have more than one command, then despite each read command honoring the limit, the total result
             // might not honor it and so we should enforce it
             if (group.commands.size() > 1)
-                result = group.limits().filter(result, group.nowInSec());
+                result = group.limits().filter(result, group.nowInSec(), group.selectsFullPartition());
             return result;
         }
         catch (UnavailableException e)
@@ -1768,7 +1768,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (DigestMismatchException ex)
             {
-                Tracing.trace("Digest mismatch: {}", ex);
+                Tracing.trace("Digest mismatch: {}", ex.getMessage());
 
                 ReadRepairMetrics.repairedBlocking.mark();
 
@@ -2207,7 +2207,7 @@ public class StorageProxy implements StorageProxyMBean
             Tracing.trace("Submitted {} concurrent range requests", concurrentQueries.size());
             // We want to count the results for the sake of updating the concurrency factor (see updateConcurrencyFactor) but we don't want to
             // enforce any particular limit at this point (this could break code than rely on postReconciliationProcessing), hence the DataLimits.NONE.
-            counter = DataLimits.NONE.newCounter(command.nowInSec(), true);
+            counter = DataLimits.NONE.newCounter(command.nowInSec(), true, command.selectsFullPartition());
             return counter.applyTo(PartitionIterators.concat(concurrentQueries));
         }
 
@@ -2249,7 +2249,9 @@ public class StorageProxy implements StorageProxyMBean
 
         // Note that in general, a RangeCommandIterator will honor the command limit for each range, but will not enforce it globally.
 
-        return command.limits().filter(command.postReconciliationProcessing(new RangeCommandIterator(ranges, command, concurrencyFactor, keyspace, consistencyLevel, queryStartNanoTime)), command.nowInSec());
+        return command.limits().filter(command.postReconciliationProcessing(new RangeCommandIterator(ranges, command, concurrencyFactor, keyspace, consistencyLevel, queryStartNanoTime)),
+                                       command.nowInSec(),
+                                       command.selectsFullPartition());
     }
 
     public Map<String, List<String>> getSchemaVersions()

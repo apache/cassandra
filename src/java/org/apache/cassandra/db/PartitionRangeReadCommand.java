@@ -327,6 +327,13 @@ public class PartitionRangeReadCommand extends ReadCommand
     }
 
     @Override
+    public boolean selectsFullPartition()
+    {
+        return metadata().isStaticCompactTable() ||
+               (dataRange.selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns());
+    }
+
+    @Override
     public String toString()
     {
         return String.format("Read(%s columns=%s rowfilter=%s limits=%s %s)",

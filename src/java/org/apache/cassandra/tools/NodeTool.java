@@ -28,7 +28,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 import com.google.common.collect.*;
 
-import io.airlift.command.*;
+import io.airlift.airline.*;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.nodetool.*;
@@ -77,6 +77,7 @@ public class NodeTool
                 DisableGossip.class,
                 EnableHandoff.class,
                 GcStats.class,
+                GetBatchlogReplayTrottle.class,
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
                 GetTimeout.class,
@@ -104,6 +105,7 @@ public class NodeTool
                 ReplayBatchlog.class,
                 SetCacheCapacity.class,
                 SetHintedHandoffThrottleInKB.class,
+                SetBatchlogReplayThrottle.class,
                 SetCompactionThreshold.class,
                 SetCompactionThroughput.class,
                 GetConcurrentCompactors.class,

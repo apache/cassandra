@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.*;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -45,8 +46,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 public class ActiveRepairServiceTest
 {
@@ -209,6 +210,27 @@ public class ActiveRepairServiceTest
         Collection<String> hosts = Arrays.asList("127.0.0.3");
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(KEYSPACE5);
         ActiveRepairService.getNeighbors(KEYSPACE5, ranges, ranges.iterator().next(), null, hosts);
+    }
+
+
+    @Test
+    public void testParentRepairStatus() throws Throwable
+    {
+        ActiveRepairService.instance.recordRepairStatus(1, ActiveRepairService.ParentRepairStatus.COMPLETED, ImmutableList.of("foo", "bar"));
+        List<String> res = StorageService.instance.getParentRepairStatus(1);
+        assertNotNull(res);
+        assertEquals(ActiveRepairService.ParentRepairStatus.COMPLETED, ActiveRepairService.ParentRepairStatus.valueOf(res.get(0)));
+        assertEquals("foo", res.get(1));
+        assertEquals("bar", res.get(2));
+
+        List<String> emptyRes = StorageService.instance.getParentRepairStatus(44);
+        assertNull(emptyRes);
+
+        ActiveRepairService.instance.recordRepairStatus(3, ActiveRepairService.ParentRepairStatus.FAILED, ImmutableList.of("some failure message", "bar"));
+        List<String> failed = StorageService.instance.getParentRepairStatus(3);
+        assertNotNull(failed);
+        assertEquals(ActiveRepairService.ParentRepairStatus.FAILED, ActiveRepairService.ParentRepairStatus.valueOf(failed.get(0)));
+
     }
 
     Set<InetAddress> addTokens(int max) throws Throwable

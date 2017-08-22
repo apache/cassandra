@@ -22,30 +22,38 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import junit.framework.Assert;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MD5Digest;
 
+import static org.junit.Assert.*;
+
 public class PstmtPersistenceTest extends CQLTester
 {
+    @Before
+    public void setUp()
+    {
+        QueryProcessor.clearPreparedStatements(false);
+    }
+ 
     @Test
     public void testCachedPreparedStatements() throws Throwable
     {
         // need this for pstmt execution/validation tests
         requireNetwork();
 
-        int rows = QueryProcessor.executeOnceInternal("SELECT * FROM " + SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.PREPARED_STATEMENTS).size();
-        Assert.assertEquals(0, rows);
+        assertEquals(0, numberOfStatementsOnDisk());
 
         execute("CREATE KEYSPACE IF NOT EXISTS foo WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
         execute("CREATE TABLE foo.bar (key text PRIMARY KEY, val int)");
@@ -56,30 +64,27 @@ public class PstmtPersistenceTest extends CQLTester
 
         List<MD5Digest> stmtIds = new ArrayList<>();
         // #0
-        stmtIds.add(QueryProcessor.prepare("SELECT * FROM " + SchemaConstants.SCHEMA_KEYSPACE_NAME + '.' + SchemaKeyspace.TABLES + " WHERE keyspace_name = ?", clientState).statementId);
+        stmtIds.add(prepareStatement("SELECT * FROM %s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.TABLES, clientState));
         // #1
-        stmtIds.add(QueryProcessor.prepare("SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE pk = ?", clientState).statementId);
+        stmtIds.add(prepareStatement("SELECT * FROM %s WHERE pk = ?", clientState));
         // #2
-        stmtIds.add(QueryProcessor.prepare("SELECT * FROM foo.bar WHERE key = ?", clientState).statementId);
+        stmtIds.add(prepareStatement("SELECT * FROM %s WHERE key = ?", "foo", "bar", clientState));
         clientState.setKeyspace("foo");
         // #3
-        stmtIds.add(QueryProcessor.prepare("SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE pk = ?", clientState).statementId);
+        stmtIds.add(prepareStatement("SELECT * FROM %s WHERE pk = ?", clientState));
         // #4
-        stmtIds.add(QueryProcessor.prepare("SELECT * FROM foo.bar WHERE key = ?", clientState).statementId);
+        stmtIds.add(prepareStatement("SELECT * FROM %S WHERE key = ?", "foo", "bar", clientState));
 
-        Assert.assertEquals(5, stmtIds.size());
-        Assert.assertEquals(5, QueryProcessor.preparedStatementsCount());
+        assertEquals(5, stmtIds.size());
+        assertEquals(5, QueryProcessor.preparedStatementsCount());
 
-        String queryAll = "SELECT * FROM " + SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.PREPARED_STATEMENTS;
-
-        rows = QueryProcessor.executeOnceInternal(queryAll).size();
-        Assert.assertEquals(5, rows);
+        Assert.assertEquals(5, numberOfStatementsOnDisk());
 
         QueryHandler handler = ClientState.getCQLQueryHandler();
         validatePstmts(stmtIds, handler);
 
         // clear prepared statements cache
-        QueryProcessor.clearPrepraredStatements();
+        QueryProcessor.clearPreparedStatements(true);
         Assert.assertEquals(0, QueryProcessor.preparedStatementsCount());
         for (MD5Digest stmtId : stmtIds)
             Assert.assertNull(handler.getPrepared(stmtId));
@@ -88,7 +93,9 @@ public class PstmtPersistenceTest extends CQLTester
         QueryProcessor.preloadPreparedStatement();
         validatePstmts(stmtIds, handler);
 
+
         // validate that the prepared statements are in the system table
+        String queryAll = "SELECT * FROM " + SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.PREPARED_STATEMENTS;
         for (UntypedResultSet.Row row : QueryProcessor.executeOnceInternal(queryAll))
         {
             MD5Digest digest = MD5Digest.wrap(ByteBufferUtil.getArray(row.getBytes("prepared_id")));
@@ -97,22 +104,19 @@ public class PstmtPersistenceTest extends CQLTester
         }
 
         // add anther prepared statement and sync it to table
-        QueryProcessor.prepare("SELECT * FROM bar WHERE key = ?", clientState);
-        Assert.assertEquals(6, QueryProcessor.preparedStatementsCount());
-        rows = QueryProcessor.executeOnceInternal(queryAll).size();
-        Assert.assertEquals(6, rows);
+        prepareStatement("SELECT * FROM %s WHERE key = ?", "foo", "bar", clientState);
+        assertEquals(6, numberOfStatementsInMemory());
+        assertEquals(6, numberOfStatementsOnDisk());
 
         // drop a keyspace (prepared statements are removed - syncPreparedStatements() remove should the rows, too)
         execute("DROP KEYSPACE foo");
-        Assert.assertEquals(3, QueryProcessor.preparedStatementsCount());
-        rows = QueryProcessor.executeOnceInternal(queryAll).size();
-        Assert.assertEquals(3, rows);
-
+        assertEquals(3, numberOfStatementsInMemory());
+        assertEquals(3, numberOfStatementsOnDisk());
     }
 
     private void validatePstmts(List<MD5Digest> stmtIds, QueryHandler handler)
     {
-        Assert.assertEquals(5, QueryProcessor.preparedStatementsCount());
+        assertEquals(5, QueryProcessor.preparedStatementsCount());
         QueryOptions optionsStr = QueryOptions.forInternalCalls(Collections.singletonList(UTF8Type.instance.fromString("foobar")));
         QueryOptions optionsInt = QueryOptions.forInternalCalls(Collections.singletonList(Int32Type.instance.decompose(42)));
         validatePstmt(handler, stmtIds.get(0), optionsStr);
@@ -125,7 +129,63 @@ public class PstmtPersistenceTest extends CQLTester
     private static void validatePstmt(QueryHandler handler, MD5Digest stmtId, QueryOptions options)
     {
         ParsedStatement.Prepared prepared = handler.getPrepared(stmtId);
-        Assert.assertNotNull(prepared);
+        assertNotNull(prepared);
         handler.processPrepared(prepared.statement, QueryState.forInternalCalls(), options, Collections.emptyMap(), System.nanoTime());
+    }
+
+    @Test
+    public void testPstmtInvalidation() throws Throwable
+    {
+        ClientState clientState = ClientState.forInternalCalls();
+
+        createTable("CREATE TABLE %s (key int primary key, val int)");
+
+        for (int cnt = 1; cnt < 10000; cnt++)
+        {
+            prepareStatement("INSERT INTO %s (key, val) VALUES (?, ?) USING TIMESTAMP " + cnt, clientState);
+
+            if (numberOfEvictedStatements() > 0)
+            {
+                assertEquals("Number of statements in table and in cache don't match", numberOfStatementsInMemory(), numberOfStatementsOnDisk());
+
+                // prepare a more statements to trigger more evictions
+                for (int cnt2 = 1; cnt2 < 10; cnt2++)
+                    prepareStatement("INSERT INTO %s (key, val) VALUES (?, ?) USING TIMESTAMP " + cnt2, clientState);
+
+                // each new prepared statement should have caused an eviction
+                assertEquals("eviction count didn't increase by the expected number", numberOfEvictedStatements(), 10);
+                assertEquals("Number of statements in table and in cache don't match", numberOfStatementsInMemory(), numberOfStatementsOnDisk());
+
+                return;
+            }
+        }
+
+        fail("Prepared statement eviction does not work");
+    }
+
+    private long numberOfStatementsOnDisk() throws Throwable
+    {
+        UntypedResultSet.Row row = execute("SELECT COUNT(*) FROM " + SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.PREPARED_STATEMENTS).one();
+        return row.getLong("count");
+    }
+
+    private long numberOfStatementsInMemory()
+    {
+        return QueryProcessor.preparedStatementsCount();
+    }
+
+    private long numberOfEvictedStatements()
+    {
+        return QueryProcessor.metrics.preparedStatementsEvicted.getCount();
+    }
+
+    private MD5Digest prepareStatement(String stmt, ClientState clientState)
+    {
+        return prepareStatement(stmt, keyspace(), currentTable(), clientState);
+    }
+
+    private MD5Digest prepareStatement(String stmt, String keyspace, String table, ClientState clientState)
+    {
+        return QueryProcessor.prepare(String.format(stmt, keyspace + "." + table), clientState).statementId;
     }
 }

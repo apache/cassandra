@@ -1889,4 +1889,40 @@ public class CollectionsTest extends CQLTester
         assertRows(execute("SELECT m[1..][..2] FROM %s WHERE id = '1'"),
                    row(map(1F, map(2, "one-two"))));
     }
+
+    @Test
+    public void testInsertingCollectionsWithInvalidElements() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, s frozen<set<tuple<int, text, double>>>)");
+        assertInvalidMessage("Invalid remaining data after end of tuple value",
+                             "INSERT INTO %s (k, s) VALUES (0, ?)",
+                             set(tuple(1, "1", 1.0, 1), tuple(2, "2", 2.0, 2)));
+
+        assertInvalidMessage("Invalid set literal for s: value (1, '1', 1.0, 1) is not of type frozen<tuple<int, text, double>>",
+                             "INSERT INTO %s (k, s) VALUES (0, {(1, '1', 1.0, 1)})");
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, l frozen<list<tuple<int, text, double>>>)");
+        assertInvalidMessage("Invalid remaining data after end of tuple value",
+                             "INSERT INTO %s (k, l) VALUES (0, ?)",
+                             list(tuple(1, "1", 1.0, 1), tuple(2, "2", 2.0, 2)));
+
+        assertInvalidMessage("Invalid list literal for l: value (1, '1', 1.0, 1) is not of type frozen<tuple<int, text, double>>",
+                             "INSERT INTO %s (k, l) VALUES (0, [(1, '1', 1.0, 1)])");
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m frozen<map<tuple<int, text, double>, int>>)");
+        assertInvalidMessage("Invalid remaining data after end of tuple value",
+                             "INSERT INTO %s (k, m) VALUES (0, ?)",
+                             map(tuple(1, "1", 1.0, 1), 1, tuple(2, "2", 2.0, 2), 2));
+
+        assertInvalidMessage("Invalid map literal for m: key (1, '1', 1.0, 1) is not of type frozen<tuple<int, text, double>>",
+                             "INSERT INTO %s (k, m) VALUES (0, {(1, '1', 1.0, 1) : 1})");
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m frozen<map<int, tuple<int, text, double>>>)");
+        assertInvalidMessage("Invalid remaining data after end of tuple value",
+                             "INSERT INTO %s (k, m) VALUES (0, ?)",
+                             map(1, tuple(1, "1", 1.0, 1), 2, tuple(2, "2", 2.0, 2)));
+
+        assertInvalidMessage("Invalid map literal for m: value (1, '1', 1.0, 1) is not of type frozen<tuple<int, text, double>>",
+                             "INSERT INTO %s (k, m) VALUES (0, {1 : (1, '1', 1.0, 1)})");
+    }
 }

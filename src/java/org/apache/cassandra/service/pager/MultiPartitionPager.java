@@ -75,7 +75,8 @@ public class MultiPartitionPager implements QueryPager
 
         pagers = new SinglePartitionPager[group.commands.size() - i];
         // 'i' is on the first non exhausted pager for the previous page (or the first one)
-        pagers[0] = group.commands.get(i).getPager(state, protocolVersion);
+        SinglePartitionReadCommand command = group.commands.get(i);
+        pagers[0] = command.getPager(state, protocolVersion);
 
         // Following ones haven't been started yet
         for (int j = i + 1; j < group.commands.size(); j++)
@@ -84,7 +85,11 @@ public class MultiPartitionPager implements QueryPager
         remaining = state == null ? limit.count() : state.remaining;
     }
 
-    private MultiPartitionPager(SinglePartitionPager[] pagers, DataLimits limit, int nowInSec, int remaining, int current)
+    private MultiPartitionPager(SinglePartitionPager[] pagers,
+                                DataLimits limit,
+                                int nowInSec,
+                                int remaining,
+                                int current)
     {
         this.pagers = pagers;
         this.limit = limit;

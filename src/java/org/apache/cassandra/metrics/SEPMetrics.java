@@ -41,6 +41,8 @@ public class SEPMetrics
     public final Gauge<Long> pendingTasks;
     /** Maximum number of threads before it will start queuing tasks */
     public final Gauge<Integer> maxPoolSize;
+    /** Maximum number of tasks queued before a task get blocked */
+    public final Gauge<Integer> maxTasksQueued;
 
     private MetricNameFactory factory;
 
@@ -85,6 +87,13 @@ public class SEPMetrics
                 return executor.maxWorkers;
             }
         });
+        maxTasksQueued =  Metrics.register(factory.createMetricName("MaxTasksQueued"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return executor.maxTasksQueued;
+            }
+        });
     }
 
     public void release()
@@ -95,5 +104,6 @@ public class SEPMetrics
         Metrics.remove(factory.createMetricName("TotalBlockedTasks"));
         Metrics.remove(factory.createMetricName("CurrentlyBlockedTasks"));
         Metrics.remove(factory.createMetricName("MaxPoolSize"));
+        Metrics.remove(factory.createMetricName("MaxTasksQueued"));
     }
 }

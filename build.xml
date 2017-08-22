@@ -57,7 +57,6 @@
     <property name="test.classlistfile" value="testlist.txt"/>
     <property name="benchmark.name" value=""/>
     <property name="test.methods" value=""/>
-    <property name="test.runners" value="1"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.burn.src" value="${test.dir}/burn"/>
@@ -373,9 +372,9 @@
           <dependency groupId="org.antlr" artifactId="antlr-runtime" version="3.5.2">
             <exclusion groupId="org.antlr" artifactId="stringtemplate"/>
           </dependency>
-          <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.7"/>
-          <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.7"/>
-          <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.7" />
+          <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.25"/>
+          <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.25"/>
+          <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.25" />
           <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.1.3"/>
           <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.1.3"/>
           <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl" version="1.9.2"/>
@@ -395,11 +394,13 @@
           	<exclusion groupId="org.eclipse.jdt" artifactId="core"/>
 		    <exclusion groupId="ant" artifactId="ant"/>
 		    <exclusion groupId="junit" artifactId="junit"/>
+            <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3">
 		    <exclusion groupId="asm" artifactId="asm"/> <!-- this is the outdated version 3.1 -->
+            <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
           </dependency>
-          <dependency groupId="net.java.dev.jna" artifactId="jna" version="4.4.0"/>
+          <dependency groupId="net.java.dev.jna" artifactId="jna" version="4.2.2"/>
 
           <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" version="${jacoco.version}"/>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}"/>
@@ -410,15 +411,15 @@
           <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" version="${byteman.version}"/>
 
 
-          <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.13"/>
-          <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.13"/>
+          <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.19"/>
+          <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.19"/>
 
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
-          <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.0" />
-          <dependency groupId="io.dropwizard.metrics" artifactId="metrics-jvm" version="3.1.0" />
+          <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.5" />
+          <dependency groupId="io.dropwizard.metrics" artifactId="metrics-jvm" version="3.1.5" />
           <dependency groupId="com.addthis.metrics" artifactId="reporter-config3" version="3.0.3" />
           <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
-          <dependency groupId="io.airlift" artifactId="airline" version="0.6" />
+          <dependency groupId="io.airlift" artifactId="airline" version="0.7" />
           <dependency groupId="io.netty" artifactId="netty-all" version="4.0.44.Final" />
           <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" />
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
@@ -427,9 +428,12 @@
             <exclusion groupId="io.netty" artifactId="netty-codec"/>
             <exclusion groupId="io.netty" artifactId="netty-handler"/>
             <exclusion groupId="io.netty" artifactId="netty-transport"/>
+            <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
           </dependency>
           <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj" version="4.4.2" />
-          <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core" version="0.4.4" />
+          <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core" version="0.4.4">
+            <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
+          </dependency>
           <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core-j8" version="0.4.4" />
           <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" version="1.2.0" />
           <dependency groupId="org.fusesource" artifactId="sigar" version="1.6.4">
@@ -502,15 +506,10 @@
       	<dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster"/>
       	<dependency groupId="com.google.code.findbugs" artifactId="jsr305"/>
         <dependency groupId="org.antlr" artifactId="antlr"/>
-        <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded">
-          <exclusion groupId="io.netty" artifactId="netty-buffer"/>
-          <exclusion groupId="io.netty" artifactId="netty-codec"/>
-          <exclusion groupId="io.netty" artifactId="netty-handler"/>
-          <exclusion groupId="io.netty" artifactId="netty-transport"/>
-        </dependency>
+        <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
-        <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core" version="0.4.4" />
-        <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core-j8" version="0.4.4" />
+        <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
+        <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core-j8"/>
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-core"/>
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess"/>
         <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
@@ -524,12 +523,7 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <dependency groupId="junit" artifactId="junit"/>
-        <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded">
-          <exclusion groupId="io.netty" artifactId="netty-buffer"/>
-          <exclusion groupId="io.netty" artifactId="netty-codec"/>
-          <exclusion groupId="io.netty" artifactId="netty-handler"/>
-          <exclusion groupId="io.netty" artifactId="netty-transport"/>
-        </dependency>
+        <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
         <dependency groupId="io.netty" artifactId="netty-all"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
@@ -1552,12 +1546,25 @@
   <scriptdef name="testparallelhelper" language="javascript">
     <attribute name="testdelegate"/>
     <![CDATA[
-        var Integer = java.lang.Integer;
         sep = project.getProperty("path.separator");
         all = project.getProperty("all-test-classes").split(sep);
-        dir = project.getProperty("test.unit.src");
+        runners = project.getProperty("test.runners")
+        cores = project.getProperty("cores.count")
+        mem = project.getProperty("mem.size")
 
-        numRunners = parseInt(project.getProperty("test.runners"));
+        numRunners = 1
+        if (runners != null) // there's test.runners override
+            numRunners = parseInt(runners) || 1;
+        else if (cores != null && mem != null) // only if cores and memory size is set
+            numRunners = Math.min(Math.floor(Math.sqrt(parseInt(cores) || 1)),
+                                  Math.floor((parseInt(mem) || 1)/(4*1024*1024*1024)));
+
+        if (numRunners < 1)
+            numRunners = 1
+
+        var echo = project.createTask("echo");
+        echo.setMessage("Number of test runners: " + numRunners);
+        echo.perform();
 
         var p = project.createTask('parallel');
         p.setThreadCount(numRunners);
@@ -1579,7 +1586,42 @@
     ]]>
   </scriptdef>
 
-  <target name="test" depends="build-test,stress-build" description="Parallel Test Runner">
+  <target name="get-cores">
+    <property environment="env"/>
+    <!-- support for Windows -->
+    <condition property="cores.count" value="${env.NUMBER_OF_PROCESSORS}">
+      <os family="windows" />
+    </condition>
+    <!-- support for Linux and Solaris (package SUNWgnu-coreutils is required) -->
+    <exec executable="nproc" outputproperty="cores.count" os="Linux,SunOS,Solaris" failifexecutionfails="false">
+      <arg value="--all"/>
+    </exec>
+    <!-- support for Mac OS X -->
+    <exec executable="sysctl" outputproperty="cores.count" os="Mac,Mac OS X,Darwin" failifexecutionfails="false">
+      <arg value="-n"/>
+      <arg value="hw.ncpu"/>
+    </exec>
+    <echo message="Number of cores: ${cores.count}"/>
+  </target>
+
+  <target name="get-mem">
+    <condition property="mem.size" value="unknown">
+      <os family="windows" />
+    </condition>
+    <!-- support for Linux and Solaris (package SUNWgnu-coreutils is required) -->
+    <exec executable="bash" outputproperty="mem.size" os="Linux,SunOS,Solaris" failifexecutionfails="false">
+      <arg value="-c"/>
+      <arg value="free -b | grep Mem: | awk '{print $2}'"/>
+    </exec>
+    <!-- support for Mac OS X -->
+    <exec executable="sysctl" outputproperty="mem.size" os="Mac,Mac OS X,Darwin" failifexecutionfails="false">
+      <arg value="-n"/>
+      <arg value="hw.memsize"/>
+    </exec>
+    <echo message="Mem size : ${mem.size}"/>
+  </target>
+
+  <target name="test" depends="build-test,get-cores,get-mem,stress-build" description="Parallel Test Runner">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
@@ -1821,4 +1863,5 @@
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
   </target>
+
 </project>

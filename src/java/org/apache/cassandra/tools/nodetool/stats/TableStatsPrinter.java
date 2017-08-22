@@ -21,6 +21,8 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.io.PrintStream;
 import java.util.List;
 
+import org.apache.cassandra.utils.FBUtilities;
+
 public class TableStatsPrinter
 {
     public static StatsPrinter from(String format)
@@ -72,7 +74,7 @@ public class TableStatsPrinter
                     if (table.offHeapUsed)
                         out.println("\t\tOff heap memory used (total): " + table.offHeapMemoryUsedTotal);
                     out.println("\t\tSSTable Compression Ratio: " + table.sstableCompressionRatio);
-                    out.println("\t\tNumber of keys (estimate): " + table.numberOfKeysEstimate);
+                    out.println("\t\tNumber of partitions (estimate): " + table.numberOfPartitionsEstimate);
                     out.println("\t\tMemtable cell count: " + table.memtableCellCount);
                     out.println("\t\tMemtable data size: " + table.memtableDataSize);
 
@@ -85,6 +87,10 @@ public class TableStatsPrinter
                     out.printf("\t\tLocal write latency: %01.3f ms%n", table.localWriteLatencyMs);
                     out.println("\t\tPending flushes: " + table.pendingFlushes);
                     out.println("\t\tPercent repaired: " + table.percentRepaired);
+
+                    out.println("\t\tBytes repaired: " + FBUtilities.prettyPrintMemory(table.bytesRepaired));
+                    out.println("\t\tBytes unrepaired: " + FBUtilities.prettyPrintMemory(table.bytesUnrepaired));
+                    out.println("\t\tBytes pending repair: " + FBUtilities.prettyPrintMemory(table.bytesPendingRepair));
 
                     out.println("\t\tBloom filter false positives: " + table.bloomFilterFalsePositives);
                     out.printf("\t\tBloom filter false ratio: %01.5f%n", table.bloomFilterFalseRatio);

@@ -304,11 +304,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 break;
         }
 
-        // FIXME: Should really be a single announce for the table and views.
-        MigrationManager.announceTableUpdate(builder.build(), isLocalOnly);
-        for (ViewMetadata viewUpdate : viewUpdates)
-            MigrationManager.announceViewUpdate(viewUpdate, isLocalOnly);
-
+        MigrationManager.announceTableUpdate(builder.build(), viewUpdates, isLocalOnly);
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 

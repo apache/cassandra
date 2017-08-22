@@ -142,7 +142,7 @@ public class Config
     public int internode_send_buff_size_in_bytes = 0;
     public int internode_recv_buff_size_in_bytes = 0;
 
-    public boolean start_native_transport = false;
+    public boolean start_native_transport = true;
     public int native_transport_port = 9042;
     public Integer native_transport_port_ssl = null;
     public int native_transport_max_threads = 128;
@@ -348,6 +348,9 @@ public class Config
     public volatile boolean back_pressure_enabled = false;
     public volatile ParameterizedClass back_pressure_strategy;
 
+    public RepairCommandPoolFullStrategy repair_command_pool_full_strategy = RepairCommandPoolFullStrategy.queue;
+    public int repair_command_pool_size = concurrent_validations;
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
@@ -423,6 +426,12 @@ public class Config
     {
         ssd,
         spinning
+    }
+
+    public enum RepairCommandPoolFullStrategy
+    {
+        queue,
+        reject
     }
 
     private static final List<String> SENSITIVE_KEYS = new ArrayList<String>() {{

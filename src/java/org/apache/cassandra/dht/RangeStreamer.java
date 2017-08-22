@@ -192,9 +192,10 @@ public class RangeStreamer
         for (Map.Entry<Range<Token>, InetAddress> entry : rangesForKeyspace.entries())
             logger.info("{}: range {} exists on {} for keyspace {}", description, entry.getKey(), entry.getValue(), keyspaceName);
 
-
-        Multimap<InetAddress, Range<Token>> rangeFetchMap = useStrictSource ? getRangeFetchMap(rangesForKeyspace, sourceFilters, keyspaceName, useStrictConsistency) :
-                getOptimizedRangeFetchMap(rangesForKeyspace, sourceFilters, keyspaceName);
+        AbstractReplicationStrategy strat = Keyspace.open(keyspaceName).getReplicationStrategy();
+        Multimap<InetAddress, Range<Token>> rangeFetchMap = useStrictSource || strat == null || strat.getReplicationFactor() == 1
+                                                            ? getRangeFetchMap(rangesForKeyspace, sourceFilters, keyspaceName, useStrictConsistency)
+                                                            : getOptimizedRangeFetchMap(rangesForKeyspace, sourceFilters, keyspaceName);
 
         for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : rangeFetchMap.asMap().entrySet())
         {

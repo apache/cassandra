@@ -129,6 +129,12 @@ public class CompactionManager implements CompactionManagerMBean
 
     private final RateLimiter compactionRateLimiter = RateLimiter.create(Double.MAX_VALUE);
 
+    @VisibleForTesting
+    CompactionMetrics getMetrics()
+    {
+        return metrics;
+    }
+
     /**
      * Gets compaction rate limiter.
      * Rate unit is bytes per sec.
@@ -592,16 +598,19 @@ public class CompactionManager implements CompactionManagerMBean
             }
         };
 
-        ListenableFutureTask<?> task = ListenableFutureTask.create(runnable, null);
+        ListenableFuture<?> task = null;
         try
         {
-            executor.submitIfRunning(task, "pending anticompaction");
+            task = executor.submitIfRunning(runnable, "pending anticompaction");
             return task;
         }
         finally
         {
-            if (task.isCancelled())
+            if (task == null || task.isCancelled())
+            {
                 sstables.release();
+                txn.abort();
+            }
         }
     }
 
@@ -625,24 +634,24 @@ public class CompactionManager implements CompactionManagerMBean
                                       UUID pendingRepair,
                                       UUID parentRepairSession) throws InterruptedException, IOException
     {
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(parentRepairSession);
-        Preconditions.checkArgument(!prs.isPreview(), "Cannot anticompact for previews");
-
-        logger.info("{} Starting anticompaction for {}.{} on {}/{} sstables", PreviewKind.NONE.logPrefix(parentRepairSession), cfs.keyspace.getName(), cfs.getTableName(), validatedForRepair.size(), cfs.getLiveSSTables());
-        logger.trace("{} Starting anticompaction for ranges {}", PreviewKind.NONE.logPrefix(parentRepairSession), ranges);
-        Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
-        Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();
-        // we should only notify that repair status changed if it actually did:
-        Set<SSTableReader> mutatedRepairStatusToNotify = new HashSet<>();
-        Map<SSTableReader, Boolean> wasRepairedBefore = new HashMap<>();
-        for (SSTableReader sstable : sstables)
-            wasRepairedBefore.put(sstable, sstable.isRepaired());
-
-        Set<SSTableReader> nonAnticompacting = new HashSet<>();
-
-        Iterator<SSTableReader> sstableIterator = sstables.iterator();
         try
         {
+            ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(parentRepairSession);
+            Preconditions.checkArgument(!prs.isPreview(), "Cannot anticompact for previews");
+
+            logger.info("{} Starting anticompaction for {}.{} on {}/{} sstables", PreviewKind.NONE.logPrefix(parentRepairSession), cfs.keyspace.getName(), cfs.getTableName(), validatedForRepair.size(), cfs.getLiveSSTables().size());
+            logger.trace("{} Starting anticompaction for ranges {}", PreviewKind.NONE.logPrefix(parentRepairSession), ranges);
+            Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
+            Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();
+            // we should only notify that repair status changed if it actually did:
+            Set<SSTableReader> mutatedRepairStatusToNotify = new HashSet<>();
+            Map<SSTableReader, Boolean> wasRepairedBefore = new HashMap<>();
+            for (SSTableReader sstable : sstables)
+                wasRepairedBefore.put(sstable, sstable.isRepaired());
+
+            Set<SSTableReader> nonAnticompacting = new HashSet<>();
+
+            Iterator<SSTableReader> sstableIterator = sstables.iterator();
             List<Range<Token>> normalizedRanges = Range.normalize(ranges);
 
             while (sstableIterator.hasNext())
@@ -1312,9 +1321,6 @@ public class CompactionManager implements CompactionManagerMBean
         Refs<SSTableReader> sstables = null;
         try
         {
-
-            int gcBefore;
-            int nowInSec = FBUtilities.nowInSeconds();
             UUID parentRepairSessionId = validator.desc.parentSessionId;
             String snapshotName;
             boolean isGlobalSnapshotValidation = cfs.snapshotExists(parentRepairSessionId.toString());
@@ -1330,13 +1336,6 @@ public class CompactionManager implements CompactionManagerMBean
                 // note that we populate the parent repair session when creating the snapshot, meaning the sstables in the snapshot are the ones we
                 // are supposed to validate.
                 sstables = cfs.getSnapshotSSTableReaders(snapshotName);
-
-
-                // Computing gcbefore based on the current time wouldn't be very good because we know each replica will execute
-                // this at a different time (that's the whole purpose of repair with snaphsot). So instead we take the creation
-                // time of the snapshot, which should give us roughtly the same time on each replica (roughtly being in that case
-                // 'as good as in the non-snapshot' case)
-                gcBefore = cfs.gcBefore((int)(cfs.getSnapshotCreationTime(snapshotName) / 1000));
             }
             else
             {
@@ -1348,10 +1347,6 @@ public class CompactionManager implements CompactionManagerMBean
                 sstables = getSSTablesToValidate(cfs, validator);
                 if (sstables == null)
                     return; // this means the parent repair session was removed - the repair session failed on another node and we removed it
-                if (validator.gcBefore > 0)
-                    gcBefore = validator.gcBefore;
-                else
-                    gcBefore = getDefaultGcBefore(cfs, nowInSec);
             }
 
             // Create Merkle trees suitable to hold estimated partitions for the given ranges.
@@ -1360,8 +1355,8 @@ public class CompactionManager implements CompactionManagerMBean
             long start = System.nanoTime();
             long partitionCount = 0;
             try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables, validator.desc.ranges);
-                 ValidationCompactionController controller = new ValidationCompactionController(cfs, gcBefore);
-                 CompactionIterator ci = new ValidationCompactionIterator(scanners.scanners, controller, nowInSec, metrics))
+                 ValidationCompactionController controller = new ValidationCompactionController(cfs, getDefaultGcBefore(cfs, validator.nowInSec));
+                 CompactionIterator ci = new ValidationCompactionIterator(scanners.scanners, controller, validator.nowInSec, metrics))
             {
                 // validate the CF as we iterate over it
                 validator.prepare(cfs, tree);
@@ -1619,7 +1614,7 @@ public class CompactionManager implements CompactionManagerMBean
     /**
      * Is not scheduled, because it is performing disjoint work from sstable compaction.
      */
-    public Future<?> submitIndexBuild(final SecondaryIndexBuilder builder)
+    public ListenableFuture<?> submitIndexBuild(final SecondaryIndexBuilder builder)
     {
         Runnable runnable = new Runnable()
         {

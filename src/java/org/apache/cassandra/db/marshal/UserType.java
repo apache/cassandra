@@ -30,6 +30,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.UserTypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
@@ -49,6 +51,7 @@ public class UserType extends TupleType
     private final List<FieldIdentifier> fieldNames;
     private final List<String> stringFieldNames;
     private final boolean isMultiCell;
+    private final UserTypeSerializer serializer;
 
     public UserType(String keyspace, ByteBuffer name, List<FieldIdentifier> fieldNames, List<AbstractType<?>> fieldTypes, boolean isMultiCell)
     {
@@ -60,8 +63,14 @@ public class UserType extends TupleType
         this.stringFieldNames = new ArrayList<>(fieldNames.size());
         this.isMultiCell = isMultiCell;
 
-        for (FieldIdentifier fieldName : fieldNames)
-            stringFieldNames.add(fieldName.toString());
+        LinkedHashMap<String , TypeSerializer<?>> fieldSerializers = new LinkedHashMap<>(fieldTypes.size());
+        for (int i = 0, m = fieldNames.size(); i < m; i++)
+        {
+            String stringFieldName = fieldNames.get(i).toString();
+            stringFieldNames.add(stringFieldName);
+            fieldSerializers.put(stringFieldName, fieldTypes.get(i).getSerializer());
+        }
+        this.serializer = new UserTypeSerializer(fieldSerializers);
     }
 
     public static UserType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
@@ -187,38 +196,6 @@ public class UserType extends TupleType
         {
             validate(cell.value());
         }
-    }
-
-    // Note: the only reason we override this is to provide nicer error message, but since that's not that much code...
-    @Override
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        ByteBuffer input = bytes.duplicate();
-        for (int i = 0; i < size(); i++)
-        {
-            // we allow the input to have less fields than declared so as to support field addition.
-            if (!input.hasRemaining())
-                return;
-
-            if (input.remaining() < 4)
-                throw new MarshalException(String.format("Not enough bytes to read size of %dth field %s", i, fieldNameAsString(i)));
-
-            int size = input.getInt();
-
-            // size < 0 means null value
-            if (size < 0)
-                continue;
-
-            if (input.remaining() < size)
-                throw new MarshalException(String.format("Not enough bytes to read %dth field %s", i, fieldNameAsString(i)));
-
-            ByteBuffer field = ByteBufferUtil.readBytes(input, size);
-            types.get(i).validate(field);
-        }
-
-        // We're allowed to get less fields than declared, but not more
-        if (input.hasRemaining())
-            throw new MarshalException("Invalid remaining data after end of UDT value");
     }
 
     @Override
@@ -429,5 +406,11 @@ public class UserType extends TupleType
     public String toCQLString()
     {
         return String.format("%s.%s", ColumnIdentifier.maybeQuote(keyspace), ColumnIdentifier.maybeQuote(getNameAsString()));
+    }
+
+    @Override
+    public TypeSerializer<ByteBuffer> getSerializer()
+    {
+        return serializer;
     }
 }

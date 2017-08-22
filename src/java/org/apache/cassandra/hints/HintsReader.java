@@ -240,7 +240,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                             descriptor.fileName());
                 input.skipBytes(Ints.checkedCast(size - input.bytesPastLimit()));
 
-                return null;
+                hint = null; // set the return value to null and let following code to update/check the CRC
             }
 
             if (input.checkCrc())

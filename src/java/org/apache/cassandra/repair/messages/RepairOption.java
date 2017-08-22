@@ -48,6 +48,7 @@ public class RepairOption
     public static final String TRACE_KEY = "trace";
     public static final String SUB_RANGE_REPAIR_KEY = "sub_range_repair";
     public static final String PULL_REPAIR_KEY = "pullRepair";
+    public static final String FORCE_REPAIR_KEY = "forceRepair";
     public static final String PREVIEW = "previewKind";
 
     // we don't want to push nodes too much for repair
@@ -125,6 +126,11 @@ public class RepairOption
      *             This is only allowed if exactly 2 hosts are specified along with a token range that they share.</td>
      *             <td>false</td>
      *         </tr>
+     *         <tr>
+     *             <td>forceRepair</td>
+     *             <td>"true" if the repair should continue, even if one of the replicas involved is down.
+     *             <td>false</td>
+     *         </tr>
      *     </tbody>
      * </table>
      *
@@ -140,6 +146,7 @@ public class RepairOption
         boolean incremental = Boolean.parseBoolean(options.get(INCREMENTAL_KEY));
         PreviewKind previewKind = PreviewKind.valueOf(options.getOrDefault(PREVIEW, PreviewKind.NONE.toString()));
         boolean trace = Boolean.parseBoolean(options.get(TRACE_KEY));
+        boolean force = Boolean.parseBoolean(options.get(FORCE_REPAIR_KEY));
         boolean pullRepair = Boolean.parseBoolean(options.get(PULL_REPAIR_KEY));
 
         int jobThreads = 1;
@@ -178,7 +185,7 @@ public class RepairOption
             }
         }
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, previewKind);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, force, previewKind);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -249,6 +256,11 @@ public class RepairOption
             throw new IllegalArgumentException("Incremental repairs cannot be run against a subset of tokens or ranges");
         }
 
+        if (option.isIncremental() && option.isForcedRepair())
+        {
+            throw new IllegalArgumentException("Cannot force incremental repair");
+        }
+
         return option;
     }
 
@@ -259,6 +271,7 @@ public class RepairOption
     private final int jobThreads;
     private final boolean isSubrangeRepair;
     private final boolean pullRepair;
+    private final boolean forceRepair;
     private final PreviewKind previewKind;
 
     private final Collection<String> columnFamilies = new HashSet<>();
@@ -266,7 +279,7 @@ public class RepairOption
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, PreviewKind previewKind)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean forceRepair, PreviewKind previewKind)
     {
         if (FBUtilities.isWindows &&
             (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard) &&
@@ -285,6 +298,7 @@ public class RepairOption
         this.ranges.addAll(ranges);
         this.isSubrangeRepair = isSubrangeRepair;
         this.pullRepair = pullRepair;
+        this.forceRepair = forceRepair;
         this.previewKind = previewKind;
     }
 
@@ -311,6 +325,11 @@ public class RepairOption
     public boolean isPullRepair()
     {
         return pullRepair;
+    }
+
+    public boolean isForcedRepair()
+    {
+        return forceRepair;
     }
 
     public int getJobThreads()
@@ -376,6 +395,7 @@ public class RepairOption
                ", previewKind: " + previewKind +
                ", # of ranges: " + ranges.size() +
                ", pull repair: " + pullRepair +
+               ", force repair: " + forceRepair +
                ')';
     }
 
@@ -393,6 +413,7 @@ public class RepairOption
         options.put(TRACE_KEY, Boolean.toString(trace));
         options.put(RANGES_KEY, Joiner.on(",").join(ranges));
         options.put(PULL_REPAIR_KEY, Boolean.toString(pullRepair));
+        options.put(FORCE_REPAIR_KEY, Boolean.toString(forceRepair));
         options.put(PREVIEW, previewKind.toString());
         return options;
     }

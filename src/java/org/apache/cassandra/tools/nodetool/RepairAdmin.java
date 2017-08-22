@@ -26,8 +26,8 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
-import io.airlift.command.Command;
-import io.airlift.command.Option;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 import org.apache.cassandra.repair.consistent.LocalSessionInfo;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
 import org.apache.cassandra.tools.NodeProbe;
