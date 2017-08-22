@@ -23,7 +23,7 @@ CAPI-Rowcache
 
 The Coherent Accelerator Process Interface (CAPI) is a general term for the infrastructure of attaching a Coherent accelerator to an IBM POWER system. A key innovation in IBM POWER8’s open architecture is the CAPI. It provides a high bandwidth, low latency path between external devices, the POWER8 core, and the system’s open memory architecture. IBM Data Engine for NoSQL is an integrated platform for large and fast growing NoSQL data stores. It builds on the CAPI capability of POWER8 systems and provides super-fast access to large flash storage capacity and addresses the challenges associated with typical x86 server based scale-out deployments.
 
-The official page for the `CAPI-Rowcache plugin <https://github.com/hhorii/capi-rowcache>`__ contains further details how to build/run/download the plugin.
+The official page for the `CAPI-Rowcache plugin <https://github.com/ppc64le/capi-rowcache>`__ contains further details how to build/run/download the plugin.
 
 
 Stratio’s Cassandra Lucene Index
