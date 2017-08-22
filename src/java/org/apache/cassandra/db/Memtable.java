@@ -75,6 +75,8 @@ import org.apache.cassandra.utils.memory.MemtablePool;
 import org.apache.cassandra.utils.memory.NativePool;
 import org.apache.cassandra.utils.memory.SlabPool;
 
+import static org.apache.cassandra.utils.Throwables.maybeFail;
+
 public class Memtable implements Comparable<Memtable>
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
@@ -319,6 +321,12 @@ public class Memtable implements Comparable<Memtable>
         if (boundaries == null)
             return Collections.singletonList(new FlushRunnable(txn));
 
+        return createFlushRunnables(boundaries, locations, txn);
+    }
+
+    @VisibleForTesting
+    List<FlushRunnable> createFlushRunnables(List<PartitionPosition> boundaries, List<Directories.DataDirectory> locations, LifecycleTransaction txn)
+    {
         List<FlushRunnable> runnables = new ArrayList<>(boundaries.size());
         PartitionPosition rangeStart = cfs.getPartitioner().getMinimumToken().minKeyBound();
         try
@@ -333,16 +341,11 @@ public class Memtable implements Comparable<Memtable>
         }
         catch (Throwable e)
         {
-            throw Throwables.propagate(abortRunnables(runnables, e));
-        }
-    }
+            for (Memtable.FlushRunnable runnable : runnables)
+                e = runnable.abort(e);
 
-    public Throwable abortRunnables(List<FlushRunnable> runnables, Throwable t)
-    {
-        if (runnables != null)
-            for (FlushRunnable runnable : runnables)
-                t = runnable.writer.abort(t);
-        return t;
+            throw Throwables.propagate(e);
+        }
     }
 
     public String toString()
@@ -411,6 +414,22 @@ public class Memtable implements Comparable<Memtable>
         liveDataSize.addAndGet((long) 1024 * 1024 * 1024 * 1024 * 1024);
     }
 
+    /**
+     * The valid states for {@link FlushRunnable} writers. The thread writing the contents
+     * will transition from IDLE -> RUNNING and back to IDLE when finished using the writer
+     * or from ABORTING -> ABORTED if another thread has transitioned from RUNNING -> ABORTING.
+     * We can also transition directly from IDLE -> ABORTED. Whichever threads transitions
+     * to ABORTED is responsible to abort the writer.
+     */
+    @VisibleForTesting
+    enum FlushRunnableWriterState
+    {
+        IDLE, // the runnable is idle, either not yet started or completed but with the writer waiting to be committed
+        RUNNING, // the runnable is executing, therefore the writer cannot be aborted or else a SEGV may ensue
+        ABORTING, // an abort request has been issued, this only happens if abort() is called whilst RUNNING
+        ABORTED  // the writer has been aborted, no resources will be leaked
+    }
+
     class FlushRunnable implements Callable<SSTableMultiWriter>
     {
         private final long estimatedSize;
@@ -422,6 +441,8 @@ public class Memtable implements Comparable<Memtable>
         // keeping these to be able to log what we are actually flushing
         private final PartitionPosition from;
         private final PartitionPosition to;
+
+        private final AtomicReference<FlushRunnableWriterState> state;
 
         FlushRunnable(PartitionPosition from, PartitionPosition to, Directories.DataDirectory flushLocation, LifecycleTransaction txn)
         {
@@ -439,6 +460,8 @@ public class Memtable implements Comparable<Memtable>
             this.from = from;
             this.to = to;
             long keySize = 0;
+            state = new AtomicReference<>(FlushRunnableWriterState.IDLE);
+
             for (PartitionPosition key : toFlush.keySet())
             {
                 //  make sure we don't write non-sensical keys
@@ -456,7 +479,6 @@ public class Memtable implements Comparable<Memtable>
                 writer = createFlushWriter(txn, cfs.newSSTableDescriptor(getDirectories().getWriteableLocationAsFile(estimatedSize)), columnsCollector.get(), statsCollector.get());
             else
                 writer = createFlushWriter(txn, cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(flushLocation)), columnsCollector.get(), statsCollector.get());
-
         }
 
         protected Directories getDirectories()
@@ -466,44 +488,96 @@ public class Memtable implements Comparable<Memtable>
 
         private void writeSortedContents()
         {
-            logger.info("Writing {}, flushed range = ({}, {}]", Memtable.this.toString(), from, to);
-
-            boolean trackContention = logger.isTraceEnabled();
-            int heavilyContendedRowCount = 0;
-            // (we can't clear out the map as-we-go to free up memory,
-            //  since the memtable is being used for queries in the "pending flush" category)
-            for (AtomicBTreePartition partition : toFlush.values())
+            if (!state.compareAndSet(FlushRunnableWriterState.IDLE, FlushRunnableWriterState.RUNNING))
             {
-                // Each batchlog partition is a separate entry in the log. And for an entry, we only do 2
-                // operations: 1) we insert the entry and 2) we delete it. Further, BL data is strictly local,
-                // we don't need to preserve tombstones for repair. So if both operation are in this
-                // memtable (which will almost always be the case if there is no ongoing failure), we can
-                // just skip the entry (CASSANDRA-4667).
-                if (isBatchLogTable && !partition.partitionLevelDeletion().isLive() && partition.hasRows())
-                    continue;
+                logger.debug("Failed to write {}, flushed range = ({}, {}], state: {}",
+                             Memtable.this.toString(), from, to, state);
+                return;
+            }
 
-                if (trackContention && partition.useLock())
-                    heavilyContendedRowCount++;
+            logger.info("Writing {}, flushed range = ({}, {}], state: {}",
+                        Memtable.this.toString(), from, to, state);
 
-                if (!partition.isEmpty())
+            int heavilyContendedRowCount = 0;
+            try
+            {
+                boolean trackContention = logger.isTraceEnabled();
+                // (we can't clear out the map as-we-go to free up memory,
+                //  since the memtable is being used for queries in the "pending flush" category)
+                for (AtomicBTreePartition partition : toFlush.values())
                 {
-                    try (UnfilteredRowIterator iter = partition.unfilteredIterator())
+                    if (state.get() == FlushRunnableWriterState.ABORTING)
+                        break;
+
+                    // Each batchlog partition is a separate entry in the log. And for an entry, we only do 2
+                    // operations: 1) we insert the entry and 2) we delete it. Further, BL data is strictly local,
+                    // we don't need to preserve tombstones for repair. So if both operation are in this
+                    // memtable (which will almost always be the case if there is no ongoing failure), we can
+                    // just skip the entry (CASSANDRA-4667).
+                    if (isBatchLogTable && !partition.partitionLevelDeletion().isLive() && partition.hasRows())
+                        continue;
+
+                    if (trackContention && partition.useLock())
+                        heavilyContendedRowCount++;
+
+                    if (!partition.isEmpty())
                     {
-                        writer.append(iter);
+                        try (UnfilteredRowIterator iter = partition.unfilteredIterator())
+                        {
+                            writer.append(iter);
+                        }
                     }
                 }
             }
+            finally
+            {
+                while (true)
+                {
+                    if (state.compareAndSet(FlushRunnableWriterState.RUNNING, FlushRunnableWriterState.IDLE))
+                    {
+                        long bytesFlushed = writer.getFilePointer();
+                        logger.info("Completed flushing {} ({}) for commitlog position {}",
+                                    writer.getFilename(),
+                                    FBUtilities.prettyPrintMemory(bytesFlushed),
+                                    commitLogUpperBound);
+                        // Update the metrics
+                        cfs.metric.bytesFlushed.inc(bytesFlushed);
 
-            long bytesFlushed = writer.getFilePointer();
-            logger.info("Completed flushing {} ({}) for commitlog position {}",
-                         writer.getFilename(),
-                         FBUtilities.prettyPrintMemory(bytesFlushed),
-                         commitLogUpperBound);
-            // Update the metrics
-            cfs.metric.bytesFlushed.inc(bytesFlushed);
+                        if (heavilyContendedRowCount > 0)
+                            logger.trace("High update contention in {}/{} partitions of {} ", heavilyContendedRowCount, toFlush.size(), Memtable.this);
+                        break;
+                    }
+                    else if (state.compareAndSet(FlushRunnableWriterState.ABORTING, FlushRunnableWriterState.ABORTED))
+                    {
+                        logger.debug("Flushing of {} aborted", writer.getFilename());
+                        maybeFail(writer.abort(null));
+                        break;
+                    }
+                }
+            }
+        }
 
-            if (heavilyContendedRowCount > 0)
-                logger.trace("High update contention in {}/{} partitions of {} ", heavilyContendedRowCount, toFlush.size(), Memtable.this);
+        public Throwable abort(Throwable throwable)
+        {
+            while (true)
+            {
+                if (state.compareAndSet(FlushRunnableWriterState.IDLE, FlushRunnableWriterState.ABORTED))
+                {
+                    logger.debug("Flushing of {} aborted", writer.getFilename());
+                    return writer.abort(throwable);
+                }
+                else if (state.compareAndSet(FlushRunnableWriterState.RUNNING, FlushRunnableWriterState.ABORTING))
+                {
+                    // thread currently executing writeSortedContents() will take care of aborting and throw any exceptions
+                    return throwable;
+                }
+            }
+        }
+
+        @VisibleForTesting
+        FlushRunnableWriterState state()
+        {
+            return state.get();
         }
 
         public SSTableMultiWriter createFlushWriter(LifecycleTransaction txn,

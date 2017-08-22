@@ -95,6 +95,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
+import static org.apache.cassandra.utils.Throwables.perform;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -1132,12 +1133,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     if (flushNonCf2i)
                         indexManager.flushAllNonCFSBackedIndexesBlocking();
 
+                    // It may be worthwhile to add an early abort mechanism here if one of the futures throws.
+                    // In such a case this code will run the other threads to completion and only then abort the operation.
                     flushResults = Lists.newArrayList(FBUtilities.waitOnFutures(futures));
                 }
                 catch (Throwable t)
                 {
-                    t = memtable.abortRunnables(flushRunnables, t);
+                    logger.error("Flushing {} failed with error", memtable.toString(), t);
+                    if (flushRunnables != null)
+                    {
+                        for (Memtable.FlushRunnable runnable : flushRunnables)
+                            t = runnable.abort(t);
+                    }
+
+                    // wait for any flush runnables that were submitted (after aborting they should complete immediately)
+                    // this ensures that the writers are aborted by FlushRunnable.writeSortedContents(), in the worst
+                    // case we'll repeat the same exception twice if the initial exception was thrown whilst waiting
+                    // on a future
+                    t = perform(t, () -> FBUtilities.waitOnFutures(futures));
+
+                    //finally abort the transaction
                     t = txn.abort(t);
+
+                    // and re-throw
                     throw Throwables.propagate(t);
                 }
 
