@@ -21,12 +21,10 @@ package org.apache.cassandra.locator;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.EnumMap;
 import java.util.Map;
 
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -37,8 +35,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.OutboundTcpConnectionPool;
 import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
@@ -100,22 +96,6 @@ public class EC2SnitchTest
         InetAddress local = InetAddress.getByName("127.0.0.1");
         assertEquals("us-east-2", snitch.getDatacenter(local));
         assertEquals("2d", snitch.getRack(local));
-    }
-
-    @Test
-    public void testEc2MRSnitch() throws UnknownHostException
-    {
-        InetAddress me = InetAddress.getByName("127.0.0.2");
-        InetAddress com_ip = InetAddress.getByName("127.0.0.3");
-
-        OutboundTcpConnectionPool pool = MessagingService.instance().getConnectionPool(me);
-        Assert.assertEquals(me, pool.endPoint());
-        pool.reset(com_ip);
-        Assert.assertEquals(com_ip, pool.endPoint());
-
-        MessagingService.instance().destroyConnectionPool(me);
-        pool = MessagingService.instance().getConnectionPool(me);
-        Assert.assertEquals(com_ip, pool.endPoint());
     }
 
     @AfterClass

@@ -316,8 +316,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
     }
 
     /**
-     * Called from {@link org.apache.cassandra.net.OutboundTcpConnection} for non-local traces (traces
-     * that are not initiated by local node == coordinator).
+     * Called for non-local traces (traces that are not initiated by local node == coordinator).
      */
     public abstract void trace(ByteBuffer sessionId, String message, int ttl);
 }

@@ -192,7 +192,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
             throw new ConfigurationException(String.format("Snitch definitions at %s do not define a location for " +
                                                            "this node's broadcast address %s, nor does it provides a default",
                                                            SNITCH_PROPERTIES_FILENAME, broadcastAddress));
-        // OutboundTcpConnectionPool.getEndpoint() converts our broadcast address to local,
+        // internode messaging code converts our broadcast address to local,
         // make sure we can be found at that as well.
         InetAddress localAddress = FBUtilities.getLocalAddress();
         if (!localAddress.equals(broadcastAddress) && !reloadedMap.containsKey(localAddress))

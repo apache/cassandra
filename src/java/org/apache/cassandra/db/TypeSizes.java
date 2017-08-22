@@ -28,6 +28,7 @@ public final class TypeSizes
     private TypeSizes(){}
 
     private static final int BOOL_SIZE = 1;
+    private static final int BYTE_SIZE = 1;
     private static final int SHORT_SIZE = 2;
     private static final int INT_SIZE = 4;
     private static final int LONG_SIZE = 8;
@@ -76,6 +77,11 @@ public final class TypeSizes
     public static int sizeof(boolean value)
     {
         return BOOL_SIZE;
+    }
+
+    public static int sizeof(byte value)
+    {
+        return BYTE_SIZE;
     }
 
     public static int sizeof(short value)

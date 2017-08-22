@@ -17,15 +17,13 @@
  */
 package org.apache.cassandra.config;
 
-import javax.net.ssl.SSLSocketFactory;
-
 public abstract class EncryptionOptions
 {
     public String keystore = "conf/.keystore";
     public String keystore_password = "cassandra";
     public String truststore = "conf/.truststore";
     public String truststore_password = "cassandra";
-    public String[] cipher_suites = ((SSLSocketFactory)SSLSocketFactory.getDefault()).getDefaultCipherSuites();
+    public String[] cipher_suites = {};
     public String protocol = "TLS";
     public String algorithm = "SunX509";
     public String store_type = "JKS";
