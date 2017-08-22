@@ -1,4 +1,5 @@
 4.0
+ * Reduce memory copies and object creations when acting on ByteBufs (CASSANDRA-13789)
  * simplify mx4j configuration (Cassandra-13578)
  * Fix trigger example on 4.0 (CASSANDRA-13796)
  * force minumum timeout value (CASSANDRA-9375)
