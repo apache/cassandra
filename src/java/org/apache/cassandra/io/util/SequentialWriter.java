@@ -384,6 +384,13 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         return txnProxy.commit(accumulate);
     }
 
+    /**
+     * Stop the operation after errors, i.e. close and release all held resources.
+     *
+     * Do not use this to interrupt a write operation running in another thread.
+     * This is thread-unsafe, releasing and cleaning the buffer while it is being written can have disastrous
+     * consequences (e.g. SIGSEGV).
+     */
     public final Throwable abort(Throwable accumulate)
     {
         return txnProxy.abort(accumulate);
