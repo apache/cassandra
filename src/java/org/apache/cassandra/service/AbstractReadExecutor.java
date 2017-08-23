@@ -18,8 +18,10 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
@@ -63,12 +65,15 @@ public abstract class AbstractReadExecutor
     protected final List<InetAddress> targetReplicas;
     protected final ReadCallback handler;
     protected final TraceState traceState;
+    protected final Optional<InetAddress> spareReadRepairNode;
+
     protected final ColumnFamilyStore cfs;
 
-    AbstractReadExecutor(Keyspace keyspace, ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> targetReplicas, long queryStartNanoTime)
+    AbstractReadExecutor(Keyspace keyspace, ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> targetReplicas, long queryStartNanoTime, Optional<InetAddress> spareReadRepairNode)
     {
         this.command = command;
         this.targetReplicas = targetReplicas;
+        this.spareReadRepairNode = spareReadRepairNode;
         this.handler = new ReadCallback(new DigestResolver(keyspace, command, consistencyLevel, targetReplicas.size()), consistencyLevel, command, targetReplicas, queryStartNanoTime);
         this.cfs = cfs;
         this.traceState = Tracing.instance.get();
@@ -185,6 +190,8 @@ public abstract class AbstractReadExecutor
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         List<InetAddress> allReplicas = StorageProxy.getLiveSortedEndpoints(keyspace, command.partitionKey());
+        Optional<InetAddress> spareReadRepairNode = getSpareReadRepairNode(allReplicas, consistencyLevel, keyspace);
+
         // 11980: Excluding EACH_QUORUM reads from potential RR, so that we do not miscount DC responses
         ReadRepairDecision repairDecision = consistencyLevel == ConsistencyLevel.EACH_QUORUM
                                             ? ReadRepairDecision.NONE
@@ -205,21 +212,20 @@ public abstract class AbstractReadExecutor
 
         // Speculative retry is disabled *OR*
         // 11980: Disable speculative retry if using EACH_QUORUM in order to prevent miscounting DC responses
-        if (retry.equals(SpeculativeRetryParam.NONE)
-            | consistencyLevel == ConsistencyLevel.EACH_QUORUM)
-            return new NeverSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime, false);
+        if (retry.equals(SpeculativeRetryParam.NONE) || consistencyLevel == ConsistencyLevel.EACH_QUORUM)
+            return new NeverSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime, false, spareReadRepairNode);
 
         // There are simply no extra replicas to speculate.
         // Handle this separately so it can log failed attempts to speculate due to lack of replicas
         if (consistencyLevel.blockFor(keyspace) == allReplicas.size())
-            return new NeverSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime, true);
+            return new NeverSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime, true, spareReadRepairNode);
 
         if (targetReplicas.size() == allReplicas.size())
         {
             // CL.ALL, RRD.GLOBAL or RRD.DC_LOCAL and a single-DC.
             // We are going to contact every node anyway, so ask for 2 full data requests instead of 1, for redundancy
             // (same amount of requests in total, but we turn 1 digest request into a full blown data request).
-            return new AlwaysSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime);
+            return new AlwaysSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime, spareReadRepairNode);
         }
 
         // RRD.NONE or RRD.DC_LOCAL w/ multiple DCs.
@@ -240,9 +246,50 @@ public abstract class AbstractReadExecutor
         targetReplicas.add(extraReplica);
 
         if (retry.equals(SpeculativeRetryParam.ALWAYS))
-            return new AlwaysSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime);
+            return new AlwaysSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime, spareReadRepairNode);
         else // PERCENTILE or CUSTOM.
-            return new SpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime);
+            return new SpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime, spareReadRepairNode);
+    }
+
+    /**
+     * based on the replicas and given consistency level, return a potential node for read repair retry
+     * when one read repair is slow.
+     *
+     * @param allSortedReplicas Makes the assumption that this list is ordered by
+     * {@link StorageProxy#getLiveSortedEndpoints(Keyspace, ByteBuffer)}.
+     */
+    private static Optional<InetAddress> getSpareReadRepairNode(List<InetAddress> allSortedReplicas,
+                                                                ConsistencyLevel consistencyLevel,
+                                                                Keyspace keyspace)
+    {
+        Optional<InetAddress> spareReadRepairNode = Optional.empty();
+        // we don't do each quorum case since we don't track the response by DC
+        if (consistencyLevel.satisfiesQuorumFor(keyspace) && consistencyLevel != ConsistencyLevel.EACH_QUORUM) {
+
+            List<InetAddress> blockForReplicas = consistencyLevel.filterForQuery(keyspace, allSortedReplicas, ReadRepairDecision.NONE);
+            if (blockForReplicas.size() < allSortedReplicas.size())
+            {
+                if (consistencyLevel.isDatacenterLocal())
+                {
+                    for(InetAddress replica : allSortedReplicas)
+                    {
+                        if (!blockForReplicas.contains(replica))
+                        {
+                            if (consistencyLevel.isLocal(replica))
+                            {
+                                spareReadRepairNode = Optional.of(replica);
+                                break;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    spareReadRepairNode = Optional.of(allSortedReplicas.get(blockForReplicas.size()));
+                }
+            }
+        }
+        return spareReadRepairNode;
     }
 
     /**
@@ -262,6 +309,7 @@ public abstract class AbstractReadExecutor
 
     public static class NeverSpeculatingReadExecutor extends AbstractReadExecutor
     {
+
         /**
          * If never speculating due to lack of replicas
          * log it is as a failure if it should have happened
@@ -269,9 +317,15 @@ public abstract class AbstractReadExecutor
          */
         private final boolean logFailedSpeculation;
 
-        public NeverSpeculatingReadExecutor(Keyspace keyspace, ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> targetReplicas, long queryStartNanoTime, boolean logFailedSpeculation)
+        public NeverSpeculatingReadExecutor(Keyspace keyspace,
+                                            ColumnFamilyStore cfs,
+                                            ReadCommand command,
+                                            ConsistencyLevel consistencyLevel,
+                                            List<InetAddress> targetReplicas, long queryStartNanoTime,
+                                            boolean logFailedSpeculation,
+                                            final Optional<InetAddress> spareReadRepairNode)
         {
-            super(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime);
+            super(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime, spareReadRepairNode);
             this.logFailedSpeculation = logFailedSpeculation;
         }
 
@@ -300,14 +354,11 @@ public abstract class AbstractReadExecutor
     {
         private volatile boolean speculated = false;
 
-        public SpeculatingReadExecutor(Keyspace keyspace,
-                                       ColumnFamilyStore cfs,
-                                       ReadCommand command,
-                                       ConsistencyLevel consistencyLevel,
-                                       List<InetAddress> targetReplicas,
-                                       long queryStartNanoTime)
+        public SpeculatingReadExecutor(Keyspace keyspace, ColumnFamilyStore cfs, ReadCommand command, ConsistencyLevel consistencyLevel,
+                                       List<InetAddress> targetReplicas, long queryStartNanoTime, Optional<InetAddress> spareReadRepairNode)
         {
-            super(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime);
+            super(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime, spareReadRepairNode);
+
         }
 
         public void executeAsync()
@@ -358,8 +409,8 @@ public abstract class AbstractReadExecutor
         public Collection<InetAddress> getContactedReplicas()
         {
             return speculated
-                 ? targetReplicas
-                 : targetReplicas.subList(0, targetReplicas.size() - 1);
+                   ? targetReplicas
+                   : targetReplicas.subList(0, targetReplicas.size() - 1);
         }
 
         @Override
@@ -379,9 +430,10 @@ public abstract class AbstractReadExecutor
                                              ReadCommand command,
                                              ConsistencyLevel consistencyLevel,
                                              List<InetAddress> targetReplicas,
-                                             long queryStartNanoTime)
+                                             long queryStartNanoTime,
+                                             Optional<InetAddress> spareReadRepairNode)
         {
-            super(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime);
+            super(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime, spareReadRepairNode);
         }
 
         public void maybeTryAdditionalReplicas()

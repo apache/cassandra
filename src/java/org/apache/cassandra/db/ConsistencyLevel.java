@@ -101,6 +101,31 @@ public enum ConsistencyLevel
              : quorumFor(keyspace);
     }
 
+    public boolean satisfiesQuorumFor(Keyspace keyspace)
+    {
+        switch (this)
+        {
+            case ONE:
+            case LOCAL_ONE:
+            case ANY:
+                return quorumFor(keyspace) <= 1;
+            case QUORUM:
+            case EACH_QUORUM:
+            case LOCAL_QUORUM:
+            case ALL:
+            case SERIAL:
+            case LOCAL_SERIAL:
+                return true;
+            case TWO:
+                return quorumFor(keyspace) <= 2;
+            case THREE:
+                return quorumFor(keyspace) <= 3;
+            default:
+                throw new IllegalStateException(this + " is not supported");
+        }
+    }
+
+
     public int blockFor(Keyspace keyspace)
     {
         switch (this)
