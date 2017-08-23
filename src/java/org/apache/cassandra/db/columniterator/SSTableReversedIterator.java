@@ -240,7 +240,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 // skipFirstIteratedItem (this is the last item of the block, but we're iterating in reverse order so it will
                 // be the first returned by the iterator).
                 RangeTombstone.Bound markerEnd = end == null ? RangeTombstone.Bound.TOP : RangeTombstone.Bound.fromSliceBound(end);
-                buffer.add(new RangeTombstoneBoundMarker(markerEnd, getAndClearOpenMarker()));
+                buffer.add(new RangeTombstoneBoundMarker(markerEnd, openMarker));
                 if (hasPreviousBlock)
                     skipFirstIteratedItem = true;
             }

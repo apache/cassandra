@@ -47,6 +47,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.utils.FBUtilities;
 
+
 public class ViewTest extends CQLTester
 {
     int protocolVersion = 4;
@@ -96,6 +97,54 @@ public class ViewTest extends CQLTester
 
         execute("DROP MATERIALIZED VIEW IF EXISTS " + KEYSPACE + ".view_does_not_exist");
         execute("DROP MATERIALIZED VIEW IF EXISTS keyspace_does_not_exist.view_does_not_exist");
+    }
+
+    @Test
+    public void testExistingRangeTombstoneWithFlush() throws Throwable
+    {
+        testExistingRangeTombstone(true);
+    }
+
+    @Test
+    public void testExistingRangeTombstoneWithoutFlush() throws Throwable
+    {
+        testExistingRangeTombstone(false);
+    }
+
+    public void testExistingRangeTombstone(boolean flush) throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 int, c1 int, c2 int, v1 int, v2 int, PRIMARY KEY (k1, c1, c2))");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("view1",
+                   "CREATE MATERIALIZED VIEW view1 AS SELECT * FROM %%s WHERE k1 IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL PRIMARY KEY (k1, c2, c1)");
+
+        updateView("DELETE FROM %s USING TIMESTAMP 10 WHERE k1 = 1 and c1=1");
+
+        if (flush)
+            Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush();
+
+        String table = KEYSPACE + "." + currentTable();
+        updateView("BEGIN BATCH " +
+                "INSERT INTO " + table + " (k1, c1, c2, v1, v2) VALUES (1, 0, 0, 0, 0) USING TIMESTAMP 5; " +
+                "INSERT INTO " + table + " (k1, c1, c2, v1, v2) VALUES (1, 0, 1, 0, 1) USING TIMESTAMP 5; " +
+                "INSERT INTO " + table + " (k1, c1, c2, v1, v2) VALUES (1, 1, 0, 1, 0) USING TIMESTAMP 5; " +
+                "INSERT INTO " + table + " (k1, c1, c2, v1, v2) VALUES (1, 1, 1, 1, 1) USING TIMESTAMP 5; " +
+                "INSERT INTO " + table + " (k1, c1, c2, v1, v2) VALUES (1, 1, 2, 1, 2) USING TIMESTAMP 5; " +
+                "INSERT INTO " + table + " (k1, c1, c2, v1, v2) VALUES (1, 1, 3, 1, 3) USING TIMESTAMP 5; " +
+                "INSERT INTO " + table + " (k1, c1, c2, v1, v2) VALUES (1, 2, 0, 2, 0) USING TIMESTAMP 5; " +
+                "APPLY BATCH");
+
+        assertRowsIgnoringOrder(execute("select * from %s"),
+                                row(1, 0, 0, 0, 0),
+                                row(1, 0, 1, 0, 1),
+                                row(1, 2, 0, 2, 0));
+        assertRowsIgnoringOrder(execute("select k1,c1,c2,v1,v2 from view1"),
+                                row(1, 0, 0, 0, 0),
+                                row(1, 0, 1, 0, 1),
+                                row(1, 2, 0, 2, 0));
     }
 
     @Test

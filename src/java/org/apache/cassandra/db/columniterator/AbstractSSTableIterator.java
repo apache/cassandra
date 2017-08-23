@@ -329,13 +329,6 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
             openMarker = marker.isOpen(false) ? marker.openDeletionTime(false) : null;
         }
 
-        protected DeletionTime getAndClearOpenMarker()
-        {
-            DeletionTime toReturn = openMarker;
-            openMarker = null;
-            return toReturn;
-        }
-
         public boolean hasNext() 
         {
             try
