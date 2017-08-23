@@ -77,6 +77,11 @@ public class DatabaseDescriptor
 
     private static Config conf;
 
+    /**
+     * Request timeouts can not be less than below defined value (see CASSANDRA-9375)
+     */
+    static final long LOWEST_ACCEPTED_TIMEOUT = 10L;
+
     private static IEndpointSnitch snitch;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress broadcastAddress;
@@ -413,6 +418,8 @@ public class DatabaseDescriptor
             logger.info("Global memtable off-heap threshold is disabled, HeapAllocator will be used instead");
         else
             logger.info("Global memtable off-heap threshold is enabled at {}MB", conf.memtable_offheap_space_in_mb);
+
+        checkForLowestAcceptedTimeouts(conf);
 
         if (conf.native_transport_max_frame_size_in_mb <= 0)
             throw new ConfigurationException("native_transport_max_frame_size_in_mb must be positive, but was " + conf.native_transport_max_frame_size_in_mb, false);
@@ -836,6 +843,57 @@ public class DatabaseDescriptor
         }
         if (seedProvider.getSeeds().size() == 0)
             throw new ConfigurationException("The seed provider lists no seeds.", false);
+    }
+
+    @VisibleForTesting
+    static void checkForLowestAcceptedTimeouts(Config conf)
+    {
+        if(conf.read_request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
+        {
+           logInfo("read_request_timeout_in_ms", conf.read_request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
+           conf.read_request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
+        }
+
+        if(conf.range_request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
+        {
+           logInfo("range_request_timeout_in_ms", conf.range_request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
+           conf.range_request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
+        }
+
+        if(conf.request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
+        {
+           logInfo("request_timeout_in_ms", conf.request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
+           conf.request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
+        }
+
+        if(conf.write_request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
+        {
+           logInfo("write_request_timeout_in_ms", conf.write_request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
+           conf.write_request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
+        }
+
+        if(conf.cas_contention_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
+        {
+           logInfo("cas_contention_timeout_in_ms", conf.cas_contention_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
+           conf.cas_contention_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
+        }
+
+        if(conf.counter_write_request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
+        {
+           logInfo("counter_write_request_timeout_in_ms", conf.counter_cache_keys_to_save, LOWEST_ACCEPTED_TIMEOUT);
+           conf.counter_write_request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
+        }
+
+        if(conf.truncate_request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
+        {
+           logInfo("truncate_request_timeout_in_ms", conf.truncate_request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
+           conf.truncate_request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
+        }
+    }
+
+    private static void logInfo(String property, long actualValue, long lowestAcceptedValue)
+    {
+        logger.info("found {}::{} less than lowest acceptable value {}, continuing with {}", property, actualValue, lowestAcceptedValue, lowestAcceptedValue);
     }
 
     public static void applyInitialTokens()

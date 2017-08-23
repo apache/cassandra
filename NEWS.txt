@@ -60,6 +60,9 @@ Upgrading
     - Config option index_interval has been removed (it was deprecated since 2.0)
     - Deprecated repair JMX APIs are removed.
     - The version of snappy-java has been upgraded to 1.1.2.6
+	- the miniumum value for internode message timeouts is 10ms. Previously, any
+	  positive value was allowed. See cassandra.yaml entries like
+	  read_request_timeout_in_ms for more details.
 
 3.11.0
 ======

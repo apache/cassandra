@@ -780,22 +780,29 @@ sstable_preemptive_open_interval_in_mb: 50
 # When unset, the default is 200 Mbps or 25 MB/s
 # inter_dc_stream_throughput_outbound_megabits_per_sec: 200
 
-# How long the coordinator should wait for read operations to complete
+# How long the coordinator should wait for read operations to complete.
+# Lowest acceptable value is 10 ms.
 read_request_timeout_in_ms: 5000
-# How long the coordinator should wait for seq or index scans to complete
+# How long the coordinator should wait for seq or index scans to complete.
+# Lowest acceptable value is 10 ms.
 range_request_timeout_in_ms: 10000
-# How long the coordinator should wait for writes to complete
+# How long the coordinator should wait for writes to complete.
+# Lowest acceptable value is 10 ms.
 write_request_timeout_in_ms: 2000
-# How long the coordinator should wait for counter writes to complete
+# How long the coordinator should wait for counter writes to complete.
+# Lowest acceptable value is 10 ms.
 counter_write_request_timeout_in_ms: 5000
 # How long a coordinator should continue to retry a CAS operation
-# that contends with other proposals for the same row
+# that contends with other proposals for the same row.
+# Lowest acceptable value is 10 ms.
 cas_contention_timeout_in_ms: 1000
 # How long the coordinator should wait for truncates to complete
 # (This can be much longer, because unless auto_snapshot is disabled
 # we need to flush first so we can snapshot before removing the data.)
+# Lowest acceptable value is 10 ms.
 truncate_request_timeout_in_ms: 60000
-# The default timeout for other, miscellaneous operations
+# The default timeout for other, miscellaneous operations.
+# Lowest acceptable value is 10 ms.
 request_timeout_in_ms: 10000
 
 # How long before a node logs slow queries. Select queries that take longer than
