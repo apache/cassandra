@@ -6,6 +6,7 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Potential AssertionError during ReadRepair of range tombstone and partition deletions (CASSANDRA-13719)
  * Don't let stress write warmup data if n=0 (CASSANDRA-13773)
  * Gossip thread slows down when using batch commit log (CASSANDRA-12966)
  * Randomize batchlog endpoint selection with only 1 or 2 racks (CASSANDRA-12884)

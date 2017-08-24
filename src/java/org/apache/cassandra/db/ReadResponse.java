@@ -92,6 +92,28 @@ public abstract class ReadResponse
 
     public abstract boolean isDigestResponse();
 
+    /**
+     * Creates a string of the requested partition in this read response suitable for debugging.
+     */
+    public String toDebugString(ReadCommand command, DecoratedKey key)
+    {
+        if (isDigestResponse())
+            return "Digest:0x" + ByteBufferUtil.bytesToHex(digest(command));
+
+        try (UnfilteredPartitionIterator iter = makeIterator(command))
+        {
+            while (iter.hasNext())
+            {
+                try (UnfilteredRowIterator partition = iter.next())
+                {
+                    if (partition.partitionKey().equals(key))
+                        return ImmutableBTreePartition.create(partition).toString();
+                }
+            }
+        }
+        return "<key " + key + " not found>";
+    }
+
     protected static ByteBuffer makeDigest(UnfilteredPartitionIterator iterator, ReadCommand command)
     {
         MessageDigest digest = FBUtilities.threadLocalMD5Digest();
