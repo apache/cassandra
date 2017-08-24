@@ -1959,6 +1959,12 @@ class Shell(cmd.Cmd):
         else:
             session = conn.connect()
 
+        # Copy session properties
+        session.default_timeout = self.session.default_timeout
+        session.row_factory = self.session.row_factory
+        session.default_consistency_level = self.session.default_consistency_level
+        session.max_trace_wait = self.session.max_trace_wait
+
         # Update after we've connected in case we fail to authenticate
         self.conn = conn
         self.auth_provider = auth_provider
