@@ -45,7 +45,7 @@ public class AuditTrigger implements ITrigger
 
         audit.row()
              .add("keyspace_name", update.metadata().keyspace)
-             .add("table_name", update.metadata().table)
+             .add("table_name", update.metadata().name)
              .add("primary_key", update.metadata().partitionKeyType.getString(update.partitionKey().getKey()));
 
         return Collections.singletonList(audit.buildAsMutation());
