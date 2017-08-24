@@ -297,7 +297,7 @@ public abstract class Rows
             int comparison = nexta == null ? 1 : nextb == null ? -1 : nexta.column.compareTo(nextb.column);
             ColumnData cura = comparison <= 0 ? nexta : null;
             ColumnData curb = comparison >= 0 ? nextb : null;
-            ColumnMetadata column = (cura != null ? cura : curb).column;
+            ColumnMetadata column = getColumnMetadata(cura, curb);
             if (column.isSimple())
             {
                 timeDelta = Math.min(timeDelta, Cells.reconcile((Cell) cura, (Cell) curb, deletion, builder, nowInSec));
@@ -402,5 +402,23 @@ public abstract class Rows
         }
         Row row = builder.build();
         return row != null && !row.isEmpty() ? row : null;
+    }
+
+    /**
+     * Returns the {@code ColumnMetadata} to use for merging the columns.
+     * If the 2 column metadata are different the latest one will be returned.
+     */
+    private static ColumnMetadata getColumnMetadata(ColumnData cura, ColumnData curb)
+    {
+        if (cura == null)
+            return curb.column;
+
+        if (curb == null)
+            return cura.column;
+
+        if (AbstractTypeVersionComparator.INSTANCE.compare(cura.column.type, curb.column.type) >= 0)
+            return cura.column;
+
+        return curb.column;
     }
 }

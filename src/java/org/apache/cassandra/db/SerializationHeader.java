@@ -85,7 +85,8 @@ public class SerializationHeader
         // but rather on their stats stored in StatsMetadata that are fully accurate.
         EncodingStats.Collector stats = new EncodingStats.Collector();
         RegularAndStaticColumns.Builder columns = RegularAndStaticColumns.builder();
-        for (SSTableReader sstable : sstables)
+        // We need to order the SSTables by descending generation to be sure that we use latest column metadata.
+        for (SSTableReader sstable : orderByDescendingGeneration(sstables))
         {
             stats.updateTimestamp(sstable.getMinTimestamp());
             stats.updateLocalDeletionTime(sstable.getMinLocalDeletionTime());
@@ -93,6 +94,16 @@ public class SerializationHeader
             columns.addAll(sstable.header.columns());
         }
         return new SerializationHeader(true, metadata, columns.build(), stats.get());
+    }
+
+    private static Collection<SSTableReader> orderByDescendingGeneration(Collection<SSTableReader> sstables)
+    {
+        if (sstables.size() < 2)
+            return sstables;
+
+        List<SSTableReader> readers = new ArrayList<>(sstables);
+        readers.sort(SSTableReader.generationReverseComparator);
+        return readers;
     }
 
     public SerializationHeader(boolean isForSSTable,

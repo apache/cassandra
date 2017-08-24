@@ -727,6 +727,157 @@ public class UserTypesTest extends CQLTester
         assertInvalid("DELETE v.bad FROM %s WHERE k = ?", 0);
     }
 
+    @Test
+    public void testReadAfterAlteringUserTypeNestedWithinSet() throws Throwable
+    {
+        String columnType = typeWithKs(createType("CREATE TYPE %s (a int)"));
+
+        try
+        {
+            createTable("CREATE TABLE %s (x int PRIMARY KEY, y set<frozen<" + columnType + ">>)");
+            disableCompaction();
+
+            execute("INSERT INTO %s (x, y) VALUES(1, ?)", set(userType("a", 1), userType("a", 2)));
+            assertRows(execute("SELECT * FROM %s"), row(1, set(userType("a", 1), userType("a", 2))));
+            flush();
+
+            assertRows(execute("SELECT * FROM %s WHERE x = 1"),
+                       row(1, set(userType("a", 1), userType("a", 2))));
+
+            execute("ALTER TYPE " + columnType + " ADD b int");
+            execute("UPDATE %s SET y = y + ? WHERE x = 1",
+                    set(userType("a", 1, "b", 1), userType("a", 1, "b", 2), userType("a", 2, "b", 1)));
+
+            flush();
+            assertRows(execute("SELECT * FROM %s WHERE x = 1"),
+                           row(1, set(userType("a", 1),
+                                      userType("a", 1, "b", 1),
+                                      userType("a", 1, "b", 2),
+                                      userType("a", 2),
+                                      userType("a", 2, "b", 1))));
+
+            compact();
+
+            assertRows(execute("SELECT * FROM %s WHERE x = 1"),
+                       row(1, set(userType("a", 1),
+                                  userType("a", 1, "b", 1),
+                                  userType("a", 1, "b", 2),
+                                  userType("a", 2),
+                                  userType("a", 2, "b", 1))));
+        }
+        finally
+        {
+            enableCompaction();
+        }
+    }
+
+    @Test
+    public void testReadAfterAlteringUserTypeNestedWithinMap() throws Throwable
+    {
+        String columnType = typeWithKs(createType("CREATE TYPE %s (a int)"));
+
+        try
+        {
+            createTable("CREATE TABLE %s (x int PRIMARY KEY, y map<frozen<" + columnType + ">, int>)");
+            disableCompaction();
+
+            execute("INSERT INTO %s (x, y) VALUES(1, ?)", map(userType("a", 1), 1, userType("a", 2), 2));
+            assertRows(execute("SELECT * FROM %s"), row(1, map(userType("a", 1), 1, userType("a", 2), 2)));
+            flush();
+
+            assertRows(execute("SELECT * FROM %s WHERE x = 1"),
+                       row(1, map(userType("a", 1), 1, userType("a", 2), 2)));
+
+            execute("ALTER TYPE " + columnType + " ADD b int");
+            execute("UPDATE %s SET y = y + ? WHERE x = 1",
+                    map(userType("a", 1, "b", 1), 1, userType("a", 1, "b", 2), 1, userType("a", 2, "b", 1), 2));
+
+            flush();
+            assertRows(execute("SELECT * FROM %s WHERE x = 1"),
+                           row(1, map(userType("a", 1), 1,
+                                      userType("a", 1, "b", 1), 1,
+                                      userType("a", 1, "b", 2), 1,
+                                      userType("a", 2), 2,
+                                      userType("a", 2, "b", 1), 2)));
+
+            compact();
+
+            assertRows(execute("SELECT * FROM %s WHERE x = 1"),
+                       row(1, map(userType("a", 1), 1,
+                                  userType("a", 1, "b", 1), 1,
+                                  userType("a", 1, "b", 2), 1,
+                                  userType("a", 2), 2,
+                                  userType("a", 2, "b", 1), 2)));
+        }
+        finally
+        {
+            enableCompaction();
+        }
+    }
+
+    @Test
+    public void testReadAfterAlteringUserTypeNestedWithinList() throws Throwable
+    {
+        String columnType = typeWithKs(createType("CREATE TYPE %s (a int)"));
+
+        try
+        {
+            createTable("CREATE TABLE %s (x int PRIMARY KEY, y list<frozen<" + columnType + ">>)");
+            disableCompaction();
+
+            execute("INSERT INTO %s (x, y) VALUES(1, ?)", list(userType("a", 1), userType("a", 2)));
+            assertRows(execute("SELECT * FROM %s"), row(1, list(userType("a", 1), userType("a", 2))));
+            flush();
+
+            assertRows(execute("SELECT * FROM %s WHERE x = 1"),
+                       row(1, list(userType("a", 1), userType("a", 2))));
+
+            execute("ALTER TYPE " + columnType + " ADD b int");
+            execute("UPDATE %s SET y = y + ? WHERE x = 1",
+                    list(userType("a", 1, "b", 1), userType("a", 1, "b", 2), userType("a", 2, "b", 1)));
+
+            flush();
+            assertRows(execute("SELECT * FROM %s WHERE x = 1"),
+                           row(1, list(userType("a", 1),
+                                       userType("a", 2),
+                                       userType("a", 1, "b", 1),
+                                       userType("a", 1, "b", 2),
+                                       userType("a", 2, "b", 1))));
+
+            compact();
+
+            assertRows(execute("SELECT * FROM %s WHERE x = 1"),
+                       row(1, list(userType("a", 1),
+                                   userType("a", 2),
+                                   userType("a", 1, "b", 1),
+                                   userType("a", 1, "b", 2),
+                                   userType("a", 2, "b", 1))));
+        }
+        finally
+        {
+            enableCompaction();
+        }
+    }
+
+    @Test
+    public void testAlteringUserTypeNestedWithinSetWithView() throws Throwable
+    {
+        String columnType = typeWithKs(createType("CREATE TYPE %s (a int)"));
+
+        createTable("CREATE TABLE %s (pk int, c int, v int, s set<frozen<" + columnType + ">>, PRIMARY KEY (pk, c))");
+        execute("CREATE MATERIALIZED VIEW " + keyspace() + ".view1 AS SELECT c, pk, v FROM %s WHERE pk IS NOT NULL AND c IS NOT NULL AND v IS NOT NULL PRIMARY KEY (c, pk)");
+
+        execute("INSERT INTO %s (pk, c, v, s) VALUES(?, ?, ?, ?)", 1, 1, 1, set(userType("a", 1), userType("a", 2)));
+        flush();
+
+        execute("ALTER TYPE " + columnType + " ADD b int");
+        execute("UPDATE %s SET s = s + ?, v = ? WHERE pk = ? AND c = ?",
+                set(userType("a", 1, "b", 1), userType("a", 1, "b", 2), userType("a", 2, "b", 1)), 2, 1, 1);
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c = ?", 1, 1),
+                       row(1, 1,set(userType("a", 1), userType("a", 1, "b", 1), userType("a", 1, "b", 2), userType("a", 2), userType("a", 2, "b", 1)), 2));
+    }
+
     private String typeWithKs(String type1)
     {
         return keyspace() + '.' + type1;

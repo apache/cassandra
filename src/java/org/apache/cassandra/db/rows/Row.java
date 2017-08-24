@@ -721,8 +721,23 @@ public interface Row extends Unfiltered, Collection<ColumnData>
 
             public void reduce(int idx, ColumnData data)
             {
-                column = data.column();
+                if (useColumnMetadata(data.column()))
+                    column = data.column();
+
                 versions.add(data);
+            }
+
+            /**
+             * Determines it the {@code ColumnMetadata} is the one that should be used.
+             * @param dataColumn the {@code ColumnMetadata} to use.
+             * @return {@code true} if the {@code ColumnMetadata} is the one that should be used, {@code false} otherwise.
+             */
+            private boolean useColumnMetadata(ColumnMetadata dataColumn)
+            {
+                if (column == null)
+                    return true;
+
+                return AbstractTypeVersionComparator.INSTANCE.compare(column.type, dataColumn.type) < 0;
             }
 
             protected ColumnData getReduced()
@@ -774,6 +789,7 @@ public interface Row extends Unfiltered, Collection<ColumnData>
 
             protected void onKeyChange()
             {
+                column = null;
                 versions.clear();
             }
         }
