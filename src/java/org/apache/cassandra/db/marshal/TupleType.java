@@ -347,4 +347,9 @@ public class TupleType extends AbstractType<ByteBuffer>
     {
         return getClass().getName() + TypeParser.stringifyTypeParameters(types, true);
     }
+
+    public boolean isTuple()
+    {
+        return true;
+    }
 }

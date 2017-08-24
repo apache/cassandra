@@ -325,6 +325,16 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         return false;
     }
 
+    public boolean isTuple()
+    {
+        return false;
+    }
+
+    public boolean isUDT()
+    {
+        return false;
+    }
+
     public AbstractType<?> freeze()
     {
         return this;

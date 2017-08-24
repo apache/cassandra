@@ -232,4 +232,14 @@ public class UserType extends TupleType
     {
         return serializer;
     }
+
+    public boolean isTuple()
+    {
+        return false;
+    }
+
+    public boolean isUDT()
+    {
+        return true;
+    }
 }

@@ -1,4 +1,5 @@
 3.0.15
+ * Fix the merging of cells with different user type versions (CASSANDRA-13776)
  * Copy session properties on cqlsh.py do_login (CASSANDRA-13640)
  * Potential AssertionError during ReadRepair of range tombstone and partition deletions (CASSANDRA-13719)
  * Don't let stress write warmup data if n=0 (CASSANDRA-13773)
