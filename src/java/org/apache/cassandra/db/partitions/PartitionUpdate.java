@@ -319,6 +319,15 @@ public class PartitionUpdate extends AbstractBTreePartition
         return fromIterator(UnfilteredRowIterators.merge(asIterators, nowInSecs), ColumnFilter.all(updates.get(0).metadata()));
     }
 
+    // We override this, because the version in the super-class calls holder(), which build the update preventing
+    // further updates, but that's not necessary here and being able to check at least the partition deletion without
+    // "locking" the update is nice (and used in DataResolver.RepairMergeListener.MergeListener).
+    @Override
+    public DeletionInfo deletionInfo()
+    {
+        return deletionInfo;
+    }
+
     /**
      * Modify this update to set every timestamp for live data to {@code newTimestamp} and
      * every deletion timestamp to {@code newTimestamp - 1}.

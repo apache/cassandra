@@ -576,7 +576,7 @@ public class DataResolverTest
      * same deletion on both side (while is useless but could be created by legacy code pre-CASSANDRA-13237 and could
      * thus still be sent).
      */
-    public void testRepairRangeTombstoneBoundary(int timestamp1, int timestamp2, int timestamp3) throws UnknownHostException
+    private void testRepairRangeTombstoneBoundary(int timestamp1, int timestamp2, int timestamp3) throws UnknownHostException
     {
         DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
         InetAddress peer1 = peer();
@@ -621,6 +621,95 @@ public class DataResolverTest
                                   // We've repaired the 2nd part
                                   : tombstone("5", true, "9", true, timestamp1, nowInSec);
         assertRepairContainsDeletions(msg, null, expected);
+    }
+
+    /**
+     * Test for CASSANDRA-13719: tests that having a partition deletion shadow a range tombstone on another source
+     * doesn't trigger an assertion error.
+     */
+    @Test
+    public void testRepairRangeTombstoneWithPartitionDeletion()
+    {
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        InetAddress peer1 = peer();
+        InetAddress peer2 = peer();
+
+        // 1st "stream": just a partition deletion
+        UnfilteredPartitionIterator iter1 = iter(PartitionUpdate.fullPartitionDelete(cfm, dk, 10, nowInSec));
+
+        // 2nd "stream": a range tombstone that is covered by the 1st stream
+        RangeTombstone rt = tombstone("0", true , "10", true, 5, nowInSec);
+        UnfilteredPartitionIterator iter2 = iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk)
+                                                 .addRangeTombstone(rt)
+                                                 .buildUpdate());
+
+        resolver.preprocess(readResponseMessage(peer1, iter1));
+        resolver.preprocess(readResponseMessage(peer2, iter2));
+
+        // No results, we've only reconciled tombstones.
+        try (PartitionIterator data = resolver.resolve())
+        {
+            assertFalse(data.hasNext());
+            // 2nd stream should get repaired
+            assertRepairFuture(resolver, 1);
+        }
+
+        assertEquals(1, messageRecorder.sent.size());
+
+        MessageOut msg = getSentMessage(peer2);
+        assertRepairMetadata(msg);
+        assertRepairContainsNoColumns(msg);
+
+        assertRepairContainsDeletions(msg, new DeletionTime(10, nowInSec));
+    }
+
+    /**
+     * Additional test for CASSANDRA-13719: tests the case where a partition deletion doesn't shadow a range tombstone.
+     */
+    @Test
+    public void testRepairRangeTombstoneWithPartitionDeletion2()
+    {
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        InetAddress peer1 = peer();
+        InetAddress peer2 = peer();
+
+        // 1st "stream": a partition deletion and a range tombstone
+        RangeTombstone rt1 = tombstone("0", true , "9", true, 11, nowInSec);
+        PartitionUpdate upd1 = new RowUpdateBuilder(cfm, nowInSec, 1L, dk)
+                                                 .addRangeTombstone(rt1)
+                                                 .buildUpdate();
+        ((MutableDeletionInfo)upd1.deletionInfo()).add(new DeletionTime(10, nowInSec));
+        UnfilteredPartitionIterator iter1 = iter(upd1);
+
+        // 2nd "stream": a range tombstone that is covered by the other stream rt
+        RangeTombstone rt2 = tombstone("2", true , "3", true, 11, nowInSec);
+        RangeTombstone rt3 = tombstone("4", true , "5", true, 10, nowInSec);
+        UnfilteredPartitionIterator iter2 = iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk)
+                                                 .addRangeTombstone(rt2)
+                                                 .addRangeTombstone(rt3)
+                                                 .buildUpdate());
+
+        resolver.preprocess(readResponseMessage(peer1, iter1));
+        resolver.preprocess(readResponseMessage(peer2, iter2));
+
+        // No results, we've only reconciled tombstones.
+        try (PartitionIterator data = resolver.resolve())
+        {
+            assertFalse(data.hasNext());
+            // 2nd stream should get repaired
+            assertRepairFuture(resolver, 1);
+        }
+
+        assertEquals(1, messageRecorder.sent.size());
+
+        MessageOut msg = getSentMessage(peer2);
+        assertRepairMetadata(msg);
+        assertRepairContainsNoColumns(msg);
+
+        // 2nd stream should get both the partition deletion, as well as the part of the 1st stream RT that it misses
+        assertRepairContainsDeletions(msg, new DeletionTime(10, nowInSec),
+                                      tombstone("0", true, "2", false, 11, nowInSec),
+                                      tombstone("3", false, "9", true, 11, nowInSec));
     }
 
     // Forces the start to be exclusive if the condition holds
