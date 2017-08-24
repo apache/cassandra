@@ -436,18 +436,11 @@ class PendingRepairManager
             try
             {
                 logger.debug("Setting repairedAt to {} on {} for {}", repairedAt, transaction.originals(), sessionID);
-                for (SSTableReader sstable : transaction.originals())
-                {
-                    sstable.descriptor.getMetadataSerializer().mutateRepaired(sstable.descriptor, repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
-                    sstable.reloadSSTableMetadata();
-                }
+                cfs.getCompactionStrategyManager().mutateRepaired(transaction.originals(), repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
                 completed = true;
             }
             finally
             {
-                // even if we weren't able to rewrite all the sstable metedata, we should still move the ones that were
-                cfs.getTracker().notifySSTableRepairedStatusChanged(transaction.originals());
-
                 // we always abort because mutating metadata isn't guarded by LifecycleTransaction, so this won't roll
                 // anything back. Also, we don't want to obsolete the originals. We're only using it to prevent other
                 // compactions from marking these sstables compacting, and unmarking them when we're done

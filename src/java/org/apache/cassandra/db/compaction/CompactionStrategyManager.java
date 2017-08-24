@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -754,22 +755,22 @@ public class CompactionStrategyManager implements INotificationConsumer
             unrepairedSSTables.add(new HashSet<>());
         }
 
-        for (SSTableReader sstable : sstables)
-        {
-            int idx = getCompactionStrategyIndex(cfs, getDirectories(), sstable);
-            if (sstable.isPendingRepair())
-                pendingSSTables.get(idx).add(sstable);
-            else if (sstable.isRepaired())
-                repairedSSTables.get(idx).add(sstable);
-            else
-                unrepairedSSTables.get(idx).add(sstable);
-        }
-
         List<ISSTableScanner> scanners = new ArrayList<>(sstables.size());
 
         readLock.lock();
         try
         {
+            for (SSTableReader sstable : sstables)
+            {
+                int idx = getCompactionStrategyIndex(cfs, getDirectories(), sstable);
+                if (sstable.isPendingRepair())
+                    pendingSSTables.get(idx).add(sstable);
+                else if (sstable.isRepaired())
+                    repairedSSTables.get(idx).add(sstable);
+                else
+                    unrepairedSSTables.get(idx).add(sstable);
+            }
+
             for (int i = 0; i < pendingSSTables.size(); i++)
             {
                 if (!pendingSSTables.get(i).isEmpty())
@@ -1162,5 +1163,38 @@ public class CompactionStrategyManager implements INotificationConsumer
     List<PendingRepairManager> getPendingRepairManagers()
     {
         return pendingRepairs;
+    }
+
+    /**
+     * Mutates sstable repairedAt times and notifies listeners of the change with the writeLock held. Prevents races
+     * with other processes between when the metadata is changed and when sstables are moved between strategies.
+     */
+    public void mutateRepaired(Collection<SSTableReader> sstables, long repairedAt, UUID pendingRepair) throws IOException
+    {
+        Set<SSTableReader> changed = new HashSet<>();
+
+        writeLock.lock();
+        try
+        {
+            for (SSTableReader sstable: sstables)
+            {
+                sstable.descriptor.getMetadataSerializer().mutateRepaired(sstable.descriptor, repairedAt, pendingRepair);
+                sstable.reloadSSTableMetadata();
+                changed.add(sstable);
+            }
+        }
+        finally
+        {
+            try
+            {
+                // if there was an exception mutating repairedAt, we should still notify for the
+                // sstables that we were able to modify successfully before releasing the lock
+                cfs.getTracker().notifySSTableRepairedStatusChanged(changed);
+            }
+            finally
+            {
+                writeLock.unlock();
+            }
+        }
     }
 }

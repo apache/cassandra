@@ -642,17 +642,12 @@ public class CompactionManager implements CompactionManagerMBean
             logger.info("{} Starting anticompaction for {}.{} on {}/{} sstables", PreviewKind.NONE.logPrefix(parentRepairSession), cfs.keyspace.getName(), cfs.getTableName(), validatedForRepair.size(), cfs.getLiveSSTables().size());
             logger.trace("{} Starting anticompaction for ranges {}", PreviewKind.NONE.logPrefix(parentRepairSession), ranges);
             Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
-            Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();
-            // we should only notify that repair status changed if it actually did:
-            Set<SSTableReader> mutatedRepairStatusToNotify = new HashSet<>();
-            Map<SSTableReader, Boolean> wasRepairedBefore = new HashMap<>();
-            for (SSTableReader sstable : sstables)
-                wasRepairedBefore.put(sstable, sstable.isRepaired());
 
             Set<SSTableReader> nonAnticompacting = new HashSet<>();
 
             Iterator<SSTableReader> sstableIterator = sstables.iterator();
             List<Range<Token>> normalizedRanges = Range.normalize(ranges);
+            Set<SSTableReader> fullyContainedSSTables = new HashSet<>();
 
             while (sstableIterator.hasNext())
             {
@@ -667,11 +662,7 @@ public class CompactionManager implements CompactionManagerMBean
                     if (r.contains(sstableRange))
                     {
                         logger.info("{} SSTable {} fully contained in range {}, mutating repairedAt instead of anticompacting", PreviewKind.NONE.logPrefix(parentRepairSession), sstable, r);
-                        sstable.descriptor.getMetadataSerializer().mutateRepaired(sstable.descriptor, repairedAt, pendingRepair);
-                        sstable.reloadSSTableMetadata();
-                        mutatedRepairStatuses.add(sstable);
-                        if (!wasRepairedBefore.get(sstable))
-                            mutatedRepairStatusToNotify.add(sstable);
+                        fullyContainedSSTables.add(sstable);
                         sstableIterator.remove();
                         shouldAnticompact = true;
                         break;
@@ -690,10 +681,10 @@ public class CompactionManager implements CompactionManagerMBean
                     sstableIterator.remove();
                 }
             }
-            cfs.metric.bytesMutatedAnticompaction.inc(SSTableReader.getTotalBytes(mutatedRepairStatuses));
-            cfs.getTracker().notifySSTableRepairedStatusChanged(mutatedRepairStatusToNotify);
-            txn.cancel(Sets.union(nonAnticompacting, mutatedRepairStatuses));
-            validatedForRepair.release(Sets.union(nonAnticompacting, mutatedRepairStatuses));
+            cfs.metric.bytesMutatedAnticompaction.inc(SSTableReader.getTotalBytes(fullyContainedSSTables));
+            cfs.getCompactionStrategyManager().mutateRepaired(fullyContainedSSTables, repairedAt, pendingRepair);
+            txn.cancel(Sets.union(nonAnticompacting, fullyContainedSSTables));
+            validatedForRepair.release(Sets.union(nonAnticompacting, fullyContainedSSTables));
             assert txn.originals().equals(sstables);
             if (!sstables.isEmpty())
                 doAntiCompaction(cfs, ranges, txn, repairedAt, pendingRepair);
