@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3;
 import java.util.*;
 
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -48,7 +49,15 @@ public class ViewFilteringTest extends CQLTester
     public static void startup()
     {
         requireNetwork();
+        System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "true");
     }
+
+    @AfterClass
+    public static void TearDown()
+    {
+        System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "false");
+    }
+
     @Before
     public void begin()
     {
