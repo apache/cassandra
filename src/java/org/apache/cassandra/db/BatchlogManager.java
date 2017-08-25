@@ -112,9 +112,9 @@ public class BatchlogManager implements BatchlogManagerMBean
         return totalBatchesReplayed.longValue();
     }
 
-    public void forceBatchlogReplay()
+    public void forceBatchlogReplay() throws Exception
     {
-        startBatchlogReplay();
+        startBatchlogReplay().get();
     }
 
     public Future<?> startBatchlogReplay()
