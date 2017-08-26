@@ -32,7 +32,7 @@ public interface BatchlogManagerMBean
     public long getTotalBatchesReplayed();
 
     /**
-     * Forces batchlog replay. Returns immediately if replay is already in progress.
+     * Forces batchlog replay. Blocks until completion.
      */
     public void forceBatchlogReplay() throws Exception;
 }
