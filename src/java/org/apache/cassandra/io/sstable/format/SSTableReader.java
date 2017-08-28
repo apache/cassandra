@@ -473,7 +473,16 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         assert !descriptor.version.storeRows() || components.contains(Component.STATS) : "Stats component is missing for sstable " + descriptor;
 
         EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS, MetadataType.HEADER);
-        Map<MetadataType, MetadataComponent> sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor, types);
+
+        Map<MetadataType, MetadataComponent> sstableMetadata;
+        try
+        {
+            sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor, types);
+        }
+        catch (IOException e)
+        {
+            throw new CorruptSSTableException(e, descriptor.filenameFor(Component.STATS));
+        }
         ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
         StatsMetadata statsMetadata = (StatsMetadata) sstableMetadata.get(MetadataType.STATS);
         SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
@@ -515,6 +524,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 logger.trace("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
 
             return sstable;
+        }
+        catch (IOException e)
+        {
+            sstable.selfRef().release();
+            throw new CorruptSSTableException(e, sstable.getFilename());
         }
         catch (Throwable t)
         {
@@ -562,6 +576,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     }
                     catch (IOException ex)
                     {
+                        FileUtils.handleCorruptSSTable(new CorruptSSTableException(ex, entry.getKey().filenameFor(Component.DATA)));
                         logger.error("Cannot read sstable {}; other IO error, skipping table", entry, ex);
                         return;
                     }
@@ -1200,7 +1215,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         if (this.first.compareTo(this.last) > 0)
         {
-            throw new IllegalStateException(String.format("SSTable first key %s > last key %s", this.first, this.last));
+            throw new CorruptSSTableException(new IllegalStateException(String.format("SSTable first key %s > last key %s", this.first, this.last)), getFilename());
         }
     }
 
