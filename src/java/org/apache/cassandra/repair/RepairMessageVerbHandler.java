@@ -46,7 +46,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairMessageVerbHandler.class);
 
-    private boolean isConsistent(UUID sessionID)
+    private boolean isIncremental(UUID sessionID)
     {
         return ActiveRepairService.instance.consistent.local.isSessionInProgress(sessionID);
     }
@@ -136,7 +136,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 
                     ActiveRepairService.instance.consistent.local.maybeSetRepairing(desc.parentSessionId);
                     Validator validator = new Validator(desc, message.from, validationRequest.nowInSec,
-                                                        isConsistent(desc.parentSessionId), previewKind(desc.parentSessionId));
+                                                        isIncremental(desc.parentSessionId), previewKind(desc.parentSessionId));
                     CompactionManager.instance.submitValidation(store, validator);
                     break;
 
@@ -144,7 +144,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     // forwarded sync request
                     SyncRequest request = (SyncRequest) message.payload;
                     logger.debug("Syncing {}", request);
-                    StreamingRepairTask task = new StreamingRepairTask(desc, request, isConsistent(desc.parentSessionId) ? desc.parentSessionId : null, request.previewKind);
+                    StreamingRepairTask task = new StreamingRepairTask(desc, request, isIncremental(desc.parentSessionId) ? desc.parentSessionId : null, request.previewKind);
                     task.run();
                     break;
 

@@ -60,7 +60,7 @@ public class Validator implements Runnable
     public final InetAddress initiator;
     public final int nowInSec;
     private final boolean evenTreeDistribution;
-    public final boolean isConsistent;
+    public final boolean isIncremental;
 
     // null when all rows with the min token have been consumed
     private long validated;
@@ -79,17 +79,17 @@ public class Validator implements Runnable
         this(desc, initiator, nowInSec, false, false, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, boolean isConsistent, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, boolean isIncremental, PreviewKind previewKind)
     {
-        this(desc, initiator, nowInSec, false, isConsistent, previewKind);
+        this(desc, initiator, nowInSec, false, isIncremental, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, boolean evenTreeDistribution, boolean isConsistent, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
     {
         this.desc = desc;
         this.initiator = initiator;
         this.nowInSec = nowInSec;
-        this.isConsistent = isConsistent;
+        this.isIncremental = isIncremental;
         this.previewKind = previewKind;
         validated = 0;
         range = null;

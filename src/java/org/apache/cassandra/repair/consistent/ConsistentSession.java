@@ -313,7 +313,8 @@ public abstract class ConsistentSession
             Preconditions.checkArgument(coordinator != null);
             Preconditions.checkArgument(ids != null);
             Preconditions.checkArgument(!ids.isEmpty());
-            Preconditions.checkArgument(repairedAt > 0);
+            Preconditions.checkArgument(repairedAt > 0
+                                        || repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE);
             Preconditions.checkArgument(ranges != null);
             Preconditions.checkArgument(!ranges.isEmpty());
             Preconditions.checkArgument(participants != null);

@@ -21,8 +21,11 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.*;
 
+import javax.xml.crypto.Data;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -34,17 +37,26 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.apache.cassandra.repair.messages.RepairOption.DATACENTERS_KEY;
+import static org.apache.cassandra.repair.messages.RepairOption.FORCE_REPAIR_KEY;
+import static org.apache.cassandra.repair.messages.RepairOption.HOSTS_KEY;
+import static org.apache.cassandra.repair.messages.RepairOption.INCREMENTAL_KEY;
+import static org.apache.cassandra.repair.messages.RepairOption.RANGES_KEY;
+import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+import static org.apache.cassandra.service.ActiveRepairService.getRepairedAt;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -298,5 +310,48 @@ public class ActiveRepairServiceTest
             }
             cfs.forceBlockingFlush();
         }
+    }
+
+    private static RepairOption opts(String... params)
+    {
+        assert params.length % 2 == 0 : "unbalanced key value pairs";
+        Map<String, String> opt = new HashMap<>();
+        for (int i=0; i<(params.length >> 1); i++)
+        {
+            int idx = i << 1;
+            opt.put(params[idx], params[idx+1]);
+        }
+        return RepairOption.parse(opt, DatabaseDescriptor.getPartitioner());
+    }
+
+    private static String b2s(boolean b)
+    {
+        return Boolean.toString(b);
+    }
+
+    /**
+     * Tests the expected repairedAt value is returned, based on different RepairOption
+     */
+    @Test
+    public void repairedAt() throws Exception
+    {
+        // regular incremental repair
+        Assert.assertNotEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true))));
+        // subrange incremental repair
+        Assert.assertNotEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
+                                                                      RANGES_KEY, "1:2")));
+
+        // hosts incremental repair
+        Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
+                                                                   HOSTS_KEY, "127.0.0.1")));
+        // dc incremental repair
+        Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
+                                                                   DATACENTERS_KEY, "DC2")));
+        // forced incremental repair
+        Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
+                                                                   FORCE_REPAIR_KEY, b2s(true))));
+
+        // full repair
+        Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(false))));
     }
 }

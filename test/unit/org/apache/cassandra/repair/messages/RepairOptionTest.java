@@ -150,19 +150,6 @@ public class RepairOptionTest
     }
 
     @Test
-    public void testNonGlobalIncrementalRepairParse() throws Exception
-    {
-        Map<String, String> options = new HashMap<>();
-        options.put(RepairOption.PARALLELISM_KEY, "parallel");
-        options.put(RepairOption.PRIMARY_RANGE_KEY, "false");
-        options.put(RepairOption.INCREMENTAL_KEY, "true");
-        options.put(RepairOption.COLUMNFAMILIES_KEY, "cf1,cf2,cf3");
-        options.put(RepairOption.HOSTS_KEY, "127.0.0.1, 127.0.0.2");
-        assertParseThrowsIllegalArgumentExceptionWithMessage(options, "Incremental repairs cannot be run against a subset of tokens or ranges");
-
-    }
-
-    @Test
     public void testForceOption() throws Exception
     {
         RepairOption option;

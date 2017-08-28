@@ -163,10 +163,6 @@ public class RepairOption
         Set<Range<Token>> ranges = new HashSet<>();
         if (rangesStr != null)
         {
-            if (incremental)
-                logger.warn("Incremental repair can't be requested with subrange repair " +
-                            "because each subrange repair would generate an anti-compacted table. " +
-                            "The repair will occur but without anti-compaction.");
             StringTokenizer tokenizer = new StringTokenizer(rangesStr, ",");
             while (tokenizer.hasMoreTokens())
             {
@@ -249,16 +245,6 @@ public class RepairOption
             {
                 throw new IllegalArgumentException("Token ranges must be specified when performing pull repair. Please specify at least one token range which both hosts have in common.");
             }
-        }
-
-        if (option.isIncremental() && !option.isPreview() && !option.isGlobal())
-        {
-            throw new IllegalArgumentException("Incremental repairs cannot be run against a subset of tokens or ranges");
-        }
-
-        if (option.isIncremental() && option.isForcedRepair())
-        {
-            throw new IllegalArgumentException("Cannot force incremental repair");
         }
 
         return option;
@@ -359,7 +345,7 @@ public class RepairOption
 
     public boolean isGlobal()
     {
-        return dataCenters.isEmpty() && hosts.isEmpty() && !isSubrangeRepair();
+        return dataCenters.isEmpty() && hosts.isEmpty();
     }
 
     public boolean isSubrangeRepair()

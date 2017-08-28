@@ -75,6 +75,8 @@ public abstract class AbstractRepairTest
     protected static final Range<Token> RANGE2 = new Range<>(t(2), t(3));
     protected static final Range<Token> RANGE3 = new Range<>(t(4), t(5));
 
+    protected static final Set<Range<Token>> ALL_RANGES = ImmutableSet.of(RANGE1, RANGE2, RANGE3);
+
     protected static UUID registerSession(ColumnFamilyStore cfs, boolean isIncremental, boolean isGlobal)
     {
         UUID sessionId = UUIDGen.getTimeUUID();

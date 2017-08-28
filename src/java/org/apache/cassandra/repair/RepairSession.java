@@ -36,7 +36,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -97,7 +96,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     /** Range to repair */
     public final Collection<Range<Token>> ranges;
     public final Set<InetAddress> endpoints;
-    public final boolean isConsistent;
+    public final boolean isIncremental;
     public final PreviewKind previewKind;
 
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
@@ -131,7 +130,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                          String keyspace,
                          RepairParallelism parallelismDegree,
                          Set<InetAddress> endpoints,
-                         boolean isConsistent,
+                         boolean isIncremental,
                          boolean pullRepair,
                          boolean force,
                          PreviewKind previewKind,
@@ -162,7 +161,8 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             }
             if (!removeCandidates.isEmpty())
             {
-                // we shouldn't be promoting sstables to repaired if any replicas are excluded from the repair
+                // we shouldn't be recording a successful repair if
+                // any replicas are excluded from the repair
                 forceSkippedReplicas = true;
                 endpoints = new HashSet<>(endpoints);
                 endpoints.removeAll(removeCandidates);
@@ -170,7 +170,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         }
 
         this.endpoints = endpoints;
-        this.isConsistent = isConsistent;
+        this.isIncremental = isIncremental;
         this.previewKind = previewKind;
         this.pullRepair = pullRepair;
         this.skippedReplicas = forceSkippedReplicas;
@@ -301,7 +301,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         List<ListenableFuture<RepairResult>> jobs = new ArrayList<>(cfnames.length);
         for (String cfname : cfnames)
         {
-            RepairJob job = new RepairJob(this, cfname, isConsistent, previewKind);
+            RepairJob job = new RepairJob(this, cfname, isIncremental, previewKind);
             executor.execute(job);
             jobs.add(job);
         }

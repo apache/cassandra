@@ -209,7 +209,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
                                              Set<InetAddress> endpoints,
-                                             boolean isConsistent,
+                                             boolean isIncremental,
                                              boolean pullRepair,
                                              boolean force,
                                              PreviewKind previewKind,
@@ -222,7 +222,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace, parallelismDegree, endpoints, isConsistent, pullRepair, force, previewKind, cfnames);
+        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace, parallelismDegree, endpoints, isIncremental, pullRepair, force, previewKind, cfnames);
 
         sessions.put(session.getId(), session);
         // register listeners
@@ -372,10 +372,28 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return neighbors;
     }
 
+    /**
+     * we only want to set repairedAt for incremental repairs including all replicas for a token range. For non-global
+     * incremental repairs, forced incremental repairs, and full repairs, the UNREPAIRED_SSTABLE value will prevent
+     * sstables from being promoted to repaired or preserve the repairedAt/pendingRepair values, respectively.
+     */
+    static long getRepairedAt(RepairOption options)
+    {
+        // we only want to set repairedAt for incremental repairs including all replicas for a token range. For non-global incremental repairs, forced incremental repairs, and
+        // full repairs, the UNREPAIRED_SSTABLE value will prevent sstables from being promoted to repaired or preserve the repairedAt/pendingRepair values, respectively.
+        if (options.isIncremental() && options.isGlobal() && !options.isForcedRepair())
+        {
+            return Clock.instance.currentTimeMillis();
+        }
+        else
+        {
+            return  ActiveRepairService.UNREPAIRED_SSTABLE;
+        }
+    }
+
     public UUID prepareForRepair(UUID parentRepairSession, InetAddress coordinator, Set<InetAddress> endpoints, RepairOption options, List<ColumnFamilyStore> columnFamilyStores)
     {
-        // we only want repairedAt for incremental repairs, for non incremental repairs, UNREPAIRED_SSTABLE will preserve repairedAt on streamed sstables
-        long repairedAt = options.isIncremental() ? Clock.instance.currentTimeMillis() : ActiveRepairService.UNREPAIRED_SSTABLE;
+        long repairedAt = getRepairedAt(options);
         registerParentRepairSession(parentRepairSession, coordinator, columnFamilyStores, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
         final CountDownLatch prepareLatch = new CountDownLatch(endpoints.size());
         final AtomicBoolean status = new AtomicBoolean(true);
@@ -581,13 +599,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                     }
                 }, true, false);
             }
-        }
-
-        public long getRepairedAt()
-        {
-            if (isGlobal)
-                return repairedAt;
-            return ActiveRepairService.UNREPAIRED_SSTABLE;
         }
 
         public Collection<ColumnFamilyStore> getColumnFamilyStores()
