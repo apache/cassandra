@@ -57,6 +57,7 @@ import javax.rmi.ssl.SslRMIClientSocketFactory;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.HintedHandOffManagerMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -720,6 +721,11 @@ public class NodeProbe implements AutoCloseable
     public void enableAutoCompaction(String ks, String ... tableNames) throws IOException
     {
         ssProxy.enableAutoCompaction(ks, tableNames);
+    }
+
+    public Map<String, Boolean> getAutoCompactionDisabled(String ks, String ... tableNames) throws IOException
+    {
+        return ssProxy.getAutoCompactionDisabled(ks, tableNames);
     }
 
     public void setIncrementalBackupsEnabled(boolean enabled)

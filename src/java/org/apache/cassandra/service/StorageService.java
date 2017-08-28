@@ -4960,6 +4960,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+    public Map<String, Boolean> getAutoCompactionDisabled(String ks, String... tables) throws IOException
+    {
+        Map<String, Boolean> status = new HashMap<String, Boolean>();
+        for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, tables))
+            status.put(cfs.getTableName(), cfs.isAutoCompactionDisabled());
+        return status;
+    }
+
+
     /** Returns the name of the cluster */
     public String getClusterName()
     {
