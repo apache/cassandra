@@ -36,39 +36,38 @@ import org.openjdk.jmh.annotations.*;
 @State(Scope.Benchmark)
 public class StreamingHistogramBench
 {
+    StreamingHistogram.StreamingHistogramBuilder streamingHistogram;
+    StreamingHistogram.StreamingHistogramBuilder newStreamingHistogram;
+    StreamingHistogram.StreamingHistogramBuilder newStreamingHistogram2;
+    StreamingHistogram.StreamingHistogramBuilder newStreamingHistogram3;
+    StreamingHistogram.StreamingHistogramBuilder newStreamingHistogram4;
+    StreamingHistogram.StreamingHistogramBuilder newStreamingHistogram5;
+    StreamingHistogram.StreamingHistogramBuilder newStreamingHistogram6;
+    StreamingHistogram.StreamingHistogramBuilder streamingHistogram60;
+    StreamingHistogram.StreamingHistogramBuilder newStreamingHistogram60;
+    StreamingHistogram.StreamingHistogramBuilder newStreamingHistogram100x60;
 
-    StreamingHistogram streamingHistogram;
-    StreamingHistogram newStreamingHistogram;
-    StreamingHistogram newStreamingHistogram2;
-    StreamingHistogram newStreamingHistogram3;
-    StreamingHistogram newStreamingHistogram4;
-    StreamingHistogram newStreamingHistogram5;
-    StreamingHistogram newStreamingHistogram6;
-    StreamingHistogram streamingHistogram60;
-    StreamingHistogram newStreamingHistogram60;
-    StreamingHistogram newStreamingHistogram100x60;
+    StreamingHistogram.StreamingHistogramBuilder narrowstreamingHistogram;
+    StreamingHistogram.StreamingHistogramBuilder narrownewStreamingHistogram;
+    StreamingHistogram.StreamingHistogramBuilder narrownewStreamingHistogram2;
+    StreamingHistogram.StreamingHistogramBuilder narrownewStreamingHistogram3;
+    StreamingHistogram.StreamingHistogramBuilder narrownewStreamingHistogram4;
+    StreamingHistogram.StreamingHistogramBuilder narrownewStreamingHistogram5;
+    StreamingHistogram.StreamingHistogramBuilder narrownewStreamingHistogram6;
+    StreamingHistogram.StreamingHistogramBuilder narrownewStreamingHistogram60;
+    StreamingHistogram.StreamingHistogramBuilder narrowstreamingHistogram60;
+    StreamingHistogram.StreamingHistogramBuilder narrownewStreamingHistogram100x60;
 
-    StreamingHistogram narrowstreamingHistogram;
-    StreamingHistogram narrownewStreamingHistogram;
-    StreamingHistogram narrownewStreamingHistogram2;
-    StreamingHistogram narrownewStreamingHistogram3;
-    StreamingHistogram narrownewStreamingHistogram4;
-    StreamingHistogram narrownewStreamingHistogram5;
-    StreamingHistogram narrownewStreamingHistogram6;
-    StreamingHistogram narrownewStreamingHistogram60;
-    StreamingHistogram narrowstreamingHistogram60;
-    StreamingHistogram narrownewStreamingHistogram100x60;
-
-    StreamingHistogram sparsestreamingHistogram;
-    StreamingHistogram sparsenewStreamingHistogram;
-    StreamingHistogram sparsenewStreamingHistogram2;
-    StreamingHistogram sparsenewStreamingHistogram3;
-    StreamingHistogram sparsenewStreamingHistogram4;
-    StreamingHistogram sparsenewStreamingHistogram5;
-    StreamingHistogram sparsenewStreamingHistogram6;
-    StreamingHistogram sparsestreamingHistogram60;
-    StreamingHistogram sparsenewStreamingHistogram60;
-    StreamingHistogram sparsenewStreamingHistogram100x60;
+    StreamingHistogram.StreamingHistogramBuilder sparsestreamingHistogram;
+    StreamingHistogram.StreamingHistogramBuilder sparsenewStreamingHistogram;
+    StreamingHistogram.StreamingHistogramBuilder sparsenewStreamingHistogram2;
+    StreamingHistogram.StreamingHistogramBuilder sparsenewStreamingHistogram3;
+    StreamingHistogram.StreamingHistogramBuilder sparsenewStreamingHistogram4;
+    StreamingHistogram.StreamingHistogramBuilder sparsenewStreamingHistogram5;
+    StreamingHistogram.StreamingHistogramBuilder sparsenewStreamingHistogram6;
+    StreamingHistogram.StreamingHistogramBuilder sparsestreamingHistogram60;
+    StreamingHistogram.StreamingHistogramBuilder sparsenewStreamingHistogram60;
+    StreamingHistogram.StreamingHistogramBuilder sparsenewStreamingHistogram100x60;
 
     static int[] ttls = new int[10000000];
     static int[] narrowttls = new int[10000000];
@@ -91,39 +90,39 @@ public class StreamingHistogramBench
     public void setup() throws Throwable
     {
 
-        streamingHistogram = new StreamingHistogram(100, 0, 1);
-        newStreamingHistogram = new StreamingHistogram(100, 1000, 1);
-        newStreamingHistogram2 = new StreamingHistogram(100, 10000, 1);
-        newStreamingHistogram3 = new StreamingHistogram(100, 100000, 1);
-        newStreamingHistogram4 = new StreamingHistogram(50, 100000, 1);
-        newStreamingHistogram5 = new StreamingHistogram(50, 10000,1 );
-        newStreamingHistogram6 = new StreamingHistogram(100, 1000000, 1);
-        streamingHistogram60 = new StreamingHistogram(100, 0, 60);
-        newStreamingHistogram60 = new StreamingHistogram(100, 100000, 60);
-        newStreamingHistogram100x60 = new StreamingHistogram(100, 10000, 60);
+        streamingHistogram = new StreamingHistogram.StreamingHistogramBuilder(100, 0, 1);
+        newStreamingHistogram = new StreamingHistogram.StreamingHistogramBuilder(100, 1000, 1);
+        newStreamingHistogram2 = new StreamingHistogram.StreamingHistogramBuilder(100, 10000, 1);
+        newStreamingHistogram3 = new StreamingHistogram.StreamingHistogramBuilder(100, 100000, 1);
+        newStreamingHistogram4 = new StreamingHistogram.StreamingHistogramBuilder(50, 100000, 1);
+        newStreamingHistogram5 = new StreamingHistogram.StreamingHistogramBuilder(50, 10000,1 );
+        newStreamingHistogram6 = new StreamingHistogram.StreamingHistogramBuilder(100, 1000000, 1);
+        streamingHistogram60 = new StreamingHistogram.StreamingHistogramBuilder(100, 0, 60);
+        newStreamingHistogram60 = new StreamingHistogram.StreamingHistogramBuilder(100, 100000, 60);
+        newStreamingHistogram100x60 = new StreamingHistogram.StreamingHistogramBuilder(100, 10000, 60);
 
-        narrowstreamingHistogram = new StreamingHistogram(100, 0, 1);
-        narrownewStreamingHistogram = new StreamingHistogram(100, 1000, 1);
-        narrownewStreamingHistogram2 = new StreamingHistogram(100, 10000, 1);
-        narrownewStreamingHistogram3 = new StreamingHistogram(100, 100000, 1);
-        narrownewStreamingHistogram4 = new StreamingHistogram(50, 100000, 1);
-        narrownewStreamingHistogram5 = new StreamingHistogram(50, 10000, 1);
-        narrownewStreamingHistogram6 = new StreamingHistogram(100, 1000000, 1);
-        narrowstreamingHistogram60 = new StreamingHistogram(100, 0, 60);
-        narrownewStreamingHistogram60 = new StreamingHistogram(100, 100000, 60);
-        narrownewStreamingHistogram100x60 = new StreamingHistogram(100, 10000, 60);
+        narrowstreamingHistogram = new StreamingHistogram.StreamingHistogramBuilder(100, 0, 1);
+        narrownewStreamingHistogram = new StreamingHistogram.StreamingHistogramBuilder(100, 1000, 1);
+        narrownewStreamingHistogram2 = new StreamingHistogram.StreamingHistogramBuilder(100, 10000, 1);
+        narrownewStreamingHistogram3 = new StreamingHistogram.StreamingHistogramBuilder(100, 100000, 1);
+        narrownewStreamingHistogram4 = new StreamingHistogram.StreamingHistogramBuilder(50, 100000, 1);
+        narrownewStreamingHistogram5 = new StreamingHistogram.StreamingHistogramBuilder(50, 10000, 1);
+        narrownewStreamingHistogram6 = new StreamingHistogram.StreamingHistogramBuilder(100, 1000000, 1);
+        narrowstreamingHistogram60 = new StreamingHistogram.StreamingHistogramBuilder(100, 0, 60);
+        narrownewStreamingHistogram60 = new StreamingHistogram.StreamingHistogramBuilder(100, 100000, 60);
+        narrownewStreamingHistogram100x60 = new StreamingHistogram.StreamingHistogramBuilder(100, 10000, 60);
 
 
-        sparsestreamingHistogram = new StreamingHistogram(100, 0, 1);
-        sparsenewStreamingHistogram = new StreamingHistogram(100, 1000, 1);
-        sparsenewStreamingHistogram2 = new StreamingHistogram(100, 10000, 1);
-        sparsenewStreamingHistogram3 = new StreamingHistogram(100, 100000, 1);
-        sparsenewStreamingHistogram4 = new StreamingHistogram(50, 100000, 1);
-        sparsenewStreamingHistogram5 = new StreamingHistogram(50, 10000, 1);
-        sparsenewStreamingHistogram6 = new StreamingHistogram(100, 1000000, 1);
-        sparsestreamingHistogram60 = new StreamingHistogram(100, 0, 60);
-        sparsenewStreamingHistogram60 = new StreamingHistogram(100, 100000, 60);
-        sparsenewStreamingHistogram100x60 = new StreamingHistogram(100, 10000, 60);
+        sparsestreamingHistogram = new StreamingHistogram.StreamingHistogramBuilder(100, 0, 1);
+        sparsenewStreamingHistogram = new StreamingHistogram.StreamingHistogramBuilder(100, 1000, 1);
+        sparsenewStreamingHistogram2 = new StreamingHistogram.StreamingHistogramBuilder(100, 10000, 1);
+        sparsenewStreamingHistogram3 = new StreamingHistogram.StreamingHistogramBuilder(100, 100000, 1);
+        sparsenewStreamingHistogram4 = new StreamingHistogram.StreamingHistogramBuilder(50, 100000, 1);
+        sparsenewStreamingHistogram5 = new StreamingHistogram.StreamingHistogramBuilder(50, 10000, 1);
+        sparsenewStreamingHistogram6 = new StreamingHistogram.StreamingHistogramBuilder(100, 1000000, 1);
+        sparsestreamingHistogram60 = new StreamingHistogram.StreamingHistogramBuilder(100, 0, 60);
+        sparsenewStreamingHistogram60 = new StreamingHistogram.StreamingHistogramBuilder(100, 100000, 60);
+        sparsenewStreamingHistogram100x60 = new StreamingHistogram.StreamingHistogramBuilder(100, 10000, 60);
 
     }
 
@@ -138,7 +137,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             streamingHistogram.update(ttls[i]);
-        streamingHistogram.flushHistogram();
+        streamingHistogram.build();
     }
 
     @Benchmark
@@ -146,7 +145,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             newStreamingHistogram.update(ttls[i]);
-        newStreamingHistogram.flushHistogram();
+        newStreamingHistogram.build();
 
     }
 
@@ -155,7 +154,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             newStreamingHistogram2.update(ttls[i]);
-        newStreamingHistogram2.flushHistogram();
+        newStreamingHistogram2.build();
 
     }
 
@@ -164,7 +163,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             newStreamingHistogram3.update(ttls[i]);
-        newStreamingHistogram3.flushHistogram();
+        newStreamingHistogram3.build();
 
     }
 
@@ -173,7 +172,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             newStreamingHistogram6.update(ttls[i]);
-        newStreamingHistogram6.flushHistogram();
+        newStreamingHistogram6.build();
 
     }
 
@@ -183,7 +182,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             newStreamingHistogram4.update(ttls[i]);
-        newStreamingHistogram4.flushHistogram();
+        newStreamingHistogram4.build();
 
     }
 
@@ -192,7 +191,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             newStreamingHistogram5.update(ttls[i]);
-        newStreamingHistogram5.flushHistogram();
+        newStreamingHistogram5.build();
 
     }
 
@@ -201,7 +200,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             streamingHistogram60.update(sparsettls[i]);
-        streamingHistogram60.flushHistogram();
+        streamingHistogram60.build();
 
     }
 
@@ -210,7 +209,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             newStreamingHistogram60.update(sparsettls[i]);
-        newStreamingHistogram60.flushHistogram();
+        newStreamingHistogram60.build();
     }
 
     @Benchmark
@@ -218,7 +217,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             newStreamingHistogram100x60.update(sparsettls[i]);
-        newStreamingHistogram100x60.flushHistogram();
+        newStreamingHistogram100x60.build();
     }
 
 
@@ -227,7 +226,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             narrowstreamingHistogram.update(narrowttls[i]);
-        narrowstreamingHistogram.flushHistogram();
+        narrowstreamingHistogram.build();
     }
 
     @Benchmark
@@ -235,7 +234,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             narrownewStreamingHistogram.update(narrowttls[i]);
-        narrownewStreamingHistogram.flushHistogram();
+        narrownewStreamingHistogram.build();
 
     }
 
@@ -244,7 +243,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             narrownewStreamingHistogram2.update(narrowttls[i]);
-        narrownewStreamingHistogram2.flushHistogram();
+        narrownewStreamingHistogram2.build();
 
     }
 
@@ -253,7 +252,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             narrownewStreamingHistogram3.update(narrowttls[i]);
-        narrownewStreamingHistogram3.flushHistogram();
+        narrownewStreamingHistogram3.build();
 
     }
 
@@ -262,7 +261,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             narrownewStreamingHistogram6.update(ttls[i]);
-        narrownewStreamingHistogram6.flushHistogram();
+        narrownewStreamingHistogram6.build();
 
     }
 
@@ -272,7 +271,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             narrownewStreamingHistogram4.update(narrowttls[i]);
-        narrownewStreamingHistogram4.flushHistogram();
+        narrownewStreamingHistogram4.build();
 
     }
 
@@ -281,7 +280,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             narrownewStreamingHistogram5.update(narrowttls[i]);
-        narrownewStreamingHistogram5.flushHistogram();
+        narrownewStreamingHistogram5.build();
 
     }
 
@@ -290,7 +289,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             narrowstreamingHistogram60.update(sparsettls[i]);
-        narrowstreamingHistogram60.flushHistogram();
+        narrowstreamingHistogram60.build();
 
     }
 
@@ -299,7 +298,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             narrownewStreamingHistogram60.update(sparsettls[i]);
-        narrownewStreamingHistogram60.flushHistogram();
+        narrownewStreamingHistogram60.build();
 
     }
 
@@ -308,7 +307,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             narrownewStreamingHistogram100x60.update(sparsettls[i]);
-        narrownewStreamingHistogram100x60.flushHistogram();
+        narrownewStreamingHistogram100x60.build();
 
     }
 
@@ -318,7 +317,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             sparsestreamingHistogram.update(sparsettls[i]);
-        sparsestreamingHistogram.flushHistogram();
+        sparsestreamingHistogram.build();
     }
 
     @Benchmark
@@ -326,7 +325,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             sparsenewStreamingHistogram.update(sparsettls[i]);
-        sparsenewStreamingHistogram.flushHistogram();
+        sparsenewStreamingHistogram.build();
 
     }
 
@@ -335,7 +334,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             sparsenewStreamingHistogram2.update(sparsettls[i]);
-        sparsenewStreamingHistogram2.flushHistogram();
+        sparsenewStreamingHistogram2.build();
 
     }
 
@@ -344,7 +343,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             sparsenewStreamingHistogram3.update(sparsettls[i]);
-        sparsenewStreamingHistogram3.flushHistogram();
+        sparsenewStreamingHistogram3.build();
 
     }
 
@@ -353,7 +352,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             sparsenewStreamingHistogram6.update(ttls[i]);
-        sparsenewStreamingHistogram6.flushHistogram();
+        sparsenewStreamingHistogram6.build();
     }
 
 
@@ -362,7 +361,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             sparsenewStreamingHistogram4.update(sparsettls[i]);
-        sparsenewStreamingHistogram4.flushHistogram();
+        sparsenewStreamingHistogram4.build();
 
     }
 
@@ -371,7 +370,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             sparsenewStreamingHistogram5.update(sparsettls[i]);
-        sparsenewStreamingHistogram5.flushHistogram();
+        sparsenewStreamingHistogram5.build();
 
     }
 
@@ -380,7 +379,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             sparsestreamingHistogram60.update(sparsettls[i]);
-        sparsestreamingHistogram60.flushHistogram();
+        sparsestreamingHistogram60.build();
 
     }
 
@@ -389,7 +388,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             sparsenewStreamingHistogram60.update(sparsettls[i]);
-        sparsenewStreamingHistogram60.flushHistogram();
+        sparsenewStreamingHistogram60.build();
 
     }
 
@@ -398,8 +397,7 @@ public class StreamingHistogramBench
     {
         for(int i = 0 ; i < ttls.length; i++)
             sparsenewStreamingHistogram100x60.update(sparsettls[i]);
-        sparsenewStreamingHistogram100x60.flushHistogram();
+        sparsenewStreamingHistogram100x60.build();
 
     }
-
 }

@@ -1,4 +1,5 @@
 3.0.15
+ * StreamingHistogram is not thread safe (CASSANDRA-13756)
  * Fix MV timestamp issues (CASSANDRA-11500)
  * Better tolerate improperly formatted bcrypt hashes (CASSANDRA-13626) 
  * Fix race condition in read command serialization (CASSANDRA-13363)

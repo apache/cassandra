@@ -40,145 +40,12 @@ public class StreamingHistogram
 
     // TreeMap to hold bins of histogram.
     private final TreeMap<Double, Long> bin;
-
-    // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
-    private final TreeMap<Double, Long> spool;
-
-    // maximum bin size for this histogram
     private final int maxBinSize;
 
-    // maximum size of the spool
-    private final int maxSpoolSize;
-
-    // voluntarily give up resolution for speed
-    private final int roundSeconds;
-
-    /**
-     * Creates a new histogram with max bin size of maxBinSize
-     * @param maxBinSize maximum number of bins this histogram can have
-     */
-    public StreamingHistogram(int maxBinSize, int maxSpoolSize, int roundSeconds)
+    private StreamingHistogram(int maxBinSize, Map<Double, Long> bin)
     {
         this.maxBinSize = maxBinSize;
-        this.maxSpoolSize = maxSpoolSize;
-        this.roundSeconds = roundSeconds;
-        bin = new TreeMap<>();
-        spool = new TreeMap<>();
-    }
-
-    private StreamingHistogram(int maxBinSize, int maxSpoolSize, int roundSeconds, Map<Double, Long> bin)
-    {
-        this.maxBinSize = maxBinSize;
-        this.maxSpoolSize = maxSpoolSize;
-        this.roundSeconds = roundSeconds;
         this.bin = new TreeMap<>(bin);
-        this.spool = new TreeMap<>();
-    }
-
-    /**
-     * Adds new point p to this histogram.
-     * @param p
-     */
-    public void update(double p)
-    {
-        update(p, 1);
-    }
-
-    /**
-     * Adds new point p with value m to this histogram.
-     * @param p
-     * @param m
-     */
-    public void update(double p, long m)
-    {
-        double d = p % this.roundSeconds;
-        if (d > 0)
-            p = p + (this.roundSeconds - d);
-
-        Long mi = spool.get(p);
-        if (mi != null)
-        {
-            // we found the same p so increment that counter
-            spool.put(p, mi + m);
-        }
-        else
-        {
-            spool.put(p, m);
-        }
-        if(spool.size() > maxSpoolSize)
-            flushHistogram();
-    }
-
-    /**
-     * Drain the temporary spool into the final bins
-     */
-    public void flushHistogram()
-    {
-        if(spool.size() > 0)
-        {
-            Long spoolValue;
-            Long binValue;
-
-            // Iterate over the spool, copying the value into the primary bin map
-            // and compacting that map as necessary
-            for (Map.Entry<Double, Long> entry : spool.entrySet())
-            {
-                Double key = entry.getKey();
-                spoolValue = entry.getValue();
-                binValue = bin.get(key);
-
-                if (binValue != null)
-                {
-                    binValue += spoolValue;
-                    bin.put(key, binValue);
-                } else
-                    {
-                    bin.put(key, spoolValue);
-                }
-
-                // if bin size exceeds maximum bin size then trim down to max size
-                if (bin.size() > maxBinSize)
-                {
-                    // find points p1, p2 which have smallest difference
-                    Iterator<Double> keys = bin.keySet().iterator();
-                    double p1 = keys.next();
-                    double p2 = keys.next();
-                    double smallestDiff = p2 - p1;
-                    double q1 = p1, q2 = p2;
-                    while (keys.hasNext()) {
-                        p1 = p2;
-                        p2 = keys.next();
-                        double diff = p2 - p1;
-                        if (diff < smallestDiff) {
-                            smallestDiff = diff;
-                            q1 = p1;
-                            q2 = p2;
-                        }
-                    }
-                    // merge those two
-                    long k1 = bin.remove(q1);
-                    long k2 = bin.remove(q2);
-                    bin.put((q1 * k1 + q2 * k2) / (k1 + k2), k1 + k2);
-                }
-            }
-            spool.clear();
-        }
-    }
-
-    /**
-     * Merges given histogram with this histogram.
-     *
-     * @param other histogram to merge
-     */
-    public void merge(StreamingHistogram other)
-    {
-        if (other == null)
-            return;
-
-        flushHistogram();
-
-        for (Map.Entry<Double, Long> entry : other.getAsMap().entrySet())
-            update(entry.getKey(), entry.getValue());
     }
 
     /**
@@ -189,7 +56,6 @@ public class StreamingHistogram
      */
     public double sum(double b)
     {
-        flushHistogram();
         double sum = 0;
         // find the points pi, pnext which satisfy pi <= b < pnext
         Map.Entry<Double, Long> pnext = bin.higherEntry(b);
@@ -219,8 +85,148 @@ public class StreamingHistogram
 
     public Map<Double, Long> getAsMap()
     {
-        flushHistogram();
         return Collections.unmodifiableMap(bin);
+    }
+
+    public static class StreamingHistogramBuilder
+    {
+        // TreeMap to hold bins of histogram.
+        private final TreeMap<Double, Long> bin;
+
+        // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
+        private final TreeMap<Double, Long> spool;
+
+        // maximum bin size for this histogram
+        private final int maxBinSize;
+
+        // maximum size of the spool
+        private final int maxSpoolSize;
+
+        // voluntarily give up resolution for speed
+        private final int roundSeconds;
+        /**
+         * Creates a new histogram with max bin size of maxBinSize
+         * @param maxBinSize maximum number of bins this histogram can have
+         */
+        public StreamingHistogramBuilder(int maxBinSize, int maxSpoolSize, int roundSeconds)
+        {
+            this.maxBinSize = maxBinSize;
+            this.maxSpoolSize = maxSpoolSize;
+            this.roundSeconds = roundSeconds;
+            bin = new TreeMap<>();
+            spool = new TreeMap<>();
+        }
+
+        public StreamingHistogram build()
+        {
+            flushHistogram();
+            return new StreamingHistogram(maxBinSize, bin);
+        }
+        /**
+         * Adds new point p to this histogram.
+         * @param p
+         */
+        public void update(double p)
+        {
+            update(p, 1);
+        }
+
+        /**
+         * Adds new point p with value m to this histogram.
+         * @param p
+         * @param m
+         */
+        public void update(double p, long m)
+        {
+            double d = p % this.roundSeconds;
+            if (d > 0)
+                p = p + (this.roundSeconds - d);
+
+            Long mi = spool.get(p);
+            if (mi != null)
+            {
+                // we found the same p so increment that counter
+                spool.put(p, mi + m);
+            }
+            else
+            {
+                spool.put(p, m);
+            }
+            if(spool.size() > maxSpoolSize)
+                flushHistogram();
+        }
+
+        /**
+         * Drain the temporary spool into the final bins
+         */
+        public void flushHistogram()
+        {
+            if(spool.size() > 0)
+            {
+                Long spoolValue;
+                Long binValue;
+
+                // Iterate over the spool, copying the value into the primary bin map
+                // and compacting that map as necessary
+                for (Map.Entry<Double, Long> entry : spool.entrySet())
+                {
+                    Double key = entry.getKey();
+                    spoolValue = entry.getValue();
+                    binValue = bin.get(key);
+
+                    if (binValue != null)
+                    {
+                        binValue += spoolValue;
+                        bin.put(key, binValue);
+                    } else
+                    {
+                        bin.put(key, spoolValue);
+                    }
+
+                    // if bin size exceeds maximum bin size then trim down to max size
+                    if (bin.size() > maxBinSize)
+                    {
+                        // find points p1, p2 which have smallest difference
+                        Iterator<Double> keys = bin.keySet().iterator();
+                        double p1 = keys.next();
+                        double p2 = keys.next();
+                        double smallestDiff = p2 - p1;
+                        double q1 = p1, q2 = p2;
+                        while (keys.hasNext()) {
+                            p1 = p2;
+                            p2 = keys.next();
+                            double diff = p2 - p1;
+                            if (diff < smallestDiff) {
+                                smallestDiff = diff;
+                                q1 = p1;
+                                q2 = p2;
+                            }
+                        }
+                        // merge those two
+                        long k1 = bin.remove(q1);
+                        long k2 = bin.remove(q2);
+                        bin.put((q1 * k1 + q2 * k2) / (k1 + k2), k1 + k2);
+                    }
+                }
+                spool.clear();
+            }
+        }
+
+        /**
+        * Merges given histogram with this histogram.
+        *
+        * @param other histogram to merge
+        */
+        public void merge(StreamingHistogram other)
+        {
+            if (other == null)
+                return;
+
+            flushHistogram();
+
+            for (Map.Entry<Double, Long> entry : other.getAsMap().entrySet())
+                update(entry.getKey(), entry.getValue());
+        }
     }
 
     public static class StreamingHistogramSerializer implements ISerializer<StreamingHistogram>
@@ -247,7 +253,7 @@ public class StreamingHistogram
                 tmp.put(in.readDouble(), in.readLong());
             }
 
-            return new StreamingHistogram(maxBinSize, maxBinSize, 1, tmp);
+            return new StreamingHistogram(maxBinSize, tmp);
         }
 
         public long serializedSize(StreamingHistogram histogram)
@@ -272,14 +278,12 @@ public class StreamingHistogram
 
         StreamingHistogram that = (StreamingHistogram) o;
         return maxBinSize == that.maxBinSize
-               && spool.equals(that.spool)
                && bin.equals(that.bin);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(bin.hashCode(), spool.hashCode(), maxBinSize);
+        return Objects.hashCode(bin.hashCode(), maxBinSize);
     }
-
 }
