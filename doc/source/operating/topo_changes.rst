@@ -98,16 +98,21 @@ Replacing a dead node
 
 In order to replace a dead node, start cassandra with the JVM startup flag
 ``-Dcassandra.replace_address_first_boot=<dead_node_ip>``. Once this property is enabled the node starts in a hibernate
-state, during which all the other nodes will see this node to be down.
+state, during which all the other nodes will see this node to be DOWN (DN), however this node will see itself as UP 
+(UN). Accurate replacement state can be found in ``nodetool netstats``.
 
-The replacing node will now start to bootstrap the data from the rest of the nodes in the cluster. The main difference
-between normal bootstrapping of a new node is that this new node will not accept any writes during this phase.
+The replacing node will now start to bootstrap the data from the rest of the nodes in the cluster. A replacing node will
+only receive writes during the bootstrapping phase if it has a different ip address to the node that is being replaced. 
+(See CASSANDRA-8523 and CASSANDRA-12344)
 
-Once the bootstrapping is complete the node will be marked "UP", we rely on the hinted handoff's for making this node
-consistent (since we don't accept writes since the start of the bootstrap).
+Once the bootstrapping is complete the node will be marked "UP". 
 
-.. Note:: If the replacement process takes longer than ``max_hint_window_in_ms`` you **MUST** run repair to make the
-   replaced node consistent again, since it missed ongoing writes during bootstrapping.
+.. Note:: If any of the following cases apply, you **MUST** run repair to make the replaced node consistent again, since 
+    it missed ongoing writes during/prior to bootstrapping. The *replacement* timeframe refers to the period from when the
+    node initially dies to when a new node completes the replacement process.
+
+    1. The node is down for longer than ``max_hint_window_in_ms`` before being replaced.
+    2. You are replacing using the same IP address as the dead node **and** replacement takes longer than ``max_hint_window_in_ms``.
 
 Monitoring progress
 ^^^^^^^^^^^^^^^^^^^
