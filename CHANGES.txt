@@ -1,7 +1,5 @@
 4.0
- * Reduce memory copies and object creations when acting on ByteBufs (CASSANDRA-13789)
- * simplify mx4j configuration (Cassandra-13578)
- * Fix trigger example on 4.0 (CASSANDRA-13796)
+ * Allow interactive option for cqlsh (CASSANDRA-9430)
  * force minumum timeout value (CASSANDRA-9375)
  * use netty for streaming (CASSANDRA-12229)
  * Use netty for internode messaging (CASSANDRA-8457)
@@ -26,7 +24,6 @@
  * Upgrade SLF4J from 1.7.7 to 1.7.25 (CASSANDRA-12996)
  * Default for start_native_transport now true if not set in config (CASSANDRA-13656)
  * Don't add localhost to the graph when calculating where to stream from (CASSANDRA-13583)
- * Make CDC availability more deterministic via hard-linking (CASSANDRA-12148)
  * Allow skipping equality-restricted clustering columns in ORDER BY clause (CASSANDRA-10271)
  * Use common nowInSec for validation compactions (CASSANDRA-13671)
  * Improve handling of IR prepare failures (CASSANDRA-13672)
@@ -126,7 +123,6 @@
 
 
 3.11.1
- * Add a skip read validation flag to cassandra-stress (CASSANDRA-13772)
  * Fix cassandra-stress hang issues when an error during cluster connection happens (CASSANDRA-12938)
  * Better bootstrap failure message when blocked by (potential) range movement (CASSANDRA-13744)
  * "ignore" option is ignored in sstableloader (CASSANDRA-13721)
@@ -134,10 +130,6 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
- * Don't skip corrupted sstables on startup (CASSANDRA-13620)
- * Fix the merging of cells with different user type versions (CASSANDRA-13776)
- * Copy session properties on cqlsh.py do_login (CASSANDRA-13640)
- * Potential AssertionError during ReadRepair of range tombstone and partition deletions (CASSANDRA-13719)
  * Don't let stress write warmup data if n=0 (CASSANDRA-13773)
  * Randomize batchlog endpoint selection with only 1 or 2 racks (CASSANDRA-12884)
  * Fix digest calculation for counter cells (CASSANDRA-13750)

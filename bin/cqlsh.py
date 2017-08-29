@@ -213,6 +213,9 @@ parser.add_option("-u", "--username", help="Authenticate as user.")
 parser.add_option("-p", "--password", help="Authenticate using password.")
 parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.')
 parser.add_option("-f", "--file", help="Execute commands from FILE, then exit")
+parser.add_option("-i", "--interactive", action='store_true',
+                  help="With -f or -e, become interactive instead of exiting")
+
 parser.add_option('--debug', action='store_true',
                   help='Show additional debugging information')
 parser.add_option("--encoding", help="Specify a non-default encoding for output." +
@@ -437,7 +440,8 @@ class Shell(cmd.Cmd):
     default_page_size = 100
 
     def __init__(self, hostname, port, color=False,
-                 username=None, password=None, encoding=None, stdin=None, tty=True,
+                 username=None, password=None, encoding=None, stdin=None,
+                 tty=True, interactive=False,
                  completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
                  cqlver=None, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
@@ -513,6 +517,7 @@ class Shell(cmd.Cmd):
         self.session.max_trace_wait = max_trace_wait
 
         self.tty = tty
+        self.interactive = interactive
         self.encoding = encoding
         self.check_windows_encoding()
 
@@ -848,7 +853,10 @@ class Shell(cmd.Cmd):
             self.lastcmd = self.stdin.readline()
             line = self.lastcmd
             if not len(line):
-                raise EOFError
+                if self.interactive:
+                    self.tty = True
+                else:
+                    raise EOFError
         self.lineno += 1
         return line
 
@@ -869,12 +877,16 @@ class Shell(cmd.Cmd):
         cmd.Cmd.cmdloop() to tell the difference between "EOF" showing up in
         input and an actual EOF.
         """
-        with self.prepare_loop():
-            while not self.stop:
+        while not self.stop:
+            with self.prepare_loop():
                 try:
                     if self.single_statement:
                         line = self.single_statement
-                        self.stop = True
+                        if self.interactive:
+                            self.single_statement = None
+                            self.tty = True
+                        else:
+                            self.stop = True
                     else:
                         line = self.get_input_line(self.prompt)
                     self.statement.write(line)
@@ -2240,6 +2252,7 @@ def read_options(cmdlineargs, environment):
 
     optvalues.debug = False
     optvalues.file = None
+    optvalues.interactive = False
     optvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', DEFAULT_SSL)
     optvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
 
@@ -2284,10 +2297,10 @@ def read_options(cmdlineargs, environment):
     if optvalues.color in (True, False):
         options.color = optvalues.color
     else:
-        if options.file is not None:
-            options.color = False
-        else:
+        if options.tty:
             options.color = should_use_color()
+        else:
+            options.color = False
 
     if options.cqlversion is not None:
         options.cqlversion, cqlvertup = full_cql_version(options.cqlversion)
@@ -2396,6 +2409,7 @@ def main(options, hostname, port):
                       password=options.password,
                       stdin=stdin,
                       tty=options.tty,
+                      interactive=options.interactive,
                       completekey=options.completekey,
                       browser=options.browser,
                       protocol_version=options.protocol_version,
