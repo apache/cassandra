@@ -267,6 +267,8 @@ public class TableMetrics
         }
     });
 
+    public final Meter shortReadProtectionRequests;
+
     public final Map<Sampler, TopKSampler<ByteBuffer>> samplers;
     /**
      * stores metrics that will be rolled into a single global metric
@@ -829,6 +831,8 @@ public class TableMetrics
                 return bytesMutated / (bytesAnticomp + bytesMutated);
             return 0.0;
         });
+
+        shortReadProtectionRequests = Metrics.meter(factory.createMetricName("ShortReadProtectionRequests"));
     }
 
     public void updateSSTableIterated(int count)
