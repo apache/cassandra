@@ -74,6 +74,20 @@ public class PasswordAuthenticator implements IAuthenticator
         return true;
     }
 
+    protected static boolean checkpw(String password, String hash)
+    {
+        try
+        {
+            return BCrypt.checkpw(password, hash);
+        }
+        catch (Exception e)
+        {
+            // Improperly formatted hashes may cause BCrypt.checkpw to throw, so trap any other exception as a failure
+            logger.warn("Error: invalid password hash encountered, rejecting user", e);
+            return false;
+        }
+    }
+
     private AuthenticatedUser authenticate(String username, String password) throws AuthenticationException
     {
         try
@@ -162,7 +176,7 @@ public class PasswordAuthenticator implements IAuthenticator
                                                                                                 Lists.newArrayList(ByteBufferUtil.bytes(username))));
         UntypedResultSet result = UntypedResultSet.create(rows.result);
 
-        if ((result.isEmpty() || !result.one().has(SALTED_HASH)) || !BCrypt.checkpw(password, result.one().getString(SALTED_HASH)))
+        if ((result.isEmpty() || !result.one().has(SALTED_HASH)) || !checkpw(password, result.one().getString(SALTED_HASH)))
             throw new AuthenticationException("Username and/or password are incorrect");
 
         return new AuthenticatedUser(username);
