@@ -856,8 +856,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
              * than the version passed in. In this case we also send the old
              * heart beat and throw it away on the receiver if it is redundant.
             */
-            int localHbGeneration = epState.getHeartBeatState().getGeneration();
-            int localHbVersion = epState.getHeartBeatState().getHeartBeatVersion();
+            HeartBeatState heartBeatState = epState.getHeartBeatState();
+            int localHbGeneration = heartBeatState.getGeneration();
+            int localHbVersion = heartBeatState.getHeartBeatVersion();
             if (localHbVersion > version)
             {
                 reqdEndpointState = new EndpointState(new HeartBeatState(localHbGeneration, localHbVersion));
