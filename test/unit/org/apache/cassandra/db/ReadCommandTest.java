@@ -272,20 +272,21 @@ public class ReadCommandTest
             }
         }
 
-        try(PartitionIterator partitionIterator = UnfilteredPartitionIterators.mergeAndFilter(iterators,
-                                                                                          nowInSeconds,
-                                                                                          new UnfilteredPartitionIterators.MergeListener()
-        {
-            public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
+        UnfilteredPartitionIterators.MergeListener listener =
+            new UnfilteredPartitionIterators.MergeListener()
             {
-                return null;
-            }
+                public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
+                {
+                    return null;
+                }
 
-            public void close()
-            {
+                public void close()
+                {
 
-            }
-        }))
+                }
+            };
+
+        try (PartitionIterator partitionIterator = UnfilteredPartitionIterators.filter(UnfilteredPartitionIterators.merge(iterators, nowInSeconds, listener), nowInSeconds))
         {
 
             int i = 0;

@@ -27,18 +27,13 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.ClusteringIndexFilter;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.filter.DataLimits.Counter;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.transform.MoreRows;
-import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.db.transform.*;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.tracing.Tracing;
@@ -76,10 +71,29 @@ public class DataResolver extends ResponseResolver
             sources[i] = msg.from;
         }
 
-        // Even though every responses should honor the limit, we might have more than requested post reconciliation,
-        // so ensure we're respecting the limit.
+        /*
+         * Even though every response, individually, will honor the limit, it is possible that we will, after the merge,
+         * have more rows than the client requested. To make sure that we still conform to the original limit,
+         * we apply a top-level post-reconciliation counter to the merged partition iterator.
+         *
+         * Short read protection logic (ShortReadRowProtection.moreContents()) relies on this counter to be applied
+         * to the current partition to work. For this reason we have to apply the counter transformation before
+         * empty partition discard logic kicks in - for it will eagerly consume the iterator.
+         *
+         * That's why the order here is: 1) merge; 2) filter rows; 3) count; 4) discard empty partitions
+         *
+         * See CASSANDRA-13747 for more details.
+         */
+
         DataLimits.Counter counter = command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition());
-        return counter.applyTo(mergeWithShortReadProtection(iters, sources, counter));
+
+        UnfilteredPartitionIterator merged = mergeWithShortReadProtection(iters, sources, counter);
+        FilteredPartitions filtered = FilteredPartitions.filter(merged, new Filter(command.nowInSec()));
+        PartitionIterator counted = counter.applyTo(filtered);
+
+        return command.isForThrift()
+             ? counted
+             : Transformation.apply(counted, new EmptyPartitionsDiscarder());
     }
 
     public void compareResponses()
@@ -91,11 +105,13 @@ public class DataResolver extends ResponseResolver
         }
     }
 
-    private PartitionIterator mergeWithShortReadProtection(List<UnfilteredPartitionIterator> results, InetAddress[] sources, DataLimits.Counter resultCounter)
+    private UnfilteredPartitionIterator mergeWithShortReadProtection(List<UnfilteredPartitionIterator> results,
+                                                                     InetAddress[] sources,
+                                                                     DataLimits.Counter resultCounter)
     {
         // If we have only one results, there is no read repair to do and we can't get short reads
         if (results.size() == 1)
-            return UnfilteredPartitionIterators.filter(results.get(0), command.nowInSec());
+            return results.get(0);
 
         UnfilteredPartitionIterators.MergeListener listener = new RepairMergeListener(sources);
 
@@ -107,7 +123,7 @@ public class DataResolver extends ResponseResolver
                 results.set(i, Transformation.apply(results.get(i), new ShortReadProtection(sources[i], resultCounter, queryStartNanoTime)));
         }
 
-        return UnfilteredPartitionIterators.mergeAndFilter(results, command.nowInSec(), listener);
+        return UnfilteredPartitionIterators.merge(results, command.nowInSec(), listener);
     }
 
     private class RepairMergeListener implements UnfilteredPartitionIterators.MergeListener
@@ -528,7 +544,7 @@ public class DataResolver extends ResponseResolver
                 // counting iterator.
                 int n = countedInCurrentPartition(postReconciliationCounter);
                 int x = countedInCurrentPartition(counter);
-                int toQuery = Math.max(((n * n) / x) - n, 1);
+                int toQuery = Math.max(((n * n) / Math.max(x, 1)) - n, 1);
 
                 DataLimits retryLimits = command.limits().forShortReadRetry(toQuery);
                 ClusteringIndexFilter filter = command.clusteringIndexFilter(partitionKey);
@@ -540,6 +556,9 @@ public class DataResolver extends ResponseResolver
                                                                                    retryLimits,
                                                                                    partitionKey,
                                                                                    retryFilter);
+
+                Tracing.trace("Requesting {} extra rows from {} for short read protection", toQuery, source);
+                Schema.instance.getColumnFamilyStoreInstance(cmd.metadata().cfId).metric.shortReadProtectionRequests.mark();
 
                 return doShortReadRetry(cmd);
             }
@@ -581,7 +600,7 @@ public class DataResolver extends ResponseResolver
                 DataResolver resolver = new DataResolver(keyspace, retryCommand, ConsistencyLevel.ONE, 1, queryStartNanoTime);
                 ReadCallback handler = new ReadCallback(resolver, ConsistencyLevel.ONE, retryCommand, Collections.singletonList(source), queryStartNanoTime);
                 if (StorageProxy.canDoLocalRequest(source))
-                      StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(retryCommand, handler));
+                    StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(retryCommand, handler));
                 else
                     MessagingService.instance().sendRRWithFailure(retryCommand.createMessage(MessagingService.current_version), source, handler);
 
