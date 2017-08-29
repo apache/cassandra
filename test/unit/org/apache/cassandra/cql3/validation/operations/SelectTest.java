@@ -4746,8 +4746,24 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (k) VALUES (2);");
         execute("INSERT INTO %s (k, i) VALUES (1, 1) USING TTL 100;");
         execute("INSERT INTO %s (k, i) VALUES (3, 3) USING TTL 100;");
-        assertRows(execute("SELECT k, i, TTL(i) FROM %s "),
-                   row(1, 1, 100), row(2, null, null), row(3, 3, 100));
+        assertRows(execute("SELECT k, i FROM %s "),
+                   row(1, 1),
+                   row(2, null),
+                   row(3, 3));
+
+        UntypedResultSet rs = execute("SELECT k, i, ttl(i) AS name_ttl FROM %s");
+        assertEquals("name_ttl", rs.metadata().get(2).name.toString());
+        int i = 0;
+        for (UntypedResultSet.Row row : rs)
+        {
+            if ( i % 2 == 0) // Every odd row has a null i/ttl
+                assertTrue(row.getInt("name_ttl") >= 90 && row.getInt("name_ttl") <= 100);
+            else
+                assertTrue(row.has("name_ttl") == false);
+
+            i++;
+        }
+
     }
 
     @Test
@@ -4759,11 +4775,24 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (k, c) VALUES (1, 2) ;");
         execute("INSERT INTO %s (k, c, i) VALUES (1, 3, 3) USING TTL 100;");
         execute("INSERT INTO %s (k, c, i) VALUES (3, 3, 3) USING TTL 100;");
-        assertRows(execute("SELECT k, c, i, TTL(i) FROM %s "),
-                   row(1, 1, 1, 100),
-                   row(1, 2, null, null),
-                   row(1, 3, 3, 100),
-                   row(2, 2, null, null),
-                   row(3, 3, 3, 100));
+        assertRows(execute("SELECT k, c, i FROM %s "),
+                   row(1, 1, 1),
+                   row(1, 2, null),
+                   row(1, 3, 3),
+                   row(2, 2, null),
+                   row(3, 3, 3));
+
+        UntypedResultSet rs = execute("SELECT k, c, i, ttl(i) AS name_ttl FROM %s");
+        assertEquals("name_ttl", rs.metadata().get(3).name.toString());
+        int i = 0;
+        for (UntypedResultSet.Row row : rs)
+        {
+            if ( i % 2 == 0) // Every odd row has a null i/ttl
+                assertTrue(row.getInt("name_ttl") >= 90 && row.getInt("name_ttl") <= 100);
+            else
+                assertTrue(row.has("name_ttl") == false);
+
+            i++;
+        }
     }
 }
