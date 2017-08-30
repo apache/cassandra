@@ -309,19 +309,6 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     }
 
     /**
-     *  Index instance chosen for this query. Can be null.
-     *
-     * @return Index instance chosen for this query. Can be null.
-     */
-    @Nullable
-    public Index index()
-    {
-        return null == index
-             ? null
-             : Keyspace.openAndGetStore(metadata).indexManager.getIndex(index);
-    }
-
-    /**
      * The clustering index filter this command to use for the provided key.
      * <p>
      * Note that that method should only be called on a key actually queried by this command
