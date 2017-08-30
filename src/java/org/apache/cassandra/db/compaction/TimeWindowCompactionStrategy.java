@@ -300,9 +300,9 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
                 if (!stcsInterestingBucket.isEmpty())
                     return stcsInterestingBucket;
             }
-            else if (bucket.size() >= 2 && key < now)
+            else if (bucket.size() >= minThreshold && key < now)
             {
-                logger.debug("bucket size {} >= 2 and not in current bucket, compacting what's here: {}", bucket.size(), bucket);
+                logger.debug("bucket size {} >= {} and not in current bucket, compacting what's here: {}", bucket.size(), minThreshold, bucket);
                 return trimToThreshold(bucket, maxThreshold);
             }
             else
