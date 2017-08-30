@@ -13,6 +13,6 @@ test:
   post:
     - mkdir -p $CIRCLE_TEST_REPORTS/junit/:
         parallel: true
-    - find ./build/test/output/ -iname "*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/junit/ \;:
+    - case $CIRCLE_NODE_INDEX in [012]) find ./build/test/output/ -iname "*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/junit/ \; ;;esac:
         parallel: true
 
