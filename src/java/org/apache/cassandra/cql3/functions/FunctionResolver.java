@@ -156,7 +156,7 @@ public final class FunctionResolver
                             return toTest;
                     }
                 }
-                throw invalidRequest("Ambiguous '%s' operation: use type casts to disambiguate",
+                throw invalidRequest("Ambiguous '%s' operation with args %s and %s: use type casts to disambiguate",
                                      OperationFcts.getOperator(name), providedArgs.get(0), providedArgs.get(1));
             }
 

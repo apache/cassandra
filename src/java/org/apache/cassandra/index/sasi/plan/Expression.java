@@ -411,5 +411,13 @@ public class Expression
             Bound o = (Bound) other;
             return value.equals(o.value) && inclusive == o.inclusive;
         }
+
+        public int hashCode()
+        {
+            HashCodeBuilder builder = new HashCodeBuilder();
+            builder.append(value);
+            builder.append(inclusive);
+            return builder.toHashCode();
+        }
     }
 }

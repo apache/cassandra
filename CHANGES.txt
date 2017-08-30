@@ -1,5 +1,6 @@
 4.0
  * Add nodetool cmd to print hinted handoff window (CASSANDRA-13728)
+ * Fix some alerts raised by static analysis (CASSANDRA-13799)
  * Checksum sstable metadata (CASSANDRA-13321, CASSANDRA-13593)
  * Add result set metadata to prepared statement MD5 hash calculation (CASSANDRA-10786)
  * Refactor GcCompactionTest to avoid boxing (CASSANDRA-13941)

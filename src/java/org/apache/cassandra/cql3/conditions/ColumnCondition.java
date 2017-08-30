@@ -832,7 +832,7 @@ public abstract class ColumnCondition
                 checkFalse(type.isCollection(), "Slice conditions are not supported on collections containing durations");
                 checkFalse(type.isTuple(), "Slice conditions are not supported on tuples containing durations");
                 checkFalse(type.isUDT(), "Slice conditions are not supported on UDTs containing durations");
-                throw invalidRequest("Slice conditions are not supported on durations", operator);
+                throw invalidRequest("Slice conditions ( %s ) are not supported on durations", operator);
             }
         }
     }

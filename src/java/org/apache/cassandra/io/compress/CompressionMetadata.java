@@ -424,19 +424,19 @@ public class CompressionMetadata
         @SuppressWarnings("resource")
         public CompressionMetadata open(long dataLength, long compressedLength)
         {
-            SafeMemory offsets = this.offsets.sharedCopy();
+            SafeMemory tOffsets = this.offsets.sharedCopy();
 
             // calculate how many entries we need, if our dataLength is truncated
-            int count = (int) (dataLength / parameters.chunkLength());
+            int tCount = (int) (dataLength / parameters.chunkLength());
             if (dataLength % parameters.chunkLength() != 0)
-                count++;
+                tCount++;
 
-            assert count > 0;
+            assert tCount > 0;
             // grab our actual compressed length from the next offset from our the position we're opened to
-            if (count < this.count)
-                compressedLength = offsets.getLong(count * 8L);
+            if (tCount < this.count)
+                compressedLength = tOffsets.getLong(tCount * 8L);
 
-            return new CompressionMetadata(filePath, parameters, offsets, count * 8L, dataLength, compressedLength);
+            return new CompressionMetadata(filePath, parameters, tOffsets, tCount * 8L, dataLength, compressedLength);
         }
 
         /**

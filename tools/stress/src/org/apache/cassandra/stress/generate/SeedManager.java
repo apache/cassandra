@@ -43,9 +43,9 @@ public class SeedManager
 
     public SeedManager(StressSettings settings)
     {
-        Distribution sample = settings.insert.revisit.get();
-        this.sampleOffset = Math.min(sample.minValue(), sample.maxValue());
-        long sampleSize = 1 + Math.max(sample.minValue(), sample.maxValue()) - sampleOffset;
+        Distribution tSample = settings.insert.revisit.get();
+        this.sampleOffset = Math.min(tSample.minValue(), tSample.maxValue());
+        long sampleSize = 1 + Math.max(tSample.minValue(), tSample.maxValue()) - sampleOffset;
         if (sampleOffset < 0 || sampleSize > Integer.MAX_VALUE)
             throw new IllegalArgumentException("sample range is invalid");
 
@@ -76,7 +76,7 @@ public class SeedManager
         this.writes = writes;
         this.reads = reads;
         this.sampleFrom = new LockedDynamicList<>((int) sampleSize);
-        this.sample = DistributionInverted.invert(sample);
+        this.sample = DistributionInverted.invert(tSample);
         this.sampleSize = (int) sampleSize;
         this.updateSampleImmediately = visits.average() > 1;
     }
@@ -88,7 +88,7 @@ public class SeedManager
             Seed seed = reads.next(-1);
             if (seed == null)
                 return null;
-            Seed managing = this.managing.get(seed);
+            Seed managing = this.managing.get(seed.seed);
             return managing == null ? seed : managing;
         }
 

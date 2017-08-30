@@ -32,6 +32,6 @@ public class Booleans extends Generator<Boolean>
     @Override
     public Boolean generate()
     {
-        return identityDistribution.next() % 1 == 0;
+        return identityDistribution.next() % 2 == 0;
     }
 }

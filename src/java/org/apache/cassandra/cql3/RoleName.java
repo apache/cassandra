@@ -25,7 +25,7 @@ public class RoleName
 
     public void setName(String name, boolean keepCase)
     {
-        this.name = keepCase ? name : name.toLowerCase(Locale.US);
+        this.name = keepCase ? name : (name == null ? name : name.toLowerCase(Locale.US));
     }
 
     public boolean hasName()
