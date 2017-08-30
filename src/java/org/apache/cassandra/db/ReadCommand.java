@@ -18,8 +18,9 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
 import java.util.function.Predicate;
+
+import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.StoppingTransformation;
 import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexNotAvailableException;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -44,7 +46,6 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -69,23 +70,25 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     private final RowFilter rowFilter;
     private final DataLimits limits;
 
-    // SecondaryIndexManager will attempt to provide the most selective of any available indexes
-    // during execution. Here we also store an the results of that lookup to repeating it over
-    // the lifetime of the command.
-    protected Optional<IndexMetadata> index = Optional.empty();
-
-    // Flag to indicate whether the index manager has been queried to select an index for this
-    // command. This is necessary as the result of that lookup may be null, in which case we
-    // still don't want to repeat it.
-    private boolean indexManagerQueried = false;
-
-    private boolean isDigestQuery;
+    private final boolean isDigestQuery;
     // if a digest query, the version for which the digest is expected. Ignored if not a digest.
     private int digestVersion;
 
+    @Nullable
+    private final IndexMetadata index;
+
     protected static abstract class SelectionDeserializer
     {
-        public abstract ReadCommand deserialize(DataInputPlus in, int version, boolean isDigest, int digestVersion, TableMetadata metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits, Optional<IndexMetadata> index) throws IOException;
+        public abstract ReadCommand deserialize(DataInputPlus in,
+                                                int version,
+                                                boolean isDigest,
+                                                int digestVersion,
+                                                TableMetadata metadata,
+                                                int nowInSec,
+                                                ColumnFilter columnFilter,
+                                                RowFilter rowFilter,
+                                                DataLimits limits,
+                                                IndexMetadata index) throws IOException;
     }
 
     protected enum Kind
@@ -108,7 +111,8 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
                           int nowInSec,
                           ColumnFilter columnFilter,
                           RowFilter rowFilter,
-                          DataLimits limits)
+                          DataLimits limits,
+                          IndexMetadata index)
     {
         this.kind = kind;
         this.isDigestQuery = isDigestQuery;
@@ -118,6 +122,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
         this.columnFilter = columnFilter;
         this.rowFilter = rowFilter;
         this.limits = limits;
+        this.index = index;
     }
 
     protected abstract void serializeSelection(DataOutputPlus out, int version) throws IOException;
@@ -221,18 +226,6 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     }
 
     /**
-     * Sets whether this command should be a digest one or not.
-     *
-     * @param isDigestQuery whether the command should be set as a digest one or not.
-     * @return this read command.
-     */
-    public ReadCommand setIsDigestQuery(boolean isDigestQuery)
-    {
-        this.isDigestQuery = isDigestQuery;
-        return this;
-    }
-
-    /**
      * Sets the digest version, for when digest for that command is requested.
      * <p>
      * Note that we allow setting this independently of setting the command as a digest query as
@@ -246,6 +239,30 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     {
         this.digestVersion = digestVersion;
         return this;
+    }
+
+    /**
+     * Index (metadata) chosen for this query. Can be null.
+     *
+     * @return index (metadata) chosen for this query
+     */
+    @Nullable
+    public IndexMetadata indexMetadata()
+    {
+        return index;
+    }
+
+    /**
+     *  Index instance chosen for this query. Can be null.
+     *
+     * @return Index instance chosen for this query. Can be null.
+     */
+    @Nullable
+    public Index index()
+    {
+        return null == index
+             ? null
+             : Keyspace.openAndGetStore(metadata).indexManager.getIndex(index);
     }
 
     /**
@@ -268,6 +285,11 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
      */
     public abstract ReadCommand copy();
 
+    /**
+     * Returns a copy of this command with isDigestQuery set to true.
+     */
+    public abstract ReadCommand copyAsDigestQuery();
+
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadExecutionController executionController);
 
     protected abstract int oldestUnrepairedTombstone();
@@ -279,35 +301,32 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
              : ReadResponse.createDataResponse(iterator, this);
     }
 
-    public long indexSerializedSize(int version)
+    long indexSerializedSize(int version)
     {
-        if (index.isPresent())
-            return IndexMetadata.serializer.serializedSize(index.get(), version);
-        else
-            return 0;
+        return null != index
+             ? IndexMetadata.serializer.serializedSize(index, version)
+             : 0;
     }
 
     public Index getIndex(ColumnFamilyStore cfs)
     {
-        // if we've already consulted the index manager, and it returned a valid index
-        // the result should be cached here.
-        if(index.isPresent())
-            return cfs.indexManager.getIndex(index.get());
+        return null != index
+             ? cfs.indexManager.getIndex(index)
+             : null;
+    }
 
-        // if no cached index is present, but we've already consulted the index manager
-        // then no registered index is suitable for this command, so just return null.
-        if (indexManagerQueried)
+    static IndexMetadata findIndex(TableMetadata table, RowFilter rowFilter)
+    {
+        if (table.indexes.isEmpty() || rowFilter.isEmpty())
             return null;
 
-        // do the lookup, set the flag to indicate so and cache the result if not null
-        Index selected = cfs.indexManager.getBestIndexFor(this);
-        indexManagerQueried = true;
+        ColumnFamilyStore cfs = Keyspace.openAndGetStore(table);
 
-        if (selected == null)
-            return null;
+        Index index = cfs.indexManager.getBestIndexFor(rowFilter);
 
-        index = Optional.of(selected.getIndexMetadata());
-        return selected;
+        return null != index
+             ? index.getIndexMetadata()
+             : null;
     }
 
     /**
@@ -620,7 +639,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
         public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
         {
             out.writeByte(command.kind.ordinal());
-            out.writeByte(digestFlag(command.isDigestQuery()) | indexFlag(command.index.isPresent()));
+            out.writeByte(digestFlag(command.isDigestQuery()) | indexFlag(null != command.indexMetadata()));
             if (command.isDigestQuery())
                 out.writeUnsignedVInt(command.digestVersion());
             command.metadata.id.serialize(out);
@@ -628,8 +647,8 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
             RowFilter.serializer.serialize(command.rowFilter(), out, version);
             DataLimits.serializer.serialize(command.limits(), out, version, command.metadata.comparator);
-            if (command.index.isPresent())
-                IndexMetadata.serializer.serialize(command.index.get(), out, version);
+            if (null != command.index)
+                IndexMetadata.serializer.serialize(command.index, out, version);
 
             command.serializeSelection(out, version);
         }
@@ -653,19 +672,17 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             int nowInSec = in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
             RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, metadata);
-            DataLimits limits = DataLimits.serializer.deserialize(in, version, metadata.comparator);
-            Optional<IndexMetadata> index = hasIndex
-                                          ? deserializeIndexMetadata(in, version, metadata)
-                                          : Optional.empty();
+            DataLimits limits = DataLimits.serializer.deserialize(in, version,  metadata.comparator);
+            IndexMetadata index = hasIndex ? deserializeIndexMetadata(in, version, metadata) : null;
 
             return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, metadata, nowInSec, columnFilter, rowFilter, limits, index);
         }
 
-        private Optional<IndexMetadata> deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+        private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             try
             {
-                return Optional.of(IndexMetadata.serializer.deserialize(in, version, metadata));
+                return IndexMetadata.serializer.deserialize(in, version, metadata);
             }
             catch (UnknownIndexException e)
             {
@@ -674,7 +691,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
                             "being fully propagated. Local read will proceed without using the " +
                             "index. Please wait for schema agreement after index creation.",
                             metadata.keyspace, metadata.name, e.indexId);
-                return Optional.empty();
+                return null;
             }
         }
 

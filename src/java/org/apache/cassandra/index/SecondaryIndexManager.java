@@ -986,17 +986,17 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * cached for future use when obtaining a Searcher, getting the index's underlying CFS for
      * ReadOrderGroup, or an estimate of the result size from an average index query.
      *
-     * @param command ReadCommand to be executed
+     * @param rowFilter RowFilter of the command to be executed
      * @return an Index instance, ready to use during execution of the command, or null if none
      * of the registered indexes can support the command.
      */
-    public Index getBestIndexFor(ReadCommand command)
+    public Index getBestIndexFor(RowFilter rowFilter)
     {
-        if (indexes.isEmpty() || command.rowFilter().isEmpty())
+        if (indexes.isEmpty() || rowFilter.isEmpty())
             return null;
 
         Set<Index> searchableIndexes = new HashSet<>();
-        for (RowFilter.Expression expression : command.rowFilter())
+        for (RowFilter.Expression expression : rowFilter)
         {
             if (expression.isCustom())
             {

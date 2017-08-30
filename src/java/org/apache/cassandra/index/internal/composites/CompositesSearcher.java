@@ -160,7 +160,8 @@ public class CompositesSearcher extends CassandraIndexSearcher
                                                                     command.rowFilter(),
                                                                     DataLimits.NONE,
                                                                     partitionKey,
-                                                                    filter);
+                                                                    filter,
+                                                                    null);
                     }
 
                     @SuppressWarnings("resource") // We close right away if empty, and if it's assign to next it will be called either

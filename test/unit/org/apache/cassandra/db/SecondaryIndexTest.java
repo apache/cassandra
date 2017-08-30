@@ -117,7 +117,7 @@ public class SecondaryIndexTest
                                       .filterOn("birthdate", Operator.EQ, 1L)
                                       .build();
 
-        Index.Searcher searcher = cfs.indexManager.getBestIndexFor(rc).searcherFor(rc);
+        Index.Searcher searcher = rc.index().searcherFor(rc);
         try (ReadExecutionController executionController = rc.executionController();
              UnfilteredPartitionIterator pi = searcher.search(executionController))
         {
@@ -204,7 +204,7 @@ public class SecondaryIndexTest
 
         // verify that it's not being indexed under any other value either
         ReadCommand rc = Util.cmd(cfs).build();
-        assertNull(cfs.indexManager.getBestIndexFor(rc));
+        assertNull(rc.index());
 
         // resurrect w/ a newer timestamp
         new RowUpdateBuilder(cfs.metadata(), 2, "k1").clustering("c").add("birthdate", 1L).build().apply();;
@@ -222,13 +222,13 @@ public class SecondaryIndexTest
         // todo - checking the # of index searchers for the command is probably not the best thing to test here
         RowUpdateBuilder.deleteRow(cfs.metadata(), 3, "k1", "c").applyUnsafe();
         rc = Util.cmd(cfs).build();
-        assertNull(cfs.indexManager.getBestIndexFor(rc));
+        assertNull(rc.index());
 
         // make sure obsolete mutations don't generate an index entry
         // todo - checking the # of index searchers for the command is probably not the best thing to test here
         new RowUpdateBuilder(cfs.metadata(), 3, "k1").clustering("c").add("birthdate", 1L).build().apply();;
         rc = Util.cmd(cfs).build();
-        assertNull(cfs.indexManager.getBestIndexFor(rc));
+        assertNull(rc.index());
     }
 
     @Test
@@ -536,7 +536,7 @@ public class SecondaryIndexTest
         ColumnMetadata cdef = cfs.metadata().getColumn(col);
 
         ReadCommand rc = Util.cmd(cfs).filterOn(cdef.name.toString(), Operator.EQ, ((AbstractType) cdef.cellValueType()).decompose(val)).build();
-        Index.Searcher searcher = cfs.indexManager.getBestIndexFor(rc).searcherFor(rc);
+        Index.Searcher searcher = rc.index().searcherFor(rc);
         if (count != 0)
             assertNotNull(searcher);
 

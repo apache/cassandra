@@ -655,30 +655,7 @@ public class Util
                                                              ColumnFamilyStore cfs,
                                                              ReadExecutionController controller)
     {
-        return new InternalPartitionRangeReadCommand(command).queryStorageInternal(cfs, controller);
-    }
-
-    private static final class InternalPartitionRangeReadCommand extends PartitionRangeReadCommand
-    {
-
-        private InternalPartitionRangeReadCommand(PartitionRangeReadCommand original)
-        {
-            super(original.isDigestQuery(),
-                  original.digestVersion(),
-                  original.metadata(),
-                  original.nowInSec(),
-                  original.columnFilter(),
-                  original.rowFilter(),
-                  original.limits(),
-                  original.dataRange(),
-                  Optional.empty());
-        }
-
-        private UnfilteredPartitionIterator queryStorageInternal(ColumnFamilyStore cfs,
-                                                                 ReadExecutionController controller)
-        {
-            return queryStorage(cfs, controller);
-        }
+        return command.queryStorage(cfs, controller);
     }
 
     public static Closeable markDirectoriesUnwriteable(ColumnFamilyStore cfs)

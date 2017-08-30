@@ -91,7 +91,7 @@ public abstract class AbstractReadExecutor
 
     protected void makeDigestRequests(Iterable<InetAddress> endpoints)
     {
-        makeRequests(command.copy().setIsDigestQuery(true), endpoints);
+        makeRequests(command.copyAsDigestQuery(), endpoints);
     }
 
     private void makeRequests(ReadCommand readCommand, Iterable<InetAddress> endpoints)
@@ -345,7 +345,7 @@ public abstract class AbstractReadExecutor
                 // Could be waiting on the data, or on enough digests.
                 ReadCommand retryCommand = command;
                 if (handler.resolver.isDataPresent())
-                    retryCommand = command.copy().setIsDigestQuery(true);
+                    retryCommand = command.copyAsDigestQuery();
 
                 InetAddress extraReplica = Iterables.getLast(targetReplicas);
                 if (traceState != null)
