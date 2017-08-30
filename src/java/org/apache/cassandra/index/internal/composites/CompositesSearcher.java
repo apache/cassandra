@@ -159,13 +159,15 @@ public class CompositesSearcher extends CassandraIndexSearcher
 
                         // Query the gathered index hits. We still need to filter stale hits from the resulting query.
                         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(clusterings.build(), false);
-                        dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata,
+                        dataCmd = SinglePartitionReadCommand.create(isForThrift(),
+                                                                    index.baseCfs.metadata,
                                                                     command.nowInSec(),
                                                                     command.columnFilter(),
                                                                     command.rowFilter(),
                                                                     DataLimits.NONE,
                                                                     partitionKey,
-                                                                    filter);
+                                                                    filter,
+                                                                    null);
                     }
 
                     @SuppressWarnings("resource") // We close right away if empty, and if it's assign to next it will be called either

@@ -20,8 +20,8 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -60,31 +60,39 @@ public class PartitionRangeReadCommand extends ReadCommand
     private final DataRange dataRange;
     private int oldestUnrepairedTombstone = Integer.MAX_VALUE;
 
-    public PartitionRangeReadCommand(boolean isDigest,
-                                     int digestVersion,
-                                     boolean isForThrift,
-                                     CFMetaData metadata,
-                                     int nowInSec,
-                                     ColumnFilter columnFilter,
-                                     RowFilter rowFilter,
-                                     DataLimits limits,
-                                     DataRange dataRange,
-                                     Optional<IndexMetadata> index)
+    private PartitionRangeReadCommand(boolean isDigest,
+                                      int digestVersion,
+                                      boolean isForThrift,
+                                      CFMetaData metadata,
+                                      int nowInSec,
+                                      ColumnFilter columnFilter,
+                                      RowFilter rowFilter,
+                                      DataLimits limits,
+                                      DataRange dataRange,
+                                      IndexMetadata index)
     {
-        super(Kind.PARTITION_RANGE, isDigest, digestVersion, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits);
+        super(Kind.PARTITION_RANGE, isDigest, digestVersion, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, index);
         this.dataRange = dataRange;
-        this.index = index;
     }
 
-    public PartitionRangeReadCommand(CFMetaData metadata,
-                                     int nowInSec,
-                                     ColumnFilter columnFilter,
-                                     RowFilter rowFilter,
-                                     DataLimits limits,
-                                     DataRange dataRange,
-                                     Optional<IndexMetadata> index)
+    public static PartitionRangeReadCommand create(boolean isForThrift,
+                                                   CFMetaData metadata,
+                                                   int nowInSec,
+                                                   ColumnFilter columnFilter,
+                                                   RowFilter rowFilter,
+                                                   DataLimits limits,
+                                                   DataRange dataRange)
     {
-        this(false, 0, false, metadata, nowInSec, columnFilter, rowFilter, limits, dataRange, index);
+        return new PartitionRangeReadCommand(false,
+                                             0,
+                                             isForThrift,
+                                             metadata,
+                                             nowInSec,
+                                             columnFilter,
+                                             rowFilter,
+                                             limits,
+                                             dataRange,
+                                             findIndex(metadata, rowFilter));
     }
 
     /**
@@ -97,13 +105,14 @@ public class PartitionRangeReadCommand extends ReadCommand
      */
     public static PartitionRangeReadCommand allDataRead(CFMetaData metadata, int nowInSec)
     {
-        return new PartitionRangeReadCommand(metadata,
+        return new PartitionRangeReadCommand(false, 0, false,
+                                             metadata,
                                              nowInSec,
                                              ColumnFilter.all(metadata),
                                              RowFilter.NONE,
                                              DataLimits.NONE,
                                              DataRange.allData(metadata.partitioner),
-                                             Optional.empty());
+                                             null);
     }
 
     public DataRange dataRange()
@@ -138,24 +147,91 @@ public class PartitionRangeReadCommand extends ReadCommand
      */
     public PartitionRangeReadCommand forSubRange(AbstractBounds<PartitionPosition> range, boolean isRangeContinuation)
     {
-        DataRange newRange = dataRange().forSubRange(range);
         // If we're not a continuation of whatever range we've previously queried, we should ignore the states of the
         // DataLimits as it's either useless, or misleading. This is particularly important for GROUP BY queries, where
         // DataLimits.CQLGroupByLimits.GroupByAwareCounter assumes that if GroupingState.hasClustering(), then we're in
         // the middle of a group, but we can't make that assumption if we query and range "in advance" of where we are
         // on the ring.
-        DataLimits newLimits = isRangeContinuation ? limits() : limits().withoutState();
-        return new PartitionRangeReadCommand(isDigestQuery(), digestVersion(), isForThrift(), metadata(), nowInSec(), columnFilter(), rowFilter(), newLimits, newRange, index);
+        return new PartitionRangeReadCommand(isDigestQuery(),
+                                             digestVersion(),
+                                             isForThrift(),
+                                             metadata(),
+                                             nowInSec(),
+                                             columnFilter(),
+                                             rowFilter(),
+                                             isRangeContinuation ? limits() : limits().withoutState(),
+                                             dataRange().forSubRange(range),
+                                             indexMetadata());
     }
 
     public PartitionRangeReadCommand copy()
     {
-        return new PartitionRangeReadCommand(isDigestQuery(), digestVersion(), isForThrift(), metadata(), nowInSec(), columnFilter(), rowFilter(), limits(), dataRange(), index);
+        return new PartitionRangeReadCommand(isDigestQuery(),
+                                             digestVersion(),
+                                             isForThrift(),
+                                             metadata(),
+                                             nowInSec(),
+                                             columnFilter(),
+                                             rowFilter(),
+                                             limits(),
+                                             dataRange(),
+                                             indexMetadata());
     }
 
-    public PartitionRangeReadCommand withUpdatedLimit(DataLimits newLimits)
+    public PartitionRangeReadCommand copyAsDigestQuery()
     {
-        return new PartitionRangeReadCommand(metadata(), nowInSec(), columnFilter(), rowFilter(), newLimits, dataRange(), index);
+        return new PartitionRangeReadCommand(true,
+                                             digestVersion(),
+                                             isForThrift(),
+                                             metadata(),
+                                             nowInSec(),
+                                             columnFilter(),
+                                             rowFilter(),
+                                             limits(),
+                                             dataRange(),
+                                             indexMetadata());
+    }
+
+    public ReadCommand withUpdatedLimit(DataLimits newLimits)
+    {
+        return new PartitionRangeReadCommand(isDigestQuery(),
+                                             digestVersion(),
+                                             isForThrift(),
+                                             metadata(),
+                                             nowInSec(),
+                                             columnFilter(),
+                                             rowFilter(),
+                                             newLimits,
+                                             dataRange(),
+                                             indexMetadata());
+    }
+
+    public PartitionRangeReadCommand withUpdatedDataRange(DataRange newDataRange)
+    {
+        return new PartitionRangeReadCommand(isDigestQuery(),
+                                             digestVersion(),
+                                             isForThrift(),
+                                             metadata(),
+                                             nowInSec(),
+                                             columnFilter(),
+                                             rowFilter(),
+                                             limits(),
+                                             newDataRange,
+                                             indexMetadata());
+    }
+
+    public PartitionRangeReadCommand withUpdatedLimitsAndDataRange(DataLimits newLimits, DataRange newDataRange)
+    {
+        return new PartitionRangeReadCommand(isDigestQuery(),
+                                             digestVersion(),
+                                             isForThrift(),
+                                             metadata(),
+                                             nowInSec(),
+                                             columnFilter(),
+                                             rowFilter(),
+                                             newLimits,
+                                             newDataRange,
+                                             indexMetadata());
     }
 
     public long getTimeout()
@@ -196,7 +272,8 @@ public class PartitionRangeReadCommand extends ReadCommand
         metric.rangeLatency.addNano(latencyNanos);
     }
 
-    protected UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController executionController)
+    @VisibleForTesting
+    public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
         ColumnFamilyStore.ViewFragment view = cfs.select(View.selectLive(dataRange().keyRange()));
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), dataRange().keyRange().getString(metadata().getKeyValidator()));
@@ -361,7 +438,17 @@ public class PartitionRangeReadCommand extends ReadCommand
 
     private static class Deserializer extends SelectionDeserializer
     {
-        public ReadCommand deserialize(DataInputPlus in, int version, boolean isDigest, int digestVersion, boolean isForThrift, CFMetaData metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits, Optional<IndexMetadata> index)
+        public ReadCommand deserialize(DataInputPlus in,
+                                       int version,
+                                       boolean isDigest,
+                                       int digestVersion,
+                                       boolean isForThrift,
+                                       CFMetaData metadata,
+                                       int nowInSec,
+                                       ColumnFilter columnFilter,
+                                       RowFilter rowFilter,
+                                       DataLimits limits,
+                                       IndexMetadata index)
         throws IOException
         {
             DataRange range = DataRange.serializer.deserialize(in, version, metadata);
