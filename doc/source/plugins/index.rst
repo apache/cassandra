@@ -14,8 +14,7 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-Third-Party Plugins
-===================
+
 
 Available third-party plugins for Apache Cassandra
 
@@ -33,3 +32,4 @@ Stratio’s Cassandra Lucene Index
 Stratio’s Lucene index is a Cassandra secondary index implementation based on `Apache Lucene <http://lucene.apache.org/>`__. It extends Cassandra’s functionality to provide near real-time distributed search engine capabilities such as with ElasticSearch or `Apache Solr <http://lucene.apache.org/solr/>`__, including full text search capabilities, free multivariable, geospatial and bitemporal search, relevance queries and sorting based on column value, relevance or distance. Each node indexes its own data, so high availability and scalability is guaranteed.
 
 The official Github repository `Cassandra Lucene Index <http://www.github.com/stratio/cassandra-lucene-index>`__ contains everything you need to build/run/configure the plugin.
+
