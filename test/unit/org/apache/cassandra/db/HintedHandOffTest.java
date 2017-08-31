@@ -85,7 +85,7 @@ public class HintedHandOffTest extends SchemaLoader
     public void testHintsMetrics() throws Exception
     {
         for (int i = 0; i < 99; i++)
-            HintedHandOffManager.instance.metrics.incrPastWindow(InetAddress.getLocalHost());
+            HintedHandOffManager.instance.metrics.incrPastWindow(InetAddress.getByName("127.0.0.1"));
         HintedHandOffManager.instance.metrics.log();
 
         UntypedResultSet rows = executeInternal("SELECT hints_dropped FROM system." + SystemKeyspace.PEER_EVENTS_CF);
