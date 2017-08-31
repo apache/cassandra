@@ -684,4 +684,19 @@ public class ViewSchemaTest extends CQLTester
             Assert.assertEquals("Cannot use DROP TABLE on Materialized View", e.getMessage());
         }
     }
+
+    @Test
+    public void testCreateMVWithFilteringOnNonPkColumn() throws Throwable
+    {
+        // SEE CASSANDRA-13798, we cannot properly support non-pk base column filtering for mv without huge storage
+        // format changes.
+        createTable("CREATE TABLE %s ( a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        assertInvalidMessage("Non-primary key columns cannot be restricted in the SELECT statement used for materialized view creation",
+                             "CREATE MATERIALIZED VIEW " + keyspace() + ".mv AS SELECT * FROM %s "
+                                     + "WHERE b IS NOT NULL AND c IS NOT NULL AND a IS NOT NULL "
+                                     + "AND d = 1 PRIMARY KEY (c, b, a)");
+    }
 }

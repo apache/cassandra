@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -212,6 +213,20 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
         if (!prepared.boundNames.isEmpty())
             throw new InvalidRequestException("Cannot use query parameters in CREATE MATERIALIZED VIEW statements");
+
+        // SEE CASSANDRA-13798, use it if the use case is append-only.
+        final boolean allowFilteringNonKeyColumns = Boolean.parseBoolean(System.getProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe",
+                                                                                            "false"));
+        if (!restrictions.nonPKRestrictedColumns(false).isEmpty() && !allowFilteringNonKeyColumns)
+        {
+            throw new InvalidRequestException(
+                                              String.format("Non-primary key columns cannot be restricted in the SELECT statement used"
+                                                      + " for materialized view creation (got restrictions on: %s)",
+                                                            restrictions.nonPKRestrictedColumns(false)
+                                                                        .stream()
+                                                                        .map(def -> def.name.toString())
+                                                                        .collect(Collectors.joining(", "))));
+        }
 
         String whereClauseText = View.relationsToWhereClause(whereClause.relations);
 
