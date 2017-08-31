@@ -170,7 +170,7 @@ public abstract class SSTable
 
     public List<String> getAllFilePaths()
     {
-        List<String> ret = new ArrayList<>();
+        List<String> ret = new ArrayList<>(components.size());
         for (Component component : components)
             ret.add(descriptor.filenameFor(component));
         return ret;

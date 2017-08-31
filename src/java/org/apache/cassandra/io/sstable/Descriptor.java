@@ -150,10 +150,10 @@ public class Descriptor
     /** Return any temporary files found in the directory */
     public List<File> getTemporaryFiles()
     {
-        List<File> ret = new ArrayList<>();
         File[] tmpFiles = directory.listFiles((dir, name) ->
                                               name.endsWith(Descriptor.TMP_EXT));
 
+        List<File> ret = new ArrayList<>(tmpFiles.length);
         for (File tmpFile : tmpFiles)
             ret.add(tmpFile);
 

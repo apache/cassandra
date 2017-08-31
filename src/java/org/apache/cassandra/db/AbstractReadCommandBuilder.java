@@ -21,6 +21,8 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -121,7 +123,7 @@ public abstract class AbstractReadCommandBuilder
     public AbstractReadCommandBuilder columns(String... columns)
     {
         if (this.columns == null)
-            this.columns = new HashSet<>();
+            this.columns = Sets.newHashSetWithExpectedSize(columns.length);
 
         for (String column : columns)
             this.columns.add(ColumnIdentifier.getInterned(column, true));

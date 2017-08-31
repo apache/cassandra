@@ -45,6 +45,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -96,7 +97,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         this.keyValidator = keyValidator;
         this.descriptor = descriptor;
         this.source = source;
-        this.indexes = new HashMap<>();
+        this.indexes = Maps.newHashMapWithExpectedSize(supportedIndexes.size());
         for (Map.Entry<ColumnMetadata, ColumnIndex> entry : supportedIndexes.entrySet())
             indexes.put(entry.getKey(), newIndex(entry.getValue()));
     }

@@ -217,7 +217,7 @@ public class ColumnFamilyStoreCQLHelper
                 resolveUserType((UserType) type, typeSet, types);
         }
 
-        List<String> typeStrings = new ArrayList<>();
+        List<String> typeStrings = new ArrayList<>(types.size());
         for (AbstractType type: types)
             typeStrings.add(toCQL((UserType) type));
         return typeStrings;
@@ -250,7 +250,7 @@ public class ColumnFamilyStoreCQLHelper
     @VisibleForTesting
     public static List<String> getIndexesAsCQL(TableMetadata metadata)
     {
-        List<String> indexes = new ArrayList<>();
+        List<String> indexes = new ArrayList<>(metadata.indexes.size());
         for (IndexMetadata indexMetadata: metadata.indexes)
             indexes.add(toCQL(metadata, indexMetadata));
         return indexes;

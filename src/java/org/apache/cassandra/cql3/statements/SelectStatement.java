@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.MoreObjects;
+import com.google.common.collect.Maps;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1108,7 +1109,7 @@ public class SelectStatement implements CQLStatement
          * @param metadata the table metadata
          * @param selection the selection
          * @param restrictions the restrictions
-         * @param isDistinct <code>true</code> if the query is a DISTINCT one. 
+         * @param isDistinct <code>true</code> if the query is a DISTINCT one.
          * @return the <code>AggregationSpecification</code>s used to make the aggregates
          */
         private AggregationSpecification getAggregationSpecification(TableMetadata metadata,
@@ -1170,8 +1171,8 @@ public class SelectStatement implements CQLStatement
 
             Map<ColumnIdentifier, Integer> orderingIndexes = getOrderingIndex(metadata, selection, orderingColumns);
 
-            List<Integer> idToSort = new ArrayList<Integer>();
-            List<Comparator<ByteBuffer>> sorters = new ArrayList<Comparator<ByteBuffer>>();
+            List<Integer> idToSort = new ArrayList<Integer>(orderingColumns.size());
+            List<Comparator<ByteBuffer>> sorters = new ArrayList<Comparator<ByteBuffer>>(orderingColumns.size());
 
             for (ColumnMetadata orderingColumn : orderingColumns.keySet())
             {
@@ -1186,7 +1187,7 @@ public class SelectStatement implements CQLStatement
                                                                 Selection selection,
                                                                 Map<ColumnMetadata, Boolean> orderingColumns)
         {
-            Map<ColumnIdentifier, Integer> orderingIndexes = new HashMap<>();
+            Map<ColumnIdentifier, Integer> orderingIndexes = Maps.newHashMapWithExpectedSize(orderingColumns.size());
             for (ColumnMetadata def : orderingColumns.keySet())
             {
                 int index = selection.getResultSetIndex(def);

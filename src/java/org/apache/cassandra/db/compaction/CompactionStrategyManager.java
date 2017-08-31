@@ -725,11 +725,13 @@ public class CompactionStrategyManager implements INotificationConsumer
     {
         assert repaired.size() == unrepaired.size();
         assert repaired.size() == pendingRepairs.size();
-        List<Set<SSTableReader>> pendingSSTables = new ArrayList<>();
-        List<Set<SSTableReader>> repairedSSTables = new ArrayList<>();
-        List<Set<SSTableReader>> unrepairedSSTables = new ArrayList<>();
 
-        for (int i = 0; i < repaired.size(); i++)
+        int numRepaired = repaired.size();
+        List<Set<SSTableReader>> pendingSSTables = new ArrayList<>(numRepaired);
+        List<Set<SSTableReader>> repairedSSTables = new ArrayList<>(numRepaired);
+        List<Set<SSTableReader>> unrepairedSSTables = new ArrayList<>(numRepaired);
+
+        for (int i = 0; i < numRepaired; i++)
         {
             pendingSSTables.add(new HashSet<>());
             repairedSSTables.add(new HashSet<>());

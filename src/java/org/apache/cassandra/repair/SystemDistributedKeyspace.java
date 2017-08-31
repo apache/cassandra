@@ -304,7 +304,7 @@ public final class SystemDistributedKeyspace
     {
         try
         {
-            List<ByteBuffer> valueList = new ArrayList<>();
+            List<ByteBuffer> valueList = new ArrayList<>(values.length);
             for (String v : values)
             {
                 valueList.add(bytes(v));

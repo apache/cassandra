@@ -461,7 +461,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
     @Override
     public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
     {
-        Collection<Collection<SSTableReader>> groups = new ArrayList<>();
+        Collection<Collection<SSTableReader>> groups = new ArrayList<>(sstablesToGroup.size());
         for (SSTableReader sstable : sstablesToGroup)
         {
             groups.add(Collections.singleton(sstable));

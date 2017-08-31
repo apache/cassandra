@@ -539,7 +539,7 @@ public abstract class AbstractCompactionStrategy
         Collections.sort(sortedSSTablesToGroup, SSTableReader.sstableComparator);
 
         Collection<Collection<SSTableReader>> groupedSSTables = new ArrayList<>();
-        Collection<SSTableReader> currGroup = new ArrayList<>();
+        Collection<SSTableReader> currGroup = new ArrayList<>(groupSize);
 
         for (SSTableReader sstable : sortedSSTablesToGroup)
         {
@@ -547,7 +547,7 @@ public abstract class AbstractCompactionStrategy
             if (currGroup.size() == groupSize)
             {
                 groupedSSTables.add(currGroup);
-                currGroup = new ArrayList<>();
+                currGroup = new ArrayList<>(groupSize);
             }
         }
 

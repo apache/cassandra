@@ -122,7 +122,7 @@ public class RepairJobDesc
             String columnFamily = in.readUTF();
 
             int nRanges = in.readInt();
-            Collection<Range<Token>> ranges = new ArrayList<>();
+            Collection<Range<Token>> ranges = new ArrayList<>(nRanges);
             Range<Token> range;
 
             for (int i = 0; i < nRanges; i++)

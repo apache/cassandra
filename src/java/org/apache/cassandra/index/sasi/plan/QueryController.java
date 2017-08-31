@@ -136,9 +136,10 @@ public class QueryController
                                                 ? RangeUnionIterator.<Long, Token>builder()
                                                 : RangeIntersectionIterator.<Long, Token>builder();
 
-        List<RangeIterator<Long, Token>> perIndexUnions = new ArrayList<>();
+        Set<Map.Entry<Expression, Set<SSTableIndex>>> view = getView(op, expressions).entrySet();
+        List<RangeIterator<Long, Token>> perIndexUnions = new ArrayList<>(view.size());
 
-        for (Map.Entry<Expression, Set<SSTableIndex>> e : getView(op, expressions).entrySet())
+        for (Map.Entry<Expression, Set<SSTableIndex>> e : view)
         {
             @SuppressWarnings("resource") // RangeIterators are closed by releaseIndexes
             RangeIterator<Long, Token> index = TermIterator.build(e.getKey(), e.getValue());

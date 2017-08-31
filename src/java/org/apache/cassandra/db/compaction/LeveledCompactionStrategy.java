@@ -235,14 +235,14 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
         for (Collection<SSTableReader> levelOfSSTables : sstablesByLevel.values())
         {
-            Collection<SSTableReader> currGroup = new ArrayList<>();
+            Collection<SSTableReader> currGroup = new ArrayList<>(groupSize);
             for (SSTableReader sstable : levelOfSSTables)
             {
                 currGroup.add(sstable);
                 if (currGroup.size() == groupSize)
                 {
                     groupedSSTables.add(currGroup);
-                    currGroup = new ArrayList<>();
+                    currGroup = new ArrayList<>(groupSize);
                 }
             }
 

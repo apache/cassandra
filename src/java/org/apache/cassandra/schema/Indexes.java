@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 
@@ -173,7 +174,7 @@ public final class Indexes implements Iterable<IndexMetadata>
          * The reason for this is that schema altering statements are not calling
          * Keyspaces.validate() as of yet. TODO: remove this once they do (on CASSANDRA-9425 completion)
          */
-        Set<String> indexNames = new HashSet<>();
+        Set<String> indexNames = Sets.newHashSetWithExpectedSize(indexesByName.size());
         for (IndexMetadata index : indexesByName.values())
         {
             if (indexNames.contains(index.name))

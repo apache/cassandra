@@ -28,6 +28,7 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.TokenRange;
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.hadoop.conf.Configuration;
@@ -50,7 +51,7 @@ import static java.util.stream.Collectors.toMap;
 /**
  * Hadoop InputFormat allowing map/reduce against Cassandra rows within one ColumnFamily.
  *
- * At minimum, you need to set the KS and CF in your Hadoop job Configuration.  
+ * At minimum, you need to set the KS and CF in your Hadoop job Configuration.
  * The ConfigHelper class is provided to make this
  * simple:
  *   ConfigHelper.setInputColumnFamily
@@ -62,10 +63,10 @@ import static java.util.stream.Collectors.toMap;
  *   If no value is provided for InputSplitSizeInMb, we default to using InputSplitSize.
  *
  *   CQLConfigHelper.setInputCQLPageRowSize. The default page row size is 1000. You
- *   should set it to "as big as possible, but no bigger." It set the LIMIT for the CQL 
+ *   should set it to "as big as possible, but no bigger." It set the LIMIT for the CQL
  *   query, so you need set it big enough to minimize the network overhead, and also
  *   not too big to avoid out of memory issue.
- *   
+ *
  *   other native protocol connection parameters in CqlConfigHelper
  */
 public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long, Row> implements org.apache.hadoop.mapred.InputFormat<Long, Row>
@@ -254,7 +255,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         }
 
         List<TokenRange> splitRanges = tokenRange.splitEvenly(splitCount);
-        Map<TokenRange, Long> rangesWithLength = new HashMap<>();
+        Map<TokenRange, Long> rangesWithLength = Maps.newHashMapWithExpectedSize(splitRanges.size());
         for (TokenRange range : splitRanges)
             rangesWithLength.put(range, partitionCount/splitCount);
 

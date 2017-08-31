@@ -231,7 +231,7 @@ public final class Types implements Iterable<UserType>
             /*
              * build a DAG of UDT dependencies
              */
-            Map<RawUDT, Integer> vertices = new HashMap<>(); // map values are numbers of referenced types
+            Map<RawUDT, Integer> vertices = Maps.newHashMapWithExpectedSize(definitions.size()); // map values are numbers of referenced types
             for (RawUDT udt : definitions)
                 vertices.put(udt, 0);
 

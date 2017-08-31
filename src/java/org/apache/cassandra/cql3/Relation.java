@@ -243,7 +243,7 @@ public abstract class Relation
         if (raws == null)
             return null;
 
-        List<Term> terms = new ArrayList<>();
+        List<Term> terms = new ArrayList<>(raws.size());
         for (int i = 0, m = raws.size(); i < m; i++)
             terms.add(toTerm(receivers, raws.get(i), keyspace, boundNames));
 

@@ -809,7 +809,7 @@ public class CompactionManager implements CompactionManagerMBean
             descriptors.put(cfs, cfs.getDirectories().find(new File(filename.trim()).getName()));
         }
 
-        List<Future<?>> futures = new ArrayList<>();
+        List<Future<?>> futures = new ArrayList<>(descriptors.size());
         int nowInSec = FBUtilities.nowInSeconds();
         for (ColumnFamilyStore cfs : descriptors.keySet())
             futures.add(submitUserDefined(cfs, descriptors.get(cfs), getDefaultGcBefore(cfs, nowInSec)));

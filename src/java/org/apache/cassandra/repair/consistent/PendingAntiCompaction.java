@@ -186,8 +186,9 @@ public class PendingAntiCompaction
     public ListenableFuture run()
     {
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(prsId);
-        List<ListenableFutureTask<AcquireResult>> tasks = new ArrayList<>();
-        for (ColumnFamilyStore cfs : prs.getColumnFamilyStores())
+        Collection<ColumnFamilyStore> cfss = prs.getColumnFamilyStores();
+        List<ListenableFutureTask<AcquireResult>> tasks = new ArrayList<>(cfss.size());
+        for (ColumnFamilyStore cfs : cfss)
         {
             cfs.forceBlockingFlush();
             ListenableFutureTask<AcquireResult> task = ListenableFutureTask.create(new AcquisitionCallable(cfs, ranges, prsId));

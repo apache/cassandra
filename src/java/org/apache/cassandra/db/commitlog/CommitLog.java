@@ -146,7 +146,7 @@ public class CommitLog implements CommitLogMBean
 
         // submit all files for this segment manager for archiving prior to recovery - CASSANDRA-6904
         // The files may have already been archived by normal CommitLog operation. This may cause errors in this
-        // archiving pass, which we should not treat as serious. 
+        // archiving pass, which we should not treat as serious.
         for (File file : new File(segmentManager.storageDirectory).listFiles(unmanagedFilesFilter))
         {
             archiver.maybeArchive(file.getPath(), file.getName());
@@ -375,8 +375,9 @@ public class CommitLog implements CommitLogMBean
 
     public List<String> getActiveSegmentNames()
     {
-        List<String> segmentNames = new ArrayList<>();
-        for (CommitLogSegment seg : segmentManager.getActiveSegments())
+        Collection<CommitLogSegment> segments = segmentManager.getActiveSegments();
+        List<String> segmentNames = new ArrayList<>(segments.size());
+        for (CommitLogSegment seg : segments)
             segmentNames.add(seg.getName());
         return segmentNames;
     }

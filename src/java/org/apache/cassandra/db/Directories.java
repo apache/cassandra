@@ -29,6 +29,7 @@ import java.util.function.BiPredicate;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -778,8 +779,9 @@ public class Directories
      */
     public Map<String, Pair<Long, Long>> getSnapshotDetails()
     {
-        final Map<String, Pair<Long, Long>> snapshotSpaceMap = new HashMap<>();
-        for (File snapshot : listSnapshots())
+        List<File> snapshots = listSnapshots();
+        final Map<String, Pair<Long, Long>> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
+        for (File snapshot : snapshots)
         {
             final long sizeOnDisk = FileUtils.folderSize(snapshot);
             final long trueSize = getTrueAllocatedSizeIn(snapshot);
