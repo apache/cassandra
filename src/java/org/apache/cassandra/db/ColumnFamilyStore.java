@@ -906,9 +906,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logFlush();
             Flush flush = new Flush(false);
             ListenableFutureTask<Void> flushTask = ListenableFutureTask.create(flush, null);
-            flushExecutor.submit(flushTask);
+            flushExecutor.execute(flushTask);
             ListenableFutureTask<ReplayPosition> task = ListenableFutureTask.create(flush.postFlush);
-            postFlushExecutor.submit(task);
+            postFlushExecutor.execute(task);
 
             @SuppressWarnings("unchecked")
             ListenableFuture<ReplayPosition> future = 

@@ -1,4 +1,5 @@
 2.2.11
+ * Fix compaction and flush exception not captured (CASSANDRA-13833)
  * Make BatchlogManagerMBean.forceBatchlogReplay() blocking (CASSANDRA-13809)
  * Uncaught exceptions in Netty pipeline (CASSANDRA-13649)
  * Prevent integer overflow on exabyte filesystems (CASSANDRA-13067) 
