@@ -52,6 +52,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.async.NettyFactory.InboundInitializer;
 import org.apache.cassandra.net.async.NettyFactory.OutboundInitializer;
+import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NativeLibrary;
 
@@ -61,6 +62,7 @@ public class NettyFactoryTest
     private static final InetSocketAddress REMOTE_ADDR = new InetSocketAddress("127.0.0.2", 9876);
     private static final int receiveBufferSize = 1 << 16;
     private static final IInternodeAuthenticator AUTHENTICATOR = new AllowAllInternodeAuthenticator();
+    private static final boolean EPOLL_AVAILABLE = NativeTransportService.useEpoll();
 
     private ChannelGroup channelGroup;
     private NettyFactory factory;
@@ -87,6 +89,8 @@ public class NettyFactoryTest
     @Test
     public void createServerChannel_Epoll()
     {
+        if (!EPOLL_AVAILABLE)
+            return;
         Channel inboundChannel = createServerChannel(true);
         if (inboundChannel == null)
             return;
@@ -176,6 +180,8 @@ public class NettyFactoryTest
     @Test
     public void getEventLoopGroup_EpollWithIoRatioBoost()
     {
+        if (!EPOLL_AVAILABLE)
+            return;
         getEventLoopGroup_Epoll(true);
     }
 
@@ -202,6 +208,8 @@ public class NettyFactoryTest
     @Test
     public void getEventLoopGroup_EpollWithoutIoRatioBoost()
     {
+        if (!EPOLL_AVAILABLE)
+            return;
         getEventLoopGroup_Epoll(false);
     }
 
@@ -227,6 +235,8 @@ public class NettyFactoryTest
     @Test
     public void createOutboundBootstrap_Epoll()
     {
+        if (!EPOLL_AVAILABLE)
+            return;
         Bootstrap bootstrap = createOutboundBootstrap(true);
         Assert.assertEquals(EpollEventLoopGroup.class, bootstrap.config().group().getClass());
     }

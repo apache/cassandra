@@ -37,6 +37,7 @@ import org.apache.cassandra.metrics.AuthMetrics;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.transport.RequestThreadPoolExecutor;
 import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.utils.NativeLibrary;
 
 /**
  * Handles native transport server lifecycle and associated resources. Lazily initialized.
@@ -159,6 +160,10 @@ public class NativeTransportService
     public static boolean useEpoll()
     {
         final boolean enableEpoll = Boolean.parseBoolean(System.getProperty("cassandra.native.epoll.enabled", "true"));
+
+        if (enableEpoll && !Epoll.isAvailable() && NativeLibrary.osType == NativeLibrary.OSType.LINUX)
+            logger.warn("epoll not availble {}", Epoll.unavailabilityCause());
+
         return enableEpoll && Epoll.isAvailable();
     }
 

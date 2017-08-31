@@ -19,7 +19,6 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ServerChannel;
-import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.epoll.EpollSocketChannel;
@@ -54,6 +53,7 @@ import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.CoalescingStrategies;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NativeLibrary;
 
 /**
  * A factory for building Netty {@link Channel}s. Channels here are setup with a pipeline to participate
@@ -92,11 +92,6 @@ public final class NettyFactory
     }
 
     private static final boolean DEFAULT_USE_EPOLL = NativeTransportService.useEpoll();
-    static
-    {
-        if (!DEFAULT_USE_EPOLL)
-            logger.warn("epoll not availble {}", Epoll.unavailabilityCause());
-    }
 
     /**
      * The size of the receive queue for the outbound channels. As outbound channels do not receive data
