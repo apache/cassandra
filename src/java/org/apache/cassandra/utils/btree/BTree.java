@@ -866,7 +866,7 @@ public class BTree
         private void cleanup()
         {
             quickResolver = null;
-            Arrays.fill(values, 0, count, null);
+            Arrays.fill(values, null);
             count = 0;
             detected = true;
             auto = true;
