@@ -38,7 +38,9 @@ public class BulkLoadConnectionFactory extends DefaultConnectionFactory implemen
     {
         this.storagePort = storagePort;
         this.secureStoragePort = secureStoragePort;
-        this.encryptionOptions = encryptionOptions;
+        this.encryptionOptions = encryptionOptions != null && encryptionOptions.internode_encryption == EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none
+                                 ? null
+                                 : encryptionOptions;
         this.outboundBindAny = outboundBindAny;
     }
 

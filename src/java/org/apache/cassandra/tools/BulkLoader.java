@@ -104,7 +104,7 @@ public class BulkLoader
 
             // Give sockets time to gracefully close
             Thread.sleep(1000);
-            // System.exit(0); // We need that to stop non daemonized threads
+            System.exit(0); // We need that to stop non daemonized threads
         }
         catch (Exception e)
         {
