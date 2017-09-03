@@ -1404,27 +1404,34 @@ public class StorageProxy implements StorageProxyMBean
     {
         Keyspace keyspace = Keyspace.open(keyspaceName);
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(keyspace, key);
+        List<InetAddress> endpoints = new ArrayList<>();
+        StorageService.instance.getLiveNaturalEndpoints(keyspace, key, endpoints);
+
+        // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
+        endpoints.removeIf(endpoint -> !StorageService.instance.isRpcReady(endpoint));
+
+        // TODO have a way to compute the consistency level
         if (endpoints.isEmpty())
-            // TODO have a way to compute the consistency level
             throw new UnavailableException(cl, cl.blockFor(keyspace), 0);
 
-        List<InetAddress> localEndpoints = new ArrayList<InetAddress>();
+        List<InetAddress> localEndpoints = new ArrayList<>(endpoints.size());
+
         for (InetAddress endpoint : endpoints)
-        {
             if (snitch.getDatacenter(endpoint).equals(localDataCenter))
                 localEndpoints.add(endpoint);
-        }
+
         if (localEndpoints.isEmpty())
         {
+            // If the consistency required is local then we should not involve other DCs
+            if (cl.isDatacenterLocal())
+                throw new UnavailableException(cl, cl.blockFor(keyspace), 0);
+
             // No endpoint in local DC, pick the closest endpoint according to the snitch
             snitch.sortByProximity(FBUtilities.getBroadcastAddress(), endpoints);
             return endpoints.get(0);
         }
-        else
-        {
-            return localEndpoints.get(ThreadLocalRandom.current().nextInt(localEndpoints.size()));
-        }
+
+        return localEndpoints.get(ThreadLocalRandom.current().nextInt(localEndpoints.size()));
     }
 
     // Must be called on a replica of the mutation. This replica becomes the
