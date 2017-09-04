@@ -50,6 +50,7 @@ public final class TimeWindowCompactionStrategyOptions
     SizeTieredCompactionStrategyOptions stcsOptions;
 
     protected final static ImmutableList<TimeUnit> validTimestampTimeUnits = ImmutableList.of(TimeUnit.SECONDS, TimeUnit.MILLISECONDS, TimeUnit.MICROSECONDS, TimeUnit.NANOSECONDS);
+    // Don't forget to modify getWindowBoundsInMillis() if you add values to this list.
     protected final static ImmutableList<TimeUnit> validWindowTimeUnits = ImmutableList.of(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
 
     public TimeWindowCompactionStrategyOptions(Map<String, String> options)
@@ -144,5 +145,17 @@ public final class TimeWindowCompactionStrategyOptions
         uncheckedOptions = SizeTieredCompactionStrategyOptions.validateOptions(options, uncheckedOptions);
 
         return uncheckedOptions;
+    }
+
+    public int getSstableWindowSize() {
+        return sstableWindowSize;
+    }
+
+    public TimeUnit getSstableWindowUnit() {
+        return sstableWindowUnit;
+    }
+
+    public TimeUnit getTimestampResolution() {
+        return timestampResolution;
     }
 }

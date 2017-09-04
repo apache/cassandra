@@ -60,9 +60,9 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
 
     protected final SSTableRewriter sstableWriter;
     protected final LifecycleTransaction txn;
-    private final Directories.DataDirectory[] locations;
-    private final List<PartitionPosition> diskBoundaries;
-    private int locationIndex;
+    protected final Directories.DataDirectory[] locations;
+    protected final List<PartitionPosition> diskBoundaries;
+    protected int locationIndex;
 
     @Deprecated
     public CompactionAwareWriter(ColumnFamilyStore cfs,
