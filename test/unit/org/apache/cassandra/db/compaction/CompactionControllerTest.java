@@ -179,6 +179,11 @@ public class CompactionControllerTest extends SchemaLoader
         expired = CompactionController.getFullyExpiredSSTables(cfs, compacting, overlapping, gcBefore);
         assertNotNull(expired);
         assertEquals(0, expired.size());
+
+        // Now if we explicitly ask to ignore overlaped sstables, we should get back our expired sstable
+        expired = CompactionController.getFullyExpiredSSTables(cfs, compacting, overlapping, gcBefore, true);
+        assertNotNull(expired);
+        assertEquals(1, expired.size());
     }
 
     private void applyMutation(TableMetadata cfm, DecoratedKey key, long timestamp)
