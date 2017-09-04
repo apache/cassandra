@@ -1487,7 +1487,7 @@ public class CompactionManager implements CompactionManagerMBean
         return CompactionMetrics.getCompactions().size();
     }
 
-    private static class CompactionExecutor extends JMXEnabledThreadPoolExecutor
+    static class CompactionExecutor extends JMXEnabledThreadPoolExecutor
     {
         protected CompactionExecutor(int minThreads, int maxThreads, String name, BlockingQueue<Runnable> queue)
         {
@@ -1567,7 +1567,7 @@ public class CompactionManager implements CompactionManagerMBean
             try
             {
                 ListenableFutureTask ret = ListenableFutureTask.create(task);
-                submit(ret);
+                execute(ret);
                 return ret;
             }
             catch (RejectedExecutionException ex)

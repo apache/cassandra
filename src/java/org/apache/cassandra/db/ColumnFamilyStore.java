@@ -841,7 +841,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Flush flush = new Flush(false);
             flushExecutor.execute(flush);
             ListenableFutureTask<ReplayPosition> task = ListenableFutureTask.create(flush.postFlush);
-            postFlushExecutor.submit(task);
+            postFlushExecutor.execute(task);
             return task;
         }
     }
