@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.PeekingIterator;
 
@@ -245,11 +246,19 @@ public class MerkleTree implements Serializable
 
         if (lhash != null && rhash != null && !Arrays.equals(lhash, rhash))
         {
-            logger.debug("Digest mismatch detected, traversing trees [{}, {}]", ltree, rtree);
-            if (FULLY_INCONSISTENT == differenceHelper(ltree, rtree, diff, active))
+            if(lnode instanceof  Leaf || rnode instanceof Leaf)
             {
-                logger.debug("Range {} fully inconsistent", active);
+                logger.debug("Digest mismatch detected among leaf nodes {}, {}", lnode, rnode);
                 diff.add(active);
+            }
+            else
+            {
+                logger.debug("Digest mismatch detected, traversing trees [{}, {}]", ltree, rtree);
+                if (FULLY_INCONSISTENT == differenceHelper(ltree, rtree, diff, active))
+                {
+                    logger.debug("Range {} fully inconsistent", active);
+                    diff.add(active);
+                }
             }
         }
         else if (lhash == null || rhash == null)
@@ -264,6 +273,7 @@ public class MerkleTree implements Serializable
      * Takes two trees and a range for which they have hashes, but are inconsistent.
      * @return FULLY_INCONSISTENT if active is inconsistent, PARTIALLY_INCONSISTENT if only a subrange is inconsistent.
      */
+    @VisibleForTesting
     static int differenceHelper(MerkleTree ltree, MerkleTree rtree, List<TreeRange> diff, TreeRange active)
     {
         if (active.depth == Byte.MAX_VALUE)
@@ -273,10 +283,9 @@ public class MerkleTree implements Serializable
         // sanity check for midpoint calculation, see CASSANDRA-13052
         if (midpoint.equals(active.left) || midpoint.equals(active.right))
         {
-            // Unfortunately we can't throw here to abort the validation process, as the code is executed in it's own
-            // thread with the caller waiting for a condition to be signaled after completion and without an option
-            // to indicate an error (2.x only).
-            logger.error("Invalid midpoint {} for [{},{}], range will be reported inconsistent", midpoint, active.left, active.right);
+            // If the midpoint equals either the left or the right, we have a range that's too small to split - we'll simply report the
+            // whole range as inconsistent
+            logger.debug("({}) No sane midpoint ({}) for range {} , marking whole range as inconsistent", active.depth, midpoint, active);
             return FULLY_INCONSISTENT;
         }
 
