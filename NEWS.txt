@@ -18,11 +18,16 @@ using the provided 'sstableupgrade' tool.
 
 Upgrading
 ---------
-    - Nothing specific to this version but please see previous upgrading sections,
-      especially if you are upgrading from 2.2.
+    - Creating Materialized View with filtering on non-primary-key base column
+      (added in CASSANDRA-10368) is disabled, because the liveness of view row
+      is depending on multiple filtered base non-key columns and base non-key
+      column used in view primary-key. This semantic cannot be supported without
+      storage format change, see CASSANDRA-13826. For append-only use case, you
+      may still use this feature with a startup flag: "-Dcassandra.mv.allow_filtering_nonkey_columns_unsafe=true"
 
-Materialized Views
--------------------
+
+Materialized Views (only when upgrading from 3.X or any version lower than 3.0.15)
+---------------------------------------------------------------------------------------
     - Cassandra will no longer allow dropping columns on tables with Materialized Views.
     - A change was made in the way the Materialized View timestamp is computed, which
       may cause an old deletion to a base column which is view primary key (PK) column
@@ -38,12 +43,6 @@ Materialized Views
       = null or DELETE unselected_column FROM base) may not be properly reflected in the view in some
       situations so we advise against doing deletions on base columns not selected in views
       until this is fixed on CASSANDRA-13826.
-    - Creating Materialized View with filtering on non-primary-key base column
-      (added in CASSANDRA-10368) is disabled, because the liveness of view row
-      is depending on multiple filtered base non-key columns and base non-key
-      column used in view primary-key. This semantic cannot be supported without
-      storage format change, see CASSANDRA-13826. For append-only use case, you
-      may still use this feature with a startup flag: "-Dcassandra.mv.allow_filtering_nonkey_columns_unsafe=true"
 
 3.11.0
 ======
