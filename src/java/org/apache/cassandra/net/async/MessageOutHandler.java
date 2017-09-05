@@ -115,7 +115,7 @@ class MessageOutHandler extends ChannelDuplexHandler
         // the channel handlers are removed from the channel potentially saync from the close operation.
         if (!ctx.channel().isOpen())
         {
-            logger.debug("attempting to process a message in the pipeline, but the channel is closed", ctx.channel().id());
+            logger.debug("attempting to process a message in the pipeline, but channel {} is closed", ctx.channel().id());
             return;
         }
 
