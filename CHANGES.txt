@@ -9,6 +9,7 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Change repair midpoint logging for tiny ranges (CASSANDRA-13603)
  * Better handle corrupt final commitlog segment (CASSANDRA-11995)
  * StreamingHistogram is not thread safe (CASSANDRA-13756)
  * Fix MV timestamp issues (CASSANDRA-11500)

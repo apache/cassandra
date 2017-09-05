@@ -472,6 +472,40 @@ public class MerkleTreeTest
 
         List<TreeRange> diffs = MerkleTree.difference(ltree, rtree);
         assertEquals(Lists.newArrayList(range), diffs);
+        assertEquals(MerkleTree.FULLY_INCONSISTENT, MerkleTree.differenceHelper(ltree, rtree, new ArrayList<>(), new MerkleTree.TreeDifference(ltree.fullRange.left, ltree.fullRange.right, (byte)0)));
+    }
+
+    /**
+     * matching should behave as expected, even with extremely small ranges
+     */
+    @Test
+    public void matchingSmallRange()
+    {
+        Token start = new BigIntegerToken("9");
+        Token end = new BigIntegerToken("10");
+        Range<Token> range = new Range<>(start, end);
+
+        MerkleTree ltree = new MerkleTree(partitioner, range, RECOMMENDED_DEPTH, 16);
+        ltree.init();
+        MerkleTree rtree = new MerkleTree(partitioner, range, RECOMMENDED_DEPTH, 16);
+        rtree.init();
+
+        byte[] h1 = "asdf".getBytes();
+        byte[] h2 = "asdf".getBytes();
+
+
+        // add dummy hashes to both trees
+        for (TreeRange tree : ltree.invalids())
+        {
+            tree.addHash(new RowHash(range.right, h1, h1.length));
+        }
+        for (TreeRange tree : rtree.invalids())
+        {
+            tree.addHash(new RowHash(range.right, h2, h2.length));
+        }
+
+        // top level difference() should show no differences
+        assertEquals(MerkleTree.difference(ltree, rtree), Lists.newArrayList());
     }
 
     /**
