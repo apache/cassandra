@@ -141,6 +141,14 @@ public class TableMetrics
     public final Counter rowCacheHit;
     /** Number of row cache misses */
     public final Counter rowCacheMiss;
+    /**
+     * Number of tombstone read failures
+     */
+    public final Counter tombstoneFailures;
+    /**
+     * Number of tombstone read warnings
+     */
+    public final Counter tombstoneWarnings;
     /** CAS Prepare metrics */
     public final LatencyMetrics casPrepare;
     /** CAS Propose metrics */
@@ -515,6 +523,7 @@ public class TableMetrics
         rangeLatency = new LatencyMetrics(factory, "Range", cfs.keyspace.metric.rangeLatency, globalRangeLatency);
         pendingFlushes = createTableCounter("PendingFlushes");
         bytesFlushed = createTableCounter("BytesFlushed");
+
         compactionBytesWritten = createTableCounter("CompactionBytesWritten");
         pendingCompactions = createTableGauge("PendingCompactions", new Gauge<Integer>()
         {
@@ -806,6 +815,10 @@ public class TableMetrics
         rowCacheHitOutOfRange = createTableCounter("RowCacheHitOutOfRange");
         rowCacheHit = createTableCounter("RowCacheHit");
         rowCacheMiss = createTableCounter("RowCacheMiss");
+
+        tombstoneFailures = createTableCounter("TombstoneFailures");
+        tombstoneWarnings = createTableCounter("TombstoneWarnings");
+
         droppedMutations = createTableCounter("DroppedMutations");
 
         casPrepare = new LatencyMetrics(factory, "CasPrepare", cfs.keyspace.metric.casPrepare);

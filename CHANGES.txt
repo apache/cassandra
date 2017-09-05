@@ -1,4 +1,5 @@
 4.0
+ * Emit metrics whenever we hit tombstone failures and warn thresholds (CASSANDRA-13771)
  * Make netty EventLoopGroups daemon threads (CASSANDRA-13837)
  * Race condition when closing stream sessions (CASSANDRA-13852)
  * NettyFactoryTest is failing in trunk on macOS (CASSANDRA-13831)
