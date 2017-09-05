@@ -1146,10 +1146,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             // Always save the resampled index
             saveSummary(newSummary);
 
-            long newSize = bytesOnDisk();
-            StorageMetrics.load.inc(newSize - oldSize);
-            parent.metric.liveDiskSpaceUsed.inc(newSize - oldSize);
-            parent.metric.totalDiskSpaceUsed.inc(newSize - oldSize);
+            // The new size will be added in Transactional.commit() as an updated SSTable, more details: CASSANDRA-13738
+            StorageMetrics.load.dec(oldSize);
+            parent.metric.liveDiskSpaceUsed.dec(oldSize);
+            parent.metric.totalDiskSpaceUsed.dec(oldSize);
 
             return cloneAndReplace(first, OpenReason.METADATA_CHANGE, newSummary);
         }

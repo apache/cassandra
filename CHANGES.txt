@@ -38,6 +38,7 @@ Merged from 3.0:
  * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)
  * sstabledump reports incorrect usage for argument order (CASSANDRA-13532)
 Merged from 2.2:
+ * Fix load over calculated issue in IndexSummaryRedistribution (CASSANDRA-13738)
  * Fix compaction and flush exception not captured (CASSANDRA-13833)
  * Uncaught exceptions in Netty pipeline (CASSANDRA-13649)
  * Prevent integer overflow on exabyte filesystems (CASSANDRA-13067)
