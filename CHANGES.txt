@@ -9,6 +9,7 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Fix MV timestamp issues (CASSANDRA-11500)
  * Better tolerate improperly formatted bcrypt hashes (CASSANDRA-13626)
  * Fix race condition in read command serialization (CASSANDRA-13363)
  * Fix AssertionError in short read protection (CASSANDRA-13747)
