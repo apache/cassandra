@@ -37,7 +37,7 @@ import org.apache.cassandra.streaming.messages.StreamMessage;
  */
 class InboundHandshakeHandler extends ByteToMessageDecoder
 {
-    private static final Logger logger = LoggerFactory.getLogger(NettyFactory.class);
+    private static final Logger logger = LoggerFactory.getLogger(InboundHandshakeHandler.class);
 
     enum State { START, AWAITING_HANDSHAKE_BEGIN, AWAIT_MESSAGING_START_RESPONSE, HANDSHAKE_COMPLETE, HANDSHAKE_FAIL }
 
