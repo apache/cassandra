@@ -203,10 +203,20 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      *
      * @param purger the {@code DeletionPurger} to use to decide what can be purged.
      * @param nowInSec the current time to decide what is deleted and what isn't (in the case of expired cells).
+     * @param enforceStrictLiveness whether the row should be purged if there is no PK liveness info,
+     *                              normally retrieved from {@link TableMetadata#enforceStrictLiveness()}
+     *
+     *        When enforceStrictLiveness is set, rows with empty PK liveness info
+     *        and no row deletion are purged.
+     *
+     *        Currently this is only used by views with normal base column as PK column
+     *        so updates to other base columns do not make the row live when the PK column
+     *        is not live. See CASSANDRA-11500.
+     *
      * @return this row but without any deletion info purged by {@code purger}. If the purged row is empty, returns
-     * {@code null}.
+     *         {@code null}.
      */
-    public Row purge(DeletionPurger purger, int nowInSec);
+    public Row purge(DeletionPurger purger, int nowInSec, boolean enforceStrictLiveness);
 
     /**
      * Returns a copy of this row which only include the data queried by {@code filter}, excluding anything _fetched_ for
@@ -298,6 +308,7 @@ public interface Row extends Unfiltered, Collection<ColumnData>
             return time.isLive() ? LIVE : new Deletion(time, false);
         }
 
+        @Deprecated
         public static Deletion shadowable(DeletionTime time)
         {
             return new Deletion(time, true);

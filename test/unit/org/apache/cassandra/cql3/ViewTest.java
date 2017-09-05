@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.cql3;
 
+import static org.junit.Assert.*;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import junit.framework.Assert;
@@ -46,8 +47,6 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
-
-import static org.junit.Assert.assertTrue;
 
 public class ViewTest extends CQLTester
 {
@@ -84,7 +83,7 @@ public class ViewTest extends CQLTester
     {
         executeNet(protocolVersion, query, params);
         while (!(((SEPExecutor) StageManager.getStage(Stage.VIEW_MUTATION)).getPendingTasks() == 0
-                 && ((SEPExecutor) StageManager.getStage(Stage.VIEW_MUTATION)).getActiveCount() == 0))
+                && ((SEPExecutor) StageManager.getStage(Stage.VIEW_MUTATION)).getActiveCount() == 0))
         {
             Thread.sleep(1);
         }
@@ -121,7 +120,6 @@ public class ViewTest extends CQLTester
         Assert.assertEquals(0, execute("select * from %s").size());
         Assert.assertEquals(0, execute("select * from view1").size());
     }
-
 
     @Test
     public void createMvWithUnrestrictedPKParts() throws Throwable
@@ -400,9 +398,6 @@ public class ViewTest extends CQLTester
         executeNet(protocolVersion, "INSERT INTO %s (a, b, c, d) VALUES (0, 0, 1, 0) USING TIMESTAMP 0");
         assertRows(execute("SELECT d from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0));
 
-        if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
-
         //update c's timestamp TS=2
         executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 2 SET c = ? WHERE a = ? and b = ? ", 1, 0, 0);
         assertRows(execute("SELECT d from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0));
@@ -410,8 +405,10 @@ public class ViewTest extends CQLTester
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
 
-            //change c's value and TS=3, tombstones c=1 and adds c=0 record
+        // change c's value and TS=3, tombstones c=1 and adds c=0 record
         executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 3 SET c = ? WHERE a = ? and b = ? ", 0, 0, 0);
+        if (flush)
+            FBUtilities.waitOnFutures(ks.flush());
         assertRows(execute("SELECT d from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0));
 
         if(flush)
@@ -432,7 +429,7 @@ public class ViewTest extends CQLTester
         assertRows(execute("SELECT d,e from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0, null));
 
 
-            //Add e value @ TS=1
+        //Add e value @ TS=1
         executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 1 SET e = ? WHERE a = ? and b = ? ", 1, 0, 0);
         assertRows(execute("SELECT d,e from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0, 1));
 
@@ -860,12 +857,12 @@ public class ViewTest extends CQLTester
         String table = KEYSPACE + "." + currentTable();
         updateView("BEGIN BATCH " +
                 "INSERT INTO " + table + " (a, b, c, d) VALUES (?, ?, ?, ?); " + // should be accepted
-                "UPDATE " + table + " SET d = ? WHERE a = ? AND b = ?; " +  // should be ignored
+                "UPDATE " + table + " SET d = ? WHERE a = ? AND b = ?; " +  // should be accepted
                 "APPLY BATCH",
                 0, 0, 0, 0,
                 1, 0, 1);
         assertRows(execute("SELECT a, b, c from mv WHERE b = ?", 0), row(0, 0, 0));
-        assertEmpty(execute("SELECT a, b, c from mv WHERE b = ?", 1));
+        assertRows(execute("SELECT a, b, c from mv WHERE b = ?", 1), row(0, 1, null));
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore("mv");
         cfs.forceBlockingFlush();
@@ -1027,9 +1024,9 @@ public class ViewTest extends CQLTester
                       row(1, 3));
 
         updateView(String.format("BEGIN UNLOGGED BATCH " +
-                   "DELETE FROM %s WHERE a = 1 AND b > 1 AND b < 3;" +
-                   "DELETE FROM %s WHERE a = 1;" +
-                   "APPLY BATCH", currentTable(), currentTable()));
+                                 "DELETE FROM %s WHERE a = 1 AND b > 1 AND b < 3;" +
+                                 "DELETE FROM %s WHERE a = 1;" +
+                                 "APPLY BATCH", currentTable(), currentTable()));
 
         mvRows = executeNet(protocolVersion, "SELECT a, b FROM mv1");
         assertRowsNet(protocolVersion, mvRows);
@@ -1233,9 +1230,9 @@ public class ViewTest extends CQLTester
     public void testCreateMvWithTTL() throws Throwable
     {
         createTable("CREATE TABLE %s (" +
-                "k int PRIMARY KEY, " +
-                "c int, " +
-                "val int) WITH default_time_to_live = 60");
+                    "k int PRIMARY KEY, " +
+                    "c int, " +
+                    "val int) WITH default_time_to_live = 60");
 
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());

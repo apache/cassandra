@@ -163,6 +163,11 @@ public class ViewManager
         SystemDistributedKeyspace.setViewRemoved(keyspace.getName(), view.name);
     }
 
+    public View getByName(String name)
+    {
+        return viewsByName.get(name);
+    }
+
     public void buildAllViews()
     {
         for (View view : allViews())

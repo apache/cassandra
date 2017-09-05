@@ -163,6 +163,7 @@ public class TableViews extends AbstractCollection<View>
      * but has simply some updated values. This will be empty for view building as we want to assume anything we'll pass
      * to {@code updates} is new.
      * @param nowInSec the current time in seconds.
+     * @param separateUpdates, if false, mutation is per partition.
      * @return the mutations to apply to the {@code views}. This can be empty.
      */
     public Iterator<Collection<Mutation>> generateViewUpdates(Collection<View> views,
@@ -286,7 +287,10 @@ public class TableViews extends AbstractCollection<View>
                             continue;
 
                         Row updateRow = (Row) update;
-                        addToViewUpdateGenerators(emptyRow(updateRow.clustering(), DeletionTime.LIVE), updateRow, generators, nowInSec);
+                        addToViewUpdateGenerators(emptyRow(updateRow.clustering(), existingsDeletion.currentDeletion()),
+                                                  updateRow,
+                                                  generators,
+                                                  nowInSec);
 
                         // If the updates have been filtered, then we won't have any mutations; we need to make sure that we
                         // only return if the mutations are empty. Otherwise, we continue to search for an update which is
@@ -325,7 +329,10 @@ public class TableViews extends AbstractCollection<View>
                     continue;
 
                 Row updateRow = (Row) update;
-                addToViewUpdateGenerators(emptyRow(updateRow.clustering(), DeletionTime.LIVE), updateRow, generators, nowInSec);
+                addToViewUpdateGenerators(emptyRow(updateRow.clustering(), existingsDeletion.currentDeletion()),
+                                          updateRow,
+                                          generators,
+                                          nowInSec);
             }
 
             return Iterators.singletonIterator(buildMutations(baseTableMetadata.get(), generators));
@@ -423,9 +430,10 @@ public class TableViews extends AbstractCollection<View>
         ClusteringIndexFilter clusteringFilter = names == null
                                                ? new ClusteringIndexSliceFilter(sliceBuilder.build(), false)
                                                : new ClusteringIndexNamesFilter(names, false);
+        // since unselected columns also affect view liveness, we need to query all base columns if base and view have same key columns.
         // If we have more than one view, we should merge the queried columns by each views but to keep it simple we just
         // include everything. We could change that in the future.
-        ColumnFilter queriedColumns = views.size() == 1
+        ColumnFilter queriedColumns = views.size() == 1 && metadata.enforceStrictLiveness()
                                     ? Iterables.getOnlyElement(views).getSelectStatement().queriedColumns()
                                     : ColumnFilter.all(metadata);
         // Note that the views could have restrictions on regular columns, but even if that's the case we shouldn't apply those

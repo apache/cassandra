@@ -553,7 +553,9 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
         {
             public WithoutPurgeableTombstones()
             {
-                super(nowInSec(), cfs.gcBefore(nowInSec()), oldestUnrepairedTombstone(), cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones());
+                super(nowInSec(), cfs.gcBefore(nowInSec()), oldestUnrepairedTombstone(),
+                      cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones(),
+                      iterator.metadata().enforceStrictLiveness());
             }
 
             protected Predicate<Long> getPurgeEvaluator()

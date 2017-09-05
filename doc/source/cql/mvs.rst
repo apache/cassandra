@@ -164,3 +164,11 @@ Dropping a materialized view users the ``DROP MATERIALIZED VIEW`` statement:
 
 If the materialized view does not exists, the statement will return an error, unless ``IF EXISTS`` is used in which case
 the operation is a no-op.
+
+MV Limitations
+```````````````
+
+.. Note:: Removal of columns not selected in the Materialized View (via ``UPDATE base SET unselected_column = null`` or
+          ``DELETE unselected_column FROM base``) may shadow missed updates to other columns received by hints or repair.
+          For this reason, we advise against doing deletions on base columns not selected in views until this is
+          fixed on CASSANDRA-13826.
