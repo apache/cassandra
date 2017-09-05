@@ -147,10 +147,20 @@ public class CommitLogTest
     public void testRecoveryWithEmptyLog() throws Exception
     {
         runExpecting(() -> {
-            CommitLog.instance.recoverFiles(tmpFile(CommitLogDescriptor.current_version));
+            CommitLog.instance.recoverFiles(new File[]{
+            tmpFile(CommitLogDescriptor.current_version),
+            tmpFile(CommitLogDescriptor.current_version)
+            });
             return null;
         }, CommitLogReplayException.class);
     }
+
+    @Test
+    public void testRecoveryWithEmptyFinalLog() throws Exception
+    {
+        CommitLog.instance.recoverFiles(tmpFile(CommitLogDescriptor.current_version));
+    }
+
 
     @Test
     public void testRecoveryWithZeroLog() throws Exception
