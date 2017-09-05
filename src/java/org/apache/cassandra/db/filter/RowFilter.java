@@ -164,7 +164,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     public boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row, int nowInSec)
     {
         // We purge all tombstones as the expressions isSatisfiedBy methods expects it
-        Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec);
+        Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
         if (purged == null)
             return expressions.isEmpty();
 
@@ -331,7 +331,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
                 public Row applyToRow(Row row)
                 {
-                    Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec);
+                    Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
                     if (purged == null)
                         return null;
 

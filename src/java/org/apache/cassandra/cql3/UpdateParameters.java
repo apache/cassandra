@@ -233,6 +233,6 @@ public class UpdateParameters
             return pendingMutations;
 
         return Rows.merge(prefetchedRow, pendingMutations, nowInSec)
-                   .purge(DeletionPurger.PURGE_ALL, nowInSec);
+                   .purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
     }
 }

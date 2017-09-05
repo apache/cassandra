@@ -394,13 +394,17 @@ public class BTreeRow extends AbstractRow
              : new BTreeRow(clustering, primaryKeyLivenessInfo, Deletion.regular(newDeletion), btree, Integer.MIN_VALUE);
     }
 
-    public Row purge(DeletionPurger purger, int nowInSec)
+    public Row purge(DeletionPurger purger, int nowInSec, boolean enforceStrictLiveness)
     {
         if (!hasDeletion(nowInSec))
             return this;
 
         LivenessInfo newInfo = purger.shouldPurge(primaryKeyLivenessInfo, nowInSec) ? LivenessInfo.EMPTY : primaryKeyLivenessInfo;
         Deletion newDeletion = purger.shouldPurge(deletion.time()) ? Deletion.LIVE : deletion;
+
+        // when enforceStrictLiveness is set, a row is considered dead when it's PK liveness info is not present
+        if (enforceStrictLiveness && newDeletion.isLive() && newInfo.isEmpty())
+            return null;
 
         return transformAndFilter(newInfo, newDeletion, (cd) -> cd.purge(purger, nowInSec));
     }
