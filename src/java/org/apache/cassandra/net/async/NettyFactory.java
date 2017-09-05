@@ -126,10 +126,10 @@ public final class NettyFactory
     {
         this.useEpoll = useEpoll;
         acceptGroup = getEventLoopGroup(useEpoll, determineAcceptGroupSize(DatabaseDescriptor.getServerEncryptionOptions().internode_encryption),
-                                        "MessagingService-NettyAcceptor-Threads", false);
-        inboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyInbound-Threads", false);
-        outboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyOutbound-Threads", true);
-        streamingGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "Streaming-Netty-Threads", false);
+                                        "MessagingService-NettyAcceptor-Thread", false);
+        inboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyInbound-Thread", false);
+        outboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyOutbound-Thread", true);
+        streamingGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "Streaming-Netty-Thread", false);
     }
 
     /**
@@ -167,14 +167,14 @@ public final class NettyFactory
         if (useEpoll)
         {
             logger.debug("using netty epoll event loop for pool prefix {}", threadNamePrefix);
-            EpollEventLoopGroup eventLoopGroup = new EpollEventLoopGroup(threadCount, new DefaultThreadFactory(threadNamePrefix));
+            EpollEventLoopGroup eventLoopGroup = new EpollEventLoopGroup(threadCount, new DefaultThreadFactory(threadNamePrefix, true));
             if (boostIoRatio)
                 eventLoopGroup.setIoRatio(100);
             return eventLoopGroup;
         }
 
         logger.debug("using netty nio event loop for pool prefix {}", threadNamePrefix);
-        NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(threadCount, new DefaultThreadFactory(threadNamePrefix));
+        NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(threadCount, new DefaultThreadFactory(threadNamePrefix, true));
         if (boostIoRatio)
             eventLoopGroup.setIoRatio(100);
         return eventLoopGroup;
