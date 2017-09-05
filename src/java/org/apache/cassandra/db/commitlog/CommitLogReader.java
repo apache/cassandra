@@ -149,10 +149,11 @@ public class CommitLogReader
             if (desc == null)
             {
                 // don't care about whether or not the handler thinks we can continue. We can't w/out descriptor.
+                // whether or not we continue with startup will depend on whether this is the last segment
                 handler.handleUnrecoverableError(new CommitLogReadException(
                     String.format("Could not read commit log descriptor in file %s", file),
                     CommitLogReadErrorReason.UNRECOVERABLE_DESCRIPTOR_ERROR,
-                    false));
+                    tolerateTruncation));
                 return;
             }
 
