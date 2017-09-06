@@ -507,7 +507,7 @@ public final class TableMetadata
 
     private void except(String format, Object... args)
     {
-        throw new ConfigurationException(format(format, args));
+        throw new ConfigurationException(keyspace + "." + name + ": " +format(format, args));
     }
 
     @Override

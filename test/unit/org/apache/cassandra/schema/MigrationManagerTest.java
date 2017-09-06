@@ -26,7 +26,9 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
@@ -68,6 +70,9 @@ public class MigrationManagerTest
     private static final String TABLE1 = "standard1";
     private static final String TABLE2 = "standard2";
     private static final String TABLE1i = "indexed1";
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -523,6 +528,41 @@ public class MigrationManagerTest
         assertTrue(cfs.indexManager.listIndexes().isEmpty());
         LifecycleTransaction.waitForDeletions();
         assertFalse(new File(desc.filenameFor(Component.DATA)).exists());
+    }
+
+    @Test
+    public void testValidateNullKeyspace() throws Exception
+    {
+        TableMetadata.Builder builder = TableMetadata.builder(null, TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
+
+        TableMetadata table1 = builder.build();
+        thrown.expect(ConfigurationException.class);
+        thrown.expectMessage(null + "." + TABLE1 + ": Keyspace name must not be empty");
+        table1.validate();
+    }
+
+    @Test
+    public void testValidateCompatibilityIDMismatch() throws Exception
+    {
+        TableMetadata.Builder builder = TableMetadata.builder(KEYSPACE1, TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
+
+        TableMetadata table1 = builder.build();
+        TableMetadata table2 = table1.unbuild().id(TableId.generate()).build();
+        thrown.expect(ConfigurationException.class);
+        thrown.expectMessage(KEYSPACE1 + "." + TABLE1 + ": Table ID mismatch");
+        table1.validateCompatibility(table2);
+    }
+
+    @Test
+    public void testValidateCompatibilityNameMismatch() throws Exception
+    {
+        TableMetadata.Builder builder1 = TableMetadata.builder(KEYSPACE1, TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
+        TableMetadata.Builder builder2 = TableMetadata.builder(KEYSPACE1, TABLE2).addPartitionKeyColumn("partitionKey", BytesType.instance);
+        TableMetadata table1 = builder1.build();
+        TableMetadata table2 = builder2.build();
+        thrown.expect(ConfigurationException.class);
+        thrown.expectMessage(KEYSPACE1 + "." + TABLE1 + ": Table mismatch");
+        table1.validateCompatibility(table2);
     }
 
     private TableMetadata addTestTable(String ks, String cf, String comment)
