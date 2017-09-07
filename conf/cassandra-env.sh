@@ -146,6 +146,8 @@ USING_CMS=$?
 echo $JVM_OPTS | grep -q UseG1GC
 USING_G1=$?
 
+echo $JVM_OPTS | grep -q Xss
+DEFINED_XSS=$?
 # Override these to set the amount of memory to allocate to the JVM at
 # start-up. For production use you may wish to adjust this for your
 # environment. MAX_HEAP_SIZE is the total amount of memory dedicated
@@ -197,6 +199,13 @@ if [ $DEFINED_XMN -eq 0 ] && [ $DEFINED_XMX -ne 0 ]; then
     exit 1
 elif [ $DEFINED_XMN -ne 0 ] && [ $USING_CMS -eq 0 ]; then
     JVM_OPTS="$JVM_OPTS -Xmn${HEAP_NEWSIZE}"
+fi
+
+if [ $DEFINED_XSS -ne 0 ]; then
+    if [ "$(uname -s)" = 'Linux' ] && [ $(arch) = 'ppc64le' ]; then
+      JVM_OPTS="$JVM_OPTS -Xss512k"
+    else
+      JVM_OPTS="$JVM_OPTS -Xss256k"
 fi
 
 if [ "$JVM_ARCH" = "64-Bit" ] && [ $USING_CMS -eq 0 ]; then
