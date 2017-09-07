@@ -132,8 +132,8 @@ exit 0
 %attr(755,root,root) /%{_sysconfdir}/rc.d/init.d/%{username}
 %attr(755,root,root) /%{_sysconfdir}/default/%{username}
 %attr(755,root,root) /%{_sysconfdir}/security/limits.d/%{username}.conf
-%attr(755,%{username},%{username}) /usr/share/%{username}*
-%attr(755,%{username},%{username}) %config(noreplace) /%{_sysconfdir}/%{username}
+%attr(755,root,root) /usr/share/%{username}*
+%attr(755,root,root) %config(noreplace) /%{_sysconfdir}/%{username}
 %attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}/*
 %attr(755,%{username},%{username}) /var/log/%{username}*
 %attr(755,%{username},%{username}) /var/run/%{username}*
