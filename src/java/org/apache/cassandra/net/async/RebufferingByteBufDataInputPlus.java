@@ -165,14 +165,16 @@ public class RebufferingByteBufDataInputPlus extends RebufferingInputStream impl
      * {@inheritDoc}
      *
      * As long as this method is invoked on the consuming thread the returned value will be accurate.
+     *
+     * @throws EOFException thrown when no bytes are buffered and {@link #closed} is true.
      */
     @Override
     public int available() throws EOFException
     {
-        if (closed)
-            throw new EOFException();
+       final int availableBytes = queuedByteCount.get() + (buffer != null ? buffer.remaining() : 0);
 
-       final  int availableBytes = queuedByteCount.get() + (buffer != null ? buffer.remaining() : 0);
+        if (availableBytes == 0 && closed)
+            throw new EOFException();
 
         if (!channelConfig.isAutoRead() && availableBytes < lowWaterMark)
             channelConfig.setAutoRead(true);

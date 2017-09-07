@@ -123,4 +123,32 @@ public class RebufferingByteBufDataInputPlusTest
         ByteBuffer buf = ByteBuffer.allocate(1);
         inputPlus.read(buf);
     }
+
+    @Test (expected = EOFException.class)
+    public void available_closed() throws EOFException
+    {
+        inputPlus.markClose();
+        inputPlus.available();
+    }
+
+    @Test
+    public void available_HappyPath() throws EOFException
+    {
+        int size = 4;
+        buf = channel.alloc().heapBuffer(size);
+        buf.writerIndex(size);
+        inputPlus.append(buf);
+        Assert.assertEquals(size, inputPlus.available());
+    }
+
+    @Test
+    public void available_ClosedButWithBytes() throws EOFException
+    {
+        int size = 4;
+        buf = channel.alloc().heapBuffer(size);
+        buf.writerIndex(size);
+        inputPlus.append(buf);
+        inputPlus.markClose();
+        Assert.assertEquals(size, inputPlus.available());
+    }
 }

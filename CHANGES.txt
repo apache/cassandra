@@ -1,4 +1,5 @@
 4.0
+ * Race condition when closing stream sessions (CASSANDRA-13852)
  * NettyFactoryTest is failing in trunk on macOS (CASSANDRA-13831)
  * Allow changing log levels via nodetool for related classes (CASSANDRA-12696)
  * Add stress profile yaml with LWT (CASSANDRA-7960)
