@@ -140,7 +140,7 @@ public abstract class CBUtil
     public static void writeString(String str, ByteBuf cb)
     {
         int writerIndex = cb.writerIndex();
-        cb.writerIndex(writerIndex + 2);
+        cb.writeShort(0);
         int written = ByteBufUtil.writeUtf8(cb, str);
         cb.setShort(writerIndex, written);
     }
@@ -166,7 +166,7 @@ public abstract class CBUtil
     public static void writeLongString(String str, ByteBuf cb)
     {
         int writerIndex = cb.writerIndex();
-        cb.writerIndex(writerIndex + 4);
+        cb.writeInt(0);
         int written = ByteBufUtil.writeUtf8(cb, str);
         cb.setInt(writerIndex, written);
     }
