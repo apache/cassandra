@@ -25,7 +25,9 @@ import java.util.TreeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemoryWriter;
@@ -35,6 +37,9 @@ import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 public class IndexSummaryBuilder implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSummaryBuilder.class);
+
+    static final String defaultExpectedKeySizeName = Config.PROPERTY_PREFIX + "index_summary_expected_key_size";
+    static long defaultExpectedKeySize = Long.valueOf(System.getProperty(defaultExpectedKeySizeName, "64"));
 
     // the offset in the keys memory region to look for a given summary boundary
     private final SafeMemoryWriter offsets;
@@ -85,20 +90,30 @@ public class IndexSummaryBuilder implements AutoCloseable
         }
     }
 
+    /**
+     * Build an index summary builder.
+     *
+     * @param expectedKeys - the number of keys we expect in the sstable
+     * @param minIndexInterval - the minimum interval between entries selected for sampling
+     * @param samplingLevel - the level at which entries are sampled
+     */
     public IndexSummaryBuilder(long expectedKeys, int minIndexInterval, int samplingLevel)
     {
         this.samplingLevel = samplingLevel;
         this.startPoints = Downsampling.getStartPoints(BASE_SAMPLING_LEVEL, samplingLevel);
 
+        long expectedEntrySize = getEntrySize(defaultExpectedKeySize);
         long maxExpectedEntries = expectedKeys / minIndexInterval;
-        if (maxExpectedEntries > Integer.MAX_VALUE)
+        long maxExpectedEntriesSize = maxExpectedEntries * expectedEntrySize;
+        if (maxExpectedEntriesSize > Integer.MAX_VALUE)
         {
             // that's a _lot_ of keys, and a very low min index interval
-            int effectiveMinInterval = (int) Math.ceil((double) Integer.MAX_VALUE / expectedKeys);
+            int effectiveMinInterval = (int) Math.ceil((double)(expectedKeys * expectedEntrySize) / Integer.MAX_VALUE);
             maxExpectedEntries = expectedKeys / effectiveMinInterval;
-            assert maxExpectedEntries <= Integer.MAX_VALUE : maxExpectedEntries;
-            logger.warn("min_index_interval of {} is too low for {} expected keys; using interval of {} instead",
-                        minIndexInterval, expectedKeys, effectiveMinInterval);
+            maxExpectedEntriesSize = maxExpectedEntries * expectedEntrySize;
+            assert maxExpectedEntriesSize <= Integer.MAX_VALUE : maxExpectedEntriesSize;
+            logger.warn("min_index_interval of {} is too low for {} expected keys of avg size {}; using interval of {} instead",
+                        minIndexInterval, expectedKeys, defaultExpectedKeySize, effectiveMinInterval);
             this.minIndexInterval = effectiveMinInterval;
         }
         else
@@ -109,11 +124,28 @@ public class IndexSummaryBuilder implements AutoCloseable
         // for initializing data structures, adjust our estimates based on the sampling level
         maxExpectedEntries = Math.max(1, (maxExpectedEntries * samplingLevel) / BASE_SAMPLING_LEVEL);
         offsets = new SafeMemoryWriter(4 * maxExpectedEntries).order(ByteOrder.nativeOrder());
-        entries = new SafeMemoryWriter(40 * maxExpectedEntries).order(ByteOrder.nativeOrder());
+        entries = new SafeMemoryWriter(expectedEntrySize * maxExpectedEntries).order(ByteOrder.nativeOrder());
 
         // the summary will always contain the first index entry (downsampling will never remove it)
         nextSamplePosition = 0;
         indexIntervalMatches++;
+    }
+
+    /**
+     * Given a key, return how long the serialized index summary entry will be.
+     */
+    private static long getEntrySize(DecoratedKey key)
+    {
+        return getEntrySize(key.getKey().remaining());
+    }
+
+    /**
+     * Given a key size, return how long the serialized index summary entry will be, that is add 8 bytes to
+     * accomodate for the size of the position.
+     */
+    private static long getEntrySize(long keySize)
+    {
+        return keySize + TypeSizes.sizeof(0L);
     }
 
     // the index file has been flushed to the provided position; stash it and use that to recalculate our max readable boundary
@@ -169,21 +201,29 @@ public class IndexSummaryBuilder implements AutoCloseable
     {
         if (keysWritten == nextSamplePosition)
         {
-            assert entries.length() <= Integer.MAX_VALUE;
-            offsets.writeInt((int) entries.length());
-            entries.write(decoratedKey.getKey());
-            entries.writeLong(indexStart);
-            setNextSamplePosition(keysWritten);
+            if ((entries.length() + getEntrySize(decoratedKey)) <= Integer.MAX_VALUE)
+            {
+                offsets.writeInt((int) entries.length());
+                entries.write(decoratedKey.getKey());
+                entries.writeLong(indexStart);
+                setNextSamplePosition(keysWritten);
+            }
+            else
+            {
+                // we cannot fully sample this sstable due to too much memory in the index summary, so let's tell the user
+                logger.error("Memory capacity of index summary exceeded (2GB), index summary will not cover full sstable, " +
+                             "you should increase min_sampling_level");
+            }
         }
         else if (dataEnd != 0 && keysWritten + 1 == nextSamplePosition)
         {
             // this is the last key in this summary interval, so stash it
-            ReadableBoundary boundary = new ReadableBoundary(decoratedKey, indexEnd, dataEnd, (int)(offsets.length() / 4), entries.length());
+            ReadableBoundary boundary = new ReadableBoundary(decoratedKey, indexEnd, dataEnd, (int) (offsets.length() / 4), entries.length());
             lastReadableByData.put(dataEnd, boundary);
             lastReadableByIndex.put(indexEnd, boundary);
         }
-        keysWritten++;
 
+        keysWritten++;
         return this;
     }
 
@@ -251,12 +291,12 @@ public class IndexSummaryBuilder implements AutoCloseable
         return accumulate;
     }
 
-    public static int entriesAtSamplingLevel(int samplingLevel, int maxSummarySize)
+    static int entriesAtSamplingLevel(int samplingLevel, int maxSummarySize)
     {
         return (int) Math.ceil((samplingLevel * maxSummarySize) / (double) BASE_SAMPLING_LEVEL);
     }
 
-    public static int calculateSamplingLevel(int currentSamplingLevel, int currentNumEntries, long targetNumEntries, int minIndexInterval, int maxIndexInterval)
+    static int calculateSamplingLevel(int currentSamplingLevel, int currentNumEntries, long targetNumEntries, int minIndexInterval, int maxIndexInterval)
     {
         // effective index interval == (BASE_SAMPLING_LEVEL / samplingLevel) * minIndexInterval
         // so we can just solve for minSamplingLevel here:
