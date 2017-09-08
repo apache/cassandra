@@ -212,7 +212,6 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
     private synchronized void maybeComplete()
     {
-        logger.warn("[Stream #{}] maybeComplete", planId);
         if (!coordinator.hasActiveSessions())
         {
             StreamState finalState = getCurrentState();
