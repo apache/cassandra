@@ -270,17 +270,13 @@ public class Config
     public int tracetype_repair_ttl = (int) TimeUnit.DAYS.toSeconds(7);
 
     /**
-<<<<<<< HEAD
      * Maintain statistics on whether writes achieve the ideal consistency level
      * before expiring and becoming hints
      */
     public volatile ConsistencyLevel ideal_consistency_level = null;
 
     /*
-     * Strategy to use for coalescing messages in OutboundTcpConnection.
-=======
      * Strategy to use for coalescing messages in {@link OutboundMessagingPool}.
->>>>>>> 2acc8dbc74... switch internode messaging to netty
      * Can be fixed, movingaverage, timehorizon, disabled. Setting is case and leading/trailing
      * whitespace insensitive. You can also specify a subclass of
      * {@link org.apache.cassandra.utils.CoalescingStrategies.CoalescingStrategy} by name.
