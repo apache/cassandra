@@ -512,7 +512,7 @@ available:
                                            compression. Custom compressor can be provided by specifying the full class
                                            name as a “string constant”:#constants.
  ``enabled``               true            Enable/disable sstable compression.
- ``chunk_length_in_kb``    64KB            On disk SSTables are compressed by block (to allow random reads). This
+ ``chunk_length_in_kb``    64              On disk SSTables are compressed by block (to allow random reads). This
                                            defines the size (in KB) of said block. Bigger values may improve the
                                            compression rate, but increases the minimum size of data to be read from disk
                                            for a read
@@ -523,6 +523,17 @@ available:
                                            they are always checked. Set to 0 to disable checksum checking and to 0.5 for
                                            instance to check them every other read   |
 ========================= =============== =============================================================================
+
+
+For instance, to create a table with LZ4Compressor and a chunk_lenth_in_kb of 4KB::
+
+   CREATE TABLE simple (
+      id int,
+      key text,
+      value text,
+      PRIMARY KEY (key, value)
+   ) with compression = {'class': 'LZ4Compressor', 'chunk_length_in_kb': 4};
+
 
 .. _cql-caching-options:
 
@@ -542,6 +553,17 @@ sub-options are available:
                                     possible options are ``ALL``, to cache all rows of a queried partition, or ``NONE``
                                     to disable row caching.
 ======================== ========= ====================================================================================
+
+
+For instance, to create a table with both a key cache and 10 rows per partition::
+
+    CREATE TABLE simple (
+    id int,
+    key text,
+    value text,
+    PRIMARY KEY (key, value)
+    ) WITH caching = {'keys': 'ALL', 'rows_per_partition': 10};
+
 
 Other considerations:
 #####################
