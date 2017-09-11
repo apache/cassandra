@@ -57,6 +57,7 @@ public class CQL3CasRequest implements CASRequest
     private final TreeMap<Clustering, RowCondition> conditions;
 
     private final List<RowUpdate> updates = new ArrayList<>();
+    private final List<RangeDeletion> rangeDeletions = new ArrayList<>();
 
     public CQL3CasRequest(TableMetadata metadata,
                           DecoratedKey key,
@@ -77,6 +78,11 @@ public class CQL3CasRequest implements CASRequest
     public void addRowUpdate(Clustering clustering, ModificationStatement stmt, QueryOptions options, long timestamp)
     {
         updates.add(new RowUpdate(clustering, stmt, options, timestamp));
+    }
+
+    public void addRangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp)
+    {
+        rangeDeletions.add(new RangeDeletion(slice, stmt, options, timestamp));
     }
 
     public void addNotExist(Clustering clustering) throws InvalidRequestException
@@ -232,6 +238,8 @@ public class CQL3CasRequest implements CASRequest
         PartitionUpdate update = new PartitionUpdate(metadata, key, updatedColumns(), conditions.size());
         for (RowUpdate upd : updates)
             upd.applyUpdates(current, update);
+        for (RangeDeletion upd : rangeDeletions)
+            upd.applyUpdates(current, update);
 
         Keyspace.openAndGetStore(metadata).indexManager.validate(update);
         return update;
@@ -263,6 +271,30 @@ public class CQL3CasRequest implements CASRequest
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.<DecoratedKey, Partition>singletonMap(key, current) : null;
             UpdateParameters params = new UpdateParameters(metadata, updates.columns(), options, timestamp, stmt.getTimeToLive(options), map);
             stmt.addUpdateForKey(updates, clustering, params);
+        }
+    }
+
+    private class RangeDeletion
+    {
+        private final Slice slice;
+        private final ModificationStatement stmt;
+        private final QueryOptions options;
+        private final long timestamp;
+
+        private RangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp)
+        {
+            this.slice = slice;
+            this.stmt = stmt;
+            this.options = options;
+            this.timestamp = timestamp;
+        }
+
+        public void applyUpdates(FilteredPartition current, PartitionUpdate updates) throws InvalidRequestException
+        {
+            // No slice statements currently require a read, but this maintains consistency with RowUpdate, and future proofs us
+            Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.<DecoratedKey, Partition>singletonMap(key, current) : null;
+            UpdateParameters params = new UpdateParameters(metadata, updates.columns(), options, timestamp, stmt.getTimeToLive(options), map);
+            stmt.addUpdateForKey(updates, slice, params);
         }
     }
 
