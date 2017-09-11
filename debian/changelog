@@ -1,3 +1,9 @@
+cassandra (2.1.19) unstable; urgency=medium
+
+  * New release
+
+ -- Michael Shuler <michael@pbandjelly.org>  Mon, 11 Sep 2017 16:49:58 -0500
+
 cassandra (2.1.18) unstable; urgency=medium
 
   * New release
