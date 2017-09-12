@@ -46,6 +46,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.audit.FullQueryLogger.WeighableMarshallableQuery;
 import org.apache.cassandra.audit.FullQueryLogger.WeighableMarshallableBatch;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLogTest;
@@ -109,9 +110,9 @@ public class FullQueryLoggerTest extends CQLTester
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testConfigureOverExistingFile() throws Exception
+    public void testConfigureOverExistingFile()
     {
-        File f = File.createTempFile("foo", "bar");
+        File f = FileUtils.createTempFile("foo", "bar");
         f.deleteOnExit();
         instance.configure(f.toPath(), "TEST_SECONDLY", true, 1, 1);
     }

@@ -214,6 +214,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     protected abstract int oldestUnrepairedTombstone();
 
+    @SuppressWarnings("resource")
     public ReadResponse createResponse(UnfilteredPartitionIterator iterator)
     {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both

@@ -54,7 +54,7 @@ if NOT DEFINED JAVA_HOME goto :err
 REM -----------------------------------------------------------------------------
 REM JVM Opts we'll use in legacy run or installation
 set JAVA_OPTS=-ea^
- -javaagent:"%CASSANDRA_HOME%\lib\jamm-0.3.0.jar"^
+ -javaagent:"%CASSANDRA_HOME%\lib\jamm-0.3.2"^
  -Xms2G^
  -Xmx2G^
  -XX:+HeapDumpOnOutOfMemoryError^

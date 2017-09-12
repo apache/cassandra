@@ -952,4 +952,28 @@ public class FBUtilities
         broadcastInetAddressAndPort = null;
         broadcastNativeAddress = null;
     }
+
+    /**
+     * Hack to prevent the ugly "illegal access" warnings in Java 11+ like the following.
+     */
+    public static void preventIllegalAccessWarnings()
+    {
+        // Example "annoying" trace:
+        //        WARNING: An illegal reflective access operation has occurred
+        //        WARNING: Illegal reflective access by io.netty.util.internal.ReflectionUtil (file:...)
+        //        WARNING: Please consider reporting this to the maintainers of io.netty.util.internal.ReflectionUtil
+        //        WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+        //        WARNING: All illegal access operations will be denied in a future release
+        try
+        {
+            Class<?> c = Class.forName("jdk.internal.module.IllegalAccessLogger");
+            Field f = c.getDeclaredField("logger");
+            f.setAccessible(true);
+            f.set(null, null);
+        }
+        catch (Exception e)
+        {
+            // ignore
+        }
+    }
 }

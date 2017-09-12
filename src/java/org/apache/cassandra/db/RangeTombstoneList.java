@@ -344,6 +344,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         return iterator(false);
     }
 
+    @SuppressWarnings("resource")
     public Iterator<RangeTombstone> iterator(boolean reversed)
     {
         return reversed

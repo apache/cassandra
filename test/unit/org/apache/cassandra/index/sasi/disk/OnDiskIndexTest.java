@@ -38,6 +38,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.Pair;
 
@@ -82,7 +83,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
             addAll(builder, e.getKey(), e.getValue());
 
-        File index = File.createTempFile("on-disk-sa-string", "db");
+        File index = FileUtils.createTempFile("on-disk-sa-string", "db");
         index.deleteOnExit();
 
         builder.finish(index);
@@ -138,7 +139,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
             addAll(builder, e.getKey(), e.getValue());
 
-        File index = File.createTempFile("on-disk-sa-int", "db");
+        File index = FileUtils.createTempFile("on-disk-sa-int", "db");
         index.deleteOnExit();
 
         builder.finish(index);
@@ -226,7 +227,7 @@ public class OnDiskIndexTest
         for (int i = 0; i < iterCheckNums.size(); i++)
             iterTest.add(iterCheckNums.get(i), keyAt((long) i), i);
 
-        File iterIndex = File.createTempFile("sa-iter", ".db");
+        File iterIndex = FileUtils.createTempFile("sa-iter", ".db");
         iterIndex.deleteOnExit();
 
         iterTest.finish(iterIndex);
@@ -278,7 +279,7 @@ public class OnDiskIndexTest
                 addAll(this, UTF8Type.instance.decompose("Pavel"), keyBuilder(9L, 10L));
         }};
 
-        File index = File.createTempFile("on-disk-sa-multi-suffix-match", ".db");
+        File index = FileUtils.createTempFile("on-disk-sa-multi-suffix-match", ".db");
         index.deleteOnExit();
 
         builder.finish(index);
@@ -317,7 +318,7 @@ public class OnDiskIndexTest
         for (long i = 0; i < numIterations; i++)
             builder.add(LongType.instance.decompose(start + i), keyAt(i), i);
 
-        File index = File.createTempFile("on-disk-sa-sparse", "db");
+        File index = FileUtils.createTempFile("on-disk-sa-sparse", "db");
         index.deleteOnExit();
 
         builder.finish(index);
@@ -375,7 +376,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
             addAll(builder, e.getKey(), e.getValue());
 
-        File index = File.createTempFile("on-disk-sa-except-test", "db");
+        File index = FileUtils.createTempFile("on-disk-sa-except-test", "db");
         index.deleteOnExit();
 
         builder.finish(index);
@@ -419,7 +420,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
             addAll(builder, e.getKey(), e.getValue());
 
-        File index = File.createTempFile("on-disk-sa-except-int-test", "db");
+        File index = FileUtils.createTempFile("on-disk-sa-except-int-test", "db");
         index.deleteOnExit();
 
         builder.finish(index);
@@ -443,7 +444,7 @@ public class OnDiskIndexTest
         for (long i = lower; i <= upper; i++)
             builder.add(LongType.instance.decompose(i), keyAt(i), i);
 
-        File index = File.createTempFile("on-disk-sa-except-long-ranges", "db");
+        File index = FileUtils.createTempFile("on-disk-sa-except-long-ranges", "db");
         index.deleteOnExit();
 
         builder.finish(index);
@@ -535,8 +536,8 @@ public class OnDiskIndexTest
             builder2.add(e.getKey(), key, position);
         }
 
-        File index1 = File.createTempFile("on-disk-sa-int", "db");
-        File index2 = File.createTempFile("on-disk-sa-int2", "db");
+        File index1 = FileUtils.createTempFile("on-disk-sa-int", "db");
+        File index2 = FileUtils.createTempFile("on-disk-sa-int2", "db");
         index1.deleteOnExit();
         index2.deleteOnExit();
 
@@ -569,7 +570,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> entry : terms.entrySet())
             addAll(builder, entry.getKey(), entry.getValue());
 
-        File index = File.createTempFile("on-disk-sa-try-superblocks", ".db");
+        File index = FileUtils.createTempFile("on-disk-sa-try-superblocks", ".db");
         index.deleteOnExit();
 
         builder.finish(index);
@@ -597,7 +598,7 @@ public class OnDiskIndexTest
         for (long i = 0; i < 100000; i++)
             builder.add(LongType.instance.decompose(i), keyAt(i), i);
 
-        File index = File.createTempFile("on-disk-sa-multi-superblock-match", ".db");
+        File index = FileUtils.createTempFile("on-disk-sa-multi-superblock-match", ".db");
         index.deleteOnExit();
 
         builder.finish(index);
@@ -652,10 +653,10 @@ public class OnDiskIndexTest
             putAll(offsets, keyBuilder(100L + i));
         }
 
-        File indexA = File.createTempFile("on-disk-sa-partition-a", ".db");
+        File indexA = FileUtils.createTempFile("on-disk-sa-partition-a", ".db");
         indexA.deleteOnExit();
 
-        File indexB = File.createTempFile("on-disk-sa-partition-b", ".db");
+        File indexB = FileUtils.createTempFile("on-disk-sa-partition-b", ".db");
         indexB.deleteOnExit();
 
         builderA.finish(indexA);
@@ -682,7 +683,7 @@ public class OnDiskIndexTest
 
         Assert.assertEquals(actual, expected);
 
-        File indexC = File.createTempFile("on-disk-sa-partition-final", ".db");
+        File indexC = FileUtils.createTempFile("on-disk-sa-partition-final", ".db");
         indexC.deleteOnExit();
 
         OnDiskIndexBuilder combined = new OnDiskIndexBuilder(UTF8Type.instance, LongType.instance, OnDiskIndexBuilder.Mode.PREFIX);
@@ -733,7 +734,7 @@ public class OnDiskIndexTest
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
             addAll(builder, e.getKey(), e.getValue());
 
-        File index = File.createTempFile("on-disk-sa-prefix-contains-search", "db");
+        File index = FileUtils.createTempFile("on-disk-sa-prefix-contains-search", "db");
         index.deleteOnExit();
 
         builder.finish(index);

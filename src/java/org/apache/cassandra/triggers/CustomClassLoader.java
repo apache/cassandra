@@ -35,6 +35,8 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.io.Files;
 
+import org.apache.cassandra.io.util.FileUtils;
+
 /**
  * Custom class loader will load the classes from the class path, CCL will load
  * the classes from the the URL first, if it cannot find the required class it
@@ -76,7 +78,7 @@ public class CustomClassLoader extends URLClassLoader
         };
         for (File inputJar : dir.listFiles(filter))
         {
-            File lib = new File(System.getProperty("java.io.tmpdir"), "lib");
+            File lib = new File(FileUtils.getTempDir(), "lib");
             if (!lib.exists())
             {
                 lib.mkdir();
@@ -84,7 +86,7 @@ public class CustomClassLoader extends URLClassLoader
             }
             try
             {
-                File out = File.createTempFile("cassandra-", ".jar", lib);
+                File out = FileUtils.createTempFile("cassandra-", ".jar", lib);
                 out.deleteOnExit();
                 logger.info("Loading new jar {}", inputJar.getAbsolutePath());
                 Files.copy(inputJar, out);

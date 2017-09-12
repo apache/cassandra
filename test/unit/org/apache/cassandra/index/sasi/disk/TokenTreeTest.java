@@ -116,7 +116,7 @@ public class TokenTreeTest
     public void testSerializedSize(final TokenTreeBuilder builder) throws Exception
     {
         builder.finish();
-        final File treeFile = File.createTempFile("token-tree-size-test", "tt");
+        final File treeFile = FileUtils.createTempFile("token-tree-size-test", "tt");
         treeFile.deleteOnExit();
 
         try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
@@ -148,7 +148,7 @@ public class TokenTreeTest
     {
 
         builder.finish();
-        final File treeFile = File.createTempFile("token-tree-iterate-test1", "tt");
+        final File treeFile = FileUtils.createTempFile("token-tree-iterate-test1", "tt");
         treeFile.deleteOnExit();
 
         try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
@@ -227,7 +227,7 @@ public class TokenTreeTest
     public void buildSerializeIterateAndSkip(TokenTreeBuilder builder, SortedMap<Long, LongSet> tokens) throws Exception
     {
         builder.finish();
-        final File treeFile = File.createTempFile("token-tree-iterate-test2", "tt");
+        final File treeFile = FileUtils.createTempFile("token-tree-iterate-test2", "tt");
         treeFile.deleteOnExit();
 
         try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
@@ -286,7 +286,7 @@ public class TokenTreeTest
     public void skipPastEnd(TokenTreeBuilder builder, SortedMap<Long, LongSet> tokens) throws Exception
     {
         builder.finish();
-        final File treeFile = File.createTempFile("token-tree-skip-past-test", "tt");
+        final File treeFile = FileUtils.createTempFile("token-tree-skip-past-test", "tt");
         treeFile.deleteOnExit();
 
         try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
@@ -430,7 +430,7 @@ public class TokenTreeTest
     private static TokenTree buildTree(TokenTreeBuilder builder) throws Exception
     {
         builder.finish();
-        final File treeFile = File.createTempFile("token-tree-", "db");
+        final File treeFile = FileUtils.createTempFile("token-tree-", "db");
         treeFile.deleteOnExit();
 
         try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
@@ -648,7 +648,7 @@ public class TokenTreeTest
 
         final TokenTreeBuilder builder = isStatic ? new StaticTokenTreeBuilder(new FakeCombinedTerm(toks)) : new DynamicTokenTreeBuilder(toks);
         builder.finish();
-        final File treeFile = File.createTempFile("token-tree-get-test", "tt");
+        final File treeFile = FileUtils.createTempFile("token-tree-get-test", "tt");
         treeFile.deleteOnExit();
 
         try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))

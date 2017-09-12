@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -83,7 +84,7 @@ public class ChecksummedDataInputTest
         FBUtilities.updateChecksum(crc, buffer);
 
         // save the buffer to file to create a RAR
-        File file = File.createTempFile("testReadMethods", "1");
+        File file = FileUtils.createTempFile("testReadMethods", "1");
         file.deleteOnExit();
         try (SequentialWriter writer = new SequentialWriter(file))
         {
@@ -158,7 +159,7 @@ public class ChecksummedDataInputTest
         }
 
         // save the buffer to file to create a RAR
-        File file = File.createTempFile("testResetCrc", "1");
+        File file = FileUtils.createTempFile("testResetCrc", "1");
         file.deleteOnExit();
         try (SequentialWriter writer = new SequentialWriter(file))
         {
@@ -214,7 +215,7 @@ public class ChecksummedDataInputTest
         }
 
         // save the buffer to file to create a RAR
-        File file = File.createTempFile("testFailedCrc", "1");
+        File file = FileUtils.createTempFile("testFailedCrc", "1");
         file.deleteOnExit();
         try (SequentialWriter writer = new SequentialWriter(file))
         {

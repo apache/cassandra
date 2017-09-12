@@ -318,7 +318,7 @@ public class ScrubTest
         DatabaseDescriptor.setPartitionerUnsafe(new ByteOrderedPartitioner());
 
         // Create out-of-order SSTable
-        File tempDir = File.createTempFile("ScrubTest.testScrubOutOfOrder", "").getParentFile();
+        File tempDir = FileUtils.createTempFile("ScrubTest.testScrubOutOfOrder", "").getParentFile();
         // create ks/cf directory
         File tempDataDir = new File(tempDir, String.join(File.separator, KEYSPACE, CF3));
         tempDataDir.mkdirs();

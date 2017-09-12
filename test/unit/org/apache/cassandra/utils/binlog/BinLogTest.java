@@ -36,6 +36,7 @@ import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.io.util.FileUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -46,7 +47,7 @@ public class BinLogTest
 {
     public static Path tempDir() throws Exception
     {
-        File f = File.createTempFile("foo", "bar");
+        File f = FileUtils.createTempFile("foo", "bar");
         f.delete();
         f.mkdir();
         return Paths.get(f.getPath());

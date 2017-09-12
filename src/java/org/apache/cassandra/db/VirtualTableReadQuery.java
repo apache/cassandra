@@ -55,6 +55,7 @@ public abstract class VirtualTableReadQuery extends AbstractReadQuery
     }
 
     @Override
+    @SuppressWarnings("resource")
     public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
     {
         UnfilteredPartitionIterator resultIterator = queryVirtualTable();

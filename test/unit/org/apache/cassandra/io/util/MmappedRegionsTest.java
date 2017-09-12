@@ -67,7 +67,7 @@ public class MmappedRegionsTest
 
     private static File writeFile(String fileName, ByteBuffer buffer) throws IOException
     {
-        File ret = File.createTempFile(fileName, "1");
+        File ret = FileUtils.createTempFile(fileName, "1");
         ret.deleteOnExit();
 
         try (SequentialWriter writer = new SequentialWriter(ret))
@@ -298,10 +298,10 @@ public class MmappedRegionsTest
         MmappedRegions.MAX_SEGMENT_SIZE = 1024;
 
         ByteBuffer buffer = allocateBuffer(128 * 1024);
-        File f = File.createTempFile("testMapForCompressionMetadata", "1");
+        File f = FileUtils.createTempFile("testMapForCompressionMetadata", "1");
         f.deleteOnExit();
 
-        File cf = File.createTempFile(f.getName() + ".metadata", "1");
+        File cf = FileUtils.createTempFile(f.getName() + ".metadata", "1");
         cf.deleteOnExit();
 
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));

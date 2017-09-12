@@ -27,7 +27,6 @@ import com.sun.jna.Native;
 import org.apache.cassandra.utils.Architecture;
 
 import sun.misc.Unsafe;
-import sun.nio.ch.DirectBuffer;
 
 public abstract class MemoryUtil
 {
@@ -337,7 +336,7 @@ public abstract class MemoryUtil
             return;
 
         if (buffer.isDirect())
-            setBytes(((DirectBuffer)buffer).address() + start, address, count);
+            setBytes(getAddress(buffer) + start, address, count);
         else
             setBytes(address, buffer.array(), buffer.arrayOffset() + start, count);
     }
