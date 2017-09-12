@@ -58,6 +58,7 @@ public class DataResolver extends ResponseResolver
         return !responses.isEmpty();
     }
 
+    @SuppressWarnings("resource")
     public PartitionIterator resolve()
     {
         // We could get more responses while this method runs, which is ok (we're happy to ignore any response not here

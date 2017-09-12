@@ -57,11 +57,22 @@ public class UFSecurityTest extends CQLTester
             assertAccessControlException("System.getProperty(\"foo.bar.baz\"); return 0d;", e);
         }
 
+        String[] cfnSources =
+        { "try { Class.forName(\"" + UDHelper.class.getName() + "\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;",
+          "try { Class.forName(\"sun.misc.Unsafe\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;" };
+        for (String source : cfnSources)
+        {
+            assertInvalidMessage("Java UDF validation failed: [call to java.lang.Class.forName()]",
+                                 "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".invalid_class_access(val double) " +
+                                 "RETURNS NULL ON NULL INPUT " +
+                                 "RETURNS double " +
+                                 "LANGUAGE JAVA\n" +
+                                 "AS '" + source + "';");
+        }
+
         String[][] typesAndSources =
         {
-        {"", "try { Class.forName(\"" + UDHelper.class.getName() + "\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;"},
         {"sun.misc.Unsafe",         "sun.misc.Unsafe.getUnsafe(); return 0d;"},
-        {"",                        "try { Class.forName(\"sun.misc.Unsafe\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;"},
         {"java.nio.file.FileSystems", "try {" +
                                       "     java.nio.file.FileSystems.getDefault(); return 0d;" +
                                       "} catch (Exception t) {" +

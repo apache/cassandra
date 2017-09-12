@@ -38,18 +38,6 @@ elif [ -r "$CASSANDRA_INCLUDE" ]; then
     . "$CASSANDRA_INCLUDE"
 fi
 
-# Use JAVA_HOME if set, otherwise look for java in PATH
-if [ -x "$JAVA_HOME/bin/java" ]; then
-    JAVA="$JAVA_HOME/bin/java"
-else
-    JAVA="`which java`"
-fi
-
-if [ "x$JAVA" = "x" ]; then
-    echo "Java executable not found (hint: set JAVA_HOME)" >&2
-    exit 1
-fi
-
 if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
     echo "You must set the CASSANDRA_CONF and CLASSPATH vars" >&2
     exit 1
@@ -61,7 +49,7 @@ if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
     MAX_HEAP_SIZE_SAVE=$MAX_HEAP_SIZE
     . "$CASSANDRA_CONF/cassandra-env.sh"
     MAX_HEAP_SIZE=$MAX_HEAP_SIZE_SAVE
-    JVM_OPTS=$JVM_OPTS_SAVE
+    JVM_OPTS="$JVM_OPTS_SAVE"
 fi
 
 # JMX Port passed via cmd line args (-p 9999 / --port 9999 / --port=9999)

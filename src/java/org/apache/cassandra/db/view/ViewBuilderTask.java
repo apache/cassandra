@@ -86,6 +86,7 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
         this.keysBuilt = keysBuilt;
     }
 
+    @SuppressWarnings("resource")
     private void buildKey(DecoratedKey key)
     {
         ReadQuery selectQuery = view.getReadQuery();

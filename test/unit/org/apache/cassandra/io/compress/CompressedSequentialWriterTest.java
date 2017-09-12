@@ -56,22 +56,22 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     private void runTests(String testName) throws IOException
     {
         // Test small < 1 chunk data set
-        testWrite(File.createTempFile(testName + "_small", "1"), 25, false);
+        testWrite(FileUtils.createTempFile(testName + "_small", "1"), 25, false);
 
         // Test to confirm pipeline w/chunk-aligned data writes works
-        testWrite(File.createTempFile(testName + "_chunkAligned", "1"), CompressionParams.DEFAULT_CHUNK_LENGTH, false);
+        testWrite(FileUtils.createTempFile(testName + "_chunkAligned", "1"), CompressionParams.DEFAULT_CHUNK_LENGTH, false);
 
         // Test to confirm pipeline on non-chunk boundaries works
-        testWrite(File.createTempFile(testName + "_large", "1"), CompressionParams.DEFAULT_CHUNK_LENGTH * 3 + 100, false);
+        testWrite(FileUtils.createTempFile(testName + "_large", "1"), CompressionParams.DEFAULT_CHUNK_LENGTH * 3 + 100, false);
 
         // Test small < 1 chunk data set
-        testWrite(File.createTempFile(testName + "_small", "2"), 25, true);
+        testWrite(FileUtils.createTempFile(testName + "_small", "2"), 25, true);
 
         // Test to confirm pipeline w/chunk-aligned data writes works
-        testWrite(File.createTempFile(testName + "_chunkAligned", "2"), CompressionParams.DEFAULT_CHUNK_LENGTH, true);
+        testWrite(FileUtils.createTempFile(testName + "_chunkAligned", "2"), CompressionParams.DEFAULT_CHUNK_LENGTH, true);
 
         // Test to confirm pipeline on non-chunk boundaries works
-        testWrite(File.createTempFile(testName + "_large", "2"), CompressionParams.DEFAULT_CHUNK_LENGTH * 3 + 100, true);
+        testWrite(FileUtils.createTempFile(testName + "_large", "2"), CompressionParams.DEFAULT_CHUNK_LENGTH * 3 + 100, true);
 
     }
 

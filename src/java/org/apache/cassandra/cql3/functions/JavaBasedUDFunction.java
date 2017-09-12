@@ -70,7 +70,7 @@ public final class JavaBasedUDFunction extends UDFunction
 
     private static final Pattern JAVA_LANG_PREFIX = Pattern.compile("\\bjava\\.lang\\.");
 
-    static final Logger logger = LoggerFactory.getLogger(JavaBasedUDFunction.class);
+    private static final Logger logger = LoggerFactory.getLogger(JavaBasedUDFunction.class);
 
     private static final AtomicInteger classSequence = new AtomicInteger();
 
@@ -257,10 +257,10 @@ public final class JavaBasedUDFunction extends UDFunction
             EcjCompilationUnit compilationUnit = new EcjCompilationUnit(javaSource, targetClassName);
 
             Compiler compiler = new Compiler(compilationUnit,
-                                                                               errorHandlingPolicy,
-                                                                               compilerOptions,
-                                                                               compilationUnit,
-                                                                               problemFactory);
+                                             errorHandlingPolicy,
+                                             compilerOptions,
+                                             compilationUnit,
+                                             problemFactory);
             compiler.compile(new ICompilationUnit[]{ compilationUnit });
 
             if (compilationUnit.problemList != null && !compilationUnit.problemList.isEmpty())
@@ -582,6 +582,7 @@ public final class JavaBasedUDFunction extends UDFunction
             return findType(result.toString());
         }
 
+        @SuppressWarnings("resource")
         private NameEnvironmentAnswer findType(String className)
         {
             if (className.equals(this.className))

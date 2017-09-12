@@ -78,7 +78,7 @@ public class DirectoriesTest
                                  .build());
         }
 
-        tempDataDir = File.createTempFile("cassandra", "unittest");
+        tempDataDir = FileUtils.createTempFile("cassandra", "unittest");
         tempDataDir.delete(); // hack to create a temp dir
         tempDataDir.mkdir();
 

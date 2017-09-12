@@ -31,6 +31,7 @@ import static org.junit.Assert.*;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -121,7 +122,7 @@ public class CompressorTest
         src.flip();
 
         // create a temp file
-        File temp = File.createTempFile("tempfile", ".tmp");
+        File temp = FileUtils.createTempFile("tempfile", ".tmp");
         temp.deleteOnExit();
 
         // Prepend some random bytes to the output and compress

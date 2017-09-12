@@ -449,7 +449,7 @@ public class MappedBufferTest
     @Test
     public void testOpenWithoutPageBits() throws IOException
     {
-        File tmp = File.createTempFile("mapped-buffer", "tmp");
+        File tmp = FileUtils.createTempFile("mapped-buffer", "tmp");
         tmp.deleteOnExit();
 
         RandomAccessFile file = new RandomAccessFile(tmp, "rw");
@@ -490,7 +490,7 @@ public class MappedBufferTest
 
     private MappedBuffer createTestFile(long numCount, int typeSize, int numPageBits, int padding) throws IOException
     {
-        final File testFile = File.createTempFile("mapped-buffer-test", "db");
+        final File testFile = FileUtils.createTempFile("mapped-buffer-test", "db");
         testFile.deleteOnExit();
 
         RandomAccessFile file = new RandomAccessFile(testFile, "rw");

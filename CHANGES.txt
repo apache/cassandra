@@ -1,4 +1,5 @@
 4.0
+ * Add experimental support for Java 11 (CASSANDRA-9608)
  * Make PeriodicCommitLogService.blockWhenSyncLagsNanos configurable (CASSANDRA-14580)
  * Improve logging in MessageInHandler's constructor (CASSANDRA-14576)
  * Set broadcast address in internode messaging handshake (CASSANDRA-14579)

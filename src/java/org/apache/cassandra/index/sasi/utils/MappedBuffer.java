@@ -217,9 +217,6 @@ public class MappedBuffer implements Closeable
 
     public void close()
     {
-        if (!FileUtils.isCleanerAvailable)
-            return;
-
         /*
          * Try forcing the unmapping of pages using undocumented unsafe sun APIs.
          * If this fails (non Sun JVM), we'll have to wait for the GC to finalize the mapping.

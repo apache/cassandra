@@ -66,6 +66,9 @@
 # POSIX sh and Solaris sh. This means, in particular, no $(( )) and no $( ).
 
 # If an include wasn't specified in the environment, then search for one...
+
+jvmoptions_variant="-server"
+
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     # Locations (in order) to use when searching for an include file.
     for include in "`dirname "$0"`/cassandra.in.sh" \
@@ -81,27 +84,6 @@ if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
 # ...otherwise, source the specified include.
 elif [ -r "$CASSANDRA_INCLUDE" ]; then
     . "$CASSANDRA_INCLUDE"
-fi
-
-# Use JAVA_HOME if set, otherwise look for java in PATH
-if [ -n "$JAVA_HOME" ]; then
-    # Why we can't have nice things: Solaris combines x86 and x86_64
-    # installations in the same tree, using an unconventional path for the
-    # 64bit JVM.  Since we prefer 64bit, search the alternate path first,
-    # (see https://issues.apache.org/jira/browse/CASSANDRA-4638).
-    for java in "$JAVA_HOME"/bin/amd64/java "$JAVA_HOME"/bin/java; do
-        if [ -x "$java" ]; then
-            JAVA="$java"
-            break
-        fi
-    done
-else
-    JAVA=java
-fi
-
-if [ -z $JAVA ] ; then
-    echo Unable to find java executable. Check JAVA_HOME and PATH environment variables. >&2
-    exit 1;
 fi
 
 # If numactl is available, use it. For Cassandra, the priority is to
