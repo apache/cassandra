@@ -169,16 +169,9 @@ public class MockSchema
 
     private static File temp(String id)
     {
-        try
-        {
-            File file = File.createTempFile(id, "tmp");
-            file.deleteOnExit();
-            return file;
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        File file = FileUtils.createTempFile(id, "tmp");
+        file.deleteOnExit();
+        return file;
     }
 
     public static void cleanup()

@@ -44,6 +44,11 @@ import static org.apache.commons.lang3.StringUtils.*;
 
 public class NodeTool
 {
+    static
+    {
+        FBUtilities.preventIllegalAccessWarnings();
+    }
+
     private static final String HISTORYFILE = "nodetool.history";
 
     public static void main(String... args)

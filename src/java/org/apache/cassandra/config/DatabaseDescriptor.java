@@ -73,6 +73,12 @@ import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
 
 public class DatabaseDescriptor
 {
+    static
+    {
+        // This static block covers most usages
+        FBUtilities.preventIllegalAccessWarnings();
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
 
     /**

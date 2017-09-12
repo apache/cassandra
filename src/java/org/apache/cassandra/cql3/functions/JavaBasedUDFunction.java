@@ -100,6 +100,9 @@ public final class JavaBasedUDFunction extends UDFunction
      */
     private static final String[] javaSourceTemplate;
 
+    private static final MethodHandle methodClassGetModule;
+    private static final MethodHandle methodModuleGetResourceAsStream;
+
     static
     {
         udfByteCodeVerifier.addDisallowedMethodCall("java/lang/Class", "forName");
@@ -183,6 +186,23 @@ public final class JavaBasedUDFunction extends UDFunction
         }
 
         protectionDomain = new ProtectionDomain(codeSource, ThreadAwareSecurityManager.noPermissions, targetClassLoader, null);
+
+        // Java 11
+        MethodHandle mhClassGetModule = null;
+        MethodHandle mhModuleGetResourceAsStream = null;
+        try
+        {
+            Method mClassGetModule = Class.class.getDeclaredMethod("getModule");
+            Method mModuleGetResourceAsStream = mClassGetModule.getReturnType().getDeclaredMethod("getResourceAsStream", String.class);
+            mhClassGetModule = MethodHandles.lookup().unreflect(mClassGetModule);
+            mhModuleGetResourceAsStream = MethodHandles.lookup().unreflect(mModuleGetResourceAsStream);
+        }
+        catch (IllegalAccessException | NoSuchMethodException e)
+        {
+            // probably not Java 11 or newer
+        }
+        methodClassGetModule = mhClassGetModule;
+        methodModuleGetResourceAsStream = mhModuleGetResourceAsStream;
     }
 
     private final JavaUDF javaUDF;
@@ -257,10 +277,10 @@ public final class JavaBasedUDFunction extends UDFunction
             EcjCompilationUnit compilationUnit = new EcjCompilationUnit(javaSource, targetClassName);
 
             Compiler compiler = new Compiler(compilationUnit,
-                                                                               errorHandlingPolicy,
-                                                                               compilerOptions,
-                                                                               compilationUnit,
-                                                                               problemFactory);
+                                             errorHandlingPolicy,
+                                             compilerOptions,
+                                             compilationUnit,
+                                             problemFactory);
             compiler.compile(new ICompilationUnit[]{ compilationUnit });
 
             if (compilationUnit.problemList != null && !compilationUnit.problemList.isEmpty())
@@ -591,14 +611,48 @@ public final class JavaBasedUDFunction extends UDFunction
 
             String resourceName = className.replace('.', '/') + ".class";
 
-            try (InputStream is = UDFunction.udfClassLoader.getResourceAsStream(resourceName))
+            // up to Java 8:
+            //      returns a non-null InputStream for class files
+            // since Java 11:
+            //      returns a non-null InputStream for class files for application classes
+            //      returns null for class files for system modules (e.g. java.base)
+            try
             {
-                if (is != null)
+                InputStream is = UDFunction.udfClassLoader.getResourceAsStream(resourceName);
+                try
                 {
-                    byte[] classBytes = ByteStreams.toByteArray(is);
-                    char[] fileName = className.toCharArray();
-                    ClassFileReader classFileReader = new ClassFileReader(classBytes, fileName, true);
-                    return new NameEnvironmentAnswer(classFileReader, null);
+                    if (is == null)
+                    {
+                        // For Java 11 try to see whether the class actually exists and read the
+                        // class file data via the class' module. (This is necessary at least
+                        // for 9-ea build 123)
+                        try
+                        {
+                            Class c = Class.forName(className, false, UDFunction.udfClassLoader);
+                            if (c != null)
+                            {
+                                Object module = methodClassGetModule.bindTo(c).invokeWithArguments();
+                                is = (InputStream) methodModuleGetResourceAsStream.bindTo(module).invokeWithArguments(resourceName);
+                            }
+                        }
+                        catch (Throwable e)
+                        {
+                            // ignore this
+                        }
+                    }
+
+                    if (is != null)
+                    {
+                        byte[] classBytes = ByteStreams.toByteArray(is);
+                        char[] fileName = className.toCharArray();
+                        ClassFileReader classFileReader = new ClassFileReader(classBytes, fileName, true);
+                        return new NameEnvironmentAnswer(classFileReader, null);
+                    }
+                }
+                finally
+                {
+                    if (is != null)
+                        is.close();
                 }
             }
             catch (IOException | ClassFormatException exc)

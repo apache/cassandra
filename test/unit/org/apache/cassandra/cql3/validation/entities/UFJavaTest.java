@@ -106,7 +106,7 @@ public class UFJavaTest extends CQLTester
         catch (InvalidRequestException e)
         {
             Assert.assertTrue(e.getMessage(), e.getMessage().contains("Java source compilation failed"));
-            Assert.assertTrue(e.getMessage(), e.getMessage().contains("foobarbaz cannot be resolved to a type"));
+            Assert.assertTrue(e.getMessage(), e.getMessage().contains("foobarbaz cannot be resolved"));
         }
     }
 

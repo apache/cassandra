@@ -38,6 +38,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 
 public class EncryptionUtilsTest
@@ -79,7 +80,7 @@ public class EncryptionUtilsTest
         CipherFactory cipherFactory = new CipherFactory(tdeOptions);
         Cipher encryptor = cipherFactory.getEncryptor(tdeOptions.cipher, tdeOptions.key_alias);
 
-        File f = File.createTempFile("commitlog-enc-utils-", ".tmp");
+        File f = FileUtils.createTempFile("commitlog-enc-utils-", ".tmp");
         f.deleteOnExit();
         FileChannel channel = new RandomAccessFile(f, "rw").getChannel();
         EncryptionUtils.encryptAndWrite(ByteBuffer.wrap(buf), channel, true, encryptor);
@@ -108,7 +109,7 @@ public class EncryptionUtilsTest
         // encrypt
         CipherFactory cipherFactory = new CipherFactory(tdeOptions);
         Cipher encryptor = cipherFactory.getEncryptor(tdeOptions.cipher, tdeOptions.key_alias);
-        File f = File.createTempFile("commitlog-enc-utils-", ".tmp");
+        File f = FileUtils.createTempFile("commitlog-enc-utils-", ".tmp");
         f.deleteOnExit();
         FileChannel channel = new RandomAccessFile(f, "rw").getChannel();
         EncryptionUtils.encryptAndWrite(compressedBuffer, channel, true, encryptor);

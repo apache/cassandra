@@ -38,6 +38,11 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - *Experimental* support for Java 11 has been added. JVM options that differ between or are
+     specific for Java 8 and 11 have been moved from jvm.options into jvm8.options and jvm11.options.
+     IMPORTANT: Running C* on Java 11 is *experimental* and do it at your own risk.
+     Compilation recommendations: configure Java 11 SDK via JAVA_HOME and Java 8 SDK via JAVA8_HOME.
+     Release builds require Java 11 + Java 8. Development builds can use Java 8 without 11.
    - LCS now respects the max_threshold parameter when compacting - this was hard coded to 32
      before, but now it is possible to do bigger compactions when compacting from L0 to L1.
      This also applies to STCS-compactions in L0 - if there are more than 32 sstables in L0

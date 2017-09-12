@@ -144,7 +144,7 @@ public class CoalescingStrategies
                 ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(() -> shouldLogAverage = true, 5, 5, TimeUnit.SECONDS);
                 try
                 {
-                    File outFile = File.createTempFile("coalescing_" + this.displayName + "_", ".log", new File(DEBUG_COALESCING_PATH));
+                    File outFile = FileUtils.createTempFile("coalescing_" + this.displayName + "_", ".log", new File(DEBUG_COALESCING_PATH));
                     rasTemp = new RandomAccessFile(outFile, "rw");
                     logBufferTemp = ras.getChannel().map(MapMode.READ_WRITE, 0, Integer.MAX_VALUE);
                     logBufferTemp.putLong(0);

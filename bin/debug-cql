@@ -32,17 +32,7 @@ elif [ -r "$CASSANDRA_INCLUDE" ]; then
     . "$CASSANDRA_INCLUDE"
 fi
 
-# Use JAVA_HOME if set, otherwise look for java in PATH
-if [ -n "$JAVA_HOME" ]; then
-    JAVA="$JAVA_HOME/bin/java"
-else
-    JAVA=java
-fi
-
-if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
-    echo "You must set the CASSANDRA_CONF and CLASSPATH vars" >&2
-    exit 1
-fi
+. $CASSANDRA_HOME/bin/clients.in.sh
 
 if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
     . "$CASSANDRA_CONF/cassandra-env.sh"
