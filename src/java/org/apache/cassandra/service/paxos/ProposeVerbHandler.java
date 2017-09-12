@@ -29,10 +29,14 @@ import org.apache.cassandra.utils.BooleanSerializer;
 
 public class ProposeVerbHandler implements IVerbHandler<Commit>
 {
+    public static Boolean doPropose(Commit proposal)
+    {
+        return PaxosState.propose(proposal);
+    }
+
     public void doVerb(MessageIn<Commit> message, int id)
     {
-        Boolean response = PaxosState.propose(message.payload);
-        MessageOut<Boolean> reply = new MessageOut<Boolean>(MessagingService.Verb.REQUEST_RESPONSE, response, BooleanSerializer.serializer);
+        MessageOut<Boolean> reply = new MessageOut<Boolean>(MessagingService.Verb.REQUEST_RESPONSE, doPropose(message.payload), BooleanSerializer.serializer);
         MessagingService.instance().sendReply(reply, id, message.from);
     }
 }
