@@ -387,6 +387,7 @@ commitlog_sync_period_in_ms: 10000
 # is reasonable.
 # Max mutation size is also configurable via max_mutation_size_in_kb setting in
 # cassandra.yaml. The default is half the size commitlog_segment_size_in_mb * 1024.
+# This should be positive and less than 2048.
 #
 # NOTE: If max_mutation_size_in_kb is set explicitly then commitlog_segment_size_in_mb must
 # be set to at least twice the size of max_mutation_size_in_kb / 1024
@@ -634,7 +635,7 @@ native_transport_port: 9042
 #
 # The maximum size of allowed frame. Frame (requests) larger than this will
 # be rejected as invalid. The default is 256MB. If you're changing this parameter,
-# you may want to adjust max_value_size_in_mb accordingly.
+# you may want to adjust max_value_size_in_mb accordingly. This should be positive and less than 2048.
 # native_transport_max_frame_size_in_mb: 256
 
 # The maximum number of concurrent client connections.
@@ -1080,7 +1081,7 @@ compaction_large_partition_warning_threshold_mb: 100
 
 # Maximum size of any value in SSTables. Safety measure to detect SSTable corruption
 # early. Any value size larger than this threshold will result into marking an SSTable
-# as corrupted.
+# as corrupted. This should be positive and less than 2048.
 # max_value_size_in_mb: 256
 
 # Back-pressure settings #

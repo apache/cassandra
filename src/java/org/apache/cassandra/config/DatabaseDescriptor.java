@@ -423,6 +423,9 @@ public class DatabaseDescriptor
 
         if (conf.native_transport_max_frame_size_in_mb <= 0)
             throw new ConfigurationException("native_transport_max_frame_size_in_mb must be positive, but was " + conf.native_transport_max_frame_size_in_mb, false);
+        else if (conf.native_transport_max_frame_size_in_mb >= 2048)
+            throw new ConfigurationException("native_transport_max_frame_size_in_mb must be smaller than 2048, but was "
+                    + conf.native_transport_max_frame_size_in_mb, false);
 
         // if data dirs, commitlog dir, or saved caches dir are set in cassandra.yaml, use that.  Otherwise,
         // use -Dcassandra.storagedir (set in cassandra-env.sh) as the parent dir for data/, commitlog/, and saved_caches/
@@ -517,6 +520,8 @@ public class DatabaseDescriptor
         /* data file and commit log directories. they get created later, when they're needed. */
         for (String datadir : conf.data_file_directories)
         {
+            if (datadir == null)
+                throw new ConfigurationException("data_file_directories must not contain empty entry", false);
             if (datadir.equals(conf.commitlog_directory))
                 throw new ConfigurationException("commitlog_directory must not be the same as any data_file_directories", false);
             if (datadir.equals(conf.hints_directory))
@@ -654,6 +659,13 @@ public class DatabaseDescriptor
         if (conf.user_defined_function_fail_timeout < conf.user_defined_function_warn_timeout)
             throw new ConfigurationException("user_defined_function_warn_timeout must less than user_defined_function_fail_timeout", false);
 
+        if (conf.commitlog_segment_size_in_mb <= 0)
+            throw new ConfigurationException("commitlog_segment_size_in_mb must be positive, but was "
+                    + conf.commitlog_segment_size_in_mb, false);
+        else if (conf.commitlog_segment_size_in_mb >= 2048)
+            throw new ConfigurationException("commitlog_segment_size_in_mb must be smaller than 2048, but was "
+                    + conf.commitlog_segment_size_in_mb, false);
+
         if (conf.max_mutation_size_in_kb == null)
             conf.max_mutation_size_in_kb = conf.commitlog_segment_size_in_mb * 1024 / 2;
         else if (conf.commitlog_segment_size_in_mb * 1024 < 2 * conf.max_mutation_size_in_kb)
@@ -669,6 +681,9 @@ public class DatabaseDescriptor
 
         if (conf.max_value_size_in_mb <= 0)
             throw new ConfigurationException("max_value_size_in_mb must be positive", false);
+        else if (conf.max_value_size_in_mb >= 2048)
+            throw new ConfigurationException("max_value_size_in_mb must be smaller than 2048, but was "
+                    + conf.max_value_size_in_mb, false);
 
         switch (conf.disk_optimization_strategy)
         {

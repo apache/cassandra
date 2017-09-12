@@ -144,6 +144,7 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Improve config validation and documentation on overflow and NPE (CASSANDRA-13622)
  * Fix pending view mutations handling and cleanup batchlog when there are local and remote paired mutations (CASSANDRA-13069)
  * Range deletes in a CAS batch are ignored (CASSANDRA-13655)
  * Avoid assertion error when IndexSummary > 2G (CASSANDRA-12014)

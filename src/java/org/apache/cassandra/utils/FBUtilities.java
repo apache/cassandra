@@ -34,6 +34,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,8 +85,9 @@ public class FBUtilities
 
     public static int getAvailableProcessors()
     {
-        if (System.getProperty("cassandra.available_processors") != null)
-            return Integer.parseInt(System.getProperty("cassandra.available_processors"));
+        String availableProcessors = System.getProperty("cassandra.available_processors");
+        if (!Strings.isNullOrEmpty(availableProcessors))
+            return Integer.parseInt(availableProcessors);
         else
             return Runtime.getRuntime().availableProcessors();
     }
