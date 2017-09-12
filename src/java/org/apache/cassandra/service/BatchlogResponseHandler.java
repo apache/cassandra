@@ -51,7 +51,7 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
     {
         wrapped.response(msg);
         if (requiredBeforeFinishUpdater.decrementAndGet(this) == 0)
-            cleanup.run();
+            cleanup.ackMutation();
     }
 
     public boolean isLatencyForSnitch()
@@ -108,7 +108,7 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
             this.callback = callback;
         }
 
-        public void run()
+        public void ackMutation()
         {
             if (mutationsWaitingForUpdater.decrementAndGet(this) == 0)
                 callback.invoke();

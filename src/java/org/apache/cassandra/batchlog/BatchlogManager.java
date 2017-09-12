@@ -69,6 +69,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     private static final Logger logger = LoggerFactory.getLogger(BatchlogManager.class);
     public static final BatchlogManager instance = new BatchlogManager();
+    public static final long BATCHLOG_REPLAY_TIMEOUT = Long.getLong("cassandra.batchlog.replay_timeout_in_ms", DatabaseDescriptor.getWriteRpcTimeout() * 2);
 
     private volatile long totalBatchesReplayed = 0; // no concurrency protection necessary as only written by replay thread.
     private volatile UUID lastReplayedUuid = UUIDGen.minTimeUUID(0);
@@ -309,7 +310,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public static long getBatchlogTimeout()
     {
-        return DatabaseDescriptor.getWriteRpcTimeout() * 2; // enough time for the actual write + BM removal mutation
+        return BATCHLOG_REPLAY_TIMEOUT; // enough time for the actual write + BM removal mutation
     }
 
     private static class ReplayingBatch
