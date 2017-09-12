@@ -1,5 +1,6 @@
 3.0.15
  * Fix pending view mutations handling and cleanup batchlog when there are local and remote paired mutations (CASSANDRA-13069)
+ * Improve config validation and documentation on overflow and NPE (CASSANDRA-13622)
  * Range deletes in a CAS batch are ignored (CASSANDRA-13655)
  * Change repair midpoint logging for tiny ranges (CASSANDRA-13603)
  * Better handle corrupt final commitlog segment (CASSANDRA-11995)
