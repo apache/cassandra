@@ -336,8 +336,16 @@ public class CassandraDaemon
 
         ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
 
-
         SystemKeyspace.finishStartup();
+
+        // Clean up system.size_estimates entries left lying around from missed keyspace drops (CASSANDRA-14905)
+        StorageService.instance.cleanupSizeEstimates();
+
+        // schedule periodic dumps of table size estimates into SystemKeyspace.SIZE_ESTIMATES_CF
+        // set cassandra.size_recorder_interval to 0 to disable
+        int sizeRecorderInterval = Integer.getInteger("cassandra.size_recorder_interval", 5 * 60);
+        if (sizeRecorderInterval > 0)
+            ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, sizeRecorderInterval, TimeUnit.SECONDS);
 
         // start server internals
         StorageService.instance.registerDaemon(this);
@@ -379,12 +387,6 @@ public class CassandraDaemon
         // schedule periodic background compaction task submission. this is simply a backstop against compactions stalling
         // due to scheduling errors or race conditions
         ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(ColumnFamilyStore.getBackgroundCompactionTaskSubmitter(), 5, 1, TimeUnit.MINUTES);
-
-        // schedule periodic dumps of table size estimates into SystemKeyspace.SIZE_ESTIMATES_CF
-        // set cassandra.size_recorder_interval to 0 to disable
-        int sizeRecorderInterval = Integer.getInteger("cassandra.size_recorder_interval", 5 * 60);
-        if (sizeRecorderInterval > 0)
-            ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, sizeRecorderInterval, TimeUnit.SECONDS);
 
         // Thrift
         InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();

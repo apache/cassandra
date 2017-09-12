@@ -244,6 +244,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void refreshSizeEstimates() throws ExecutionException;
 
     /**
+     * Removes extraneous entries in system.size_estimates.
+     */
+    public void cleanupSizeEstimates();
+
+    /**
      * Forces major compaction of a single keyspace
      */
     public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
