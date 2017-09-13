@@ -26,6 +26,7 @@ import java.util.*;
 import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.Assume;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
@@ -58,6 +59,9 @@ public class IndexSummaryTest
     @Test
     public void testIndexSummaryKeySizes() throws IOException
     {
+        // On Circle CI we normally don't have enough off-heap memory for this test so ignore it
+        Assume.assumeTrue(System.getenv("CIRCLECI") == null);
+
         testIndexSummaryProperties(32, 100);
         testIndexSummaryProperties(64, 100);
         testIndexSummaryProperties(100, 100);
@@ -100,8 +104,11 @@ public class IndexSummaryTest
      * create an index summary, albeit one that does not cover the entire sstable.
      */
     @Test
-    public void tesLargeIndexSummary() throws IOException
+    public void testLargeIndexSummary() throws IOException
     {
+        // On Circle CI we normally don't have enough off-heap memory for this test so ignore it
+        Assume.assumeTrue(System.getenv("CIRCLECI") == null);
+
         final int numKeys = 1000000;
         final int keySize = 3000;
         final int minIndexInterval = 1;
@@ -131,8 +138,11 @@ public class IndexSummaryTest
      * the index summary should be downsampled automatically.
      */
     @Test
-    public void tesLargeIndexSummaryWithExpectedSizeMatching() throws IOException
+    public void testLargeIndexSummaryWithExpectedSizeMatching() throws IOException
     {
+        // On Circle CI we normally don't have enough off-heap memory for this test so ignore it
+        Assume.assumeTrue(System.getenv("CIRCLECI") == null);
+
         final int numKeys = 1000000;
         final int keySize = 3000;
         final int minIndexInterval = 1;
