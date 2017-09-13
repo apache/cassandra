@@ -235,14 +235,16 @@ public class CQL3CasRequest implements CASRequest
 
     public PartitionUpdate makeUpdates(FilteredPartition current) throws InvalidRequestException
     {
-        PartitionUpdate update = new PartitionUpdate(metadata, key, updatedColumns(), conditions.size());
+        PartitionUpdate.Builder updateBuilder = new PartitionUpdate.Builder(metadata, key, updatedColumns(), conditions.size());
         for (RowUpdate upd : updates)
-            upd.applyUpdates(current, update);
+            upd.applyUpdates(current, updateBuilder);
         for (RangeDeletion upd : rangeDeletions)
-            upd.applyUpdates(current, update);
+            upd.applyUpdates(current, updateBuilder);
 
-        Keyspace.openAndGetStore(metadata).indexManager.validate(update);
-        return update;
+        PartitionUpdate partitionUpdate = updateBuilder.build();
+        Keyspace.openAndGetStore(metadata).indexManager.validate(partitionUpdate);
+
+        return partitionUpdate;
     }
 
     /**
@@ -266,11 +268,11 @@ public class CQL3CasRequest implements CASRequest
             this.timestamp = timestamp;
         }
 
-        public void applyUpdates(FilteredPartition current, PartitionUpdate updates) throws InvalidRequestException
+        public void applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder) throws InvalidRequestException
         {
-            Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.<DecoratedKey, Partition>singletonMap(key, current) : null;
-            UpdateParameters params = new UpdateParameters(metadata, updates.columns(), options, timestamp, stmt.getTimeToLive(options), map);
-            stmt.addUpdateForKey(updates, clustering, params);
+            Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
+            UpdateParameters params = new UpdateParameters(metadata, updateBuilder.columns(), options, timestamp, stmt.getTimeToLive(options), map);
+            stmt.addUpdateForKey(updateBuilder, clustering, params);
         }
     }
 
@@ -289,12 +291,12 @@ public class CQL3CasRequest implements CASRequest
             this.timestamp = timestamp;
         }
 
-        public void applyUpdates(FilteredPartition current, PartitionUpdate updates) throws InvalidRequestException
+        public void applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder) throws InvalidRequestException
         {
             // No slice statements currently require a read, but this maintains consistency with RowUpdate, and future proofs us
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.<DecoratedKey, Partition>singletonMap(key, current) : null;
-            UpdateParameters params = new UpdateParameters(metadata, updates.columns(), options, timestamp, stmt.getTimeToLive(options), map);
-            stmt.addUpdateForKey(updates, slice, params);
+            UpdateParameters params = new UpdateParameters(metadata, updateBuilder.columns(), options, timestamp, stmt.getTimeToLive(options), map);
+            stmt.addUpdateForKey(updateBuilder, slice, params);
         }
     }
 

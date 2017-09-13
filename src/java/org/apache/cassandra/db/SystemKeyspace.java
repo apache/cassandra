@@ -1025,7 +1025,7 @@ public final class SystemKeyspace
         UntypedResultSet.Row row = results.one();
 
         Commit promised = row.has("in_progress_ballot")
-                        ? new Commit(row.getUUID("in_progress_ballot"), new PartitionUpdate(metadata, key, metadata.regularAndStaticColumns(), 1))
+                        ? new Commit(row.getUUID("in_progress_ballot"), new PartitionUpdate.Builder(metadata, key, metadata.regularAndStaticColumns(), 1).build())
                         : Commit.emptyCommit(key, metadata);
         // either we have both a recently accepted ballot and update or we have neither
         Commit accepted = row.has("proposal_version") && row.has("proposal")
@@ -1135,9 +1135,7 @@ public final class SystemKeyspace
     public static void updateSizeEstimates(String keyspace, String table, Map<Range<Token>, Pair<Long, Long>> estimates)
     {
         long timestamp = FBUtilities.timestampMicros();
-        PartitionUpdate update = new PartitionUpdate(SizeEstimates, UTF8Type.instance.decompose(keyspace), SizeEstimates.regularAndStaticColumns(), estimates.size());
-        Mutation mutation = new Mutation(update);
-
+        PartitionUpdate.Builder update = new PartitionUpdate.Builder(SizeEstimates, UTF8Type.instance.decompose(keyspace), SizeEstimates.regularAndStaticColumns(), estimates.size());
         // delete all previous values with a single range tombstone.
         int nowInSec = FBUtilities.nowInSeconds();
         update.add(new RangeTombstone(Slice.make(SizeEstimates.comparator, table), new DeletionTime(timestamp - 1, nowInSec)));
@@ -1153,8 +1151,7 @@ public final class SystemKeyspace
                            .add("mean_partition_size", values.right)
                            .build());
         }
-
-        mutation.apply();
+        new Mutation(update.build()).apply();
     }
 
     /**

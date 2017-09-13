@@ -109,26 +109,16 @@ public class RowUpdateBuilder
 
     public PartitionUpdate buildUpdate()
     {
-        PartitionUpdate update = updateBuilder.build();
         for (RangeTombstone rt : rts)
-            update.add(rt);
-        return update;
+            updateBuilder.addRangeTombstone(rt);
+        return updateBuilder.build();
     }
 
-    private static void deleteRow(PartitionUpdate update, long timestamp, int localDeletionTime, Object... clusteringValues)
+    private static void deleteRow(PartitionUpdate.Builder updateBuilder, long timestamp, int localDeletionTime, Object... clusteringValues)
     {
-        assert clusteringValues.length == update.metadata().comparator.size() || (clusteringValues.length == 0 && !update.columns().statics.isEmpty());
-
-        boolean isStatic = clusteringValues.length != update.metadata().comparator.size();
-        Row.Builder builder = BTreeRow.sortedBuilder();
-
-        if (isStatic)
-            builder.newRow(Clustering.STATIC_CLUSTERING);
-        else
-            builder.newRow(clusteringValues.length == 0 ? Clustering.EMPTY : update.metadata().comparator.make(clusteringValues));
-        builder.addRowDeletion(Row.Deletion.regular(new DeletionTime(timestamp, localDeletionTime)));
-
-        update.add(builder.build());
+        SimpleBuilders.RowBuilder b = new SimpleBuilders.RowBuilder(updateBuilder.metadata(), clusteringValues);
+        b.nowInSec(localDeletionTime).timestamp(timestamp).delete();
+        updateBuilder.add(b.build());
     }
 
     public static Mutation deleteRow(TableMetadata metadata, long timestamp, Object key, Object... clusteringValues)
@@ -138,11 +128,9 @@ public class RowUpdateBuilder
 
     public static Mutation deleteRowAt(TableMetadata metadata, long timestamp, int localDeletionTime, Object key, Object... clusteringValues)
     {
-        PartitionUpdate update = new PartitionUpdate(metadata, makeKey(metadata, key), metadata.regularAndStaticColumns(), 0);
+        PartitionUpdate.Builder update = new PartitionUpdate.Builder(metadata, makeKey(metadata, key), metadata.regularAndStaticColumns(), 0);
         deleteRow(update, timestamp, localDeletionTime, clusteringValues);
-        // note that the created mutation may get further update later on, so we don't use the ctor that create a singletonMap
-        // underneath (this class if for convenience, not performance)
-        return new Mutation(update.metadata().keyspace, update.partitionKey()).add(update);
+        return new Mutation.PartitionUpdateCollector(update.metadata().keyspace, update.partitionKey()).add(update.build()).build();
     }
 
     private static DecoratedKey makeKey(TableMetadata metadata, Object... partitionKey)

@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.*;
 import com.google.common.collect.Maps;
@@ -356,15 +357,15 @@ public final class SchemaKeyspace
 
     static Collection<Mutation> convertSchemaToMutations()
     {
-        Map<DecoratedKey, Mutation> mutationMap = new HashMap<>();
+        Map<DecoratedKey, Mutation.PartitionUpdateCollector> mutationMap = new HashMap<>();
 
         for (String table : ALL)
             convertSchemaToMutations(mutationMap, table);
 
-        return mutationMap.values();
+        return mutationMap.values().stream().map(Mutation.PartitionUpdateCollector::build).collect(Collectors.toList());
     }
 
-    private static void convertSchemaToMutations(Map<DecoratedKey, Mutation> mutationMap, String schemaTableName)
+    private static void convertSchemaToMutations(Map<DecoratedKey, Mutation.PartitionUpdateCollector> mutationMap, String schemaTableName)
     {
         ReadCommand cmd = getReadCommandForTableSchema(schemaTableName);
         try (ReadExecutionController executionController = cmd.executionController();
@@ -378,9 +379,8 @@ public final class SchemaKeyspace
                         continue;
 
                     DecoratedKey key = partition.partitionKey();
-                    Mutation mutation = mutationMap.computeIfAbsent(key, k -> new Mutation(SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
-
-                    mutation.add(makeUpdateForSchema(partition, cmd.columnFilter()));
+                    Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
+                    puCollector.add(makeUpdateForSchema(partition, cmd.columnFilter()));
                 }
             }
         }
@@ -423,7 +423,7 @@ public final class SchemaKeyspace
     @SuppressWarnings("unchecked")
     private static DecoratedKey decorate(TableMetadata metadata, Object value)
     {
-        return metadata.partitioner.decorateKey(((AbstractType)metadata.partitionKeyType).decompose(value));
+        return metadata.partitioner.decorateKey(((AbstractType) metadata.partitionKeyType).decompose(value));
     }
 
     static Mutation.SimpleBuilder makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)

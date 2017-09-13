@@ -193,8 +193,9 @@ public class CompactionsPurgeTest
         }
         cfs.forceBlockingFlush();
 
-        new Mutation(KEYSPACE1, dk(key))
+        new Mutation.PartitionUpdateCollector(KEYSPACE1, dk(key))
             .add(PartitionUpdate.fullPartitionDelete(cfs.metadata(), dk(key), Long.MAX_VALUE, FBUtilities.nowInSeconds()))
+            .build()
             .applyUnsafe();
         cfs.forceBlockingFlush();
 
@@ -423,9 +424,9 @@ public class CompactionsPurgeTest
         }
 
         // deletes partition
-        Mutation rm = new Mutation(KEYSPACE_CACHED, dk(key));
+        Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KEYSPACE_CACHED, dk(key));
         rm.add(PartitionUpdate.fullPartitionDelete(cfs.metadata(), dk(key), 1, FBUtilities.nowInSeconds()));
-        rm.applyUnsafe();
+        rm.build().applyUnsafe();
 
         // Adds another unrelated partition so that the sstable is not considered fully expired. We do not
         // invalidate the row cache in that latter case.
@@ -463,9 +464,9 @@ public class CompactionsPurgeTest
         }
 
         // deletes partition with timestamp such that not all columns are deleted
-        Mutation rm = new Mutation(KEYSPACE1, dk(key));
+        Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KEYSPACE1, dk(key));
         rm.add(PartitionUpdate.fullPartitionDelete(cfs.metadata(), dk(key), 4, FBUtilities.nowInSeconds()));
-        rm.applyUnsafe();
+        rm.build().applyUnsafe();
 
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         assertFalse(partition.partitionLevelDeletion().isLive());

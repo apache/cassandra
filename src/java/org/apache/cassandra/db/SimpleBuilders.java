@@ -146,10 +146,10 @@ public abstract class SimpleBuilders
             if (updateBuilders.size() == 1)
                 return new Mutation(updateBuilders.values().iterator().next().build());
 
-            Mutation mutation = new Mutation(keyspaceName, key);
+            Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(keyspaceName, key);
             for (PartitionUpdateBuilder builder : updateBuilders.values())
-                mutation.add(builder.build());
-            return mutation;
+                mutationBuilder.add(builder.build());
+            return mutationBuilder.build();
         }
     }
 
@@ -159,6 +159,7 @@ public abstract class SimpleBuilders
         private final DecoratedKey key;
         private final Map<Clustering, RowBuilder> rowBuilders = new HashMap<>();
         private List<RTBuilder> rangeBuilders = null; // We use that rarely, so create lazily
+        private List<RangeTombstone> rangeTombstones = null;
 
         private DeletionTime partitionDeletion = DeletionTime.LIVE;
 
@@ -204,6 +205,14 @@ public abstract class SimpleBuilders
             return builder;
         }
 
+        public PartitionUpdate.SimpleBuilder addRangeTombstone(RangeTombstone rt)
+        {
+            if (rangeTombstones == null)
+                rangeTombstones = new ArrayList<>();
+            rangeTombstones.add(rt);
+            return this;
+        }
+
         public PartitionUpdate build()
         {
             // Collect all updated columns
@@ -213,7 +222,7 @@ public abstract class SimpleBuilders
 
             // Note that rowBuilders.size() could include the static column so could be 1 off the really need capacity
             // of the final PartitionUpdate, but as that's just a sizing hint, we'll live.
-            PartitionUpdate update = new PartitionUpdate(metadata, key, columns.build(), rowBuilders.size());
+            PartitionUpdate.Builder update = new PartitionUpdate.Builder(metadata, key, columns.build(), rowBuilders.size());
 
             update.addPartitionDeletion(partitionDeletion);
             if (rangeBuilders != null)
@@ -222,10 +231,16 @@ public abstract class SimpleBuilders
                     update.add(builder.build());
             }
 
+            if (rangeTombstones != null)
+            {
+                for (RangeTombstone rt : rangeTombstones)
+                    update.add(rt);
+            }
+
             for (RowBuilder builder : rowBuilders.values())
                 update.add(builder.build());
 
-            return update;
+            return update.build();
         }
 
         public Mutation buildAsMutation()

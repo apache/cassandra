@@ -32,6 +32,12 @@ public interface IMutation
     public String toString(boolean shallow);
     public Collection<PartitionUpdate> getPartitionUpdates();
 
+    public default void validateIndexedColumns()
+    {
+        for (PartitionUpdate pu : getPartitionUpdates())
+            pu.validateIndexedColumns();
+    }
+
     /**
      * Computes the total data size of the specified mutations.
      * @param mutations the mutations

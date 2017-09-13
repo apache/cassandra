@@ -224,7 +224,7 @@ public class BatchStatement implements CQLStatement
     throws RequestExecutionException, RequestValidationException
     {
         Set<String> tablesWithZeroGcGs = null;
-        UpdatesCollector collector = new UpdatesCollector(updatedColumns, updatedRows());
+        BatchUpdatesCollector collector = new BatchUpdatesCollector(updatedColumns, updatedRows());
         for (int i = 0; i < statements.size(); i++)
         {
             ModificationStatement statement = statements.get(i);
@@ -247,8 +247,6 @@ public class BatchStatement implements CQLStatement
             ClientWarn.instance.warn(MessageFormatter.arrayFormat(LOGGED_BATCH_LOW_GCGS_WARNING, new Object[] { suffix, tablesWithZeroGcGs })
                                                      .getMessage());
         }
-
-        collector.validateIndexedColumns();
         return collector.toMutations();
     }
 

@@ -50,7 +50,7 @@ public class DeleteStatement extends ModificationStatement
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate update, Clustering clustering, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering clustering, UpdateParameters params)
     throws InvalidRequestException
     {
         TableMetadata metadata = metadata();
@@ -63,19 +63,19 @@ public class DeleteStatement extends ModificationStatement
             // We're not deleting any specific columns so it's either a full partition deletion ....
             if (clustering.size() == 0)
             {
-                update.addPartitionDeletion(params.deletionTime());
+                updateBuilder.addPartitionDeletion(params.deletionTime());
             }
             // ... or a row deletion ...
             else if (clustering.size() == metadata.clusteringColumns().size())
             {
                 params.newRow(clustering);
                 params.addRowDeletion();
-                update.add(params.buildRow());
+                updateBuilder.add(params.buildRow());
             }
             // ... or a range of rows deletion.
             else
             {
-                update.add(params.makeRangeTombstone(metadata.comparator, clustering));
+                updateBuilder.add(params.makeRangeTombstone(metadata.comparator, clustering));
             }
         }
         else
@@ -91,22 +91,22 @@ public class DeleteStatement extends ModificationStatement
                 params.newRow(clustering);
 
                 for (Operation op : regularDeletions)
-                    op.execute(update.partitionKey(), params);
-                update.add(params.buildRow());
+                    op.execute(updateBuilder.partitionKey(), params);
+                updateBuilder.add(params.buildRow());
             }
 
             if (!staticDeletions.isEmpty())
             {
                 params.newRow(Clustering.STATIC_CLUSTERING);
                 for (Operation op : staticDeletions)
-                    op.execute(update.partitionKey(), params);
-                update.add(params.buildRow());
+                    op.execute(updateBuilder.partitionKey(), params);
+                updateBuilder.add(params.buildRow());
             }
         }
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate update, Slice slice, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder update, Slice slice, UpdateParameters params)
     {
         List<Operation> regularDeletions = getRegularOperations();
         List<Operation> staticDeletions = getStaticOperations();

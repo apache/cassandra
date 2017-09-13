@@ -207,7 +207,7 @@ public class DataResolver extends ResponseResolver
             private final DecoratedKey partitionKey;
             private final RegularAndStaticColumns columns;
             private final boolean isReversed;
-            private final PartitionUpdate[] repairs = new PartitionUpdate[sources.length];
+            private final PartitionUpdate.Builder[] repairs = new PartitionUpdate.Builder[sources.length];
 
             private final Row.Builder[] currentRows = new Row.Builder[sources.length];
             private final RowDiffListener diffListener;
@@ -268,10 +268,10 @@ public class DataResolver extends ResponseResolver
                 };
             }
 
-            private PartitionUpdate update(int i)
+            private PartitionUpdate.Builder update(int i)
             {
                 if (repairs[i] == null)
-                    repairs[i] = new PartitionUpdate(command.metadata(), partitionKey, columns, 1);
+                    repairs[i] = new PartitionUpdate.Builder(command.metadata(), partitionKey, columns, 1);
                 return repairs[i];
             }
 
@@ -468,7 +468,7 @@ public class DataResolver extends ResponseResolver
             {
                 for (int i = 0; i < repairs.length; i++)
                     if (null != repairs[i])
-                        sendRepairMutation(repairs[i], sources[i]);
+                        sendRepairMutation(repairs[i].build(), sources[i]);
             }
 
             private void sendRepairMutation(PartitionUpdate partition, InetAddress destination)

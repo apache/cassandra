@@ -63,7 +63,7 @@ public class UpdateStatement extends ModificationStatement
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate update, Clustering clustering, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering clustering, UpdateParameters params)
     {
         if (updatesRegularRows())
         {
@@ -90,22 +90,22 @@ public class UpdateStatement extends ModificationStatement
             }
 
             for (Operation op : updates)
-                op.execute(update.partitionKey(), params);
+                op.execute(updateBuilder.partitionKey(), params);
 
-            update.add(params.buildRow());
+            updateBuilder.add(params.buildRow());
         }
 
         if (updatesStaticRow())
         {
             params.newRow(Clustering.STATIC_CLUSTERING);
             for (Operation op : getStaticOperations())
-                op.execute(update.partitionKey(), params);
-            update.add(params.buildRow());
+                op.execute(updateBuilder.partitionKey(), params);
+            updateBuilder.add(params.buildRow());
         }
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate update, Slice slice, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder update, Slice slice, UpdateParameters params)
     {
         throw new UnsupportedOperationException();
     }
