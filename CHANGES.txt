@@ -9,6 +9,7 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Wait for all management tasks to complete before shutting down CLSM (CASSANDRA-13123)
  * INSERT statement fails when Tuple type is used as clustering column with default DESC order (CASSANDRA-13717)
  * Fix pending view mutations handling and cleanup batchlog when there are local and remote paired mutations (CASSANDRA-13069)
  * Improve config validation and documentation on overflow and NPE (CASSANDRA-13622)
