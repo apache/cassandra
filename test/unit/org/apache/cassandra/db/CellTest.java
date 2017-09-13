@@ -255,7 +255,7 @@ public class CellTest
     {
         ColumnDefinition m = cfm2.getColumnDefinition(new ColumnIdentifier("m", false));
         int now1 = FBUtilities.nowInSeconds();
-        long ts1 = now1*1000000;
+        long ts1 = now1*1000000L;
 
 
         Cell r1m1 = BufferCell.live(cfm2, m, ts1, bb(1), CellPath.create(bb(1)));
@@ -263,7 +263,7 @@ public class CellTest
         List<Cell> cells1 = Lists.newArrayList(r1m1, r1m2);
 
         int now2 = now1 + 1;
-        long ts2 = now2*1000000;
+        long ts2 = now2*1000000L;
         Cell r2m2 = BufferCell.live(cfm2, m, ts2, bb(1), CellPath.create(bb(2)));
         Cell r2m3 = BufferCell.live(cfm2, m, ts2, bb(2), CellPath.create(bb(3)));
         Cell r2m4 = BufferCell.live(cfm2, m, ts2, bb(3), CellPath.create(bb(4)));
