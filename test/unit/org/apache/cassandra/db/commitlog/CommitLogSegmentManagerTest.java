@@ -20,9 +20,11 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.Semaphore;
 
 import com.google.common.collect.ImmutableMap;
@@ -44,6 +46,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableId;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
@@ -138,5 +141,33 @@ public class CommitLogSegmentManagerTest
         {
             Thread.currentThread().interrupt();
         }
+    }
+
+    @Test
+    @BMRule(name = "Make removing commitlog segments slow",
+            targetClass = "CommitLogSegment",
+            targetMethod = "discard",
+            action = "Thread.sleep(50)")
+    public void testShutdownWithPendingTasks() throws Throwable {
+        CommitLog.instance.resetUnsafe(true);
+        ColumnFamilyStore cfs1 = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
+
+        final Mutation m = new RowUpdateBuilder(cfs1.metadata.get(), 0, "k")
+                           .clustering("bytes")
+                           .add("val", ByteBuffer.wrap(entropy))
+                           .build();
+
+        // force creating several commitlog files
+        for (int i = 0; i < 10; i++) {
+            CommitLog.instance.add(m);
+        }
+
+        // schedule discarding completed segments and immediately issue a shutdown
+        TableId tableId = m.getTableIds().iterator().next();
+        CommitLog.instance.discardCompletedSegments(tableId, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
+        CommitLog.instance.shutdownBlocking();
+
+        // the shutdown should block until all logs except the currently active one and perhaps a new, empty one are gone
+        Assert.assertTrue(new File(DatabaseDescriptor.getCommitLogLocation()).listFiles().length <= 2);
     }
 }
