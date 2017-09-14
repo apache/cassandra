@@ -1,4 +1,5 @@
 3.11.1
+ * AbstractTokenTreeBuilder#serializedSize returns wrong value when there is a single leaf and overflow collisions (CASSANDRA-13869)
  * Add a compaction option to TWCS to ignore sstables overlapping checks (CASSANDRA-13418)
  * BTree.Builder memory leak (CASSANDRA-13754)
  * Revert CASSANDRA-10368 of supporting non-pk column filtering due to correctness (CASSANDRA-13798)
