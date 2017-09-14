@@ -1,4 +1,5 @@
 2.2.11
+ * Safely handle empty buffers when outputting to JSON (CASSANDRA-13868)
  * Copy session properties on cqlsh.py do_login (CASSANDRA-13847)
  * Fix load over calculated issue in IndexSummaryRedistribution (CASSANDRA-13738)
  * Fix compaction and flush exception not captured (CASSANDRA-13833)
