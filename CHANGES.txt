@@ -1,4 +1,5 @@
 3.0.15
+ * Make isBuilt volatile in PartitionUpdate (CASSANDRA-13619)
  * Prevent integer overflow of timestamps in CellTest and RowsTest (CASSANDRA-13866)
  * Fix counter application order in short read protection (CASSANDRA-12872)
  * Don't block RepairJob execution on validation futures (CASSANDRA-13797)
