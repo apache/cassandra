@@ -417,7 +417,8 @@ public class LeveledManifest
                                                                                     options.bucketHigh,
                                                                                     options.bucketLow,
                                                                                     options.minSSTableSize);
-        return SizeTieredCompactionStrategy.mostInterestingBucket(buckets, 4, 32);
+        return SizeTieredCompactionStrategy.mostInterestingBucket(buckets,
+                cfs.getMinimumCompactionThreshold(), cfs.getMaximumCompactionThreshold());
     }
 
     /**
