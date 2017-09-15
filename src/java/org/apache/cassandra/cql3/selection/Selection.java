@@ -262,7 +262,7 @@ public abstract class Selection
             sb.append('"');
             sb.append(Json.quoteAsJsonString(columnName));
             sb.append("\": ");
-            if (buffer == null)
+            if (buffer == null || !buffer.hasRemaining())
                 sb.append("null");
             else
                 sb.append(spec.type.toJSONString(buffer, protocolVersion));
