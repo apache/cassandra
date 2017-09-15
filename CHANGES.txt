@@ -40,6 +40,8 @@
  * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)
  * sstabledump reports incorrect usage for argument order (CASSANDRA-13532)
 Merged from 2.2:
+ * Safely handle empty buffers when outputting to JSON (CASSANDRA-13868)
+ * Copy session properties on cqlsh.py do_login (CASSANDRA-13847)
  * Fix load over calculated issue in IndexSummaryRedistribution (CASSANDRA-13738)
  * Fix compaction and flush exception not captured (CASSANDRA-13833)
  * Uncaught exceptions in Netty pipeline (CASSANDRA-13649)
