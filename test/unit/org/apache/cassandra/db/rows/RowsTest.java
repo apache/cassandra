@@ -205,7 +205,7 @@ public class RowsTest
 
     private static long secondToTs(int now)
     {
-        return now * 1000000;
+        return now * 1000000L;
     }
 
     private static Row.Builder createBuilder(Clustering c, int now, ByteBuffer vVal, ByteBuffer mKey, ByteBuffer mVal)
