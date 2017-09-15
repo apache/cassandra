@@ -87,25 +87,29 @@ public class TokenTreeTest
                 put(i, singleOffset);
     }};
 
-    final static SortedMap<Long, LongSet> collidingTokensMap = new TreeMap<Long, LongSet>()
-    {{
-            put(1L, singleOffset); put(7L, singleOffset); put(8L, singleOffset);
-    }};
+    @FunctionalInterface
+    private static interface CheckedConsumer<C> {
+        public void accept(C c) throws Exception;
+    }
 
-    final static SortedMap<Long, LongSet> tokens = bigTokensMap;
+    final static List<SortedMap<Long, LongSet>> tokenMaps = Arrays.asList(simpleTokenMap, bigTokensMap);
+    private void forAllTokenMaps(CheckedConsumer<SortedMap<Long, LongSet>> c) throws Exception {
+        for (SortedMap<Long, LongSet> tokens : tokenMaps)
+            c.accept(tokens);
+    }
 
     final static SequentialWriterOption DEFAULT_OPT = SequentialWriterOption.newBuilder().bufferSize(4096).build();
 
     @Test
     public void testSerializedSizeDynamic() throws Exception
     {
-        testSerializedSize(new DynamicTokenTreeBuilder(tokens));
+        forAllTokenMaps(tokens -> testSerializedSize(new DynamicTokenTreeBuilder(tokens)));
     }
 
     @Test
     public void testSerializedSizeStatic() throws Exception
     {
-        testSerializedSize(new StaticTokenTreeBuilder(new FakeCombinedTerm(tokens)));
+        forAllTokenMaps(tokens -> testSerializedSize(new StaticTokenTreeBuilder(new FakeCombinedTerm(tokens))));
     }
 
 
@@ -129,13 +133,14 @@ public class TokenTreeTest
     @Test
     public void buildSerializeAndIterateDynamic() throws Exception
     {
-        buildSerializeAndIterate(new DynamicTokenTreeBuilder(simpleTokenMap), simpleTokenMap);
+        forAllTokenMaps(tokens -> buildSerializeAndIterate(new DynamicTokenTreeBuilder(tokens), tokens));
     }
 
     @Test
     public void buildSerializeAndIterateStatic() throws Exception
     {
-        buildSerializeAndIterate(new StaticTokenTreeBuilder(new FakeCombinedTerm(tokens)), tokens);
+        forAllTokenMaps(tokens ->
+                        buildSerializeAndIterate(new StaticTokenTreeBuilder(new FakeCombinedTerm(tokens)), tokens));
     }
 
 
@@ -207,15 +212,18 @@ public class TokenTreeTest
     @Test
     public void buildSerializeIterateAndSkipDynamic() throws Exception
     {
-        buildSerializeIterateAndSkip(new DynamicTokenTreeBuilder(tokens), tokens);
+        forAllTokenMaps(tokens -> buildSerializeIterateAndSkip(new DynamicTokenTreeBuilder(tokens), tokens));
     }
 
     @Test
     public void buildSerializeIterateAndSkipStatic() throws Exception
     {
-        buildSerializeIterateAndSkip(new StaticTokenTreeBuilder(new FakeCombinedTerm(tokens)), tokens);
+        forAllTokenMaps(tokens ->
+                        buildSerializeIterateAndSkip(new StaticTokenTreeBuilder(new FakeCombinedTerm(tokens)), tokens));
     }
 
+    // works with maps other than bigTokensMap but skips to a rather large token
+    // so likely for maps other than bigTokensMap skipping is not tested by this.
     public void buildSerializeIterateAndSkip(TokenTreeBuilder builder, SortedMap<Long, LongSet> tokens) throws Exception
     {
         builder.finish();

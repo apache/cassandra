@@ -65,7 +65,9 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
     public int serializedSize()
     {
         if (numBlocks == 1)
-            return (BLOCK_HEADER_BYTES + ((int) tokenCount * 16));
+            return BLOCK_HEADER_BYTES +
+                   ((int) tokenCount * BLOCK_ENTRY_BYTES) +
+                   (((Leaf) root).overflowCollisionCount() * OVERFLOW_ENTRY_BYTES);
         else
             return numBlocks * BLOCK_BYTES;
     }
@@ -261,6 +263,10 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
         public int childCount()
         {
             return 0;
+        }
+
+        public int overflowCollisionCount() {
+            return overflowCollisions == null ? 0 : overflowCollisions.size();
         }
 
         protected void serializeOverflowCollisions(ByteBuffer buf)
