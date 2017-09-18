@@ -150,6 +150,7 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Make isBuilt volatile in PartitionUpdate (CASSANDRA-13619)
  * Prevent integer overflow of timestamps in CellTest and RowsTest (CASSANDRA-13866)
  * Fix counter application order in short read protection (CASSANDRA-12872)
  * Don't block RepairJob execution on validation futures (CASSANDRA-13797)

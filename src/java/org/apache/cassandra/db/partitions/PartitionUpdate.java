@@ -66,7 +66,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     // happens when the update is read. Further writing is then rejected though a manual call
     // to allowNewUpdates() allow new writes. We could make that more implicit but only triggers
     // really requires that so we keep it simple for now).
-    private boolean isBuilt;
+    private volatile boolean isBuilt;
     private boolean canReOpen = true;
 
     private Holder holder;
