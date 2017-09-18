@@ -43,6 +43,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -53,6 +54,9 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 public abstract class Message
 {
     protected static final Logger logger = LoggerFactory.getLogger(Message.class);
+    // On some platform with millisecond resolution (like Linux+epoll) are likely to use less CPU with this set to 0.
+    // This is also true for platform emulating this resolution using timers (timefd or similar).
+    public static final Integer FLUSH_DELAY = Integer.getInteger(Config.PROPERTY_PREFIX + "native_transport_flush_delay_nanoseconds", 10000);
 
     /**
      * When we encounter an unexpected IOException we look for these {@link Throwable#getMessage() messages}
@@ -485,7 +489,10 @@ public abstract class Message
                     }
                 }
 
-                eventLoop.schedule(this, 10000, TimeUnit.NANOSECONDS);
+                if (FLUSH_DELAY > 0)
+                    eventLoop.schedule(this, FLUSH_DELAY, TimeUnit.NANOSECONDS);
+                else
+                    eventLoop.execute(this);
             }
         }
 
