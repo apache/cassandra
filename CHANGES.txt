@@ -1,4 +1,5 @@
 3.0.15
+ * Fix short read protection for tables with no clustering columns (CASSANDRA-13880)
  * Make isBuilt volatile in PartitionUpdate (CASSANDRA-13619)
  * Prevent integer overflow of timestamps in CellTest and RowsTest (CASSANDRA-13866)
  * Fix counter application order in short read protection (CASSANDRA-12872)
