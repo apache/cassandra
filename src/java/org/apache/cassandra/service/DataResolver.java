@@ -524,6 +524,8 @@ public class DataResolver extends ResponseResolver
             @Override
             public UnfilteredRowIterator moreContents()
             {
+                assert !postReconciliationCounter.isDoneForPartition();
+
                 // We have a short read if the node this is the result of has returned the requested number of
                 // rows for that partition (i.e. it has stopped returning results due to the limit), but some of
                 // those results haven't made it in the final result post-reconciliation due to other nodes
@@ -536,9 +538,13 @@ public class DataResolver extends ResponseResolver
                 // skipped during reconciliation.
                 if (lastCount == counted(counter) || !counter.isDoneForPartition())
                     return null;
-                lastCount = counted(counter);
 
-                assert !postReconciliationCounter.isDoneForPartition();
+                // clustering of the last row returned is empty, meaning that there is only one row per partition,
+                // and we already have it.
+                if (lastClustering == Clustering.EMPTY)
+                    return null;
+
+                lastCount = counted(counter);
 
                 // We need to try to query enough additional results to fulfill our query, but because we could still
                 // get short reads on that additional query, just querying the number of results we miss may not be
