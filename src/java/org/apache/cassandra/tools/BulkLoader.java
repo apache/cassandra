@@ -65,7 +65,8 @@ public class BulkLoader
                         buildSSLOptions(options.clientEncOptions),
                         options.allowServerPortDiscovery),
                         handler,
-                        options.connectionsPerHost);
+                        options.connectionsPerHost,
+                        options.targetKeyspace);
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
         DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(options.interDcThrottle);
         StreamResultFuture future = null;
