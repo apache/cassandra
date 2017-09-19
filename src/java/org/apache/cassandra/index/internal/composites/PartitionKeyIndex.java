@@ -47,9 +47,11 @@ import org.apache.cassandra.schema.IndexMetadata;
  */
 public class PartitionKeyIndex extends CassandraIndex
 {
+    private final boolean enforceStrictLiveness;
     public PartitionKeyIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
     {
         super(baseCfs, indexDef);
+        this.enforceStrictLiveness = baseCfs.metadata.enforceStrictLiveness();
     }
 
     public ByteBuffer getIndexedValue(ByteBuffer partitionKey,
@@ -90,6 +92,6 @@ public class PartitionKeyIndex extends CassandraIndex
 
     public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
     {
-        return !data.hasLiveData(nowInSec);
+        return !data.hasLiveData(nowInSec, enforceStrictLiveness);
     }
 }

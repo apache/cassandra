@@ -126,7 +126,11 @@ public class MultiPartitionPager implements QueryPager
     {
         int toQuery = Math.min(remaining, pageSize);
         PagersIterator iter = new PagersIterator(toQuery, consistency, clientState, null);
-        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true, selectsFullPartitions);
+        /**
+         * It's safe to set it as false since all PartitionIterators have been filtered by each SPRC.
+         */
+        boolean enforceStrictLiveness = false;
+        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true, selectsFullPartitions, enforceStrictLiveness);
         iter.setCounter(counter);
         return counter.applyTo(iter);
     }
@@ -136,7 +140,11 @@ public class MultiPartitionPager implements QueryPager
     {
         int toQuery = Math.min(remaining, pageSize);
         PagersIterator iter = new PagersIterator(toQuery, null, null, orderGroup);
-        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true, selectsFullPartitions);
+        /**
+         * It's safe to set it as false since all PartitionIterators have been filtered by each SPRC.
+         */
+        boolean enforceStrictLiveness = false;
+        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true, selectsFullPartitions, enforceStrictLiveness);
         iter.setCounter(counter);
         return counter.applyTo(iter);
     }

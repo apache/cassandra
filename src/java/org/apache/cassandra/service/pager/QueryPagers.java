@@ -55,7 +55,7 @@ public class QueryPagers
         {
             try (PartitionIterator iter = pager.fetchPage(pageSize, consistencyLevel, state))
             {
-                DataLimits.Counter counter = limits.newCounter(nowInSec, true, command.selectsFullPartition());
+                DataLimits.Counter counter = limits.newCounter(nowInSec, true, command.selectsFullPartition(), metadata.enforceStrictLiveness());
                 PartitionIterators.consume(counter.applyTo(iter));
                 count += counter.counted();
             }

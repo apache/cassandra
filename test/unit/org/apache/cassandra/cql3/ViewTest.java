@@ -363,7 +363,9 @@ public class ViewTest extends CQLTester
         updateView("UPDATE %s USING TIMESTAMP 2 SET val = ? WHERE k = ?", 1, 0);
         updateView("UPDATE %s USING TIMESTAMP 4 SET c = ? WHERE k = ?", 2, 0);
         updateView("UPDATE %s USING TIMESTAMP 3 SET val = ? WHERE k = ?", 2, 0);
+
         assertRows(execute("SELECT c, k, val FROM mv_rctstest"), row(2, 0, 2));
+        assertRows(execute("SELECT c, k, val FROM mv_rctstest limit 1"), row(2, 0, 2));
     }
 
     @Test

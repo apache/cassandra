@@ -556,6 +556,7 @@ public class SinglePartitionReadCommand extends ReadCommand
             try
             {
                 final int rowsToCache = metadata().params.caching.rowsPerPartitionToCache();
+                final boolean enforceStrictLiveness = metadata().enforceStrictLiveness();
 
                 @SuppressWarnings("resource") // we close on exception or upon closing the result of this method
                 UnfilteredRowIterator iter = fullPartitionRead(metadata(), nowInSec(), partitionKey()).queryMemtableAndDisk(cfs, readOp);
@@ -579,7 +580,7 @@ public class SinglePartitionReadCommand extends ReadCommand
                             if (unfiltered.isRow())
                             {
                                 Row row = (Row) unfiltered;
-                                if (row.hasLiveData(nowInSec()))
+                                if (row.hasLiveData(nowInSec(), enforceStrictLiveness))
                                     rowsCounted++;
                             }
                             return unfiltered;
@@ -1161,10 +1162,14 @@ public class SinglePartitionReadCommand extends ReadCommand
             for (SinglePartitionReadCommand cmd : commands)
                 partitions.add(cmd.executeInternal(orderGroup));
 
+            // Note that the only difference between the command in a group must be the partition key on which
+            // they applied.
+            boolean enforceStrictLiveness = commands.get(0).metadata().enforceStrictLiveness();
             // Because we only have enforce the limit per command, we need to enforce it globally.
             return limits.filter(PartitionIterators.concat(partitions),
                                  nowInSec,
-                                 selectsFullPartitions);
+                                 selectsFullPartitions,
+                                 enforceStrictLiveness);
         }
 
         public QueryPager getPager(PagingState pagingState, int protocolVersion)

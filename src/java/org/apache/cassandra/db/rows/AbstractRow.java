@@ -42,11 +42,13 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
         return Unfiltered.Kind.ROW;
     }
 
-    public boolean hasLiveData(int nowInSec)
+    @Override
+    public boolean hasLiveData(int nowInSec, boolean enforceStrictLiveness)
     {
         if (primaryKeyLivenessInfo().isLive(nowInSec))
             return true;
-
+        else if (enforceStrictLiveness)
+            return false;
         return Iterables.any(cells(), cell -> cell.isLive(nowInSec));
     }
 

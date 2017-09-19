@@ -32,6 +32,7 @@ abstract class AbstractQueryPager implements QueryPager
     protected final ReadCommand command;
     protected final DataLimits limits;
     protected final int protocolVersion;
+    private final boolean enforceStrictLiveness;
 
     private int remaining;
 
@@ -48,6 +49,7 @@ abstract class AbstractQueryPager implements QueryPager
         this.command = command;
         this.protocolVersion = protocolVersion;
         this.limits = command.limits();
+        this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
 
         this.remaining = limits.count();
         this.remainingInPartition = limits.perPartitionCount();
@@ -126,7 +128,7 @@ abstract class AbstractQueryPager implements QueryPager
 
         private Pager(DataLimits pageLimits, int nowInSec)
         {
-            this.counter = pageLimits.newCounter(nowInSec, true, command.selectsFullPartition());
+            this.counter = pageLimits.newCounter(nowInSec, true, command.selectsFullPartition(), enforceStrictLiveness);
             this.pageLimits = pageLimits;
         }
 

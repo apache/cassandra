@@ -45,9 +45,12 @@ import org.apache.cassandra.schema.IndexMetadata;
  */
 public class ClusteringColumnIndex extends CassandraIndex
 {
+    private final boolean enforceStrictLiveness;
+
     public ClusteringColumnIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
     {
         super(baseCfs, indexDef);
+        this.enforceStrictLiveness = baseCfs.metadata.enforceStrictLiveness();
     }
 
 
@@ -95,6 +98,6 @@ public class ClusteringColumnIndex extends CassandraIndex
 
     public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
     {
-        return !data.hasLiveData(nowInSec);
+        return !data.hasLiveData(nowInSec, enforceStrictLiveness);
     }
 }

@@ -796,11 +796,71 @@ public class ViewComplexTest extends CQLTester
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from mv"), row(2, 3, 3, 6L));
+        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from mv limit 1"), row(2, 3, 3, 6L));
         // change v1's to 1 and remove existing view row with ts8
         updateView("UPdate %s using timestamp 8 set v1 = 1 where p = 3;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
         assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from mv"), row(1, 3, 3, 6L));
+    }
+
+    @Test
+    public void testExpiredLivenessLimitWithFlush() throws Throwable
+    {
+        // CASSANDRA-13883
+        testExpiredLivenessLimit(true);
+    }
+
+    @Test
+    public void testExpiredLivenessLimitWithoutFlush() throws Throwable
+    {
+        // CASSANDRA-13883
+        testExpiredLivenessLimit(false);
+    }
+
+    private void testExpiredLivenessLimit(boolean flush) throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int);");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+        Keyspace ks = Keyspace.open(keyspace());
+
+        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND a IS NOT NULL PRIMARY KEY (k, a);");
+        createView("mv2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND a IS NOT NULL PRIMARY KEY (a, k);");
+        ks.getColumnFamilyStore("mv1").disableAutoCompaction();
+        ks.getColumnFamilyStore("mv2").disableAutoCompaction();
+
+        for (int i = 1; i <= 100; i++)
+            updateView("INSERT INTO %s(k, a, b) VALUES (?, ?, ?);", i, i, i);
+        for (int i = 1; i <= 100; i++)
+        {
+            if (i % 50 == 0)
+                continue;
+            // create expired liveness
+            updateView("DELETE a FROM %s WHERE k = ?;", i);
+        }
+        if (flush)
+        {
+            ks.getColumnFamilyStore("mv1").forceBlockingFlush();
+            ks.getColumnFamilyStore("mv2").forceBlockingFlush();
+        }
+
+        for (String view : Arrays.asList("mv1", "mv2"))
+        {
+            // paging
+            assertEquals(1, executeNetWithPaging(String.format("SELECT k,a,b FROM %s limit 1", view), 1).all().size());
+            assertEquals(2, executeNetWithPaging(String.format("SELECT k,a,b FROM %s limit 2", view), 1).all().size());
+            assertEquals(2, executeNetWithPaging(String.format("SELECT k,a,b FROM %s", view), 1).all().size());
+            assertRowsNet(executeNetWithPaging(String.format("SELECT k,a,b FROM %s ", view), 1),
+                          row(50, 50, 50),
+                          row(100, 100, 100));
+            // limit
+            assertEquals(1, execute(String.format("SELECT k,a,b FROM %s limit 1", view)).size());
+            assertRowsIgnoringOrder(execute(String.format("SELECT k,a,b FROM %s limit 2", view)),
+                                    row(50, 50, 50),
+                                    row(100, 100, 100));
+        }
     }
 
     @Test
@@ -848,6 +908,7 @@ public class ViewComplexTest extends CQLTester
             FBUtilities.waitOnFutures(ks.flush());
         ks.getColumnFamilyStore("mv").forceMajorCompaction();
         assertRowsIgnoringOrder(execute("SELECT k,a,b from mv"), row(1, 2, 2));
+        assertRowsIgnoringOrder(execute("SELECT k,a,b from mv limit 1"), row(1, 2, 2));
         updateView("UPDATE %s USING TIMESTAMP 11 SET a = 1 WHERE k = 1;");
         if (flush)
             FBUtilities.waitOnFutures(ks.flush());
@@ -1048,12 +1109,12 @@ public class ViewComplexTest extends CQLTester
                                        .sorted(Comparator.comparingInt(s -> s.descriptor.generation))
                                        .map(s -> s.getFilename())
                                        .collect(Collectors.toList());
-            System.out.println("SSTables " + sstables);
             String dataFiles = String.join(",", Arrays.asList(sstables.get(1), sstables.get(2)));
             CompactionManager.instance.forceUserDefinedCompaction(dataFiles);
         }
         // cell-tombstone in sstable 4 is not compacted away, because the shadowable tombstone is shadowed by new row.
         assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from mv"), row(1, 3, null, null));
+        assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from mv limit 1"), row(1, 3, null, null));
     }
 
     @Test
@@ -1172,6 +1233,7 @@ public class ViewComplexTest extends CQLTester
             FBUtilities.waitOnFutures(ks.flush());
         // deleted column in MV remained dead
         assertRowsIgnoringOrder(execute("SELECT * from mv"), row(1, 3, null));
+        assertRowsIgnoringOrder(execute("SELECT * from mv limit 1"), row(1, 3, null));
 
         // insert values TS=2, it should be considered dead due to previous tombstone
         executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 3 SET v2 = ? WHERE p = ?", 4, 3);
@@ -1183,6 +1245,7 @@ public class ViewComplexTest extends CQLTester
 
         ks.getColumnFamilyStore("mv").forceMajorCompaction();
         assertRows(execute("SELECT v1, p, v2, WRITETIME(v2) from mv"), row(1, 3, 4, 3L));
+        assertRows(execute("SELECT v1, p, v2, WRITETIME(v2) from mv limit 1"), row(1, 3, 4, 3L));
     }
 
     @Test

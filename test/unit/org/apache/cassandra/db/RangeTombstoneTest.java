@@ -76,6 +76,7 @@ public class RangeTombstoneTest
     {
         Keyspace keyspace = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CFNAME);
+        boolean enforceStrictLiveness = cfs.metadata.enforceStrictLiveness();
 
         // Inserting data
         String key = "k1";
@@ -112,17 +113,21 @@ public class RangeTombstoneTest
         int nowInSec = FBUtilities.nowInSeconds();
 
         for (int i : live)
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertTrue("Row " + i + " should be live",
+                       partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec, enforceStrictLiveness));
         for (int i : dead)
-            assertFalse("Row " + i + " shouldn't be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertFalse("Row " + i + " shouldn't be live",
+                        partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec, enforceStrictLiveness));
 
         // Queries by slices
         partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).fromIncl(7).toIncl(30).build());
 
         for (int i : new int[]{ 7, 8, 9, 11, 13, 15, 17, 28, 29, 30 })
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertTrue("Row " + i + " should be live",
+                       partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec, enforceStrictLiveness));
         for (int i : new int[]{ 10, 12, 14, 16, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27 })
-            assertFalse("Row " + i + " shouldn't be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertFalse("Row " + i + " shouldn't be live",
+                        partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec, enforceStrictLiveness));
     }
 
     @Test
@@ -385,6 +390,7 @@ public class RangeTombstoneTest
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CFNAME);
+        boolean enforceStrictLiveness = cfs.metadata.enforceStrictLiveness();
 
         // Inserting data
         String key = "k2";
@@ -408,22 +414,30 @@ public class RangeTombstoneTest
         int nowInSec = FBUtilities.nowInSeconds();
 
         for (int i = 0; i < 5; i++)
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertTrue("Row " + i + " should be live",
+                       partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec, enforceStrictLiveness));
         for (int i = 16; i < 20; i++)
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertTrue("Row " + i + " should be live",
+                       partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec, enforceStrictLiveness));
         for (int i = 5; i <= 15; i++)
-            assertFalse("Row " + i + " shouldn't be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertFalse("Row " + i + " shouldn't be live",
+                        partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec, enforceStrictLiveness));
 
         // Compact everything and re-test
         CompactionManager.instance.performMaximal(cfs, false);
         partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
 
         for (int i = 0; i < 5; i++)
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(FBUtilities.nowInSeconds()));
+            assertTrue("Row " + i + " should be live",
+                       partition.getRow(new Clustering(bb(i))).hasLiveData(FBUtilities.nowInSeconds(),
+                                                                           enforceStrictLiveness));
         for (int i = 16; i < 20; i++)
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(FBUtilities.nowInSeconds()));
+            assertTrue("Row " + i + " should be live",
+                       partition.getRow(new Clustering(bb(i))).hasLiveData(FBUtilities.nowInSeconds(),
+                                                                           enforceStrictLiveness));
         for (int i = 5; i <= 15; i++)
-            assertFalse("Row " + i + " shouldn't be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertFalse("Row " + i + " shouldn't be live",
+                        partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec, enforceStrictLiveness));
     }
 
     @Test
