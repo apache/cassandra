@@ -1,4 +1,5 @@
 4.0
+ * LCS needlessly checks for L0 STCS candidates multiple times (CASSANDRA-12961)
  * Correctly close netty channels when a stream session ends (CASSANDRA-13905)
  * Update lz4 to 1.4.0 (CASSANDRA-13741)
  * Optimize Paxos prepare and propose stage for local requests (CASSANDRA-13862)
