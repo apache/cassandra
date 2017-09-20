@@ -333,13 +333,6 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
             openMarker = marker.isOpen(false) ? marker.openDeletionTime(false) : null;
         }
 
-        protected DeletionTime getAndClearOpenMarker()
-        {
-            DeletionTime toReturn = openMarker;
-            openMarker = null;
-            return toReturn;
-        }
-
         public boolean hasNext()
         {
             try

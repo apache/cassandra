@@ -182,14 +182,14 @@ public class SSTableIterator extends AbstractSSTableIterator
             if (next != null)
                 return true;
 
-            // If we have an open marker, we should close it before finishing
+            // for current slice, no data read from deserialization
+            sliceDone = true;
+            // If we have an open marker, we should not close it, there could be more slices
             if (openMarker != null)
             {
-                next = new RangeTombstoneBoundMarker(end, getAndClearOpenMarker());
+                next = new RangeTombstoneBoundMarker(end, openMarker);
                 return true;
             }
-
-            sliceDone = true; // not absolutely necessary but accurate and cheap
             return false;
         }
 
