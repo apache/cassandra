@@ -20,11 +20,12 @@
  */
 package org.apache.cassandra.db;
 
+import static org.junit.Assert.*;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -32,8 +33,8 @@ import org.junit.Test;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,15 +42,20 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.filter.AbstractClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -59,6 +65,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.btree.BTreeSet;
 
 public class SinglePartitionSliceCommandTest
 {
@@ -70,6 +77,9 @@ public class SinglePartitionSliceCommandTest
     private static CFMetaData cfm;
     private static ColumnDefinition v;
     private static ColumnDefinition s;
+
+    private static final String TABLE_SCLICES = "tbl_slices";
+    private static CFMetaData CFM_SLICES;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -83,17 +93,28 @@ public class SinglePartitionSliceCommandTest
                                 .addRegularColumn("v", UTF8Type.instance)
                                 .build();
 
+        CFM_SLICES = CFMetaData.Builder.create(KEYSPACE, TABLE_SCLICES)
+                                       .addPartitionKey("k", UTF8Type.instance)
+                                       .addClusteringColumn("c1", Int32Type.instance)
+                                       .addClusteringColumn("c2", Int32Type.instance)
+                                       .addRegularColumn("v", IntegerType.instance)
+                                       .build();
+
         SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), cfm);
+        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), cfm, CFM_SLICES);
+
         cfm = Schema.instance.getCFMetaData(KEYSPACE, TABLE);
         v = cfm.getColumnDefinition(new ColumnIdentifier("v", true));
         s = cfm.getColumnDefinition(new ColumnIdentifier("s", true));
+
+        CFM_SLICES = Schema.instance.getCFMetaData(KEYSPACE, TABLE_SCLICES);
     }
 
     @Before
     public void truncate()
     {
         Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).truncateBlocking();
+        Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE_SCLICES).truncateBlocking();
     }
 
     @Test
@@ -150,6 +171,124 @@ public class SinglePartitionSliceCommandTest
                 }
             }
         }
+    }
+
+    @Test
+    public void testMultiNamesCommandWithFlush()
+    {
+        testMultiNamesOrSlicesCommand(true, false);
+    }
+
+    @Test
+    public void testMultiNamesCommandWithoutFlush()
+    {
+        testMultiNamesOrSlicesCommand(false, false);
+    }
+
+    @Test
+    public void testMultiSlicesCommandWithFlush()
+    {
+        testMultiNamesOrSlicesCommand(true, true);
+    }
+
+    @Test
+    public void testMultiSlicesCommandWithoutFlush()
+    {
+        testMultiNamesOrSlicesCommand(false, true);
+    }
+
+    private AbstractClusteringIndexFilter createClusteringFilter(int uniqueCk1, int uniqueCk2, boolean isSlice)
+    {
+        Slices.Builder slicesBuilder = new Slices.Builder(CFM_SLICES.comparator);
+        BTreeSet.Builder<Clustering> namesBuilder = BTreeSet.builder(CFM_SLICES.comparator);
+
+        for (int ck1 = 0; ck1 < uniqueCk1; ck1++)
+        {
+            for (int ck2 = 0; ck2 < uniqueCk2; ck2++)
+            {
+                if (isSlice)
+                    slicesBuilder.add(Slice.make(Util.clustering(CFM_SLICES.comparator, ck1, ck2)));
+                else
+                    namesBuilder.add(Util.clustering(CFM_SLICES.comparator, ck1, ck2));
+            }
+        }
+        if (isSlice)
+            return new ClusteringIndexSliceFilter(slicesBuilder.build(), false);
+        return new ClusteringIndexNamesFilter(namesBuilder.build(), false);
+    }
+
+    private void testMultiNamesOrSlicesCommand(boolean flush, boolean isSlice)
+    {
+        boolean isTombstone = flush || isSlice;
+        int deletionTime = 5;
+        int ck1 = 1;
+        int uniqueCk1 = 2;
+        int uniqueCk2 = 3;
+
+        DecoratedKey key = CFM_SLICES.decorateKey(ByteBufferUtil.bytes("k"));
+        QueryProcessor.executeInternal(String.format("DELETE FROM ks.tbl_slices USING TIMESTAMP %d WHERE k='k' AND c1=%d",
+                                                     deletionTime,
+                                                     ck1));
+
+        if (flush)
+            Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE_SCLICES).forceBlockingFlush();
+
+        AbstractClusteringIndexFilter clusteringFilter = createClusteringFilter(uniqueCk1, uniqueCk2, isSlice);
+        ReadCommand cmd = SinglePartitionReadCommand.create(CFM_SLICES,
+                                                            FBUtilities.nowInSeconds(),
+                                                            ColumnFilter.all(CFM_SLICES),
+                                                            RowFilter.NONE,
+                                                            DataLimits.NONE,
+                                                            key,
+                                                            clusteringFilter);
+
+        UnfilteredPartitionIterator partitionIterator = cmd.executeLocally(cmd.executionController());
+        assert partitionIterator.hasNext();
+        UnfilteredRowIterator partition = partitionIterator.next();
+
+        int count = 0;
+        boolean open = true;
+        while (partition.hasNext())
+        {
+            Unfiltered unfiltered = partition.next();
+            if (isTombstone)
+            {
+                assertTrue(unfiltered.isRangeTombstoneMarker());
+                RangeTombstoneMarker marker = (RangeTombstoneMarker) unfiltered;
+
+                // check if it's open-close pair
+                assertTrue(marker.isOpen(false) == open);
+                // check deletion time same as Range Deletion
+                if (open)
+                    assertEquals(deletionTime, marker.openDeletionTime(false).markedForDeleteAt());
+                else
+                    assertEquals(deletionTime, marker.closeDeletionTime(false).markedForDeleteAt());
+
+                // check clustering values
+                Clustering clustering = Util.clustering(CFM_SLICES.comparator, ck1, count / 2);
+                for (int i = 0; i < CFM_SLICES.comparator.size(); i++)
+                {
+                    int cmp = CFM_SLICES.comparator.compareComponent(i,
+                                                                     clustering.getRawValues()[i],
+                                                                     marker.clustering().values[i]);
+                    assertEquals(0, cmp);
+                }
+                open = !open;
+            }
+            else
+            {
+                // deleted row
+                assertTrue(unfiltered.isRow());
+                Row row = (Row) unfiltered;
+                assertEquals(deletionTime, row.deletion().time().markedForDeleteAt());
+                assertEquals(0, row.size()); // no btree
+            }
+            count++;
+        }
+        if (isTombstone)
+            assertEquals(uniqueCk2 * 2, count); // open and close range tombstones
+        else
+            assertEquals(uniqueCk2, count);
     }
 
     private void checkForS(UnfilteredPartitionIterator pi)
