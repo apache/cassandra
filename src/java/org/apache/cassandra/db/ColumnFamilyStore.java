@@ -2660,4 +2660,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         return keyspace.getColumnFamilyStore(table.id);
     }
+
+    public static TableMetrics metricsFor(TableId tableId)
+    {
+        return getIfExists(tableId).metric;
+    }
 }

@@ -150,6 +150,7 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Improve short read protection performance (CASSANDRA-13794)
  * Fix sstable reader to support range-tombstone-marker for multi-slices (CASSANDRA-13787)
  * Fix short read protection for tables with no clustering columns (CASSANDRA-13880)
  * Make isBuilt volatile in PartitionUpdate (CASSANDRA-13619)
