@@ -661,7 +661,8 @@ public class DataResolver extends ResponseResolver
                 if (null != lastClustering)
                     filter = filter.forPaging(metadata.comparator, lastClustering, false);
 
-                return SinglePartitionReadCommand.create(command.metadata(),
+                return SinglePartitionReadCommand.create(command.isForThrift(),
+                                                         command.metadata(),
                                                          command.nowInSec(),
                                                          command.columnFilter(),
                                                          command.rowFilter(),
