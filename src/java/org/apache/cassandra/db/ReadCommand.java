@@ -170,6 +170,8 @@ public abstract class ReadCommand implements ReadQuery
     protected abstract void serializeSelection(DataOutputPlus out, int version) throws IOException;
     protected abstract long selectionSerializedSize(int version);
 
+    public abstract boolean isLimitedToOnePartition();
+
     /**
      * The metadata for the table queried.
      *

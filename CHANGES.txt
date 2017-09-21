@@ -1,4 +1,5 @@
 3.0.15
+ * Implement short read protection on partition boundaries (CASSANDRA-13595)
  * Fix ISE thrown by UPI.Serializer.hasNext() for some SELECT queries (CASSANDRA-13911)
  * Filter header only commit logs before recovery (CASSANDRA-13918)
  * AssertionError prepending to a list (CASSANDRA-13149)
