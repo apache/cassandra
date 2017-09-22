@@ -34,6 +34,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.TriggerMetadata;
 import org.apache.cassandra.schema.Triggers;
+import org.apache.cassandra.triggers.TriggerExecutorTest.SameKeySameCfTrigger;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -53,16 +54,29 @@ public class TriggerExecutorTest
     public void sameKeySameCfColumnFamilies() throws ConfigurationException, InvalidRequestException
     {
         TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", SameKeySameCfTrigger.class.getName()));
+        // origin column 'c1' = "v1", augment extra column 'c2' = "trigger"
         PartitionUpdate mutated = TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null));
 
-        try (RowIterator rowIterator = UnfilteredRowIterators.filter(mutated.unfilteredIterator(),
-                                                                     FBUtilities.nowInSeconds()))
+        List<Row> rows = new ArrayList<>();
+        try (RowIterator iterator = UnfilteredRowIterators.filter(mutated.unfilteredIterator(),
+                                                                  FBUtilities.nowInSeconds()))
         {
-            Iterator<Cell> cells = rowIterator.next().cells().iterator();
-            assertEquals(bytes("trigger"), cells.next().value());
-
-            assertTrue(!rowIterator.hasNext());
+            iterator.forEachRemaining(rows::add);
         }
+
+        // only 1 row
+        assertEquals(1, rows.size());
+
+        List<Cell> cells = new ArrayList<>();
+        rows.get(0).cells().forEach(cells::add);
+
+        // 2 columns
+        assertEquals(2, cells.size());
+
+        // check column 'c1'
+        assertEquals(bytes("v1"), cells.get(0).value());
+        // check column 'c2'
+        assertEquals(bytes("trigger"), cells.get(1).value());
     }
 
     @Test(expected = InvalidRequestException.class)

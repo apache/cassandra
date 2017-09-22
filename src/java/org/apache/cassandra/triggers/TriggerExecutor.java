@@ -87,7 +87,12 @@ public class TriggerExecutor
         if (intermediate == null || intermediate.isEmpty())
             return updates;
 
-        return PartitionUpdate.merge(validateForSinglePartition(updates.metadata().id, updates.partitionKey(), intermediate));
+        List<PartitionUpdate> augmented = validateForSinglePartition(updates.metadata().id,
+                                                                     updates.partitionKey(),
+                                                                     intermediate);
+        // concatenate augmented and origin
+        augmented.add(updates);
+        return PartitionUpdate.merge(augmented);
     }
 
     /**
