@@ -1,4 +1,5 @@
 3.0.15
+ * Fix missing original update in TriggerExecutor (CASSANDRA-13894)
  * Remove non-rpc-ready nodes from counter leader candidates (CASSANDRA-13043)
  * Improve short read protection performance (CASSANDRA-13794)
  * Fix sstable reader to support range-tombstone-marker for multi-slices (CASSANDRA-13787)
