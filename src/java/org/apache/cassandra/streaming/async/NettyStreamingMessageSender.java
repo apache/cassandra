@@ -21,7 +21,9 @@ package org.apache.cassandra.streaming.async;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -106,10 +108,9 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     private final ThreadPoolExecutor fileTransferExecutor;
 
     /**
-     * A {@link ThreadLocal} used by the threads in {@link #fileTransferExecutor} to stash references to constructed
-     * and connected {@link Channel}s.
+     * A mapping of each {@link #fileTransferExecutor} thread to a channel that can be written to (on that thread).
      */
-    private final ConcurrentMap<Thread, Channel> threadLocalChannel = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Thread, Channel> threadToChannelMap = new ConcurrentHashMap<>();
 
     /**
      * A netty channel attribute used to indicate if a channel is currently transferring a file. This is primarily used
@@ -373,12 +374,12 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             Thread currentThread = Thread.currentThread();
             try
             {
-                Channel channel = threadLocalChannel.get(currentThread);
+                Channel channel = threadToChannelMap.get(currentThread);
                 if (channel != null)
                     return channel;
 
                 channel = createChannel();
-                threadLocalChannel.put(currentThread, channel);
+                threadToChannelMap.put(currentThread, channel);
                 return channel;
             }
             catch (Exception e)
@@ -393,10 +394,10 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         void injectChannel(Channel channel)
         {
             Thread currentThread = Thread.currentThread();
-            if (threadLocalChannel.get(currentThread) != null)
+            if (threadToChannelMap.get(currentThread) != null)
                 throw new IllegalStateException("previous channel already set");
 
-            threadLocalChannel.put(currentThread, channel);
+            threadToChannelMap.put(currentThread, channel);
         }
 
         /**
@@ -404,7 +405,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
          */
         void unsetChannel()
         {
-            threadLocalChannel.remove(Thread.currentThread());
+            threadToChannelMap.remove(Thread.currentThread());
         }
     }
 
@@ -498,8 +499,11 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         channelKeepAlives.stream().map(scheduledFuture -> scheduledFuture.cancel(false));
         channelKeepAlives.clear();
 
-        threadLocalChannel.values().stream().map(channel -> channel.close());
-        threadLocalChannel.clear();
+        List<Future<Void>> futures = new ArrayList<>(threadToChannelMap.size());
+        for (Channel channel : threadToChannelMap.values())
+            futures.add(channel.close());
+        FBUtilities.waitOnFutures(futures, 10 * 1000);
+        threadToChannelMap.clear();
         fileTransferExecutor.shutdownNow();
 
         if (controlMessageChannel != null)

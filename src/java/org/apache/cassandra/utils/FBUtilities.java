@@ -383,13 +383,28 @@ public class FBUtilities
 
     public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures)
     {
+        return waitOnFutures(futures, -1);
+    }
+
+    /**
+     * Block for a collection of futures, with an optional timeout for each future.
+     *
+     * @param futures
+     * @param ms The number of milliseconds to wait on each future. If this value is less than or equal to zero,
+     *           no tiemout value will be passed to {@link Future#get()}.
+     */
+    public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures, long ms)
+    {
         List<T> results = new ArrayList<>();
         Throwable fail = null;
         for (Future<? extends T> f : futures)
         {
             try
             {
-                results.add(f.get());
+                if (ms <= 0)
+                    results.add(f.get());
+                else
+                    results.add(f.get(ms, TimeUnit.MILLISECONDS));
             }
             catch (Throwable t)
             {
