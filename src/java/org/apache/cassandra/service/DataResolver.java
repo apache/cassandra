@@ -44,11 +44,13 @@ public class DataResolver extends ResponseResolver
     @VisibleForTesting
     final List<AsyncOneResponse> repairResults = Collections.synchronizedList(new ArrayList<>());
     private final long queryStartNanoTime;
+    private final boolean enforceStrictLiveness;
 
     DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, int maxResponseCount, long queryStartNanoTime)
     {
         super(keyspace, command, consistency, maxResponseCount);
         this.queryStartNanoTime = queryStartNanoTime;
+        this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
     }
 
     public PartitionIterator getData()
@@ -100,7 +102,7 @@ public class DataResolver extends ResponseResolver
          */
 
         DataLimits.Counter mergedResultCounter =
-            command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition());
+            command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
 
         UnfilteredPartitionIterator merged = mergeWithShortReadProtection(iters, sources, mergedResultCounter);
         FilteredPartitions filtered =
@@ -127,7 +129,7 @@ public class DataResolver extends ResponseResolver
             for (int i = 0; i < results.size(); i++)
             {
                 DataLimits.Counter singleResultCounter =
-                    command.limits().newCounter(command.nowInSec(), false, command.selectsFullPartition()).onlyCount();
+                    command.limits().newCounter(command.nowInSec(), false, command.selectsFullPartition(), enforceStrictLiveness).onlyCount();
 
                 ShortReadResponseProtection protection =
                     new ShortReadResponseProtection(sources[i], singleResultCounter, mergedResultCounter, queryStartNanoTime);

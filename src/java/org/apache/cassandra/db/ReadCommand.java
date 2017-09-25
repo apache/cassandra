@@ -463,6 +463,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             private final int warningThreshold = DatabaseDescriptor.getTombstoneWarnThreshold();
 
             private final boolean respectTombstoneThresholds = !SchemaConstants.isSystemKeyspace(ReadCommand.this.metadata().ksName);
+            private final boolean enforceStrictLiveness = metadata.enforceStrictLiveness();
 
             private int liveRows = 0;
             private int tombstones = 0;
@@ -485,7 +486,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             @Override
             public Row applyToRow(Row row)
             {
-                if (row.hasLiveData(ReadCommand.this.nowInSec()))
+                if (row.hasLiveData(ReadCommand.this.nowInSec(), enforceStrictLiveness))
                     ++liveRows;
 
                 for (Cell cell : row.cells())

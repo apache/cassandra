@@ -50,6 +50,7 @@ public class ViewUpdateGenerator
     private final ByteBuffer[] basePartitionKey;
 
     private final CFMetaData viewMetadata;
+    private final boolean baseEnforceStrictLiveness;
 
     private final Map<DecoratedKey, PartitionUpdate> updates = new HashMap<>();
 
@@ -86,6 +87,7 @@ public class ViewUpdateGenerator
         this.nowInSec = nowInSec;
 
         this.baseMetadata = view.getDefinition().baseTableMetadata();
+        this.baseEnforceStrictLiveness = baseMetadata.enforceStrictLiveness();
         this.baseDecoratedKey = basePartitionKey;
         this.basePartitionKey = extractKeyComponents(basePartitionKey, baseMetadata.getKeyValidator());
 
@@ -185,8 +187,8 @@ public class ViewUpdateGenerator
             // The view entry is necessarily the same pre and post update.
 
             // Note that we allow existingBaseRow to be null and treat it as empty (see MultiViewUpdateBuilder.generateViewsMutations).
-            boolean existingHasLiveData = existingBaseRow != null && existingBaseRow.hasLiveData(nowInSec);
-            boolean mergedHasLiveData = mergedBaseRow.hasLiveData(nowInSec);
+            boolean existingHasLiveData = existingBaseRow != null && existingBaseRow.hasLiveData(nowInSec, baseEnforceStrictLiveness);
+            boolean mergedHasLiveData = mergedBaseRow.hasLiveData(nowInSec, baseEnforceStrictLiveness);
             return existingHasLiveData
                  ? (mergedHasLiveData ? UpdateAction.UPDATE_EXISTING : UpdateAction.DELETE_OLD)
                  : (mergedHasLiveData ? UpdateAction.NEW_ENTRY : UpdateAction.NONE);
