@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LogRecord.Type;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.utils.Throwables;
 
@@ -284,6 +285,25 @@ final class LogFile implements AutoCloseable
             throw new IllegalStateException();
     }
 
+    public void addAll(Type type, Iterable<SSTableReader> toBulkAdd)
+    {
+        for (LogRecord record : makeRecords(type, toBulkAdd))
+            if (!addRecord(record))
+                throw new IllegalStateException();
+    }
+
+    private Collection<LogRecord> makeRecords(Type type, Iterable<SSTableReader> tables)
+    {
+        assert type == Type.ADD || type == Type.REMOVE;
+
+        for (SSTableReader sstable : tables)
+        {
+            File folder = sstable.descriptor.directory;
+            replicas.maybeCreateReplica(folder, getFileName(folder), records);
+        }
+        return LogRecord.make(type, tables);
+    }
+
     private LogRecord makeRecord(Type type, SSTable table)
     {
         assert type == Type.ADD || type == Type.REMOVE;
@@ -413,5 +433,10 @@ final class LogFile implements AutoCloseable
     Collection<LogRecord> getRecords()
     {
         return records;
+    }
+
+    public boolean isEmpty()
+    {
+        return records.isEmpty();
     }
 }
