@@ -327,6 +327,7 @@ public class CompactionsPurgeTest
         Keyspace keyspace = Keyspace.open(KEYSPACE2);
         String cfName = "Standard1";
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+        final boolean enforceStrictLiveness = cfs.metadata().enforceStrictLiveness();
         String key3 = "key3";
 
         // inserts
@@ -361,7 +362,7 @@ public class CompactionsPurgeTest
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key3).build());
         assertEquals(2, partition.rowCount());
         for (Row row : partition)
-            assertFalse(row.hasLiveData(FBUtilities.nowInSeconds()));
+            assertFalse(row.hasLiveData(FBUtilities.nowInSeconds(), enforceStrictLiveness));
     }
 
     @Test

@@ -334,7 +334,11 @@ public class PartitionRangeReadCommand extends ReadCommand
                 CachedPartition cached = cfs.getRawCachedPartition(dk);
                 ClusteringIndexFilter filter = dataRange().clusteringIndexFilter(dk);
 
-                if (cached != null && cfs.isFilterFullyCoveredBy(filter, limits(), cached, nowInSec()))
+                if (cached != null && cfs.isFilterFullyCoveredBy(filter,
+                                                                 limits(),
+                                                                 cached,
+                                                                 nowInSec(),
+                                                                 iter.metadata().enforceStrictLiveness()))
                 {
                     // We won't use 'iter' so close it now.
                     iter.close();

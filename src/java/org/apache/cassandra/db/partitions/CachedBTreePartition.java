@@ -84,10 +84,11 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
 
         int cachedLiveRows = 0;
         int rowsWithNonExpiringCells = 0;
+        boolean enforceStrictLiveness = iterator.metadata().enforceStrictLiveness();
 
         for (Row row : BTree.<Row>iterable(holder.tree))
         {
-            if (row.hasLiveData(nowInSec))
+            if (row.hasLiveData(nowInSec, enforceStrictLiveness))
                 ++cachedLiveRows;
 
             boolean hasNonExpiringLiveCell = false;

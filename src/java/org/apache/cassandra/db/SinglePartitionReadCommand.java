@@ -450,7 +450,7 @@ public class SinglePartitionReadCommand extends ReadCommand
             }
 
             CachedPartition cachedPartition = (CachedPartition)cached;
-            if (cfs.isFilterFullyCoveredBy(clusteringIndexFilter(), limits(), cachedPartition, nowInSec()))
+            if (cfs.isFilterFullyCoveredBy(clusteringIndexFilter(), limits(), cachedPartition, nowInSec(), metadata().enforceStrictLiveness()))
             {
                 cfs.metric.rowCacheHit.inc();
                 Tracing.trace("Row cache hit");
@@ -489,6 +489,7 @@ public class SinglePartitionReadCommand extends ReadCommand
             try
             {
                 final int rowsToCache = metadata().params.caching.rowsPerPartitionToCache();
+                final boolean enforceStrictLiveness = metadata().enforceStrictLiveness();
 
                 @SuppressWarnings("resource") // we close on exception or upon closing the result of this method
                 UnfilteredRowIterator iter = fullPartitionRead(metadata(), nowInSec(), partitionKey()).queryMemtableAndDisk(cfs, executionController);
@@ -512,7 +513,7 @@ public class SinglePartitionReadCommand extends ReadCommand
                             if (unfiltered.isRow())
                             {
                                 Row row = (Row) unfiltered;
-                                if (row.hasLiveData(nowInSec()))
+                                if (row.hasLiveData(nowInSec(), enforceStrictLiveness))
                                     rowsCounted++;
                             }
                             return unfiltered;
@@ -1107,9 +1108,13 @@ public class SinglePartitionReadCommand extends ReadCommand
 
         public PartitionIterator executeInternal(ReadExecutionController controller)
         {
+            // Note that the only difference between the command in a group must be the partition key on which
+            // they applied.
+            boolean enforceStrictLiveness = commands.get(0).metadata().enforceStrictLiveness();
             return limits.filter(UnfilteredPartitionIterators.filter(executeLocally(controller, false), nowInSec),
                                  nowInSec,
-                                 selectsFullPartitions);
+                                 selectsFullPartitions,
+                                 enforceStrictLiveness);
         }
 
         public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
