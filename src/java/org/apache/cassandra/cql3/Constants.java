@@ -333,7 +333,8 @@ public abstract class Constants
 
     public static class Marker extends AbstractMarker
     {
-        protected Marker(int bindIndex, ColumnSpecification receiver)
+        // Constructor is public only for the SuperColumn tables support
+        public Marker(int bindIndex, ColumnSpecification receiver)
         {
             super(bindIndex, receiver);
             assert !receiver.type.isCollection();

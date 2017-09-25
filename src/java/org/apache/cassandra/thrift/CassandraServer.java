@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.SuperColumnCompatibility;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
@@ -435,11 +436,15 @@ public class CassandraServer implements Cassandra.Iface
             ByteBuffer finish = range.reversed ? range.start : range.finish;
             builder.slice(def, start.hasRemaining() ? CellPath.create(start) : CellPath.BOTTOM, finish.hasRemaining() ? CellPath.create(finish) : CellPath.TOP);
 
+            if (metadata.isDense())
+                return builder.build();
+
             // We also want to add any staticly defined column if it's within the range
             AbstractType<?> cmp = metadata.thriftColumnNameType();
+
             for (ColumnDefinition column : metadata.partitionColumns())
             {
-                if (CompactTables.isSuperColumnMapColumn(column))
+                if (SuperColumnCompatibility.isSuperColumnMapColumn(column))
                     continue;
 
                 ByteBuffer name = column.name.bytes;

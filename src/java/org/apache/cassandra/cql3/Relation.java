@@ -162,6 +162,15 @@ public abstract class Relation
     }
 
     /**
+     * Required for SuperColumn compatibility, creates an adapter Relation that remaps all restrictions required for
+     * SuperColumn tables.
+     */
+    public Relation toSuperColumnAdapter()
+    {
+        throw invalidRequest("Unsupported operation (" + this + ") on super column family");
+    }
+
+    /**
      * Creates a new EQ restriction instance.
      *
      * @param cfm the Column Family meta data

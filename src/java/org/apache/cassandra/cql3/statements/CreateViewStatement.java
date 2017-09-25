@@ -139,6 +139,8 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
         if (cfm.isCounter())
             throw new InvalidRequestException("Materialized views are not supported on counter tables");
+        if (cfm.isSuper())
+            throw new InvalidRequestException("Materialized views are not supported on SuperColumn tables");
         if (cfm.isView())
             throw new InvalidRequestException("Materialized views cannot be created against other materialized views");
 

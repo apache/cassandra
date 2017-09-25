@@ -104,6 +104,12 @@ public final class ColumnConditions extends AbstractConditions
         staticConditions.forEach(p -> p.addFunctionsTo(functions));
     }
 
+    // Public for SuperColumn tables support only
+    public Collection<ColumnCondition> columnConditions()
+    {
+        return this.columnConditions;
+    }
+
     /**
      * Creates a new <code>Builder</code> for <code>ColumnConditions</code>.
      * @return a new <code>Builder</code> for <code>ColumnConditions</code>

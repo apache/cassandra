@@ -1,4 +1,5 @@
 3.11.1
+=======
  * Handle limit correctly on tables with strict liveness (CASSANDRA-13883)
  * AbstractTokenTreeBuilder#serializedSize returns wrong value when there is a single leaf and overflow collisions (CASSANDRA-13869)
  * Add a compaction option to TWCS to ignore sstables overlapping checks (CASSANDRA-13418)
@@ -11,6 +12,7 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Fix support for SuperColumn tables (CASSANDRA-12373)
  * Remove non-rpc-ready nodes from counter leader candidates (CASSANDRA-13043)
  * Improve short read protection performance (CASSANDRA-13794)
  * Fix sstable reader to support range-tombstone-marker for multi-slices (CASSANDRA-13787)

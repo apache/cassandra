@@ -23,6 +23,7 @@ import static org.junit.Assert.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -36,6 +37,7 @@ import org.junit.Test;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -45,9 +47,13 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class ViewTest extends CQLTester
 {
@@ -399,6 +405,29 @@ public class ViewTest extends CQLTester
         }
         catch (InvalidQueryException e)
         {
+        }
+    }
+
+    @Test
+    public void testSuperCoumn() throws Throwable
+    {
+        String keyspace = createKeyspaceName();
+        String table = createTableName();
+        SchemaLoader.createKeyspace(keyspace,
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.superCFMD(keyspace, table, AsciiType.instance, AsciiType.instance));
+
+        execute("USE " + keyspace);
+        executeNet(protocolVersion, "USE " + keyspace);
+
+        try
+        {
+            createView("mv_super_column", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + keyspace + "." + table + " WHERE key IS NOT NULL AND column1 IS NOT NULL PRIMARY KEY (key,column1)");
+            Assert.fail("MV on SuperColumn table should fail");
+        }
+        catch (InvalidQueryException e)
+        {
+            assertEquals("Materialized views are not supported on SuperColumn tables", e.getMessage());
         }
     }
 

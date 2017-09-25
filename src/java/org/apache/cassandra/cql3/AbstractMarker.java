@@ -58,7 +58,7 @@ public abstract class AbstractMarker extends Term.NonTerminal
      */
     public static class Raw extends Term.Raw
     {
-        protected final int bindIndex;
+        private final int bindIndex;
 
         public Raw(int bindIndex)
         {
@@ -104,6 +104,11 @@ public abstract class AbstractMarker extends Term.NonTerminal
         public String getText()
         {
             return "?";
+        }
+
+        public int bindIndex()
+        {
+            return bindIndex;
         }
     }
 
@@ -156,7 +161,7 @@ public abstract class AbstractMarker extends Term.NonTerminal
         @Override
         public AbstractMarker prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            return new Lists.Marker(bindIndex, makeInReceiver(receiver));
+            return new Lists.Marker(bindIndex(), makeInReceiver(receiver));
         }
     }
 }

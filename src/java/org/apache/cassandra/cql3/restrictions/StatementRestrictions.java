@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -37,7 +38,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -176,7 +176,10 @@ public final class StatementRestrictions
             }
             else
             {
-                addRestriction(relation.toRestriction(cfm, boundNames));
+                if (cfm.isSuper() && cfm.isDense() && !relation.onToken())
+                    addRestriction(relation.toSuperColumnAdapter().toRestriction(cfm, boundNames));
+                else
+                    addRestriction(relation.toRestriction(cfm, boundNames));
             }
         }
 
@@ -250,9 +253,16 @@ public final class StatementRestrictions
                                      Joiner.on(", ").join(nonPrimaryKeyColumns));
             }
             if (hasQueriableIndex)
+            {
                 usesSecondaryIndexing = true;
-            else if (!allowFiltering)
+            }
+            else if (!allowFiltering && !cfm.isSuper())
+            {
                 throw invalidRequest(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+            }
+
+            checkFalse(clusteringColumnsRestrictions.isEmpty() && cfm.isSuper(),
+                       "Filtering is not supported on SuperColumn tables");
 
             filterRestrictions.add(nonPrimaryKeyRestrictions);
         }
@@ -837,5 +847,16 @@ public final class StatementRestrictions
     public boolean hasRegularColumnsRestrictions()
     {
         return hasRegularColumnsRestrictions;
+    }
+
+    private SuperColumnCompatibility.SuperColumnRestrictions cached;
+    public SuperColumnCompatibility.SuperColumnRestrictions getSuperColumnRestrictions()
+    {
+        assert cfm.isSuper() && cfm.isDense();
+
+        if (cached == null)
+            cached = new SuperColumnCompatibility.SuperColumnRestrictions(Iterators.concat(clusteringColumnsRestrictions.iterator(),
+                                                                                           nonPrimaryKeyRestrictions.iterator()));
+        return cached;
     }
 }

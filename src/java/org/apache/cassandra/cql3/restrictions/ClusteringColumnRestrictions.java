@@ -223,4 +223,8 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         return restriction.isContains() || restriction.isLIKE() || index != restriction.getFirstColumn().position();
     }
 
+    public Iterator<SingleRestriction> iterator()
+    {
+        return restrictions.iterator();
+    }
 }

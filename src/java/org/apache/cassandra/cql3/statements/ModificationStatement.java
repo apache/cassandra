@@ -549,10 +549,19 @@ public abstract class ModificationStatement implements CQLStatement
                 defs.addAll(cfm.partitionKeyColumns());
                 defs.addAll(cfm.clusteringColumns());
             }
-            for (ColumnDefinition def : columnsWithConditions)
-                defs.add(def);
-            selection = Selection.forColumns(cfm, new ArrayList<>(defs));
 
+
+            if (cfm.isSuper() && cfm.isDense())
+            {
+                defs.add(cfm.superColumnValueColumn());
+            }
+            else
+            {
+                for (ColumnDefinition def : columnsWithConditions)
+                    defs.add(def);
+            }
+
+            selection = Selection.forColumns(cfm, new ArrayList<>(defs));
         }
 
         Selection.ResultSetBuilder builder = selection.resultSetBuilder(options, false);
