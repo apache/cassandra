@@ -1,4 +1,5 @@
 4.0
+ * Properly close StreamCompressionInputStream to release any ByteBuf (CASSANDRA-13906)
  * Add SERIAL and LOCAL_SERIAL support for cassandra-stress (CASSANDRA-13925)
  * LCS needlessly checks for L0 STCS candidates multiple times (CASSANDRA-12961)
  * Correctly close netty channels when a stream session ends (CASSANDRA-13905)

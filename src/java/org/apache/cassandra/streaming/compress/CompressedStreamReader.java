@@ -75,14 +75,12 @@ public class CompressedStreamReader extends StreamReader
                      session.planId(), fileSeqNum, session.peer, repairedAt, totalSize, cfs.keyspace.getName(), pendingRepair,
                      cfs.getTableName());
 
-        CompressedInputStream cis = new CompressedInputStream(inputPlus, compressionInfo,
-                                                              ChecksumType.CRC32, cfs::getCrcCheckChance);
-        TrackedDataInputPlus in = new TrackedDataInputPlus(cis);
-
-        StreamDeserializer deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
+        StreamDeserializer deserializer = null;
         SSTableMultiWriter writer = null;
-        try
+        try (CompressedInputStream cis = new CompressedInputStream(inputPlus, compressionInfo, ChecksumType.CRC32, cfs::getCrcCheckChance))
         {
+            TrackedDataInputPlus in = new TrackedDataInputPlus(cis);
+            deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
             String filename = writer.getFilename();
             int sectionIdx = 0;
@@ -109,8 +107,9 @@ public class CompressedStreamReader extends StreamReader
         }
         catch (Throwable e)
         {
+            Object partitionKey = deserializer != null ? deserializer.partitionKey() : "";
             logger.warn("[Stream {}] Error while reading partition {} from stream on ks='{}' and table='{}'.",
-                        session.planId(), deserializer.partitionKey(), cfs.keyspace.getName(), cfs.getTableName());
+                        session.planId(), partitionKey, cfs.keyspace.getName(), cfs.getTableName());
             if (writer != null)
             {
                 writer.abort(e);
@@ -118,10 +117,6 @@ public class CompressedStreamReader extends StreamReader
             if (extractIOExceptionCause(e).isPresent())
                 throw e;
             throw Throwables.propagate(e);
-        }
-        finally
-        {
-            cis.close();
         }
     }
 

@@ -44,7 +44,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
  * InputStream which reads data from underlining source with given {@link CompressionInfo}. Uses {@link #buffer} as a buffer
  * for uncompressed data (which is read by stream consumers - {@link StreamDeserializer} in this case).
  */
-public class CompressedInputStream extends RebufferingInputStream
+public class CompressedInputStream extends RebufferingInputStream implements AutoCloseable
 {
 
     private static final Logger logger = LoggerFactory.getLogger(CompressedInputStream.class);
@@ -200,6 +200,8 @@ public class CompressedInputStream extends RebufferingInputStream
     }
 
     /**
+     * {@inheritDoc}
+     *
      * Releases the resources specific to this instance, but not the {@link DataInputPlus} that is used by the {@link Reader}.
      */
     @Override
