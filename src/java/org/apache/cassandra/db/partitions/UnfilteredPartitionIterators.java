@@ -19,8 +19,9 @@ package org.apache.cassandra.db.partitions;
 
 import java.io.IOError;
 import java.io.IOException;
-import java.security.MessageDigest;
 import java.util.*;
+
+import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -234,10 +235,10 @@ public abstract class UnfilteredPartitionIterators
      * Digests the the provided iterator.
      *
      * @param iterator the iterator to digest.
-     * @param digest the {@code MessageDigest} to use for the digest.
+     * @param hasher the {@link Hasher} to use for the digest.
      * @param version the messaging protocol to use when producing the digest.
      */
-    public static void digest(UnfilteredPartitionIterator iterator, MessageDigest digest, int version)
+    public static void digest(UnfilteredPartitionIterator iterator, Hasher hasher, int version)
     {
         try (UnfilteredPartitionIterator iter = iterator)
         {
@@ -245,7 +246,7 @@ public abstract class UnfilteredPartitionIterators
             {
                 try (UnfilteredRowIterator partition = iter.next())
                 {
-                    UnfilteredRowIterators.digest(partition, digest, version);
+                    UnfilteredRowIterators.digest(partition, hasher, version);
                 }
             }
         }

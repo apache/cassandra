@@ -19,15 +19,15 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.util.Arrays;
 
+import com.google.common.hash.Hasher;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
@@ -261,8 +261,8 @@ public class CounterCellTest
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
         ByteBuffer col = ByteBufferUtil.bytes("val");
 
-        MessageDigest digest1 = MessageDigest.getInstance("md5");
-        MessageDigest digest2 = MessageDigest.getInstance("md5");
+        Hasher hasher1 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+        Hasher hasher2 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
 
         CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 2, 2);
         state.writeRemote(CounterId.fromInt(1), 4L, 4L);
@@ -275,9 +275,9 @@ public class CounterCellTest
         ColumnMetadata cDef = cfs.metadata().getColumn(col);
         Cell cleared = BufferCell.live(cDef, 5, CounterContext.instance().clearAllLocal(state.context));
 
-        original.digest(digest1);
-        cleared.digest(digest2);
+        original.digest(hasher1);
+        cleared.digest(hasher2);
 
-        assert Arrays.equals(digest1.digest(), digest2.digest());
+        Assert.assertEquals(hasher1.hash(), hasher2.hash());
     }
 }

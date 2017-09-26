@@ -17,7 +17,6 @@
 package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.AbstractCollection;
 import java.util.Objects;
 import java.util.function.Function;
@@ -25,13 +24,14 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import com.google.common.collect.Iterables;
+import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HashingUtils;
 
 /**
  * Base abstract class for {@code Row} implementations.
@@ -61,16 +61,16 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
         return clustering() == Clustering.STATIC_CLUSTERING;
     }
 
-    public void digest(MessageDigest digest)
+    public void digest(Hasher hasher)
     {
-        FBUtilities.updateWithByte(digest, kind().ordinal());
-        clustering().digest(digest);
+        HashingUtils.updateWithByte(hasher, kind().ordinal());
+        clustering().digest(hasher);
 
-        deletion().digest(digest);
-        primaryKeyLivenessInfo().digest(digest);
+        deletion().digest(hasher);
+        primaryKeyLivenessInfo().digest(hasher);
 
         for (ColumnData cd : this)
-            cd.digest(digest);
+            cd.digest(hasher);
     }
 
     public void validateData(TableMetadata metadata)

@@ -18,8 +18,9 @@
 package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.Objects;
+
+import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
@@ -144,11 +145,11 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
         return new RangeTombstoneBoundMarker(openBound(reversed), startDeletion);
     }
 
-    public void digest(MessageDigest digest)
+    public void digest(Hasher hasher)
     {
-        bound.digest(digest);
-        endDeletion.digest(digest);
-        startDeletion.digest(digest);
+        bound.digest(hasher);
+        endDeletion.digest(hasher);
+        startDeletion.digest(hasher);
     }
 
     public String toString(TableMetadata metadata)

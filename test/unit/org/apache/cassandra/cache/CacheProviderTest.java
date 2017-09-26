@@ -19,12 +19,12 @@
 package org.apache.cassandra.cache;
 
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.hash.Hasher;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -45,6 +45,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HashingUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -104,18 +105,11 @@ public class CacheProviderTest
     private void assertDigests(IRowCacheEntry one, CachedBTreePartition two)
     {
         assertTrue(one instanceof CachedBTreePartition);
-        try
-        {
-            MessageDigest d1 = MessageDigest.getInstance("MD5");
-            MessageDigest d2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(((CachedBTreePartition) one).unfilteredIterator(), d1, MessagingService.current_version);
-            UnfilteredRowIterators.digest(((CachedBTreePartition) two).unfilteredIterator(), d2, MessagingService.current_version);
-            assertTrue(MessageDigest.isEqual(d1.digest(), d2.digest()));
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            throw new RuntimeException(e);
-        }
+        Hasher h1 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+        Hasher h2 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+        UnfilteredRowIterators.digest(((CachedBTreePartition) one).unfilteredIterator(), h1, MessagingService.current_version);
+        UnfilteredRowIterators.digest(((CachedBTreePartition) two).unfilteredIterator(), h2, MessagingService.current_version);
+        Assert.assertEquals(h1.hash(), h2.hash());
     }
 
     private void concurrentCase(final CachedBTreePartition partition, final ICache<MeasureableString, IRowCacheEntry> cache) throws InterruptedException

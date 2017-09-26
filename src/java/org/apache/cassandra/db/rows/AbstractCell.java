@@ -18,8 +18,9 @@
 package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.Objects;
+
+import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DeletionPurger;
@@ -28,7 +29,7 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HashingUtils;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
@@ -119,22 +120,22 @@ public abstract class AbstractCell extends Cell
                + (path == null ? 0 : path.dataSize());
     }
 
-    public void digest(MessageDigest digest)
+    public void digest(Hasher hasher)
     {
         if (isCounterCell())
         {
-            CounterContext.instance().updateDigest(digest, value());
+            CounterContext.instance().updateDigest(hasher, value());
         }
         else
         {
-            digest.update(value().duplicate());
+            HashingUtils.updateBytes(hasher, value().duplicate());
         }
 
-        FBUtilities.updateWithLong(digest, timestamp());
-        FBUtilities.updateWithInt(digest, ttl());
-        FBUtilities.updateWithBoolean(digest, isCounterCell());
+        HashingUtils.updateWithLong(hasher, timestamp());
+        HashingUtils.updateWithInt(hasher, ttl());
+        HashingUtils.updateWithBoolean(hasher, isCounterCell());
         if (path() != null)
-            path().digest(digest);
+            path().digest(hasher);
     }
 
     public void validate()

@@ -17,8 +17,9 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.security.MessageDigest;
 import java.util.Comparator;
+
+import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DeletionPurger;
@@ -67,9 +68,9 @@ public abstract class ColumnData
     /**
      * Adds the data to the provided digest.
      *
-     * @param digest the {@code MessageDigest} to add the data to.
+     * @param hasher the {@link Hasher} to add the data to.
      */
-    public abstract void digest(MessageDigest digest);
+    public abstract void digest(Hasher hasher);
 
     /**
      * Returns a copy of the data where all timestamps for live data have replaced by {@code newTimestamp} and

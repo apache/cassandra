@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.schema;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.utils.HashingUtils;
 
 public final class SchemaConstants
 {
@@ -63,14 +66,7 @@ public final class SchemaConstants
 
     static
     {
-        try
-        {
-            emptyVersion = UUID.nameUUIDFromBytes(MessageDigest.getInstance("MD5").digest());
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            throw new AssertionError();
-        }
+        emptyVersion = UUID.nameUUIDFromBytes(HashingUtils.CURRENT_HASH_FUNCTION.newHasher().hash().asBytes());
     }
 
     /**

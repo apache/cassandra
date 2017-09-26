@@ -22,8 +22,6 @@ import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.net.*;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.zip.CRC32;
@@ -40,7 +38,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
@@ -92,35 +89,7 @@ public class FBUtilities
             return Runtime.getRuntime().availableProcessors();
     }
 
-    private static final FastThreadLocal<MessageDigest> localMD5Digest = new FastThreadLocal<MessageDigest>()
-    {
-        @Override
-        protected MessageDigest initialValue()
-        {
-            return newMessageDigest("MD5");
-        }
-    };
-
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
-
-    public static MessageDigest threadLocalMD5Digest()
-    {
-        MessageDigest md = localMD5Digest.get();
-        md.reset();
-        return md;
-    }
-
-    public static MessageDigest newMessageDigest(String algorithm)
-    {
-        try
-        {
-            return MessageDigest.getInstance(algorithm);
-        }
-        catch (NoSuchAlgorithmException nsae)
-        {
-            throw new RuntimeException("the requested digest algorithm (" + algorithm + ") is not available", nsae);
-        }
-    }
 
     /**
      * Please use getBroadcastAddress instead. You need this only when you have to listen/connect.
@@ -269,25 +238,6 @@ public class FBUtilities
             out[i] = (byte)((left[i] & 0xFF) ^ (right[i] & 0xFF));
         }
         return out;
-    }
-
-    public static byte[] hash(ByteBuffer... data)
-    {
-        MessageDigest messageDigest = localMD5Digest.get();
-        for (ByteBuffer block : data)
-        {
-            if (block.hasArray())
-                messageDigest.update(block.array(), block.arrayOffset() + block.position(), block.remaining());
-            else
-                messageDigest.update(block.duplicate());
-        }
-
-        return messageDigest.digest();
-    }
-
-    public static BigInteger hashToBigInteger(ByteBuffer data)
-    {
-        return new BigInteger(hash(data)).abs();
     }
 
     public static void sortSampledKeys(List<DecoratedKey> keys, Range<Token> range)
@@ -828,42 +778,6 @@ public class FBUtilities
         File historyDir = new File(System.getProperty("user.home"), ".cassandra");
         FileUtils.createDirectory(historyDir);
         return historyDir;
-    }
-
-    public static void updateWithShort(MessageDigest digest, int val)
-    {
-        digest.update((byte) ((val >> 8) & 0xFF));
-        digest.update((byte) (val & 0xFF));
-    }
-
-    public static void updateWithByte(MessageDigest digest, int val)
-    {
-        digest.update((byte) (val & 0xFF));
-    }
-
-    public static void updateWithInt(MessageDigest digest, int val)
-    {
-        digest.update((byte) ((val >>> 24) & 0xFF));
-        digest.update((byte) ((val >>> 16) & 0xFF));
-        digest.update((byte) ((val >>>  8) & 0xFF));
-        digest.update((byte) ((val >>> 0) & 0xFF));
-    }
-
-    public static void updateWithLong(MessageDigest digest, long val)
-    {
-        digest.update((byte) ((val >>> 56) & 0xFF));
-        digest.update((byte) ((val >>> 48) & 0xFF));
-        digest.update((byte) ((val >>> 40) & 0xFF));
-        digest.update((byte) ((val >>> 32) & 0xFF));
-        digest.update((byte) ((val >>> 24) & 0xFF));
-        digest.update((byte) ((val >>> 16) & 0xFF));
-        digest.update((byte) ((val >>>  8) & 0xFF));
-        digest.update((byte)  ((val >>> 0) & 0xFF));
-    }
-
-    public static void updateWithBoolean(MessageDigest digest, boolean val)
-    {
-        updateWithByte(digest, val ? 0 : 1);
     }
 
     public static void closeAll(List<? extends AutoCloseable> l) throws Exception

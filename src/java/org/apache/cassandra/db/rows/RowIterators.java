@@ -17,15 +17,14 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.security.MessageDigest;
-
+import com.google.common.hash.Hasher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HashingUtils;
 
 /**
  * Static methods to work with row iterators.
@@ -36,20 +35,20 @@ public abstract class RowIterators
 
     private RowIterators() {}
 
-    public static void digest(RowIterator iterator, MessageDigest digest)
+    public static void digest(RowIterator iterator, Hasher hasher)
     {
         // TODO: we're not computing digest the same way that old nodes. This is
         // currently ok as this is only used for schema digest and the is no exchange
         // of schema digest between different versions. If this changes however,
         // we'll need to agree on a version.
-        digest.update(iterator.partitionKey().getKey().duplicate());
-        iterator.columns().regulars.digest(digest);
-        iterator.columns().statics.digest(digest);
-        FBUtilities.updateWithBoolean(digest, iterator.isReverseOrder());
-        iterator.staticRow().digest(digest);
+        HashingUtils.updateBytes(hasher, iterator.partitionKey().getKey().duplicate());
+        iterator.columns().regulars.digest(hasher);
+        iterator.columns().statics.digest(hasher);
+        HashingUtils.updateWithBoolean(hasher, iterator.isReverseOrder());
+        iterator.staticRow().digest(hasher);
 
         while (iterator.hasNext())
-            iterator.next().digest(digest);
+            iterator.next().digest(hasher);
     }
 
     /**

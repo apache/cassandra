@@ -18,8 +18,8 @@
 package org.apache.cassandra.db.rows;
 
 import java.util.*;
-import java.security.MessageDigest;
 
+import com.google.common.hash.Hasher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +33,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HashingUtils;
 import org.apache.cassandra.utils.IMergeIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
@@ -143,14 +144,14 @@ public abstract class UnfilteredRowIterators
      * Digests the partition represented by the provided iterator.
      *
      * @param iterator the iterator to digest.
-     * @param digest the {@code MessageDigest} to use for the digest.
+     * @param hasher the {@link Hasher} to use for the digest.
      * @param version the messaging protocol to use when producing the digest.
      */
-    public static void digest(UnfilteredRowIterator iterator, MessageDigest digest, int version)
+    public static void digest(UnfilteredRowIterator iterator, Hasher hasher, int version)
     {
-        digest.update(iterator.partitionKey().getKey().duplicate());
-        iterator.partitionLevelDeletion().digest(digest);
-        iterator.columns().regulars.digest(digest);
+        HashingUtils.updateBytes(hasher, iterator.partitionKey().getKey().duplicate());
+        iterator.partitionLevelDeletion().digest(hasher);
+        iterator.columns().regulars.digest(hasher);
         // When serializing an iterator, we skip the static columns if the iterator has not static row, even if the
         // columns() object itself has some (the columns() is a superset of what the iterator actually contains, and
         // will correspond to the queried columns pre-serialization). So we must avoid taking the satic column names
@@ -162,14 +163,14 @@ public abstract class UnfilteredRowIterators
         // different), but removing them entirely is stricly speaking a breaking change (it would create mismatches on
         // upgrade) so we can only do on the next protocol version bump.
         if (iterator.staticRow() != Rows.EMPTY_STATIC_ROW)
-            iterator.columns().statics.digest(digest);
-        FBUtilities.updateWithBoolean(digest, iterator.isReverseOrder());
-        iterator.staticRow().digest(digest);
+            iterator.columns().statics.digest(hasher);
+        HashingUtils.updateWithBoolean(hasher, iterator.isReverseOrder());
+        iterator.staticRow().digest(hasher);
 
         while (iterator.hasNext())
         {
             Unfiltered unfiltered = iterator.next();
-            unfiltered.digest(digest);
+            unfiltered.digest(hasher);
         }
     }
 

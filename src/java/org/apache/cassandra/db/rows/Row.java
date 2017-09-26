@@ -18,17 +18,17 @@
 package org.apache.cassandra.db.rows;
 
 import java.util.*;
-import java.security.MessageDigest;
 import java.util.function.Consumer;
 
 import com.google.common.base.Predicate;
+import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Commit;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HashingUtils;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
@@ -376,10 +376,10 @@ public interface Row extends Unfiltered, Collection<ColumnData>
             return time.deletes(cell);
         }
 
-        public void digest(MessageDigest digest)
+        public void digest(Hasher hasher)
         {
-            time.digest(digest);
-            FBUtilities.updateWithBoolean(digest, isShadowable);
+            time.digest(hasher);
+            HashingUtils.updateWithBoolean(hasher, isShadowable);
         }
 
         public int dataSize()
