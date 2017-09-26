@@ -1,4 +1,5 @@
 4.0
+ * Fix buffer length comparison when decompressing in netty-based streaming (CASSANDRA-13899)
  * Properly close StreamCompressionInputStream to release any ByteBuf (CASSANDRA-13906)
  * Add SERIAL and LOCAL_SERIAL support for cassandra-stress (CASSANDRA-13925)
  * LCS needlessly checks for L0 STCS candidates multiple times (CASSANDRA-12961)

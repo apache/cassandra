@@ -151,13 +151,12 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
 
     private void decompress(ByteBuffer compressed) throws IOException
     {
-        final int compressedChunkLength = info.parameters.chunkLength();
         int length = compressed.remaining();
 
-        // uncompress if the buffer size is less than chunk size. else, if the buffer size is equal to the compressedChunkLength,
+        // uncompress if the buffer size is less than the max chunk size. else, if the buffer size is greater than or equal to the maxCompressedLength,
         // we assume the buffer is not compressed. see CASSANDRA-10520
         final boolean releaseCompressedBuffer;
-        if (length - CHECKSUM_LENGTH < compressedChunkLength)
+        if (length - CHECKSUM_LENGTH < info.parameters.maxCompressedLength())
         {
             buffer.clear();
             compressed.limit(length - CHECKSUM_LENGTH);
@@ -191,6 +190,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
             FileUtils.clean(compressed);
 
         // buffer offset is always aligned
+        final int compressedChunkLength = info.parameters.chunkLength();
         bufferOffset = current & ~(compressedChunkLength - 1);
     }
 
