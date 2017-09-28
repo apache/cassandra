@@ -324,10 +324,21 @@ public abstract class UnfilteredPartitionIterators
                     if (!nextReturned)
                         return hasNext;
 
-                    // We can't answer this until the previously returned iterator has been fully consumed,
-                    // so complain if that's not the case.
-                    if (next != null && next.hasNext())
-                        throw new IllegalStateException("Cannot call hasNext() until the previous iterator has been fully consumed");
+                    /*
+                     * We must consume the previous iterator before we start deserializing the next partition, so
+                     * that we start from the right position in the byte stream.
+                     *
+                     * It's possible however that it hasn't been fully consumed by upstream consumers - for example,
+                     * if a per partition limit caused merge iterator to stop early (see CASSANDRA-13911).
+                     *
+                     * In that case we must drain the unconsumed iterator fully ourselves, here.
+                     *
+                     * NOTE: transformations of the upstream BaseRows won't be applied for these consumed elements,
+                     * so, for exmaple, they won't be counted.
+                     */
+                    if (null != next)
+                        while (next.hasNext())
+                            next.next();
 
                     try
                     {
