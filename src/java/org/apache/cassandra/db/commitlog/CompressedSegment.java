@@ -134,7 +134,7 @@ public class CompressedSegment extends CommitLogSegment
 
             // Only one thread can be here at a given time.
             // Protected by synchronization on CommitLogSegment.sync().
-            writeSyncMarker(compressedBuffer, 0, (int) channel.position(), (int) channel.position() + compressedBuffer.remaining());
+            writeSyncMarker(id, compressedBuffer, 0, (int) channel.position(), (int) channel.position() + compressedBuffer.remaining());
             commitLog.allocator.addSize(compressedBuffer.limit());
             channel.write(compressedBuffer);
             assert channel.position() - lastWrittenPos == compressedBuffer.limit();

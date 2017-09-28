@@ -315,7 +315,7 @@ public abstract class CommitLogSegment
         syncComplete.signalAll();
     }
 
-    protected void writeSyncMarker(ByteBuffer buffer, int offset, int filePos, int nextMarker)
+    protected static void writeSyncMarker(long id, ByteBuffer buffer, int offset, int filePos, int nextMarker)
     {
         CRC32 crc = new CRC32();
         updateChecksumInt(crc, (int) (id & 0xFFFFFFFFL));
