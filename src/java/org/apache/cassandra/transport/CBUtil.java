@@ -444,12 +444,7 @@ public abstract class CBUtil
         cb.writeInt(remaining);
 
         if (remaining > 0)
-        {
-            // write and reset original position so we not need to create a duplicate.
-            int position = bytes.position();
-            cb.writeBytes(bytes);
-            bytes.position(position);
-        }
+            cb.writeBytes(bytes.duplicate());
     }
 
     public static int sizeOfValue(byte[] bytes)
