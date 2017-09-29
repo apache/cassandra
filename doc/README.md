@@ -29,3 +29,15 @@ pip install sphinx sphinx_rtd_theme
 The documentation can then be built from this directory by calling `make html`
 (or `make.bat html` on windows). Alternatively, the top-level `ant gen-doc`
 target can be used.
+
+To build the documentation with Docker Compose, run:
+
+```bash
+cd ./doc
+
+# build the Docker image
+docker-compose build build-docs
+
+# build the documentation
+docker-compose run build-docs
+```

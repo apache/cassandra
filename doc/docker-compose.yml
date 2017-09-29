@@ -1,0 +1,7 @@
+version: '2.1'
+
+services:
+  build-docs:
+    build: .
+    volumes:
+      - ..:/usr/src/code
