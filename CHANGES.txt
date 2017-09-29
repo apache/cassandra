@@ -1,5 +1,6 @@
 3.11.1
 =======
+ * Fix the computation of cdc_total_space_in_mb for exabyte filesystems (CASSANDRA-13808)
  * Handle limit correctly on tables with strict liveness (CASSANDRA-13883)
  * AbstractTokenTreeBuilder#serializedSize returns wrong value when there is a single leaf and overflow collisions (CASSANDRA-13869)
  * Add a compaction option to TWCS to ignore sstables overlapping checks (CASSANDRA-13418)
