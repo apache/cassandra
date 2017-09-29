@@ -76,7 +76,7 @@ public class MemoryMappedSegment extends CommitLogSegment
 
         // write previous sync marker to point to next sync marker
         // we don't chain the crcs here to ensure this method is idempotent if it fails
-        writeSyncMarker(buffer, startMarker, startMarker, nextMarker);
+        writeSyncMarker(id, buffer, startMarker, startMarker, nextMarker);
 
         try
         {

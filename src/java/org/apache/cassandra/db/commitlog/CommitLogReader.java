@@ -34,6 +34,8 @@ import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadError
 import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadException;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.SerializationHelper;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -75,13 +77,60 @@ public class CommitLogReader
         readAllFiles(handler, files, CommitLogPosition.NONE);
     }
 
+    private static boolean shouldSkip(File file) throws IOException, ConfigurationException
+    {
+        CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
+        if (desc.version < CommitLogDescriptor.VERSION_21)
+        {
+            return false;
+        }
+        try(RandomAccessReader reader = RandomAccessReader.open(file))
+        {
+            CommitLogDescriptor.readHeader(reader, DatabaseDescriptor.getEncryptionContext());
+            int end = reader.readInt();
+            long filecrc = reader.readInt() & 0xffffffffL;
+            return end == 0 && filecrc == 0;
+        }
+    }
+
+    private static List<File> filterCommitLogFiles(File[] toFilter)
+    {
+        List<File> filtered = new ArrayList<>(toFilter.length);
+        for (File file: toFilter)
+        {
+            try
+            {
+                if (shouldSkip(file))
+                {
+                    logger.info("Skipping playback of empty log: {}", file.getName());
+                }
+                else
+                {
+                    filtered.add(file);
+                }
+            }
+            catch (Exception e)
+            {
+                // let recover deal with it
+                filtered.add(file);
+            }
+        }
+
+        return filtered;
+    }
+
     /**
      * Reads all passed in files with minPosition, no start, and no mutation limit.
      */
     public void readAllFiles(CommitLogReadHandler handler, File[] files, CommitLogPosition minPosition) throws IOException
     {
-        for (int i = 0; i < files.length; i++)
-            readCommitLogSegment(handler, files[i], minPosition, ALL_MUTATIONS, i + 1 == files.length);
+        List<File> filteredLogs = filterCommitLogFiles(files);
+        int i = 0;
+        for (File file: filteredLogs)
+        {
+            i++;
+            readCommitLogSegment(handler, file, minPosition, ALL_MUTATIONS, i == filteredLogs.size());
+        }
     }
 
     /**

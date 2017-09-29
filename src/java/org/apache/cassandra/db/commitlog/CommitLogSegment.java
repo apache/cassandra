@@ -347,7 +347,7 @@ public abstract class CommitLogSegment
      * @param filePos The current position in the target file where the sync marker will be written (most likely different from the buffer position).
      * @param nextMarker The file position of where the next sync marker should be.
      */
-    protected void writeSyncMarker(ByteBuffer buffer, int offset, int filePos, int nextMarker)
+    protected static void writeSyncMarker(long id, ByteBuffer buffer, int offset, int filePos, int nextMarker)
     {
         if (filePos > nextMarker)
             throw new IllegalArgumentException(String.format("commit log sync marker's current file position %d is greater than next file position %d", filePos, nextMarker));
