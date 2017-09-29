@@ -17,8 +17,6 @@
 .. highlight:: cql
 
 .. _arithmetic_operators:
-.. _number-arithmetic:
-.. _datetime--arithmetic:
 
 Arithmetic Operators
 --------------------
