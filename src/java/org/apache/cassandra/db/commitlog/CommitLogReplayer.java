@@ -144,10 +144,13 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     public void replayFiles(File[] clogs) throws IOException
     {
-        for (int i = 0; i < clogs.length; i++)
+        List<File> filteredLogs = CommitLogReader.filterCommitLogFiles(clogs);
+        int i = 0;
+        for (File file: filteredLogs)
         {
+            i++;
             sawCDCMutation = false;
-            commitLogReader.readCommitLogSegment(this, clogs[i], globalPosition, i == clogs.length - 1);
+            commitLogReader.readCommitLogSegment(this, file, globalPosition, i == filteredLogs.size());
             if (sawCDCMutation)
                 handleCDCReplayCompletion(clogs[i]);
         }

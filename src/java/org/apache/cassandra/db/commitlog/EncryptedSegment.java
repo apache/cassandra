@@ -43,7 +43,7 @@ import static org.apache.cassandra.security.EncryptionUtils.ENCRYPTED_BLOCK_HEAD
  * The format of the encrypted commit log is as follows:
  * - standard commit log header (as written by {@link CommitLogDescriptor#writeHeader(ByteBuffer, CommitLogDescriptor)})
  * - a series of 'sync segments' that are written every time the commit log is sync()'ed
- * -- a sync section header, see {@link CommitLogSegment#writeSyncMarker(ByteBuffer, int, int, int)}
+ * -- a sync section header, see {@link CommitLogSegment#writeSyncMarker(long, ByteBuffer, int, int, int)}
  * -- total plain text length for this section
  * -- a series of encrypted data blocks, each of which contains:
  * --- the length of the encrypted block (cipher text)
@@ -136,7 +136,7 @@ public class EncryptedSegment extends FileDirectSegment
 
             // rewind to the beginning of the section and write out the sync marker
             buffer.position(0).limit(ENCRYPTED_SECTION_HEADER_SIZE);
-            writeSyncMarker(buffer, 0, (int) syncMarkerPosition, (int) lastWrittenPos);
+            writeSyncMarker(id, buffer, 0, (int) syncMarkerPosition, (int) lastWrittenPos);
             buffer.putInt(SYNC_MARKER_SIZE, length);
             buffer.rewind();
             manager.addSize(buffer.limit());
