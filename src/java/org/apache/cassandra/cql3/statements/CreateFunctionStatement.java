@@ -76,7 +76,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         this.ifNotExists = ifNotExists;
     }
 
-    public Prepared prepare() throws InvalidRequestException
+    public Prepared prepare(ClientState clientState) throws InvalidRequestException
     {
         if (new HashSet<>(argNames).size() != argNames.size())
             throw new InvalidRequestException(String.format("duplicate argument names for given function %s with argument names %s",
@@ -87,7 +87,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
             argTypes.add(prepareType("arguments", rawType));
 
         returnType = prepareType("return type", rawReturnType);
-        return super.prepare();
+        return super.prepare(clientState);
     }
 
     public void prepareKeyspace(ClientState state) throws InvalidRequestException

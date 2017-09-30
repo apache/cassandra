@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -24,11 +27,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.transport.Server;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-import org.junit.Assert;
-import org.junit.Test;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
@@ -264,6 +262,13 @@ public class AlterTest extends CQLTester
         flush();
         execute("alter table %s drop v");
         execute("alter table %s add v int");
+    }
+
+    @Test(expected = SyntaxException.class)
+    public void renameToEmptyTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c1 int, v int, PRIMARY KEY (k, c1))");
+        execute("ALTER TABLE %s RENAME c1 TO \"\"");
     }
 
     @Test

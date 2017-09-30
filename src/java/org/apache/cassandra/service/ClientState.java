@@ -81,6 +81,12 @@ public class ClientState
     private volatile AuthenticatedUser user;
     private volatile String keyspace;
 
+    /**
+     * Force Compact Tables to be represented as CQL ones for the current client session (simulates
+     * ALTER .. DROP COMPACT STORAGE but only for this session)
+     */
+    private volatile boolean noCompactMode;
+
     private static final QueryHandler cqlQueryHandler;
     static
     {
@@ -251,6 +257,16 @@ public class ClientState
         if (user != null && Schema.instance.getKSMetaData(ks) == null)
             throw new InvalidRequestException("Keyspace '" + ks + "' does not exist");
         keyspace = ks;
+    }
+
+    public void setNoCompactMode()
+    {
+        this.noCompactMode = true;
+    }
+
+    public boolean isNoCompactMode()
+    {
+        return noCompactMode;
     }
 
     /**

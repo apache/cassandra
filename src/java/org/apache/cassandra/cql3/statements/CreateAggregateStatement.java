@@ -78,7 +78,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         this.ifNotExists = ifNotExists;
     }
 
-    public Prepared prepare()
+    public Prepared prepare(ClientState clientState)
     {
         argTypes = new ArrayList<>(argRawTypes.size());
         for (CQL3Type.Raw rawType : argRawTypes)
@@ -136,7 +136,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("INITCOND must not be empty for all types except TEXT, ASCII, BLOB");
         }
 
-        return super.prepare();
+        return super.prepare(clientState);
     }
 
     private AbstractType<?> prepareType(String typeName, CQL3Type.Raw rawType)

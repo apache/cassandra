@@ -781,7 +781,7 @@ createTriggerStatement returns [CreateTriggerStatement expr]
     @init {
         boolean ifNotExists = false;
     }
-    : K_CREATE K_TRIGGER (K_IF K_NOT K_EXISTS { ifNotExists = true; } )? (name=cident)
+    : K_CREATE K_TRIGGER (K_IF K_NOT K_EXISTS { ifNotExists = true; } )? (name=noncol_ident)
         K_ON cf=columnFamilyName K_USING cls=STRING_LITERAL
       { $expr = new CreateTriggerStatement(cf, name.toString(), $cls.text, ifNotExists); }
     ;
@@ -791,7 +791,7 @@ createTriggerStatement returns [CreateTriggerStatement expr]
  */
 dropTriggerStatement returns [DropTriggerStatement expr]
      @init { boolean ifExists = false; }
-    : K_DROP K_TRIGGER (K_IF K_EXISTS { ifExists = true; } )? (name=cident) K_ON cf=columnFamilyName
+    : K_DROP K_TRIGGER (K_IF K_EXISTS { ifExists = true; } )? (name=noncol_ident) K_ON cf=columnFamilyName
       { $expr = new DropTriggerStatement(cf, name.toString(), ifExists); }
     ;
 
@@ -816,20 +816,21 @@ alterTableStatement returns [AlterTableStatement expr]
     @init {
         AlterTableStatement.Type type = null;
         TableAttributes attrs = new TableAttributes();
-        Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames = new HashMap<ColumnIdentifier.Raw, ColumnIdentifier.Raw>();
+        Map<ColumnIdentifier.Raw, ColumnIdentifier> renames = new HashMap<ColumnIdentifier.Raw, ColumnIdentifier>();
         boolean isStatic = false;
         Long dropTimestamp = null;
     }
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
-          ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
-          | K_ADD   id=cident v=comparatorType ({ isStatic=true; } K_STATIC)? { type = AlterTableStatement.Type.ADD; }
+          ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER;  }
+          | K_ADD   aid=ident {id=new ColumnIdentifier.ColumnIdentifierValue(aid);} v=comparatorType ({ isStatic=true; } K_STATIC)? { type = AlterTableStatement.Type.ADD; }
           | K_DROP  id=cident                               { type = AlterTableStatement.Type.DROP; }
           | K_DROP  id=cident K_USING K_TIMESTAMP t=INTEGER { type = AlterTableStatement.Type.DROP;
                                                               dropTimestamp = Long.parseLong(Constants.Literal.integer($t.text).getText()); }
+          | K_DROP  K_COMPACT K_STORAGE                     { type = AlterTableStatement.Type.DROP_COMPACT_STORAGE; }
           | K_WITH  properties[attrs]                       { type = AlterTableStatement.Type.OPTS; }
           | K_RENAME                                        { type = AlterTableStatement.Type.RENAME; }
-               id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
-               ( K_AND idn=cident K_TO toIdn=cident { renames.put(idn, toIdn); } )*
+               id1=cident K_TO toId1=ident { renames.put(id1, toId1); }
+               ( K_AND idn=cident K_TO toIdn=ident { renames.put(idn, toIdn); } )*
           )
     {
         $expr = new AlterTableStatement(cf, type, id, v, attrs, renames, isStatic, dropTimestamp);
@@ -1169,10 +1170,14 @@ userPassword[RoleOptions opts]
 // Column Identifiers.  These need to be treated differently from other
 // identifiers because the underlying comparator is not necessarily text. See
 // CASSANDRA-8178 for details.
+// Also, we need to support the internal of the super column map (for backward
+// compatibility) which is empty (we only want to allow this is queries, not for
+// creating table or other).
 cident returns [ColumnIdentifier.Raw id]
     : t=IDENT              { $id = new ColumnIdentifier.Literal($t.text, false); }
     | t=QUOTED_NAME        { $id = new ColumnIdentifier.Literal($t.text, true); }
     | k=unreserved_keyword { $id = new ColumnIdentifier.Literal(k, false); }
+    | EMPTY_QUOTED_NAME    { $id = new ColumnIdentifier.Literal("", false); }
     ;
 
 // Column identifiers where the comparator is known to be text
@@ -1309,7 +1314,9 @@ intValue returns [Term.Raw value]
     ;
 
 functionName returns [FunctionName s]
-    : (ks=keyspaceName '.')? f=allowedFunctionName   { $s = new FunctionName(ks, f); }
+     // antlr might try to recover and give a null for f. It will still error out in the end, but FunctionName
+     // wouldn't be happy with that so we should bypass this for now or we'll have a weird user-facing error
+    : (ks=keyspaceName '.')? f=allowedFunctionName   { $s = f == null ? null : new FunctionName(ks, f); }
     ;
 
 allowedFunctionName returns [String s]
@@ -1820,6 +1827,10 @@ STRING_LITERAL
       (
         '\'' (c=~('\'') { txt.appendCodePoint(c);} | '\'' '\'' { txt.appendCodePoint('\''); })* '\''
       )
+    ;
+
+EMPTY_QUOTED_NAME
+    : '\"' '\"'
     ;
 
 QUOTED_NAME

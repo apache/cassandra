@@ -31,7 +31,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 public abstract class AuthenticationStatement extends ParsedStatement implements CQLStatement
 {
     @Override
-    public Prepared prepare()
+    public Prepared prepare(ClientState clientState)
     {
         return new Prepared(this);
     }
