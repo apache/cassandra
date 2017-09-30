@@ -128,6 +128,8 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     protected abstract void serializeSelection(DataOutputPlus out, int version) throws IOException;
     protected abstract long selectionSerializedSize(int version);
 
+    public abstract boolean isLimitedToOnePartition();
+
     /**
      * Creates a new <code>ReadCommand</code> instance with new limits.
      *
