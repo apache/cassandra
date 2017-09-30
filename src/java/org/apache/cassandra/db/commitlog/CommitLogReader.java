@@ -81,7 +81,6 @@ public class CommitLogReader
 
     private static boolean shouldSkip(File file) throws IOException, ConfigurationException
     {
-        CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
         try(RandomAccessReader reader = RandomAccessReader.open(file))
         {
             CommitLogDescriptor.readHeader(reader, DatabaseDescriptor.getEncryptionContext());
