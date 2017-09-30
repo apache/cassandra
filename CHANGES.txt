@@ -1,6 +1,5 @@
 3.11.1
  * Fix the computation of cdc_total_space_in_mb for exabyte filesystems (CASSANDRA-13808)
- * Handle limit correctly on tables with strict liveness (CASSANDRA-13883)
  * AbstractTokenTreeBuilder#serializedSize returns wrong value when there is a single leaf and overflow collisions (CASSANDRA-13869)
  * Add a compaction option to TWCS to ignore sstables overlapping checks (CASSANDRA-13418)
  * BTree.Builder memory leak (CASSANDRA-13754)
@@ -12,9 +11,12 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
+ * Implement short read protection on partition boundaries (CASSANDRA-13595)
+ * Fix ISE thrown by UPI.Serializer.hasNext() for some SELECT queries (CASSANDRA-13911)
  * Filter header only commit logs before recovery (CASSANDRA-13918)
  * AssertionError prepending to a list (CASSANDRA-13149)
  * Fix support for SuperColumn tables (CASSANDRA-12373)
+ * Handle limit correctly on tables with strict liveness (CASSANDRA-13883)
  * Remove non-rpc-ready nodes from counter leader candidates (CASSANDRA-13043)
  * Improve short read protection performance (CASSANDRA-13794)
  * Fix sstable reader to support range-tombstone-marker for multi-slices (CASSANDRA-13787)
@@ -177,7 +179,11 @@ Merged from 3.0:
  * Provide user workaround when system_schema.columns does not contain entries
    for a table that's in system_schema.tables (CASSANDRA-13180)
  * Nodetool upgradesstables/scrub/compact ignores system tables (CASSANDRA-13410)
+<<<<<<< HEAD
  * Fix schema version calculation for rolling upgrades (CASSANDRA-13441)
+=======
+ * Fix NPE issue in StorageService (CASSANDRA-13060)
+>>>>>>> cassandra-3.0
 Merged from 2.2:
  * Nodes started with join_ring=False should be able to serve requests when authentication is enabled (CASSANDRA-11381)
  * cqlsh COPY FROM: increment error count only for failures, not for attempts (CASSANDRA-13209)

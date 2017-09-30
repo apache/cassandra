@@ -32,6 +32,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.BaseRowIterator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -434,6 +435,19 @@ public class PartitionRangeReadCommand extends ReadCommand
     protected long selectionSerializedSize(int version)
     {
         return DataRange.serializer.serializedSize(dataRange(), version, metadata());
+    }
+
+    /*
+     * We are currently using PartitionRangeReadCommand for most index queries, even if they are explicitly restricted
+     * to a single partition key. Return true if that is the case.
+     *
+     * See CASSANDRA-11617 and CASSANDRA-11872 for details.
+     */
+    public boolean isLimitedToOnePartition()
+    {
+        return dataRange.keyRange instanceof Bounds
+            && dataRange.startKey().kind() == PartitionPosition.Kind.ROW_KEY
+            && dataRange.startKey().equals(dataRange.stopKey());
     }
 
     private static class Deserializer extends SelectionDeserializer
