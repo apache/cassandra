@@ -91,7 +91,7 @@ class InboundHandshakeHandler extends ByteToMessageDecoder
                 case HANDSHAKE_FAIL:
                     throw new IllegalStateException("channel should be closed after determining the handshake failed with peer: " + ctx.channel().remoteAddress());
                 default:
-                    logger.error("unhandled state: " + state);
+                    logger.error("unhandled state: {}", state);
                     state = State.HANDSHAKE_FAIL;
                     ctx.close();
             }
@@ -166,7 +166,7 @@ class InboundHandshakeHandler extends ByteToMessageDecoder
             // streaming connections are per-session and have a fixed version.  we can't do anything with a wrong-version stream connection, so drop it.
             if (version != StreamMessage.CURRENT_VERSION)
             {
-                logger.warn("Received stream using protocol version %d (my version %d). Terminating connection", version, MessagingService.current_version);
+                logger.warn("Received stream using protocol version {} (my version {}). Terminating connection", version, MessagingService.current_version);
                 ctx.close();
                 return State.HANDSHAKE_FAIL;
             }

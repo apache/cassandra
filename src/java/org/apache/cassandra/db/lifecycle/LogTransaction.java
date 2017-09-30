@@ -212,7 +212,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                 {
                     e.printStackTrace(ps);
                 }
-                logger.debug("Unable to delete {} as it does not exist, stack trace:\n {}", file, baos.toString());
+                logger.debug("Unable to delete {} as it does not exist, stack trace:\n {}", file, baos);
             }
         }
         catch (IOException e)

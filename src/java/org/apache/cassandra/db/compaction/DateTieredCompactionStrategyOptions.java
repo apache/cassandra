@@ -54,7 +54,7 @@ public final class DateTieredCompactionStrategyOptions
         String optionValue = options.get(TIMESTAMP_RESOLUTION_KEY);
         timestampResolution = optionValue == null ? DEFAULT_TIMESTAMP_RESOLUTION : TimeUnit.valueOf(optionValue);
         if (timestampResolution != DEFAULT_TIMESTAMP_RESOLUTION)
-            logger.warn("Using a non-default timestamp_resolution {} - are you really doing inserts with USING TIMESTAMP <non_microsecond_timestamp> (or driver equivalent)?", timestampResolution.toString());
+            logger.warn("Using a non-default timestamp_resolution {} - are you really doing inserts with USING TIMESTAMP <non_microsecond_timestamp> (or driver equivalent)?", timestampResolution);
         optionValue = options.get(MAX_SSTABLE_AGE_KEY);
         double fractionalDays = optionValue == null ? DEFAULT_MAX_SSTABLE_AGE_DAYS : Double.parseDouble(optionValue);
         maxSSTableAge = Math.round(fractionalDays * timestampResolution.convert(1, TimeUnit.DAYS));

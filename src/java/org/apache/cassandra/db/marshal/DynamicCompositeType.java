@@ -123,7 +123,7 @@ public class DynamicCompositeType extends AbstractCompositeType
          * If both types are ReversedType(Type), we need to compare on the wrapped type (which may differ between the two types) to avoid
          * incompatible comparisons being made.
          */
-        if ((comp1 instanceof ReversedType) && (comp2 instanceof ReversedType)) 
+        if ((comp1 instanceof ReversedType) && (comp2 instanceof ReversedType))
         {
             comp1 = ((ReversedType<?>) comp1).baseType;
             comp2 = ((ReversedType<?>) comp2).baseType;
@@ -199,19 +199,19 @@ public class DynamicCompositeType extends AbstractCompositeType
                 valueStr = ByteBufferUtil.string(value);
                 comparator = TypeParser.parse(valueStr);
             }
-            catch (CharacterCodingException ce) 
+            catch (CharacterCodingException ce)
             {
-                // ByteBufferUtil.string failed. 
+                // ByteBufferUtil.string failed.
                 // Log it here and we'll further throw an exception below since comparator == null
-                logger.error("Failed with [{}] when decoding the byte buffer in ByteBufferUtil.string()", 
-                   ce.toString());
+                logger.error("Failed with [{}] when decoding the byte buffer in ByteBufferUtil.string()",
+                   ce);
             }
             catch (Exception e)
             {
-                // parse failed. 
+                // parse failed.
                 // Log it here and we'll further throw an exception below since comparator == null
-                logger.error("Failed to parse value string \"{}\" with exception: [{}]", 
-                   valueStr, e.toString());
+                logger.error("Failed to parse value string \"{}\" with exception: [{}]",
+                   valueStr, e);
             }
         }
         else
