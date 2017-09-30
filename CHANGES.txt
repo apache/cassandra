@@ -4,6 +4,7 @@
  * Add a compaction option to TWCS to ignore sstables overlapping checks (CASSANDRA-13418)
  * BTree.Builder memory leak (CASSANDRA-13754)
  * Revert CASSANDRA-10368 of supporting non-pk column filtering due to correctness (CASSANDRA-13798)
+ * Add a skip read validation flag to cassandra-stress (CASSANDRA-13772)
  * Fix cassandra-stress hang issues when an error during cluster connection happens (CASSANDRA-12938)
  * Better bootstrap failure message when blocked by (potential) range movement (CASSANDRA-13744)
  * "ignore" option is ignored in sstableloader (CASSANDRA-13721)
@@ -17,6 +18,7 @@ Merged from 3.0:
  * AssertionError prepending to a list (CASSANDRA-13149)
  * Fix support for SuperColumn tables (CASSANDRA-12373)
  * Handle limit correctly on tables with strict liveness (CASSANDRA-13883)
+ * Fix missing original update in TriggerExecutor (CASSANDRA-13894)
  * Remove non-rpc-ready nodes from counter leader candidates (CASSANDRA-13043)
  * Improve short read protection performance (CASSANDRA-13794)
  * Fix sstable reader to support range-tombstone-marker for multi-slices (CASSANDRA-13787)
@@ -59,6 +61,7 @@ Merged from 3.0:
  * Make concat work with iterators that have different subsets of columns (CASSANDRA-13482)
  * Set test.runners based on cores and memory size (CASSANDRA-13078)
  * Allow different NUMACTL_ARGS to be passed in (CASSANDRA-13557)
+ * Allow native function calls in CQLSSTableWriter (CASSANDRA-12606)
  * Fix secondary index queries on COMPACT tables (CASSANDRA-13627)
  * Nodetool listsnapshots output is missing a newline, if there are no snapshots (CASSANDRA-13568)
  * sstabledump reports incorrect usage for argument order (CASSANDRA-13532)
@@ -179,11 +182,7 @@ Merged from 3.0:
  * Provide user workaround when system_schema.columns does not contain entries
    for a table that's in system_schema.tables (CASSANDRA-13180)
  * Nodetool upgradesstables/scrub/compact ignores system tables (CASSANDRA-13410)
-<<<<<<< HEAD
  * Fix schema version calculation for rolling upgrades (CASSANDRA-13441)
-=======
- * Fix NPE issue in StorageService (CASSANDRA-13060)
->>>>>>> cassandra-3.0
 Merged from 2.2:
  * Nodes started with join_ring=False should be able to serve requests when authentication is enabled (CASSANDRA-11381)
  * cqlsh COPY FROM: increment error count only for failures, not for attempts (CASSANDRA-13209)
