@@ -113,7 +113,7 @@ public class CompressedInputStreamTest
         File tmp = new File(desc.filenameFor(Component.DATA));
         MetadataCollector collector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         CompressionParams param = CompressionParams.snappy(32, minCompressRatio);
-        Map<Long, Long> index = new HashMap<Long, Long>();
+        Map<Long, Long> index = new HashMap<>();
         try (CompressedSequentialWriter writer = new CompressedSequentialWriter(tmp,
                                                                                 desc.filenameFor(Component.COMPRESSION_INFO),
                                                                                 null,

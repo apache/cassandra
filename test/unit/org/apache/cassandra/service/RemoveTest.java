@@ -59,10 +59,10 @@ public class RemoveTest
     StorageService ss = StorageService.instance;
     TokenMetadata tmd = ss.getTokenMetadata();
     static IPartitioner oldPartitioner;
-    ArrayList<Token> endpointTokens = new ArrayList<Token>();
-    ArrayList<Token> keyTokens = new ArrayList<Token>();
-    List<InetAddress> hosts = new ArrayList<InetAddress>();
-    List<UUID> hostIds = new ArrayList<UUID>();
+    ArrayList<Token> endpointTokens = new ArrayList<>();
+    ArrayList<Token> keyTokens = new ArrayList<>();
+    List<InetAddress> hosts = new ArrayList<>();
+    List<UUID> hostIds = new ArrayList<>();
     InetAddress removalhost;
     UUID removalId;
 

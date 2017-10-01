@@ -60,7 +60,7 @@ public class StandaloneSplitter
 
             String ksName = null;
             String cfName = null;
-            Map<Descriptor, Set<Component>> parsedFilenames = new HashMap<Descriptor, Set<Component>>();
+            Map<Descriptor, Set<Component>> parsedFilenames = new HashMap<>();
             for (String filename : options.filenames)
             {
                 File file = new File(filename);
@@ -85,7 +85,7 @@ public class StandaloneSplitter
                 else if (!cfName.equals(desc.cfname))
                     throw new IllegalArgumentException("All sstables must be part of the same table");
 
-                Set<Component> components = new HashSet<Component>(Arrays.asList(new Component[]{
+                Set<Component> components = new HashSet<>(Arrays.asList(new Component[]{
                     Component.DATA,
                     Component.PRIMARY_INDEX,
                     Component.FILTER,

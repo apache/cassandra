@@ -59,7 +59,7 @@ public class Snapshot extends NodeToolCmd
 
             sb.append("Requested creating snapshot(s) for ");
 
-            Map<String, String> options = new HashMap<String,String>();
+            Map<String, String> options = new HashMap<>();
             options.put("skipFlush", Boolean.toString(skipFlush));
 
             // Create a separate path for kclist to avoid breaking of already existing scripts

@@ -58,8 +58,8 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
         if (position.equals(right))
             return null;
 
-        AbstractBounds<T> lb = new Bounds<T>(left, position);
-        AbstractBounds<T> rb = new Range<T>(position, right);
+        AbstractBounds<T> lb = new Bounds<>(left, position);
+        AbstractBounds<T> rb = new Range<>(position, right);
         return Pair.create(lb, rb);
     }
 

@@ -552,17 +552,17 @@ public class MoveTest
         TokenMetadata tmd = ss.getTokenMetadata();
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
-        ArrayList<Token> endpointTokens = new ArrayList<Token>();
-        ArrayList<Token> keyTokens = new ArrayList<Token>();
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
-        List<UUID> hostIds = new ArrayList<UUID>();
+        ArrayList<Token> endpointTokens = new ArrayList<>();
+        ArrayList<Token> keyTokens = new ArrayList<>();
+        List<InetAddress> hosts = new ArrayList<>();
+        List<UUID> hostIds = new ArrayList<>();
 
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
 
-        Map<Token, List<InetAddress>> expectedEndpoints = new HashMap<Token, List<InetAddress>>();
+        Map<Token, List<InetAddress>> expectedEndpoints = new HashMap<>();
         for (Token token : keyTokens)
         {
-            List<InetAddress> endpoints = new ArrayList<InetAddress>();
+            List<InetAddress> endpoints = new ArrayList<>();
             Iterator<Token> tokenIter = TokenMetadata.ringIterator(tmd.sortedTokens(), token, false);
             while (tokenIter.hasNext())
             {
@@ -591,8 +591,8 @@ public class MoveTest
             {
                 int replicationFactor = strategy.getReplicationFactor();
 
-                HashSet<InetAddress> actual = new HashSet<InetAddress>(tmd.getWriteEndpoints(token, keyspaceName, strategy.calculateNaturalEndpoints(token, tmd.cloneOnlyTokenMap())));
-                HashSet<InetAddress> expected = new HashSet<InetAddress>();
+                HashSet<InetAddress> actual = new HashSet<>(tmd.getWriteEndpoints(token, keyspaceName, strategy.calculateNaturalEndpoints(token, tmd.cloneOnlyTokenMap())));
+                HashSet<InetAddress> expected = new HashSet<>();
 
                 for (int i = 0; i < replicationFactor; i++)
                 {
@@ -626,10 +626,10 @@ public class MoveTest
         IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
-        ArrayList<Token> endpointTokens = new ArrayList<Token>();
-        ArrayList<Token> keyTokens = new ArrayList<Token>();
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
-        List<UUID> hostIds = new ArrayList<UUID>();
+        ArrayList<Token> endpointTokens = new ArrayList<>();
+        ArrayList<Token> keyTokens = new ArrayList<>();
+        List<InetAddress> hosts = new ArrayList<>();
+        List<UUID> hostIds = new ArrayList<>();
 
         // create a ring or 10 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
@@ -637,7 +637,7 @@ public class MoveTest
         // nodes 6, 8 and 9 leave
         final int[] MOVING = new int[] {6, 8, 9};
 
-        Map<Integer, Token> newTokens = new HashMap<Integer, Token>();
+        Map<Integer, Token> newTokens = new HashMap<>();
 
         for (int movingIndex : MOVING)
         {
@@ -671,7 +671,7 @@ public class MoveTest
         PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // don't require test update every time a new keyspace is added to test/conf/cassandra.yaml
-        Map<String, AbstractReplicationStrategy> keyspaceStrategyMap = new HashMap<String, AbstractReplicationStrategy>();
+        Map<String, AbstractReplicationStrategy> keyspaceStrategyMap = new HashMap<>();
         for (int i = 1; i <= 4; i++)
         {
             keyspaceStrategyMap.put("MoveTestKeyspace" + i, getStrategy("MoveTestKeyspace" + i, tmd));
@@ -823,7 +823,7 @@ public class MoveTest
         assertTrue(ranges10.equals(generateRanges(70, 87, 87, 97, 67, 70)));
 
         // pre-calculate the results.
-        Map<String, Multimap<Token, InetAddress>> expectedEndpoints = new HashMap<String, Multimap<Token, InetAddress>>();
+        Map<String, Multimap<Token, InetAddress>> expectedEndpoints = new HashMap<>();
         expectedEndpoints.put(Simple_RF1_KeyspaceName, HashMultimap.<Token, InetAddress>create());
         expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("5"), makeAddrs("127.0.0.2"));
         expectedEndpoints.get(Simple_RF1_KeyspaceName).putAll(new BigIntegerToken("15"), makeAddrs("127.0.0.3"));
@@ -968,10 +968,10 @@ public class MoveTest
         IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
-        ArrayList<Token> endpointTokens = new ArrayList<Token>();
-        ArrayList<Token> keyTokens = new ArrayList<Token>();
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
-        List<UUID> hostIds = new ArrayList<UUID>();
+        ArrayList<Token> endpointTokens = new ArrayList<>();
+        ArrayList<Token> keyTokens = new ArrayList<>();
+        List<InetAddress> hosts = new ArrayList<>();
+        List<UUID> hostIds = new ArrayList<>();
 
         // create a ring or 6 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
@@ -1003,7 +1003,7 @@ public class MoveTest
 
     private static Collection<InetAddress> makeAddrs(String... hosts) throws UnknownHostException
     {
-        ArrayList<InetAddress> addrs = new ArrayList<InetAddress>(hosts.length);
+        ArrayList<InetAddress> addrs = new ArrayList<>(hosts.length);
         for (String host : hosts)
             addrs.add(InetAddress.getByName(host));
         return addrs;
@@ -1047,7 +1047,7 @@ public class MoveTest
         if (rangePairs.length % 2 == 1)
             throw new RuntimeException("generateRanges argument count should be even");
 
-        Set<Range<Token>> ranges = new HashSet<Range<Token>>();
+        Set<Range<Token>> ranges = new HashSet<>();
 
         for (int i = 0; i < rangePairs.length; i+=2)
         {

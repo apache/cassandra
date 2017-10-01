@@ -524,13 +524,13 @@ public abstract class ModificationStatement implements CQLStatement
 
         assert left.size() == 1;
         int size = left.metadata.names.size() + right.metadata.names.size();
-        List<ColumnSpecification> specs = new ArrayList<ColumnSpecification>(size);
+        List<ColumnSpecification> specs = new ArrayList<>(size);
         specs.addAll(left.metadata.names);
         specs.addAll(right.metadata.names);
         List<List<ByteBuffer>> rows = new ArrayList<>(right.size());
         for (int i = 0; i < right.size(); i++)
         {
-            List<ByteBuffer> row = new ArrayList<ByteBuffer>(size);
+            List<ByteBuffer> row = new ArrayList<>(size);
             row.addAll(left.rows.get(0));
             row.addAll(right.rows.get(i));
             rows.add(row);

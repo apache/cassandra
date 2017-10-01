@@ -99,11 +99,11 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
 
         doSort(gDigestList);
 
-        List<GossipDigest> deltaGossipDigestList = new ArrayList<GossipDigest>();
-        Map<InetAddress, EndpointState> deltaEpStateMap = new HashMap<InetAddress, EndpointState>();
+        List<GossipDigest> deltaGossipDigestList = new ArrayList<>();
+        Map<InetAddress, EndpointState> deltaEpStateMap = new HashMap<>();
         Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
         logger.trace("sending {} digests and {} deltas", deltaGossipDigestList.size(), deltaEpStateMap.size());
-        MessageOut<GossipDigestAck> gDigestAckMessage = new MessageOut<GossipDigestAck>(MessagingService.Verb.GOSSIP_DIGEST_ACK,
+        MessageOut<GossipDigestAck> gDigestAckMessage = new MessageOut<>(MessagingService.Verb.GOSSIP_DIGEST_ACK,
                                                                                         new GossipDigestAck(deltaGossipDigestList, deltaEpStateMap),
                                                                                         GossipDigestAck.serializer);
         if (logger.isTraceEnabled())
@@ -121,7 +121,7 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
     private void doSort(List<GossipDigest> gDigestList)
     {
         /* Construct a map of endpoint to GossipDigest. */
-        Map<InetAddress, GossipDigest> epToDigestMap = new HashMap<InetAddress, GossipDigest>();
+        Map<InetAddress, GossipDigest> epToDigestMap = new HashMap<>();
         for (GossipDigest gDigest : gDigestList)
         {
             epToDigestMap.put(gDigest.getEndpoint(), gDigest);
@@ -131,7 +131,7 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
          * These digests have their maxVersion set to the difference of the version
          * of the local EndpointState and the version found in the GossipDigest.
         */
-        List<GossipDigest> diffDigests = new ArrayList<GossipDigest>(gDigestList.size());
+        List<GossipDigest> diffDigests = new ArrayList<>(gDigestList.size());
         for (GossipDigest gDigest : gDigestList)
         {
             InetAddress ep = gDigest.getEndpoint();

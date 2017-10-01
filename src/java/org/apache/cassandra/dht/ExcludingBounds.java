@@ -44,8 +44,8 @@ public class ExcludingBounds<T extends RingPosition<T>> extends AbstractBounds<T
         assert contains(position) || left.equals(position);
         if (left.equals(position))
             return null;
-        AbstractBounds<T> lb = new Range<T>(left, position);
-        AbstractBounds<T> rb = new ExcludingBounds<T>(position, right);
+        AbstractBounds<T> lb = new Range<>(left, position);
+        AbstractBounds<T> rb = new ExcludingBounds<>(position, right);
         return Pair.create(lb, rb);
     }
 

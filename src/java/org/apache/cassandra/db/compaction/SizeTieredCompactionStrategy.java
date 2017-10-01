@@ -238,7 +238,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     public static <T> List<List<T>> getBuckets(Collection<Pair<T, Long>> files, double bucketHigh, double bucketLow, long minSSTableSize)
     {
         // Sort the list in order to get deterministic results during the grouping below
-        List<Pair<T, Long>> sortedFiles = new ArrayList<Pair<T, Long>>(files);
+        List<Pair<T, Long>> sortedFiles = new ArrayList<>(files);
         Collections.sort(sortedFiles, new Comparator<Pair<T, Long>>()
         {
             public int compare(Pair<T, Long> p1, Pair<T, Long> p2)
@@ -247,7 +247,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             }
         });
 
-        Map<Long, List<T>> buckets = new HashMap<Long, List<T>>();
+        Map<Long, List<T>> buckets = new HashMap<>();
 
         outer:
         for (Pair<T, Long> pair: sortedFiles)
@@ -275,7 +275,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             }
 
             // no similar bucket found; put it in a new one
-            ArrayList<T> bucket = new ArrayList<T>();
+            ArrayList<T> bucket = new ArrayList<>();
             bucket.add(pair.left);
             buckets.put(size, bucket);
         }

@@ -50,7 +50,7 @@ abstract class AbstractReplicationAwareTokenAllocatorTest extends TokenAllocator
 
         public List<Unit> getReplicas(Token token, NavigableMap<Token, Unit> sortedTokens)
         {
-            List<Unit> endpoints = new ArrayList<Unit>(replicas);
+            List<Unit> endpoints = new ArrayList<>(replicas);
 
             token = sortedTokens.ceilingKey(token);
             if (token == null)
@@ -139,7 +139,7 @@ abstract class AbstractReplicationAwareTokenAllocatorTest extends TokenAllocator
 
         public List<Unit> getReplicas(Token token, NavigableMap<Token, Unit> sortedTokens)
         {
-            List<Unit> endpoints = new ArrayList<Unit>(replicas);
+            List<Unit> endpoints = new ArrayList<>(replicas);
             BitSet usedGroups = new BitSet();
 
             if (sortedTokens.isEmpty())

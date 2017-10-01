@@ -120,7 +120,7 @@ public final class CompactionInfo implements Serializable
 
     public Map<String, String> asMap()
     {
-        Map<String, String> ret = new HashMap<String, String>();
+        Map<String, String> ret = new HashMap<>();
         ret.put("id", getId() == null ? "" : getId().toString());
         ret.put("keyspace", getKeyspace());
         ret.put("columnfamily", getColumnFamily());

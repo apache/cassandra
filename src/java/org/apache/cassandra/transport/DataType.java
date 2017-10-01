@@ -105,7 +105,7 @@ public enum DataType
             case SET:
                 return DataType.toType(codec.decodeOne(cb, version));
             case MAP:
-                List<AbstractType> l = new ArrayList<AbstractType>(2);
+                List<AbstractType> l = new ArrayList<>(2);
                 l.add(DataType.toType(codec.decodeOne(cb, version)));
                 l.add(DataType.toType(codec.decodeOne(cb, version)));
                 return l;

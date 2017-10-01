@@ -43,7 +43,7 @@ public class OrderedJUnit4ClassRunner extends BlockJUnit4ClassRunner
         final List<FrameworkMethod> list = super.computeTestMethods();
         try
         {
-            final List<FrameworkMethod> copy = new ArrayList<FrameworkMethod>(list);
+            final List<FrameworkMethod> copy = new ArrayList<>(list);
             Collections.sort(copy, MethodComparator.getFrameworkMethodComparatorForJUnit4());
             return copy;
         }

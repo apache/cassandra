@@ -80,7 +80,7 @@ public class SchemaLoader
 
     public static void schemaDefinition(String testName) throws ConfigurationException
     {
-        List<KeyspaceMetadata> schema = new ArrayList<KeyspaceMetadata>();
+        List<KeyspaceMetadata> schema = new ArrayList<>();
 
         // A whole bucket of shorthand
         String ks1 = testName + "Keyspace1";
@@ -101,7 +101,7 @@ public class SchemaLoader
 
         AbstractType<?> composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{BytesType.instance, TimeUUIDType.instance, IntegerType.instance}));
         AbstractType<?> compositeMaxMin = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{BytesType.instance, IntegerType.instance}));
-        Map<Byte, AbstractType<?>> aliases = new HashMap<Byte, AbstractType<?>>();
+        Map<Byte, AbstractType<?>> aliases = new HashMap<>();
         aliases.put((byte)'b', BytesType.instance);
         aliases.put((byte)'t', TimeUUIDType.instance);
         aliases.put((byte)'B', ReversedType.getInstance(BytesType.instance));
@@ -109,9 +109,9 @@ public class SchemaLoader
         AbstractType<?> dynamicComposite = DynamicCompositeType.getInstance(aliases);
 
         // Make it easy to test compaction
-        Map<String, String> compactionOptions = new HashMap<String, String>();
+        Map<String, String> compactionOptions = new HashMap<>();
         compactionOptions.put("tombstone_compaction_interval", "1");
-        Map<String, String> leveledOptions = new HashMap<String, String>();
+        Map<String, String> leveledOptions = new HashMap<>();
         leveledOptions.put("sstable_size_in_mb", "1");
         leveledOptions.put("fanout_size", "5");
 

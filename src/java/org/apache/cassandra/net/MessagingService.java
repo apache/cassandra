@@ -672,7 +672,7 @@ public final class MessagingService implements MessagingServiceMBean
     {
         if (DatabaseDescriptor.backPressureEnabled())
         {
-            Set<BackPressureState> states = new HashSet<BackPressureState>();
+            Set<BackPressureState> states = new HashSet<>();
             for (InetAddress host : hosts)
             {
                 if (host.equals(FBUtilities.getBroadcastAddress()))
@@ -1017,7 +1017,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public <T> AsyncOneResponse<T> sendRR(MessageOut message, InetAddress to)
     {
-        AsyncOneResponse<T> iar = new AsyncOneResponse<T>();
+        AsyncOneResponse<T> iar = new AsyncOneResponse<>();
         sendRR(message, to, iar);
         return iar;
     }
@@ -1300,7 +1300,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Integer> getLargeMessagePendingTasks()
     {
-        Map<String, Integer> pendingTasks = new HashMap<String, Integer>(channelManagers.size());
+        Map<String, Integer> pendingTasks = new HashMap<>(channelManagers.size());
         for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
             pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessageChannel.getPendingMessages());
         return pendingTasks;
@@ -1308,7 +1308,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Long> getLargeMessageCompletedTasks()
     {
-        Map<String, Long> completedTasks = new HashMap<String, Long>(channelManagers.size());
+        Map<String, Long> completedTasks = new HashMap<>(channelManagers.size());
         for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
             completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessageChannel.getCompletedMessages());
         return completedTasks;
@@ -1316,7 +1316,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Long> getLargeMessageDroppedTasks()
     {
-        Map<String, Long> droppedTasks = new HashMap<String, Long>(channelManagers.size());
+        Map<String, Long> droppedTasks = new HashMap<>(channelManagers.size());
         for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
             droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessageChannel.getDroppedMessages());
         return droppedTasks;
@@ -1324,7 +1324,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Integer> getSmallMessagePendingTasks()
     {
-        Map<String, Integer> pendingTasks = new HashMap<String, Integer>(channelManagers.size());
+        Map<String, Integer> pendingTasks = new HashMap<>(channelManagers.size());
         for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
             pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessageChannel.getPendingMessages());
         return pendingTasks;
@@ -1332,7 +1332,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Long> getSmallMessageCompletedTasks()
     {
-        Map<String, Long> completedTasks = new HashMap<String, Long>(channelManagers.size());
+        Map<String, Long> completedTasks = new HashMap<>(channelManagers.size());
         for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
             completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessageChannel.getCompletedMessages());
         return completedTasks;
@@ -1340,7 +1340,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Long> getSmallMessageDroppedTasks()
     {
-        Map<String, Long> droppedTasks = new HashMap<String, Long>(channelManagers.size());
+        Map<String, Long> droppedTasks = new HashMap<>(channelManagers.size());
         for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
             droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessageChannel.getDroppedMessages());
         return droppedTasks;
@@ -1348,7 +1348,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Integer> getGossipMessagePendingTasks()
     {
-        Map<String, Integer> pendingTasks = new HashMap<String, Integer>(channelManagers.size());
+        Map<String, Integer> pendingTasks = new HashMap<>(channelManagers.size());
         for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
             pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipChannel.getPendingMessages());
         return pendingTasks;
@@ -1356,7 +1356,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Long> getGossipMessageCompletedTasks()
     {
-        Map<String, Long> completedTasks = new HashMap<String, Long>(channelManagers.size());
+        Map<String, Long> completedTasks = new HashMap<>(channelManagers.size());
         for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
             completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipChannel.getCompletedMessages());
         return completedTasks;
@@ -1364,7 +1364,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Long> getGossipMessageDroppedTasks()
     {
-        Map<String, Long> droppedTasks = new HashMap<String, Long>(channelManagers.size());
+        Map<String, Long> droppedTasks = new HashMap<>(channelManagers.size());
         for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
             droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipChannel.getDroppedMessages());
         return droppedTasks;
@@ -1386,7 +1386,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Long> getTimeoutsPerHost()
     {
-        Map<String, Long> result = new HashMap<String, Long>(channelManagers.size());
+        Map<String, Long> result = new HashMap<>(channelManagers.size());
         for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
         {
             String ip = entry.getKey().getHostAddress();

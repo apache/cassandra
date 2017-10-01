@@ -381,7 +381,7 @@ public class RangeFetchMapCalculatorTest
 
     private Collection<InetAddress> makeAddrs(String... hosts) throws UnknownHostException
     {
-        ArrayList<InetAddress> addrs = new ArrayList<InetAddress>(hosts.length);
+        ArrayList<InetAddress> addrs = new ArrayList<>(hosts.length);
         for (String host : hosts)
             addrs.add(InetAddress.getByName(host));
         return addrs;

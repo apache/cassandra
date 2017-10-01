@@ -278,7 +278,7 @@ public abstract class Maps
 
         public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
-            Map<ByteBuffer, ByteBuffer> buffers = new TreeMap<ByteBuffer, ByteBuffer>(comparator);
+            Map<ByteBuffer, ByteBuffer> buffers = new TreeMap<>(comparator);
             for (Map.Entry<Term, Term> entry : elements.entrySet())
             {
                 // We don't support values > 64K because the serialization format encode the length as an unsigned short.

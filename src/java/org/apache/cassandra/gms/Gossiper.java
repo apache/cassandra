@@ -120,7 +120,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     final Set<InetAddress> seeds = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
 
     /* map where key is the endpoint and value is the state associated with the endpoint */
-    final ConcurrentMap<InetAddress, EndpointState> endpointStateMap = new ConcurrentHashMap<InetAddress, EndpointState>();
+    final ConcurrentMap<InetAddress, EndpointState> endpointStateMap = new ConcurrentHashMap<>();
 
     /* map where key is endpoint and value is timestamp when this endpoint was removed from
      * gossip. We will ignore any gossip regarding these endpoints for QUARANTINE_DELAY time
@@ -153,7 +153,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 endpointStateMap.get(FBUtilities.getBroadcastAddress()).getHeartBeatState().updateHeartBeat();
                 if (logger.isTraceEnabled())
                     logger.trace("My heartbeat is now {}", endpointStateMap.get(FBUtilities.getBroadcastAddress()).getHeartBeatState().getHeartBeatVersion());
-                final List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
+                final List<GossipDigest> gDigests = new ArrayList<>();
                 Gossiper.instance.makeRandomGossipDigest(gDigests);
 
                 if (gDigests.size() > 0)
@@ -161,7 +161,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     GossipDigestSyn digestSynMessage = new GossipDigestSyn(DatabaseDescriptor.getClusterName(),
                                                                            DatabaseDescriptor.getPartitionerName(),
                                                                            gDigests);
-                    MessageOut<GossipDigestSyn> message = new MessageOut<GossipDigestSyn>(MessagingService.Verb.GOSSIP_DIGEST_SYN,
+                    MessageOut<GossipDigestSyn> message = new MessageOut<>(MessagingService.Verb.GOSSIP_DIGEST_SYN,
                                                                                           digestSynMessage,
                                                                                           GossipDigestSyn.serializer);
                     /* Gossip to some random live member */
@@ -490,7 +490,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         int maxVersion = 0;
 
         // local epstate will be part of endpointStateMap
-        List<InetAddress> endpoints = new ArrayList<InetAddress>(endpointStateMap.keySet());
+        List<InetAddress> endpoints = new ArrayList<>(endpointStateMap.keySet());
         Collections.shuffle(endpoints, random);
         for (InetAddress endpoint : endpoints)
         {
@@ -993,7 +993,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         localState.markDead();
 
-        MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.ECHO, EchoMessage.instance, EchoMessage.serializer);
+        MessageOut<EchoMessage> echoMessage = new MessageOut<>(MessagingService.Verb.ECHO, EchoMessage.instance, EchoMessage.serializer);
         logger.trace("Sending a EchoMessage to {}", addr);
         IAsyncCallback echoHandler = new IAsyncCallback()
         {
@@ -1376,11 +1376,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         seedsInShadowRound.clear();
         endpointShadowStateMap.clear();
         // send a completely empty syn
-        List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
+        List<GossipDigest> gDigests = new ArrayList<>();
         GossipDigestSyn digestSynMessage = new GossipDigestSyn(DatabaseDescriptor.getClusterName(),
                 DatabaseDescriptor.getPartitionerName(),
                 gDigests);
-        MessageOut<GossipDigestSyn> message = new MessageOut<GossipDigestSyn>(MessagingService.Verb.GOSSIP_DIGEST_SYN,
+        MessageOut<GossipDigestSyn> message = new MessageOut<>(MessagingService.Verb.GOSSIP_DIGEST_SYN,
                 digestSynMessage,
                 GossipDigestSyn.serializer);
 

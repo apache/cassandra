@@ -1886,7 +1886,7 @@ public class CompactionManager implements CompactionManagerMBean
     public List<Map<String, String>> getCompactions()
     {
         List<Holder> compactionHolders = CompactionMetrics.getCompactions();
-        List<Map<String, String>> out = new ArrayList<Map<String, String>>(compactionHolders.size());
+        List<Map<String, String>> out = new ArrayList<>(compactionHolders.size());
         for (CompactionInfo.Holder ci : compactionHolders)
             out.add(ci.getCompactionInfo().asMap());
         return out;
@@ -1895,7 +1895,7 @@ public class CompactionManager implements CompactionManagerMBean
     public List<String> getCompactionSummary()
     {
         List<Holder> compactionHolders = CompactionMetrics.getCompactions();
-        List<String> out = new ArrayList<String>(compactionHolders.size());
+        List<String> out = new ArrayList<>(compactionHolders.size());
         for (CompactionInfo.Holder ci : compactionHolders)
             out.add(ci.getCompactionInfo().toString());
         return out;

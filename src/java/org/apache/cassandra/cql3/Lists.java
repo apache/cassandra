@@ -263,7 +263,7 @@ public abstract class Lists
 
         public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
-            List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(elements.size());
+            List<ByteBuffer> buffers = new ArrayList<>(elements.size());
             for (Term t : elements)
             {
                 ByteBuffer bytes = t.bindAndGet(options);

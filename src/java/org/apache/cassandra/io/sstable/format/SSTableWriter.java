@@ -147,7 +147,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     private static Set<Component> components(TableMetadata metadata)
     {
-        Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA,
+        Set<Component> components = new HashSet<>(Arrays.asList(Component.DATA,
                 Component.PRIMARY_INDEX,
                 Component.STATS,
                 Component.SUMMARY,

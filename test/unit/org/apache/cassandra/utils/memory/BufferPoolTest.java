@@ -718,7 +718,7 @@ public class BufferPoolTest
                     {
                         Thread.sleep(rand.nextInt(3));
 
-                        List<ByteBuffer> toBeReturned = new ArrayList<ByteBuffer>(threadSizes.length);
+                        List<ByteBuffer> toBeReturned = new ArrayList<>(threadSizes.length);
 
                         for (int j = 0; j < threadSizes.length; j++)
                         {

@@ -538,7 +538,7 @@ public class CompactionsTest
 
     private static Collection<Range<Token>> makeRanges(int ... keys)
     {
-        Collection<Range<Token>> ranges = new ArrayList<Range<Token>>(keys.length / 2);
+        Collection<Range<Token>> ranges = new ArrayList<>(keys.length / 2);
         for (int i = 0; i < keys.length; i += 2)
             ranges.add(rangeFor(keys[i], keys[i + 1]));
         return ranges;

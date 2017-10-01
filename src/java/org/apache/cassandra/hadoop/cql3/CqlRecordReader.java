@@ -264,7 +264,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         private long keyId = 0L;
         protected int totalRead = 0; // total number of cf rows read
         protected Iterator<Row> rows;
-        private Map<String, ByteBuffer> previousRowKey = new HashMap<String, ByteBuffer>(); // previous CF row key
+        private Map<String, ByteBuffer> previousRowKey = new HashMap<>(); // previous CF row key
 
         public RowIterator()
         {
@@ -281,7 +281,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
                 return endOfData();
 
             Row row = rows.next();
-            Map<String, ByteBuffer> keyColumns = new HashMap<String, ByteBuffer>(partitionBoundColumns.size()); 
+            Map<String, ByteBuffer> keyColumns = new HashMap<>(partitionBoundColumns.size()); 
             for (String column : partitionBoundColumns.keySet())
                 keyColumns.put(column, row.getBytesUnsafe(column));
 

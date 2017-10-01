@@ -279,7 +279,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             byLevel.get(level).add(sstable);
         }
 
-        List<ISSTableScanner> scanners = new ArrayList<ISSTableScanner>(sstables.size());
+        List<ISSTableScanner> scanners = new ArrayList<>(sstables.size());
         try
         {
             for (Integer level : byLevel.keySet())

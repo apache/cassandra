@@ -228,7 +228,7 @@ public class RandomPartitioner implements IPartitioner
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
     {
-        Map<Token, Float> ownerships = new HashMap<Token, Float>();
+        Map<Token, Float> ownerships = new HashMap<>();
         Iterator<Token> i = sortedTokens.iterator();
 
         // 0-case

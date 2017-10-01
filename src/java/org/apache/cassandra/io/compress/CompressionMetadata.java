@@ -294,7 +294,7 @@ public class CompressionMetadata
     public Chunk[] getChunksForSections(Collection<Pair<Long, Long>> sections)
     {
         // use SortedSet to eliminate duplicates and sort by chunk offset
-        SortedSet<Chunk> offsets = new TreeSet<Chunk>(new Comparator<Chunk>()
+        SortedSet<Chunk> offsets = new TreeSet<>(new Comparator<Chunk>()
         {
             public int compare(Chunk o1, Chunk o2)
             {

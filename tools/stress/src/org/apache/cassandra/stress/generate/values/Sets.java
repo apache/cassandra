@@ -45,7 +45,7 @@ public class Sets<T> extends Generator<Set<T>>
     @Override
     public Set<T> generate()
     {
-        final Set<T> set = new HashSet<T>();
+        final Set<T> set = new HashSet<>();
         int size = (int) sizeDistribution.next();
         for (int i = 0 ; i < size ; i++)
             set.add(valueType.generate());

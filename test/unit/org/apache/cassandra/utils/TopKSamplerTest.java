@@ -43,13 +43,13 @@ public class TopKSamplerTest
     @Test
     public void testSamplerSingleInsertionsEqualMulti() throws TimeoutException
     {
-        TopKSampler<String> sampler = new TopKSampler<String>();
+        TopKSampler<String> sampler = new TopKSampler<>();
         sampler.beginSampling(10);
         insert(sampler);
         waitForEmpty(1000);
         SamplerResult single = sampler.finishSampling(10);
 
-        TopKSampler<String> sampler2 = new TopKSampler<String>();
+        TopKSampler<String> sampler2 = new TopKSampler<>();
         sampler2.beginSampling(10);
         for(int i = 1; i <= 10; i++)
         {
@@ -65,7 +65,7 @@ public class TopKSamplerTest
     @Test
     public void testSamplerOutOfOrder() throws TimeoutException
     {
-        TopKSampler<String> sampler = new TopKSampler<String>();
+        TopKSampler<String> sampler = new TopKSampler<>();
         sampler.beginSampling(10);
         insert(sampler);
         waitForEmpty(1000);
@@ -81,7 +81,7 @@ public class TopKSamplerTest
     {
         final AtomicBoolean running = new AtomicBoolean(true);
         final CountDownLatch latch = new CountDownLatch(1);
-        final TopKSampler<String> sampler = new TopKSampler<String>();
+        final TopKSampler<String> sampler = new TopKSampler<>();
 
         NamedThreadFactory.createThread(new Runnable()
         {

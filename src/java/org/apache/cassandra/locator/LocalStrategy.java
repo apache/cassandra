@@ -44,7 +44,7 @@ public class LocalStrategy extends AbstractReplicationStrategy
     @Override
     public ArrayList<InetAddress> getNaturalEndpoints(RingPosition searchPosition)
     {
-        ArrayList<InetAddress> l = new ArrayList<InetAddress>(1);
+        ArrayList<InetAddress> l = new ArrayList<>(1);
         l.add(FBUtilities.getBroadcastAddress());
         return l;
     }

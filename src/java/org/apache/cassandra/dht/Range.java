@@ -196,7 +196,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     private static <T extends RingPosition<T>> Set<Range<T>> intersectionBothWrapping(Range<T> first, Range<T> that)
     {
-        Set<Range<T>> intersection = new HashSet<Range<T>>(2);
+        Set<Range<T>> intersection = new HashSet<>(2);
         if (that.right.compareTo(first.left) > 0)
             intersection.add(new Range<T>(first.left, that.right));
         intersection.add(new Range<T>(that.left, first.right));
@@ -205,7 +205,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     private static <T extends RingPosition<T>> Set<Range<T>> intersectionOneWrapping(Range<T> wrapping, Range<T> other)
     {
-        Set<Range<T>> intersection = new HashSet<Range<T>>(2);
+        Set<Range<T>> intersection = new HashSet<>(2);
         if (other.contains(wrapping.right))
             intersection.add(new Range<T>(other.left, wrapping.right));
         // need the extra compareto here because ranges are asymmetrical; wrapping.left _is not_ contained by the wrapping range
@@ -221,8 +221,8 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         if (position.equals(left) || position.equals(right))
             return null;
 
-        AbstractBounds<T> lb = new Range<T>(left, position);
-        AbstractBounds<T> rb = new Range<T>(position, right);
+        AbstractBounds<T> lb = new Range<>(left, position);
+        AbstractBounds<T> rb = new Range<>(position, right);
         return Pair.create(lb, rb);
     }
 
@@ -241,7 +241,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         T minValue = right.minValue();
         if (!isWrapAround() || right.equals(minValue))
             return Arrays.asList(this);
-        List<Range<T>> unwrapped = new ArrayList<Range<T>>(2);
+        List<Range<T>> unwrapped = new ArrayList<>(2);
         unwrapped.add(new Range<T>(left, minValue));
         unwrapped.add(new Range<T>(minValue, right));
         return unwrapped;
@@ -279,7 +279,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
      */
     private ArrayList<Range<T>> subtractContained(Range<T> contained)
     {
-        ArrayList<Range<T>> difference = new ArrayList<Range<T>>(2);
+        ArrayList<Range<T>> difference = new ArrayList<>(2);
 
         if (!left.equals(contained.left))
             difference.add(new Range<T>(left, contained.left));
@@ -408,7 +408,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     public List<String> asList()
     {
-        ArrayList<String> ret = new ArrayList<String>(2);
+        ArrayList<String> ret = new ArrayList<>(2);
         ret.add(left.toString());
         ret.add(right.toString());
         return ret;
@@ -425,7 +425,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
     public static <T extends RingPosition<T>> List<Range<T>> normalize(Collection<Range<T>> ranges)
     {
         // unwrap all
-        List<Range<T>> output = new ArrayList<Range<T>>(ranges.size());
+        List<Range<T>> output = new ArrayList<>(ranges.size());
         for (Range<T> range : ranges)
             output.addAll(range.unwrap());
 
@@ -451,7 +451,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         if (ranges.isEmpty())
             return ranges;
 
-        List<Range<T>> output = new ArrayList<Range<T>>();
+        List<Range<T>> output = new ArrayList<>();
 
         Iterator<Range<T>> iter = ranges.iterator();
         Range<T> current = iter.next();

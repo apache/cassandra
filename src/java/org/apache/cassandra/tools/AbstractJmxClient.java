@@ -151,7 +151,7 @@ class JMXConnection
     private void connect() throws IOException
     {
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(FMT_URL, host, port));
-        Map<String, Object> env = new HashMap<String, Object>();
+        Map<String, Object> env = new HashMap<>();
 
         if (username != null)
             env.put(JMXConnector.CREDENTIALS, new String[]{ username, password });

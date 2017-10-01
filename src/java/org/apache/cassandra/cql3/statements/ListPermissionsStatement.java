@@ -39,7 +39,7 @@ public class ListPermissionsStatement extends AuthorizationStatement
 
     static
     {
-        List<ColumnSpecification> columns = new ArrayList<ColumnSpecification>(4);
+        List<ColumnSpecification> columns = new ArrayList<>(4);
         columns.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("role", true), UTF8Type.instance));
         columns.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("username", true), UTF8Type.instance));
         columns.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("resource", true), UTF8Type.instance));
@@ -84,7 +84,7 @@ public class ListPermissionsStatement extends AuthorizationStatement
     // TODO: Create a new ResultMessage type (?). Rows will do for now.
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        List<PermissionDetails> details = new ArrayList<PermissionDetails>();
+        List<PermissionDetails> details = new ArrayList<>();
 
         if (resource != null && recursive)
         {

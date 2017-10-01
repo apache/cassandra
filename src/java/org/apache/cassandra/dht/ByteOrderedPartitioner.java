@@ -273,8 +273,8 @@ public class ByteOrderedPartitioner implements IPartitioner
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
     {
         // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
-        Map<Token, Float> allTokens = new HashMap<Token, Float>();
-        List<Range<Token>> sortedRanges = new ArrayList<Range<Token>>(sortedTokens.size());
+        Map<Token, Float> allTokens = new HashMap<>();
+        List<Range<Token>> sortedRanges = new ArrayList<>(sortedTokens.size());
 
         // this initializes the counts to 0 and calcs the ranges in order.
         Token lastToken = sortedTokens.get(sortedTokens.size() - 1);

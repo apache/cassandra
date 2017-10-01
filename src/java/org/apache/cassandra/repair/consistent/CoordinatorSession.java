@@ -133,7 +133,7 @@ public class CoordinatorSession extends ConsistentSession
     protected void sendMessage(InetAddress destination, RepairMessage message)
     {
         logger.trace("Sending {} to {}", message, destination);
-        MessageOut<RepairMessage> messageOut = new MessageOut<RepairMessage>(MessagingService.Verb.REPAIR_MESSAGE, message, RepairMessage.serializer);
+        MessageOut<RepairMessage> messageOut = new MessageOut<>(MessagingService.Verb.REPAIR_MESSAGE, message, RepairMessage.serializer);
         MessagingService.instance().sendOneWay(messageOut, destination);
     }
 

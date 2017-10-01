@@ -66,7 +66,7 @@ public class MergeIteratorComparisonTest
     {
         System.out.println("testRandomInts");
         final Random r = new Random();
-        Reducer<Integer, Counted<Integer>> reducer = new Counter<Integer>();
+        Reducer<Integer, Counted<Integer>> reducer = new Counter<>();
 
         List<List<Integer>> lists = new NaturalListGenerator<Integer>(ITERATOR_COUNT, LIST_LENGTH) {
             @Override
@@ -82,7 +82,7 @@ public class MergeIteratorComparisonTest
     public void testNonOverlapInts()
     {
         System.out.println("testNonOverlapInts");
-        Reducer<Integer, Counted<Integer>> reducer = new Counter<Integer>();
+        Reducer<Integer, Counted<Integer>> reducer = new Counter<>();
 
         List<List<Integer>> lists = new NaturalListGenerator<Integer>(ITERATOR_COUNT, LIST_LENGTH) {
             int next = 1;
@@ -100,7 +100,7 @@ public class MergeIteratorComparisonTest
     {
         System.out.println("testCombinationInts");
         final Random r = new Random();
-        Reducer<Integer, Counted<Integer>> reducer = new Counter<Integer>();
+        Reducer<Integer, Counted<Integer>> reducer = new Counter<>();
 
         List<List<Integer>> lists = new NaturalListGenerator<Integer>(ITERATOR_COUNT, LIST_LENGTH) {
             int next = 1;
@@ -151,7 +151,7 @@ public class MergeIteratorComparisonTest
     {
         System.out.printf("testLCS(lc=%d,lm=%d,o=%.2f,L0=%d*%d)\n", levelCount, levelMultiplier, levelOverlap, countOfL0, countOfL0 == 0 ? 0 : sizeOfL0 / countOfL0);
         final Random r = new Random();
-        Reducer<Integer, Counted<Integer>> reducer = new Counter<Integer>();
+        Reducer<Integer, Counted<Integer>> reducer = new Counter<>();
         List<List<Integer>> lists = new LCSGenerator<Integer>(Ordering.<Integer>natural(), levelCount, levelMultiplier, levelOverlap) {
             @Override
             public Integer newItem()
@@ -175,7 +175,7 @@ public class MergeIteratorComparisonTest
     {
         System.out.println("testRandomStrings");
         final Random r = new Random();
-        Reducer<String, Counted<String>> reducer = new Counter<String>();
+        Reducer<String, Counted<String>> reducer = new Counter<>();
 
         List<List<String>> lists = new NaturalListGenerator<String>(ITERATOR_COUNT, LIST_LENGTH) {
             @Override
@@ -191,7 +191,7 @@ public class MergeIteratorComparisonTest
     public void testNonOverlapStrings()
     {
         System.out.println("testNonOverlapStrings");
-        Reducer<String, Counted<String>> reducer = new Counter<String>();
+        Reducer<String, Counted<String>> reducer = new Counter<>();
 
         List<List<String>> lists = new NaturalListGenerator<String>(ITERATOR_COUNT, LIST_LENGTH) {
             int next = 1;
@@ -209,7 +209,7 @@ public class MergeIteratorComparisonTest
     {
         System.out.println("testCombinationStrings");
         final Random r = new Random();
-        Reducer<String, Counted<String>> reducer = new Counter<String>();
+        Reducer<String, Counted<String>> reducer = new Counter<>();
 
         List<List<String>> lists = new NaturalListGenerator<String>(ITERATOR_COUNT, LIST_LENGTH) {
             int next = 1;
@@ -225,7 +225,7 @@ public class MergeIteratorComparisonTest
     public void testTimeUuids()
     {
         System.out.println("testTimeUuids");
-        Reducer<UUID, Counted<UUID>> reducer = new Counter<UUID>();
+        Reducer<UUID, Counted<UUID>> reducer = new Counter<>();
 
         List<List<UUID>> lists = new NaturalListGenerator<UUID>(ITERATOR_COUNT, LIST_LENGTH) {
             @Override
@@ -241,7 +241,7 @@ public class MergeIteratorComparisonTest
     public void testRandomUuids()
     {
         System.out.println("testRandomUuids");
-        Reducer<UUID, Counted<UUID>> reducer = new Counter<UUID>();
+        Reducer<UUID, Counted<UUID>> reducer = new Counter<>();
 
         List<List<UUID>> lists = new NaturalListGenerator<UUID>(ITERATOR_COUNT, LIST_LENGTH) {
             @Override
@@ -258,7 +258,7 @@ public class MergeIteratorComparisonTest
     {
         System.out.println("testTimeUuidType");
         final AbstractType<UUID> type = TimeUUIDType.instance;
-        Reducer<ByteBuffer, Counted<ByteBuffer>> reducer = new Counter<ByteBuffer>();
+        Reducer<ByteBuffer, Counted<ByteBuffer>> reducer = new Counter<>();
 
         List<List<ByteBuffer>> lists = new SimpleListGenerator<ByteBuffer>(type, ITERATOR_COUNT, LIST_LENGTH) {
             @Override
@@ -275,7 +275,7 @@ public class MergeIteratorComparisonTest
     {
         System.out.println("testUuidType");
         final AbstractType<UUID> type = UUIDType.instance;
-        Reducer<ByteBuffer, Counted<ByteBuffer>> reducer = new Counter<ByteBuffer>();
+        Reducer<ByteBuffer, Counted<ByteBuffer>> reducer = new Counter<>();
 
         List<List<ByteBuffer>> lists = new SimpleListGenerator<ByteBuffer>(type, ITERATOR_COUNT, LIST_LENGTH) {
             @Override
@@ -294,7 +294,7 @@ public class MergeIteratorComparisonTest
         System.out.println("testSets");
         final Random r = new Random();
 
-        Reducer<KeyedSet<Integer, UUID>, KeyedSet<Integer, UUID>> reducer = new Union<Integer, UUID>();
+        Reducer<KeyedSet<Integer, UUID>, KeyedSet<Integer, UUID>> reducer = new Union<>();
 
         List<List<KeyedSet<Integer, UUID>>> lists = new NaturalListGenerator<KeyedSet<Integer, UUID>>(ITERATOR_COUNT, LIST_LENGTH) {
             @Override
@@ -311,7 +311,7 @@ public class MergeIteratorComparisonTest
     public void testLimitedOverlapStrings2()
     {
         System.out.println("testLimitedOverlapStrings2");
-        Reducer<String, Counted<String>> reducer = new Counter<String>();
+        Reducer<String, Counted<String>> reducer = new Counter<>();
 
         List<List<String>> lists = new NaturalListGenerator<String>(ITERATOR_COUNT, LIST_LENGTH) {
             int next = 0;
@@ -331,7 +331,7 @@ public class MergeIteratorComparisonTest
     public void testLimitedOverlapStrings3()
     {
         System.out.println("testLimitedOverlapStrings3");
-        Reducer<String, Counted<String>> reducer = new Counter<String>();
+        Reducer<String, Counted<String>> reducer = new Counter<>();
 
         List<List<String>> lists = new NaturalListGenerator<String>(ITERATOR_COUNT, LIST_LENGTH) {
             int next = 0;

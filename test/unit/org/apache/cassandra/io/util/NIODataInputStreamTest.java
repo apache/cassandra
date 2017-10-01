@@ -76,7 +76,7 @@ public class NIODataInputStreamTest
     {
 
         boolean isOpen = true;
-        Queue<ByteBuffer> slices = new ArrayDeque<ByteBuffer>();
+        Queue<ByteBuffer> slices = new ArrayDeque<>();
 
         DummyChannel()
         {

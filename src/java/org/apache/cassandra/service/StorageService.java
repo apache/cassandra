@@ -232,7 +232,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setGossipTokens(Collection<Token> tokens)
     {
-        List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<Pair<ApplicationState, VersionedValue>>();
+        List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
         states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
         states.add(Pair.create(ApplicationState.STATUS, valueFactory.normal(tokens)));
         Gossiper.instance.addLocalApplicationStates(states);
@@ -643,7 +643,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddress());
                 // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.
-                List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<Pair<ApplicationState, VersionedValue>>();
+                List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
                 states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
                 states.add(Pair.create(ApplicationState.STATUS, valueFactory.hibernate(true)));
                 Gossiper.instance.addLocalApplicationStates(states);
@@ -3106,7 +3106,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void takeMultipleTableSnapshot(String tag, boolean skipFlush, String... tableList)
             throws IOException
     {
-        Map<Keyspace, List<String>> keyspaceColumnfamily = new HashMap<Keyspace, List<String>>();
+        Map<Keyspace, List<String>> keyspaceColumnfamily = new HashMap<>();
         for (String table : tableList)
         {
             String splittedString[] = StringUtils.split(table, '.');
@@ -4496,7 +4496,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         List<Token> sortedTokens = tokenMetadata.sortedTokens();
         // describeOwnership returns tokens in an unspecified order, let's re-order them
-        Map<Token, Float> tokenMap = new TreeMap<Token, Float>(tokenMetadata.partitioner.describeOwnership(sortedTokens));
+        Map<Token, Float> tokenMap = new TreeMap<>(tokenMetadata.partitioner.describeOwnership(sortedTokens));
         Map<InetAddress, Float> nodeMap = new LinkedHashMap<>();
         for (Map.Entry<Token, Float> entry : tokenMap.entrySet())
         {
@@ -4963,7 +4963,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Map<String, Boolean> getAutoCompactionStatus(String ks, String... tables) throws IOException
     {
-        Map<String, Boolean> status = new HashMap<String, Boolean>();
+        Map<String, Boolean> status = new HashMap<>();
         for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, tables))
             status.put(cfs.getTableName(), cfs.isAutoCompactionDisabled());
         return status;

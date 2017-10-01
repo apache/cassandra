@@ -108,7 +108,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
             // In such a case we do not want to initialize the map with that initialCapacity as it can result
             // in an OOM when put is called (see CASSANDRA-12618). On the other hand we do not want to have to resize
             // the map if we can avoid it, so we put a reasonable limit on the initialCapacity.
-            Map<K, V> m = new LinkedHashMap<K, V>(Math.min(n, 256));
+            Map<K, V> m = new LinkedHashMap<>(Math.min(n, 256));
             for (int i = 0; i < n; i++)
             {
                 ByteBuffer kbb = readValue(input, version);

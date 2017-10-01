@@ -62,7 +62,7 @@ public class NetworkTopologyStrategyTest
         TokenMetadata metadata = new TokenMetadata();
         createDummyTokens(metadata, true);
 
-        Map<String, String> configOptions = new HashMap<String, String>();
+        Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC1", "3");
         configOptions.put("DC2", "2");
         configOptions.put("DC3", "1");
@@ -86,7 +86,7 @@ public class NetworkTopologyStrategyTest
         TokenMetadata metadata = new TokenMetadata();
         createDummyTokens(metadata, false);
 
-        Map<String, String> configOptions = new HashMap<String, String>();
+        Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC1", "3");
         configOptions.put("DC2", "3");
         configOptions.put("DC3", "0");
@@ -112,7 +112,7 @@ public class NetworkTopologyStrategyTest
         IEndpointSnitch snitch = new RackInferringSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
         TokenMetadata metadata = new TokenMetadata();
-        Map<String, String> configOptions = new HashMap<String, String>();
+        Map<String, String> configOptions = new HashMap<>();
         Multimap<InetAddress, Token> tokens = HashMultimap.create();
 
         int totalRF = 0;
@@ -139,7 +139,7 @@ public class NetworkTopologyStrategyTest
         for (String testToken : new String[]{"123456", "200000", "000402", "ffffff", "400200"})
         {
             List<InetAddress> endpoints = strategy.calculateNaturalEndpoints(new StringToken(testToken), metadata);
-            Set<InetAddress> epSet = new HashSet<InetAddress>(endpoints);
+            Set<InetAddress> epSet = new HashSet<>(endpoints);
 
             Assert.assertEquals(totalRF, endpoints.size());
             Assert.assertEquals(totalRF, epSet.size());

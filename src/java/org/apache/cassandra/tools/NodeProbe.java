@@ -183,7 +183,7 @@ public class NodeProbe implements AutoCloseable
     private void connect() throws IOException
     {
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
-        Map<String,Object> env = new HashMap<String,Object>();
+        Map<String,Object> env = new HashMap<>();
         if (username != null)
         {
             String[] creds = { username, password };
@@ -1620,7 +1620,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
     {
         ObjectName query = new ObjectName("org.apache.cassandra.db:type=" + type +",*");
         Set<ObjectName> cfObjects = mbeanServerConn.queryNames(query, null);
-        List<Entry<String, ColumnFamilyStoreMBean>> mbeans = new ArrayList<Entry<String, ColumnFamilyStoreMBean>>(cfObjects.size());
+        List<Entry<String, ColumnFamilyStoreMBean>> mbeans = new ArrayList<>(cfObjects.size());
         for(ObjectName n : cfObjects)
         {
             String keyspaceName = n.getKeyProperty("keyspace");

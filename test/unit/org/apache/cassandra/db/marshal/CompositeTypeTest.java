@@ -47,7 +47,7 @@ public class CompositeTypeTest
     private static final CompositeType comparator;
     static
     {
-        List<AbstractType<?>> subComparators = new ArrayList<AbstractType<?>>();
+        List<AbstractType<?>> subComparators = new ArrayList<>();
         subComparators.add(BytesType.instance);
         subComparators.add(TimeUUIDType.instance);
         subComparators.add(IntegerType.instance);

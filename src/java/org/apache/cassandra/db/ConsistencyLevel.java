@@ -163,7 +163,7 @@ public enum ConsistencyLevel
     {
         NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
 
-        Map<String, Integer> dcEndpoints = new HashMap<String, Integer>();
+        Map<String, Integer> dcEndpoints = new HashMap<>();
         for (String dc: strategy.getDatacenters())
             dcEndpoints.put(dc, 0);
 
@@ -206,8 +206,8 @@ public enum ConsistencyLevel
             case GLOBAL:
                 return liveEndpoints;
             case DC_LOCAL:
-                List<InetAddress> local = new ArrayList<InetAddress>();
-                List<InetAddress> other = new ArrayList<InetAddress>();
+                List<InetAddress> local = new ArrayList<>();
+                List<InetAddress> other = new ArrayList<>();
                 for (InetAddress add : liveEndpoints)
                 {
                     if (isLocal(add))

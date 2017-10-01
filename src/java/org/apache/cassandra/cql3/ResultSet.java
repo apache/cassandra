@@ -326,7 +326,7 @@ public class ResultSet
                 }
 
                 // metadata (names/types)
-                List<ColumnSpecification> names = new ArrayList<ColumnSpecification>(columnCount);
+                List<ColumnSpecification> names = new ArrayList<>(columnCount);
                 for (int i = 0; i < columnCount; i++)
                 {
                     String ksName = globalTablesSpec ? globalKsName : CBUtil.readString(body);
