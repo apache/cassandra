@@ -1,3 +1,7 @@
+3.0.16
+  * Deserialise sstable metadata in nodetool verify (CASSANDRA-13922)
+
+
 3.0.15
  * Improve TRUNCATE performance (CASSANDRA-13909)
  * Implement short read protection on partition boundaries (CASSANDRA-13595)
