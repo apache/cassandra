@@ -60,7 +60,12 @@ public class ValidatingSchemaQuery extends PartitionOperation
             argumentIndex[i++] = spec.partitionGenerator.indexOf(definition.getName());
 
         for (ValidatingStatement statement : statements)
-            statement.statement.setConsistencyLevel(JavaDriverClient.from(cl));
+        {
+            if (cl.isSerialConsistency())
+                statement.statement.setSerialConsistencyLevel(JavaDriverClient.from(cl));
+            else
+                statement.statement.setConsistencyLevel(JavaDriverClient.from(cl));
+        }
         this.clusteringComponents = clusteringComponents;
     }
 

@@ -58,7 +58,12 @@ public abstract class SchemaStatement extends PartitionOperation
             argumentIndex[i++] = spec.partitionGenerator.indexOf(name);
 
         if (statement != null)
-            statement.setConsistencyLevel(JavaDriverClient.from(cl));
+        {
+            if (cl.isSerialConsistency())
+                statement.setSerialConsistencyLevel(JavaDriverClient.from(cl));
+            else
+                statement.setConsistencyLevel(JavaDriverClient.from(cl));
+        }
     }
 
     BoundStatement bindRow(Row row)
