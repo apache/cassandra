@@ -21,6 +21,7 @@
 package org.apache.cassandra.db.lifecycle;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -29,7 +30,10 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -148,8 +152,33 @@ final class LogRecord
 
     public static LogRecord make(Type type, SSTable table)
     {
-        String absoluteTablePath = FileUtils.getCanonicalPath(table.descriptor.baseFilename());
+        String absoluteTablePath = absolutePath(table.descriptor.baseFilename());
         return make(type, getExistingFiles(absoluteTablePath), table.getAllFilePaths().size(), absoluteTablePath);
+    }
+
+    public static Collection<LogRecord> make(Type type, Iterable<SSTableReader> tables)
+    {
+        // contains a mapping from sstable absolute path (everything up until the 'Data'/'Index'/etc part of the filename) to the sstable
+        Map<String, SSTable> absolutePaths = new HashMap<>();
+        for (SSTableReader table : tables)
+            absolutePaths.put(absolutePath(table.descriptor.baseFilename()), table);
+
+        // maps sstable base file name to the actual files on disk
+        Map<String, List<File>> existingFiles = getExistingFiles(absolutePaths.keySet());
+        List<LogRecord> records = new ArrayList<>(existingFiles.size());
+        for (Map.Entry<String, List<File>> entry : existingFiles.entrySet())
+        {
+            List<File> filesOnDisk = entry.getValue();
+            String baseFileName = entry.getKey();
+            SSTable sstable = absolutePaths.get(baseFileName);
+            records.add(make(type, filesOnDisk, sstable.getAllFilePaths().size(), baseFileName));
+        }
+        return records;
+    }
+
+    private static String absolutePath(String baseFilename)
+    {
+        return FileUtils.getCanonicalPath(baseFilename + Component.separator);
     }
 
     public LogRecord withExistingFiles()
@@ -266,6 +295,41 @@ final class LogRecord
         // files may be null if the directory does not exist yet, e.g. when tracking new files
         return files == null ? Collections.emptyList() : Arrays.asList(files);
     }
+
+    /**
+     * absoluteFilePaths contains full file parts up to the component name
+     *
+     * this method finds all files on disk beginning with any of the paths in absoluteFilePaths
+     * @return a map from absoluteFilePath to actual file on disk.
+     */
+    public static Map<String, List<File>> getExistingFiles(Set<String> absoluteFilePaths)
+    {
+        Set<File> uniqueDirectories = absoluteFilePaths.stream().map(path -> Paths.get(path).getParent().toFile()).collect(Collectors.toSet());
+        Map<String, List<File>> fileMap = new HashMap<>();
+        FilenameFilter ff = (dir, name) -> {
+            Descriptor descriptor = null;
+            try
+            {
+                descriptor = Descriptor.fromFilename(new File(dir, name));
+            }
+            catch (Throwable t)
+            {// ignored - if we can't parse the filename, just skip the file
+            }
+
+            String absolutePath = descriptor != null ? absolutePath(descriptor.baseFilename()) : null;
+            if (absolutePath != null && absoluteFilePaths.contains(absolutePath))
+                fileMap.computeIfAbsent(absolutePath, k -> new ArrayList<>()).add(new File(dir, name));
+
+            return false;
+        };
+
+        // populate the file map:
+        for (File f : uniqueDirectories)
+            f.listFiles(ff);
+
+        return fileMap;
+    }
+
 
     public boolean isFinal()
     {
