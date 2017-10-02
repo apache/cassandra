@@ -141,6 +141,21 @@ class Helpers
         return accumulate;
     }
 
+    static Throwable prepareForBulkObsoletion(Iterable<SSTableReader> readers, LogTransaction txnLogs, List<LogTransaction.Obsoletion> obsoletions, Throwable accumulate)
+    {
+        try
+        {
+            for (Map.Entry<SSTableReader, LogTransaction.SSTableTidier> entry : txnLogs.bulkObsoletion(readers).entrySet())
+                obsoletions.add(new LogTransaction.Obsoletion(entry.getKey(), entry.getValue()));
+        }
+        catch (Throwable t)
+        {
+            accumulate = Throwables.merge(accumulate, t);
+        }
+
+        return accumulate;
+    }
+
     static Throwable abortObsoletion(List<LogTransaction.Obsoletion> obsoletions, Throwable accumulate)
     {
         if (obsoletions == null || obsoletions.isEmpty())
