@@ -1,3 +1,8 @@
+3.11.2
+Merged from 3.0:
+ * Deserialise sstable metadata in nodetool verify (CASSANDRA-13922)
+
+
 3.11.1
  * Fix the computation of cdc_total_space_in_mb for exabyte filesystems (CASSANDRA-13808)
  * AbstractTokenTreeBuilder#serializedSize returns wrong value when there is a single leaf and overflow collisions (CASSANDRA-13869)
@@ -12,7 +17,6 @@
  * Duplicate the buffer before passing it to analyser in SASI operation (CASSANDRA-13512)
  * Properly evict pstmts from prepared statements cache (CASSANDRA-13641)
 Merged from 3.0:
- * Deserialise sstable metadata in nodetool verify (CASSANDRA-13922)
  * Improve TRUNCATE performance (CASSANDRA-13909)
  * Implement short read protection on partition boundaries (CASSANDRA-13595)
  * Fix ISE thrown by UPI.Serializer.hasNext() for some SELECT queries (CASSANDRA-13911)
