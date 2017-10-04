@@ -27,6 +27,7 @@ import java.util.concurrent.*;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -43,6 +44,7 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner.LocalToken;
 import org.apache.cassandra.dht.Range;
@@ -91,7 +93,9 @@ public class SSTableReaderTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2)
+                                                .minIndexInterval(8)
+                                                .maxIndexInterval(8),  // ensure close key count estimation
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD3),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_MOVE_AND_OPEN),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_COMPRESSED).compression(CompressionParams.DEFAULT),
@@ -104,9 +108,15 @@ public class SSTableReaderTest
                                                 .minIndexInterval(4)
                                                 .maxIndexInterval(4)
                                                 .bloomFilterFpChance(0.99));
-        
+
         // All tests in this class assume auto-compaction is disabled.
         CompactionManager.instance.disableAutoCompaction();
+    }
+
+    @After
+    public void Cleanup() {
+        Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD).truncateBlocking();
+        Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2).truncateBlocking();
     }
 
     @Test
@@ -146,6 +156,80 @@ public class SSTableReaderTest
             assert section.lowerPosition < section.upperPosition : section.lowerPosition + " ! < " + section.upperPosition;
             previous = section.upperPosition;
         }
+    }
+
+    @Test
+    public void testEstimatedKeysForRangesAndKeySamples()
+    {
+        // prepare data
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
+        partitioner = store.getPartitioner();
+
+        Random random = new Random();
+        List<Token> tokens = new ArrayList<>();
+        tokens.add(partitioner.getMinimumToken());
+        if (partitioner.splitter().isPresent())
+            tokens.add(partitioner.getMaximumToken());
+
+        for (int j = 0; j < 100; j++)
+        {
+            Mutation mutation = new RowUpdateBuilder(store.metadata(), j, String.valueOf(random.nextInt())).clustering("0")
+                                                                                                           .add("val",
+                                                                                                                ByteBufferUtil.EMPTY_BYTE_BUFFER)
+                                                                                                           .build();
+            if (j % 4 != 0) // skip some keys
+                mutation.applyUnsafe();
+            tokens.add(mutation.key().getToken());
+        }
+
+        store.forceBlockingFlush();
+        assertEquals(1, store.getLiveSSTables().size());
+        SSTableReader sstable = store.getLiveSSTables().iterator().next();
+
+        // verify any combination of start and end point among the keys we have, which includes empty, full and
+        // wrap-around ranges
+        for (int i = 0; i < tokens.size(); i++)
+            for (int j = 0; j < tokens.size(); j++)
+            {
+                verifyEstimatedKeysAndKeySamples(sstable, new Range<Token>(tokens.get(i), tokens.get(j)));
+            }
+    }
+
+    private void verifyEstimatedKeysAndKeySamples(SSTableReader sstable, Range<Token> range)
+    {
+        List<DecoratedKey> expectedKeys = new ArrayList<>();
+        try (ISSTableScanner scanner = sstable.getScanner())
+        {
+            while (scanner.hasNext())
+            {
+                try (UnfilteredRowIterator rowIterator = scanner.next())
+                {
+                    if (range.contains(rowIterator.partitionKey().getToken()))
+                        expectedKeys.add(rowIterator.partitionKey());
+                }
+            }
+        }
+
+        // check estimated key
+        long estimated = sstable.estimatedKeysForRanges(Collections.singleton(range));
+        assertTrue("Range: " + range + " having " + expectedKeys.size() + " partitions, but estimated "
+                   + estimated, closeEstimation(expectedKeys.size(), estimated));
+
+        // check key samples
+        List<DecoratedKey> sampledKeys = new ArrayList<>();
+        sstable.getKeySamples(range).forEach(sampledKeys::add);
+
+        assertTrue("Range: " + range + " having " + expectedKeys + " keys, but keys sampled: "
+                   + sampledKeys, expectedKeys.containsAll(sampledKeys));
+        // no duplicate
+        assertEquals(expectedKeys.size(), expectedKeys.stream().distinct().count());
+        assertEquals(sampledKeys.size(), sampledKeys.stream().distinct().count());
+    }
+
+    private boolean closeEstimation(long expected, long estimated)
+    {
+        return expected <= estimated + 16 && expected >= estimated - 16;
     }
 
     @Test
