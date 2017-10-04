@@ -31,6 +31,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -344,8 +345,33 @@ public class VerifyTest
             }
             fail("Expected a CorruptSSTableException to be thrown");
         }
-
     }
+
+    @Test(expected = CorruptSSTableException.class)
+    public void testVerifyBrokenSSTableMetadata() throws IOException, WriteTimeoutException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
+
+        fillCF(cfs, 2);
+
+        Util.getAll(Util.cmd(cfs).build());
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+
+        String filenameToCorrupt = sstable.descriptor.filenameFor(Component.STATS);
+        RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw");
+        file.seek(0);
+        file.writeBytes(StringUtils.repeat('z', 2));
+        file.close();
+
+        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        {
+            verifier.verify(false);
+        }
+    }
+
 
     protected void fillCF(ColumnFamilyStore cfs, int partitionsPerSSTable)
     {
