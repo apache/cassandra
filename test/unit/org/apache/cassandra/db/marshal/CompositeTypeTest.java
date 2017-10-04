@@ -219,16 +219,14 @@ public class CompositeTypeTest
             TypeParser.parse("CompositeType");
             fail("Shouldn't work");
         }
-        catch (ConfigurationException e) {}
-        catch (SyntaxException e) {}
+        catch(ConfigurationException | SyntaxException e) {}
 
         try
         {
             TypeParser.parse("CompositeType()");
             fail("Shouldn't work");
         }
-        catch (ConfigurationException e) {}
-        catch (SyntaxException e) {}
+        catch(ConfigurationException | SyntaxException e) {}
     }
 
     @Test

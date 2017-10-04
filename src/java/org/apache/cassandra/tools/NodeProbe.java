@@ -812,12 +812,7 @@ public class NodeProbe implements AutoCloseable
         {
             ssProxy.truncate(keyspaceName, tableName);
         }
-        catch (TimeoutException e)
-        {
-            throw new RuntimeException("Error while executing truncate", e);
-        }
-        catch (IOException e)
-        {
+        catch(TimeoutException | IOException e) {
             throw new RuntimeException("Error while executing truncate", e);
         }
     }
