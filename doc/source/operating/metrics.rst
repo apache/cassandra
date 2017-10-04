@@ -185,7 +185,7 @@ Reported name format:
     ``org.apache.cassandra.metrics.ThreadPools.<MetricName>.<Path>.<ThreadPoolName>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=ThreadPools scope=<ThreadPoolName> type=<Type> name=<MetricName>``
+    ``org.apache.cassandra.metrics:type=ThreadPools path=<Path> scope=<ThreadPoolName> name=<MetricName>``
 
 ===================== ============== ===========
 Name                  Type           Description
@@ -405,10 +405,10 @@ Dropped writes are stored and retried by ``Hinted Handoff``
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.DroppedMessages.<MetricName>.<Type>``
+    ``org.apache.cassandra.metrics.DroppedMessage.<MetricName>.<Type>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=DroppedMetrics scope=<Type> name=<MetricName>``
+    ``org.apache.cassandra.metrics:type=DroppedMessage scope=<Type> name=<MetricName>``
 
 ========================== ============== ===========
 Name                       Type           Description
