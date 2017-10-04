@@ -1,3 +1,7 @@
+# Dockerfile for building the Cassandra documentation.
+# If wanting to regenerate the documentation from scratch,
+# run `ant realclean` from the root directory of this project.
+
 FROM python:2.7
 
 WORKDIR /usr/src/code
@@ -9,6 +13,5 @@ RUN apt-get update \
         ant \
         default-jdk
 
-CMD ant realclean \
-    && ant gen-doc \
+CMD ant gen-doc \
     && echo "The locally built documentation can be found here:\n\n    open build/html/index.html\n\n"

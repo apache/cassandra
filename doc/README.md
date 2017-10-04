@@ -41,3 +41,13 @@ docker-compose build build-docs
 # build the documentation
 docker-compose run build-docs
 ```
+
+To regenerate the documentation from scratch, run:
+
+```bash
+# return to the root directory of the Cassandra project
+cd ..
+
+# remove all generated documentation files based on the source code
+ant realclean
+```
