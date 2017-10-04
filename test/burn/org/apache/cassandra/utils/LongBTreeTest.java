@@ -957,7 +957,7 @@ public class LongBTreeTest
         }
     }
 
-    public static void main(String[] args) throws ExecutionException, InterruptedException, InvocationTargetException, IllegalAccessException
+    public static void main(String... args)throws ExecutionException, InterruptedException, InvocationTargetException, IllegalAccessException
     {
         for (String arg : args)
         {

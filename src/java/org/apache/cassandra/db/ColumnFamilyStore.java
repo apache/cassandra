@@ -102,8 +102,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * By adding additional directories to initialDirectories, sstables in these extra locations are
      * made discoverable on sstable instantiation.
      */
-    public static synchronized void addInitialDirectories(Directories.DataDirectory[] newDirectories)
-    {
+    public static synchronized void addInitialDirectories(Directories.DataDirectory... newDirectories){
         assert newDirectories != null;
 
         Set<Directories.DataDirectory> existing = Sets.newHashSet(initialDirectories);

@@ -98,7 +98,7 @@ public class StreamingTombstoneHistogramBuilderBench
     }
 
 
-    public static void main(String[] args) throws Exception
+    public static void main(String... args)throws Exception
     {
         Options opt = new OptionsBuilder()
                       .include(StreamingTombstoneHistogramBuilderBench.class.getSimpleName())

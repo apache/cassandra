@@ -217,7 +217,7 @@ public class LongSharedExecutorPoolTest
         }
     }
 
-    public static void main(String[] args) throws InterruptedException, ExecutionException
+    public static void main(String... args)throws InterruptedException, ExecutionException
     {
         // do longer test
         new LongSharedExecutorPoolTest().testPromptnessOfExecution(TimeUnit.MINUTES.toNanos(10L), 0.1f);

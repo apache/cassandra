@@ -45,8 +45,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  */
 public class SSTableExpiredBlockers
 {
-    public static void main(String[] args)
-    {
+    public static void main(String... args){
         PrintStream out = System.out;
         if (args.length < 2)
         {

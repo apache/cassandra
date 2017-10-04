@@ -104,8 +104,7 @@ public class LogbackStatusListener implements StatusListener
             }
 
             @Override
-            public void write(byte[] b)
-            {
+            public void write(byte... b){
                 write(b, 0, b.length);
             }
 
@@ -271,8 +270,7 @@ public class LogbackStatusListener implements StatusListener
             }
 
             @Override
-            public void print(char[] s)
-            {
+            public void print(char... s){
                 if(isAsyncAppender())
                     original.println(s);
                 else
@@ -361,8 +359,7 @@ public class LogbackStatusListener implements StatusListener
             }
 
             @Override
-            public void println(char[] v)
-            {
+            public void println(char... v){
                 if (isAsyncAppender())
                     original.println(v);
                 else

@@ -333,8 +333,7 @@ public class OldNetworkTopologyStrategyTest
         return tokens;
     }
 
-    private TokenMetadata initTokenMetadata(BigIntegerToken[] tokens)
-            throws UnknownHostException
+    private TokenMetadata initTokenMetadata(BigIntegerToken... tokens)throws UnknownHostException
     {
         TokenMetadata tokenMetadataCurrent = new TokenMetadata();
 

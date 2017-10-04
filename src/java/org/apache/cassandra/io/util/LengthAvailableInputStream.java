@@ -44,7 +44,7 @@ public class LengthAvailableInputStream extends FilterInputStream
     }
 
     @Override
-    public int read(byte[] b) throws IOException
+    public int read(byte... b)throws IOException
     {
         int length = in.read(b);
         remainingBytes -= length;

@@ -142,7 +142,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
             handleCDCReplayCompletion(file);
     }
 
-    public void replayFiles(File[] clogs) throws IOException
+    public void replayFiles(File... clogs)throws IOException
     {
         List<File> filteredLogs = CommitLogReader.filterCommitLogFiles(clogs);
         int i = 0;

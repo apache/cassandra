@@ -57,8 +57,7 @@ public final class UDHelper
         }
     }
 
-    static TypeCodec<Object>[] codecsFor(DataType[] dataType)
-    {
+    static TypeCodec<Object>[] codecsFor(DataType... dataType){
         TypeCodec<Object>[] codecs = new TypeCodec[dataType.length];
         for (int i = 0; i < dataType.length; i++)
             codecs[i] = codecFor(dataType[i]);

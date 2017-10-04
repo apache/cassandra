@@ -60,7 +60,7 @@ public class AllowAllAuthenticator implements IAuthenticator
     private static class Negotiator implements SaslNegotiator
     {
 
-        public byte[] evaluateResponse(byte[] clientResponse) throws AuthenticationException
+        public byte[] evaluateResponse(byte... clientResponse)throws AuthenticationException
         {
             return null;
         }

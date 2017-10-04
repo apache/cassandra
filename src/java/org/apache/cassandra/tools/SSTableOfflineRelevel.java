@@ -75,7 +75,7 @@ public class SSTableOfflineRelevel
     /**
      * @param args a list of sstables whose metadata we are changing
      */
-    public static void main(String[] args) throws IOException
+    public static void main(String... args)throws IOException
     {
         PrintStream out = System.out;
         if (args.length < 2)

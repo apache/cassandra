@@ -226,8 +226,7 @@ public class DynamicList<E>
         return true;
     }
 
-    public static void main(String[] args)
-    {
+    public static void main(String... args){
         DynamicList<Integer> list = new DynamicList<>(20);
         TreeSet<Integer> canon = new TreeSet<>();
         HashMap<Integer, Node> nodes = new HashMap<>();

@@ -89,7 +89,7 @@ public class CompressorTest
                           Arrays.copyOfRange(restored, restoreOffset, restoreOffset + decompressedLength));
     }
 
-    public void testArrayUncompress(byte[] data) throws IOException
+    public void testArrayUncompress(byte... data)throws IOException
     {
         testArrayUncompress(data, 0, data.length);
     }

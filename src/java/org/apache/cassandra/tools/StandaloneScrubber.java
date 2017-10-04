@@ -51,8 +51,7 @@ public class StandaloneScrubber
     private static final String SKIP_CORRUPTED_OPTION = "skip-corrupted";
     private static final String NO_VALIDATE_OPTION = "no-validate";
 
-    public static void main(String args[])
-    {
+    public static void main(String ... args){
         Options options = Options.parseArgs(args);
         Util.initDatabaseDescriptor();
 
@@ -207,8 +206,7 @@ public class StandaloneScrubber
             this.cfName = cfName;
         }
 
-        public static Options parseArgs(String cmdArgs[])
-        {
+        public static Options parseArgs(String ... cmdArgs){
             CommandLineParser parser = new GnuParser();
             CmdLineOptions options = getCmdLineOptions();
             try

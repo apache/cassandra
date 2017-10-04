@@ -116,8 +116,7 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
 
     // CLI utility methods
 
-    public static SettingsCommandPreDefinedMixed build(String[] params)
-    {
+    public static SettingsCommandPreDefinedMixed build(String... params){
         GroupedOptions options = GroupedOptions.select(params,
                 new Options(new SettingsCommand.Uncertainty()),
                 new Options(new SettingsCommand.Count()),

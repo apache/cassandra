@@ -63,8 +63,7 @@ public class GuidGenerator
         return convertToStandardFormat( sb.toString() );
     }
 
-    public static String guidToString(byte[] bytes)
-    {
+    public static String guidToString(byte... bytes){
         StringBuilder sb = new StringBuilder();
         for (int j = 0; j < bytes.length; ++j)
         {

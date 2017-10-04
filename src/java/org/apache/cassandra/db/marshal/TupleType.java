@@ -200,8 +200,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         return components;
     }
 
-    public static ByteBuffer buildValue(ByteBuffer[] components)
-    {
+    public static ByteBuffer buildValue(ByteBuffer... components){
         int totalLength = 0;
         for (ByteBuffer component : components)
             totalLength += 4 + (component == null ? 0 : component.remaining());

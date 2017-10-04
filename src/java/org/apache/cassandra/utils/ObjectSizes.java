@@ -44,8 +44,7 @@ public class ObjectSizes
      * @param bytes byte array to get memory size
      * @return heap-size of the array
      */
-    public static long sizeOfArray(byte[] bytes)
-    {
+    public static long sizeOfArray(byte... bytes){
         return sizeOfArray(bytes.length, 1);
     }
 
@@ -54,8 +53,7 @@ public class ObjectSizes
      * @param longs byte array to get memory size
      * @return heap-size of the array
      */
-    public static long sizeOfArray(long[] longs)
-    {
+    public static long sizeOfArray(long... longs){
         return sizeOfArray(longs.length, 8);
     }
 
@@ -64,8 +62,7 @@ public class ObjectSizes
      * @param ints byte array to get memory size
      * @return heap-size of the array
      */
-    public static long sizeOfArray(int[] ints)
-    {
+    public static long sizeOfArray(int... ints){
         return sizeOfArray(ints.length, 4);
     }
 
@@ -84,8 +81,7 @@ public class ObjectSizes
      * @param objects the array to size
      * @return heap-size of the array (excluding memory retained by referenced objects)
      */
-    public static long sizeOfArray(Object[] objects)
-    {
+    public static long sizeOfArray(Object... objects){
         return sizeOfReferenceArray(objects.length);
     }
 
@@ -97,8 +93,7 @@ public class ObjectSizes
     /**
      * Memory a ByteBuffer array consumes.
      */
-    public static long sizeOnHeapOf(ByteBuffer[] array)
-    {
+    public static long sizeOnHeapOf(ByteBuffer... array){
         long allElementsSize = 0;
         for (int i = 0; i < array.length; i++)
             if (array[i] != null)
@@ -107,8 +102,7 @@ public class ObjectSizes
         return allElementsSize + sizeOfArray(array);
     }
 
-    public static long sizeOnHeapExcludingData(ByteBuffer[] array)
-    {
+    public static long sizeOnHeapExcludingData(ByteBuffer... array){
         return BUFFER_EMPTY_SIZE * array.length + sizeOfArray(array);
     }
 

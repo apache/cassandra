@@ -59,7 +59,7 @@ public class ConsoleAppender<E> extends OutputStreamAppender<E>
             }
 
             @Override
-            public void write(byte[] b) throws IOException
+            public void write(byte... b)throws IOException
             {
                 targetStream.write(b);
             }

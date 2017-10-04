@@ -24,7 +24,7 @@ public interface IFilter extends SharedCloseable
     interface FilterKey
     {
         /** Places the murmur3 hash of the key in the given long array of size at least two. */
-        void filterHash(long[] dest);
+        void filterHash(long... dest);
     }
 
     void add(FilterKey key);

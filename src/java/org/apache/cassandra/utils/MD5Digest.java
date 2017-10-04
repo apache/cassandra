@@ -41,13 +41,11 @@ public class MD5Digest
         hashCode = Arrays.hashCode(bytes);
     }
 
-    public static MD5Digest wrap(byte[] digest)
-    {
+    public static MD5Digest wrap(byte... digest){
         return new MD5Digest(digest);
     }
 
-    public static MD5Digest compute(byte[] toHash)
-    {
+    public static MD5Digest compute(byte... toHash){
         return new MD5Digest(FBUtilities.threadLocalMD5Digest().digest(toHash));
     }
 

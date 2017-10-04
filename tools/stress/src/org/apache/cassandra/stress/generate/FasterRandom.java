@@ -36,8 +36,7 @@ public class FasterRandom implements RandomGenerator
         setSeed((long) seed);
     }
 
-    public void setSeed(int[] ints)
-    {
+    public void setSeed(int... ints){
         if (ints.length > 1)
             setSeed (((long) ints[0] << 32) | ints[1]);
         else
@@ -57,8 +56,7 @@ public class FasterRandom implements RandomGenerator
         seed = random.nextLong();
     }
 
-    public void nextBytes(byte[] bytes)
-    {
+    public void nextBytes(byte... bytes){
         int i = 0;
         while (i < bytes.length)
         {

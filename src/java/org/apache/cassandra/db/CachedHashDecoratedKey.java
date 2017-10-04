@@ -34,8 +34,7 @@ public class CachedHashDecoratedKey extends BufferDecoratedKey
     }
 
     @Override
-    public void filterHash(long[] dest)
-    {
+    public void filterHash(long... dest){
         if (hashCached)
         {
             dest[0] = hash0;

@@ -20,7 +20,7 @@ package org.apache.cassandra.tools;
 import static org.apache.cassandra.utils.FBUtilities.getReleaseVersionString;
 
 public class GetVersion {
-    public static void main(String[] args) {
+    public static void main(String... args){
         System.out.println(getReleaseVersionString());
     }
 }

@@ -181,7 +181,7 @@ public class ChecksummedDataInput extends RebufferingInputStream
     }
 
     @Override
-    public void readFully(byte[] b) throws IOException
+    public void readFully(byte... b)throws IOException
     {
         checkLimit(b.length);
         super.readFully(b);

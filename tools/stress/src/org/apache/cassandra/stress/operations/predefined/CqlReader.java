@@ -65,8 +65,7 @@ public class CqlReader extends CqlOperation<ByteBuffer[][]>
     }
 
     @Override
-    protected List<Object> getQueryParameters(byte[] key)
-    {
+    protected List<Object> getQueryParameters(byte... key){
         return Collections.<Object>singletonList(ByteBuffer.wrap(key));
     }
 

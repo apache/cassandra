@@ -230,7 +230,7 @@ public class Client extends SimpleClient
         return initialResponse;
     }
 
-    public static void main(String[] args) throws Exception
+    public static void main(String... args)throws Exception
     {
         DatabaseDescriptor.clientInitialization();
 

@@ -55,8 +55,7 @@ public abstract class PartitionerTestCase
         initPartitioner();
     }
 
-    public Token tok(byte[] key)
-    {
+    public Token tok(byte... key){
         return partitioner.getToken(ByteBuffer.wrap(key));
     }
 

@@ -123,8 +123,7 @@ public class CompressedStreamWriter extends StreamWriter
     }
 
     // chunks are assumed to be sorted by offset
-    private List<Pair<Long, Long>> getTransferSections(CompressionMetadata.Chunk[] chunks)
-    {
+    private List<Pair<Long, Long>> getTransferSections(CompressionMetadata.Chunk... chunks){
         List<Pair<Long, Long>> transferSections = new ArrayList<>();
         Pair<Long, Long> lastSection = null;
         for (CompressionMetadata.Chunk chunk : chunks)

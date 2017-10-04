@@ -197,8 +197,7 @@ public abstract class CBUtil
         cb.writeBytes(bytes);
     }
 
-    public static int sizeOfBytes(byte[] bytes)
-    {
+    public static int sizeOfBytes(byte... bytes){
         return 2 + bytes.length;
     }
 
@@ -447,8 +446,7 @@ public abstract class CBUtil
             cb.writeBytes(bytes.duplicate());
     }
 
-    public static int sizeOfValue(byte[] bytes)
-    {
+    public static int sizeOfValue(byte... bytes){
         return 4 + (bytes == null ? 0 : bytes.length);
     }
 

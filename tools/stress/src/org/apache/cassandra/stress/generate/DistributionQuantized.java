@@ -82,7 +82,7 @@ public class DistributionQuantized extends Distribution
         delegate.setSeed(seed);
     }
 
-    public static void main(String[] args) throws Exception
+    public static void main(String... args)throws Exception
     {
         Stress.main(new String[] { "print", "dist=qextreme(1..1M,2,2)"});
     }

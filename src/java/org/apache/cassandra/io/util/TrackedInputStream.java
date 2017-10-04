@@ -60,7 +60,7 @@ public class TrackedInputStream extends FilterInputStream implements BytesReadTr
         return read;
     }
 
-    public int read(byte[] b) throws IOException
+    public int read(byte... b)throws IOException
     {
         int read = super.read(b);
         bytesRead += read;

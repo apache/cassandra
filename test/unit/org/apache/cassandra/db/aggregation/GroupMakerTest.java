@@ -162,8 +162,7 @@ public class GroupMakerTest
         return Clustering.make(toByteBufferArray(components));
     }
 
-    private static ByteBuffer[] toByteBufferArray(int[] values)
-    {
+    private static ByteBuffer[] toByteBufferArray(int... values){
         ByteBuffer[] buffers = new ByteBuffer[values.length];
 
         for (int i = 0; i < values.length; i++)

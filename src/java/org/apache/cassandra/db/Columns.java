@@ -99,8 +99,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         return new Columns(tree, findFirstComplexIdx(tree));
     }
 
-    private static int findFirstComplexIdx(Object[] tree)
-    {
+    private static int findFirstComplexIdx(Object... tree){
         // have fast path for common no-complex case
         int size = BTree.size(tree);
         if (!BTree.isEmpty(tree) && BTree.<ColumnMetadata>findByIndex(tree, size - 1).isSimple())

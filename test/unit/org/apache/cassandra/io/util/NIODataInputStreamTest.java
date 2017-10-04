@@ -241,8 +241,7 @@ public class NIODataInputStreamTest
         assertEquals(0, is.available());
     }
 
-    private static ReadableByteChannel wrap(final byte bytes[])
-    {
+    private static ReadableByteChannel wrap(final byte... bytes){
         final ByteBuffer buf = ByteBuffer.wrap(bytes);
         return new ReadableByteChannel()
         {

@@ -39,8 +39,7 @@ public class SSTableLevelResetter
     /**
      * @param args a list of sstables whose metadata we are changing
      */
-    public static void main(String[] args)
-    {
+    public static void main(String... args){
         PrintStream out = System.out;
         if (args.length == 0)
         {

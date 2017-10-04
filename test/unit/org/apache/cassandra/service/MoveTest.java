@@ -156,8 +156,7 @@ public class MoveTest
         MigrationManager.announceNewKeyspace(keyspace);
     }
 
-    private static Object[] configOptions(Integer[] replicas)
-    {
+    private static Object[] configOptions(Integer... replicas){
         Object[] configOptions = new Object[(replicas.length * 2)];
         int i = 1, j=0;
         for(Integer replica : replicas)

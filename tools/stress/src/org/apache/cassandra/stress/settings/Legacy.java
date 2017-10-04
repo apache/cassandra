@@ -80,8 +80,7 @@ public class Legacy implements Serializable
         availableOptions.addOption("th",  "throttle",            true,   "Throttle the total number of operations per second to a maximum amount.");
     }
 
-    public static StressSettings build(String[] arguments)
-    {
+    public static StressSettings build(String... arguments){
         CommandLineParser parser = new PosixParser();
 
         final Converter r = new Converter();

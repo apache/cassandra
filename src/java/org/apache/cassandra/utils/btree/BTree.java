@@ -194,8 +194,7 @@ public class BTree
         return update(tree1, comparator, new BTreeSet<>(tree2, comparator), updateF);
     }
 
-    public static <V> Iterator<V> iterator(Object[] btree)
-    {
+    public static <V> Iterator<V> iterator(Object... btree){
         return iterator(btree, Dir.ASC);
     }
 
@@ -209,8 +208,7 @@ public class BTree
         return new BTreeSearchIterator<>(btree, null, dir, lb, ub);
     }
 
-    public static <V> Iterable<V> iterable(Object[] btree)
-    {
+    public static <V> Iterable<V> iterable(Object... btree){
         return iterable(btree, Dir.ASC);
     }
 
@@ -487,8 +485,7 @@ public class BTree
     // UTILITY METHODS
 
     // get the upper bound we should search in for keys in the node
-    static int getKeyEnd(Object[] node)
-    {
+    static int getKeyEnd(Object... node){
         if (isLeaf(node))
             return getLeafKeyEnd(node);
         else
@@ -496,48 +493,42 @@ public class BTree
     }
 
     // get the last index that is non-null in the leaf node
-    static int getLeafKeyEnd(Object[] node)
-    {
+    static int getLeafKeyEnd(Object... node){
         int len = node.length;
         return node[len - 1] == null ? len - 1 : len;
     }
 
     // return the boundary position between keys/children for the branch node
     // == number of keys, as they are indexed from zero
-    static int getBranchKeyEnd(Object[] branchNode)
-    {
+    static int getBranchKeyEnd(Object... branchNode){
         return (branchNode.length / 2) - 1;
     }
 
     /**
      * @return first index in a branch node containing child nodes
      */
-    static int getChildStart(Object[] branchNode)
-    {
+    static int getChildStart(Object... branchNode){
         return getBranchKeyEnd(branchNode);
     }
 
     /**
      * @return last index + 1 in a branch node containing child nodes
      */
-    static int getChildEnd(Object[] branchNode)
-    {
+    static int getChildEnd(Object... branchNode){
         return branchNode.length - 1;
     }
 
     /**
      * @return number of children in a branch node
      */
-    static int getChildCount(Object[] branchNode)
-    {
+    static int getChildCount(Object... branchNode){
         return branchNode.length / 2;
     }
 
     /**
      * @return the size map for the branch node
      */
-    static int[] getSizeMap(Object[] branchNode)
-    {
+    static int[] getSizeMap(Object... branchNode){
         return (int[]) branchNode[getChildEnd(branchNode)];
     }
 
@@ -550,8 +541,7 @@ public class BTree
     }
 
     // get the size from the btree's index (fails if not present)
-    public static int size(Object[] tree)
-    {
+    public static int size(Object... tree){
         if (isLeaf(tree))
             return getLeafKeyEnd(tree);
         int length = tree.length;
@@ -561,8 +551,7 @@ public class BTree
         return ((int[]) tree[length - 1])[(length / 2) - 1];
     }
 
-    public static long sizeOfStructureOnHeap(Object[] tree)
-    {
+    public static long sizeOfStructureOnHeap(Object... tree){
         long size = ObjectSizes.sizeOfArray(tree);
         if (isLeaf(tree))
             return size;
@@ -572,18 +561,15 @@ public class BTree
     }
 
     // returns true if the provided node is a leaf, false if it is a branch
-    static boolean isLeaf(Object[] node)
-    {
+    static boolean isLeaf(Object... node){
         return (node.length & 1) == 1;
     }
 
-    public static boolean isEmpty(Object[] tree)
-    {
+    public static boolean isEmpty(Object... tree){
         return tree == EMPTY_LEAF;
     }
 
-    public static int depth(Object[] tree)
-    {
+    public static int depth(Object... tree){
         int depth = 1;
         while (!isLeaf(tree))
         {
@@ -706,8 +692,7 @@ public class BTree
         return size(a) == size(b) && Iterators.elementsEqual(iterator(a), iterator(b));
     }
 
-    public static int hashCode(Object[] btree)
-    {
+    public static int hashCode(Object... btree){
         // we can't just delegate to Arrays.deepHashCode(),
         // because two equivalent trees may be represented by differently shaped trees
         int result = 1;

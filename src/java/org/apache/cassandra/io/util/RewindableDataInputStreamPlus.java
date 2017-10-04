@@ -380,7 +380,7 @@ public class RewindableDataInputStreamPlus extends FilterInputStream implements 
         }
     }
 
-    public int read(byte[] b) throws IOException
+    public int read(byte... b)throws IOException
     {
         return read(b, 0, b.length);
     }
@@ -494,7 +494,7 @@ public class RewindableDataInputStreamPlus extends FilterInputStream implements 
 
     /* DataInputPlus methods */
 
-    public void readFully(byte[] b) throws IOException
+    public void readFully(byte... b)throws IOException
     {
         dataReader.readFully(b);
     }
