@@ -164,7 +164,7 @@ public class BigTableScanner implements ISSTableScanner
         }
         else
         {
-            assert requested.left.compareTo(requested.right) <= 0 || requested.right.isMinimum();
+            assert !AbstractBounds.strictlyWrapsAround(requested.left, requested.right);
             Boundary<PartitionPosition> left, right;
             left = requested.leftBoundary();
             right = requested.rightBoundary();
