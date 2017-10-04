@@ -348,8 +348,33 @@ public class VerifyTest
             }
             fail("Expected a CorruptSSTableException to be thrown");
         }
-
     }
+
+    @Test(expected = CorruptSSTableException.class)
+    public void testVerifyBrokenSSTableMetadata() throws IOException, WriteTimeoutException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
+
+        fillCF(cfs, 2);
+
+        Util.getAll(Util.cmd(cfs).build());
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+
+        String filenameToCorrupt = sstable.descriptor.filenameFor(Component.STATS);
+        RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw");
+        file.seek(0);
+        file.writeBytes(StringUtils.repeat('z', 2));
+        file.close();
+
+        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        {
+            verifier.verify(false);
+        }
+    }
+
 
     protected void fillCF(ColumnFamilyStore cfs, int partitionsPerSSTable)
     {
