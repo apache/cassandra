@@ -1,3 +1,6 @@
+2.1.20
+ * 
+
 2.1.19
  * Add storage port options to sstableloader (CASSANDRA-13844)
  * Remove stress-test target in CircleCI as it's not existing (CASSANDRA-13775) 
