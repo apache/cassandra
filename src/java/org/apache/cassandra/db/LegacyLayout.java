@@ -649,7 +649,7 @@ public abstract class LegacyLayout
 
         boolean foundOne = false;
         LegacyAtom atom;
-        while ((atom = readLegacyAtom(metadata, in, false)) != null)
+        while ((atom = readLegacyAtomSkippingUnknownColumn(metadata,in)) != null)
         {
             if (atom.isCell())
             {
@@ -670,6 +670,23 @@ public abstract class LegacyLayout
         }
 
         return foundOne ? builder.build() : Rows.EMPTY_STATIC_ROW;
+    }
+
+    private static LegacyAtom readLegacyAtomSkippingUnknownColumn(CFMetaData metadata, DataInputPlus in)
+    throws IOException
+    {
+        while (true)
+        {
+            try
+            {
+                return readLegacyAtom(metadata, in, false);
+            }
+            catch (UnknownColumnException e)
+            {
+                // Simply skip, as the method name implies.
+            }
+        }
+
     }
 
     private static Row getNextRow(CellGrouper grouper, PeekingIterator<? extends LegacyAtom> cells)
@@ -1020,29 +1037,36 @@ public abstract class LegacyLayout
         };
     }
 
-    public static LegacyAtom readLegacyAtom(CFMetaData metadata, DataInputPlus in, boolean readAllAsDynamic) throws IOException
+    public static LegacyAtom readLegacyAtom(CFMetaData metadata, DataInputPlus in, boolean readAllAsDynamic)
+    throws IOException, UnknownColumnException
     {
-        while (true)
-        {
-            ByteBuffer cellname = ByteBufferUtil.readWithShortLength(in);
-            if (!cellname.hasRemaining())
-                return null; // END_OF_ROW
+        ByteBuffer cellname = ByteBufferUtil.readWithShortLength(in);
+        if (!cellname.hasRemaining())
+            return null; // END_OF_ROW
 
-            try
-            {
-                int b = in.readUnsignedByte();
-                return (b & RANGE_TOMBSTONE_MASK) != 0
-                    ? readLegacyRangeTombstoneBody(metadata, in, cellname)
-                    : readLegacyCellBody(metadata, in, cellname, b, SerializationHelper.Flag.LOCAL, readAllAsDynamic);
-            }
-            catch (UnknownColumnException e)
-            {
-                // We can get there if we read a cell for a dropped column, and ff that is the case,
-                // then simply ignore the cell is fine. But also not that we ignore if it's the
-                // system keyspace because for those table we actually remove columns without registering
-                // them in the dropped columns
-                assert metadata.ksName.equals(SystemKeyspace.NAME) || metadata.getDroppedColumnDefinition(e.columnName) != null : e.getMessage();
-            }
+        try
+        {
+            int b = in.readUnsignedByte();
+            return (b & RANGE_TOMBSTONE_MASK) != 0
+                   ? readLegacyRangeTombstoneBody(metadata, in, cellname)
+                   : readLegacyCellBody(metadata, in, cellname, b, SerializationHelper.Flag.LOCAL, readAllAsDynamic);
+        }
+        catch (UnknownColumnException e)
+        {
+            // We legitimately can get here in 2 cases:
+            // 1) for system tables, because we've unceremoniously removed columns (without registering them as dropped)
+            // 2) for dropped columns.
+            // In any other case, there is a mismatch between the schema and the data, and we complain loudly in
+            // that case. Note that if we are in a legit case of an unknown column, we want to simply skip that cell,
+            // but we don't do this here and re-throw the exception because the calling code sometimes has to know
+            // about this happening. This does mean code calling this method should handle this case properly.
+            if (!metadata.ksName.equals(SystemKeyspace.NAME) && metadata.getDroppedColumnDefinition(e.columnName) == null)
+                throw new IllegalStateException(String.format("Got cell for unknown column %s in sstable of %s.%s: " +
+                                                              "This suggest a problem with the schema which doesn't list " +
+                                                              "this column. Even if that column was dropped, it should have " +
+                                                              "been listed as such", metadata.ksName, metadata.cfName, UTF8Type.instance.compose(e.columnName)), e);
+
+            throw e;
         }
     }
 
