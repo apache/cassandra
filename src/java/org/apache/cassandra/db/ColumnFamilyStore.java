@@ -1651,7 +1651,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
 
                 writeSnapshotManifest(filesJSONArr, snapshotName);
-                if (!Schema.SYSTEM_KEYSPACE_NAMES.contains(metadata.ksName) && !Schema.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(metadata.ksName))
+
+                if (!Schema.isLocalSystemKeyspace(metadata.ksName) && !Schema.isReplicatedSystemKeyspace(metadata.ksName))
                     writeSnapshotSchema(snapshotName);
             }
         }

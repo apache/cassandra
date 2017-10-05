@@ -451,7 +451,7 @@ public abstract class ReadCommand implements ReadQuery
             private final int failureThreshold = DatabaseDescriptor.getTombstoneFailureThreshold();
             private final int warningThreshold = DatabaseDescriptor.getTombstoneWarnThreshold();
 
-            private final boolean respectTombstoneThresholds = !Schema.isSystemKeyspace(ReadCommand.this.metadata().ksName);
+            private final boolean respectTombstoneThresholds = !Schema.isLocalSystemKeyspace(ReadCommand.this.metadata().ksName);
             private final boolean enforceStrictLiveness = metadata.enforceStrictLiveness();
 
             private int liveRows = 0;

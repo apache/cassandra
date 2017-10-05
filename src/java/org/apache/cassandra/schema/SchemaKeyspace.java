@@ -280,7 +280,7 @@ public final class SchemaKeyspace
         for (String schemaTable : ALL)
         {
             String query = String.format("DELETE FROM %s.%s USING TIMESTAMP ? WHERE keyspace_name = ?", NAME, schemaTable);
-            for (String systemKeyspace : Schema.SYSTEM_KEYSPACE_NAMES)
+            for (String systemKeyspace : Schema.LOCAL_SYSTEM_KEYSPACE_NAMES)
                 executeOnceInternal(query, timestamp, systemKeyspace);
         }
 
@@ -402,7 +402,7 @@ public final class SchemaKeyspace
 
     private static boolean isSystemKeyspaceSchemaPartition(DecoratedKey partitionKey)
     {
-        return Schema.isSystemKeyspace(UTF8Type.instance.compose(partitionKey.getKey()));
+        return Schema.isLocalSystemKeyspace(UTF8Type.instance.compose(partitionKey.getKey()));
     }
 
     /*
@@ -880,7 +880,7 @@ public final class SchemaKeyspace
 
     public static Keyspaces fetchNonSystemKeyspaces()
     {
-        return fetchKeyspacesWithout(Schema.SYSTEM_KEYSPACE_NAMES);
+        return fetchKeyspacesWithout(Schema.LOCAL_SYSTEM_KEYSPACE_NAMES);
     }
 
     private static Keyspaces fetchKeyspacesWithout(Set<String> excludedKeyspaceNames)

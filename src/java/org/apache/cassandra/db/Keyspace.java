@@ -102,7 +102,7 @@ public class Keyspace
 
     public static Keyspace open(String keyspaceName)
     {
-        assert initialized || Schema.isSystemKeyspace(keyspaceName);
+        assert initialized || Schema.isLocalSystemKeyspace(keyspaceName);
         return open(keyspaceName, Schema.instance, true);
     }
 
@@ -681,7 +681,7 @@ public class Keyspace
 
     public static Iterable<Keyspace> system()
     {
-        return Iterables.transform(Schema.SYSTEM_KEYSPACE_NAMES, keyspaceTransformer);
+        return Iterables.transform(Schema.LOCAL_SYSTEM_KEYSPACE_NAMES, keyspaceTransformer);
     }
 
     @Override

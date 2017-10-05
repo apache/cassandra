@@ -56,7 +56,7 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(name);
         if (ksm == null)
             throw new InvalidRequestException("Unknown keyspace " + name);
-        if (Schema.isSystemKeyspace(ksm.name))
+        if (Schema.isLocalSystemKeyspace(ksm.name))
             throw new InvalidRequestException("Cannot alter system keyspace");
 
         attrs.validate();
