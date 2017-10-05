@@ -1,3 +1,6 @@
+2.2.12
+ * 
+
 2.2.11
  * Safely handle empty buffers when outputting to JSON (CASSANDRA-13868)
  * Copy session properties on cqlsh.py do_login (CASSANDRA-13847)
