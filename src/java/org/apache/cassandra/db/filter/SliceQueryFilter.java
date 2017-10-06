@@ -261,7 +261,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
         columnCounter = columnCounter(container.getComparator(), now);
         DeletionInfo.InOrderTester tester = container.deletionInfo().inOrderTester(reversed);
 
-        while (reducedColumns.hasNext())
+        while (!columnCounter.hasSeenAtLeast(count) && reducedColumns.hasNext())
         {
             Cell cell = reducedColumns.next();
 
@@ -273,6 +273,8 @@ public class SliceQueryFilter implements IDiskAtomFilter
             if (cell.getLocalDeletionTime() < gcBefore || !columnCounter.count(cell, tester))
                 continue;
 
+            // always safe to exit if we've seen more then we need. this will happen if we're grouping composite columns
+            // (ColumnCounter#hasSeenAtLeast won't return true until we've seen the start of the next group)
             if (columnCounter.live() > count)
                 break;
 
