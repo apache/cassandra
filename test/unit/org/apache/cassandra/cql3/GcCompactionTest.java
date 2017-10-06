@@ -367,7 +367,7 @@ public class GcCompactionTest extends CQLTester
         return ccd.cellsCount();
     }
 
-    int count(SSTableReader reader, Function<Unfiltered, Integer> predicate, Function<UnfilteredRowIterator, Integer> partitionPredicate)
+    int count(SSTableReader reader, ToIntFunction<Unfiltered> predicate, ToIntFunction<UnfilteredRowIterator> partitionPredicate)
     {
         int instances = 0;
         try (ISSTableScanner partitions = reader.getScanner())
@@ -376,11 +376,11 @@ public class GcCompactionTest extends CQLTester
             {
                 try (UnfilteredRowIterator iter = partitions.next())
                 {
-                    instances += partitionPredicate.apply(iter);
+                    instances += partitionPredicate.applyAsInt(iter);
                     while (iter.hasNext())
                     {
                         Unfiltered atom = iter.next();
-                        instances += predicate.apply(atom);
+                        instances += predicate.applyAsInt(atom);
                     }
                 }
             }
