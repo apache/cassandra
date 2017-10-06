@@ -19,12 +19,10 @@ package org.apache.cassandra.streaming;
 
 import java.net.InetAddress;
 import java.util.*;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * {@link StreamCoordinator} is a helper class that abstracts away maintaining multiple
@@ -191,7 +189,8 @@ public class StreamCoordinator
         return result;
     }
 
-    public synchronized void transferFiles(InetAddress to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
+    public synchronized void transferFiles(
+            InetAddress to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
     {
         HostStreamingData sessionList = getOrCreateHostData(to);
 
@@ -199,11 +198,11 @@ public class StreamCoordinator
         {
             List<List<StreamSession.SSTableStreamingSections>> buckets = sliceSSTableDetails(sstableDetails);
 
-            for (List<StreamSession.SSTableStreamingSections> subList : buckets)
-            {
-                StreamSession session = sessionList.getOrCreateNextSession(to, to);
-                session.addTransferFiles(subList);
-            }
+            buckets.forEach(
+                    subList -> {
+                        StreamSession session = sessionList.getOrCreateNextSession(to, to);
+                        session.addTransferFiles(subList);
+                    });
         }
         else
         {
@@ -212,7 +211,8 @@ public class StreamCoordinator
         }
     }
 
-    private List<List<StreamSession.SSTableStreamingSections>> sliceSSTableDetails(Collection<StreamSession.SSTableStreamingSections> sstableDetails)
+    private List<List<StreamSession.SSTableStreamingSections>> sliceSSTableDetails(
+            Collection<StreamSession.SSTableStreamingSections> sstableDetails)
     {
         // There's no point in divvying things up into more buckets than we have sstableDetails
         int targetSlices = Math.min(sstableDetails.size(), connectionsPerHost);

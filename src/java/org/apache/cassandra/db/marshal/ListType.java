@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.cql3.Term;
@@ -29,10 +28,9 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.CollectionSerializer;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.ListSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -213,17 +211,23 @@ public class ListType<T> extends CollectionType<List<T>>
 
         List list = (List) parsed;
         List<Term> terms = new ArrayList<>(list.size());
-        for (Object element : list)
-        {
-            if (element == null)
-                throw new MarshalException("Invalid null element in list");
-            terms.add(elements.fromJSONObject(element));
-        }
+        list.stream()
+                .map(
+                        element -> {
+                            if (element == null)
+                                throw new MarshalException("Invalid null element in list");
+                            return element;
+                        })
+                .forEach(
+                        element -> {
+                            terms.add(elements.fromJSONObject(element));
+                        });
 
         return new Lists.DelayedValue(terms);
     }
 
-    public static String setOrListToJsonString(ByteBuffer buffer, AbstractType elementsType, ProtocolVersion protocolVersion)
+    public static String setOrListToJsonString(
+            ByteBuffer buffer, AbstractType elementsType, ProtocolVersion protocolVersion)
     {
         ByteBuffer value = buffer.duplicate();
         StringBuilder sb = new StringBuilder("[");

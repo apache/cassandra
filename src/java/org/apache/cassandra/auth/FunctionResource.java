@@ -17,24 +17,22 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Sets;
-import org.apache.commons.lang3.StringUtils;
-
-import org.apache.cassandra.schema.Schema;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.Schema;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * IResource implementation representing functions.
@@ -135,24 +133,26 @@ public class FunctionResource implements IResource
     }
 
     /**
-     * Creates a FunctionResource representing a specific, keyspace-scoped function.
-     * This variant is used to create an instance during parsing of a CQL statement.
-     * It includes transposition of the arg types from CQL types to AbstractType
-     * implementations
+     * Creates a FunctionResource representing a specific, keyspace-scoped function. This variant is
+     * used to create an instance during parsing of a CQL statement. It includes transposition of
+     * the arg types from CQL types to AbstractType implementations
      *
      * @param keyspace the keyspace in which the function is scoped
-     * @param name     name of the function.
+     * @param name name of the function.
      * @param argTypes the types of the function arguments in raw CQL form
      * @return FunctionResource instance reresenting the function.
      */
-    public static FunctionResource functionFromCql(String keyspace, String name, List<CQL3Type.Raw> argTypes)
+    public static FunctionResource functionFromCql(
+            String keyspace, String name, List<CQL3Type.Raw> argTypes)
     {
         if (keyspace == null)
             throw new InvalidRequestException("In this context function name must be " +
                                               "explictly qualified by a keyspace");
         List<AbstractType<?>> abstractTypes = new ArrayList<>();
-        for (CQL3Type.Raw cqlType : argTypes)
-            abstractTypes.add(cqlType.prepare(keyspace).getType());
+        argTypes.forEach(
+                cqlType -> {
+                    abstractTypes.add(cqlType.prepare(keyspace).getType());
+                });
 
         return new FunctionResource(keyspace, name, abstractTypes);
     }

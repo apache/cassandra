@@ -20,7 +20,6 @@ package org.apache.cassandra.stress.util;
  * 
  */
 
-
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
@@ -67,19 +66,25 @@ public class Uncertainty
         stdev = Math.sqrt((sumsquares / measurements) - (mean * mean));
         uncertainty = (stdev / Math.sqrt(measurements)) / mean;
 
-        for (WaitForTargetUncertainty waiter : waiting)
-        {
-            if ((uncertainty < waiter.targetUncertainty && measurements >= waiter.minMeasurements) || (measurements >= waiter.maxMeasurements))
-            {
-                waiter.latch.countDown();
-                // can safely remove as working over snapshot with COWArrayList
-                waiting.remove(waiter);
-            }
-        }
+        waiting.stream()
+                .filter(
+                        waiter ->
+                                (uncertainty < waiter.targetUncertainty
+                                                && measurements >= waiter.minMeasurements)
+                                        || (measurements >= waiter.maxMeasurements))
+                .map(
+                        waiter -> {
+                            waiter.latch.countDown();
+                            return waiter;
+                        })
+                .forEach(
+                        waiter -> {
+                            waiting.remove(waiter);
+                        });
     }
 
-    public void await(double targetUncertainty, int minMeasurements, int maxMeasurements) throws InterruptedException
-    {
+    public void await(double targetUncertainty, int minMeasurements, int maxMeasurements)
+            throws InterruptedException {
         final WaitForTargetUncertainty wait = new WaitForTargetUncertainty(targetUncertainty, minMeasurements, maxMeasurements);
         waiting.add(wait);
         wait.await();
@@ -92,11 +97,16 @@ public class Uncertainty
 
     public void wakeAll()
     {
-        for (WaitForTargetUncertainty waiting : this.waiting)
-        {
-            waiting.latch.countDown();
-            this.waiting.remove(waiting);
-        }
+        this.waiting
+                .stream()
+                .map(
+                        waiting -> {
+                            waiting.latch.countDown();
+                            return waiting;
+                        })
+                .forEach(
+                        waiting -> {
+                            this.waiting.remove(waiting);
+                        });
     }
-
 }

@@ -17,12 +17,16 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
@@ -31,14 +35,9 @@ import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
-
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
-import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 public abstract class SingleColumnRestriction implements SingleRestriction
 {
@@ -256,8 +255,10 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         protected List<ByteBuffer> getValues(QueryOptions options)
         {
             List<ByteBuffer> buffers = new ArrayList<>(values.size());
-            for (Term value : values)
-                buffers.add(value.bindAndGet(options));
+            values.forEach(
+                    value -> {
+                        buffers.add(value.bindAndGet(options));
+                    });
             return buffers;
         }
 
@@ -564,17 +565,13 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         private static List<ByteBuffer> bindAndGet(List<Term> terms, QueryOptions options)
         {
             List<ByteBuffer> buffers = new ArrayList<>(terms.size());
-            for (Term value : terms)
-                buffers.add(value.bindAndGet(options));
+            terms.forEach(
+                    value -> {
+                        buffers.add(value.bindAndGet(options));
+                    });
             return buffers;
         }
 
-        /**
-         * Copies the keys and value from the first <code>Contains</code> to the second one.
-         *
-         * @param from the <code>Contains</code> to copy from
-         * @param to the <code>Contains</code> to copy to
-         */
         private static void copyKeysAndValues(ContainsRestriction from, ContainsRestriction to)
         {
             to.values.addAll(from.values);

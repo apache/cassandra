@@ -17,17 +17,14 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Metrics about latencies
@@ -112,16 +109,16 @@ public class LatencyMetrics
         this.parents.addAll(ImmutableList.copyOf(parents));
     }
 
-    /** takes nanoseconds **/
+    /** takes nanoseconds * */
     public void addNano(long nanos)
     {
         // convert to microseconds. 1 millionth
         latency.update(nanos, TimeUnit.NANOSECONDS);
         totalLatency.inc(nanos / 1000);
-        for(LatencyMetrics parent : parents)
-        {
-            parent.addNano(nanos);
-        }
+        parents.forEach(
+                parent -> {
+                    parent.addNano(nanos);
+                });
     }
 
     public void release()

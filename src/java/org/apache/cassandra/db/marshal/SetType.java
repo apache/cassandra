@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Sets;
 import org.apache.cassandra.cql3.Term;
@@ -176,12 +175,17 @@ public class SetType<T> extends CollectionType<Set<T>>
 
         List list = (List) parsed;
         Set<Term> terms = new HashSet<>(list.size());
-        for (Object element : list)
-        {
-            if (element == null)
-                throw new MarshalException("Invalid null element in set");
-            terms.add(elements.fromJSONObject(element));
-        }
+        list.stream()
+                .map(
+                        element -> {
+                            if (element == null)
+                                throw new MarshalException("Invalid null element in set");
+                            return element;
+                        })
+                .forEach(
+                        element -> {
+                            terms.add(elements.fromJSONObject(element));
+                        });
 
         return new Sets.DelayedValue(elements, terms);
     }

@@ -17,14 +17,6 @@
  */
 package org.apache.cassandra.index;
 
-import java.lang.reflect.Constructor;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
@@ -40,12 +32,13 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
-
-import org.apache.commons.lang3.StringUtils;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import java.lang.reflect.Constructor;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
@@ -75,6 +68,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Handles the core maintenance functionality associated with indexes: adding/removing them to or from
@@ -171,9 +167,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         baseCfs.getTracker().subscribe(this);
     }
 
-    /**
-     * Drops and adds new indexes associated with the underlying CF
-     */
+    /** Drops and adds new indexes associated with the underlying CF */
     public void reload()
     {
         // figure out what needs to be added and dropped.
@@ -185,8 +179,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         // we call add for every index definition in the collection as
         // some may not have been created here yet, only added to schema
-        for (IndexMetadata tableIndex : tableIndexes)
-            addIndex(tableIndex, false);
+        tableIndexes.forEach(
+                tableIndex -> {
+                    addIndex(tableIndex, false);
+                });
     }
 
     private Future<?> reloadIndex(IndexMetadata indexDef)
@@ -411,12 +407,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     /**
      * Performs a blocking (re)indexing of the specified SSTables for the specified indexes.
      *
-     * @param sstables      the SSTables to be (re)indexed
-     * @param indexes       the indexes to be (re)built for the specifed SSTables
+     * @param sstables the SSTables to be (re)indexed
+     * @param indexes the indexes to be (re)built for the specifed SSTables
      * @param isFullRebuild True if this method is invoked as a full index rebuild, false otherwise
      */
-    @SuppressWarnings({ "unchecked" })
-    private void buildIndexesBlocking(Collection<SSTableReader> sstables, Set<Index> indexes, boolean isFullRebuild)
+    @SuppressWarnings({"unchecked"})
+    private void buildIndexesBlocking(
+            Collection<SSTableReader> sstables, Set<Index> indexes, boolean isFullRebuild)
     {
         if (indexes.isEmpty())
             return;
@@ -440,11 +437,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
             // Group all building tasks
             Map<Index.IndexBuildingSupport, Set<Index>> byType = new HashMap<>();
-            for (Index index : indexes)
-            {
-                Set<Index> stored = byType.computeIfAbsent(index.getBuildTaskSupport(), i -> new HashSet<>());
-                stored.add(index);
-            }
+            indexes.forEach(
+                    index -> {
+                        Set<Index> stored =
+                                byType.computeIfAbsent(
+                                        index.getBuildTaskSupport(), i -> new HashSet<>());
+                        stored.add(index);
+                    });
 
             // Schedule all index building tasks with a callback to mark them as built or failed
             List<Future<?>> futures = new ArrayList<>(byType.size());

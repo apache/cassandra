@@ -21,9 +21,8 @@ package org.apache.cassandra.serializers;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
-
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class CollectionSerializer<T> implements TypeSerializer<T>
@@ -57,7 +56,8 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         validateForNativeProtocol(bytes, ProtocolVersion.V3);
     }
 
-    public static ByteBuffer pack(Collection<ByteBuffer> buffers, int elements, ProtocolVersion version)
+    public static ByteBuffer pack(
+            Collection<ByteBuffer> buffers, int elements, ProtocolVersion version)
     {
         int size = 0;
         for (ByteBuffer bb : buffers)
@@ -65,12 +65,15 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 
         ByteBuffer result = ByteBuffer.allocate(sizeOfCollectionSize(elements, version) + size);
         writeCollectionSize(result, elements, version);
-        for (ByteBuffer bb : buffers)
-            writeValue(result, bb, version);
+        buffers.forEach(
+                bb -> {
+                    writeValue(result, bb, version);
+                });
         return (ByteBuffer)result.flip();
     }
 
-    protected static void writeCollectionSize(ByteBuffer output, int elements, ProtocolVersion version)
+    protected static void writeCollectionSize(
+            ByteBuffer output, int elements, ProtocolVersion version)
     {
         output.putInt(elements);
     }

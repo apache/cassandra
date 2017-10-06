@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.*;
 import java.util.stream.Collectors;
-
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -74,13 +73,16 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         if (ksm.types.get(name.getUserTypeName()).isPresent() && !ifNotExists)
             throw new InvalidRequestException(String.format("A user type of name %s already exists", name));
 
-        for (CQL3Type.Raw type : columnTypes)
-        {
-            if (type.isCounter())
-                throw new InvalidRequestException("A user type cannot contain counters");
-            if (type.isUDT() && !type.isFrozen())
-                throw new InvalidRequestException("A user type cannot contain non-frozen UDTs");
-        }
+        columnTypes
+                .stream()
+                .map(
+                        type -> {
+                            if (type.isCounter())
+                                throw new InvalidRequestException(
+                                        "A user type cannot contain counters");
+                            return type;
+                        })
+                .filter(type -> type.isUDT() && !type.isFrozen());
     }
 
     public static void checkForDuplicateNames(UserType type) throws InvalidRequestException
@@ -112,13 +114,16 @@ public class CreateTypeStatement extends SchemaAlteringStatement
     public UserType createType() throws InvalidRequestException
     {
         List<AbstractType<?>> types = new ArrayList<>(columnTypes.size());
-        for (CQL3Type.Raw type : columnTypes)
-            types.add(type.prepare(keyspace()).getType());
+        columnTypes.forEach(
+                type -> {
+                    types.add(type.prepare(keyspace()).getType());
+                });
 
         return new UserType(name.getKeyspace(), name.getUserTypeName(), columnNames, types, true);
     }
 
-    public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly)
+            throws InvalidRequestException, ConfigurationException
     {
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(name.getKeyspace());
         assert ksm != null; // should haven't validate otherwise

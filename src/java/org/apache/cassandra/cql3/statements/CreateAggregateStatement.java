@@ -20,19 +20,18 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Objects;
 import java.util.List;
-
+import java.util.Objects;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -80,8 +79,10 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
     public Prepared prepare()
     {
         argTypes = new ArrayList<>(argRawTypes.size());
-        for (CQL3Type.Raw rawType : argRawTypes)
-            argTypes.add(prepareType("arguments", rawType));
+        argRawTypes.forEach(
+                rawType -> {
+                    argTypes.add(prepareType("arguments", rawType));
+                });
 
         AbstractType<?> stateType = prepareType("state type", stateTypeRaw);
 
@@ -241,17 +242,21 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
                                       udAggregate.name().keyspace, udAggregate.name().name, AbstractType.asCQLTypeStringList(udAggregate.argTypes()));
     }
 
-    private static String stateFuncSig(FunctionName stateFuncName, CQL3Type.Raw stateTypeRaw, List<CQL3Type.Raw> argRawTypes)
+    private static String stateFuncSig(
+            FunctionName stateFuncName, CQL3Type.Raw stateTypeRaw, List<CQL3Type.Raw> argRawTypes)
     {
         StringBuilder sb = new StringBuilder();
         sb.append(stateFuncName.toString()).append('(').append(stateTypeRaw);
-        for (CQL3Type.Raw argRawType : argRawTypes)
-            sb.append(", ").append(argRawType);
+        argRawTypes.forEach(
+                argRawType -> {
+                    sb.append(", ").append(argRawType);
+                });
         sb.append(')');
         return sb.toString();
     }
 
-    private static List<AbstractType<?>> stateArguments(AbstractType<?> stateType, List<AbstractType<?>> argTypes)
+    private static List<AbstractType<?>> stateArguments(
+            AbstractType<?> stateType, List<AbstractType<?>> argTypes)
     {
         List<AbstractType<?>> r = new ArrayList<>(argTypes.size() + 1);
         r.add(stateType);

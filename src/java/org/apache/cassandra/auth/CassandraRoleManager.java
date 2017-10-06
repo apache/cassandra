@@ -17,32 +17,30 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
-
 import com.google.common.base.*;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.commons.lang3.StringUtils;
 import org.mindrot.jbcrypt.BCrypt;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Responsible for the creation, maintenance and deletion of roles
@@ -425,7 +423,8 @@ public class CassandraRoleManager implements IRoleManager
     /*
      * Clear the membership list of the given role
      */
-    private void removeAllMembers(String role) throws RequestValidationException, RequestExecutionException
+    private void removeAllMembers(String role)
+            throws RequestValidationException, RequestExecutionException
     {
         // Get the membership list of the the given role
         UntypedResultSet rows = process(String.format("SELECT member FROM %s.%s WHERE role = '%s'",
@@ -437,8 +436,10 @@ public class CassandraRoleManager implements IRoleManager
             return;
 
         // Update each member in the list, removing this role from its own list of granted roles
-        for (UntypedResultSet.Row row : rows)
-            modifyRoleMembership(row.getString("member"), role, "-");
+        rows.forEach(
+                row -> {
+                    modifyRoleMembership(row.getString("member"), role, "-");
+                });
 
         // Finally, remove the membership list for the dropped role
         process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
@@ -448,10 +449,6 @@ public class CassandraRoleManager implements IRoleManager
                 consistencyForRole(role));
     }
 
-    /*
-     * Convert a map of Options from a CREATE/ALTER statement into
-     * assignment clauses used to construct a CQL UPDATE statement
-     */
     private Iterable<String> optionsToAssignments(Map<Option, Object> options)
     {
         return Iterables.transform(

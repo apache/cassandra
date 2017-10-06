@@ -20,22 +20,20 @@ package org.apache.cassandra.utils;
  *
  */
 
+import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import org.junit.Test;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
-
-import static org.junit.Assert.assertEquals;
+import org.junit.Test;
 
 public class IntervalTreeTest
 {
@@ -118,8 +116,10 @@ public class IntervalTreeTest
         Collections.sort(intervals, Interval.<Integer, Void>minOrdering());
 
         List<Interval<Integer, Void>> l = new ArrayList<Interval<Integer, Void>>();
-        for (Interval<Integer, Void> i : it)
-            l.add(i);
+        it.forEach(
+                i -> {
+                    l.add(i);
+                });
 
         assertEquals(intervals, l);
     }
@@ -190,8 +190,10 @@ public class IntervalTreeTest
 
         IntervalTree<Integer, String, Interval<Integer, String>> it2 = serializer.deserialize(in, 0);
         List<Interval<Integer, String>> intervals2 = new ArrayList<Interval<Integer, String>>();
-        for (Interval<Integer, String> i : it2)
-            intervals2.add(i);
+        it2.forEach(
+                i -> {
+                    intervals2.add(i);
+                });
 
         assertEquals(intervals, intervals2);
     }

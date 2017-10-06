@@ -18,15 +18,13 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
+
+import com.google.common.collect.Lists;
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import com.google.common.collect.Lists;
-
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -97,7 +95,9 @@ public class SetLoggingLevel extends NodeToolCmd
                     "org.apache.cassandra.transport.Server");
         }
 
-        for (String classQualifier : classQualifiers)
-            probe.setLoggingLevel(classQualifier, level);
+        classQualifiers.forEach(
+                classQualifier -> {
+                    probe.setLoggingLevel(classQualifier, level);
+                });
     }
 }

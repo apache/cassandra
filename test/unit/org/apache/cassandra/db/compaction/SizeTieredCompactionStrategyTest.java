@@ -17,16 +17,20 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import static org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy.getBuckets;
+import static org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy.mostInterestingBucket;
+import static org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy.trimToThresholdWithHotness;
+import static org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy.validateOptions;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -36,14 +40,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.Pair;
-
-import static org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy.getBuckets;
-import static org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy.mostInterestingBucket;
-import static org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy.trimToThresholdWithHotness;
-import static org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy.validateOptions;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class SizeTieredCompactionStrategyTest
 {
@@ -123,12 +121,21 @@ public class SizeTieredCompactionStrategyTest
         buckets = getBuckets(pairs, 1.5, 0.5, 2);
         assertEquals(2, buckets.size());
 
-        for (List<String> bucket : buckets)
-        {
-            assertEquals(3, bucket.size());
-            assertEquals(bucket.get(0).charAt(0), bucket.get(1).charAt(0));
-            assertEquals(bucket.get(1).charAt(0), bucket.get(2).charAt(0));
-        }
+        buckets.stream()
+                .map(
+                        bucket -> {
+                            assertEquals(3, bucket.size());
+                            return bucket;
+                        })
+                .map(
+                        bucket -> {
+                            assertEquals(bucket.get(0).charAt(0), bucket.get(1).charAt(0));
+                            return bucket;
+                        })
+                .forEach(
+                        bucket -> {
+                            assertEquals(bucket.get(1).charAt(0), bucket.get(2).charAt(0));
+                        });
 
         // Test the "min" functionality
         pairs.clear();

@@ -19,14 +19,10 @@ package org.apache.cassandra.db.compaction;
 
 import static org.junit.Assert.*;
 
+import com.google.common.collect.*;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.google.common.collect.*;
-
-import org.junit.Test;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,6 +37,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.junit.Test;
 
 public class CompactionIteratorTest
 {
@@ -212,7 +209,11 @@ public class CompactionIteratorTest
         return data.stream().mapToInt(x -> x instanceof RangeTombstoneBoundaryMarker ? 2 : 1).sum();
     }
 
-    private void verifyEquivalent(List<List<Unfiltered>> sources, List<Unfiltered> result, List<List<Unfiltered>> tombstoneSources, UnfilteredRowsGenerator generator)
+    private void verifyEquivalent(
+            List<List<Unfiltered>> sources,
+            List<Unfiltered> result,
+            List<List<Unfiltered>> tombstoneSources,
+            UnfilteredRowsGenerator generator)
     {
         // sources + tombstoneSources must be the same as result + tombstoneSources
         List<Unfiltered> expected = compact(Iterables.concat(sources, tombstoneSources), Collections.emptyList());
@@ -224,8 +225,10 @@ public class CompactionIteratorTest
                 generator.dumpList(partition);
             System.out.println("and compacted " + generator.str(result));
             System.out.println("with tombstone sources:");
-            for (List<Unfiltered> partition : tombstoneSources)
-                generator.dumpList(partition);
+            tombstoneSources.forEach(
+                    partition -> {
+                        generator.dumpList(partition);
+                    });
             System.out.println("expected " + generator.str(expected));
             System.out.println("got " + generator.str(actual));
             fail("Failed equivalence test.");

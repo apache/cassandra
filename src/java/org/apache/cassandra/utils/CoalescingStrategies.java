@@ -17,11 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
-import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.io.util.FileUtils;
-import org.slf4j.Logger;
-
+import com.google.common.annotations.VisibleForTesting;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Constructor;
@@ -29,11 +25,13 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel.MapMode;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.Locale;
-
-import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.io.util.FileUtils;
+import org.slf4j.Logger;
 
 /**
  * Groups strategies to coalesce messages.
@@ -190,10 +188,10 @@ public class CoalescingStrategies
         {
             if (DEBUG_COALESCING)
             {
-                for (C coalescable : coalescables)
-                {
-                    debugTimestamp(coalescable.timestampNanos());
-                }
+                coalescables.forEach(
+                        coalescable -> {
+                            debugTimestamp(coalescable.timestampNanos());
+                        });
             }
         }
     }

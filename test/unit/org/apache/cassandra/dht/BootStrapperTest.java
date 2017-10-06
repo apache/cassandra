@@ -20,6 +20,7 @@ package org.apache.cassandra.dht;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import com.google.common.collect.Lists;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
@@ -28,20 +29,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-
-import com.google.common.collect.Lists;
-
-import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.tokenallocator.TokenAllocation;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -51,9 +41,15 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.RackInferringSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class BootStrapperTest
@@ -89,7 +85,9 @@ public class BootStrapperTest
         }
     }
 
-    private RangeStreamer testSourceTargetComputation(String keyspaceName, int numOldNodes, int replicationFactor) throws UnknownHostException
+    private RangeStreamer testSourceTargetComputation(
+            String keyspaceName, int numOldNodes, int replicationFactor)
+            throws UnknownHostException
     {
         StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
@@ -121,8 +119,10 @@ public class BootStrapperTest
 
         // Check we get get RF new ranges in total
         Set<Range<Token>> ranges = new HashSet<>();
-        for (Map.Entry<InetAddress, Collection<Range<Token>>> e : toFetch)
-            ranges.addAll(e.getValue());
+        toFetch.forEach(
+                e -> {
+                    ranges.addAll(e.getValue());
+                });
 
         assertEquals(replicationFactor, ranges.size());
 

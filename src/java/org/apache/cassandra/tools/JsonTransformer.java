@@ -29,9 +29,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -54,8 +51,10 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.impl.Indenter;
-import org.codehaus.jackson.util.DefaultPrettyPrinter.NopIndenter;
 import org.codehaus.jackson.util.DefaultPrettyPrinter;
+import org.codehaus.jackson.util.DefaultPrettyPrinter.NopIndenter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class JsonTransformer
 {
@@ -272,10 +271,10 @@ public final class JsonTransformer
             }
             json.writeFieldName("cells");
             json.writeStartArray();
-            for (ColumnData cd : row)
-            {
-                serializeColumnData(cd, liveInfo);
-            }
+            row.forEach(
+                    cd -> {
+                        serializeColumnData(cd, liveInfo);
+                    });
             json.writeEndArray();
             json.writeEndObject();
         }
@@ -393,9 +392,10 @@ public final class JsonTransformer
                     logger.error("Failure parsing ColumnData.", e);
                 }
             }
-            for (Cell cell : complexData){
-                serializeCell(cell, liveInfo);
-            }
+            complexData.forEach(
+                    cell -> {
+                        serializeCell(cell, liveInfo);
+                    });
         }
     }
 

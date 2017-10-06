@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.streaming;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
+import io.netty.channel.embedded.EmbeddedChannel;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,12 +31,6 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
-import org.junit.BeforeClass;
-import org.junit.After;
-import org.junit.Test;
-
-import io.netty.channel.embedded.EmbeddedChannel;
 import junit.framework.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -46,9 +44,9 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.messages.OutgoingFileMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Ref;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import org.junit.After;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class StreamTransferTaskTest
 {
@@ -174,10 +172,10 @@ public class StreamTransferTaskTest
             file.finishTransfer();
         }
 
-        //now reference should be released
-        for (Ref<SSTableReader> ref : refs)
-        {
-            assertEquals(0, ref.globalCount());
-        }
+        // now reference should be released
+        refs.forEach(
+                ref -> {
+                    assertEquals(0, ref.globalCount());
+                });
     }
 }

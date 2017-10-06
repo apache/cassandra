@@ -17,23 +17,6 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.*;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.Map.Entry;
-
-import com.google.common.base.Joiner;
-import com.google.common.base.Throwables;
-import com.google.common.collect.*;
-
-import io.airlift.airline.*;
-
-import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
-import org.apache.cassandra.tools.nodetool.*;
-import org.apache.cassandra.utils.FBUtilities;
-
 import static com.google.common.base.Throwables.getStackTraceAsString;
 import static com.google.common.collect.Iterables.toArray;
 import static com.google.common.collect.Lists.newArrayList;
@@ -41,6 +24,20 @@ import static java.lang.Integer.parseInt;
 import static java.lang.String.format;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
 import static org.apache.commons.lang3.StringUtils.*;
+
+import com.google.common.base.Joiner;
+import com.google.common.base.Throwables;
+import com.google.common.collect.*;
+import io.airlift.airline.*;
+import java.io.*;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.Map.Entry;
+import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.tools.nodetool.*;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class NodeTool
 {
@@ -265,7 +262,8 @@ public class NodeTool
 
         }
 
-        private String readUserPasswordFromFile(String username, String passwordFilePath) {
+        private String readUserPasswordFromFile(String username, String passwordFilePath)
+        {
             String password = EMPTY;
 
             File passwordFile = new File(passwordFilePath);
@@ -335,7 +333,8 @@ public class NodeTool
             return parseOptionalKeyspace(cmdArgs, nodeProbe, KeyspaceSet.ALL);
         }
 
-        protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe, KeyspaceSet defaultKeyspaceSet)
+        protected List<String> parseOptionalKeyspace(
+                List<String> cmdArgs, NodeProbe nodeProbe, KeyspaceSet defaultKeyspaceSet)
         {
             List<String> keyspaces = new ArrayList<>();
 
@@ -354,11 +353,7 @@ public class NodeTool
                 keyspaces.add(cmdArgs.get(0));
             }
 
-            for (String keyspace : keyspaces)
-            {
-                if (!nodeProbe.getKeyspaces().contains(keyspace))
-                    throw new IllegalArgumentException("Keyspace [" + keyspace + "] does not exist.");
-            }
+            keyspaces.stream().filter(keyspace -> !nodeProbe.getKeyspaces().contains(keyspace));
 
             return Collections.unmodifiableList(keyspaces);
         }

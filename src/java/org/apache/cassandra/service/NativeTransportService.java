@@ -17,27 +17,25 @@
  */
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.concurrent.TimeUnit;
-
 import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.EventExecutor;
+import java.net.InetAddress;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.AuthMetrics;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.transport.RequestThreadPoolExecutor;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.NativeLibrary;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Handles native transport server lifecycle and associated resources. Lazily initialized.
@@ -53,9 +51,7 @@ public class NativeTransportService
     private EventLoopGroup workerGroup;
     private EventExecutor eventExecutorGroup;
 
-    /**
-     * Creates netty thread pools and event loops.
-     */
+    /** Creates netty thread pools and event loops. */
     @VisibleForTesting
     synchronized void initialize()
     {
@@ -109,13 +105,15 @@ public class NativeTransportService
         }
 
         // register metrics
-        ClientMetrics.instance.addCounter("connectedNativeClients", () ->
-        {
-            int ret = 0;
-            for (Server server : servers)
-                ret += server.getConnectedClients();
-            return ret;
-        });
+        ClientMetrics.instance.addCounter(
+                "connectedNativeClients",
+                () -> {
+                    int ret = 0;
+                    servers.stream()
+                            .map(server -> server.getConnectedClients())
+                            .reduce(ret, Integer::sum);
+                    return ret;
+                });
 
         AuthMetrics.init();
 

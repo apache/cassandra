@@ -41,9 +41,9 @@ public abstract class ProgressEventNotifierSupport implements ProgressEventNotif
 
     protected void fireProgressEvent(String tag, ProgressEvent event)
     {
-        for (ProgressListener listener : listeners)
-        {
-            listener.progress(tag, event);
-        }
+        listeners.forEach(
+                listener -> {
+                    listener.progress(tag, event);
+                });
     }
 }

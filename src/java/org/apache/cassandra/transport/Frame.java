@@ -18,18 +18,16 @@
  */
 package org.apache.cassandra.transport;
 
-import java.io.IOException;
-import java.util.EnumSet;
-import java.util.List;
-
 import com.google.common.annotations.VisibleForTesting;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.util.Attribute;
+import java.io.IOException;
+import java.util.EnumSet;
+import java.util.List;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.messages.ErrorMessage;
@@ -120,8 +118,9 @@ public class Frame
             public static int serialize(EnumSet<Flag> flags)
             {
                 int i = 0;
-                for (Flag flag : flags)
-                    i |= 1 << flag.ordinal();
+                flags.stream()
+                        .map(flag -> 1 << flag.ordinal())
+                        .reduce(i, (accumulator, _item) -> accumulator |= _item);
                 return i;
             }
         }

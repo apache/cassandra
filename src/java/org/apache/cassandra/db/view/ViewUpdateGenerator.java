@@ -17,20 +17,18 @@
  */
 package org.apache.cassandra.db.view;
 
-import java.nio.ByteBuffer;
-import java.util.*;
-
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
-
+import java.nio.ByteBuffer;
+import java.util.*;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
 
 /**
  * Creates the updates to apply to a view given the existing rows in the base
@@ -541,8 +539,10 @@ public class ViewUpdateGenerator
 
         ComplexColumnData complexData = (ComplexColumnData)baseTableData;
         currentViewEntryBuilder.addComplexDeletion(viewColumn, complexData.complexDeletion());
-        for (Cell cell : complexData)
-            addCell(viewColumn, cell);
+        complexData.forEach(
+                cell -> {
+                    addCell(viewColumn, cell);
+                });
     }
 
     private void addCell(ColumnMetadata viewColumn, Cell baseTableCell)

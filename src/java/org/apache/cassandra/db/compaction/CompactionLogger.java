@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compaction;
 
+import com.google.common.collect.MapMaker;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.lang.ref.WeakReference;
@@ -32,11 +33,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
-import com.google.common.collect.MapMaker;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -44,6 +40,8 @@ import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.node.JsonNodeFactory;
 import org.codehaus.jackson.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class CompactionLogger
 {
@@ -186,10 +184,10 @@ public class CompactionLogger
         node.put("repaired", csm.isRepaired(strategy));
         List<String> folders = csm.getStrategyFolders(strategy);
         ArrayNode folderNode = json.arrayNode();
-        for (String folder : folders)
-        {
-            folderNode.add(folder);
-        }
+        folders.forEach(
+                folder -> {
+                    folderNode.add(folder);
+                });
         node.put("folders", folderNode);
 
         JsonNode logResult = strategy.strategyLogger().options();

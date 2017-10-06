@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.utils;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.primitives.Ints;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -25,11 +27,8 @@ import java.security.SecureRandom;
 import java.util.Collection;
 import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.primitives.Ints;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The goods are here: www.ietf.org/rfc/rfc4122.txt.
@@ -383,8 +382,10 @@ public class UUIDGen
         {
             // Identify the host.
             MessageDigest messageDigest = MessageDigest.getInstance("MD5");
-            for(InetAddress addr : data)
-                messageDigest.update(addr.getAddress());
+            data.forEach(
+                    addr -> {
+                        messageDigest.update(addr.getAddress());
+                    });
 
             // Identify the process on the load: we use both the PID and class loader hash.
             long pid = NativeLibrary.getProcessID();

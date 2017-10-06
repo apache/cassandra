@@ -20,6 +20,12 @@
  */
 package org.apache.cassandra.utils.concurrent;
 
+import static java.util.Collections.emptyList;
+import static org.apache.cassandra.utils.Throwables.maybeFail;
+import static org.apache.cassandra.utils.Throwables.merge;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
@@ -30,13 +36,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -47,11 +46,8 @@ import org.apache.cassandra.io.util.SafeMemory;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
-import static java.util.Collections.emptyList;
-
-import static org.apache.cassandra.utils.Throwables.maybeFail;
-import static org.apache.cassandra.utils.Throwables.merge;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * An object that needs ref counting does the two following:
@@ -698,8 +694,10 @@ public final class Ref<T> implements RefCounted<T>
             if (!this.candidates.isEmpty())
             {
                 List<String> names = new ArrayList<>();
-                for (Tidy tidy : this.candidates)
-                    names.add(tidy.name());
+                this.candidates.forEach(
+                        tidy -> {
+                            names.add(tidy.name());
+                        });
                 logger.warn("Strong reference leak candidates detected: {}", names);
             }
             this.candidates = candidates;

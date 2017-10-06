@@ -17,18 +17,17 @@
  */
 package org.apache.cassandra.db;
 
-import java.util.Collection;
+import static org.junit.Assert.assertEquals;
 
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.utils.FBUtilities;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import java.util.Collection;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import static org.junit.Assert.assertEquals;
+import org.apache.cassandra.utils.FBUtilities;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class ColumnFamilyMetricTest
 {
@@ -64,10 +63,9 @@ public class ColumnFamilyMetricTest
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         long size = 0;
-        for (SSTableReader reader : sstables)
-        {
-            size += reader.bytesOnDisk();
-        }
+        sstables.stream()
+                .map(reader -> reader.bytesOnDisk())
+                .reduce(size, (accumulator, _item) -> accumulator += _item);
 
         // size metrics should show the sum of all SSTable sizes
         assertEquals(size, cfs.metric.liveDiskSpaceUsed.getCount());

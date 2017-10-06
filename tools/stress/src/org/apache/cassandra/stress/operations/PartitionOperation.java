@@ -20,7 +20,6 @@ package org.apache.cassandra.stress.operations;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.WorkManager;
 import org.apache.cassandra.stress.generate.Distribution;
@@ -118,8 +117,10 @@ public abstract class PartitionOperation extends Operation
     public String key()
     {
         List<String> keys = new ArrayList<>();
-        for (PartitionIterator partition : partitions)
-            keys.add(partition.getKeyAsString());
+        partitions.forEach(
+                partition -> {
+                    keys.add(partition.getKeyAsString());
+                });
         return keys.toString();
     }
 }

@@ -17,17 +17,14 @@
  */
 package org.apache.cassandra.cql3;
 
+import com.google.common.collect.ImmutableList;
+import io.netty.buffer.ByteBuf;
 import java.nio.ByteBuffer;
 import java.util.*;
-
-import com.google.common.collect.ImmutableList;
-
-import io.netty.buffer.ByteBuf;
-
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.CBCodec;
@@ -392,8 +389,9 @@ public abstract class QueryOptions
             public static int serialize(EnumSet<Flag> flags)
             {
                 int i = 0;
-                for (Flag flag : flags)
-                    i |= 1 << flag.ordinal();
+                flags.stream()
+                        .map(flag -> 1 << flag.ordinal())
+                        .reduce(i, (accumulator, _item) -> accumulator |= _item);
                 return i;
             }
         }

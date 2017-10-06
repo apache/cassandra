@@ -18,16 +18,14 @@
 
 package org.apache.cassandra.io.sstable;
 
+import static org.junit.Assert.assertEquals;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -39,8 +37,8 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.MigrationManager;
-
-import static org.junit.Assert.assertEquals;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class IndexSummaryRedistributionTest
 {
@@ -60,8 +58,7 @@ public class IndexSummaryRedistributionTest
     }
 
     @Test
-    public void testMetricsLoadAfterRedistribution() throws IOException
-    {
+    public void testMetricsLoadAfterRedistribution() throws IOException {
         String ksname = KEYSPACE1;
         String cfname = CF_STANDARD;
         Keyspace keyspace = Keyspace.open(ksname);
@@ -77,11 +74,17 @@ public class IndexSummaryRedistributionTest
             sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
 
         long oldSize = 0;
-        for (SSTableReader sstable : sstables)
-        {
-            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getEffectiveIndexInterval(), 0.001);
-            oldSize += sstable.bytesOnDisk();
-        }
+        sstables.stream()
+                .map(
+                        sstable -> {
+                            assertEquals(
+                                    cfs.metadata().params.minIndexInterval,
+                                    sstable.getEffectiveIndexInterval(),
+                                    0.001);
+                            return sstable;
+                        })
+                .map(sstable -> sstable.bytesOnDisk())
+                .reduce(oldSize, (accumulator, _item) -> accumulator += _item);
 
         load = StorageMetrics.load.getCount();
         long others = load - oldSize; // Other SSTables size, e.g. schema and other system SSTables
@@ -127,17 +130,14 @@ public class IndexSummaryRedistributionTest
             }
             futures.add(cfs.forceFlush());
         }
-        for (Future future : futures)
-        {
-            try
-            {
-                future.get();
-            }
-            catch (InterruptedException | ExecutionException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
+        futures.forEach(
+                future -> {
+                    try {
+                        future.get();
+                    } catch (InterruptedException | ExecutionException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
         assertEquals(numSSTables, cfs.getLiveSSTables().size());
     }
 }

@@ -29,7 +29,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
-
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -299,7 +298,8 @@ final class LogRecord
     /**
      * absoluteFilePaths contains full file parts up to the component name
      *
-     * this method finds all files on disk beginning with any of the paths in absoluteFilePaths
+     * <p>this method finds all files on disk beginning with any of the paths in absoluteFilePaths
+     *
      * @return a map from absoluteFilePath to actual file on disk.
      */
     public static Map<String, List<File>> getExistingFiles(Set<String> absoluteFilePaths)
@@ -324,12 +324,13 @@ final class LogRecord
         };
 
         // populate the file map:
-        for (File f : uniqueDirectories)
-            f.listFiles(ff);
+        uniqueDirectories.forEach(
+                f -> {
+                    f.listFiles(ff);
+                });
 
         return fileMap;
     }
-
 
     public boolean isFinal()
     {

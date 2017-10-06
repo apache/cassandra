@@ -17,21 +17,19 @@
  */
 package org.apache.cassandra.index.sasi.memory;
 
+import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongSet;
+import com.google.common.collect.PeekingIterator;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentSkipListSet;
-
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.utils.AbstractIterator;
 import org.apache.cassandra.index.sasi.utils.CombinedValue;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
-
-import com.carrotsearch.hppc.LongOpenHashSet;
-import com.carrotsearch.hppc.LongSet;
-import com.google.common.collect.PeekingIterator;
 
 public class KeyRangeIterator extends RangeIterator<Long, Token>
 {
@@ -96,8 +94,10 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
         public LongSet getOffsets()
         {
             LongSet offsets = new LongOpenHashSet(4);
-            for (DecoratedKey key : keys)
-                offsets.add((long) key.getToken().getTokenValue());
+            keys.forEach(
+                    key -> {
+                        offsets.add((long) key.getToken().getTokenValue());
+                    });
 
             return offsets;
         }
@@ -116,8 +116,10 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
             }
             else
             {
-                for (DecoratedKey key : o)
-                    keys.add(key);
+                o.forEach(
+                        key -> {
+                            keys.add(key);
+                        });
             }
         }
 
