@@ -274,16 +274,26 @@ public abstract class UnfilteredDeserializer
 
         private LegacyLayout.LegacyAtom readAtom()
         {
-            try
+            while (true)
             {
-                long pos = currentPosition();
-                LegacyLayout.LegacyAtom atom =  LegacyLayout.readLegacyAtom(metadata, in, readAllAsDynamic);
-                bytesReadForNextAtom = currentPosition() - pos;
-                return atom;
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
+                try
+                {
+                    long pos = currentPosition();
+                    LegacyLayout.LegacyAtom atom = LegacyLayout.readLegacyAtom(metadata, in, readAllAsDynamic);
+                    bytesReadForNextAtom = currentPosition() - pos;
+                    return atom;
+                }
+                catch (UnknownColumnException e)
+                {
+                    // This is ok, see LegacyLayout.readLegacyAtom() for why this only happens in case were we're ok
+                    // skipping the cell. We do want to catch this at this level however because when that happen,
+                    // we should *not* count the byte of that discarded cell as part of the bytes for the atom
+                    // we will eventually return, as doing so could throw the logic bytesReadForNextAtom participates in.
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
             }
         }
 
@@ -407,6 +417,7 @@ public abstract class UnfilteredDeserializer
             saved = null;
             iterator.clearState();
             lastConsumedPosition = currentPosition();
+            bytesReadForNextAtom = 0;
         }
 
         // Groups atoms from the input into proper Unfiltered.
