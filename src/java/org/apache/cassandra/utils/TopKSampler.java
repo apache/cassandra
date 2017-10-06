@@ -94,13 +94,7 @@ public class TopKSampler<T>
         if (enabled)
         {
             final Object lock = this;
-            samplerExecutor.execute(new Runnable()
-            {
-                public void run()
-                {
-                    // samplerExecutor is single threaded but still need
-                    // synchronization against jmx calls to finishSampling
-                    synchronized (lock)
+            samplerExecutor.execute(()-> { synchronized (lock)
                     {
                         if (enabled)
                         {
@@ -113,9 +107,7 @@ public class TopKSampler<T>
                                 logger.trace("Failure to offer sample", e);
                             }
                         }
-                    }
-                }
-            });
+                    }});
         }
     }
 

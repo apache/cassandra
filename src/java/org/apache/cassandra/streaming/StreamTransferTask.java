@@ -163,18 +163,12 @@ public class StreamTransferTask extends StreamTask
         if (!files.containsKey(sequenceNumber))
             return null;
 
-        ScheduledFuture future = timeoutExecutor.schedule(new Runnable()
-        {
-            public void run()
-            {
-                synchronized (StreamTransferTask.this)
+        ScheduledFuture future = timeoutExecutor.schedule(()-> { synchronized (StreamTransferTask.this)
                 {
                     // remove so we don't cancel ourselves
                     timeoutTasks.remove(sequenceNumber);
                     StreamTransferTask.this.complete(sequenceNumber);
-                }
-            }
-        }, time, unit);
+                }}, time, unit);
 
         ScheduledFuture prev = timeoutTasks.put(sequenceNumber, future);
         assert prev == null;

@@ -55,26 +55,14 @@ public class DebuggableScheduledThreadPoolExecutorTest
         final AtomicInteger value = new AtomicInteger(0);
 
         //Normal scheduled task
-        ScheduledFuture future = testPool.schedule(new Runnable()
-        {
-            public void run()
-            {
-                value.incrementAndGet();
-            }
-        }, 1, TimeUnit.SECONDS);
+        ScheduledFuture future = testPool.schedule(()-> { value.incrementAndGet();}, 1, TimeUnit.SECONDS);
 
         future.get();
         assert value.get() == 1;
 
 
         //Shut down before schedule
-        future = testPool.schedule(new Runnable()
-        {
-            public void run()
-            {
-                value.incrementAndGet();
-            }
-        }, 10, TimeUnit.SECONDS);
+        future = testPool.schedule(()-> { value.incrementAndGet();}, 10, TimeUnit.SECONDS);
 
 
         StorageService.instance.drain();
@@ -85,13 +73,7 @@ public class DebuggableScheduledThreadPoolExecutorTest
 
 
         //Now shut down verify task isn't just swallowed
-        future = testPool.schedule(new Runnable()
-        {
-            public void run()
-            {
-                value.incrementAndGet();
-            }
-        }, 1, TimeUnit.SECONDS);
+        future = testPool.schedule(()-> { value.incrementAndGet();}, 1, TimeUnit.SECONDS);
 
 
         try

@@ -108,15 +108,9 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     }
                     else
                     {
-                        cfs.snapshot(desc.sessionId.toString(), new Predicate<SSTableReader>()
-                        {
-                            public boolean apply(SSTableReader sstable)
-                            {
-                                return sstable != null &&
+                        cfs.snapshot(desc.sessionId.toString(), (SSTableReader sstable)->{ return sstable != null &&
                                        !sstable.metadata().isIndex() && // exclude SSTables from 2i
-                                       new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(desc.ranges);
-                            }
-                        }, true, false); //ephemeral snapshot, if repair fails, it will be cleaned next startup
+                                       new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(desc.ranges);}, true, false); //ephemeral snapshot, if repair fails, it will be cleaned next startup
                     }
                     logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from);
                     MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);

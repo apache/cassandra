@@ -542,13 +542,7 @@ public final class MessagingService implements MessagingServiceMBean
         verbHandlers = new EnumMap<>(Verb.class);
         if (!testOnly)
         {
-            Runnable logDropped = new Runnable()
-            {
-                public void run()
-                {
-                    logDroppedMessages();
-                }
-            };
+            Runnable logDropped = ()-> { logDroppedMessages();};
             ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(logDropped, LOG_DROPPED_INTERVAL_IN_MS, LOG_DROPPED_INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
         }
 

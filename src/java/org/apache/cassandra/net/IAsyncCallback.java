@@ -31,13 +31,7 @@ import org.apache.cassandra.gms.FailureDetector;
  */
 public interface IAsyncCallback<T>
 {
-    Predicate<InetAddress> isAlive = new Predicate<InetAddress>()
-    {
-        public boolean apply(InetAddress endpoint)
-        {
-            return FailureDetector.instance.isAlive(endpoint);
-        }
-    };
+    Predicate<InetAddress> isAlive = (InetAddress endpoint)->{ return FailureDetector.instance.isAlive(endpoint);};
 
     /**
      * @param msg response received.

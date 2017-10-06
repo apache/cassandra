@@ -140,13 +140,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
         if (savePeriodInSeconds > 0)
         {
-            Runnable runnable = new Runnable()
-            {
-                public void run()
-                {
-                    submitWrite(keysToSave);
-                }
-            };
+            Runnable runnable = ()-> { submitWrite(keysToSave);};
             saveTask = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(runnable,
                                                                                savePeriodInSeconds,
                                                                                savePeriodInSeconds,

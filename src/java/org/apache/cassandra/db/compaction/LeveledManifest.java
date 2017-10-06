@@ -597,13 +597,7 @@ public class LeveledManifest
         return overlapped;
     }
 
-    private static final Predicate<SSTableReader> suspectP = new Predicate<SSTableReader>()
-    {
-        public boolean apply(SSTableReader candidate)
-        {
-            return candidate.isMarkedSuspect();
-        }
-    };
+    private static final Predicate<SSTableReader> suspectP = (SSTableReader candidate)->{ return candidate.isMarkedSuspect();};
 
     private static Map<SSTableReader, Bounds<Token>> genBounds(Iterable<SSTableReader> ssTableReaders)
     {

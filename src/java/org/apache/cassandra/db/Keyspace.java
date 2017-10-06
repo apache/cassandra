@@ -89,13 +89,7 @@ public class Keyspace
     private volatile AbstractReplicationStrategy replicationStrategy;
     public final ViewManager viewManager;
 
-    public static final Function<String,Keyspace> keyspaceTransformer = new Function<String, Keyspace>()
-    {
-        public Keyspace apply(String keyspaceName)
-        {
-            return Keyspace.open(keyspaceName);
-        }
-    };
+    public static final Function<String,Keyspace> keyspaceTransformer = (String keyspaceName)->{ return Keyspace.open(keyspaceName);};
 
     private static volatile boolean initialized = false;
 

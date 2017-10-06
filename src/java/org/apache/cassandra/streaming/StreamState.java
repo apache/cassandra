@@ -44,13 +44,7 @@ public class StreamState implements Serializable
 
     public boolean hasFailedSession()
     {
-        return Iterables.any(sessions, new Predicate<SessionInfo>()
-        {
-            public boolean apply(SessionInfo session)
-            {
-                return session.isFailed();
-            }
-        });
+        return Iterables.any(sessions, (SessionInfo session)->{ return session.isFailed();});
     }
 
     public List<SessionSummary> createSummaries()

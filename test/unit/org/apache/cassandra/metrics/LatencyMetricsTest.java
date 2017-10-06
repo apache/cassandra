@@ -31,16 +31,10 @@ public class LatencyMetricsTest
     public void testGetRecentLatency()
     {
         final LatencyMetrics l = new LatencyMetrics("test", "test");
-        Runnable r = new Runnable()
-        {
-            public void run()
-            {
-                for (int i = 0; i < 10000; i++)
+        Runnable r = ()-> { for (int i = 0; i < 10000; i++)
                 {
                     l.addNano(1000);
-                }
-            }
-        };
+                }};
         new Thread(r).start();
 
         for (int i = 0; i < 10000; i++)

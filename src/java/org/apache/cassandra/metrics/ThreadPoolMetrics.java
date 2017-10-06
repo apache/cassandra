@@ -70,36 +70,12 @@ public class ThreadPoolMetrics
     {
         this.factory = new ThreadPoolMetricNameFactory("ThreadPools", path, poolName);
 
-        activeTasks = Metrics.register(factory.createMetricName("ActiveTasks"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return executor.getActiveCount();
-            }
-        });
+        activeTasks = Metrics.register(factory.createMetricName("ActiveTasks"), ()-> { return executor.getActiveCount();});
         totalBlocked = Metrics.counter(factory.createMetricName("TotalBlockedTasks"));
         currentBlocked = Metrics.counter(factory.createMetricName("CurrentlyBlockedTasks"));
-        completedTasks = Metrics.register(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return executor.getCompletedTaskCount();
-            }
-        });
-        pendingTasks = Metrics.register(factory.createMetricName("PendingTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return executor.getTaskCount() - executor.getCompletedTaskCount();
-            }
-        });
-        maxPoolSize = Metrics.register(factory.createMetricName("MaxPoolSize"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return executor.getMaximumPoolSize();
-            }
-        });
+        completedTasks = Metrics.register(factory.createMetricName("CompletedTasks"), ()-> { return executor.getCompletedTaskCount();});
+        pendingTasks = Metrics.register(factory.createMetricName("PendingTasks"), ()-> { return executor.getTaskCount() - executor.getCompletedTaskCount();});
+        maxPoolSize = Metrics.register(factory.createMetricName("MaxPoolSize"), ()-> { return executor.getMaximumPoolSize();});
     }
 
     public void release()

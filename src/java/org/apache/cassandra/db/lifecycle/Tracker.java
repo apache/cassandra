@@ -279,13 +279,7 @@ public class Tracker
      */
     public void removeUnreadableSSTables(final File directory)
     {
-        maybeFail(dropSSTables(new Predicate<SSTableReader>()
-        {
-            public boolean apply(SSTableReader reader)
-            {
-                return reader.descriptor.directory.equals(directory);
-            }
-        }, OperationType.UNKNOWN, null));
+        maybeFail(dropSSTables((SSTableReader reader)->{ return reader.descriptor.directory.equals(directory);}, OperationType.UNKNOWN, null));
     }
 
 

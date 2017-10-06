@@ -102,13 +102,7 @@ public class TraceStateImpl extends TraceState
 
     void executeMutation(final Mutation mutation)
     {
-        CompletableFuture<Void> fut = CompletableFuture.runAsync(new WrappedRunnable()
-        {
-            protected void runMayThrow()
-            {
-                mutateWithCatch(mutation);
-            }
-        }, StageManager.getStage(Stage.TRACING));
+        CompletableFuture<Void> fut = CompletableFuture.runAsync(()-> { mutateWithCatch(mutation);}, StageManager.getStage(Stage.TRACING));
 
         boolean ret = pendingFutures.add(fut);
         if (!ret)

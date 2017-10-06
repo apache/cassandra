@@ -37,12 +37,6 @@ public class BufferPoolMetrics
     {
         misses = Metrics.meter(factory.createMetricName("Misses"));
 
-        size = Metrics.register(factory.createMetricName("Size"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return BufferPool.sizeInBytes();
-            }
-        });
+        size = Metrics.register(factory.createMetricName("Size"), ()-> { return BufferPool.sizeInBytes();});
     }
 }

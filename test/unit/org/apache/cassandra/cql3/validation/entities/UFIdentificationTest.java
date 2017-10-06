@@ -48,13 +48,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class UFIdentificationTest extends CQLTester
 {
-    private com.google.common.base.Function<Function, String> toFunctionNames = new com.google.common.base.Function<Function, String>()
-    {
-        public String apply(Function f)
-        {
-            return f.name().keyspace + "." + f.name().name;
-        }
-    };
+    private com.google.common.base.Function<Function, String> toFunctionNames = (Function f)->{ return f.name().keyspace + "." + f.name().name;};
 
     String tFunc;
     String iFunc;

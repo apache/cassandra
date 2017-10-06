@@ -623,11 +623,7 @@ public class IndexSummaryManagerTest
         // barrier to control when redistribution runs
         final CountDownLatch barrier = new CountDownLatch(1);
 
-        Thread t = NamedThreadFactory.createThread(new Runnable()
-        {
-            public void run()
-            {
-                try
+        Thread t = NamedThreadFactory.createThread(()-> { try
                 {
                     // Don't leave enough space for even the minimal index summaries
                     try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
@@ -644,9 +640,7 @@ public class IndexSummaryManagerTest
                 }
                 catch (IOException ignored)
                 {
-                }
-            }
-        });
+                }});
         t.start();
         while (CompactionManager.instance.getActiveCompactions() == 0 && t.isAlive())
             Thread.sleep(1);

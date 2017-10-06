@@ -749,13 +749,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
     private String makeColumnList(Collection<String> columns)
     {
-        return Joiner.on(',').join(Iterables.transform(columns, new Function<String, String>()
-        {
-            public String apply(String column)
-            {
-                return quote(column);
-            }
-        }));
+        return Joiner.on(',').join(Iterables.transform(columns, (String column)->{ return quote(column);}));
     }
 
     private void fetchKeys()

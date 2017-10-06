@@ -136,118 +136,22 @@ public class KeyspaceMetrics
     {
         factory = new KeyspaceMetricNameFactory(ks);
         keyspace = ks;
-        memtableColumnsCount = createKeyspaceGauge("MemtableColumnsCount", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.memtableColumnsCount.getValue();
-            }
-        });
-        memtableLiveDataSize = createKeyspaceGauge("MemtableLiveDataSize", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.memtableLiveDataSize.getValue();
-            }
-        });
-        memtableOnHeapDataSize = createKeyspaceGauge("MemtableOnHeapDataSize", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.memtableOnHeapSize.getValue();
-            }
-        });
-        memtableOffHeapDataSize = createKeyspaceGauge("MemtableOffHeapDataSize", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.memtableOffHeapSize.getValue();
-            }
-        });
-        allMemtablesLiveDataSize = createKeyspaceGauge("AllMemtablesLiveDataSize", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.allMemtablesLiveDataSize.getValue();
-            }
-        });
-        allMemtablesOnHeapDataSize = createKeyspaceGauge("AllMemtablesOnHeapDataSize", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.allMemtablesOnHeapSize.getValue();
-            }
-        });
-        allMemtablesOffHeapDataSize = createKeyspaceGauge("AllMemtablesOffHeapDataSize", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.allMemtablesOffHeapSize.getValue();
-            }
-        });
-        memtableSwitchCount = createKeyspaceGauge("MemtableSwitchCount", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.memtableSwitchCount.getCount();
-            }
-        });
-        pendingCompactions = createKeyspaceGauge("PendingCompactions", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return (long) metric.pendingCompactions.getValue();
-            }
-        });
-        pendingFlushes = createKeyspaceGauge("PendingFlushes", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return (long) metric.pendingFlushes.getCount();
-            }
-        });
-        liveDiskSpaceUsed = createKeyspaceGauge("LiveDiskSpaceUsed", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.liveDiskSpaceUsed.getCount();
-            }
-        });
-        totalDiskSpaceUsed = createKeyspaceGauge("TotalDiskSpaceUsed", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.totalDiskSpaceUsed.getCount();
-            }
-        });
-        bloomFilterDiskSpaceUsed = createKeyspaceGauge("BloomFilterDiskSpaceUsed", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.bloomFilterDiskSpaceUsed.getValue();
-            }
-        });
-        bloomFilterOffHeapMemoryUsed = createKeyspaceGauge("BloomFilterOffHeapMemoryUsed", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.bloomFilterOffHeapMemoryUsed.getValue();
-            }
-        });
-        indexSummaryOffHeapMemoryUsed = createKeyspaceGauge("IndexSummaryOffHeapMemoryUsed", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.indexSummaryOffHeapMemoryUsed.getValue();
-            }
-        });
-        compressionMetadataOffHeapMemoryUsed = createKeyspaceGauge("CompressionMetadataOffHeapMemoryUsed", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.compressionMetadataOffHeapMemoryUsed.getValue();
-            }
-        });
+        memtableColumnsCount = createKeyspaceGauge("MemtableColumnsCount", (TableMetrics metric)->{ return metric.memtableColumnsCount.getValue();});
+        memtableLiveDataSize = createKeyspaceGauge("MemtableLiveDataSize", (TableMetrics metric)->{ return metric.memtableLiveDataSize.getValue();});
+        memtableOnHeapDataSize = createKeyspaceGauge("MemtableOnHeapDataSize", (TableMetrics metric)->{ return metric.memtableOnHeapSize.getValue();});
+        memtableOffHeapDataSize = createKeyspaceGauge("MemtableOffHeapDataSize", (TableMetrics metric)->{ return metric.memtableOffHeapSize.getValue();});
+        allMemtablesLiveDataSize = createKeyspaceGauge("AllMemtablesLiveDataSize", (TableMetrics metric)->{ return metric.allMemtablesLiveDataSize.getValue();});
+        allMemtablesOnHeapDataSize = createKeyspaceGauge("AllMemtablesOnHeapDataSize", (TableMetrics metric)->{ return metric.allMemtablesOnHeapSize.getValue();});
+        allMemtablesOffHeapDataSize = createKeyspaceGauge("AllMemtablesOffHeapDataSize", (TableMetrics metric)->{ return metric.allMemtablesOffHeapSize.getValue();});
+        memtableSwitchCount = createKeyspaceGauge("MemtableSwitchCount", (TableMetrics metric)->{ return metric.memtableSwitchCount.getCount();});
+        pendingCompactions = createKeyspaceGauge("PendingCompactions", (TableMetrics metric)->{ return (long) metric.pendingCompactions.getValue();});
+        pendingFlushes = createKeyspaceGauge("PendingFlushes", (TableMetrics metric)->{ return (long) metric.pendingFlushes.getCount();});
+        liveDiskSpaceUsed = createKeyspaceGauge("LiveDiskSpaceUsed", (TableMetrics metric)->{ return metric.liveDiskSpaceUsed.getCount();});
+        totalDiskSpaceUsed = createKeyspaceGauge("TotalDiskSpaceUsed", (TableMetrics metric)->{ return metric.totalDiskSpaceUsed.getCount();});
+        bloomFilterDiskSpaceUsed = createKeyspaceGauge("BloomFilterDiskSpaceUsed", (TableMetrics metric)->{ return metric.bloomFilterDiskSpaceUsed.getValue();});
+        bloomFilterOffHeapMemoryUsed = createKeyspaceGauge("BloomFilterOffHeapMemoryUsed", (TableMetrics metric)->{ return metric.bloomFilterOffHeapMemoryUsed.getValue();});
+        indexSummaryOffHeapMemoryUsed = createKeyspaceGauge("IndexSummaryOffHeapMemoryUsed", (TableMetrics metric)->{ return metric.indexSummaryOffHeapMemoryUsed.getValue();});
+        compressionMetadataOffHeapMemoryUsed = createKeyspaceGauge("CompressionMetadataOffHeapMemoryUsed", (TableMetrics metric)->{ return metric.compressionMetadataOffHeapMemoryUsed.getValue();});
         // latency metrics for TableMetrics to update
         readLatency = new LatencyMetrics(factory, "Read");
         writeLatency = new LatencyMetrics(factory, "Write");
@@ -268,41 +172,11 @@ public class KeyspaceMetrics
         writeFailedIdealCL = Metrics.counter(factory.createMetricName("WriteFailedIdealCL"));
         idealCLWriteLatency = new LatencyMetrics(factory, "IdealCLWrite");
 
-        speculativeRetries = createKeyspaceCounter("SpeculativeRetries", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.speculativeRetries.getCount();
-            }
-        });
-        speculativeFailedRetries = createKeyspaceCounter("SpeculativeFailedRetries", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.speculativeFailedRetries.getCount();
-            }
-        });
-        speculativeInsufficientReplicas = createKeyspaceCounter("SpeculativeInsufficientReplicas", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.speculativeInsufficientReplicas.getCount();
-            }
-        });
-        repairsStarted = createKeyspaceCounter("RepairJobsStarted", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.repairsStarted.getCount();
-            }
-        });
-        repairsCompleted = createKeyspaceCounter("RepairJobsCompleted", new MetricValue()
-        {
-            public Long getValue(TableMetrics metric)
-            {
-                return metric.repairsCompleted.getCount();
-            }
-        });
+        speculativeRetries = createKeyspaceCounter("SpeculativeRetries", (TableMetrics metric)->{ return metric.speculativeRetries.getCount();});
+        speculativeFailedRetries = createKeyspaceCounter("SpeculativeFailedRetries", (TableMetrics metric)->{ return metric.speculativeFailedRetries.getCount();});
+        speculativeInsufficientReplicas = createKeyspaceCounter("SpeculativeInsufficientReplicas", (TableMetrics metric)->{ return metric.speculativeInsufficientReplicas.getCount();});
+        repairsStarted = createKeyspaceCounter("RepairJobsStarted", (TableMetrics metric)->{ return metric.repairsStarted.getCount();});
+        repairsCompleted = createKeyspaceCounter("RepairJobsCompleted", (TableMetrics metric)->{ return metric.repairsCompleted.getCount();});
         repairTime = Metrics.timer(factory.createMetricName("RepairTime"));
         repairPrepareTime = Metrics.timer(factory.createMetricName("RepairPrepareTime"));
         anticompactionTime = Metrics.timer(factory.createMetricName("AntiCompactionTime"));

@@ -203,13 +203,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
      */
     public List<String> getColumnNames()
     {
-        return Lists.transform(factories, new com.google.common.base.Function<Selector.Factory, String>()
-        {
-            public String apply(Selector.Factory factory)
-            {
-                return factory.getColumnName();
-            }
-        });
+        return Lists.transform(factories, (Selector.Factory factory)->{ return factory.getColumnName();});
     }
 
     /**
@@ -219,13 +213,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
      */
     public List<AbstractType<?>> getReturnTypes()
     {
-        return Lists.transform(factories, new com.google.common.base.Function<Selector.Factory, AbstractType<?>>()
-        {
-            public AbstractType<?> apply(Selector.Factory factory)
-            {
-                return factory.getReturnType();
-            }
-        });
+        return Lists.transform(factories, (Selector.Factory factory)->{ return factory.getReturnType();});
     }
 
     boolean areAllFetchedColumnsKnown()

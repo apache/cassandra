@@ -83,11 +83,7 @@ public class TopKSamplerTest
         final CountDownLatch latch = new CountDownLatch(1);
         final TopKSampler<String> sampler = new TopKSampler<String>();
 
-        NamedThreadFactory.createThread(new Runnable()
-        {
-            public void run()
-            {
-                try
+        NamedThreadFactory.createThread(()-> { try
                 {
                     while (running.get())
                     {
@@ -96,10 +92,7 @@ public class TopKSamplerTest
                 } finally
                 {
                     latch.countDown();
-                }
-            }
-
-        }
+                }}
         , "inserter").start();
         try
         {

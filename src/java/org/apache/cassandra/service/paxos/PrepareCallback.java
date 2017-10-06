@@ -105,12 +105,6 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
         if (UUIDGen.unixTimestampInSec(mostRecentCommit.ballot) + paxosTtlSec < nowInSec)
             return Collections.emptySet();
 
-        return Iterables.filter(commitsByReplica.keySet(), new Predicate<InetAddress>()
-        {
-            public boolean apply(InetAddress inetAddress)
-            {
-                return (!commitsByReplica.get(inetAddress).ballot.equals(mostRecentCommit.ballot));
-            }
-        });
+        return Iterables.filter(commitsByReplica.keySet(), (InetAddress inetAddress)->{ return (!commitsByReplica.get(inetAddress).ballot.equals(mostRecentCommit.ballot));});
     }
 }

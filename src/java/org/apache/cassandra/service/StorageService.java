@@ -1643,13 +1643,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Map<Range<Token>, List<InetAddress>> getRangeToAddressMapInLocalDC(String keyspace)
     {
-        Predicate<InetAddress> isLocalDC = new Predicate<InetAddress>()
-        {
-            public boolean apply(InetAddress address)
-            {
-                return isLocalDC(address);
-            }
-        };
+        Predicate<InetAddress> isLocalDC = (InetAddress address)->{ return isLocalDC(address);};
 
         Map<Range<Token>, List<InetAddress>> origMap = getRangeToAddressMap(keyspace, getTokensInLocalDC());
         Map<Range<Token>, List<InetAddress>> filteredMap = Maps.newHashMap();

@@ -731,7 +731,7 @@
         <javac fork="true"
                debug="true" debuglevel="${debuglevel}" encoding="utf-8"
                destdir="${build.classes.main}" includeantruntime="false" source="${source.version}" target="${target.version}"
-               memorymaximumsize="512M">
+               memorymaximumsize="1024M">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
             <compilerarg value="-XDignore.symbol.file"/>

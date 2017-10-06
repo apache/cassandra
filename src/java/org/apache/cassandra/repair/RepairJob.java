@@ -100,16 +100,10 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             }
 
             // When all snapshot complete, send validation requests
-            validations = Futures.transform(allSnapshotTasks, new AsyncFunction<List<InetAddress>, List<TreeResponse>>()
-            {
-                public ListenableFuture<List<TreeResponse>> apply(List<InetAddress> endpoints)
-                {
-                    if (parallelismDegree == RepairParallelism.SEQUENTIAL)
+            validations = Futures.transform(allSnapshotTasks, (List<InetAddress> endpoints)->{ if (parallelismDegree == RepairParallelism.SEQUENTIAL)
                         return sendSequentialValidationRequest(endpoints);
                     else
-                        return sendDCAwareValidationRequest(endpoints);
-                }
-            }, taskExecutor);
+                        return sendDCAwareValidationRequest(endpoints);}, taskExecutor);
         }
         else
         {

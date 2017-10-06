@@ -174,17 +174,11 @@ public class StartupChecks
         }
     };
 
-    public static final StartupCheck checkJMXProperties = new StartupCheck()
-    {
-        public void execute()
-        {
-            if (System.getProperty("com.sun.management.jmxremote.port") != null)
+    public static final StartupCheck checkJMXProperties = ()-> { if (System.getProperty("com.sun.management.jmxremote.port") != null)
             {
                 logger.warn("Use of com.sun.management.jmxremote.port at startup is deprecated. " +
                             "Please use cassandra.jmx.remote.port instead.");
-            }
-        }
-    };
+            }};
 
     public static final StartupCheck inspectJvmOptions = new StartupCheck()
     {
@@ -218,13 +212,7 @@ public class StartupChecks
         }
     };
 
-    public static final StartupCheck initSigarLibrary = new StartupCheck()
-    {
-        public void execute()
-        {
-            SigarLibrary.instance.warnIfRunningInDegradedMode();
-        }
-    };
+    public static final StartupCheck initSigarLibrary = ()-> { SigarLibrary.instance.warnIfRunningInDegradedMode();};
 
     public static final StartupCheck checkMaxMapCount = new StartupCheck()
     {

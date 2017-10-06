@@ -56,44 +56,14 @@ public class SEPMetrics
     public SEPMetrics(final SEPExecutor executor, String path, String poolName)
     {
         this.factory = new ThreadPoolMetricNameFactory("ThreadPools", path, poolName);
-        activeTasks = Metrics.register(factory.createMetricName("ActiveTasks"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return executor.getActiveCount();
-            }
-        });
-        pendingTasks = Metrics.register(factory.createMetricName("PendingTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return executor.getPendingTasks();
-            }
-        });
+        activeTasks = Metrics.register(factory.createMetricName("ActiveTasks"), ()-> { return executor.getActiveCount();});
+        pendingTasks = Metrics.register(factory.createMetricName("PendingTasks"), ()-> { return executor.getPendingTasks();});
         totalBlocked = Metrics.counter(factory.createMetricName("TotalBlockedTasks"));
         currentBlocked = Metrics.counter(factory.createMetricName("CurrentlyBlockedTasks"));
 
-        completedTasks = Metrics.register(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return executor.getCompletedTasks();
-            }
-        });
-        maxPoolSize =  Metrics.register(factory.createMetricName("MaxPoolSize"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return executor.maxWorkers;
-            }
-        });
-        maxTasksQueued =  Metrics.register(factory.createMetricName("MaxTasksQueued"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return executor.maxTasksQueued;
-            }
-        });
+        completedTasks = Metrics.register(factory.createMetricName("CompletedTasks"), ()-> { return executor.getCompletedTasks();});
+        maxPoolSize =  Metrics.register(factory.createMetricName("MaxPoolSize"), ()-> { return executor.maxWorkers;});
+        maxTasksQueued =  Metrics.register(factory.createMetricName("MaxTasksQueued"), ()-> { return executor.maxTasksQueued;});
     }
 
     public void release()

@@ -787,13 +787,7 @@ public class NodeProbe implements AutoCloseable
 
     public Set<StreamState> getStreamStatus()
     {
-        return Sets.newHashSet(Iterables.transform(streamProxy.getCurrentStreams(), new Function<CompositeData, StreamState>()
-        {
-            public StreamState apply(CompositeData input)
-            {
-                return StreamStateCompositeData.fromCompositeData(input);
-            }
-        }));
+        return Sets.newHashSet(Iterables.transform(streamProxy.getCurrentStreams(), (CompositeData input)->{ return StreamStateCompositeData.fromCompositeData(input);}));
     }
 
     public String getOperationMode()

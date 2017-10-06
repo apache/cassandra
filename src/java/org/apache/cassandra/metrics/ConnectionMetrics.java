@@ -72,69 +72,15 @@ public class ConnectionMetrics
 
         factory = new DefaultNameFactory("Connection", address);
 
-        largeMessagePendingTasks = Metrics.register(factory.createMetricName("LargeMessagePendingTasks"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return messagingPool.largeMessageChannel.getPendingMessages();
-            }
-        });
-        largeMessageCompletedTasks = Metrics.register(factory.createMetricName("LargeMessageCompletedTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return messagingPool.largeMessageChannel.getCompletedMessages();
-            }
-        });
-        largeMessageDroppedTasks = Metrics.register(factory.createMetricName("LargeMessageDroppedTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return messagingPool.largeMessageChannel.getDroppedMessages();
-            }
-        });
-        smallMessagePendingTasks = Metrics.register(factory.createMetricName("SmallMessagePendingTasks"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return messagingPool.smallMessageChannel.getPendingMessages();
-            }
-        });
-        smallMessageCompletedTasks = Metrics.register(factory.createMetricName("SmallMessageCompletedTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return messagingPool.smallMessageChannel.getCompletedMessages();
-            }
-        });
-        smallMessageDroppedTasks = Metrics.register(factory.createMetricName("SmallMessageDroppedTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return messagingPool.smallMessageChannel.getDroppedMessages();
-            }
-        });
-        gossipMessagePendingTasks = Metrics.register(factory.createMetricName("GossipMessagePendingTasks"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return messagingPool.gossipChannel.getPendingMessages();
-            }
-        });
-        gossipMessageCompletedTasks = Metrics.register(factory.createMetricName("GossipMessageCompletedTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return messagingPool.gossipChannel.getCompletedMessages();
-            }
-        });
-        gossipMessageDroppedTasks = Metrics.register(factory.createMetricName("GossipMessageDroppedTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return messagingPool.gossipChannel.getDroppedMessages();
-            }
-        });
+        largeMessagePendingTasks = Metrics.register(factory.createMetricName("LargeMessagePendingTasks"), ()-> { return messagingPool.largeMessageChannel.getPendingMessages();});
+        largeMessageCompletedTasks = Metrics.register(factory.createMetricName("LargeMessageCompletedTasks"), ()-> { return messagingPool.largeMessageChannel.getCompletedMessages();});
+        largeMessageDroppedTasks = Metrics.register(factory.createMetricName("LargeMessageDroppedTasks"), ()-> { return messagingPool.largeMessageChannel.getDroppedMessages();});
+        smallMessagePendingTasks = Metrics.register(factory.createMetricName("SmallMessagePendingTasks"), ()-> { return messagingPool.smallMessageChannel.getPendingMessages();});
+        smallMessageCompletedTasks = Metrics.register(factory.createMetricName("SmallMessageCompletedTasks"), ()-> { return messagingPool.smallMessageChannel.getCompletedMessages();});
+        smallMessageDroppedTasks = Metrics.register(factory.createMetricName("SmallMessageDroppedTasks"), ()-> { return messagingPool.smallMessageChannel.getDroppedMessages();});
+        gossipMessagePendingTasks = Metrics.register(factory.createMetricName("GossipMessagePendingTasks"), ()-> { return messagingPool.gossipChannel.getPendingMessages();});
+        gossipMessageCompletedTasks = Metrics.register(factory.createMetricName("GossipMessageCompletedTasks"), ()-> { return messagingPool.gossipChannel.getCompletedMessages();});
+        gossipMessageDroppedTasks = Metrics.register(factory.createMetricName("GossipMessageDroppedTasks"), ()-> { return messagingPool.gossipChannel.getDroppedMessages();});
         timeouts = Metrics.meter(factory.createMetricName("Timeouts"));
     }
 

@@ -256,11 +256,7 @@ public class UUIDTypeTest
         long seed = random.nextLong();
         random.setSeed(seed);
         System.out.println("UUIDTypeTest.permutations.seed=" + seed);
-        return new Iterable<ByteBuffer[]>()
-        {
-            public Iterator<ByteBuffer[]> iterator()
-            {
-                return new Iterator<ByteBuffer[]>()
+        return ()-> { return new Iterator<ByteBuffer[]>()
                 {
                     byte[] bytes = new byte[16];
                     int c = -1, i = 16;
@@ -282,9 +278,7 @@ public class UUIDTypeTest
                     public void remove()
                     {
                     }
-                };
-            }
-        };
+                };};
     }
 
     // for each of the given UUID types provided, produce every possible

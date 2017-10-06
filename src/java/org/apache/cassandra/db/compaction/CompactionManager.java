@@ -722,13 +722,7 @@ public class CompactionManager implements CompactionManagerMBean
             if (task.transaction.originals().size() > 0)
                 nonEmptyTasks++;
 
-            Runnable runnable = new WrappedRunnable()
-            {
-                protected void runMayThrow()
-                {
-                    task.execute(metrics);
-                }
-            };
+            Runnable runnable = ()-> { task.execute(metrics);};
 
             Future<?> fut = executor.submitIfRunning(runnable, "maximal task");
             if (!fut.isCancelled())
@@ -757,15 +751,9 @@ public class CompactionManager implements CompactionManagerMBean
         if (tasks == null)
             return;
 
-        Runnable runnable = new WrappedRunnable()
-        {
-            protected void runMayThrow()
-            {
-                for (AbstractCompactionTask task : tasks)
+        Runnable runnable = ()-> { for (AbstractCompactionTask task : tasks)
                     if (task != null)
-                        task.execute(metrics);
-            }
-        };
+                        task.execute(metrics);};
 
         if (executor.isShutdown())
         {
