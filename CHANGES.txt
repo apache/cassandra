@@ -1,6 +1,6 @@
 3.0.16
-  * Deserialise sstable metadata in nodetool verify (CASSANDRA-13922)
-
+ * Mishandling of cells for removed/dropped columns when reading legacy files (CASSANDRA-13939)
+ * Deserialise sstable metadata in nodetool verify (CASSANDRA-13922)
 
 3.0.15
  * Improve TRUNCATE performance (CASSANDRA-13909)
