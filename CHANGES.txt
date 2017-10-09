@@ -1,9 +1,9 @@
 3.0.16
+ * Add flag to disable materialized views, and warnings on creation (CASSANDRA-13959)
  * Don't let user drop or generally break tables in system_distributed (CASSANDRA-13813)
  * Provide a JMX call to sync schema with local storage (CASSANDRA-13954)
  * Mishandling of cells for removed/dropped columns when reading legacy files (CASSANDRA-13939)
  * Deserialise sstable metadata in nodetool verify (CASSANDRA-13922)
-
 
 3.0.15
  * Improve TRUNCATE performance (CASSANDRA-13909)

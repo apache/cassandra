@@ -2043,6 +2043,11 @@ public class DatabaseDescriptor
         conf.user_defined_function_warn_timeout = userDefinedFunctionWarnTimeout;
     }
 
+    public static boolean enableMaterializedViews()
+    {
+        return conf.enable_materialized_views;
+    }
+
     public static long getUserDefinedFunctionFailTimeout()
     {
         return conf.user_defined_function_fail_timeout;
