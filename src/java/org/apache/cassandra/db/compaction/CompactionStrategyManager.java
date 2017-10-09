@@ -560,21 +560,6 @@ public class CompactionStrategyManager implements INotificationConsumer
         return shouldDefragment;
     }
 
-    public Directories getDirectories()
-    {
-        maybeReloadDiskBoundaries();
-        readLock.lock();
-        try
-        {
-            assert repaired.get(0).getClass().equals(unrepaired.get(0).getClass());
-            return repaired.get(0).getDirectories();
-        }
-        finally
-        {
-            readLock.unlock();
-        }
-    }
-
     private void handleFlushNotification(Iterable<SSTableReader> added)
     {
         // If reloaded, SSTables will be placed in their correct locations

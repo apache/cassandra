@@ -90,44 +90,6 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
-    // The directories which will be searched for sstables on cfs instantiation.
-    private static volatile Directories.DataDirectory[] initialDirectories = Directories.dataDirectories;
-
-    /**
-     * A hook to add additional directories to initialDirectories.
-     * Any additional directories should be added prior to ColumnFamilyStore instantiation on startup
-     *
-     * Since the directories used by a given table are determined by the compaction strategy,
-     * it's possible for sstables to be written to directories specified outside of cassandra.yaml.
-     * By adding additional directories to initialDirectories, sstables in these extra locations are
-     * made discoverable on sstable instantiation.
-     */
-    public static synchronized void addInitialDirectories(Directories.DataDirectory[] newDirectories)
-    {
-        assert newDirectories != null;
-
-        Set<Directories.DataDirectory> existing = Sets.newHashSet(initialDirectories);
-
-        List<Directories.DataDirectory> replacementList = Lists.newArrayList(initialDirectories);
-        for (Directories.DataDirectory directory: newDirectories)
-        {
-            if (!existing.contains(directory))
-            {
-                replacementList.add(directory);
-            }
-        }
-
-        Directories.DataDirectory[] replacementArray = new Directories.DataDirectory[replacementList.size()];
-        replacementList.toArray(replacementArray);
-        initialDirectories = replacementArray;
-    }
-
-    public static Directories.DataDirectory[] getInitialDirectories()
-    {
-        Directories.DataDirectory[] src = initialDirectories;
-        return Arrays.copyOf(src, src.length);
-    }
-
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
     /*
@@ -245,7 +207,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private final CompactionStrategyManager compactionStrategyManager;
 
-    private volatile Directories directories;
+    private final Directories directories;
 
     public final TableMetrics metric;
     public volatile long sampleLatencyNanos;
@@ -278,7 +240,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 cfs.crcCheckChance = new DefaultValue(metadata().params.crcCheckChance);
 
         compactionStrategyManager.maybeReload(metadata());
-        directories = compactionStrategyManager.getDirectories();
 
         scheduleFlush();
 
@@ -412,6 +373,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         this.keyspace = keyspace;
         this.metadata = metadata;
+        this.directories = directories;
         name = columnFamilyName;
         minCompactionThreshold = new DefaultValue<>(metadata.get().params.compaction.minCompactionThreshold());
         maxCompactionThreshold = new DefaultValue<>(metadata.get().params.compaction.maxCompactionThreshold());
@@ -437,21 +399,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             data.addInitialSSTables(sstables);
         }
 
-        /**
-         * When creating a CFS offline we change the default logic needed by CASSANDRA-8671
-         * and link the passed directories to be picked up by the compaction strategy
-         */
-        if (offline)
-            this.directories = directories;
-        else
-            this.directories = new Directories(metadata.get(), Directories.dataDirectories);
-
-
         // compaction strategy should be created after the CFS has been prepared
         compactionStrategyManager = new CompactionStrategyManager(this);
-
-        // Since compaction can re-define data dir we need to reinit directories
-        this.directories = compactionStrategyManager.getDirectories();
 
         if (maxCompactionThreshold.value() <= 0 || minCompactionThreshold.value() <=0)
         {
@@ -612,7 +561,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                          TableMetadataRef metadata,
                                                                          boolean loadSSTables)
     {
-        Directories directories = new Directories(metadata.get(), initialDirectories);
+        Directories directories = new Directories(metadata.get());
         return createColumnFamilyStore(keyspace, columnFamily, metadata, directories, loadSSTables, true, false);
     }
 
@@ -648,7 +597,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public static void  scrubDataDirectories(TableMetadata metadata) throws StartupException
     {
-        Directories directories = new Directories(metadata, initialDirectories);
+        Directories directories = new Directories(metadata);
         Set<File> cleanedDirectories = new HashSet<>();
 
          // clear ephemeral snapshots that were not properly cleared last session (CASSANDRA-7357)

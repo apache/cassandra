@@ -304,7 +304,7 @@ public class Keyspace
      */
     public static void clearSnapshot(String snapshotName, String keyspace)
     {
-        List<File> snapshotDirs = Directories.getKSChildDirectories(keyspace, ColumnFamilyStore.getInitialDirectories());
+        List<File> snapshotDirs = Directories.getKSChildDirectories(keyspace);
         Directories.clearSnapshot(snapshotName, snapshotDirs);
     }
 

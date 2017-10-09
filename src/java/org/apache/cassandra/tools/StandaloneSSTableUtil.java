@@ -84,7 +84,7 @@ public class StandaloneSSTableUtil
 
     private static void listFiles(Options options, TableMetadata metadata, OutputHandler handler) throws IOException
     {
-        Directories directories = new Directories(metadata, ColumnFamilyStore.getInitialDirectories());
+        Directories directories = new Directories(metadata);
 
         for (File dir : directories.getCFDirectories())
         {
