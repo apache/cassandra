@@ -62,6 +62,7 @@ public class SSTableExport
     private static final String EXCLUDE_KEY_OPTION = "x";
     private static final String ENUMERATE_KEYS_OPTION = "e";
     private static final String RAW_TIMESTAMPS = "t";
+    private static final String PARTITION_JSON_LINES = "l";
 
     private static final Options options = new Options();
     private static CommandLine cmd;
@@ -88,6 +89,9 @@ public class SSTableExport
 
         Option rawTimestamps = new Option(RAW_TIMESTAMPS, false, "Print raw timestamps instead of iso8601 date strings");
         options.addOption(rawTimestamps);
+
+        Option partitionJsonLines= new Option(PARTITION_JSON_LINES, false, "Output json lines, by partition");
+        options.addOption(partitionJsonLines);
     }
 
     /**
@@ -193,6 +197,10 @@ public class SSTableExport
                             position.set(currentScanner.getCurrentPosition());
                         });
                     });
+                }
+                else if (cmd.hasOption(PARTITION_JSON_LINES))
+                {
+                    JsonTransformer.toJsonLines(currentScanner, partitions, cmd.hasOption(RAW_TIMESTAMPS), metadata, System.out);
                 }
                 else
                 {

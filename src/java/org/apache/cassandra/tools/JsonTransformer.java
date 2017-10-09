@@ -56,6 +56,7 @@ import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.impl.Indenter;
 import org.codehaus.jackson.util.DefaultPrettyPrinter.NopIndenter;
 import org.codehaus.jackson.util.DefaultPrettyPrinter;
+import org.codehaus.jackson.util.MinimalPrettyPrinter;
 
 public final class JsonTransformer
 {
@@ -78,17 +79,26 @@ public final class JsonTransformer
 
     private long currentPosition = 0;
 
-    private JsonTransformer(JsonGenerator json, ISSTableScanner currentScanner, boolean rawTime, TableMetadata metadata)
+    private JsonTransformer(JsonGenerator json, ISSTableScanner currentScanner, boolean rawTime, TableMetadata metadata, boolean isJsonLines)
     {
         this.json = json;
         this.metadata = metadata;
         this.currentScanner = currentScanner;
         this.rawTime = rawTime;
 
-        DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
-        prettyPrinter.indentObjectsWith(objectIndenter);
-        prettyPrinter.indentArraysWith(arrayIndenter);
-        json.setPrettyPrinter(prettyPrinter);
+        if (isJsonLines)
+        {
+            MinimalPrettyPrinter minimalPrettyPrinter = new MinimalPrettyPrinter();
+            minimalPrettyPrinter.setRootValueSeparator("\n");
+            json.setPrettyPrinter(minimalPrettyPrinter);
+        }
+        else
+        {
+            DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
+            prettyPrinter.indentObjectsWith(objectIndenter);
+            prettyPrinter.indentArraysWith(arrayIndenter);
+            json.setPrettyPrinter(prettyPrinter);
+        }
     }
 
     public static void toJson(ISSTableScanner currentScanner, Stream<UnfilteredRowIterator> partitions, boolean rawTime, TableMetadata metadata, OutputStream out)
@@ -96,10 +106,20 @@ public final class JsonTransformer
     {
         try (JsonGenerator json = jsonFactory.createJsonGenerator(new OutputStreamWriter(out, StandardCharsets.UTF_8)))
         {
-            JsonTransformer transformer = new JsonTransformer(json, currentScanner, rawTime, metadata);
+            JsonTransformer transformer = new JsonTransformer(json, currentScanner, rawTime, metadata, false);
             json.writeStartArray();
             partitions.forEach(transformer::serializePartition);
             json.writeEndArray();
+        }
+    }
+
+    public static void toJsonLines(ISSTableScanner currentScanner, Stream<UnfilteredRowIterator> partitions, boolean rawTime, TableMetadata metadata, OutputStream out)
+            throws IOException
+    {
+        try (JsonGenerator json = jsonFactory.createJsonGenerator(new OutputStreamWriter(out, StandardCharsets.UTF_8)))
+        {
+            JsonTransformer transformer = new JsonTransformer(json, currentScanner, rawTime, metadata, true);
+            partitions.forEach(transformer::serializePartition);
         }
     }
 
@@ -107,7 +127,7 @@ public final class JsonTransformer
     {
         try (JsonGenerator json = jsonFactory.createJsonGenerator(new OutputStreamWriter(out, StandardCharsets.UTF_8)))
         {
-            JsonTransformer transformer = new JsonTransformer(json, currentScanner, rawTime, metadata);
+            JsonTransformer transformer = new JsonTransformer(json, currentScanner, rawTime, metadata, false);
             json.writeStartArray();
             keys.forEach(transformer::serializePartitionKey);
             json.writeEndArray();
@@ -221,6 +241,7 @@ public final class JsonTransformer
                 json.writeEndObject();
             }
         }
+
         catch (IOException e)
         {
             String key = metadata.partitionKeyType.getString(partition.partitionKey().getKey());

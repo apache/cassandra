@@ -46,6 +46,8 @@ New features
      to use in production and limits utilization of heap memory and disk space with limits
      you can specify when enabling the log.
      See nodetool and fqltool help text for more information.
+   - SSTableDump now supports the -l option to output each partition as it's own json object
+     See CASSANDRA-13848 for more detail
 
 Upgrading
 ---------
