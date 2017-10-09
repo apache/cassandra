@@ -19,6 +19,8 @@ package org.apache.cassandra.repair.messages;
 
 import java.io.IOException;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -36,6 +38,10 @@ public abstract class RepairMessage
     public static final IVersionedSerializer<RepairMessage> serializer = new RepairMessageSerializer();
 
     public static interface MessageSerializer<T extends RepairMessage> extends IVersionedSerializer<T> {}
+
+    public static final int MIN_MESSAGING_VERSION = MessagingService.VERSION_40;
+    private static final String MIXED_MODE_ERROR = "Some nodes involved in repair are on an incompatible major version. " +
+                                                   "Repair is not supported in mixed major version clusters.";
 
     public enum Type
     {
@@ -90,22 +96,26 @@ public abstract class RepairMessage
         return new MessageOut<>(MessagingService.Verb.REPAIR_MESSAGE, this, RepairMessage.serializer);
     }
 
+
     public static class RepairMessageSerializer implements MessageSerializer<RepairMessage>
     {
         public void serialize(RepairMessage message, DataOutputPlus out, int version) throws IOException
         {
+            Preconditions.checkArgument(version >= MIN_MESSAGING_VERSION, MIXED_MODE_ERROR);
             out.write(message.messageType.type);
             message.messageType.serializer.serialize(message, out, version);
         }
 
         public RepairMessage deserialize(DataInputPlus in, int version) throws IOException
         {
+            Preconditions.checkArgument(version >= MIN_MESSAGING_VERSION, MIXED_MODE_ERROR);
             RepairMessage.Type messageType = RepairMessage.Type.fromByte(in.readByte());
             return messageType.serializer.deserialize(in, version);
         }
 
         public long serializedSize(RepairMessage message, int version)
         {
+            Preconditions.checkArgument(version >= MIN_MESSAGING_VERSION, MIXED_MODE_ERROR);
             long size = 1; // for messageType byte
             size += message.messageType.serializer.serializedSize(message, version);
             return size;
