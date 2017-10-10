@@ -86,6 +86,8 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     private volatile CompactionParams schemaCompactionParams;
     private Directories.DataDirectory[] locations;
+    private boolean shouldDefragment;
+    private int fanout;
 
 
     public CompactionStrategyManager(ColumnFamilyStore cfs)
@@ -98,6 +100,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         params = cfs.metadata().params.compaction;
         locations = getDirectories().getWriteableLocations();
         enabled = params.isEnabled();
+
     }
 
     /**
@@ -227,6 +230,8 @@ public class CompactionStrategyManager implements INotificationConsumer
             repaired.forEach(AbstractCompactionStrategy::startup);
             unrepaired.forEach(AbstractCompactionStrategy::startup);
             pendingRepairs.forEach(PendingRepairManager::startup);
+            shouldDefragment = repaired.get(0).shouldDefragment();
+            fanout = (repaired.get(0) instanceof LeveledCompactionStrategy) ? ((LeveledCompactionStrategy) repaired.get(0)).getLevelFanoutSize() : LeveledCompactionStrategy.DEFAULT_LEVEL_FANOUT_SIZE;
         }
         finally
         {
@@ -438,19 +443,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public int getLevelFanoutSize()
     {
-        readLock.lock();
-        try
-        {
-            if (repaired.get(0) instanceof LeveledCompactionStrategy)
-            {
-                return ((LeveledCompactionStrategy) repaired.get(0)).getLevelFanoutSize();
-            }
-        }
-        finally
-        {
-            readLock.unlock();
-        }
-        return LeveledCompactionStrategy.DEFAULT_LEVEL_FANOUT_SIZE;
+        return fanout;
     }
 
     public int[] getSSTableCountPerLevel()
@@ -503,16 +496,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public boolean shouldDefragment()
     {
-        readLock.lock();
-        try
-        {
-            assert repaired.get(0).getClass().equals(unrepaired.get(0).getClass());
-            return repaired.get(0).shouldDefragment();
-        }
-        finally
-        {
-            readLock.unlock();
-        }
+        return shouldDefragment;
     }
 
     public Directories getDirectories()
