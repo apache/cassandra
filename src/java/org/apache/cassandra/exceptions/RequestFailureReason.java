@@ -28,7 +28,11 @@ public enum RequestFailureReason
     /**
      * The data node read too many tombstones when attempting to execute a read query (see tombstone_failure_threshold).
      */
-    READ_TOO_MANY_TOMBSTONES (0x0001);
+    READ_TOO_MANY_TOMBSTONES (0x0001),
+    /**
+     * The data node write failed due to CDC space exhaustion.
+     */
+    CDC_WRITE_ERROR (0x0002);
 
     /** The code to be serialized as an unsigned 16 bit integer */
     public final int code;
