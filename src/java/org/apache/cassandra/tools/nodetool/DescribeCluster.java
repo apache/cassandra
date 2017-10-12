@@ -41,9 +41,9 @@ public class DescribeCluster extends NodeToolCmd
         // display schema version for each node
         System.out.println("\tSchema versions:");
         Map<String, List<String>> schemaVersions = probe.getSpProxy().getSchemaVersions();
-        for (String version : schemaVersions.keySet())
+        for (Map.Entry<String, List<String>> entry : schemaVersions.entrySet())
         {
-            System.out.println(format("\t\t%s: %s%n", version, schemaVersions.get(version)));
+            System.out.println(format("\t\t%s: %s%n", entry.getKey(), entry.getValue()));
         }
     }
 }

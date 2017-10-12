@@ -211,10 +211,11 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
      */
     private MerkleTree getMerkleTree(Token t)
     {
-        for (Range<Token> range : merkleTrees.keySet())
+        for (Map.Entry<Range<Token>, MerkleTree> entry : merkleTrees.entrySet())
         {
+            Range<Token> range = entry.getKey();
             if (range.contains(t))
-                return merkleTrees.get(range);
+                return entry.getValue();
         }
 
         throw new AssertionError("Expected tree for token " + t);
@@ -290,11 +291,12 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
 
         try
         {
-            for (Range<Token> rt : merkleTrees.keySet())
+            for (Map.Entry<Range<Token>, MerkleTree> entry : merkleTrees.entrySet())
             {
+                Range<Token> rt = entry.getKey();
                 if (rt.intersects(range))
                 {
-                    byte[] bytes = merkleTrees.get(rt).hash(range);
+                    byte[] bytes = entry.getValue().hash(range);
                     if (bytes != null)
                     {
                         baos.write(bytes);

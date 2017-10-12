@@ -146,12 +146,13 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
             // canonical ranges and nodes holding replicas
             Map<TokenRange, Set<Host>> masterRangeNodes = getRangeMap(keyspace, metadata);
 
-            for (TokenRange range : masterRangeNodes.keySet())
+            for (Map.Entry<TokenRange, Set<Host>> entry : masterRangeNodes.entrySet())
             {
+                TokenRange range = entry.getKey();
                 if (jobRange == null)
                 {
                     // for each tokenRange, pick a live owner and ask it to compute bite-sized splits
-                    splitfutures.add(executor.submit(new SplitCallable(range, masterRangeNodes.get(range), conf, session)));
+                    splitfutures.add(executor.submit(new SplitCallable(range, entry.getValue(), conf, session)));
                 }
                 else
                 {
@@ -161,7 +162,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
                         for (TokenRange intersection: range.intersectWith(jobTokenRange))
                         {
                             // for each tokenRange, pick a live owner and ask it to compute bite-sized splits
-                            splitfutures.add(executor.submit(new SplitCallable(intersection,  masterRangeNodes.get(range), conf, session)));
+                            splitfutures.add(executor.submit(new SplitCallable(intersection,  entry.getValue(), conf, session)));
                         }
                     }
                 }
