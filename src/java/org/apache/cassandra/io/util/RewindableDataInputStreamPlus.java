@@ -327,7 +327,7 @@ public class RewindableDataInputStreamPlus extends FilterInputStream implements 
                 diskTailAvailable = maxDiskBufferSize - diskHeadAvailable;
             }
 
-            if (len > 0 && diskTailAvailable > 0)
+            if (diskTailAvailable > 0)
             {
                 int diskTailWritten = diskTailAvailable < len? diskTailAvailable : len;
                 getIfNotClosed(spillBuffer).write(b, off, diskTailWritten);
