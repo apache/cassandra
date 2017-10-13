@@ -3022,4 +3022,80 @@ public class SelectTest extends CQLTester
             i++;
         }
     }
+
+    /**
+     * Test for CASSANDRA-13917
+     */
+    @Test
+    public void testWithCompactStaticFormat() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c int) WITH COMPACT STORAGE");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 1, 1)");
+        execute("INSERT INTO %s (a, b, c) VALUES (2, 1, 1)");
+        assertRows(execute("SELECT a, b, c FROM %s"),
+                   row(1, 1, 1),
+                   row(2, 1, 1));
+        testWithCompactFormat();
+
+        // if column column1 is present, hidden column is called column2
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c int, column1 int) WITH COMPACT STORAGE");
+        execute("INSERT INTO %s (a, b, c, column1) VALUES (1, 1, 1, 1)");
+        execute("INSERT INTO %s (a, b, c, column1) VALUES (2, 1, 1, 2)");
+        assertRows(execute("SELECT a, b, c, column1 FROM %s"),
+                   row(1, 1, 1, 1),
+                   row(2, 1, 1, 2));
+        assertInvalidMessage("Undefined name column2 in selection clause",
+                             "SELECT a, column2, value FROM %s");
+
+        // if column value is present, hidden column is called value1
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c int, value int) WITH COMPACT STORAGE");
+        execute("INSERT INTO %s (a, b, c, value) VALUES (1, 1, 1, 1)");
+        execute("INSERT INTO %s (a, b, c, value) VALUES (2, 1, 1, 2)");
+        assertRows(execute("SELECT a, b, c, value FROM %s"),
+                   row(1, 1, 1, 1),
+                   row(2, 1, 1, 2));
+        assertInvalidMessage("Undefined name value1 in selection clause",
+                             "SELECT a, value1, value FROM %s");
+    }
+
+    /**
+     * Test for CASSANDRA-13917
+    */
+    @Test
+    public void testWithCompactNonStaticFormat() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+        execute("INSERT INTO %s (a, b) VALUES (2, 1)");
+        assertRows(execute("SELECT a, b FROM %s"),
+                   row(1, 1),
+                   row(2, 1));
+        testWithCompactFormat();
+
+        createTable("CREATE TABLE %s (a int, b int, v int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+        execute("INSERT INTO %s (a, b, v) VALUES (1, 1, 3)");
+        execute("INSERT INTO %s (a, b, v) VALUES (2, 1, 4)");
+        assertRows(execute("SELECT a, b, v FROM %s"),
+                   row(1, 1, 3),
+                   row(2, 1, 4));
+        testWithCompactFormat();
+    }
+
+    private void testWithCompactFormat() throws Throwable
+    {
+        assertInvalidMessage("Undefined name column1 in selection clause",
+                             "SELECT column1 FROM %s");
+        assertInvalidMessage("Undefined name value in selection clause",
+                             "SELECT value FROM %s");
+        assertInvalidMessage("Undefined name value in selection clause",
+                             "SELECT value, column1 FROM %s");
+        assertInvalid("Undefined name column1 in where clause ('column1 = NULL')",
+                      "SELECT * FROM %s WHERE column1 = null ALLOW FILTERING");
+        assertInvalid("Undefined name value in where clause ('value = NULL')",
+                      "SELECT * FROM %s WHERE value = null ALLOW FILTERING");
+        assertInvalidMessage("Undefined name column1 in selection clause",
+                             "SELECT WRITETIME(column1) FROM %s");
+        assertInvalidMessage("Undefined name value in selection clause",
+                             "SELECT WRITETIME(value) FROM %s");
+    }
 }

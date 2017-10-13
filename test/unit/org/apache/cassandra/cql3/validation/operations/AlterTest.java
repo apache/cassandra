@@ -476,4 +476,31 @@ public class AlterTest extends CQLTester
 
         assertEmpty(execute("SELECT * FROM %s"));
     }
+
+    /**
+     * Test for CASSANDRA-13917
+     */
+    @Test
+    public void testAlterWithCompactStaticFormat() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c int) WITH COMPACT STORAGE");
+
+        assertInvalidMessage("Cannot rename unknown column column1 in keyspace",
+                             "ALTER TABLE %s RENAME column1 TO column2");
+    }
+
+    /**
+     * Test for CASSANDRA-13917
+     */
+    @Test
+    public void testAlterWithCompactNonStaticFormat() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+        assertInvalidMessage("Cannot rename unknown column column1 in keyspace",
+                             "ALTER TABLE %s RENAME column1 TO column2");
+
+        createTable("CREATE TABLE %s (a int, b int, v int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
+        assertInvalidMessage("Cannot rename unknown column column1 in keyspace",
+                             "ALTER TABLE %s RENAME column1 TO column2");
+    }
 }
