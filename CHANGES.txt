@@ -1,7 +1,7 @@
 4.0
+ * Checksum sstable metadata (CASSANDRA-13321, CASSANDRA-13593)
  * Add result set metadata to prepared statement MD5 hash calculation (CASSANDRA-10786)
  * Refactor GcCompactionTest to avoid boxing (CASSANDRA-13941)
- * Checksum sstable metadata (CASSANDRA-13321)
  * Expose recent histograms in JmxHistograms (CASSANDRA-13642)
  * Fix buffer length comparison when decompressing in netty-based streaming (CASSANDRA-13899)
  * Properly close StreamCompressionInputStream to release any ByteBuf (CASSANDRA-13906)
