@@ -549,6 +549,8 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void resetLocalSchema() throws IOException;
 
+    public void reloadLocalSchema();
+
     /**
      * Enables/Disables tracing for the whole system. Only thrift requests can start tracing currently.
      *

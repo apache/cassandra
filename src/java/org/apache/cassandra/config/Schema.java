@@ -368,6 +368,18 @@ public class Schema
         return ImmutableList.copyOf(Sets.difference(getNonSystemKeyspacesSet(), REPLICATED_SYSTEM_KEYSPACE_NAMES));
     }
 
+    public Keyspaces getReplicatedKeyspaces()
+    {
+        Keyspaces.Builder builder = Keyspaces.builder();
+
+        keyspaces.values()
+                 .stream()
+                 .filter(k -> !Schema.isSystemKeyspace(k.name))
+                 .forEach(builder::add);
+
+        return builder.build();
+    }
+
     /**
      * Get metadata about keyspace inner ColumnFamilies
      *
