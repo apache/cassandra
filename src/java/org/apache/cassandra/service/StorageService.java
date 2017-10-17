@@ -4933,6 +4933,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         MigrationManager.resetLocalSchema();
     }
 
+    public void reloadLocalSchema()
+    {
+        Schema.instance.reloadSchemaAndAnnounceVersion();
+    }
+
     public void setTraceProbability(double probability)
     {
         this.traceProbability = probability;

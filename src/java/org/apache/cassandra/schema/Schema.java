@@ -551,6 +551,18 @@ public final class Schema
         updateVersionAndAnnounce();
     }
 
+    /*
+     * Reload schema from local disk. Useful if a user made changes to schema tables by hand, or has suspicion that
+     * in-memory representation got out of sync somehow with what's on disk.
+     */
+    public synchronized void reloadSchemaAndAnnounceVersion()
+    {
+        Keyspaces before = keyspaces.filter(k -> !SchemaConstants.isSystemKeyspace(k.name));
+        Keyspaces after = SchemaKeyspace.fetchNonSystemKeyspaces();
+        merge(before, after);
+        updateVersionAndAnnounce();
+    }
+
     /**
      * Merge remote schema in form of mutations with local and mutate ks/cf metadata objects
      * (which also involves fs operations on add/drop ks/cf)
@@ -579,6 +591,11 @@ public final class Schema
         // apply the schema mutations and fetch the new versions of the altered keyspaces
         Keyspaces after = SchemaKeyspace.fetchKeyspaces(affectedKeyspaces);
 
+        merge(before, after);
+    }
+
+    private synchronized void merge(Keyspaces before, Keyspaces after)
+    {
         MapDifference<String, KeyspaceMetadata> keyspacesDiff = before.diff(after);
 
         // dropped keyspaces
