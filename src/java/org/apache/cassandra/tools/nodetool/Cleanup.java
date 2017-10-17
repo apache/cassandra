@@ -47,7 +47,7 @@ public class Cleanup extends NodeToolCmd
 
         for (String keyspace : keyspaces)
         {
-            if (SchemaConstants.isSystemKeyspace(keyspace))
+            if (SchemaConstants.isLocalSystemKeyspace(keyspace))
                 continue;
 
             try

@@ -1577,7 +1577,7 @@ public class StorageProxy implements StorageProxyMBean
     private static boolean systemKeyspaceQuery(List<? extends ReadCommand> cmds)
     {
         for (ReadCommand cmd : cmds)
-            if (!SchemaConstants.isSystemKeyspace(cmd.metadata().keyspace))
+            if (!SchemaConstants.isLocalSystemKeyspace(cmd.metadata().keyspace))
                 return false;
         return true;
     }

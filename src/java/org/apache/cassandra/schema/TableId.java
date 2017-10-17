@@ -67,8 +67,7 @@ public class TableId
      */
     public static TableId forSystemTable(String keyspace, String table)
     {
-        assert SchemaConstants.SYSTEM_KEYSPACE_NAMES.contains(keyspace)
-               || SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(keyspace);
+        assert SchemaConstants.isLocalSystemKeyspace(keyspace) || SchemaConstants.isReplicatedSystemKeyspace(keyspace);
         return new TableId(UUID.nameUUIDFromBytes(ArrayUtils.addAll(keyspace.getBytes(), table.getBytes())));
     }
 

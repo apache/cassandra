@@ -852,7 +852,7 @@ public final class TableMetadata
         public Builder recordDeprecatedSystemColumn(String name, AbstractType<?> type)
         {
             // As we play fast and loose with the removal timestamp, make sure this is misued for a non system table.
-            assert SchemaConstants.isSystemKeyspace(keyspace);
+            assert SchemaConstants.isLocalSystemKeyspace(keyspace);
             recordColumnDrop(ColumnMetadata.regularColumn(keyspace, this.name, name, type), Long.MAX_VALUE);
             return this;
         }

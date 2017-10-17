@@ -90,7 +90,7 @@ public final class Schema
      */
     public static void validateKeyspaceNotSystem(String keyspace)
     {
-        if (SchemaConstants.isSystemKeyspace(keyspace))
+        if (SchemaConstants.isLocalSystemKeyspace(keyspace))
             throw new InvalidRequestException(format("%s keyspace is not user-modifiable", keyspace));
     }
 
@@ -317,7 +317,7 @@ public final class Schema
 
     private Set<String> getNonSystemKeyspacesSet()
     {
-        return Sets.difference(keyspaces.names(), SchemaConstants.SYSTEM_KEYSPACE_NAMES);
+        return Sets.difference(keyspaces.names(), SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES);
     }
 
     /**
@@ -557,7 +557,7 @@ public final class Schema
      */
     public synchronized void reloadSchemaAndAnnounceVersion()
     {
-        Keyspaces before = keyspaces.filter(k -> !SchemaConstants.isSystemKeyspace(k.name));
+        Keyspaces before = keyspaces.filter(k -> !SchemaConstants.isLocalSystemKeyspace(k.name));
         Keyspaces after = SchemaKeyspace.fetchNonSystemKeyspaces();
         merge(before, after);
         updateVersionAndAnnounce();
