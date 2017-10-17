@@ -1437,7 +1437,10 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (!(ex instanceof WriteTimeoutException))
                         logger.error("Failed to apply mutation locally : ", ex);
-                    handler.onFailure(FBUtilities.getBroadcastAddress(), RequestFailureReason.UNKNOWN);
+                    if (ex instanceof CDCWriteException)
+                        handler.onFailure(FBUtilities.getBroadcastAddress(), RequestFailureReason.CDC_WRITE_ERROR);
+                    else
+                        handler.onFailure(FBUtilities.getBroadcastAddress(), RequestFailureReason.UNKNOWN);
                 }
             }
 

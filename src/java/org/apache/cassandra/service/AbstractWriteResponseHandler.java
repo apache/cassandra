@@ -89,7 +89,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
         this.queryStartNanoTime = queryStartNanoTime;
     }
 
-    public void get() throws WriteTimeoutException, WriteFailureException
+    public void get() throws WriteTimeoutException, WriteFailureException, CDCWriteException
     {
         long timeout = currentTimeout();
 
@@ -103,6 +103,8 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
             throw new AssertionError(ex);
         }
 
+        if (failureReasonByEndpoint.size() == 1 && failureReasonByEndpoint.values().stream().findAny().get() == RequestFailureReason.CDC_WRITE_ERROR)
+            throw new CDCWriteException("Rejecting mutation to keyspace: " + keyspace.getName());
         if (!success)
         {
             int blockedFor = totalBlockFor();
