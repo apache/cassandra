@@ -1175,3 +1175,10 @@ back_pressure_strategy:
 # File at least a single PEM formatted certificate that is used for ssl endpoint verification. This should either be
 # the Vault certificate (as configured as "tls_cert_file") or a signing CA certificate.
 #vault_cert_file: /etc/cassandra/vault-cert.pem
+
+# Authenticator to be used for obtaining a client access token from Vault.
+#vault_authenticator:
+#    - class_name: org.apache.cassandra.vault.AppRoleAuthenticator
+#      parameters:
+#        # properties file with role_id and optional secret_id value
+#        - id_file_path: /etc/cassandra/vault_approle.properties

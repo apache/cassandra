@@ -63,6 +63,7 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.vault.VaultAuthenticator;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -130,6 +131,7 @@ public class DatabaseDescriptor
 
     private static URI vaultAddress;
     private static File vaultCertificateFile;
+    private static VaultAuthenticator vaultAuthenticator;
 
     public static void daemonInitialization() throws ConfigurationException
     {
@@ -759,6 +761,33 @@ public class DatabaseDescriptor
             catch (URISyntaxException e)
             {
                 throw new ConfigurationException("Invalid vault_address URL", e);
+            }
+
+            if (conf.vault_authenticator == null)
+                throw new ConfigurationException("Missing vault_authenticator setting");
+        }
+
+        if (conf.vault_authenticator != null)
+        {
+            try
+            {
+                ParameterizedClass strategy = conf.vault_authenticator;
+                Class<?> clazz = Class.forName(strategy.class_name);
+                if (!VaultAuthenticator.class.isAssignableFrom(clazz))
+                    throw new ConfigurationException(strategy + " is not an instance of " + VaultAuthenticator.class.getCanonicalName(), false);
+
+                Constructor<?> ctor = clazz.getConstructor(Map.class);
+                VaultAuthenticator instance = (VaultAuthenticator) ctor.newInstance(strategy.parameters);
+                logger.info("Using Vault authenticator: {}", conf.vault_authenticator);
+                vaultAuthenticator = instance;
+            }
+            catch (ConfigurationException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new ConfigurationException("Error configuring vault_authenticator: " + conf.vault_authenticator, ex);
             }
         }
 
@@ -2563,5 +2592,10 @@ public class DatabaseDescriptor
     public static int getBlockForPeersTimeoutInSeconds()
     {
         return conf.block_for_peers_timeout_in_secs;
+    }
+
+    public static VaultAuthenticator getVaultAuthenticator()
+    {
+        return vaultAuthenticator;
     }
 }
