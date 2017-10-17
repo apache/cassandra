@@ -172,7 +172,7 @@ public final class LegacySchemaMigrator
         String query = format("SELECT keyspace_name FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_KEYSPACES);
         Collection<String> keyspaceNames = new ArrayList<>();
         query(query).forEach(row -> keyspaceNames.add(row.getString("keyspace_name")));
-        keyspaceNames.removeAll(SchemaConstants.SYSTEM_KEYSPACE_NAMES);
+        keyspaceNames.removeAll(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES);
 
         Collection<Keyspace> keyspaces = new ArrayList<>();
         keyspaceNames.forEach(name -> keyspaces.add(readKeyspace(name)));

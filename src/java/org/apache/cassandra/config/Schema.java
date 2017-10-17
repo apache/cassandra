@@ -296,7 +296,7 @@ public class Schema
 
     private Set<String> getNonSystemKeyspacesSet()
     {
-        return Sets.difference(keyspaces.keySet(), SchemaConstants.SYSTEM_KEYSPACE_NAMES);
+        return Sets.difference(keyspaces.keySet(), SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES);
     }
 
     /**
@@ -334,7 +334,7 @@ public class Schema
 
         keyspaces.values()
                  .stream()
-                 .filter(k -> !SchemaConstants.isSystemKeyspace(k.name))
+                 .filter(k -> !SchemaConstants.isLocalSystemKeyspace(k.name))
                  .forEach(builder::add);
 
         return builder.build();

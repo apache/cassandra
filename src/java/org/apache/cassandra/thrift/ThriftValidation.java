@@ -636,7 +636,7 @@ public class ThriftValidation
 
     public static void validateKeyspaceNotSystem(String modifiedKeyspace) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        if (SchemaConstants.isSystemKeyspace(modifiedKeyspace))
+        if (SchemaConstants.isLocalSystemKeyspace(modifiedKeyspace))
             throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("%s keyspace is not user-modifiable", modifiedKeyspace));
     }
 
