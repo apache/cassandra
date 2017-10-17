@@ -2,6 +2,7 @@ package org.apache.cassandra.net.async;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.concurrent.CompletableFuture;
 import java.util.zip.Checksum;
 
 import javax.annotation.Nullable;
@@ -16,11 +17,13 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ServerChannel;
+import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.epoll.EpollSocketChannel;
@@ -31,10 +34,18 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.compression.Lz4FrameDecoder;
 import io.netty.handler.codec.compression.Lz4FrameEncoder;
+import io.netty.handler.codec.http.HttpClientCodec;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpMessage;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.DefaultEventExecutor;
 import io.netty.util.concurrent.DefaultThreadFactory;
@@ -50,6 +61,7 @@ import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.async.NettyHttpClient.NettyHttpResponse;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.utils.ChecksumType;
@@ -113,6 +125,7 @@ public final class NettyFactory
     private final EventLoopGroup inboundGroup;
     private final EventLoopGroup outboundGroup;
     public final EventLoopGroup streamingGroup;
+    public final EventLoopGroup httpClientGroup;
 
     /**
      * Constructor that allows modifying the {@link NettyFactory#useEpoll} for testing purposes. Otherwise, use the
@@ -127,6 +140,7 @@ public final class NettyFactory
         inboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyInbound-Thread", false);
         outboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyOutbound-Thread", true);
         streamingGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "Streaming-Netty-Thread", false);
+        httpClientGroup = getEventLoopGroup(useEpoll, Math.max(FBUtilities.getAvailableProcessors(), 2), "HttpClient-Netty-Thread", false);
     }
 
     /**
@@ -340,6 +354,16 @@ public final class NettyFactory
         return bootstrap;
     }
 
+    public Bootstrap createOutboundHttpBootstrap(InetSocketAddress addr, boolean ssl, CompletableFuture<NettyHttpResponse> result)
+    {
+        Class<? extends Channel> transport = useEpoll ? EpollSocketChannel.class : NioSocketChannel.class;
+        Bootstrap bootstrap = new Bootstrap().group(httpClientGroup)
+                                             .channel(transport)
+                                             .handler(new OutboundHttpInitializer(ssl, result));
+        bootstrap.remoteAddress(addr);
+        return bootstrap;
+    }
+
     public static class OutboundInitializer extends ChannelInitializer<SocketChannel>
     {
         private final OutboundConnectionParams params;
@@ -375,6 +399,61 @@ public final class NettyFactory
                 pipeline.addLast("logger", new LoggingHandler(LogLevel.INFO));
 
             pipeline.addLast(HANDSHAKE_HANDLER_NAME, new OutboundHandshakeHandler(params));
+        }
+    }
+
+    public static class OutboundHttpInitializer extends ChannelInitializer<Channel>
+    {
+        private final boolean ssl;
+        private final CompletableFuture<NettyHttpResponse> response;
+        private final int contentSizeLimit = 512 * 1024;
+
+        OutboundHttpInitializer(boolean ssl, CompletableFuture<NettyHttpResponse> response)
+        {
+            this.ssl = ssl;
+            this.response = response;
+        }
+
+        protected void initChannel(Channel ch) throws Exception
+        {
+            ChannelPipeline pipeline = ch.pipeline();
+            pipeline.addLast("codec", new HttpClientCodec());
+            if (ssl)
+            {
+                SslContext sslContext = SslContextBuilder.forClient().build();
+                SslHandler sslHandler = sslContext.newHandler(ch.alloc());
+                logger.trace("Creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+                pipeline.addFirst(SSL_CHANNEL_HANDLER_NAME, sslHandler);
+            }
+            pipeline.addLast("decompressor", new HttpContentDecompressor());
+            pipeline.addLast("aggregator", new HttpObjectAggregator(contentSizeLimit));
+            HttpResponseHandler handler = new HttpResponseHandler(response);
+            pipeline.addLast("responseHandler", handler);
+
+        }
+    }
+
+    private static class HttpResponseHandler extends SimpleChannelInboundHandler<HttpMessage>
+    {
+        private final CompletableFuture<NettyHttpResponse> response;
+
+        public HttpResponseHandler(CompletableFuture<NettyHttpResponse> response)
+        {
+            this.response = response;
+        }
+
+        protected void channelRead0(ChannelHandlerContext ctx, HttpMessage msg) throws Exception
+        {
+            NettyHttpResponse ret = new NettyHttpResponse((HttpResponse) msg);
+            assert !ret.isChunked();
+            if (msg instanceof HttpContent)
+            {
+                ret.addContentAsString((HttpContent) msg);
+                if (msg instanceof LastHttpContent)
+                    ctx.close();
+            }
+            response.complete(ret);
+
         }
     }
 

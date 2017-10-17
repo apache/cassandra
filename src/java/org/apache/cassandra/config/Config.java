@@ -377,6 +377,11 @@ public class Config
     public int block_for_peers_percentage = 70;
     public int block_for_peers_timeout_in_secs = 10;
 
+    /*
+     * Vault connectivity settings
+     */
+    public String vault_address = null;
+    public String vault_cert_file = null;
 
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}

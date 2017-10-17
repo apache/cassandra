@@ -1168,3 +1168,10 @@ back_pressure_strategy:
 # The full query log will recrusively delete the contents of this path at
 # times. Don't place links in this directory to other parts of the filesystem.
 #full_query_log_dir: /tmp/cassandrafullquerylog
+
+# Vault settings #
+# Address of Vault instance that should be used for certificate and key management.
+#vault_address: https://vault.example:8200
+# File at least a single PEM formatted certificate that is used for ssl endpoint verification. This should either be
+# the Vault certificate (as configured as "tls_cert_file") or a signing CA certificate.
+#vault_cert_file: /etc/cassandra/vault-cert.pem

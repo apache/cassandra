@@ -128,6 +128,9 @@ public class DatabaseDescriptor
     private static final boolean disableSTCSInL0 = Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_stcs_in_l0");
     private static final boolean unsafeSystem = Boolean.getBoolean(Config.PROPERTY_PREFIX + "unsafesystem");
 
+    private static URI vaultAddress;
+    private static File vaultCertificateFile;
+
     public static void daemonInitialization() throws ConfigurationException
     {
         if (toolInitialized)
@@ -746,6 +749,25 @@ public class DatabaseDescriptor
 
         if (conf.otc_coalescing_enough_coalesced_messages <= 0)
             throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be positive", false);
+
+        if (conf.vault_address != null)
+        {
+            try
+            {
+                vaultAddress = new URI(conf.vault_address);
+            }
+            catch (URISyntaxException e)
+            {
+                throw new ConfigurationException("Invalid vault_address URL", e);
+            }
+        }
+
+        if (conf.vault_cert_file != null)
+        {
+            vaultCertificateFile = new File(conf.vault_cert_file);
+            if (!vaultCertificateFile.isFile() || !vaultCertificateFile.canRead())
+                throw new ConfigurationException("Unable to read certificate file: " + vaultCertificateFile.getAbsolutePath());
+        }
     }
 
     private static String storagedirFor(String type)
@@ -2520,7 +2542,17 @@ public class DatabaseDescriptor
 
     public static String getFullQueryLogPath()
     {
-        return  conf.full_query_log_dir;
+        return conf.full_query_log_dir;
+    }
+
+    public static URI getVaultAddress()
+    {
+        return vaultAddress;
+    }
+
+    public static File getVaultCertificateFile()
+    {
+        return vaultCertificateFile;
     }
 
     public static int getBlockForPeersPercentage()
