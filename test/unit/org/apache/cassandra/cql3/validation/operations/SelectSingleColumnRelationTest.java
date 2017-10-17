@@ -77,23 +77,6 @@ public class SelectSingleColumnRelationTest extends CQLTester
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 3, 7, 3);
         execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "second", 4, 8, 4);
 
-        testSelectQueriesWithClusteringColumnRelations();
-    }
-
-    @Test
-    public void testClusteringColumnRelationsWithCompactStorage() throws Throwable
-    {
-        createTable("CREATE TABLE %s (a text, b int, c int, d int, primary key(a, b, c)) WITH COMPACT STORAGE;");
-        execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 1, 5, 1);
-        execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 2, 6, 2);
-        execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "first", 3, 7, 3);
-        execute("insert into %s (a, b, c, d) values (?, ?, ?, ?)", "second", 4, 8, 4);
-
-        testSelectQueriesWithClusteringColumnRelations();
-    }
-
-    private void testSelectQueriesWithClusteringColumnRelations() throws Throwable
-    {
         assertRows(execute("select * from %s where a in (?, ?)", "first", "second"),
                    row("first", 1, 5, 1),
                    row("first", 2, 6, 2),
@@ -424,36 +407,30 @@ public class SelectSingleColumnRelationTest extends CQLTester
     @Test
     public void testEmptyIN() throws Throwable
     {
-        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
-        {
-            createTable("CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY (k1, k2))" + compactOption);
+        createTable("CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY (k1, k2))");
 
-            for (int i = 0; i <= 2; i++)
-                for (int j = 0; j <= 2; j++)
-                    execute("INSERT INTO %s (k1, k2, v) VALUES (?, ?, ?)", i, j, i + j);
+        for (int i = 0; i <= 2; i++)
+            for (int j = 0; j <= 2; j++)
+                execute("INSERT INTO %s (k1, k2, v) VALUES (?, ?, ?)", i, j, i + j);
 
-            assertEmpty(execute("SELECT v FROM %s WHERE k1 IN ()"));
-            assertEmpty(execute("SELECT v FROM %s WHERE k1 = 0 AND k2 IN ()"));
-        }
+        assertEmpty(execute("SELECT v FROM %s WHERE k1 IN ()"));
+        assertEmpty(execute("SELECT v FROM %s WHERE k1 = 0 AND k2 IN ()"));
     }
 
     @Test
     public void testINWithDuplicateValue() throws Throwable
     {
-        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
-        {
-            createTable("CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY (k1, k2))" + compactOption);
-            execute("INSERT INTO %s (k1,  k2, v) VALUES (?, ?, ?)", 1, 1, 1);
+        createTable("CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY (k1, k2))");
+        execute("INSERT INTO %s (k1,  k2, v) VALUES (?, ?, ?)", 1, 1, 1);
 
-            assertRows(execute("SELECT * FROM %s WHERE k1 IN (?, ?)", 1, 1),
-                       row(1, 1, 1));
+        assertRows(execute("SELECT * FROM %s WHERE k1 IN (?, ?)", 1, 1),
+                   row(1, 1, 1));
 
-            assertRows(execute("SELECT * FROM %s WHERE k1 IN (?, ?) AND k2 IN (?, ?)", 1, 1, 1, 1),
-                       row(1, 1, 1));
+        assertRows(execute("SELECT * FROM %s WHERE k1 IN (?, ?) AND k2 IN (?, ?)", 1, 1, 1, 1),
+                   row(1, 1, 1));
 
-            assertRows(execute("SELECT * FROM %s WHERE k1 = ? AND k2 IN (?, ?)", 1, 1, 1),
-                       row(1, 1, 1));
-        }
+        assertRows(execute("SELECT * FROM %s WHERE k1 = ? AND k2 IN (?, ?)", 1, 1, 1),
+                   row(1, 1, 1));
     }
 
     @Test

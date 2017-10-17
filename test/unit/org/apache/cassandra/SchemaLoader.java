@@ -228,24 +228,6 @@ public class SchemaLoader
                                    + "c text,"
                                    + "v text,"
                                    + "PRIMARY KEY (k, c))", ks_cql)
-                            .build(),
-
-        CreateTableStatement.parse("CREATE TABLE foo ("
-                                   + "bar text, "
-                                   + "baz text, "
-                                   + "qux text, "
-                                   + "PRIMARY KEY(bar, baz) ) "
-                                   + "WITH COMPACT STORAGE", ks_cql)
-                            .build(),
-
-        CreateTableStatement.parse("CREATE TABLE foofoo ("
-                                   + "bar text, "
-                                   + "baz text, "
-                                   + "qux text, "
-                                   + "quz text, "
-                                   + "foo text, "
-                                   + "PRIMARY KEY((bar, baz), qux, quz) ) "
-                                   + "WITH COMPACT STORAGE", ks_cql)
                             .build()
         )));
 

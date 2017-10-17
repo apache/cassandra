@@ -394,19 +394,6 @@ public class SelectOrderedPartitionerTest extends CQLTester
                    row(0, 1),
                    row(1, 0),
                    row(1, 1));
-
-        // Check for dense tables too
-        createTable(" CREATE TABLE %s (k int, c int, PRIMARY KEY (k, c)) WITH COMPACT STORAGE");
-
-        for (int k = 0; k < 2; k++)
-            for (int c = 0; c < 2; c++)
-                execute("INSERT INTO %s (k, c) VALUES (?, ?)", k, c);
-
-        assertRows(execute("SELECT * FROM %s"),
-                   row(0, 0),
-                   row(0, 1),
-                   row(1, 0),
-                   row(1, 1));
     }
 
     /**

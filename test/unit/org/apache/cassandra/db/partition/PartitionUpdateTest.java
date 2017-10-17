@@ -47,18 +47,4 @@ public class PartitionUpdateTest extends CQLTester
         builder.newRow(1).add("a", 1);
         Assert.assertEquals(2, builder.build().operationCount());
     }
-
-    @Test
-    public void testOperationCountWithCompactTable()
-    {
-        createTable("CREATE TABLE %s (key text PRIMARY KEY, a int) WITH COMPACT STORAGE");
-        TableMetadata cfm = currentTableMetadata();
-
-        PartitionUpdate update = new RowUpdateBuilder(cfm, FBUtilities.timestampMicros(), "key0").add("a", 1)
-                                                                                                 .buildUpdate();
-        Assert.assertEquals(1, update.operationCount());
-
-        update = new RowUpdateBuilder(cfm, FBUtilities.timestampMicros(), "key0").buildUpdate();
-        Assert.assertEquals(0, update.operationCount());
-    }
 }

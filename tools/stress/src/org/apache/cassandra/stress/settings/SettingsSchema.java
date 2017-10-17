@@ -138,7 +138,7 @@ public class SettingsSchema implements Serializable
         }
 
         //Compression
-        b.append(") WITH COMPACT STORAGE AND compression = {");
+        b.append(") WITH compression = {");
         if (compression != null)
             b.append("'sstable_compression' : '").append(compression).append("'");
 
@@ -179,7 +179,7 @@ public class SettingsSchema implements Serializable
         }
 
         //Compression
-        b.append(") WITH COMPACT STORAGE AND compression = {");
+        b.append(") WITH compression = {");
         if (compression != null)
             b.append("'sstable_compression' : '").append(compression).append("'");
 

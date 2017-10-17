@@ -545,24 +545,6 @@ public class InsertUpdateIfConditionTest extends CQLTester
                    row(true));
     }
 
-    /**
-     * Test for CAS with compact storage table, and #6813 in particular,
-     * migrated from cql_tests.py:TestCQL.cas_and_compact_test()
-     */
-    @Test
-    public void testCompactStorage() throws Throwable
-    {
-        createTable("CREATE TABLE %s (partition text, key text, owner text, PRIMARY KEY (partition, key) ) WITH COMPACT STORAGE");
-
-        execute("INSERT INTO %s (partition, key, owner) VALUES ('a', 'b', null)");
-        assertRows(execute("UPDATE %s SET owner='z' WHERE partition='a' AND key='b' IF owner=null"), row(true));
-
-        assertRows(execute("UPDATE %s SET owner='b' WHERE partition='a' AND key='b' IF owner='a'"), row(false, "z"));
-        assertRows(execute("UPDATE %s SET owner='b' WHERE partition='a' AND key='b' IF owner='z'"), row(true));
-
-        assertRows(execute("INSERT INTO %s (partition, key, owner) VALUES ('a', 'c', 'x') IF NOT EXISTS"), row(true));
-    }
-
     @Test
     public void testWholeUDT() throws Throwable
     {

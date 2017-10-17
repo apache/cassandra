@@ -520,33 +520,6 @@ public class ScrubTest
         CompactionManager.instance.performScrub(cfs2, false, false, 2);
     }
 
-    /**
-     * For CASSANDRA-6892 too, check that for a compact table with one cluster column, we can insert whatever
-     * we want as value for the clustering column, including something that would conflict with a CQL column definition.
-     */
-    @Test
-    public void testValidationCompactStorage() throws Exception
-    {
-        QueryProcessor.process(String.format("CREATE TABLE \"%s\".test_compact_dynamic_columns (a int, b text, c text, PRIMARY KEY (a, b)) WITH COMPACT STORAGE", KEYSPACE), ConsistencyLevel.ONE);
-
-        Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("test_compact_dynamic_columns");
-
-        QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".test_compact_dynamic_columns (a, b, c) VALUES (0, 'a', 'foo')", KEYSPACE));
-        QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".test_compact_dynamic_columns (a, b, c) VALUES (0, 'b', 'bar')", KEYSPACE));
-        QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".test_compact_dynamic_columns (a, b, c) VALUES (0, 'c', 'boo')", KEYSPACE));
-        cfs.forceBlockingFlush();
-        CompactionManager.instance.performScrub(cfs, true, true, 2);
-
-        // Scrub is silent, but it will remove broken records. So reading everything back to make sure nothing to "scrubbed away"
-        UntypedResultSet rs = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".test_compact_dynamic_columns", KEYSPACE));
-        assertEquals(3, rs.size());
-
-        Iterator<UntypedResultSet.Row> iter = rs.iterator();
-        assertEquals("foo", iter.next().getString("c"));
-        assertEquals("bar", iter.next().getString("c"));
-        assertEquals("boo", iter.next().getString("c"));
-    }
 
     @Test /* CASSANDRA-5174 */
     public void testScrubKeysIndex_preserveOrder() throws IOException, ExecutionException, InterruptedException

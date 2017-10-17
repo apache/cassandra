@@ -139,8 +139,8 @@ public final class SystemKeyspace
               "CREATE TABLE \"%s\" ("
               + "table_name text," // table_name here is the name of the keyspace - don't be fooled
               + "index_name text,"
-              + "PRIMARY KEY ((table_name), index_name)) "
-              + "WITH COMPACT STORAGE")
+              + "value blob," // Table used to be compact in previous versions
+              + "PRIMARY KEY ((table_name), index_name)) ")
               .build();
 
     private static final TableMetadata Local =

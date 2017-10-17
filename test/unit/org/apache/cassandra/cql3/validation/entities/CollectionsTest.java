@@ -576,16 +576,6 @@ public class CollectionsTest extends CQLTester
     }
 
     /**
-     * Migrated from cql_tests.py:TestCQL.collection_compact_test()
-     */
-    @Test
-    public void testCompactCollections() throws Throwable
-    {
-        String tableName = KEYSPACE + "." + createTableName();
-        assertInvalid(String.format("CREATE TABLE %s (user ascii PRIMARY KEY, mails list < text >) WITH COMPACT STORAGE;", tableName));
-    }
-
-    /**
      * Migrated from cql_tests.py:TestCQL.collection_function_test()
      */
     @Test

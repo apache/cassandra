@@ -793,7 +793,7 @@ pkDef[CreateTableStatement.RawStatement expr]
 
 cfamProperty[CFProperties props]
     : property[props.properties]
-    | K_COMPACT K_STORAGE { $props.setCompactStorage(); }
+    | K_COMPACT K_STORAGE { throw new SyntaxException("Compact tables are not allowed in Cassandra starting with 4.0 version."); }
     | K_CLUSTERING K_ORDER K_BY '(' cfamOrdering[props] (',' cfamOrdering[props])* ')'
     ;
 

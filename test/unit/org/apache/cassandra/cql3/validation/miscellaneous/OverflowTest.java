@@ -167,20 +167,6 @@ public class OverflowTest extends CQLTester
     }
 
     /**
-     * Test regression from #5189,
-     * migrated from cql_tests.py:TestCQL.compact_metadata_test()
-     */
-    @Test
-    public void testCompactMetadata() throws Throwable
-    {
-        createTable("CREATE TABLE %s (id int primary key, i int ) WITH COMPACT STORAGE");
-
-        execute("INSERT INTO %s (id, i) VALUES (1, 2)");
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, 2));
-    }
-
-    /**
      * Migrated from cql_tests.py:TestCQL.conversion_functions_test()
      */
     @Test
@@ -227,22 +213,6 @@ public class OverflowTest extends CQLTester
         Object[][] rows = fill();
 
         // Test empty IN() in SELECT
-        assertEmpty(execute("SELECT v FROM %s WHERE k1 IN ()"));
-        assertEmpty(execute("SELECT v FROM %s WHERE k1 = 0 AND k2 IN ()"));
-
-        // Test empty IN() in DELETE
-        execute("DELETE FROM %s WHERE k1 IN ()");
-        assertArrayEquals(rows, getRows(execute("SELECT * FROM %s")));
-
-        // Test empty IN() in UPDATE
-        execute("UPDATE %s SET v = 3 WHERE k1 IN () AND k2 = 2");
-        assertArrayEquals(rows, getRows(execute("SELECT * FROM %s")));
-
-        // Same test, but for compact
-        createTable("CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY (k1, k2)) WITH COMPACT STORAGE");
-
-        rows = fill();
-
         assertEmpty(execute("SELECT v FROM %s WHERE k1 IN ()"));
         assertEmpty(execute("SELECT v FROM %s WHERE k1 = 0 AND k2 IN ()"));
 

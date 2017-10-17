@@ -651,23 +651,6 @@ public class SecondaryIndexTest extends CQLTester
     }
 
     @Test
-    public void testCompactTableWithValueOver64k() throws Throwable
-    {
-        createTable("CREATE TABLE %s(a int, b blob, PRIMARY KEY (a)) WITH COMPACT STORAGE");
-        createIndex("CREATE INDEX ON %s(b)");
-        failInsert("INSERT INTO %s (a, b) VALUES (0, ?)", ByteBuffer.allocate(TOO_BIG));
-        failInsert("INSERT INTO %s (a, b) VALUES (0, ?) IF NOT EXISTS", ByteBuffer.allocate(TOO_BIG));
-        failInsert("BEGIN BATCH\n" +
-                   "INSERT INTO %s (a, b) VALUES (0, ?);\n" +
-                   "APPLY BATCH",
-                   ByteBuffer.allocate(TOO_BIG));
-        failInsert("BEGIN BATCH\n" +
-                   "INSERT INTO %s (a, b) VALUES (0, ?) IF NOT EXISTS;\n" +
-                   "APPLY BATCH",
-                   ByteBuffer.allocate(TOO_BIG));
-    }
-
-    @Test
     public void testIndexOnPartitionKeyInsertValueOver64k() throws Throwable
     {
         createTable("CREATE TABLE %s(a int, b int, c blob, PRIMARY KEY ((a, b)))");
@@ -879,22 +862,6 @@ public class SecondaryIndexTest extends CQLTester
 
         assertRows(execute("SELECT v1 FROM %s WHERE time = 1"),
                    row("B"), row("E"));
-    }
-
-    /**
-     * Migrated from cql_tests.py:TestCQL.invalid_clustering_indexing_test()
-     */
-    @Test
-    public void testIndexesOnClusteringInvalid() throws Throwable
-    {
-        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b))) WITH COMPACT STORAGE");
-        assertInvalid("CREATE INDEX ON %s (a)");
-        assertInvalid("CREATE INDEX ON %s (b)");
-
-        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE");
-        assertInvalid("CREATE INDEX ON %s (a)");
-        assertInvalid("CREATE INDEX ON %s (b)");
-        assertInvalid("CREATE INDEX ON %s (c)");
     }
 
     @Test
@@ -1233,27 +1200,6 @@ public class SecondaryIndexTest extends CQLTester
     }
 
     @Test
-    public void testEmptyRestrictionValueWithSecondaryIndexAndCompactTables() throws Throwable
-    {
-        createTable("CREATE TABLE %s (pk blob, c blob, v blob, PRIMARY KEY ((pk), c)) WITH COMPACT STORAGE");
-        assertInvalidMessage("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns",
-                            "CREATE INDEX on %s(c)");
-
-        createTable("CREATE TABLE %s (pk blob PRIMARY KEY, v blob) WITH COMPACT STORAGE");
-        createIndex("CREATE INDEX on %s(v)");
-
-        execute("INSERT INTO %s (pk, v) VALUES (?, ?)", bytes("foo123"), bytes("1"));
-
-        // Test restrictions on non-primary key value
-        assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND v = textAsBlob('');"));
-
-        execute("INSERT INTO %s (pk, v) VALUES (?, ?)", bytes("foo124"), EMPTY_BYTE_BUFFER);
-
-        assertRows(execute("SELECT * FROM %s WHERE v = textAsBlob('');"),
-                   row(bytes("foo124"), EMPTY_BYTE_BUFFER));
-    }
-
-    @Test
     public void testPartitionKeyWithIndex() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY ((a, b)))");
@@ -1564,49 +1510,6 @@ public class SecondaryIndexTest extends CQLTester
         Thread.sleep(1000);
         assertEmpty(execute("SELECT * FROM %s WHERE a = 3"));
         assertEmpty(execute("SELECT * FROM %s WHERE a = 5"));
-    }
-
-    @Test
-    public void testIndicesOnCompactTable() throws Throwable
-    {
-        assertInvalidMessage("COMPACT STORAGE with composite PRIMARY KEY allows no more than one column not part of the PRIMARY KEY (got: v1, v2)",
-                             "CREATE TABLE test (pk int, c int, v1 int, v2 int, PRIMARY KEY(pk, c)) WITH COMPACT STORAGE");
-
-        createTable("CREATE TABLE %s (pk int, c int, v int, PRIMARY KEY(pk, c)) WITH COMPACT STORAGE");
-        assertInvalidMessage("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns",
-                             "CREATE INDEX ON %s(v)");
-
-        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int) WITH COMPACT STORAGE");
-        createIndex("CREATE INDEX ON %s(v)");
-
-        execute("INSERT INTO %s (pk, v) VALUES (?, ?)", 1, 1);
-        execute("INSERT INTO %s (pk, v) VALUES (?, ?)", 2, 1);
-        execute("INSERT INTO %s (pk, v) VALUES (?, ?)", 3, 3);
-
-        assertRows(execute("SELECT pk, v FROM %s WHERE v = 1"),
-                   row(1, 1),
-                   row(2, 1));
-
-        assertRows(execute("SELECT pk, v FROM %s WHERE v = 3"),
-                   row(3, 3));
-
-        assertEmpty(execute("SELECT pk, v FROM %s WHERE v = 5"));
-
-        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v1 int, v2 int) WITH COMPACT STORAGE");
-        createIndex("CREATE INDEX ON %s(v1)");
-
-        execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?)", 1, 1, 1);
-        execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?)", 2, 1, 2);
-        execute("INSERT INTO %s (pk, v1, v2) VALUES (?, ?, ?)", 3, 3, 3);
-
-        assertRows(execute("SELECT pk, v2 FROM %s WHERE v1 = 1"),
-                   row(1, 1),
-                   row(2, 2));
-
-        assertRows(execute("SELECT pk, v2 FROM %s WHERE v1 = 3"),
-                   row(3, 3));
-
-        assertEmpty(execute("SELECT pk, v2 FROM %s WHERE v1 = 5"));
     }
 
     private ResultMessage.Prepared prepareStatement(String cql)

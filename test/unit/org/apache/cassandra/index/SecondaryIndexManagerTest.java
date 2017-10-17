@@ -553,7 +553,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
     private void assertMarkedAsBuilt(String indexName) throws Throwable
     {
-        assertRows(execute(builtIndexesQuery), row(KEYSPACE, indexName));
+        assertRows(execute(builtIndexesQuery), row(KEYSPACE, indexName, null));
     }
 
     private void assertNotMarkedAsBuilt() throws Throwable

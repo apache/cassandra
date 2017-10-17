@@ -145,7 +145,6 @@ public class KeysSearcher extends CassandraIndexSearcher
                                                 OpOrder.Group writeOp,
                                                 int nowInSec)
     {
-        assert iterator.metadata().isCompactTable();
         Row data = iterator.staticRow();
         if (index.isStale(data, indexedValue, nowInSec))
         {
