@@ -38,7 +38,7 @@ public class CommitLogTestReplayer extends CommitLogReplayer
 {
     public static void examineCommitLog(Predicate<Mutation> processor) throws IOException
     {
-        CommitLog.instance.sync(true);
+        CommitLog.instance.sync(true, true);
 
         CommitLogTestReplayer replayer = new CommitLogTestReplayer(CommitLog.instance, processor);
         File commitLogDir = new File(DatabaseDescriptor.getCommitLogLocation());

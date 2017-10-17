@@ -339,7 +339,7 @@ public class CommitLogTest
 
         // "Flush": this won't delete anything
         UUID cfid1 = rm.getColumnFamilyIds().iterator().next();
-        CommitLog.instance.sync(true);
+        CommitLog.instance.sync(true, true);
         CommitLog.instance.discardCompletedSegments(cfid1, ReplayPosition.NONE, CommitLog.instance.getContext());
 
         assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
@@ -652,7 +652,7 @@ public class CommitLogTest
             DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
         }
 
-        CommitLog.instance.sync(true);
+        CommitLog.instance.sync(true, true);
         System.setProperty("cassandra.replayList", KEYSPACE1 + "." + STANDARD1);
         // Currently we don't attempt to re-flush a memtable that failed, thus make sure data is replayed by commitlog.
         // If retries work subsequent flushes should clear up error and this should change to expect 0.
@@ -685,7 +685,7 @@ public class CommitLogTest
         for (SSTableReader reader : cfs.getLiveSSTables())
             reader.reloadSSTableMetadata();
 
-        CommitLog.instance.sync(true);
+        CommitLog.instance.sync(true, true);
         System.setProperty("cassandra.replayList", KEYSPACE1 + "." + STANDARD1);
         // In the absence of error, this should be 0 because forceBlockingFlush/forceRecycleAllSegments would have
         // persisted all data in the commit log. Because we know there was an error, there must be something left to

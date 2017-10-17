@@ -139,6 +139,18 @@ public class CompressedSegment extends CommitLogSegment
             channel.write(compressedBuffer);
             assert channel.position() - lastWrittenPos == compressedBuffer.limit();
             lastWrittenPos = channel.position();
+        }
+        catch (Exception e)
+        {
+            throw new FSWriteError(e, getPath());
+        }
+    }
+
+    @Override
+    protected void flush(int startMarker, int nextMarker)
+    {
+        try
+        {
             SyncUtil.force(channel, true);
         }
         catch (Exception e)

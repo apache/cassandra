@@ -220,14 +220,14 @@ public class CommitLog implements CommitLogMBean
     /**
      * Forces a disk flush on the commit log files that need it.  Blocking.
      */
-    public void sync(boolean syncAllSegments)
+    public void sync(boolean syncAllSegments, boolean flush)
     {
         CommitLogSegment current = allocator.allocatingFrom();
         for (CommitLogSegment segment : allocator.getActiveSegments())
         {
             if (!syncAllSegments && segment.id > current.id)
                 return;
-            segment.sync();
+            segment.sync(flush);
         }
     }
 
