@@ -1329,6 +1329,18 @@ public final class SchemaKeyspace
      * Merging schema
      */
 
+    /*
+     * Reload schema from local disk. Useful if a user made changes to schema tables by hand, or has suspicion that
+     * in-memory representation got out of sync somehow with what's on disk.
+     */
+    public static synchronized void reloadSchemaAndAnnounceVersion()
+    {
+        Keyspaces before = Schema.instance.getReplicatedKeyspaces();
+        Keyspaces after = fetchNonSystemKeyspaces();
+        mergeSchema(before, after);
+        Schema.instance.updateVersionAndAnnounce();
+    }
+
     /**
      * Merge remote schema in form of mutations with local and mutate ks/cf metadata objects
      * (which also involves fs operations on add/drop ks/cf)
@@ -1362,7 +1374,11 @@ public final class SchemaKeyspace
         // fetch the new state of schema from schema tables (not applied to Schema.instance yet)
         Keyspaces after = fetchKeyspacesOnly(affectedKeyspaces);
 
-        // deal with the diff
+        mergeSchema(before, after);
+    }
+
+    private static synchronized void mergeSchema(Keyspaces before, Keyspaces after)
+    {
         MapDifference<String, KeyspaceMetadata> keyspacesDiff = before.diff(after);
 
         // dropped keyspaces
