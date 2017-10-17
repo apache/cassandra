@@ -20,6 +20,7 @@ package org.apache.cassandra.dht;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -45,10 +46,34 @@ public class RandomPartitioner implements IPartitioner
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
     public static final BigInteger MAXIMUM = new BigInteger("2").pow(127);
 
-    private static final int HEAP_SIZE = (int) ObjectSizes.measureDeep(new BigIntegerToken(FBUtilities.hashToBigInteger(ByteBuffer.allocate(1))));
+    /**
+     * Maintain a separate threadlocal message digest, exclusively for token hashing. This is necessary because
+     * when Tracing is enabled and using the default tracing implementation, creating the mutations for the trace
+     * events involves tokenizing the partition keys. This happens multiple times whilst servicing a ReadCommand,
+     * and so can interfere with the stateful digest calculation if the node is a replica producing a digest response.
+     */
+    private static final ThreadLocal<MessageDigest> localMD5Digest = new ThreadLocal<MessageDigest>()
+    {
+        @Override
+        protected MessageDigest initialValue()
+        {
+            return FBUtilities.newMessageDigest("MD5");
+        }
+
+        @Override
+        public MessageDigest get()
+        {
+            MessageDigest digest = super.get();
+            digest.reset();
+            return digest;
+        }
+    };
+
+    private static final int HEAP_SIZE = (int) ObjectSizes.measureDeep(new BigIntegerToken(hashToBigInteger(ByteBuffer.allocate(1))));
 
     public static final RandomPartitioner instance = new RandomPartitioner();
     public static final AbstractType<?> partitionOrdering = new PartitionerDefinedOrder(instance);
+
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
@@ -72,7 +97,7 @@ public class RandomPartitioner implements IPartitioner
 
     public BigIntegerToken getRandomToken()
     {
-        BigInteger token = FBUtilities.hashToBigInteger(GuidGenerator.guidAsBytes());
+        BigInteger token = hashToBigInteger(GuidGenerator.guidAsBytes());
         if ( token.signum() == -1 )
             token = token.multiply(BigInteger.valueOf(-1L));
         return new BigIntegerToken(token);
@@ -160,7 +185,8 @@ public class RandomPartitioner implements IPartitioner
     {
         if (key.remaining() == 0)
             return MINIMUM;
-        return new BigIntegerToken(FBUtilities.hashToBigInteger(key));
+
+        return new BigIntegerToken(hashToBigInteger(key));
     }
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
@@ -202,5 +228,16 @@ public class RandomPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering()
     {
         return partitionOrdering;
+    }
+
+    private static BigInteger hashToBigInteger(ByteBuffer data)
+    {
+        MessageDigest messageDigest = localMD5Digest.get();
+        if (data.hasArray())
+            messageDigest.update(data.array(), data.arrayOffset() + data.position(), data.remaining());
+        else
+            messageDigest.update(data.duplicate());
+
+        return new BigInteger(messageDigest.digest()).abs();
     }
 }
