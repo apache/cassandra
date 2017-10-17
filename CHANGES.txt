@@ -151,6 +151,7 @@
 
 
 3.11.2
+ * Update jackson JSON jars (CASSANDRA-13949)
  * Avoid locks when checking LCS fanout and if we should defrag (CASSANDRA-13930)
 Merged from 3.0:
  * Don't let user drop or generally break tables in system_distributed (CASSANDRA-13813)
