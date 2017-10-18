@@ -46,6 +46,7 @@ import com.datastax.driver.core.ResultSet;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.FunctionName;
@@ -734,6 +735,38 @@ public abstract class CQLTester
         }
 
         return indexCreated;
+    }
+
+    /**
+     * Index creation is asynchronous, this method waits until the specified index hasn't any building task running.
+     * <p>
+     * This method differs from {@link #waitForIndex(String, String, String)} in that it doesn't require the index to be
+     * fully nor successfully built, so it can be used to wait for failing index builds.
+     *
+     * @param keyspace the index keyspace name
+     * @param indexName the index name
+     * @return {@code true} if the index build tasks have finished in 5 seconds, {@code false} otherwise
+     */
+    protected boolean waitForIndexBuilds(String keyspace, String indexName) throws InterruptedException
+    {
+        long start = System.currentTimeMillis();
+        SecondaryIndexManager indexManager = getCurrentColumnFamilyStore(keyspace).indexManager;
+
+        while (true)
+        {
+            if (!indexManager.isIndexBuilding(indexName))
+            {
+                return true;
+            }
+            else if (System.currentTimeMillis() - start > 5000)
+            {
+                return false;
+            }
+            else
+            {
+                Thread.sleep(10);
+            }
+        }
     }
 
     protected void createIndexMayThrow(String query) throws Throwable

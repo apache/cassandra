@@ -276,6 +276,19 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         return queryableIndexes.contains(index.getIndexMetadata().name);
     }
 
+    /**
+     * Checks if the specified index has any running build task.
+     *
+     * @param indexName the index name
+     * @return {@code true} if the index is building, {@code false} otherwise
+     */
+    @VisibleForTesting
+    public synchronized boolean isIndexBuilding(String indexName)
+    {
+        AtomicInteger counter = inProgressBuilds.get(indexName);
+        return counter != null && counter.get() > 0;
+    }
+
     public synchronized void removeIndex(String indexName)
     {
         Index index = unregisterIndex(indexName);

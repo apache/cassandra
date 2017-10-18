@@ -1,4 +1,5 @@
 4.0
+ * Fix flaky indexWithFailedInitializationIsNotQueryableAfterPartialRebuild (CASSANDRA-13963)
  * Introduce leaf-only iterator (CASSANDRA-9988)
  * Upgrade Guava to 23.3 and Airline to 0.8 (CASSANDRA-13997)
  * Allow only one concurrent call to StatusLogger (CASSANDRA-12182)
