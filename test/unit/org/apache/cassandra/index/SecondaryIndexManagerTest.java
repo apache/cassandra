@@ -21,6 +21,7 @@ import java.io.FileNotFoundException;
 import java.net.SocketException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -37,7 +38,6 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.schema.IndexMetadata;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -49,10 +49,6 @@ import static org.junit.Assert.fail;
 
 public class SecondaryIndexManagerTest extends CQLTester
 {
-
-    private static final String builtIndexesQuery = String.format("SELECT * FROM %s.\"%s\"",
-                                                                  SchemaConstants.SYSTEM_KEYSPACE_NAME,
-                                                                  SystemKeyspace.BUILT_INDEXES);
 
     @After
     public void after()
@@ -94,7 +90,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         // drop the index and verify that it has been removed from the built indexes table
         dropIndex("DROP INDEX %s." + indexName);
-        assertNotMarkedAsBuilt();
+        assertNotMarkedAsBuilt(indexName);
 
         // create the index again and verify that it's added to the built indexes table
         createIndex(String.format("CREATE INDEX %s ON %%s(c)", indexName));
@@ -113,7 +109,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.indexManager.markAllIndexesRemoved();
-        assertNotMarkedAsBuilt();
+        assertNotMarkedAsBuilt(indexName);
 
         try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
         {
@@ -132,7 +128,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         // try to rebuild the index before the index creation task has finished
         assertFalse(tryRebuild(indexName, false));
-        assertNotMarkedAsBuilt();
+        assertNotMarkedAsBuilt(indexName);
 
         // check that the index is marked as built when the creation finishes
         TestingIndex.unblockCreate();
@@ -183,7 +179,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         // verify rebuilding the index before the previous index build task has finished fails
         assertFalse(tryRebuild(indexName, false));
-        assertNotMarkedAsBuilt();
+        assertNotMarkedAsBuilt(indexName);
 
         // check that the index is marked as built when the build finishes
         TestingIndex.unblockBuild();
@@ -235,7 +231,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         // verify rebuilding the index before the previous index build task has finished fails
         assertFalse(tryRebuild(indexName, false));
-        assertNotMarkedAsBuilt();
+        assertNotMarkedAsBuilt(indexName);
 
         // check that the index is marked as built when the build finishes
         TestingIndex.unblockBuild();
@@ -289,7 +285,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
         {
             cfs.indexManager.handleNotification(new SSTableAddedNotification(sstables, null), cfs.getTracker());
-            assertNotMarkedAsBuilt();
+            assertNotMarkedAsBuilt(indexName);
         }
 
         // unblock the pending build:
@@ -359,7 +355,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         asyncBuild.join();
 
         // verify the index is *not* built due to the failing sstable build:
-        assertNotMarkedAsBuilt();
+        assertNotMarkedAsBuilt(indexName);
         assertFalse(error.get());
     }
 
@@ -382,7 +378,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         {
             assertTrue(ex.getMessage().contains("configured to fail"));
         }
-        assertNotMarkedAsBuilt();
+        assertNotMarkedAsBuilt(indexName);
     }
 
     @Test
@@ -553,14 +549,17 @@ public class SecondaryIndexManagerTest extends CQLTester
         }
     }
 
-    private void assertMarkedAsBuilt(String indexName) throws Throwable
+    private static void assertMarkedAsBuilt(String indexName)
     {
-        assertRows(execute(builtIndexesQuery), row(KEYSPACE, indexName, null));
+        List<String> indexes = SystemKeyspace.getBuiltIndexes(KEYSPACE, Collections.singleton(indexName));
+        assertEquals(1, indexes.size());
+        assertEquals(indexName, indexes.get(0));
     }
 
-    private void assertNotMarkedAsBuilt() throws Throwable
+    private static void assertNotMarkedAsBuilt(String indexName)
     {
-        assertEmpty(execute(builtIndexesQuery));
+        List<String> indexes = SystemKeyspace.getBuiltIndexes(KEYSPACE, Collections.singleton(indexName));
+        assertTrue(indexes.isEmpty());
     }
 
     private boolean tryRebuild(String indexName, boolean wait) throws Throwable

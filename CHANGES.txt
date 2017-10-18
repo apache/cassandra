@@ -1,4 +1,5 @@
 4.0
+ * Fix flaky SecondaryIndexManagerTest.assert[Not]MarkedAsBuilt (CASSANDRA-13965)
  * Make LWTs send resultset metadata on every request (CASSANDRA-13992)
  * Fix flaky indexWithFailedInitializationIsNotQueryableAfterPartialRebuild (CASSANDRA-13963)
  * Introduce leaf-only iterator (CASSANDRA-9988)
