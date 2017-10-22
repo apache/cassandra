@@ -24,7 +24,6 @@ import static org.junit.Assert.assertTrue;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import com.google.common.collect.Iterables;
 import org.junit.Test;
