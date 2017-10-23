@@ -244,6 +244,17 @@ public class Config
 
     public Integer file_cache_size_in_mb;
 
+    /**
+     * Because of the current {@link org.apache.cassandra.utils.memory.BufferPool} slab sizes of 64 kb, we
+     * store in the file cache buffers that divide 64 kb, so we need to round the buffer sizes to powers of two.
+     * This boolean controls weather they are rounded up or down. Set it to true to round up to the
+     * next power of two, set it to false to round down to the previous power of two. Note that buffer sizes are
+     * already rounded to 4 kb and capped between 4 kb minimum and 64 kb maximum by the {@link DiskOptimizationStrategy}.
+     * By default, this boolean is set to round down when {@link #disk_optimization_strategy} is {@code ssd},
+     * and to round up when it is {@code spinning}.
+     */
+    public Boolean file_cache_round_up;
+
     public boolean buffer_pool_use_heap_if_exhausted = true;
 
     public DiskOptimizationStrategy disk_optimization_strategy = DiskOptimizationStrategy.ssd;
