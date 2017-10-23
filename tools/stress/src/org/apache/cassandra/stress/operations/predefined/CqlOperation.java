@@ -46,7 +46,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
     public static final ByteBuffer[][] EMPTY_BYTE_BUFFERS = new ByteBuffer[0][];
     public static final byte[][] EMPTY_BYTE_ARRAYS = new byte[0][];
 
-    protected abstract List<Object> getQueryParameters(byte[] key);
+    protected abstract List<Object> getQueryParameters(byte... key);
     protected abstract String buildQuery();
     protected abstract CqlRunOp<V> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, ByteBuffer key);
 

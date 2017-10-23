@@ -45,8 +45,7 @@ public class StandaloneUpgrader
     private static final String HELP_OPTION  = "help";
     private static final String KEEP_SOURCE = "keep-source";
 
-    public static void main(String args[])
-    {
+    public static void main(String ... args){
         Options options = Options.parseArgs(args);
         Util.initDatabaseDescriptor();
 
@@ -150,8 +149,7 @@ public class StandaloneUpgrader
             this.snapshot = snapshot;
         }
 
-        public static Options parseArgs(String cmdArgs[])
-        {
+        public static Options parseArgs(String ... cmdArgs){
             CommandLineParser parser = new GnuParser();
             CmdLineOptions options = getCmdLineOptions();
             try

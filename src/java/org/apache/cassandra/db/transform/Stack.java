@@ -70,8 +70,7 @@ class Stack
         this.moreContents[moreContents.length - 1] = new MoreContentsHolder(more, length);
     }
 
-    private static <E> E[] resize(E[] array)
-    {
+    private static <E> E[] resize(E... array){
         int newLen = array.length == 0 ? 5 : array.length * 2;
         return Arrays.copyOf(array, newLen);
     }

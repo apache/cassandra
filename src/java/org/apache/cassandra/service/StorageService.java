@@ -2501,8 +2501,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    protected long extractExpireTime(String[] pieces)
-    {
+    protected long extractExpireTime(String... pieces){
         return Long.parseLong(pieces[2]);
     }
 

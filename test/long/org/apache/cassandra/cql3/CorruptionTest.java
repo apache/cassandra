@@ -167,8 +167,7 @@ public class CorruptionTest extends SchemaLoader
 
     }
 
-    public static byte[] get(byte[] key)
-    {
+    public static byte[] get(byte... key){
         BoundStatement boundStatement = new BoundStatement(getStatement);
         boundStatement.setBytes(0, ByteBuffer.wrap(key));
 

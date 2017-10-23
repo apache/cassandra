@@ -493,7 +493,7 @@ public class SSTableMetadataViewer
      * @param args
      *            a list of sstables whose metadata we're interested in
      */
-    public static void main(String[] args) throws IOException
+    public static void main(String... args)throws IOException
     {
         CommandLineParser parser = new PosixParser();
 

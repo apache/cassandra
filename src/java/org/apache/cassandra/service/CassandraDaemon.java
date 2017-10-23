@@ -463,7 +463,7 @@ public class CassandraDaemon
      *            the arguments passed in from JSVC
      * @throws IOException
      */
-    public void init(String[] arguments) throws IOException
+    public void init(String... arguments)throws IOException
     {
         setup();
     }
@@ -636,13 +636,11 @@ public class CassandraDaemon
         }
     }
 
-    public static void stop(String[] args)
-    {
+    public static void stop(String... args){
         instance.deactivate();
     }
 
-    public static void main(String[] args)
-    {
+    public static void main(String... args){
         instance.activate();
     }
 

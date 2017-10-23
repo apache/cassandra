@@ -116,8 +116,7 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
     }
 
     @Override
-    public <T> T[] toArray(T[] a)
-    {
+    public <T> T[] toArray(T... a){
         return toArray(a, 0);
     }
 
@@ -461,8 +460,7 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
         }
 
         @Override
-        public <T> T[] toArray(T[] a)
-        {
+        public <T> T[] toArray(T... a){
             return toArray(a, 0);
         }
 

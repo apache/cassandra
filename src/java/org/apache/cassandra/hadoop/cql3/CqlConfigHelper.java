@@ -501,8 +501,7 @@ public class CqlConfigHelper
         return socketOptions;
     }
 
-    private static LoadBalancingPolicy getReadLoadBalancingPolicy(final String[] stickHosts)
-    {
+    private static LoadBalancingPolicy getReadLoadBalancingPolicy(final String... stickHosts){
         return new LimitedLocalNodeFirstLocalBalancingPolicy(stickHosts);
     }
 

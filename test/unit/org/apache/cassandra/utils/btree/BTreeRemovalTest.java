@@ -48,8 +48,7 @@ public class BTreeRemovalTest
         }
     };
 
-    private static Object[] copy(final Object[] btree)
-    {
+    private static Object[] copy(final Object... btree){
         final Object[] result = new Object[btree.length];
         System.arraycopy(btree, 0, result, 0, btree.length);
         if (!BTree.isLeaf(btree))
@@ -125,8 +124,7 @@ public class BTreeRemovalTest
         return result;
     }
 
-    private static Object[] generateSampleTwoLevelsTree(final int[] leafSizes)
-    {
+    private static Object[] generateSampleTwoLevelsTree(final int... leafSizes){
         assert leafSizes.length > 1;
         final Object[][] leaves = new Object[leafSizes.length][];
         for (int i = 0; i < leaves.length; ++i)
@@ -139,8 +137,7 @@ public class BTreeRemovalTest
         return btree;
     }
 
-    private static Object[] generateSampleThreeLevelsTree(final int[] middleNodeSizes)
-    {
+    private static Object[] generateSampleThreeLevelsTree(final int... middleNodeSizes){
         assert middleNodeSizes.length > 1;
         final Object[][] middleNodes = new Object[middleNodeSizes.length][];
         for (int i = 0; i < middleNodes.length; ++i)

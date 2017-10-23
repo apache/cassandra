@@ -140,7 +140,7 @@ public final class AuthenticationProxy implements JMXAuthenticator
             }
         }
 
-        public void handle(Callback[] callbacks) throws UnsupportedCallbackException
+        public void handle(Callback... callbacks)throws UnsupportedCallbackException
         {
             for (int i = 0; i < callbacks.length; i++)
             {

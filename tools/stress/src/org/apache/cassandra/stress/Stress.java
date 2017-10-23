@@ -54,7 +54,7 @@ public final class Stress
 
     private static volatile boolean stopped = false;
 
-    public static void main(String[] arguments) throws Exception
+    public static void main(String... arguments)throws Exception
     {
         if (FBUtilities.isWindows)
             WindowsTimer.startTimerPeriod(1);
@@ -68,8 +68,7 @@ public final class Stress
     }
 
 
-    private static int run(String[] arguments)
-    {
+    private static int run(String... arguments){
         try
         {
             DatabaseDescriptor.clientInitialization();

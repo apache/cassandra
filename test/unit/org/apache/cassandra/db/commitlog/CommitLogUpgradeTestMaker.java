@@ -57,7 +57,7 @@ public class CommitLogUpgradeTestMaker
     public static int rateLimit = 0;
     public static int runTimeMs = 1000;
 
-    public static void main(String[] args) throws Exception
+    public static void main(String... args)throws Exception
     {
         try
         {

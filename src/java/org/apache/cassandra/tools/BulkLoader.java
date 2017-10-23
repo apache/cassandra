@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.OutputHandler;
 
 public class BulkLoader
 {
-    public static void main(String args[]) throws BulkLoadException
+    public static void main(String ... args)throws BulkLoadException
     {
         LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
         load(options);

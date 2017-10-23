@@ -603,7 +603,7 @@ public class BufferedRandomAccessFileTest
         return new SequentialWriter(tempFile);
     }
 
-    private File writeTemporaryFile(byte[] data) throws IOException
+    private File writeTemporaryFile(byte... data)throws IOException
     {
         File f = File.createTempFile("BRAFTestFile", null);
         f.deleteOnExit();

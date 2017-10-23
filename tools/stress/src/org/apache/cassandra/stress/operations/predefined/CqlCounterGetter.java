@@ -40,8 +40,7 @@ public class CqlCounterGetter extends CqlOperation<Integer>
     }
 
     @Override
-    protected List<Object> getQueryParameters(byte[] key)
-    {
+    protected List<Object> getQueryParameters(byte... key){
         return Collections.<Object>singletonList(ByteBuffer.wrap(key));
     }
 

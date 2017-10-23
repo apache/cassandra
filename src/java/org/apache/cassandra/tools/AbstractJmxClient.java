@@ -105,7 +105,7 @@ public abstract class AbstractJmxClient implements Closeable
         this.out = out;
     }
 
-    public static CommandLine processArguments(String[] args) throws ParseException
+    public static CommandLine processArguments(String... args)throws ParseException
     {
         CommandLineParser parser = new PosixParser();
         return parser.parse(options, args);

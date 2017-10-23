@@ -176,8 +176,7 @@ public class SSTableWriterTestBase extends SchemaLoader
         return r;
     }
 
-    public static int assertFileCounts(String [] files)
-    {
+    public static int assertFileCounts(String ... files){
         int tmplinkcount = 0;
         int tmpcount = 0;
         int datacount = 0;

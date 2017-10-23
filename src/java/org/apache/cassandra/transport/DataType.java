@@ -322,8 +322,7 @@ public enum DataType
             }
         }
 
-        private int getMaxId(DataType[] values)
-        {
+        private int getMaxId(DataType... values){
             int maxId = -1;
             for (DataType opt : values)
                 maxId = Math.max(maxId, opt.getId(ProtocolVersion.CURRENT));

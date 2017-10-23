@@ -175,8 +175,7 @@ public class SettingsCommandUser extends SettingsCommand
     }
 
 
-    public static SettingsCommandUser build(String[] params)
-    {
+    public static SettingsCommandUser build(String... params){
         GroupedOptions options = GroupedOptions.select(params,
                 new Options(new Uncertainty()),
                 new Options(new Duration()),

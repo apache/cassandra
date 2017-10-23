@@ -88,7 +88,7 @@ public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
         bytesRead += len;
     }
 
-    public void readFully(byte[] b) throws IOException
+    public void readFully(byte... b)throws IOException
     {
         source.readFully(b);
         bytesRead += b.length;

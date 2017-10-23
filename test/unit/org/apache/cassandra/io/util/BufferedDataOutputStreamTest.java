@@ -533,8 +533,7 @@ public class BufferedDataOutputStreamTest
     /*
      * Add values to the array with a bit set in every position
      */
-    public static long[] enrich(long vals[])
-    {
+    public static long[] enrich(long... vals){
         long retval[] = Arrays.copyOf(vals, vals.length + 64);
         for (int ii = 0; ii < 64; ii++)
             retval[vals.length + ii] = 1L << ii;

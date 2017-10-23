@@ -60,7 +60,7 @@ public abstract class UnbufferedDataOutputStreamPlus extends DataOutputStreamPlu
      * @param buffer the buffer to be written.
      * @throws IOException If an error occurs trying to write to this RandomAccessFile.
      */
-    public void write(byte[] buffer) throws IOException
+    public void write(byte... buffer)throws IOException
     {
         write(buffer, 0, buffer.length);
     }

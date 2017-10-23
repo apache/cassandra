@@ -407,7 +407,7 @@ public class LongBufferPoolTest
         }
     }
 
-    public static void main(String[] args) throws InterruptedException, ExecutionException
+    public static void main(String... args)throws InterruptedException, ExecutionException
     {
         new LongBufferPoolTest().testAllocate(Runtime.getRuntime().availableProcessors(), TimeUnit.HOURS.toNanos(2L), 16 << 20);
     }

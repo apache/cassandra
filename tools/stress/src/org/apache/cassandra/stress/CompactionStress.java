@@ -339,8 +339,7 @@ public abstract class CompactionStress implements Runnable
         }
     }
 
-    public static void main(String[] args)
-    {
+    public static void main(String... args){
         Cli.CliBuilder<Runnable> builder = Cli.<Runnable>builder("compaction-stress")
                                            .withDescription("benchmark for compaction")
                                            .withDefaultCommand(Help.class)

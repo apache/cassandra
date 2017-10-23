@@ -134,7 +134,7 @@ public class HintsDescriptorTest
         return dob.toByteArray();
     }
 
-    private static HintsDescriptor deserializeDescriptor(byte[] bytes) throws IOException
+    private static HintsDescriptor deserializeDescriptor(byte... bytes)throws IOException
     {
         DataInput in = ByteStreams.newDataInput(bytes);
         return HintsDescriptor.deserialize(in);

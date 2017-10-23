@@ -100,7 +100,7 @@ public class OutputStreamBench
             }
 
             @Override
-            public void write(byte b[]) throws IOException {
+            public void write(byte... b)throws IOException {
                 bh.consume(b);
             }
 

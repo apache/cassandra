@@ -190,8 +190,7 @@ final class ScriptBasedUDFunction extends UDFunction
         return executeScriptInternal(params);
     }
 
-    private Object executeScriptInternal(Object[] params)
-    {
+    private Object executeScriptInternal(Object... params){
         ScriptContext scriptContext = new SimpleScriptContext();
         scriptContext.setAttribute("javax.script.filename", this.name.toString(), ScriptContext.ENGINE_SCOPE);
         Bindings bindings = scriptContext.getBindings(ScriptContext.ENGINE_SCOPE);

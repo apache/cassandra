@@ -90,8 +90,7 @@ public class CommitLogReader
         }
     }
 
-    static List<File> filterCommitLogFiles(File[] toFilter)
-    {
+    static List<File> filterCommitLogFiles(File... toFilter){
         List<File> filtered = new ArrayList<>(toFilter.length);
         for (File file: toFilter)
         {

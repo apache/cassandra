@@ -34,8 +34,7 @@ public class PreHashedDecoratedKey extends BufferDecoratedKey
     }
 
     @Override
-    public void filterHash(long[] dest)
-    {
+    public void filterHash(long... dest){
         dest[0] = hash0;
         dest[1] = hash1;
     }

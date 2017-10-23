@@ -104,7 +104,7 @@ public interface IAuthenticator
          * @throws AuthenticationException
          * see {@link javax.security.sasl.SaslServer#evaluateResponse(byte[])}
          */
-        public byte[] evaluateResponse(byte[] clientResponse) throws AuthenticationException;
+        public byte[] evaluateResponse(byte... clientResponse)throws AuthenticationException;
 
         /**
          * Called after each invocation of {@link evaluateResponse(byte[])} to determine whether the  authentication has

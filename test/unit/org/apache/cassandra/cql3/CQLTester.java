@@ -1366,8 +1366,7 @@ public abstract class CQLTester
     }
 
     // We're rellly only returning ByteBuffers but this make the type system happy
-    private static Object[] transformValues(Object[] values)
-    {
+    private static Object[] transformValues(Object... values){
         // We could partly rely on QueryProcessor.executeOnceInternal doing type conversion for us, but
         // it would complain with ClassCastException if we pass say a string where an int is excepted (since
         // it bases conversion on what the value should be, not what it is). For testing, we sometimes
@@ -1443,8 +1442,7 @@ public abstract class CQLTester
         return value;
     }
 
-    private static String formatAllValues(Object[] values)
-    {
+    private static String formatAllValues(Object... values){
         StringBuilder sb = new StringBuilder();
         sb.append("[");
         for (int i = 0; i < values.length; i++)

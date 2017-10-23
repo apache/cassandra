@@ -367,8 +367,7 @@ final class HintsDescriptor
     }
 
     @SuppressWarnings("unchecked")
-    private static ImmutableMap<String, Object> decodeJSONBytes(byte[] bytes)
-    {
+    private static ImmutableMap<String, Object> decodeJSONBytes(byte... bytes){
         return ImmutableMap.copyOf((Map<String, Object>) JSONValue.parse(new String(bytes, StandardCharsets.UTF_8)));
     }
 

@@ -104,7 +104,7 @@ public class CompressorPerformance
                           checksum == 0 ? " " : "");
     }
 
-    public static void main(String[] args) throws IOException
+    public static void main(String... args)throws IOException
     {
         try (FileInputStream fis = new FileInputStream("CHANGES.txt"))
         {

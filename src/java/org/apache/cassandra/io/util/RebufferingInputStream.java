@@ -55,7 +55,7 @@ public abstract class RebufferingInputStream extends InputStream implements Data
     protected abstract void reBuffer() throws IOException;
 
     @Override
-    public void readFully(byte[] b) throws IOException
+    public void readFully(byte... b)throws IOException
     {
         readFully(b, 0, b.length);
     }

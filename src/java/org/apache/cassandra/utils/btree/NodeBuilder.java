@@ -347,8 +347,7 @@ final class NodeBuilder
     }
 
     // adds a replacement expected child to the builder - called by children prior to ascending
-    private void finishChild(Object[] child)
-    {
+    private void finishChild(Object... child){
         buildChildren[buildChildPosition++] = child;
         copyFromChildPosition++;
     }

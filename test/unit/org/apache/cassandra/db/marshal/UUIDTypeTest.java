@@ -210,8 +210,7 @@ public class UUIDTypeTest
             compareAll(permutations);
     }
 
-    private void compareAll(ByteBuffer[] uuids)
-    {
+    private void compareAll(ByteBuffer... uuids){
         for (int i = 0 ; i < uuids.length ; i++)
         {
             for (int j = i + 1 ; j < uuids.length ; j++)

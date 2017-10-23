@@ -158,8 +158,7 @@ public class StressSettings implements Serializable
             ((SettingsCommandUser) command).profiles.forEach((k,v) -> v.maybeCreateSchema(this));
     }
 
-    public static StressSettings parse(String[] args)
-    {
+    public static StressSettings parse(String... args){
         args = repairParams(args);
         final Map<String, String[]> clArgs = parseMap(args);
         if (clArgs.containsKey("legacy"))
@@ -170,8 +169,7 @@ public class StressSettings implements Serializable
 
     }
 
-    private static String[] repairParams(String[] args)
-    {
+    private static String[] repairParams(String... args){
         StringBuilder sb = new StringBuilder();
         boolean first = true;
         for (String arg : args)
@@ -226,8 +224,7 @@ public class StressSettings implements Serializable
         return new StressSettings(command, rate, generate, insert, columns, errors, log, mode, node, schema, transport, port, sendToDaemon, graph, tokenRange);
     }
 
-    private static Map<String, String[]> parseMap(String[] args)
-    {
+    private static Map<String, String[]> parseMap(String... args){
         // first is the main command/operation, so specified without a -
         if (args.length == 0)
         {

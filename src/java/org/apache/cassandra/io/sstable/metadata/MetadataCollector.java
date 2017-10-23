@@ -300,8 +300,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return components;
     }
 
-    private static List<ByteBuffer> makeList(ByteBuffer[] values)
-    {
+    private static List<ByteBuffer> makeList(ByteBuffer... values){
         // In most case, l will be the same size than values, but it's possible for it to be smaller
         List<ByteBuffer> l = new ArrayList<ByteBuffer>(values.length);
         for (int i = 0; i < values.length; i++)

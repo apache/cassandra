@@ -169,7 +169,7 @@ public class PasswordAuthenticator implements IAuthenticator
         private String username;
         private String password;
 
-        public byte[] evaluateResponse(byte[] clientResponse) throws AuthenticationException
+        public byte[] evaluateResponse(byte... clientResponse)throws AuthenticationException
         {
             decodeCredentials(clientResponse);
             complete = true;
@@ -200,7 +200,7 @@ public class PasswordAuthenticator implements IAuthenticator
          * @throws org.apache.cassandra.exceptions.AuthenticationException if either the
          *         authnId or password is null
          */
-        private void decodeCredentials(byte[] bytes) throws AuthenticationException
+        private void decodeCredentials(byte... bytes)throws AuthenticationException
         {
             logger.trace("Decoding credentials from client token");
             byte[] user = null;
