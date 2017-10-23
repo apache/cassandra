@@ -1,5 +1,5 @@
 2.2.12
- * 
+ * Grab refs during scrub/index redistribution/cleanup (CASSANDRA-13873)
 
 2.2.11
  * Safely handle empty buffers when outputting to JSON (CASSANDRA-13868)

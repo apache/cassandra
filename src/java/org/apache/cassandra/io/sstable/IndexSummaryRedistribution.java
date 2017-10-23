@@ -41,6 +41,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 
@@ -123,11 +124,14 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
 
         logger.trace("Index summaries for compacting SSTables are using {} MB of space",
                      (memoryPoolBytes - remainingBytes) / 1024.0 / 1024.0);
-        List<SSTableReader> newSSTables = adjustSamplingLevels(sstablesByHotness, transactions, totalReadsPerSec, remainingBytes);
+        List<SSTableReader> newSSTables;
+        try (Refs<SSTableReader> refs = Refs.ref(sstablesByHotness))
+        {
+            newSSTables = adjustSamplingLevels(sstablesByHotness, transactions, totalReadsPerSec, remainingBytes);
 
-        for (LifecycleTransaction txn : transactions.values())
-            txn.finish();
-
+            for (LifecycleTransaction txn : transactions.values())
+                txn.finish();
+        }
         total = 0;
         for (SSTableReader sstable : Iterables.concat(compacting, oldFormatSSTables, newSSTables))
             total += sstable.getIndexSummaryOffHeapSize();
