@@ -17,18 +17,14 @@
  */
 package org.apache.cassandra.repair;
 
+import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.*;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
@@ -40,6 +36,8 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Coordinates the (active) repair of a list of non overlapping token ranges.
@@ -242,8 +240,10 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     {
         StringBuilder sb = new StringBuilder();
         sb.append(FBUtilities.getBroadcastAddress());
-        for (InetAddress ep : endpoints)
-            sb.append(", ").append(ep);
+        endpoints.forEach(
+                ep -> {
+                    sb.append(", ").append(ep);
+                });
         return sb.toString();
     }
 

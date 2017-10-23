@@ -17,16 +17,17 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
+import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.filterOldSSTables;
+import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.getBuckets;
+import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.newestBucket;
+import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.validateOptions;
+import static org.junit.Assert.*;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -38,13 +39,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.Pair;
-
-import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.getBuckets;
-import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.newestBucket;
-import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.filterOldSSTables;
-import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.validateOptions;
-
-import static org.junit.Assert.*;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class DateTieredCompactionStrategyTest extends SchemaLoader
 {
@@ -160,12 +156,16 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         List<List<String>> buckets = getBuckets(pairs, 100L, 2, 200L, Long.MAX_VALUE);
         assertEquals(2, buckets.size());
 
-        for (List<String> bucket : buckets)
-        {
-            assertEquals(2, bucket.size());
-            assertEquals(bucket.get(0), bucket.get(1));
-        }
-
+        buckets.stream()
+                .map(
+                        bucket -> {
+                            assertEquals(2, bucket.size());
+                            return bucket;
+                        })
+                .forEach(
+                        bucket -> {
+                            assertEquals(bucket.get(0), bucket.get(1));
+                        });
 
         pairs = Lists.newArrayList(
                 Pair.create("a", 2000L),
@@ -181,12 +181,16 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         // in other words: 0 - 2699, 2700 - 3599, 3600 - 3899, 3900 - 3999, 4000 - 4099
         assertEquals(3, buckets.size());
 
-        for (List<String> bucket : buckets)
-        {
-            assertEquals(2, bucket.size());
-            assertEquals(bucket.get(0), bucket.get(1));
-        }
-
+        buckets.stream()
+                .map(
+                        bucket -> {
+                            assertEquals(2, bucket.size());
+                            return bucket;
+                        })
+                .forEach(
+                        bucket -> {
+                            assertEquals(bucket.get(0), bucket.get(1));
+                        });
 
         // Test base 1.
         pairs = Lists.newArrayList(
@@ -206,11 +210,16 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
 
         assertEquals(5, buckets.size());
 
-        for (List<String> bucket : buckets)
-        {
-            assertEquals(2, bucket.size());
-            assertEquals(bucket.get(0), bucket.get(1));
-        }
+        buckets.stream()
+                .map(
+                        bucket -> {
+                            assertEquals(2, bucket.size());
+                            return bucket;
+                        })
+                .forEach(
+                        bucket -> {
+                            assertEquals(bucket.get(0), bucket.get(1));
+                        });
     }
 
     @Test

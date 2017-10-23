@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3.selection;
 
 import java.util.List;
-
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
@@ -88,11 +87,14 @@ abstract class CollectionFactory extends Factory
         factories.addFetchedColumns(builder);
     }
 
-    protected final void addColumnMapping(SelectionColumnMapping mapping, ColumnSpecification resultsColumn)
+    protected final void addColumnMapping(
+            SelectionColumnMapping mapping, ColumnSpecification resultsColumn)
     {
         SelectionColumnMapping tmpMapping = SelectionColumnMapping.newMapping();
-        for (Factory factory : factories)
-           factory.addColumnMapping(tmpMapping, resultsColumn);
+        factories.forEach(
+                factory -> {
+                    factory.addColumnMapping(tmpMapping, resultsColumn);
+                });
 
         if (tmpMapping.getMappings().get(resultsColumn).isEmpty())
             // add a null mapping for cases where the collection is empty

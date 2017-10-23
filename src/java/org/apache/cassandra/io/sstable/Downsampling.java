@@ -38,11 +38,10 @@ public class Downsampling
     private static final Map<Integer, List<Integer>> originalIndexCache = new HashMap<>();
 
     /**
-     * Gets a list L of starting indices for downsampling rounds: the first round should start with the offset
-     * given by L[0], the second by the offset in L[1], etc.
+     * Gets a list L of starting indices for downsampling rounds: the first round should start with
+     * the offset given by L[0], the second by the offset in L[1], etc.
      *
      * @param samplingLevel the base sampling level
-     *
      * @return A list of `samplingLevel` unique indices between 0 and `samplingLevel`
      */
     public static List<Integer> getSamplingPattern(int samplingLevel)
@@ -68,8 +67,10 @@ public class Downsampling
 
         for (Integer index : ordering)
             startIndices.add(odds[index]);
-        for (Integer index : ordering)
-            startIndices.add(evens[index]);
+        ordering.forEach(
+                index -> {
+                    startIndices.add(evens[index]);
+                });
 
         samplePatternCache.put(samplingLevel, startIndices);
         return startIndices;

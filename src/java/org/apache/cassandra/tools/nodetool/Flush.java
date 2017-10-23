@@ -19,10 +19,8 @@ package org.apache.cassandra.tools.nodetool;
 
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -38,15 +36,13 @@ public class Flush extends NodeToolCmd
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
 
-        for (String keyspace : keyspaces)
-        {
-            try
-            {
-                probe.forceKeyspaceFlush(keyspace, tableNames);
-            } catch (Exception e)
-            {
-                throw new RuntimeException("Error occurred during flushing", e);
-            }
-        }
+        keyspaces.forEach(
+                keyspace -> {
+                    try {
+                        probe.forceKeyspaceFlush(keyspace, tableNames);
+                    } catch (Exception e) {
+                        throw new RuntimeException("Error occurred during flushing", e);
+                    }
+                });
     }
 }

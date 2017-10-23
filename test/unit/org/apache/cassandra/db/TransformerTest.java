@@ -20,12 +20,8 @@ package org.apache.cassandra.db;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import org.junit.Test;
-
 import junit.framework.Assert;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -34,8 +30,10 @@ import org.apache.cassandra.db.transform.FilteredRows;
 import org.apache.cassandra.db.transform.MoreRows;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.junit.Test;
 
 public class TransformerTest
 {
@@ -323,8 +321,10 @@ public class TransformerTest
             }
             iter.close();
 
-            for (Check check : checks)
-                check.check();
+            checks.forEach(
+                    check -> {
+                        check.check();
+                    });
         }
     }
 }

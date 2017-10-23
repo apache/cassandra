@@ -17,19 +17,17 @@
  */
 package org.apache.cassandra.streaming;
 
+import com.google.common.util.concurrent.AbstractFuture;
+import com.google.common.util.concurrent.Futures;
+import io.netty.channel.Channel;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
-
-import com.google.common.util.concurrent.AbstractFuture;
-import com.google.common.util.concurrent.Futures;
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.netty.channel.Channel;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A future on the result ({@link StreamState}) of a streaming plan.
@@ -77,14 +75,19 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         this(planId, streamOperation, new StreamCoordinator(0, keepSSTableLevels, new DefaultConnectionFactory(), false, pendingRepair, previewKind));
     }
 
-    static StreamResultFuture init(UUID planId, StreamOperation streamOperation, Collection<StreamEventHandler> listeners,
-                                   StreamCoordinator coordinator)
+    static StreamResultFuture init(
+            UUID planId,
+            StreamOperation streamOperation,
+            Collection<StreamEventHandler> listeners,
+            StreamCoordinator coordinator)
     {
         StreamResultFuture future = createAndRegister(planId, streamOperation, coordinator);
         if (listeners != null)
         {
-            for (StreamEventHandler listener : listeners)
-                future.addEventListener(listener);
+            listeners.forEach(
+                    listener -> {
+                        future.addEventListener(listener);
+                    });
         }
 
         logger.info("[Stream #{}] Executing streaming plan for {}", planId,  streamOperation.getDescription());
@@ -100,14 +103,15 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         return future;
     }
 
-    public static synchronized StreamResultFuture initReceivingSide(int sessionIndex,
-                                                                    UUID planId,
-                                                                    StreamOperation streamOperation,
-                                                                    InetAddress from,
-                                                                    Channel channel,
-                                                                    boolean keepSSTableLevel,
-                                                                    UUID pendingRepair,
-                                                                    PreviewKind previewKind)
+    public static synchronized StreamResultFuture initReceivingSide(
+            int sessionIndex,
+            UUID planId,
+            StreamOperation streamOperation,
+            InetAddress from,
+            Channel channel,
+            boolean keepSSTableLevel,
+            UUID pendingRepair,
+            PreviewKind previewKind)
     {
         StreamResultFuture future = StreamManager.instance.getReceivingStream(planId);
         if (future == null)
@@ -206,8 +210,10 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
     synchronized void fireStreamEvent(StreamEvent event)
     {
         // delegate to listener
-        for (StreamEventHandler listener : eventListeners)
-            listener.handleStreamEvent(event);
+        eventListeners.forEach(
+                listener -> {
+                    listener.handleStreamEvent(event);
+                });
     }
 
     private synchronized void maybeComplete()

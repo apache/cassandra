@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -50,8 +49,10 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     public List<ByteBuffer> serializeValues(List<T> values)
     {
         List<ByteBuffer> buffers = new ArrayList<>(values.size());
-        for (T value : values)
-            buffers.add(elements.serialize(value));
+        values.forEach(
+                value -> {
+                    buffers.add(elements.serialize(value));
+                });
         return buffers;
     }
 

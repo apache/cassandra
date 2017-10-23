@@ -20,18 +20,17 @@ package org.apache.cassandra.cql3.statements;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.Functions;
-import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 
@@ -82,8 +81,10 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
                                                             functionName, argNames));
 
         argTypes = new ArrayList<>(argRawTypes.size());
-        for (CQL3Type.Raw rawType : argRawTypes)
-            argTypes.add(prepareType("arguments", rawType));
+        argRawTypes.forEach(
+                rawType -> {
+                    argTypes.add(prepareType("arguments", rawType));
+                });
 
         returnType = prepareType("return type", rawReturnType);
         return super.prepare();

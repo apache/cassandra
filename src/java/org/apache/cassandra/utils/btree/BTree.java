@@ -18,22 +18,20 @@
  */
 package org.apache.cassandra.utils.btree;
 
-import java.util.*;
-import java.util.function.Consumer;
-
-import com.google.common.base.Function;
-import com.google.common.base.Predicate;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Ordering;
-
-import io.netty.util.Recycler;
-import org.apache.cassandra.utils.ObjectSizes;
-
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+
+import com.google.common.base.Function;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Ordering;
+import io.netty.util.Recycler;
+import java.util.*;
+import java.util.function.Consumer;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public class BTree
 {
@@ -922,8 +920,10 @@ public class BTree
             detected = false;
             if (values.length < count + add.size())
                 values = Arrays.copyOf(values, max(count + add.size(), count * 2));
-            for (V v : add)
-                values[count++] = v;
+            add.forEach(
+                    v -> {
+                        values[count++] = v;
+                    });
             return this;
         }
 

@@ -22,12 +22,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import sun.nio.ch.DirectBuffer;
 
 /**
@@ -115,8 +113,10 @@ public class SlabAllocator extends MemtableBufferAllocator
 
     public void setDiscarded()
     {
-        for (Region region : offHeapRegions)
-            ((DirectBuffer) region.data).cleaner().clean();
+        offHeapRegions.forEach(
+                region -> {
+                    ((DirectBuffer) region.data).cleaner().clean();
+                });
         super.setDiscarded();
     }
 

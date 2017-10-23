@@ -18,6 +18,10 @@
 */
 package org.apache.cassandra.io.util;
 
+import static org.apache.commons.io.FileUtils.*;
+import static org.junit.Assert.assertEquals;
+
+import com.google.common.io.Files;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -25,20 +29,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-
-import com.google.common.io.Files;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import junit.framework.Assert;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
-
-import static org.apache.commons.io.FileUtils.*;
-import static org.junit.Assert.assertEquals;
+import org.junit.After;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class SequentialWriterTest extends AbstractTransactionalTest
 {
@@ -54,8 +51,10 @@ public class SequentialWriterTest extends AbstractTransactionalTest
     @After
     public void cleanup()
     {
-        for (TestableSW sw : writers)
-            sw.file.delete();
+        writers.forEach(
+                sw -> {
+                    sw.file.delete();
+                });
         writers.clear();
     }
 

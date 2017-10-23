@@ -18,11 +18,10 @@
 
 package org.apache.cassandra.stress.generate;
 
+import com.datastax.driver.core.TokenRange;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
-
-import com.datastax.driver.core.TokenRange;
 import org.apache.cassandra.stress.settings.StressSettings;
 
 public class TokenRangeIterator
@@ -44,8 +43,10 @@ public class TokenRangeIterator
             return tokenRanges;
 
         Set<TokenRange> ret = new TreeSet<>();
-        for (TokenRange range : tokenRanges)
-            ret.addAll(range.splitEvenly(splitFactor));
+        tokenRanges.forEach(
+                range -> {
+                    ret.addAll(range.splitEvenly(splitFactor));
+                });
 
         return ret;
     }

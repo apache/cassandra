@@ -19,11 +19,9 @@ package org.apache.cassandra.dht;
 
 import java.io.Serializable;
 import java.util.*;
-
-import org.apache.commons.lang3.ObjectUtils;
-
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang3.ObjectUtils;
 
 /**
  * A representation of the range that a node is responsible for on the DHT ring.
@@ -305,16 +303,18 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         return result;
     }
 
-    private static <T extends RingPosition<T>> Set<Range<T>> substractAllFromToken(Set<Range<T>> ranges, Range<T> subtract)
+    private static <T extends RingPosition<T>> Set<Range<T>> substractAllFromToken(
+            Set<Range<T>> ranges, Range<T> subtract)
     {
         Set<Range<T>> result = new HashSet<>();
-        for(Range<T> range : ranges)
-        {
-            result.addAll(range.subtract(subtract));
-        }
+        ranges.forEach(
+                range -> {
+                    result.addAll(range.subtract(subtract));
+                });
 
         return result;
     }
+
     /**
      * Calculate set of the difference ranges of given two ranges
      * (as current (A, B] and rhs is (C, D])
@@ -420,14 +420,18 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
     }
 
     /**
-     * @return A copy of the given list of with all ranges unwrapped, sorted by left bound and with overlapping bounds merged.
+     * @return A copy of the given list of with all ranges unwrapped, sorted by left bound and with
+     *     overlapping bounds merged.
      */
-    public static <T extends RingPosition<T>> List<Range<T>> normalize(Collection<Range<T>> ranges)
+    public static <T extends RingPosition<T>> List<Range<T>> normalize(
+            Collection<Range<T>> ranges)
     {
         // unwrap all
         List<Range<T>> output = new ArrayList<Range<T>>(ranges.size());
-        for (Range<T> range : ranges)
-            output.addAll(range.unwrap());
+        ranges.forEach(
+                range -> {
+                    output.addAll(range.unwrap());
+                });
 
         // sort by left
         Collections.sort(output, new Comparator<Range<T>>()
@@ -499,8 +503,10 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
     public static <T extends RingPosition<T>> List<Range<T>> sort(Collection<Range<T>> ranges)
     {
         List<Range<T>> output = new ArrayList<>(ranges.size());
-        for (Range<T> r : ranges)
-            output.addAll(r.unwrap());
+        ranges.forEach(
+                r -> {
+                    output.addAll(r.unwrap());
+                });
         // sort by left
         Collections.sort(output, new Comparator<Range<T>>()
         {
@@ -511,7 +517,6 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         });
         return output;
     }
-
 
     /**
      * Compute a range of keys corresponding to a given range of token.

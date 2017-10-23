@@ -17,19 +17,13 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.helpers.MessageFormatter;
-
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.ColumnMetadata;
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
@@ -37,14 +31,18 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.metrics.BatchMetrics;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
-
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.helpers.MessageFormatter;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -125,8 +123,10 @@ public class BatchStatement implements CQLStatement
     public Iterable<org.apache.cassandra.cql3.functions.Function> getFunctions()
     {
         List<org.apache.cassandra.cql3.functions.Function> functions = new ArrayList<>();
-        for (ModificationStatement statement : statements)
-            statement.addFunctionsTo(functions);
+        statements.forEach(
+                statement -> {
+                    statement.addFunctionsTo(functions);
+                });
         return functions;
     }
 
@@ -135,10 +135,13 @@ public class BatchStatement implements CQLStatement
         return boundTerms;
     }
 
-    public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
+    public void checkAccess(ClientState state)
+            throws InvalidRequestException, UnauthorizedException
     {
-        for (ModificationStatement statement : statements)
-            statement.checkAccess(state);
+        statements.forEach(
+                statement -> {
+                    statement.checkAccess(state);
+                });
     }
 
     // Validates a prepared batch statement without validating its nested statements.
@@ -211,8 +214,10 @@ public class BatchStatement implements CQLStatement
     //   or in QueryProcessor.processBatch() - for native protocol batches.
     public void validate(ClientState state) throws InvalidRequestException
     {
-        for (ModificationStatement statement : statements)
-            statement.validate(state);
+        statements.forEach(
+                statement -> {
+                    statement.validate(state);
+                });
     }
 
     public List<ModificationStatement> getStatements()
@@ -529,8 +534,10 @@ public class BatchStatement implements CQLStatement
         @Override
         public void prepareKeyspace(ClientState state) throws InvalidRequestException
         {
-            for (ModificationStatement.Parsed statement : parsedStatements)
-                statement.prepareKeyspace(state);
+            parsedStatements.forEach(
+                    statement -> {
+                        statement.prepareKeyspace(state);
+                    });
         }
 
         public ParsedStatement.Prepared prepare() throws InvalidRequestException

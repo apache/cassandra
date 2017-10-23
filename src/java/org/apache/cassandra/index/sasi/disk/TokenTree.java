@@ -17,24 +17,22 @@
  */
 package org.apache.cassandra.index.sasi.disk;
 
-import java.io.IOException;
-import java.util.*;
-
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.index.sasi.utils.AbstractIterator;
-import org.apache.cassandra.index.sasi.utils.CombinedValue;
-import org.apache.cassandra.index.sasi.utils.MappedBuffer;
-import org.apache.cassandra.index.sasi.utils.RangeIterator;
-import org.apache.cassandra.utils.MergeIterator;
+import static org.apache.cassandra.index.sasi.disk.TokenTreeBuilder.EntryType;
 
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
+import java.io.IOException;
+import java.util.*;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.index.sasi.utils.AbstractIterator;
+import org.apache.cassandra.index.sasi.utils.CombinedValue;
+import org.apache.cassandra.index.sasi.utils.MappedBuffer;
+import org.apache.cassandra.index.sasi.utils.RangeIterator;
+import org.apache.cassandra.utils.MergeIterator;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
-
-import static org.apache.cassandra.index.sasi.disk.TokenTreeBuilder.EntryType;
 
 // Note: all of the seek-able offsets contained in TokenTree should be sizeof(long)
 // even if currently only lower int portion of them if used, because that makes
@@ -381,8 +379,10 @@ public class TokenTree
         {
             List<Iterator<DecoratedKey>> keys = new ArrayList<>(info.size());
 
-            for (TokenInfo i : info)
-                keys.add(i.iterator());
+            info.forEach(
+                    i -> {
+                        keys.add(i.iterator());
+                    });
 
             if (!loadedKeys.isEmpty())
                 keys.add(loadedKeys.iterator());

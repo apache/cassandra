@@ -17,12 +17,9 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import com.google.common.collect.Ordering;
 import java.util.*;
 import java.util.function.Predicate;
-
-import com.google.common.collect.Ordering;
-
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PurgeFunction;
@@ -34,6 +31,7 @@ import org.apache.cassandra.index.transactions.CompactionTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -217,8 +215,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private void updateBytesRead()
     {
         long n = 0;
-        for (ISSTableScanner scanner : scanners)
-            n += scanner.getCurrentPosition();
+        scanners.stream()
+                .map(scanner -> scanner.getCurrentPosition())
+                .reduce(n, (accumulator, _item) -> accumulator += _item);
         bytesRead = n;
     }
 

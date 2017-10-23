@@ -17,15 +17,12 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.*;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.PeekingIterator;
-import org.slf4j.Logger;
-
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.*;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -33,7 +30,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-
+import org.slf4j.Logger;
 
 /**
  * Wrapper class for handling of multiple MerkleTrees at once.
@@ -92,10 +89,10 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
      */
     public void addMerkleTrees(int maxsize, Collection<Range<Token>> ranges)
     {
-        for (Range<Token> range : ranges)
-        {
-            addMerkleTree(maxsize, range);
-        }
+        ranges.forEach(
+                range -> {
+                    addMerkleTree(maxsize, range);
+                });
     }
 
     /**
@@ -222,10 +219,10 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
 
     private void addTrees(Collection<MerkleTree> trees)
     {
-        for (MerkleTree tree : trees)
-        {
-            addTree(tree);
-        }
+        trees.forEach(
+                tree -> {
+                    addTree(tree);
+                });
     }
 
     private void addTree(MerkleTree tree)

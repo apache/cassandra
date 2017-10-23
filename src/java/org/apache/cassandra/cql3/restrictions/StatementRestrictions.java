@@ -17,11 +17,13 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
-import java.nio.ByteBuffer;
-import java.util.*;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 import com.google.common.base.Joiner;
-
+import java.nio.ByteBuffer;
+import java.util.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -36,10 +38,6 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.btree.BTreeSet;
-
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
-import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
  * The restrictions corresponding to the relations specified on the where-clause of CQL query.
@@ -281,9 +279,9 @@ public final class StatementRestrictions
     }
 
     /**
-     * Returns the non-PK column that are restricted.  If includeNotNullRestrictions is true, columns that are restricted
-     * by an IS NOT NULL restriction will be included, otherwise they will not be included (unless another restriction
-     * applies to them).
+     * Returns the non-PK column that are restricted. If includeNotNullRestrictions is true, columns
+     * that are restricted by an IS NOT NULL restriction will be included, otherwise they will not
+     * be included (unless another restriction applies to them).
      */
     public Set<ColumnMetadata> nonPKRestrictedColumns(boolean includeNotNullRestrictions)
     {
@@ -297,11 +295,13 @@ public final class StatementRestrictions
 
         if (includeNotNullRestrictions)
         {
-            for (ColumnMetadata def : notNullColumns)
-            {
-                if (!def.isPrimaryKeyColumn())
-                    columns.add(def);
-            }
+            notNullColumns
+                    .stream()
+                    .filter(def -> !def.isPrimaryKeyColumn())
+                    .forEach(
+                            def -> {
+                                columns.add(def);
+                            });
         }
 
         return columns;

@@ -20,22 +20,20 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.CollectionType.Kind;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public interface CQL3Type
 {
@@ -813,9 +811,12 @@ public interface CQL3Type
 
             public void freeze() throws InvalidRequestException
             {
-                for (CQL3Type.Raw t : types)
-                    if (t.supportsFreezing())
-                        t.freeze();
+                types.stream()
+                        .filter(t -> t.supportsFreezing())
+                        .forEach(
+                                t -> {
+                                    t.freeze();
+                                });
 
                 frozen = true;
             }
@@ -826,13 +827,18 @@ public interface CQL3Type
                     freeze();
 
                 List<AbstractType<?>> ts = new ArrayList<>(types.size());
-                for (CQL3Type.Raw t : types)
-                {
-                    if (t.isCounter())
-                        throw new InvalidRequestException("Counters are not allowed inside tuples");
-
-                    ts.add(t.prepare(keyspace, udts).getType());
-                }
+                types.stream()
+                        .map(
+                                t -> {
+                                    if (t.isCounter())
+                                        throw new InvalidRequestException(
+                                                "Counters are not allowed inside tuples");
+                                    return t;
+                                })
+                        .forEach(
+                                t -> {
+                                    ts.add(t.prepare(keyspace, udts).getType());
+                                });
                 return new Tuple(new TupleType(ts));
             }
 

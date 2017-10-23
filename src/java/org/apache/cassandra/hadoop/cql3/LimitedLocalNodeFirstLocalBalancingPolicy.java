@@ -25,15 +25,14 @@ import com.datastax.driver.core.policies.LoadBalancingPolicy;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This load balancing policy is intended to be used only for CqlRecordReader when it fetches a particular split.
@@ -78,13 +77,12 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
     public void init(Cluster cluster, Collection<Host> hosts)
     {
         List<Host> replicaHosts = new ArrayList<>();
-        for (Host host : hosts)
-        {
-            if (replicaAddresses.contains(host.getAddress()))
-            {
-                replicaHosts.add(host);
-            }
-        }
+        hosts.stream()
+                .filter(host -> replicaAddresses.contains(host.getAddress()))
+                .forEach(
+                        host -> {
+                            replicaHosts.add(host);
+                        });
         liveReplicaHosts.addAll(replicaHosts);
         logger.trace("Initialized with replica hosts: {}", replicaHosts);
     }

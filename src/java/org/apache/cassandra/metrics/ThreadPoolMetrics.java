@@ -17,24 +17,20 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.io.IOException;
-import java.util.Set;
-import java.util.concurrent.ThreadPoolExecutor;
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.JmxReporter;
-
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import java.io.IOException;
+import java.util.Set;
+import java.util.concurrent.ThreadPoolExecutor;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
-
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
-
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-
 
 /**
  * Metrics for {@link ThreadPoolExecutor}.
@@ -143,17 +139,19 @@ public class ThreadPoolMetrics
         }
     }
 
-    public static Multimap<String, String> getJmxThreadPools(MBeanServerConnection mbeanServerConn)
+    public static Multimap<String, String> getJmxThreadPools(
+            MBeanServerConnection mbeanServerConn)
     {
         try
         {
             Multimap<String, String> threadPools = HashMultimap.create();
             Set<ObjectName> threadPoolObjectNames = mbeanServerConn.queryNames(new ObjectName("org.apache.cassandra.metrics:type=ThreadPools,*"),
                                                                                null);
-            for (ObjectName oName : threadPoolObjectNames)
-            {
-                threadPools.put(oName.getKeyProperty("path"), oName.getKeyProperty("scope"));
-            }
+            threadPoolObjectNames.forEach(
+                    oName -> {
+                        threadPools.put(
+                                oName.getKeyProperty("path"), oName.getKeyProperty("scope"));
+                    });
 
             return threadPools;
         }
@@ -166,5 +164,4 @@ public class ThreadPoolMetrics
             throw new RuntimeException("Error getting threadpool names from JMX", e);
         }
     }
-
 }

@@ -17,12 +17,8 @@
  */
 package org.apache.cassandra.cql3.selection;
 
-import java.util.*;
-
 import com.google.common.collect.Lists;
-
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
+import java.util.*;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
@@ -30,6 +26,8 @@ import org.apache.cassandra.cql3.selection.Selector.Factory;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * A set of <code>Selector</code> factories.
@@ -185,8 +183,10 @@ final class SelectorFactories implements Iterable<Selector.Factory>
     public List<Selector> newInstances(QueryOptions options) throws InvalidRequestException
     {
         List<Selector> selectors = new ArrayList<>(factories.size());
-        for (Selector.Factory factory : factories)
-            selectors.add(factory.newInstance(options));
+        factories.forEach(
+                factory -> {
+                    selectors.add(factory.newInstance(options));
+                });
         return selectors;
     }
 
@@ -240,8 +240,10 @@ final class SelectorFactories implements Iterable<Selector.Factory>
 
     void addFetchedColumns(Builder builder)
     {
-        for (Factory factory : factories)
-            factory.addFetchedColumns(builder);
+        factories.forEach(
+                factory -> {
+                    factory.addFetchedColumns(builder);
+                });
     }
 
     /**

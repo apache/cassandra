@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.gms;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -25,15 +28,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class EndpointStateTest
 {
@@ -111,9 +109,7 @@ public class EndpointStateTest
             innerTestMultiThreadWriteConsistency();
     }
 
-    /**
-     * Test that two threads can update the state map concurrently.
-     */
+    /** Test that two threads can update the state map concurrently. */
     private void innerTestMultiThreadWriteConsistency() throws InterruptedException
     {
         final Token token = DatabaseDescriptor.getPartitioner().getRandomToken();
@@ -155,8 +151,10 @@ public class EndpointStateTest
         assertEquals(4, states.size());
 
         Map<ApplicationState, VersionedValue> values = new EnumMap<>(ApplicationState.class);
-        for (Map.Entry<ApplicationState, VersionedValue> entry : states)
-            values.put(entry.getKey(), entry.getValue());
+        states.forEach(
+                entry -> {
+                    values.put(entry.getKey(), entry.getValue());
+                });
 
         assertTrue(values.containsKey(ApplicationState.STATUS));
         assertTrue(values.containsKey(ApplicationState.TOKENS));

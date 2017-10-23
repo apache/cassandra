@@ -18,14 +18,13 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.Set;
-
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 
 public abstract class PermissionsManagementStatement extends AuthorizationStatement
@@ -72,8 +71,11 @@ public abstract class PermissionsManagementStatement extends AuthorizationStatem
         // check that the user has AUTHORIZE permission on the resource or its parents, otherwise reject GRANT/REVOKE.
         state.ensureHasPermission(Permission.AUTHORIZE, resource);
 
-        // check that the user has [a single permission or all in case of ALL] on the resource or its parents.
-        for (Permission p : permissions)
-            state.ensureHasPermission(p, resource);
+        // check that the user has [a single permission or all in case of ALL] on the resource or
+        // its parents.
+        permissions.forEach(
+                p -> {
+                    state.ensureHasPermission(p, resource);
+                });
     }
 }

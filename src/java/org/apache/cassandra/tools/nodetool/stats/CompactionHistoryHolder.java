@@ -22,13 +22,12 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.management.openmbean.TabularData;
-
 import org.apache.cassandra.tools.NodeProbe;
 
 public class CompactionHistoryHolder implements StatsHolder
@@ -116,10 +115,10 @@ public class CompactionHistoryHolder implements StatsHolder
         }
 
         Collections.sort(chrList);
-        for (CompactionHistoryHolder.CompactionHistoryRow chr : chrList)
-        {
-            compactions.add(chr.getAllAsMap());
-        }
+        chrList.forEach(
+                chr -> {
+                    compactions.add(chr.getAllAsMap());
+                });
         result.put("CompactionHistory", compactions);
         return result;
     }

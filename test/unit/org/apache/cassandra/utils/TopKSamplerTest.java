@@ -20,22 +20,20 @@
  */
 package org.apache.cassandra.utils;
 
+import com.clearspring.analytics.hash.MurmurHash;
+import com.clearspring.analytics.stream.Counter;
+import com.google.common.collect.Maps;
+import com.google.common.util.concurrent.Uninterruptibles;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import com.google.common.collect.Maps;
-import com.google.common.util.concurrent.Uninterruptibles;
-import org.junit.Test;
-
-import com.clearspring.analytics.hash.MurmurHash;
-import com.clearspring.analytics.stream.Counter;
 import junit.framework.Assert;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.TopKSampler.SamplerResult;
+import org.junit.Test;
 
 public class TopKSamplerTest
 {
@@ -162,10 +160,10 @@ public class TopKSamplerTest
     private <T> Map<T, Long> countMap(List<Counter<T>> target)
     {
         Map<T, Long> counts = Maps.newHashMap();
-        for(Counter<T> counter : target)
-        {
-            counts.put(counter.getItem(), counter.getCount());
-        }
+        target.forEach(
+                counter -> {
+                    counts.put(counter.getItem(), counter.getCount());
+                });
         return counts;
     }
 }

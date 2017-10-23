@@ -22,11 +22,6 @@ package org.apache.cassandra.index.internal;
 
 import java.nio.ByteBuffer;
 import java.util.NavigableSet;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -35,7 +30,10 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.btree.BTreeSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class CassandraIndexSearcher implements Index.Searcher
 {
@@ -96,8 +94,10 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
             {
                 NavigableSet<Clustering> requested = ((ClusteringIndexNamesFilter)filter).requestedRows();
                 BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(index.getIndexComparator());
-                for (Clustering c : requested)
-                    clusterings.add(makeIndexClustering(pk, c));
+                requested.forEach(
+                        c -> {
+                            clusterings.add(makeIndexClustering(pk, c));
+                        });
                 return new ClusteringIndexNamesFilter(clusterings.build(), filter.isReversed());
             }
             else

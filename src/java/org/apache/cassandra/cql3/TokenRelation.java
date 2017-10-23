@@ -17,25 +17,23 @@
  */
 package org.apache.cassandra.cql3;
 
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsNoDuplicates;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsOnly;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+
+import com.google.common.base.Joiner;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import com.google.common.base.Joiner;
-
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.Term.Raw;
 import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.TokenRestriction;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsNoDuplicates;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsOnly;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
-import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * A relation using the token function.
@@ -153,8 +151,10 @@ public final class TokenRelation extends Relation
     private List<ColumnMetadata> getColumnDefinitions(TableMetadata table)
     {
         List<ColumnMetadata> columnDefs = new ArrayList<>(entities.size());
-        for ( ColumnMetadata.Raw raw : entities)
-            columnDefs.add(raw.prepare(table));
+        entities.forEach(
+                raw -> {
+                    columnDefs.add(raw.prepare(table));
+                });
         return columnDefs;
     }
 
@@ -166,9 +166,8 @@ public final class TokenRelation extends Relation
      * @return the receivers for the specified relation.
      * @throws InvalidRequestException if the relation is invalid
      */
-    private static List<? extends ColumnSpecification> toReceivers(TableMetadata table,
-                                                                   List<ColumnMetadata> columnDefs)
-                                                                   throws InvalidRequestException
+    private static List<? extends ColumnSpecification> toReceivers(
+            TableMetadata table, List<ColumnMetadata> columnDefs) throws InvalidRequestException
     {
 
         if (!columnDefs.equals(table.partitionKeyColumns()))

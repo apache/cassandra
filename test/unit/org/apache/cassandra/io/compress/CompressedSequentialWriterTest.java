@@ -17,23 +17,17 @@
  */
 package org.apache.cassandra.io.compress;
 
+import static org.apache.commons.io.FileUtils.readFileToByteArray;
+import static org.junit.Assert.assertEquals;
+
+import com.google.common.io.Files;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
-
-import static org.apache.commons.io.FileUtils.readFileToByteArray;
-import static org.junit.Assert.assertEquals;
-
-import com.google.common.io.Files;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import junit.framework.Assert;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -41,6 +35,9 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.CompressionParams;
+import org.junit.After;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class CompressedSequentialWriterTest extends SequentialWriterTest
 {
@@ -167,8 +164,10 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     @After
     public void cleanup()
     {
-        for (TestableCSW sw : writers)
-            sw.cleanup();
+        writers.forEach(
+                sw -> {
+                    sw.cleanup();
+                });
         writers.clear();
     }
 

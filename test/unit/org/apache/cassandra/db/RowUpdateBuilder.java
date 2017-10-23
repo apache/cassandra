@@ -19,11 +19,10 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -110,12 +109,18 @@ public class RowUpdateBuilder
     public PartitionUpdate buildUpdate()
     {
         PartitionUpdate update = updateBuilder.build();
-        for (RangeTombstone rt : rts)
-            update.add(rt);
+        rts.forEach(
+                rt -> {
+                    update.add(rt);
+                });
         return update;
     }
 
-    private static void deleteRow(PartitionUpdate update, long timestamp, int localDeletionTime, Object... clusteringValues)
+    private static void deleteRow(
+            PartitionUpdate update,
+            long timestamp,
+            int localDeletionTime,
+            Object... clusteringValues)
     {
         assert clusteringValues.length == update.metadata().comparator.size() || (clusteringValues.length == 0 && !update.columns().statics.isEmpty());
 
