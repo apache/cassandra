@@ -89,7 +89,8 @@ public final class SpeculativeRetryParam
 
     public static SpeculativeRetryParam fromString(String value)
     {
-        if (value.toLowerCase(Locale.ENGLISH).endsWith("ms"))
+        String upperCaseValue = value.toUpperCase(Locale.ENGLISH);
+        if (upperCaseValue.endsWith("MS"))
         {
             try
             {
@@ -101,12 +102,14 @@ public final class SpeculativeRetryParam
             }
         }
 
-        if (value.toUpperCase(Locale.ENGLISH).endsWith(Kind.PERCENTILE.toString()))
+        if (upperCaseValue.endsWith(Kind.PERCENTILE.toString()) ||
+            upperCaseValue.endsWith("P"))
         {
+            int suffixLength = upperCaseValue.endsWith("P") ? 1 : Kind.PERCENTILE.toString().length();
             double threshold;
             try
             {
-                threshold = Double.parseDouble(value.substring(0, value.length() - Kind.PERCENTILE.toString().length()));
+                threshold = Double.parseDouble(value.substring(0, value.length() - suffixLength));
             }
             catch (IllegalArgumentException e)
             {
@@ -121,10 +124,10 @@ public final class SpeculativeRetryParam
                                                     TableParams.Option.SPECULATIVE_RETRY));
         }
 
-        if (value.equals(Kind.NONE.toString()))
+        if (upperCaseValue.equals(Kind.NONE.toString()))
             return NONE;
 
-        if (value.equals(Kind.ALWAYS.toString()))
+        if (upperCaseValue.equals(Kind.ALWAYS.toString()))
             return ALWAYS;
 
         throw new ConfigurationException(format("Invalid value %s for option '%s'", value, TableParams.Option.SPECULATIVE_RETRY));

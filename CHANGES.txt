@@ -1,4 +1,5 @@
 4.0
+ * Speculative retry should allow more friendly params (CASSANDRA-13876)
  * Throw exception if we send/receive repair messages to incompatible nodes (CASSANDRA-13944)
  * Replace usages of MessageDigest with Guava's Hasher (CASSANDRA-13291)
  * Add nodetool cmd to print hinted handoff window (CASSANDRA-13728)
