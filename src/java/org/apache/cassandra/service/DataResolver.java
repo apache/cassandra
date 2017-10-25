@@ -44,6 +44,9 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class DataResolver extends ResponseResolver
 {
+    private static final boolean DROP_OVERSIZED_READ_REPAIR_MUTATIONS =
+        Boolean.getBoolean("cassandra.drop_oversized_readrepair_mutations");
+
     @VisibleForTesting
     final List<AsyncOneResponse> repairResults = Collections.synchronizedList(new ArrayList<>());
 
@@ -452,15 +455,49 @@ public class DataResolver extends ResponseResolver
             public void close()
             {
                 for (int i = 0; i < repairs.length; i++)
-                {
-                    if (repairs[i] == null)
-                        continue;
+                    if (null != repairs[i])
+                        sendRepairMutation(repairs[i], sources[i]);
+            }
 
-                    // use a separate verb here because we don't want these to be get the white glove hint-
-                    // on-timeout behavior that a "real" mutation gets
-                    Tracing.trace("Sending read-repair-mutation to {}", sources[i]);
-                    MessageOut<Mutation> msg = new Mutation(repairs[i]).createMessage(MessagingService.Verb.READ_REPAIR);
-                    repairResults.add(MessagingService.instance().sendRR(msg, sources[i]));
+            private void sendRepairMutation(PartitionUpdate partition, InetAddress destination)
+            {
+                Mutation mutation = new Mutation(partition);
+                int messagingVersion = MessagingService.instance().getVersion(destination);
+
+                int    mutationSize = (int) Mutation.serializer.serializedSize(mutation, messagingVersion);
+                int maxMutationSize = DatabaseDescriptor.getMaxMutationSize();
+
+                if (mutationSize <= maxMutationSize)
+                {
+                    Tracing.trace("Sending read-repair-mutation to {}", destination);
+                    // use a separate verb here to avoid writing hints on timeouts
+                    MessageOut<Mutation> message = mutation.createMessage(MessagingService.Verb.READ_REPAIR);
+                    repairResults.add(MessagingService.instance().sendRR(message, destination));
+                    ColumnFamilyStore.metricsFor(command.metadata().cfId).readRepairRequests.mark();
+                }
+                else if (DROP_OVERSIZED_READ_REPAIR_MUTATIONS)
+                {
+                    logger.debug("Encountered an oversized ({}/{}) read repair mutation for table {}.{}, key {}, node {}",
+                                 mutationSize,
+                                 maxMutationSize,
+                                 command.metadata().ksName,
+                                 command.metadata().cfName,
+                                 command.metadata().getKeyValidator().getString(partitionKey.getKey()),
+                                 destination);
+                }
+                else
+                {
+                    logger.warn("Encountered an oversized ({}/{}) read repair mutation for table {}.{}, key {}, node {}",
+                                mutationSize,
+                                maxMutationSize,
+                                command.metadata().ksName,
+                                command.metadata().cfName,
+                                command.metadata().getKeyValidator().getString(partitionKey.getKey()),
+                                destination);
+
+                    int blockFor = consistency.blockFor(keyspace);
+                    Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
+                    throw new ReadTimeoutException(consistency, blockFor - 1, blockFor, true);
                 }
             }
         }
