@@ -24,7 +24,11 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.RawSelector;
@@ -44,11 +48,14 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 
 public class CreateViewStatement extends SchemaAlteringStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(CreateViewStatement.class);
+
     private final CFName baseName;
     private final List<RawSelector> selectClause;
     private final WhereClause whereClause;
@@ -115,6 +122,11 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
     public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws RequestValidationException
     {
+        if (!DatabaseDescriptor.enableMaterializedViews())
+        {
+            throw new InvalidRequestException("Materialized views are disabled. Enable in cassandra.yaml to use.");
+        }
+
         // We need to make sure that:
         //  - primary key includes all columns in base table's primary key
         //  - make sure that the select statement does not have anything other than columns
@@ -318,8 +330,13 @@ public class CreateViewStatement extends SchemaAlteringStatement
                                                    whereClauseText,
                                                    builder.build());
 
+        logger.warn("Creating materialized view {} for {}.{}. " +
+                    "Materialized views are experimental and are not recommended for production use.",
+                    definition.name, metadata.keyspace, metadata.name);
+
         try
         {
+            ClientWarn.instance.warn("Materialized views are experimental and are not recommended for production use.");
             MigrationManager.announceNewView(definition, isLocalOnly);
             return new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
         }
