@@ -20,6 +20,14 @@ Upgrading
 ---------
     - Nothing specific to this release, but please see previous upgrading sections.
 
+Materialized Views
+-------------------
+   - Following a discussion regarding concerns about the design and safety of Materialized Views, the C* development
+     community no longer recommends them for production use, and considers them experimental. Warnings messages will
+     now be logged when they are created. (See https://www.mail-archive.com/dev@cassandra.apache.org/msg11511.html)
+   - An 'enable_materialized_views' flag has been added to cassandra.yaml to allow operators to prevent creation of
+     views
+
 3.11.1
 ======
 
