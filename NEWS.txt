@@ -34,6 +34,14 @@ New features
      threads is specified by the property `cassandra.yaml:concurrent_materialized_view_builders`.
      This property can be modified at runtime through both JMX and the new `setconcurrentviewbuilders`
      and `getconcurrentviewbuilders` nodetool commands. See CASSANDRA-12245 for more details.
+   - There is now a binary full query log based on Chronicle Queue that can be controlled using
+     nodetool enablefullquerylog, disablefullquerylog, and resetfullquerylog. The log 
+     contains all queries invoked, approximate time they were invoked, any parameters necessary
+     to bind wildcard values, and all query options. A human readable version of the log can be
+     dumped or tailed using the new bin/fqltool utility. The full query log is designed to be safe
+     to use in production and limits utilization of heap memory and disk space with limits
+     you can specify when enabling the log.
+     See nodetool and fqltool help text for more information.
 
 Upgrading
 ---------

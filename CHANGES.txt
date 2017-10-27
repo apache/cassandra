@@ -1,4 +1,5 @@
 4.0
+ * Support a means of logging all queries as they were invoked (CASSANDRA-13983)
  * Presize collections (CASSANDRA-13760)
  * Add GroupCommitLogService (CASSANDRA-13530)
  * Parallelize initial materialized view build (CASSANDRA-12245)
