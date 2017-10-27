@@ -982,6 +982,44 @@ client_encryption_options:
     # store_type: JKS
     # cipher_suites: [TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA,TLS_DHE_RSA_WITH_AES_128_CBC_SHA,TLS_DHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA]
 
+# Experimental support for dynamic certificate management
+# Enabling a certificate issuer for server (inter-node) or client (native transport) connections
+# will allow automatic certificate creation at runtime. Implementations will request certificates from an
+# external PKI and renew (possibly short lived) certificates as needed.
+
+# VaultCertificateIssuer
+# See https://www.vaultproject.io/docs/secrets/pki/index.html
+# Make sure to also enable a VaultAuthenticator in the Vault section below.
+#server_certificate_issuer:
+#  - class_name: org.apache.cassandra.vault.VaultCertificateIssuer
+#    parameters:
+#        # URI prefix where the Vault PKI backend has been mounted
+#      - pki_path: /v1/pki/cas-cluster
+#        # Role mapped to policy used to generate credentials
+#        role: cluster_node
+#        # How many days before certificate expiration should we start trying to acquire a new certificate?
+#        # Omitting the value or setting it to < 0 will disable certificate renewal
+#        renew_days_before_expire: 5
+#        # Indicates if credentials should be stored in the local keystore configured above
+#        use_keystore: true
+#        # Common name the certificate should be issued for (required)
+#        common_name: cassandra1.vlan1
+#        # It's recommended to add an IP naming extension, as the hostname will not always be available
+#        ip_sans: 10.1.2.3
+#        # Optional alternative names
+#        alt_names: cassandra1.local
+#
+#client_certificate_issuer:
+#  - class_name: org.apache.cassandra.vault.VaultCertificateIssuer
+#    parameters:
+#      - pki_path: /v1/pki/cas-cluster
+#        role: cluster_node
+#        renew_days_before_expire: 5
+#        use_keystore: true
+#        common_name: cassandra1.vlan1
+#        ip_sans: 10.1.2.3
+#        alt_names: cassandra1.local
+
 # internode_compression controls whether traffic between nodes is
 # compressed.
 # Can be:

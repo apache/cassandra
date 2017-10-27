@@ -59,11 +59,13 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.net.BackPressureStrategy;
 import org.apache.cassandra.net.RateBasedBackPressure;
+import org.apache.cassandra.security.CertificateIssuer;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.vault.VaultAuthenticator;
+import org.apache.cassandra.vault.VaultCertificateIssuer;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -132,6 +134,9 @@ public class DatabaseDescriptor
     private static URI vaultAddress;
     private static File vaultCertificateFile;
     private static VaultAuthenticator vaultAuthenticator;
+
+    private static CertificateIssuer serverCertificateIssuer;
+    private static CertificateIssuer clientCertificateIssuer;
 
     public static void daemonInitialization() throws ConfigurationException
     {
@@ -796,6 +801,58 @@ public class DatabaseDescriptor
             vaultCertificateFile = new File(conf.vault_cert_file);
             if (!vaultCertificateFile.isFile() || !vaultCertificateFile.canRead())
                 throw new ConfigurationException("Unable to read certificate file: " + vaultCertificateFile.getAbsolutePath());
+        }
+
+        if (conf.server_certificate_issuer != null)
+        {
+            if (conf.server_encryption_options.internode_encryption == EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none)
+                throw new ConfigurationException("Server encryption must be enabled in order to use a server certificate issuer");
+            try
+            {
+                ParameterizedClass issuer = conf.server_certificate_issuer;
+                Class<?> clazz = Class.forName(issuer.class_name);
+                if (VaultCertificateIssuer.class.isAssignableFrom(clazz) && conf.vault_authenticator == null)
+                    throw new ConfigurationException("Vault authenticator must be configured when using VaultCertificateIssuer");
+
+                Constructor<?> ctor = clazz.getConstructor(Map.class);
+                CertificateIssuer instance = (CertificateIssuer) ctor.newInstance(issuer.parameters);
+                logger.info("Using server certificate issuer: {}", conf.server_certificate_issuer);
+                serverCertificateIssuer = instance;
+            }
+            catch (ConfigurationException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new ConfigurationException("Error configuring server_certificate_issuer: " + conf.server_certificate_issuer, ex);
+            }
+        }
+
+        if (conf.client_certificate_issuer != null)
+        {
+            if (!conf.client_encryption_options.enabled)
+                throw new ConfigurationException("Client encryption must be enabled in order to use a client certificate issuer");
+            try
+            {
+                ParameterizedClass issuer = conf.client_certificate_issuer;
+                Class<?> clazz = Class.forName(issuer.class_name);
+                if (VaultCertificateIssuer.class.isAssignableFrom(clazz) && conf.vault_authenticator == null)
+                    throw new ConfigurationException("Vault authenticator must be configured when using VaultCertificateIssuer");
+
+                Constructor<?> ctor = clazz.getConstructor(Map.class);
+                CertificateIssuer instance = (CertificateIssuer) ctor.newInstance(issuer.parameters);
+                logger.info("Using client certificate issuer: {}", conf.client_certificate_issuer);
+                clientCertificateIssuer = instance;
+            }
+            catch (ConfigurationException ex)
+            {
+                throw ex;
+            }
+            catch (Exception ex)
+            {
+                throw new ConfigurationException("Error configuring client_certificate_issuer: " + conf.client_certificate_issuer, ex);
+            }
         }
     }
 
@@ -2597,5 +2654,15 @@ public class DatabaseDescriptor
     public static VaultAuthenticator getVaultAuthenticator()
     {
         return vaultAuthenticator;
+    }
+
+    public static CertificateIssuer getServerCertificateIssuer()
+    {
+        return serverCertificateIssuer;
+    }
+
+    public static CertificateIssuer getClientCertificateIssuer()
+    {
+        return clientCertificateIssuer;
     }
 }

@@ -384,6 +384,12 @@ public class Config
     public String vault_cert_file = null;
     public ParameterizedClass vault_authenticator;
 
+    /*
+     * Certificate issuers
+     */
+    public ParameterizedClass server_certificate_issuer;
+    public ParameterizedClass client_certificate_issuer;
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
