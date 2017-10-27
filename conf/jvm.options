@@ -86,6 +86,10 @@
 # enable assertions. highly suggested for correct application functionality.
 -ea
 
+# disable assertions for net.openhft.** because it runs out of memory by design
+# if enabled and run for more than just brief testing
+-da:net.openhft...
+
 # enable thread priorities, primarily so we can give periodic tasks
 # a lower priority to avoid interfering with client workload
 -XX:+UseThreadPriorities

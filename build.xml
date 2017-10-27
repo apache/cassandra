@@ -114,6 +114,13 @@
 
     <property name="ecj.version" value="4.4.2"/>
 
+    <!-- https://mvnrepository.com/artifact/net.openhft/chronicle-bom/1.13.59 -->
+    <property name="chronicle-queue.version" value="4.5.27" />
+    <property name="chronicle-core.version" value="1.7.16" />
+    <property name="chronicle-bytes.version" value="1.7.36" />
+    <property name="chronicle-wire.version" value="1.7.32" />
+    <property name="chronicle-threads.version" value="1.7.7" />
+
     <condition property="maven-ant-tasks.jar.exists">
       <available file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
     </condition>
@@ -421,6 +428,11 @@
           <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
           <dependency groupId="io.airlift" artifactId="airline" version="0.7" />
           <dependency groupId="io.netty" artifactId="netty-all" version="4.1.14.Final" />
+          <dependency groupId="net.openhft" artifactId="chronicle-queue" version="${chronicle-queue.version}"/>
+          <dependency groupId="net.openhft" artifactId="chronicle-core" version="${chronicle-core.version}"/>
+          <dependency groupId="net.openhft" artifactId="chronicle-bytes" version="${chronicle-bytes.version}"/>
+          <dependency groupId="net.openhft" artifactId="chronicle-wire" version="${chronicle-wire.version}"/>
+          <dependency groupId="net.openhft" artifactId="chronicle-threads" version="${chronicle-threads.version}"/>
           <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" />
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
 	  <!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
@@ -618,6 +630,11 @@
         <dependency groupId="com.github.jbellis" artifactId="jamm"/>
 
         <dependency groupId="io.netty" artifactId="netty-all"/>
+        <dependency groupId="net.openhft" artifactId="chronicle-queue" version="${chronicle-queue.version}"/>
+        <dependency groupId="net.openhft" artifactId="chronicle-core" version="${chronicle-core.version}"/>
+        <dependency groupId="net.openhft" artifactId="chronicle-bytes" version="${chronicle-bytes.version}"/>
+        <dependency groupId="net.openhft" artifactId="chronicle-wire" version="${chronicle-wire.version}"/>
+        <dependency groupId="net.openhft" artifactId="chronicle-threads" version="${chronicle-threads.version}"/>
         <dependency groupId="joda-time" artifactId="joda-time"/>
         <dependency groupId="org.fusesource" artifactId="sigar"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>

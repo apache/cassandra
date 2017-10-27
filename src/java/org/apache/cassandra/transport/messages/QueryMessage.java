@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.db.fullquerylog.FullQueryLogger;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
@@ -113,7 +114,17 @@ public class QueryMessage extends Message.Request
                 Tracing.instance.begin("Execute CQL3 query", state.getClientAddress(), builder.build());
             }
 
+            boolean fqlEnabled = FullQueryLogger.instance.enabled();
+            long fqlTime = 0;
+            if (fqlEnabled)
+            {
+                fqlTime = System.currentTimeMillis();
+            }
             Message.Response response = ClientState.getCQLQueryHandler().process(query, state, options, getCustomPayload(), queryStartNanoTime);
+            if (fqlEnabled)
+            {
+                FullQueryLogger.instance.logQuery(query, options, fqlTime);
+            }
             if (options.skipMetadata() && response instanceof ResultMessage.Rows)
                 ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
 

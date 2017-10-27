@@ -551,13 +551,15 @@ public class Util
     public static void spinAssertEquals(Object expected, Supplier<Object> s, int timeoutInSeconds)
     {
         long start = System.currentTimeMillis();
+        Object lastValue = null;
         while (System.currentTimeMillis() < start + (1000 * timeoutInSeconds))
         {
-            if (s.get().equals(expected))
+            lastValue = s.get();
+            if (lastValue.equals(expected))
                 break;
             Thread.yield();
         }
-        assertEquals(expected, s.get());
+        assertEquals(expected, lastValue);
     }
 
     public static void joinThread(Thread thread) throws InterruptedException

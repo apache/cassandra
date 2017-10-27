@@ -1036,9 +1036,9 @@ transparent_data_encryption_options:
     key_alias: testing:1
     # CBC IV length for AES needs to be 16 bytes (which is also the default size)
     # iv_length: 16
-    key_provider: 
+    key_provider:
       - class_name: org.apache.cassandra.security.JKSKeyProvider
-        parameters: 
+        parameters:
           - keystore: conf/.keystore
             keystore_password: cassandra
             store_type: JCEKS
@@ -1150,3 +1150,8 @@ back_pressure_strategy:
 # level for writes without timing out. This is different from the consistency level requested by
 # each write which may be lower in order to facilitate availability.
 # ideal_consistency_level: EACH_QUORUM
+
+# Path to write full query log data to when the full query log is enabled
+# The full query log will recrusively delete the contents of this path at
+# times. Don't place links in this directory to other parts of the filesystem.
+#full_query_log_dir: /tmp/cassandrafullquerylog
