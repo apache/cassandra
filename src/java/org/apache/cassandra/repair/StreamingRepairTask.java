@@ -37,7 +37,7 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamOperation;
 
 /**
- * StreamingRepairTask performs data streaming between two remote replica which neither is not repair coordinator.
+ * StreamingRepairTask performs data streaming between two remote replicas, neither of which is repair coordinator.
  * Task will send {@link SyncComplete} message back to coordinator upon streaming completion.
  */
 public class StreamingRepairTask implements Runnable, StreamEventHandler
