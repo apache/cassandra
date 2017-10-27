@@ -89,6 +89,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.repair.RepairMessageVerbHandler;
+import org.apache.cassandra.security.KeyStoreManager;
 import org.apache.cassandra.service.paxos.CommitVerbHandler;
 import org.apache.cassandra.service.paxos.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.ProposeVerbHandler;
@@ -100,6 +101,7 @@ import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
+import org.apache.cassandra.vault.VaultIO;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -776,6 +778,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (DatabaseDescriptor.getReplaceTokens().size() > 0 || DatabaseDescriptor.getReplaceNode() != null)
                 throw new RuntimeException("Replace method removed; use cassandra.replace_address instead");
+
+            KeyStoreManager.instantiate(DatabaseDescriptor.getInternodeMessagingEncyptionOptions(),
+                                        DatabaseDescriptor.getNativeProtocolEncryptionOptions());
 
             if (!MessagingService.instance().isListening())
                 MessagingService.instance().listen();

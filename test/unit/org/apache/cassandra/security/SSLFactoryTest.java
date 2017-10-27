@@ -23,6 +23,7 @@ import java.security.cert.CertificateException;
 import java.util.Arrays;
 import javax.net.ssl.TrustManagerFactory;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,6 +40,8 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class SSLFactoryTest
 {
@@ -64,12 +67,17 @@ public class SSLFactoryTest
     public void setup()
     {
         encryptionOptions = new ServerEncryptionOptions();
+        encryptionOptions.enabled = true;
         encryptionOptions.truststore = "test/conf/cassandra_ssl_test.truststore";
         encryptionOptions.truststore_password = "cassandra";
         encryptionOptions.require_client_auth = false;
         encryptionOptions.cipher_suites = new String[] {"TLS_RSA_WITH_AES_128_CBC_SHA"};
+    }
 
-        SSLFactory.checkedExpiry = false;
+    @After
+    public void tearDown()
+    {
+        KeyStoreManager.shutdown();
     }
 
     @Test
@@ -94,6 +102,7 @@ public class SSLFactoryTest
         }
 
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
+        KeyStoreManager.instantiate(encryptionOptions, null);
         SslContext sslContext = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
                                                          SSLFactory.SocketType.CLIENT, true);
         Assert.assertNotNull(sslContext);
@@ -104,6 +113,7 @@ public class SSLFactoryTest
     public void getSslContext_JdkSsl() throws IOException
     {
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
+        KeyStoreManager.instantiate(encryptionOptions, null);
         SslContext sslContext = SSLFactory.getSslContext(options, true, SSLFactory.ConnectionType.NATIVE_TRANSPORT,
                                                          SSLFactory.SocketType.CLIENT, false);
         Assert.assertNotNull(sslContext);
@@ -139,29 +149,46 @@ public class SSLFactoryTest
         Assert.assertNotNull(trustManagerFactory);
     }
 
-    @Test(expected = IOException.class)
+    @Test
     public void buildKeyManagerFactory_NoFile() throws IOException
     {
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
         options.keystore = "/this/is/probably/not/a/file/on/your/test/machine";
-        SSLFactory.buildKeyManagerFactory(options);
+        try
+        {
+            KeyStoreManager.instantiate(encryptionOptions, null);
+            fail("Exception expected");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().contains("Keystore not found or unreadable"));
+        }
+        SSLFactory.buildKeyManagerFactory(options, true);
     }
 
-    @Test(expected = IOException.class)
+    @Test
     public void buildKeyManagerFactory_BadPassword() throws IOException
     {
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
         encryptionOptions.keystore_password = "HomeOfBadPasswords";
-        SSLFactory.buildKeyManagerFactory(options);
+        try
+        {
+            KeyStoreManager.instantiate(encryptionOptions, null);
+            fail("Exception expected");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().contains("Keystore was tampered with, or password was incorrect"));
+        }
+        SSLFactory.buildKeyManagerFactory(options, true);
     }
 
     @Test
     public void buildKeyManagerFactory_HappyPath() throws IOException
     {
-        Assert.assertFalse(SSLFactory.checkedExpiry);
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
-        SSLFactory.buildKeyManagerFactory(options);
-        Assert.assertTrue(SSLFactory.checkedExpiry);
+        KeyStoreManager.instantiate(encryptionOptions, null);
+        SSLFactory.buildKeyManagerFactory(options, true);
     }
 
     @Test

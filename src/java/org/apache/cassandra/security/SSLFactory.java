@@ -23,10 +23,8 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyStore;
-import java.security.cert.X509Certificate;
 import java.util.Arrays;
-import java.util.Date;
-import java.util.Enumeration;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -83,9 +81,6 @@ public final class SSLFactory
         SERVER, CLIENT
     }
 
-    @VisibleForTesting
-    static volatile boolean checkedExpiry = false;
-
     /**
      * Cached references of SSL Contexts
      */
@@ -101,7 +96,7 @@ public final class SSLFactory
         if (buildTruststore)
             trustManagers = buildTrustManagerFactory(options).getTrustManagers();
 
-        KeyManagerFactory kmf = buildKeyManagerFactory(options);
+        KeyManagerFactory kmf = buildKeyManagerFactory(options, false);
 
         try
         {
@@ -132,28 +127,14 @@ public final class SSLFactory
         }
     }
 
-    static KeyManagerFactory buildKeyManagerFactory(EncryptionOptions options) throws IOException
+    static KeyManagerFactory buildKeyManagerFactory(EncryptionOptions options, boolean forServer) throws IOException
     {
-        try (InputStream ksf = Files.newInputStream(Paths.get(options.keystore)))
+        try
         {
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(
             options.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : options.algorithm);
-            KeyStore ks = KeyStore.getInstance(options.store_type);
-            ks.load(ksf, options.keystore_password.toCharArray());
-            if (!checkedExpiry)
-            {
-                for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); )
-                {
-                    String alias = aliases.nextElement();
-                    if (ks.getCertificate(alias).getType().equals("X.509"))
-                    {
-                        Date expires = ((X509Certificate) ks.getCertificate(alias)).getNotAfter();
-                        if (expires.before(new Date()))
-                            logger.warn("Certificate for {} expired on {}", alias, expires);
-                    }
-                }
-                checkedExpiry = true;
-            }
+            KeyStore ks = forServer ? KeyStoreManager.internodeInstance.getKeystore()
+                                    : KeyStoreManager.clientInstance.getKeystore();
             kmf.init(ks, options.keystore_password.toCharArray());
             return kmf;
         }
@@ -216,30 +197,30 @@ public final class SSLFactory
     static SslContext createNettySslContext(EncryptionOptions options, boolean buildTruststore, ConnectionType connectionType,
                                             SocketType socketType, boolean useOpenSsl) throws IOException
     {
-        /*
-            There is a case where the netty/openssl combo might not support using KeyManagerFactory. specifically,
-            I've seen this with the netty-tcnative dynamic openssl implementation. using the netty-tcnative static-boringssl
-            works fine with KeyManagerFactory. If we want to support all of the netty-tcnative options, we would need
-            to fall back to passing in a file reference for both a x509 and PKCS#8 private key file in PEM format (see
-            {@link SslContextBuilder#forServer(File, File, String)}). However, we are not supporting that now to keep
-            the config/yaml API simple.
-         */
-        KeyManagerFactory kmf = buildKeyManagerFactory(options);
+        KeyStoreManager ksm = connectionType == ConnectionType.INTERNODE_MESSAGING ?
+                              KeyStoreManager.internodeInstance : KeyStoreManager.clientInstance;
         SslContextBuilder builder;
         if (socketType == SocketType.SERVER)
         {
-            builder = SslContextBuilder.forServer(kmf);
+            // KeyStoreManager.instantiate() must be called first to instantiate stores
+            X509Credentials cred = ksm.getCredentials();
+            builder = SslContextBuilder.forServer(cred.privateKey, cred.chain);
             builder.clientAuth(options.require_client_auth ? ClientAuth.REQUIRE : ClientAuth.NONE);
         }
         else
         {
-            builder = SslContextBuilder.forClient().keyManager(kmf);
+            builder = SslContextBuilder.forClient();
+            if (options.require_client_auth)
+            {
+                X509Credentials cred = ksm.getCredentials();
+                builder.keyManager(cred.privateKey, cred.chain);
+            }
         }
 
         builder.sslProvider(useOpenSsl ? SslProvider.OPENSSL : SslProvider.JDK);
 
-        // only set the cipher suites if the opertor has explicity configured values for it; else, use the default
-        // for each ssl implemention (jdk or openssl)
+        // only set the cipher suites if the operator has explicitly configured values for it; else, use the default
+        // for each ssl implementation (jdk or openssl)
         if (options.cipher_suites != null && options.cipher_suites.length > 0)
             builder.ciphers(Arrays.asList(options.cipher_suites), SupportedCipherSuiteFilter.INSTANCE);
 
@@ -280,5 +261,17 @@ public final class SSLFactory
             result += 31 * encryptionOptions.hashCode();
             return result;
         }
+    }
+
+    static void clearInternodeSslContext()
+    {
+        logger.debug("Clearing internode SSL context");
+        cachedSslContexts.keySet().removeIf(key -> key.connectionType == ConnectionType.INTERNODE_MESSAGING);
+    }
+
+    static void clearNativeTransportSslContext()
+    {
+        logger.debug("Clearing native transport SSL context");
+        cachedSslContexts.keySet().removeIf(key -> key.connectionType == ConnectionType.NATIVE_TRANSPORT);
     }
 }

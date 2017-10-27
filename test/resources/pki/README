@@ -1,0 +1,23 @@
+Certificates and related files used for testing purposes. Any of the files should have been manually created in the same way we expect users to do so. Tests should be able to pick up these files and see if we can handle them properly.
+
+# generate new unencrypted private key and corresponding self signed certificate
+openssl req -newkey rsa:2048 -x509 -outform pem -keyout ca.key -nodes -out ca.crt -days 3650 -subj  "/C=US/O=Evil Corp/CN=Global Test CA"
+
+# generate new CSR
+# keytool does not support unencrypted private keys
+openssl req -new -sha256 -passout pass:pass123 -keyout node.key -out node.csr -subj "/C=US/O=Mad Corp/CN=Test Cert"
+
+# sign CSR
+openssl x509 -req -days 3600 -in node.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out node.crt
+
+# create cert chain
+cat node.crt ca.crt > combined.crt
+
+# create a PKCS12 keystore
+openssl pkcs12 -export -passin pass:pass123 -passout pass:pass123 -out keystore.p12 -inkey node.key -in combined.crt
+
+# verify keystore content
+keytool -list -v -storepass pass123 -keystore keystore.p12
+
+# create JKS truststore with CA certificate
+keytool -importcert -keystore truststore.jks -storepass pass123 -file ca.crt -noprompt -storetype JKS

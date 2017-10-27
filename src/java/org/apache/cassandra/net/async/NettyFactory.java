@@ -45,7 +45,6 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.DefaultEventExecutor;
 import io.netty.util.concurrent.DefaultThreadFactory;
@@ -354,12 +353,12 @@ public final class NettyFactory
         return bootstrap;
     }
 
-    public Bootstrap createOutboundHttpBootstrap(InetSocketAddress addr, boolean ssl, CompletableFuture<NettyHttpResponse> result)
+    public Bootstrap createOutboundHttpBootstrap(InetSocketAddress addr, SslContext sslContext, CompletableFuture<NettyHttpResponse> result)
     {
         Class<? extends Channel> transport = useEpoll ? EpollSocketChannel.class : NioSocketChannel.class;
         Bootstrap bootstrap = new Bootstrap().group(httpClientGroup)
                                              .channel(transport)
-                                             .handler(new OutboundHttpInitializer(ssl, result));
+                                             .handler(new OutboundHttpInitializer(sslContext, result));
         bootstrap.remoteAddress(addr);
         return bootstrap;
     }
@@ -404,13 +403,13 @@ public final class NettyFactory
 
     public static class OutboundHttpInitializer extends ChannelInitializer<Channel>
     {
-        private final boolean ssl;
+        private final SslContext sslContext;
         private final CompletableFuture<NettyHttpResponse> response;
         private final int contentSizeLimit = 512 * 1024;
 
-        OutboundHttpInitializer(boolean ssl, CompletableFuture<NettyHttpResponse> response)
+        OutboundHttpInitializer(SslContext sslContext, CompletableFuture<NettyHttpResponse> response)
         {
-            this.ssl = ssl;
+            this.sslContext = sslContext;
             this.response = response;
         }
 
@@ -418,9 +417,8 @@ public final class NettyFactory
         {
             ChannelPipeline pipeline = ch.pipeline();
             pipeline.addLast("codec", new HttpClientCodec());
-            if (ssl)
+            if (sslContext != null)
             {
-                SslContext sslContext = SslContextBuilder.forClient().build();
                 SslHandler sslHandler = sslContext.newHandler(ch.alloc());
                 logger.trace("Creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
                 pipeline.addFirst(SSL_CHANNEL_HANDLER_NAME, sslHandler);

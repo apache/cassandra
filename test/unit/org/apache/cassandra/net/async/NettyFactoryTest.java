@@ -50,6 +50,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.async.NettyFactory.InboundInitializer;
 import org.apache.cassandra.net.async.NettyFactory.OutboundInitializer;
+import org.apache.cassandra.security.KeyStoreManager;
 import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NativeLibrary;
@@ -296,6 +297,7 @@ public class NettyFactoryTest
         ServerEncryptionOptions encryptionOptions = encOptions();
         encryptionOptions.enabled = true;
         encryptionOptions.optional = false;
+        KeyStoreManager.instantiate(encryptionOptions, null);
         InboundInitializer initializer = new InboundInitializer(AUTHENTICATOR, encryptionOptions, channelGroup);
         NioSocketChannel channel = new NioSocketChannel();
         Assert.assertNull(channel.pipeline().get(SslHandler.class));
