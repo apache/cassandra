@@ -26,8 +26,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.DoubleSupplier;
-import java.util.function.DoubleSupplier;
-import java.util.function.Supplier;
 
 import com.google.common.collect.Iterators;
 import org.slf4j.Logger;
