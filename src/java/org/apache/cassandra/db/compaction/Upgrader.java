@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.File;
 import java.util.*;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 
 import com.google.common.base.Throwables;
@@ -116,7 +117,7 @@ public class Upgrader
         }
 
         @Override
-        public Predicate<Long> getPurgeEvaluator(DecoratedKey key)
+        public LongPredicate getPurgeEvaluator(DecoratedKey key)
         {
             return time -> false;
         }

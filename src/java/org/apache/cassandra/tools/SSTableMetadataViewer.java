@@ -387,7 +387,7 @@ public class SSTableMetadataViewer
                                                                 offset,
                                                                 Util.wrapQuiet(toDateString(offset, TimeUnit.SECONDS),
                                                                                         color)),
-                                                         Object::toString);
+                                                         String::valueOf);
             estDropped.printHistogram(out, color, unicode);
             field("Partition Size", "");
             TermHistogram rowSize = new TermHistogram(stats.estimatedPartitionSize,
@@ -395,13 +395,13 @@ public class SSTableMetadataViewer
                                                       offset -> String.format("%d %s",
                                                                               offset,
                                                                               Util.wrapQuiet(toByteString(offset), color)),
-                                                      Object::toString);
+                                                      String::valueOf);
             rowSize.printHistogram(out, color, unicode);
             field("Column Count", "");
             TermHistogram cellCount = new TermHistogram(stats.estimatedColumnCount,
                                                         "Columns",
-                                                        Object::toString,
-                                                        Object::toString);
+                                                        String::valueOf,
+                                                        String::valueOf);
             cellCount.printHistogram(out, color, unicode);
         }
         if (compaction != null)

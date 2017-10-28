@@ -19,7 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -111,7 +111,7 @@ public class UnfilteredRowsGenerator
         }
     }
 
-    public List<Unfiltered> generateSource(Random r, int items, int range, int del_range, Function<Integer, Integer> timeGenerator)
+    public List<Unfiltered> generateSource(Random r, int items, int range, int del_range, IntUnaryOperator timeGenerator)
     {
         int[] positions = new int[items + 1];
         for (int i=0; i<items; ++i)
@@ -219,10 +219,10 @@ public class UnfilteredRowsGenerator
         return out;
     }
 
-    static Row emptyRowAt(int pos, Function<Integer, Integer> timeGenerator)
+    static Row emptyRowAt(int pos, IntUnaryOperator timeGenerator)
     {
         final Clustering clustering = clusteringFor(pos);
-        final LivenessInfo live = LivenessInfo.create(timeGenerator.apply(pos), UnfilteredRowIteratorsMergeTest.nowInSec);
+        final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos), UnfilteredRowIteratorsMergeTest.nowInSec);
         return BTreeRow.noCellLiveRow(clustering, live);
     }
 
