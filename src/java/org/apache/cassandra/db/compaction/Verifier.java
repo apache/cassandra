@@ -45,6 +45,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 
 public class Verifier implements Closeable
@@ -302,7 +303,7 @@ public class Verifier implements Closeable
         }
 
         @Override
-        public Predicate<Long> getPurgeEvaluator(DecoratedKey key)
+        public LongPredicate getPurgeEvaluator(DecoratedKey key)
         {
             return time -> false;
         }

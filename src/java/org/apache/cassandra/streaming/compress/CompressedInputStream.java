@@ -25,6 +25,8 @@ import java.util.Iterator;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.DoubleSupplier;
+import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 import com.google.common.collect.Iterators;
@@ -52,7 +54,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
     private final CompressionInfo info;
     // chunk buffer
     private final BlockingQueue<ByteBuffer> dataBuffer;
-    private final Supplier<Double> crcCheckChanceSupplier;
+    private final DoubleSupplier crcCheckChanceSupplier;
 
     /**
      * The base offset of the current {@link #buffer} from the beginning of the stream.
@@ -85,7 +87,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
      * @param source Input source to read compressed data from
      * @param info Compression info
      */
-    public CompressedInputStream(DataInputPlus source, CompressionInfo info, ChecksumType checksumType, Supplier<Double> crcCheckChanceSupplier)
+    public CompressedInputStream(DataInputPlus source, CompressionInfo info, ChecksumType checksumType, DoubleSupplier crcCheckChanceSupplier)
     {
         super(ByteBuffer.allocateDirect(info.parameters.chunkLength()));
         buffer.limit(buffer.position()); // force the buffer to appear "consumed" so that it triggers reBuffer on the first read
@@ -174,7 +176,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
         totalCompressedBytesRead += length;
 
         // validate crc randomly
-        double crcCheckChance = this.crcCheckChanceSupplier.get();
+        double crcCheckChance = this.crcCheckChanceSupplier.getAsDouble();
         if (crcCheckChance > 0d && crcCheckChance > ThreadLocalRandom.current().nextDouble())
         {
             ByteBuffer crcBuf = compressed.duplicate();

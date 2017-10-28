@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.*;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 
 import org.apache.cassandra.config.Config;
@@ -256,7 +257,7 @@ public class CompactionController implements AutoCloseable
      * containing his partition and not participating in the compaction. This means there isn't any data in those
      * sstables that might still need to be suppressed by a tombstone at this timestamp.
      */
-    public Predicate<Long> getPurgeEvaluator(DecoratedKey key)
+    public LongPredicate getPurgeEvaluator(DecoratedKey key)
     {
         if (NEVER_PURGE_TOMBSTONES || !compactingRepaired())
             return time -> false;

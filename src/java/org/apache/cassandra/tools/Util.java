@@ -31,6 +31,14 @@ import java.util.Spliterators;
 import java.util.TreeMap;
 import java.util.Map.Entry;
 import java.util.function.Function;
+import java.util.function.LongFunction;
+import java.util.function.LongFunction;
+import java.util.function.LongFunction;
+import java.util.function.LongFunction;
+import java.util.function.LongFunction;
+import java.util.function.LongFunction;
+import java.util.function.LongFunction;
+import java.util.function.LongFunction;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -129,14 +137,14 @@ public final class Util
         int maxCountLength = 5;
         int maxOffsetLength = 5;
         Map<? extends Number, Long> histogram;
-        Function<Long, String> offsetName;
-        Function<Long, String> countName;
+        LongFunction<String> offsetName;
+        LongFunction<String> countName;
         String title;
 
         public TermHistogram(Map<? extends Number, Long> histogram,
                 String title,
-                Function<Long, String> offsetName,
-                Function<Long, String> countName)
+                LongFunction<String> offsetName,
+                LongFunction<String> countName)
         {
             this.offsetName = offsetName;
             this.countName = countName;
@@ -156,8 +164,8 @@ public final class Util
 
         public TermHistogram(TombstoneHistogram histogram,
                 String title,
-                Function<Long, String> offsetName,
-                Function<Long, String> countName)
+                LongFunction<String> offsetName,
+                LongFunction<String> countName)
         {
             this(new TreeMap<Number, Long>()
             {
@@ -171,8 +179,8 @@ public final class Util
 
         public TermHistogram(EstimatedHistogram histogram,
                 String title,
-                Function<Long, String> offsetName,
-                Function<Long, String> countName)
+                LongFunction<String> offsetName,
+                LongFunction<String> countName)
         {
             this(new TreeMap<Number, Long>()
             {

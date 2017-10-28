@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
@@ -567,7 +568,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
                       iterator.metadata().enforceStrictLiveness());
             }
 
-            protected Predicate<Long> getPurgeEvaluator()
+            protected LongPredicate getPurgeEvaluator()
             {
                 return time -> true;
             }

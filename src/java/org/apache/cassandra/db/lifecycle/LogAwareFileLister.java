@@ -27,6 +27,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -50,7 +52,7 @@ final class LogAwareFileLister
     private final Path folder;
 
     // The filter determines which files the client wants returned
-    private final BiFunction<File, FileType, Boolean> filter; //file, file type
+    private final BiPredicate<File, FileType> filter; //file, file type
 
     // The behavior when we fail to list files
     private final OnTxnErr onTxnErr;
@@ -59,7 +61,7 @@ final class LogAwareFileLister
     NavigableMap<File, Directories.FileType> files = new TreeMap<>();
 
     @VisibleForTesting
-    LogAwareFileLister(Path folder, BiFunction<File, FileType, Boolean> filter, OnTxnErr onTxnErr)
+    LogAwareFileLister(Path folder, BiPredicate<File, FileType> filter, OnTxnErr onTxnErr)
     {
         this.folder = folder;
         this.filter = filter;
@@ -96,7 +98,7 @@ final class LogAwareFileLister
 
         // Finally we apply the user filter before returning our result
         return files.entrySet().stream()
-                    .filter((e) -> filter.apply(e.getKey(), e.getValue()))
+                    .filter((e) -> filter.test(e.getKey(), e.getValue()))
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toList());
     }

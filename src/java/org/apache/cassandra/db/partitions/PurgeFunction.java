@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.partitions;
 
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 
 import org.apache.cassandra.db.*;
@@ -42,7 +43,7 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
         this.enforceStrictLiveness = enforceStrictLiveness;
     }
 
-    protected abstract Predicate<Long> getPurgeEvaluator();
+    protected abstract LongPredicate getPurgeEvaluator();
 
     // Called at the beginning of each new partition
     protected void onNewPartition(DecoratedKey partitionKey)
