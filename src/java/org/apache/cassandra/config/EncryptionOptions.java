@@ -26,6 +26,7 @@ public class EncryptionOptions
     public String keystore_password = "cassandra";
     public String truststore = "conf/.truststore";
     public String truststore_password = "cassandra";
+    public String ca_file = null;
     public String[] cipher_suites = {};
     public String protocol = "TLS";
     public String algorithm = null;
@@ -47,6 +48,7 @@ public class EncryptionOptions
         keystore_password = options.keystore_password;
         truststore = options.truststore;
         truststore_password = options.truststore_password;
+        ca_file = options.ca_file;
         cipher_suites = options.cipher_suites;
         protocol = options.protocol;
         algorithm = options.algorithm;

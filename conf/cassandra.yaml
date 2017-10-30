@@ -959,6 +959,7 @@ server_encryption_options:
     keystore_password: cassandra
     truststore: conf/.truststore
     truststore_password: cassandra
+    #ca_file: conf/ca.pem
     # More advanced defaults below:
     # protocol: TLS
     # store_type: JKS

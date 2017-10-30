@@ -18,6 +18,7 @@
 package org.apache.cassandra.security;
 
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -225,7 +226,23 @@ public final class SSLFactory
             builder.ciphers(Arrays.asList(options.cipher_suites), SupportedCipherSuiteFilter.INSTANCE);
 
         if (buildTruststore)
-            builder.trustManager(buildTrustManagerFactory(options));
+        {
+            if (options.ca_file != null)
+            {
+                File cafile = new File(options.ca_file);
+                if (!cafile.isFile() || !cafile.canRead())
+                    throw new RuntimeException("Cannot read ca_file configured in cassandra.yaml: " + cafile.getAbsolutePath());
+                builder.trustManager(cafile);
+            }
+            else if (options.truststore != null)
+            {
+                builder.trustManager(buildTrustManagerFactory(options));
+            }
+            else
+            {
+                throw new RuntimeException("Cannot build truststore: no truststore or ca_file specified");
+            }
+        }
 
         return builder.build();
     }
