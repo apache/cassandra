@@ -1,4 +1,5 @@
 4.0
+ * Allow only one concurrent call to StatusLogger (CASSANDRA-12182)
  * Refactoring to specialised functional interfaces (CASSANDRA-13982)
  * Speculative retry should allow more friendly params (CASSANDRA-13876)
  * Throw exception if we send/receive repair messages to incompatible nodes (CASSANDRA-13944)
