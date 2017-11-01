@@ -1,4 +1,5 @@
 3.11.3
+ * Allow existing nodes to use all peers in shadow round (CASSANDRA-13851)
  * Fix cqlsh to read connection.ssl cqlshrc option again (CASSANDRA-14299)
  * Downgrade log level to trace for CommitLogSegmentManager (CASSANDRA-14370)
  * CQL fromJson(null) throws NullPointerException (CASSANDRA-13891)
