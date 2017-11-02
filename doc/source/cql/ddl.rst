@@ -493,7 +493,7 @@ Speculative retry options
 By default, Cassandra read coordinators only query as many replicas as necessary to satisfy
 consistency levels: one for consistency level ``ONE``, a quorum for ``QUORUM``, and so on.
 ``speculative_retry`` determines when coordinators may query additional replicas, which is useful
-when replicas are slow or unresponsive.  The following are legal values:
+when replicas are slow or unresponsive.  The following are legal values (case-insensitive):
 
 ========================= ================ =============================================================================
  Format                    Example          Description
@@ -502,6 +502,7 @@ when replicas are slow or unresponsive.  The following are legal values:
                                             If a replica takes longer than ``X`` percent of this table's average
                                             response time, the coordinator queries an additional replica.
                                             ``X`` must be between 0 and 100.
+ ``XP``                    90.5P            Synonym for ``XPERCENTILE``
  ``Yms``                   25ms             If a replica takes more than ``Y`` milliseconds to respond,
                                             the coordinator queries an additional replica.
  ``ALWAYS``                                 Coordinators always query all replicas.
