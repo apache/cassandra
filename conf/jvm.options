@@ -49,7 +49,7 @@
 # Allow restoring specific tables from an archived commit log.
 #-Dcassandra.replayList=table
 
-# Allows overriding of the default RING_DELAY (1000ms), which is the amount of time a node waits
+# Allows overriding of the default RING_DELAY (30000ms), which is the amount of time a node waits
 # before joining the ring.
 #-Dcassandra.ring_delay_ms=ms
 
