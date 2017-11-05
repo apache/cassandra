@@ -111,26 +111,14 @@ public class StreamManager implements StreamManagerMBean
 
     public Set<CompositeData> getCurrentStreams()
     {
-        return Sets.newHashSet(Iterables.transform(Iterables.concat(initiatedStreams.values(), receivingStreams.values()), new Function<StreamResultFuture, CompositeData>()
-        {
-            public CompositeData apply(StreamResultFuture input)
-            {
-                return StreamStateCompositeData.toCompositeData(input.getCurrentState());
-            }
-        }));
+        return Sets.newHashSet(Iterables.transform(Iterables.concat(initiatedStreams.values(), receivingStreams.values()), (StreamResultFuture input)->{ return StreamStateCompositeData.toCompositeData(input.getCurrentState());}));
     }
 
     public void register(final StreamResultFuture result)
     {
         result.addEventListener(notifier);
         // Make sure we remove the stream on completion (whether successful or not)
-        result.addListener(new Runnable()
-        {
-            public void run()
-            {
-                initiatedStreams.remove(result.planId);
-            }
-        }, MoreExecutors.directExecutor());
+        result.addListener(()-> { initiatedStreams.remove(result.planId);}, MoreExecutors.directExecutor());
 
         initiatedStreams.put(result.planId, result);
     }
@@ -139,13 +127,7 @@ public class StreamManager implements StreamManagerMBean
     {
         result.addEventListener(notifier);
         // Make sure we remove the stream on completion (whether successful or not)
-        result.addListener(new Runnable()
-        {
-            public void run()
-            {
-                receivingStreams.remove(result.planId);
-            }
-        }, MoreExecutors.directExecutor());
+        result.addListener(()-> { receivingStreams.remove(result.planId);}, MoreExecutors.directExecutor());
 
         StreamResultFuture previous = receivingStreams.putIfAbsent(result.planId, result);
         return previous ==  null ? result : previous;

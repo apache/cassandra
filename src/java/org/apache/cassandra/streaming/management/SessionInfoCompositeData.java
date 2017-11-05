@@ -86,23 +86,11 @@ public class SessionInfoCompositeData
         valueMap.put(ITEM_NAMES[0], planId.toString());
         valueMap.put(ITEM_NAMES[1], sessionInfo.peer.getHostAddress());
         valueMap.put(ITEM_NAMES[2], sessionInfo.connecting.getHostAddress());
-        Function<StreamSummary, CompositeData> fromStreamSummary = new Function<StreamSummary, CompositeData>()
-        {
-            public CompositeData apply(StreamSummary input)
-            {
-                return StreamSummaryCompositeData.toCompositeData(input);
-            }
-        };
+        Function<StreamSummary, CompositeData> fromStreamSummary = (StreamSummary input)->{ return StreamSummaryCompositeData.toCompositeData(input);};
         valueMap.put(ITEM_NAMES[3], toArrayOfCompositeData(sessionInfo.receivingSummaries, fromStreamSummary));
         valueMap.put(ITEM_NAMES[4], toArrayOfCompositeData(sessionInfo.sendingSummaries, fromStreamSummary));
         valueMap.put(ITEM_NAMES[5], sessionInfo.state.name());
-        Function<ProgressInfo, CompositeData> fromProgressInfo = new Function<ProgressInfo, CompositeData>()
-        {
-            public CompositeData apply(ProgressInfo input)
-            {
-                return ProgressInfoCompositeData.toCompositeData(planId, input);
-            }
-        };
+        Function<ProgressInfo, CompositeData> fromProgressInfo = (ProgressInfo input)->{ return ProgressInfoCompositeData.toCompositeData(planId, input);};
         valueMap.put(ITEM_NAMES[6], toArrayOfCompositeData(sessionInfo.getReceivingFiles(), fromProgressInfo));
         valueMap.put(ITEM_NAMES[7], toArrayOfCompositeData(sessionInfo.getSendingFiles(), fromProgressInfo));
         valueMap.put(ITEM_NAMES[8], sessionInfo.sessionIndex);
@@ -131,26 +119,14 @@ public class SessionInfoCompositeData
         {
             throw Throwables.propagate(e);
         }
-        Function<CompositeData, StreamSummary> toStreamSummary = new Function<CompositeData, StreamSummary>()
-        {
-            public StreamSummary apply(CompositeData input)
-            {
-                return StreamSummaryCompositeData.fromCompositeData(input);
-            }
-        };
+        Function<CompositeData, StreamSummary> toStreamSummary = (CompositeData input)->{ return StreamSummaryCompositeData.fromCompositeData(input);};
         SessionInfo info = new SessionInfo(peer,
                                            (int)values[8],
                                            connecting,
                                            fromArrayOfCompositeData((CompositeData[]) values[3], toStreamSummary),
                                            fromArrayOfCompositeData((CompositeData[]) values[4], toStreamSummary),
                                            StreamSession.State.valueOf((String) values[5]));
-        Function<CompositeData, ProgressInfo> toProgressInfo = new Function<CompositeData, ProgressInfo>()
-        {
-            public ProgressInfo apply(CompositeData input)
-            {
-                return ProgressInfoCompositeData.fromCompositeData(input);
-            }
-        };
+        Function<CompositeData, ProgressInfo> toProgressInfo = (CompositeData input)->{ return ProgressInfoCompositeData.fromCompositeData(input);};
         for (ProgressInfo progress : fromArrayOfCompositeData((CompositeData[]) values[6], toProgressInfo))
         {
             info.updateProgress(progress);

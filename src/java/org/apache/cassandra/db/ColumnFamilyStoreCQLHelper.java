@@ -400,14 +400,8 @@ public class ColumnFamilyStoreCQLHelper
     private static Consumer<StringBuilder> commaAppender(String afterComma)
     {
         AtomicBoolean isFirst = new AtomicBoolean(true);
-        return new Consumer<StringBuilder>()
-        {
-            public void accept(StringBuilder stringBuilder)
-            {
-                if (!isFirst.getAndSet(false))
-                    stringBuilder.append(',').append(afterComma);
-            }
-        };
+        return (StringBuilder stringBuilder)->{ if (!isFirst.getAndSet(false))
+                    stringBuilder.append(',').append(afterComma);};
     }
 
     /**

@@ -155,13 +155,7 @@ public class View
 
     public Iterable<SSTableReader> getUncompacting(Iterable<SSTableReader> candidates)
     {
-        return filter(candidates, new Predicate<SSTableReader>()
-        {
-            public boolean apply(SSTableReader sstable)
-            {
-                return !compacting.contains(sstable);
-            }
-        });
+        return filter(candidates, (SSTableReader sstable)->{ return !compacting.contains(sstable);});
     }
 
     public boolean isEmpty()
@@ -345,12 +339,6 @@ public class View
 
     private static <T extends Comparable<T>> Predicate<T> lessThan(final T lessThan)
     {
-        return new Predicate<T>()
-        {
-            public boolean apply(T t)
-            {
-                return t.compareTo(lessThan) < 0;
-            }
-        };
+        return (T t)->{ return t.compareTo(lessThan) < 0;};
     }
 }

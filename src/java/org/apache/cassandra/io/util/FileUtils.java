@@ -378,13 +378,7 @@ public final class FileUtils
 
     public static void deleteAsync(final String file)
     {
-        Runnable runnable = new Runnable()
-        {
-            public void run()
-            {
-                deleteWithConfirm(new File(file));
-            }
-        };
+        Runnable runnable = ()-> { deleteWithConfirm(new File(file));};
         ScheduledExecutors.nonPeriodicTasks.execute(runnable);
     }
 

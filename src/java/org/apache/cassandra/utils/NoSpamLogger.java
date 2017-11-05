@@ -54,13 +54,7 @@ public class NoSpamLogger
     }
 
     @VisibleForTesting
-    static Clock CLOCK = new Clock()
-    {
-        public long nanoTime()
-        {
-            return System.nanoTime();
-        }
-    };
+    static Clock CLOCK = ()-> { return System.nanoTime();};
 
     public class NoSpamLogStatement extends AtomicLong
     {

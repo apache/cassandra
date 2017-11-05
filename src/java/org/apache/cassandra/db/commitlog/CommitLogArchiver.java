@@ -163,11 +163,7 @@ public class CommitLogArchiver
         if (Strings.isNullOrEmpty(archiveCommand))
             return;
 
-        archivePending.put(name, executor.submit(new Runnable()
-        {
-            public void run()
-            {
-                try
+        archivePending.put(name, executor.submit(()-> { try
                 {
                     String command = NAME.matcher(archiveCommand).replaceAll(Matcher.quoteReplacement(name));
                     command = PATH.matcher(command).replaceAll(Matcher.quoteReplacement(path));
@@ -176,9 +172,7 @@ public class CommitLogArchiver
                 catch (IOException e)
                 {
                     logger.warn("Archiving file {} failed, file may have already been archived.", name, e);
-                }
-            }
-        }));
+                }}));
     }
 
     public boolean maybeWaitForArchiving(String name)

@@ -257,13 +257,7 @@ public class CassandraRoleManager implements IRoleManager
     public Set<RoleResource> getAllRoles() throws RequestValidationException, RequestExecutionException
     {
         UntypedResultSet rows = process(String.format("SELECT role from %s.%s", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES), ConsistencyLevel.QUORUM);
-        Iterable<RoleResource> roles = Iterables.transform(rows, new Function<UntypedResultSet.Row, RoleResource>()
-        {
-            public RoleResource apply(UntypedResultSet.Row row)
-            {
-                return RoleResource.role(row.getString("role"));
-            }
-        });
+        Iterable<RoleResource> roles = Iterables.transform(rows, (UntypedResultSet.Row row)->{ return RoleResource.role(row.getString("role"));});
         return ImmutableSet.<RoleResource>builder().addAll(roles).build();
     }
 
@@ -456,11 +450,7 @@ public class CassandraRoleManager implements IRoleManager
     {
         return Iterables.transform(
                                   options.entrySet(),
-                                  new Function<Map.Entry<Option, Object>, String>()
-                                  {
-                                      public String apply(Map.Entry<Option, Object> entry)
-                                      {
-                                          switch (entry.getKey())
+                                  (Map.Entry<Option, Object> entry)->{ switch (entry.getKey())
                                           {
                                               case LOGIN:
                                                   return String.format("can_login = %s", entry.getValue());
@@ -470,9 +460,7 @@ public class CassandraRoleManager implements IRoleManager
                                                   return String.format("salted_hash = '%s'", escape(hashpw((String) entry.getValue())));
                                               default:
                                                   return null;
-                                          }
-                                      }
-                                  });
+                                          }});
     }
 
     protected static ConsistencyLevel consistencyForRole(String role)

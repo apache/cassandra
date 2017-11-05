@@ -76,11 +76,7 @@ public class EndpointStateTest
             }
         });
 
-        Thread t2 = new Thread(new Runnable()
-        {
-            public void run()
-            {
-                for (int i = 0; i < 50; i++)
+        Thread t2 = new Thread(()-> { for (int i = 0; i < 50; i++)
                 {
                     Map<ApplicationState, VersionedValue> values = new EnumMap<>(ApplicationState.class);
                     for (Map.Entry<ApplicationState, VersionedValue> entry : state.states())
@@ -91,9 +87,7 @@ public class EndpointStateTest
                         numFailures.incrementAndGet();
                         System.out.println(String.format("Failed: %s", values));
                     }
-                }
-            }
-        });
+                }});
 
         t1.start();
         t2.start();

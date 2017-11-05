@@ -262,13 +262,7 @@ public abstract class AbstractCompactionStrategy
      */
     public static Iterable<SSTableReader> filterSuspectSSTables(Iterable<SSTableReader> originalCandidates)
     {
-        return Iterables.filter(originalCandidates, new Predicate<SSTableReader>()
-        {
-            public boolean apply(SSTableReader sstable)
-            {
-                return !sstable.isMarkedSuspect();
-            }
-        });
+        return Iterables.filter(originalCandidates, (SSTableReader sstable)->{ return !sstable.isMarkedSuspect();});
     }
 
 

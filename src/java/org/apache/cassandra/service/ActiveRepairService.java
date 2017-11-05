@@ -229,16 +229,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         registerOnFdAndGossip(session);
 
         // remove session at completion
-        session.addListener(new Runnable()
-        {
-            /**
-             * When repair finished, do clean up
-             */
-            public void run()
-            {
-                sessions.remove(session.getId());
-            }
-        }, MoreExecutors.directExecutor());
+        session.addListener(()-> { sessions.remove(session.getId());}, MoreExecutors.directExecutor());
         session.start(executor);
         return session;
     }
@@ -588,16 +579,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             String snapshotName = parentSessionId.toString();
             if (!columnFamilyStores.get(tableId).snapshotExists(snapshotName))
             {
-                Set<SSTableReader> snapshottedSSTables = columnFamilyStores.get(tableId).snapshot(snapshotName, new Predicate<SSTableReader>()
-                {
-                    public boolean apply(SSTableReader sstable)
-                    {
-                        return sstable != null &&
+                Set<SSTableReader> snapshottedSSTables = columnFamilyStores.get(tableId).snapshot(snapshotName, (SSTableReader sstable)->{ return sstable != null &&
                                (!isIncremental || !sstable.isRepaired()) &&
                                !(sstable.metadata().isIndex()) && // exclude SSTables from 2i
-                               new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges);
-                    }
-                }, true, false);
+                               new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges);}, true, false);
             }
         }
 

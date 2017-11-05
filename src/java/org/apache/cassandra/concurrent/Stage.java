@@ -39,13 +39,7 @@ public enum Stage
 
     public static Iterable<Stage> jmxEnabledStages()
     {
-        return Iterables.filter(Arrays.asList(values()), new Predicate<Stage>()
-        {
-            public boolean apply(Stage stage)
-            {
-                return stage != TRACING;
-            }
-        });
+        return Iterables.filter(Arrays.asList(values()), (Stage stage)->{ return stage != TRACING;});
     }
 
     public String getJmxType()

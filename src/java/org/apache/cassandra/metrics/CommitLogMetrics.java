@@ -50,26 +50,8 @@ public class CommitLogMetrics
 
     public void attach(final AbstractCommitLogService service, final AbstractCommitLogSegmentManager segmentManager)
     {
-        completedTasks = Metrics.register(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return service.getCompletedTasks();
-            }
-        });
-        pendingTasks = Metrics.register(factory.createMetricName("PendingTasks"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return service.getPendingTasks();
-            }
-        });
-        totalCommitLogSize = Metrics.register(factory.createMetricName("TotalCommitLogSize"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return segmentManager.onDiskSize();
-            }
-        });
+        completedTasks = Metrics.register(factory.createMetricName("CompletedTasks"), ()-> { return service.getCompletedTasks();});
+        pendingTasks = Metrics.register(factory.createMetricName("PendingTasks"), ()-> { return service.getPendingTasks();});
+        totalCommitLogSize = Metrics.register(factory.createMetricName("TotalCommitLogSize"), ()-> { return segmentManager.onDiskSize();});
     }
 }

@@ -104,13 +104,7 @@ public class LongLeveledCompactionStrategyTest
                 final AbstractCompactionTask nextTask = lcs.getNextBackgroundTask(Integer.MIN_VALUE);
                 if (nextTask == null)
                     break;
-                tasks.add(new Runnable()
-                {
-                    public void run()
-                    {
-                        nextTask.execute(null);
-                    }
-                });
+                tasks.add(()-> { nextTask.execute(null);});
             }
             if (tasks.isEmpty())
                 break;

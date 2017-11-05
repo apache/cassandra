@@ -105,12 +105,6 @@ class TracingImpl extends Tracing
     {
         final String threadName = Thread.currentThread().getName();
 
-        StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
-        {
-            public void runMayThrow()
-            {
-                TraceStateImpl.mutateWithCatch(TraceKeyspace.makeEventMutation(sessionId, message, -1, threadName, ttl));
-            }
-        });
+        StageManager.getStage(Stage.TRACING).execute(()-> { TraceStateImpl.mutateWithCatch(TraceKeyspace.makeEventMutation(sessionId, message, -1, threadName, ttl));});
     }
 }

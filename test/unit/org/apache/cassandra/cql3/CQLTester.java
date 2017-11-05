@@ -349,13 +349,7 @@ public abstract class CQLTester
                     // mono-threaded, just push a task on the queue to find when it's empty. No perfect but good enough.
 
                     final CountDownLatch latch = new CountDownLatch(1);
-                    ScheduledExecutors.nonPeriodicTasks.execute(new Runnable()
-                    {
-                        public void run()
-                        {
-                            latch.countDown();
-                        }
-                    });
+                    ScheduledExecutors.nonPeriodicTasks.execute(()-> { latch.countDown();});
                     latch.await(2, TimeUnit.SECONDS);
 
                     removeAllSSTables(KEYSPACE, tablesToDrop);

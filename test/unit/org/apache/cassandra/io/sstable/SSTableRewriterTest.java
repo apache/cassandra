@@ -798,11 +798,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         // needed since we get notified when compaction is done as well - we can't get sections for ranges for obsoleted sstables
         final AtomicBoolean done = new AtomicBoolean(false);
         final AtomicBoolean failed = new AtomicBoolean(false);
-        Runnable r = new Runnable()
-        {
-            public void run()
-            {
-                while (!done.get())
+        Runnable r = ()-> { while (!done.get())
                 {
                     Set<Range<Token>> range = Collections.singleton(new Range<Token>(firstToken, firstToken));
                     List<StreamSession.SSTableStreamingSections> sections = StreamSession.getSSTableSectionsForRanges(range, Collections.singleton(cfs), null, PreviewKind.NONE);
@@ -812,9 +808,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                         section.ref.release();
                     checkCount.incrementAndGet();
                     Uninterruptibles.sleepUninterruptibly(5, TimeUnit.MILLISECONDS);
-                }
-            }
-        };
+                }};
         Thread t = NamedThreadFactory.createThread(r);
         try
         {

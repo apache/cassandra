@@ -373,13 +373,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
             if (cfNames == null)
                 return Collections.emptySet();
 
-            return Iterables.filter(mutation.getPartitionUpdates(), new Predicate<PartitionUpdate>()
-            {
-                public boolean apply(PartitionUpdate upd)
-                {
-                    return cfNames.contains(upd.metadata().name);
-                }
-            });
+            return Iterables.filter(mutation.getPartitionUpdates(), (PartitionUpdate upd)->{ return cfNames.contains(upd.metadata().name);});
         }
 
         public boolean includes(TableMetadataRef metadata)

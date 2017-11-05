@@ -77,13 +77,7 @@ public class StreamStateCompositeData
         valueMap.put(ITEM_NAMES[1], streamState.streamOperation.getDescription());
 
         CompositeData[] sessions = new CompositeData[streamState.sessions.size()];
-        Lists.newArrayList(Iterables.transform(streamState.sessions, new Function<SessionInfo, CompositeData>()
-        {
-            public CompositeData apply(SessionInfo input)
-            {
-                return SessionInfoCompositeData.toCompositeData(streamState.planId, input);
-            }
-        })).toArray(sessions);
+        Lists.newArrayList(Iterables.transform(streamState.sessions, (SessionInfo input)->{ return SessionInfoCompositeData.toCompositeData(streamState.planId, input);})).toArray(sessions);
         valueMap.put(ITEM_NAMES[2], sessions);
 
         long currentRxBytes = 0;
@@ -124,13 +118,7 @@ public class StreamStateCompositeData
         UUID planId = UUID.fromString((String) values[0]);
         String typeString = (String) values[1];
         Set<SessionInfo> sessions = Sets.newHashSet(Iterables.transform(Arrays.asList((CompositeData[]) values[2]),
-                                                                        new Function<CompositeData, SessionInfo>()
-                                                                        {
-                                                                            public SessionInfo apply(CompositeData input)
-                                                                            {
-                                                                                return SessionInfoCompositeData.fromCompositeData(input);
-                                                                            }
-                                                                        }));
+                                                                        (CompositeData input)->{ return SessionInfoCompositeData.fromCompositeData(input);}));
         return new StreamState(planId, StreamOperation.fromString(typeString), sessions);
     }
 }

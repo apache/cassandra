@@ -84,22 +84,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         if (instance != null)
             mbeanName += ",instance=" + instance;
         subsnitch = snitch;
-        update = new Runnable()
-        {
-            public void run()
-            {
-                updateScores();
-            }
-        };
-        reset = new Runnable()
-        {
-            public void run()
-            {
-                // we do this so that a host considered bad has a chance to recover, otherwise would we never try
-                // to read from it, which would cause its score to never change
-                reset();
-            }
-        };
+        update = ()-> { updateScores();};
+        reset = ()-> { reset();};
 
         if (DatabaseDescriptor.isDaemonInitialized())
         {
