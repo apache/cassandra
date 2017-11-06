@@ -306,3 +306,25 @@ names as their name.
 +-----------------+
 | ``macaddr``     |
 +-----------------+
+
+
+Appendix C: Dropping Compact Storage
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Starting version 4.0, Thrift and COMPACT STORAGE is no longer supported.
+
+'ALTER ... DROP COMPACT STORAGE' statement makes Compact Tables CQL-compatible,
+exposing internal structure of Thrift/Compact Tables:
+
+- CQL-created Compact Tables that have no clustering columns, will expose an
+  additional clustering column ``column1`` with ``UTF8Type``.
+- CQL-created Compact Tables that had no regular columns, will expose a
+  regular column ``value`` with ``BytesType``.
+- For CQL-Created Compact Tables, all columns originally defined as
+  ``regular`` will be come ``static``
+- CQL-created Compact Tables that have clustering but have no regular
+  columns will have an empty value column (of ``EmptyType``)
+- SuperColumn Tables (can only be created through Thrift) will expose
+  a compact value map with an empty name.
+- Thrift-created Compact Tables will have types corresponding to their
+  Thrift definition.
