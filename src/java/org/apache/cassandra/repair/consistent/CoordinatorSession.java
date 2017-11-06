@@ -33,6 +33,7 @@ import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
@@ -267,7 +268,7 @@ public class CoordinatorSession extends ConsistentSession
         ListenableFuture<Boolean> prepareResult = prepare();
 
         // run repair sessions normally
-        ListenableFuture<List<RepairSessionResult>> repairSessionResults = Futures.transform(prepareResult, new AsyncFunction<Boolean, List<RepairSessionResult>>()
+        ListenableFuture<List<RepairSessionResult>> repairSessionResults = Futures.transformAsync(prepareResult, new AsyncFunction<Boolean, List<RepairSessionResult>>()
         {
             public ListenableFuture<List<RepairSessionResult>> apply(Boolean success) throws Exception
             {
@@ -287,10 +288,10 @@ public class CoordinatorSession extends ConsistentSession
                 }
 
             }
-        });
+        }, MoreExecutors.directExecutor());
 
         // mark propose finalization
-        ListenableFuture<Boolean> proposeFuture = Futures.transform(repairSessionResults, new AsyncFunction<List<RepairSessionResult>, Boolean>()
+        ListenableFuture<Boolean> proposeFuture = Futures.transformAsync(repairSessionResults, new AsyncFunction<List<RepairSessionResult>, Boolean>()
         {
             public ListenableFuture<Boolean> apply(List<RepairSessionResult> results) throws Exception
             {
@@ -309,7 +310,7 @@ public class CoordinatorSession extends ConsistentSession
                     return finalizePropose();
                 }
             }
-        });
+        }, MoreExecutors.directExecutor());
 
         // commit repaired data
         Futures.addCallback(proposeFuture, new FutureCallback<Boolean>()

@@ -18,6 +18,7 @@
 package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
@@ -217,6 +218,12 @@ public class Validator implements Runnable
         {
             count += length;
             return underlying.putBytes(bytes, offset, length);
+        }
+
+        public Hasher putBytes(ByteBuffer byteBuffer)
+        {
+            count += byteBuffer.remaining();
+            return underlying.putBytes(byteBuffer);
         }
 
         public Hasher putShort(short i)
