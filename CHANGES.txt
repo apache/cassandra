@@ -1,4 +1,5 @@
 4.0
+ * Use Murmur3 for validation compactions (CASSANDRA-14002)
  * Comma at the end of the seed list is interpretated as localhost (CASSANDRA-14285)
  * Refactor read executor and response resolver, abstract read repair (CASSANDRA-14058)
  * Add optional startup delay to wait until peers are ready (CASSANDRA-13993)
