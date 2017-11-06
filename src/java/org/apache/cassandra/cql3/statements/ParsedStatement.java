@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.service.ClientState;
 
 public abstract class ParsedStatement
 {
@@ -44,7 +45,7 @@ public abstract class ParsedStatement
         this.variables = variables;
     }
 
-    public abstract Prepared prepare() throws RequestValidationException;
+    public abstract Prepared prepare(ClientState clientState) throws RequestValidationException;
 
     public static class Prepared
     {

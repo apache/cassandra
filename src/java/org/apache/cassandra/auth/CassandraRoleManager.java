@@ -40,6 +40,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -466,7 +467,7 @@ public class CassandraRoleManager implements IRoleManager
     {
         try
         {
-            return QueryProcessor.parseStatement(String.format(template, keyspace, table)).prepare().statement;
+            return QueryProcessor.parseStatement(String.format(template, keyspace, table)).prepare(ClientState.forInternalCalls()).statement;
         }
         catch (RequestValidationException e)
         {

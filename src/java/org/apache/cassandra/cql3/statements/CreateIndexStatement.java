@@ -116,8 +116,13 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             }
 
             // TODO: we could lift that limitation
-            if (cfm.isCompactTable() && cd.isPrimaryKeyColumn())
-                throw new InvalidRequestException("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables");
+            if (cfm.isCompactTable())
+            {
+                if (cd.isPrimaryKeyColumn())
+                    throw new InvalidRequestException("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables");
+                if (cfm.compactValueColumn().equals(cd))
+                    throw new InvalidRequestException("Secondary indexes are not supported on compact value column of COMPACT STORAGE tables");
+            }
 
             if (cd.kind == ColumnDefinition.Kind.PARTITION_KEY && cfm.getKeyValidatorAsClusteringComparator().size() == 1)
                 throw new InvalidRequestException(String.format("Cannot create secondary index on partition key column %s", target.column));

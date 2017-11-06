@@ -39,7 +39,7 @@ public class UseStatement extends ParsedStatement implements CQLStatement
         return 0;
     }
 
-    public Prepared prepare() throws InvalidRequestException
+    public Prepared prepare(ClientState clientState) throws InvalidRequestException
     {
         return new Prepared(this);
     }

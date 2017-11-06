@@ -588,7 +588,7 @@ public class CQLSSTableWriter implements Closeable
          */
         private Pair<UpdateStatement, List<ColumnSpecification>> prepareInsert()
         {
-            ParsedStatement.Prepared cqlStatement = insertStatement.prepare();
+            ParsedStatement.Prepared cqlStatement = insertStatement.prepare(ClientState.forInternalCalls());
             UpdateStatement insert = (UpdateStatement) cqlStatement.statement;
             insert.validate(ClientState.forInternalCalls());
 

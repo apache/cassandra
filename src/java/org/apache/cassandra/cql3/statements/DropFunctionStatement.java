@@ -63,7 +63,7 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
     }
 
     @Override
-    public Prepared prepare() throws InvalidRequestException
+    public Prepared prepare(ClientState clientState) throws InvalidRequestException
     {
         if (Schema.instance.getKSMetaData(functionName.keyspace) != null)
         {
@@ -82,7 +82,7 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
             }
         }
 
-        return super.prepare();
+        return super.prepare(clientState);
     }
 
     @Override

@@ -193,7 +193,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
         /**
          * Transform this raw statement into a CreateTableStatement.
          */
-        public ParsedStatement.Prepared prepare() throws RequestValidationException
+        public ParsedStatement.Prepared prepare(ClientState clientState) throws RequestValidationException
         {
             KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace());
             if (ksm == null)

@@ -196,7 +196,13 @@ public class KeysSearcher extends CassandraIndexSearcher
         }
         else
         {
-            assert iterator.metadata().isCompactTable();
+            if (!iterator.metadata().isCompactTable())
+            {
+                logger.warn("Non-composite index was used on the table '{}' during the query. Starting from Cassandra 4.0, only " +
+                            "composite indexes will be supported. If compact flags were dropped for this table, drop and re-create " +
+                            "the index.", iterator.metadata().cfName);
+            }
+
             Row data = iterator.staticRow();
             if (index.isStale(data, indexedValue, nowInSec))
             {

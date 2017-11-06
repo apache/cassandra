@@ -36,6 +36,7 @@ import org.apache.cassandra.cql3.functions.JavaBasedUDFunction;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.*;
@@ -1089,5 +1090,29 @@ public class UFTest extends CQLTester
 
         assertRows(execute("SELECT " + fTup + "(sval) FROM %s"),
                    row(tuple(88, userType("a", 42, "b", "42", "c", 4242L))));
+    }
+
+    @Test(expected = SyntaxException.class)
+    public void testEmptyFunctionName() throws Throwable
+    {
+        execute("CREATE FUNCTION IF NOT EXISTS " + KEYSPACE + ".\"\" (arg int)\n" +
+                "  RETURNS NULL ON NULL INPUT\n" +
+                "  RETURNS int\n" +
+                "  LANGUAGE java\n" +
+                "  AS $$\n" +
+                "    return a;\n" +
+                "  $$");
+    }
+
+    @Test(expected = SyntaxException.class)
+    public void testEmptyArgName() throws Throwable
+    {
+        execute("CREATE FUNCTION IF NOT EXISTS " + KEYSPACE + ".myfn (\"\" int)\n" +
+                "  RETURNS NULL ON NULL INPUT\n" +
+                "  RETURNS int\n" +
+                "  LANGUAGE java\n" +
+                "  AS $$\n" +
+                "    return a;\n" +
+                "  $$");
     }
 }

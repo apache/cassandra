@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.ColumnDefinition.Raw;
 import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.cql3.*;
@@ -801,17 +802,16 @@ public abstract class ModificationStatement implements CQLStatement
             this.ifExists = ifExists;
         }
 
-        public ParsedStatement.Prepared prepare()
+        public ParsedStatement.Prepared prepare(ClientState clientState)
         {
             VariableSpecifications boundNames = getBoundVariables();
-            ModificationStatement statement = prepare(boundNames);
-            CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
-            return new ParsedStatement.Prepared(statement, boundNames, boundNames.getPartitionKeyBindIndexes(cfm));
+            ModificationStatement statement = prepare(boundNames, clientState);
+            return new ParsedStatement.Prepared(statement, boundNames, boundNames.getPartitionKeyBindIndexes(statement.cfm));
         }
 
-        public ModificationStatement prepare(VariableSpecifications boundNames)
+        public ModificationStatement prepare(VariableSpecifications boundNames, ClientState clientState)
         {
-            CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+            CFMetaData metadata = ThriftValidation.validateColumnFamilyWithCompactMode(keyspace(), columnFamily(), clientState.isNoCompactMode());
 
             Attributes preparedAttributes = attrs.prepare(keyspace(), columnFamily());
             preparedAttributes.collectMarkerSpecification(boundNames);

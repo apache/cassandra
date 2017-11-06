@@ -18,6 +18,8 @@
 package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -25,8 +27,11 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.messages.ResultMessage;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
  * Abstract class for statements that alter the schema.
@@ -60,8 +65,33 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
     }
 
     @Override
-    public Prepared prepare()
+    public Prepared prepare(ClientState clientState)
     {
+        // We don't allow schema changes in no-compact mode on compact tables because it feels like unnecessary
+        // complication: applying the change on the non compact version of the table might be unsafe (the table is
+        // still compact in general), and applying it to the compact version in a no-compact connection feels
+        // confusing/unintuitive. If user want to alter the compact version, they can simply do so in a normal
+        // connection; if they want to alter the non-compact version, they should finish their transition and properly
+        // DROP COMPACT STORAGE on the table before doing so.
+        if (isColumnFamilyLevel && clientState.isNoCompactMode())
+        {
+            CFMetaData table = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+            if (table.isCompactTable())
+            {
+                throw invalidRequest("Cannot alter schema of compact table %s.%s from a connection in NO-COMPACT mode",
+                                     table.ksName, table.cfName);
+            }
+            else if (table.isView())
+            {
+                CFMetaData baseTable = Schema.instance.getView(table.ksName, table.cfName).baseTableMetadata();
+                if (baseTable.isCompactTable())
+                    throw new InvalidRequestException(String.format("Cannot ALTER schema of view %s.%s on compact table %s from "
+                                                                    + "a connection in NO-COMPACT mode",
+                                                                    table.ksName, table.cfName,
+                                                                    baseTable.ksName, baseTable.cfName));
+            }
+        }
+
         return new Prepared(this);
     }
 

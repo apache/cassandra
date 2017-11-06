@@ -766,9 +766,9 @@ createTriggerStatement returns [CreateTriggerStatement expr]
     @init {
         boolean ifNotExists = false;
     }
-    : K_CREATE K_TRIGGER (K_IF K_NOT K_EXISTS { ifNotExists = true; } )? (name=cident)
+    : K_CREATE K_TRIGGER (K_IF K_NOT K_EXISTS { ifNotExists = true; } )? (name=ident)
         K_ON cf=columnFamilyName K_USING cls=STRING_LITERAL
-      { $expr = new CreateTriggerStatement(cf, name.rawText(), $cls.text, ifNotExists); }
+      { $expr = new CreateTriggerStatement(cf, name.toString(), $cls.text, ifNotExists); }
     ;
 
 /**
@@ -776,8 +776,8 @@ createTriggerStatement returns [CreateTriggerStatement expr]
  */
 dropTriggerStatement returns [DropTriggerStatement expr]
      @init { boolean ifExists = false; }
-    : K_DROP K_TRIGGER (K_IF K_EXISTS { ifExists = true; } )? (name=cident) K_ON cf=columnFamilyName
-      { $expr = new DropTriggerStatement(cf, name.rawText(), ifExists); }
+    : K_DROP K_TRIGGER (K_IF K_EXISTS { ifExists = true; } )? (name=ident) K_ON cf=columnFamilyName
+      { $expr = new DropTriggerStatement(cf, name.toString(), ifExists); }
     ;
 
 /**
@@ -805,18 +805,19 @@ alterTableStatement returns [AlterTableStatement expr]
         Long deleteTimestamp = null;
     }
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
-          ( K_ALTER id=cident  K_TYPE v=comparatorType  { type = AlterTableStatement.Type.ALTER; } { colNameList.add(new AlterTableStatementColumn(id,v)); }
-          | K_ADD  (        (id=cident   v=comparatorType   b1=cfisStatic { colNameList.add(new AlterTableStatementColumn(id,v,b1)); })
-                     | ('('  id1=cident  v1=comparatorType  b1=cfisStatic { colNameList.add(new AlterTableStatementColumn(id1,v1,b1)); }
-                       ( ',' idn=cident  vn=comparatorType  bn=cfisStatic { colNameList.add(new AlterTableStatementColumn(idn,vn,bn)); } )* ')' ) ) { type = AlterTableStatement.Type.ADD; }
-          | K_DROP ( (         id=cident  { colNameList.add(new AlterTableStatementColumn(id)); }
-                      | ('('  id1=cident { colNameList.add(new AlterTableStatementColumn(id1)); }
-                        ( ',' idn=cident { colNameList.add(new AlterTableStatementColumn(idn)); } )* ')') )
+          ( K_ALTER id=schema_cident  K_TYPE v=comparatorType  { type = AlterTableStatement.Type.ALTER; } { colNameList.add(new AlterTableStatementColumn(id,v)); }
+          | K_ADD  (        (aid=schema_cident  v=comparatorType   b1=cfisStatic { colNameList.add(new AlterTableStatementColumn(aid,v,b1)); })
+                     | ('('  id1=schema_cident  v1=comparatorType  b1=cfisStatic { colNameList.add(new AlterTableStatementColumn(id1,v1,b1)); }
+                       ( ',' idn=schema_cident  vn=comparatorType  bn=cfisStatic { colNameList.add(new AlterTableStatementColumn(idn,vn,bn)); } )* ')' ) ) { type = AlterTableStatement.Type.ADD; }
+          | K_DROP K_COMPACT K_STORAGE          { type = AlterTableStatement.Type.DROP_COMPACT_STORAGE; }        
+          | K_DROP ( (        id=schema_cident  { colNameList.add(new AlterTableStatementColumn(id)); }
+                      | ('('  id1=schema_cident { colNameList.add(new AlterTableStatementColumn(id1)); }
+                        ( ',' idn=schema_cident { colNameList.add(new AlterTableStatementColumn(idn)); } )* ')') )
                      ( K_USING K_TIMESTAMP t=INTEGER { deleteTimestamp = Long.parseLong(Constants.Literal.integer($t.text).getText()); })? ) { type = AlterTableStatement.Type.DROP; }
           | K_WITH  properties[attrs]                 { type = AlterTableStatement.Type.OPTS; }
           | K_RENAME                                  { type = AlterTableStatement.Type.RENAME; }
-               id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
-               ( K_AND idn=cident K_TO toIdn=cident { renames.put(idn, toIdn); } )*
+               id1=schema_cident K_TO toId1=schema_cident { renames.put(id1, toId1); }
+               ( K_AND idn=schema_cident K_TO toIdn=schema_cident { renames.put(idn, toIdn); } )*
           )
     {
         $expr = new AlterTableStatement(cf, type, colNameList, attrs, renames, deleteTimestamp);
@@ -1173,7 +1174,17 @@ userPassword[RoleOptions opts]
 // Column Identifiers.  These need to be treated differently from other
 // identifiers because the underlying comparator is not necessarily text. See
 // CASSANDRA-8178 for details.
+// Also, we need to support the internal of the super column map (for backward
+// compatibility) which is empty (we only want to allow this is in data manipulation
+// queries, not in schema defition etc).
 cident returns [ColumnDefinition.Raw id]
+    : EMPTY_QUOTED_NAME    { $id = ColumnDefinition.Raw.forQuoted(""); }
+    | t=IDENT              { $id = ColumnDefinition.Raw.forUnquoted($t.text); }
+    | t=QUOTED_NAME        { $id = ColumnDefinition.Raw.forQuoted($t.text); }
+    | k=unreserved_keyword { $id = ColumnDefinition.Raw.forUnquoted(k); }
+    ;
+
+schema_cident returns [ColumnDefinition.Raw id]
     : t=IDENT              { $id = ColumnDefinition.Raw.forUnquoted($t.text); }
     | t=QUOTED_NAME        { $id = ColumnDefinition.Raw.forQuoted($t.text); }
     | k=unreserved_keyword { $id = ColumnDefinition.Raw.forUnquoted(k); }
@@ -1319,7 +1330,9 @@ intValue returns [Term.Raw value]
     ;
 
 functionName returns [FunctionName s]
-    : (ks=keyspaceName '.')? f=allowedFunctionName   { $s = new FunctionName(ks, f); }
+     // antlr might try to recover and give a null for f. It will still error out in the end, but FunctionName
+     // wouldn't be happy with that so we should bypass this for now or we'll have a weird user-facing error
+    : (ks=keyspaceName '.')? f=allowedFunctionName   { $s = f == null ? null : new FunctionName(ks, f); }
     ;
 
 allowedFunctionName returns [String s]

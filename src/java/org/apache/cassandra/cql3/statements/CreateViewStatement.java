@@ -218,7 +218,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
         rawSelect.prepareKeyspace(state);
         rawSelect.setBoundVariables(getBoundVariables());
 
-        ParsedStatement.Prepared prepared = rawSelect.prepare(true);
+        ParsedStatement.Prepared prepared = rawSelect.prepare(true, queryState.getClientState());
         SelectStatement select = (SelectStatement) prepared.statement;
         StatementRestrictions restrictions = select.getRestrictions();
 
