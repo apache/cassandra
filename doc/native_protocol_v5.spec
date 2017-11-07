@@ -409,14 +409,13 @@ Table of Contents
   Executes a prepared query. The body of the message must be:
   <id><result_metadata_id><query_parameters>
   where
-  - <id> is the prepared query ID. It's the [short bytes] returned as a
-      response to a PREPARE message. As for <query_parameters>, it has the exact
-      same definition as in QUERY (see Section 4.1.4).
+    - <id> is the prepared query ID. It's the [short bytes] returned as a
+      response to a PREPARE message. 
     - <result_metadata_id> is the ID of the resultset metadata that was sent
       along with response to PREPARE message. If a RESULT/Rows message reports
       changed resultset metadata with the Metadata_changed flag, the reported new
       resultset metadata must be used in subsequent executions.
-
+    - <query_parameters> has the exact same definition as in QUERY (see Section 4.1.4).
 
 4.1.7. BATCH
 
