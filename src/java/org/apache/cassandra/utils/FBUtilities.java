@@ -264,25 +264,6 @@ public class FBUtilities
         return out;
     }
 
-    public static byte[] hash(ByteBuffer... data)
-    {
-        MessageDigest messageDigest = localMD5Digest.get();
-        for (ByteBuffer block : data)
-        {
-            if (block.hasArray())
-                messageDigest.update(block.array(), block.arrayOffset() + block.position(), block.remaining());
-            else
-                messageDigest.update(block.duplicate());
-        }
-
-        return messageDigest.digest();
-    }
-
-    public static BigInteger hashToBigInteger(ByteBuffer data)
-    {
-        return new BigInteger(hash(data)).abs();
-    }
-
     public static void sortSampledKeys(List<DecoratedKey> keys, Range<Token> range)
     {
         if (range.left.compareTo(range.right) >= 0)
