@@ -93,8 +93,8 @@ Table of Contents
   it is moving. The rest of that byte is the protocol version (5 for the protocol
   defined in this document). In other words, for this version of the protocol,
   version will be one of:
-    0x04    Request frame for this protocol version
-    0x84    Response frame for this protocol version
+    0x05    Request frame for this protocol version
+    0x85    Response frame for this protocol version
 
   Please note that while every message ships with the version, only one version
   of messages is accepted on a given connection. In other words, the first message
