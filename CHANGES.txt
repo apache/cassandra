@@ -158,6 +158,7 @@
 
 
 3.11.2
+ * Add asm jar to build.xml for maven builds (CASSANDRA-11193)
  * Round buffer size to powers of 2 for the chunk cache (CASSANDRA-13897)
  * Update jackson JSON jars (CASSANDRA-13949)
  * Avoid locks when checking LCS fanout and if we should defrag (CASSANDRA-13930)
