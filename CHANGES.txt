@@ -4,6 +4,7 @@
  * Update jackson JSON jars (CASSANDRA-13949)
  * Avoid locks when checking LCS fanout and if we should defrag (CASSANDRA-13930)
 Merged from 3.0:
+ * Fix SSTableLoader logger message (CASSANDRA-14003)
  * Fix repair race that caused gossip to block (CASSANDRA-13849)
  * Tracing interferes with digest requests when using RandomPartitioner (CASSANDRA-13964)
  * Add flag to disable materialized views, and warnings on creation (CASSANDRA-13959)
