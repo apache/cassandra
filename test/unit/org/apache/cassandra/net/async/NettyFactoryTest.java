@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.net.async;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Optional;
 
@@ -47,6 +46,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.async.NettyFactory.InboundInitializer;
 import org.apache.cassandra.net.async.NettyFactory.OutboundInitializer;
@@ -56,8 +56,8 @@ import org.apache.cassandra.utils.NativeLibrary;
 
 public class NettyFactoryTest
 {
-    private static final InetSocketAddress LOCAL_ADDR = new InetSocketAddress("127.0.0.1", 9876);
-    private static final InetSocketAddress REMOTE_ADDR = new InetSocketAddress("127.0.0.2", 9876);
+    private static final InetAddressAndPort LOCAL_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.1"), 9876);
+    private static final InetAddressAndPort REMOTE_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.2"), 9876);
     private static final int receiveBufferSize = 1 << 16;
     private static final IInternodeAuthenticator AUTHENTICATOR = new AllowAllInternodeAuthenticator();
     private static final boolean EPOLL_AVAILABLE = NativeTransportService.useEpoll();
@@ -129,7 +129,6 @@ public class NettyFactoryTest
         Channel inboundChannel = null;
         try
         {
-            InetSocketAddress addr = new InetSocketAddress("127.0.0.1", 9876);
             InboundInitializer inboundInitializer = new InboundInitializer(AUTHENTICATOR, null, channelGroup);
             inboundChannel = NettyFactory.instance.createInboundChannel(LOCAL_ADDR, inboundInitializer, receiveBufferSize);
             NettyFactory.instance.createInboundChannel(LOCAL_ADDR, inboundInitializer, receiveBufferSize);
@@ -144,7 +143,7 @@ public class NettyFactoryTest
     @Test(expected = ConfigurationException.class)
     public void createServerChannel_UnbindableAddress()
     {
-        InetSocketAddress addr = new InetSocketAddress("1.1.1.1", 9876);
+        InetAddressAndPort addr = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("1.1.1.1"), 9876);
         InboundInitializer inboundInitializer = new InboundInitializer(AUTHENTICATOR, null, channelGroup);
         NettyFactory.instance.createInboundChannel(addr, inboundInitializer, receiveBufferSize);
     }
@@ -162,10 +161,10 @@ public class NettyFactoryTest
         Assert.assertEquals(2, NettyFactory.determineAcceptGroupSize(serverEncryptionOptions));
         serverEncryptionOptions.enable_legacy_ssl_storage_port = false;
 
-        InetAddress originalBroadcastAddr = FBUtilities.getBroadcastAddress();
+        InetAddressAndPort originalBroadcastAddr = FBUtilities.getBroadcastAddressAndPort();
         try
         {
-            FBUtilities.setBroadcastInetAddress(InetAddresses.increment(FBUtilities.getLocalAddress()));
+            FBUtilities.setBroadcastInetAddress(InetAddresses.increment(FBUtilities.getLocalAddressAndPort().address));
             DatabaseDescriptor.setListenOnBroadcastAddress(true);
 
             serverEncryptionOptions.enabled = false;
@@ -178,7 +177,7 @@ public class NettyFactoryTest
         }
         finally
         {
-            FBUtilities.setBroadcastInetAddress(originalBroadcastAddr);
+            FBUtilities.setBroadcastInetAddress(originalBroadcastAddr.address);
             DatabaseDescriptor.setListenOnBroadcastAddress(false);
         }
     }

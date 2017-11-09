@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair.asymmetric;
 
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -28,6 +27,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * Keeps track of where a node needs to stream a given range from.
@@ -53,18 +53,18 @@ public class StreamFromOptions
     /**
      * Contains the hosts to stream from - if two nodes are in the same inner set, they are identical for the range we are handling
      */
-    private final Set<Set<InetAddress>> streamOptions = new HashSet<>();
+    private final Set<Set<InetAddressAndPort>> streamOptions = new HashSet<>();
 
     public StreamFromOptions(DifferenceHolder differences, Range<Token> range)
     {
         this(differences, range, Collections.emptySet());
     }
 
-    private StreamFromOptions(DifferenceHolder differences, Range<Token> range, Set<Set<InetAddress>> existing)
+    private StreamFromOptions(DifferenceHolder differences, Range<Token> range, Set<Set<InetAddressAndPort>> existing)
     {
         this.differences = differences;
         this.range = range;
-        for (Set<InetAddress> addresses : existing)
+        for (Set<InetAddressAndPort> addresses : existing)
             this.streamOptions.add(Sets.newHashSet(addresses));
     }
 
@@ -75,11 +75,11 @@ public class StreamFromOptions
      * range we are tracking, then just add it to the set with the identical remote nodes. Otherwise create a new group
      * of nodes containing this new node.
      */
-    public void add(InetAddress streamFromNode)
+    public void add(InetAddressAndPort streamFromNode)
     {
-        for (Set<InetAddress> options : streamOptions)
+        for (Set<InetAddressAndPort> options : streamOptions)
         {
-            InetAddress first = options.iterator().next();
+            InetAddressAndPort first = options.iterator().next();
             if (!differences.hasDifferenceBetween(first, streamFromNode, range))
             {
                 options.add(streamFromNode);
@@ -94,7 +94,7 @@ public class StreamFromOptions
         return new StreamFromOptions(differences, withRange, streamOptions);
     }
 
-    public Iterable<Set<InetAddress>> allStreams()
+    public Iterable<Set<InetAddressAndPort>> allStreams()
     {
         return streamOptions;
     }

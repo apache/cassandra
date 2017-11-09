@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.net;
 
-import java.net.InetAddress;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.SystemTimeSource;
 import org.apache.cassandra.utils.TimeSource;
@@ -253,7 +253,7 @@ public class RateBasedBackPressure implements BackPressureStrategy<RateBasedBack
     }
 
     @Override
-    public RateBasedBackPressureState newState(InetAddress host)
+    public RateBasedBackPressureState newState(InetAddressAndPort host)
     {
         return new RateBasedBackPressureState(host, timeSource, windowSize);
     }

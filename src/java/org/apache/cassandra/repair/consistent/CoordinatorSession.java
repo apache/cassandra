@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair.consistent;
 
-import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +38,7 @@ import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairSessionResult;
@@ -58,7 +58,7 @@ public class CoordinatorSession extends ConsistentSession
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorSession.class);
 
-    private final Map<InetAddress, State> participantStates = new HashMap<>();
+    private final Map<InetAddressAndPort, State> participantStates = new HashMap<>();
     private final SettableFuture<Boolean> prepareFuture = SettableFuture.create();
     private final SettableFuture<Boolean> finalizeProposeFuture = SettableFuture.create();
 
@@ -69,7 +69,7 @@ public class CoordinatorSession extends ConsistentSession
     public CoordinatorSession(Builder builder)
     {
         super(builder);
-        for (InetAddress participant : participants)
+        for (InetAddressAndPort participant : participants)
         {
             participantStates.put(participant, State.PREPARING);
         }
@@ -95,7 +95,7 @@ public class CoordinatorSession extends ConsistentSession
         super.setState(state);
     }
 
-    public synchronized void setParticipantState(InetAddress participant, State state)
+    public synchronized void setParticipantState(InetAddressAndPort participant, State state)
     {
         logger.trace("Setting participant {} to state {} for repair {}", participant, state, sessionID);
         Preconditions.checkArgument(participantStates.containsKey(participant),
@@ -115,7 +115,7 @@ public class CoordinatorSession extends ConsistentSession
 
     synchronized void setAll(State state)
     {
-        for (InetAddress participant : participants)
+        for (InetAddressAndPort participant : participants)
         {
             setParticipantState(participant, state);
         }
@@ -131,7 +131,7 @@ public class CoordinatorSession extends ConsistentSession
         return getState() == State.FAILED || Iterables.any(participantStates.values(), v -> v == State.FAILED);
     }
 
-    protected void sendMessage(InetAddress destination, RepairMessage message)
+    protected void sendMessage(InetAddressAndPort destination, RepairMessage message)
     {
         logger.trace("Sending {} to {}", message, destination);
         MessageOut<RepairMessage> messageOut = new MessageOut<RepairMessage>(MessagingService.Verb.REPAIR_MESSAGE, message, RepairMessage.serializer);
@@ -144,14 +144,14 @@ public class CoordinatorSession extends ConsistentSession
 
         logger.debug("Beginning prepare phase of incremental repair session {}", sessionID);
         PrepareConsistentRequest message = new PrepareConsistentRequest(sessionID, coordinator, participants);
-        for (final InetAddress participant : participants)
+        for (final InetAddressAndPort participant : participants)
         {
             sendMessage(participant, message);
         }
         return prepareFuture;
     }
 
-    public synchronized void handlePrepareResponse(InetAddress participant, boolean success)
+    public synchronized void handlePrepareResponse(InetAddressAndPort participant, boolean success)
     {
         if (getState() == State.FAILED)
         {
@@ -185,14 +185,14 @@ public class CoordinatorSession extends ConsistentSession
         Preconditions.checkArgument(allStates(State.REPAIRING));
         logger.debug("Proposing finalization of repair session {}", sessionID);
         FinalizePropose message = new FinalizePropose(sessionID);
-        for (final InetAddress participant : participants)
+        for (final InetAddressAndPort participant : participants)
         {
             sendMessage(participant, message);
         }
         return finalizeProposeFuture;
     }
 
-    public synchronized void handleFinalizePromise(InetAddress participant, boolean success)
+    public synchronized void handleFinalizePromise(InetAddressAndPort participant, boolean success)
     {
         if (getState() == State.FAILED)
         {
@@ -221,7 +221,7 @@ public class CoordinatorSession extends ConsistentSession
         Preconditions.checkArgument(allStates(State.FINALIZE_PROMISED));
         logger.debug("Committing finalization of repair session {}", sessionID);
         FinalizeCommit message = new FinalizeCommit(sessionID);
-        for (final InetAddress participant : participants)
+        for (final InetAddressAndPort participant : participants)
         {
             sendMessage(participant, message);
         }
@@ -233,7 +233,7 @@ public class CoordinatorSession extends ConsistentSession
     {
         logger.info("Incremental repair session {} failed", sessionID);
         FailSession message = new FailSession(sessionID);
-        for (final InetAddress participant : participants)
+        for (final InetAddressAndPort participant : participants)
         {
             if (participantStates.get(participant) != State.FAILED)
             {

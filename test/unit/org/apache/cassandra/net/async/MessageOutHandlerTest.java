@@ -44,8 +44,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ParameterType;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -65,15 +67,15 @@ public class MessageOutHandlerTest
     }
 
     @Before
-    public void setup()
+    public void setup() throws Exception
     {
         setup(MessageOutHandler.AUTO_FLUSH_THRESHOLD);
     }
 
-    private void setup(int flushThreshold)
+    private void setup(int flushThreshold) throws Exception
     {
-        OutboundConnectionIdentifier connectionId = OutboundConnectionIdentifier.small(new InetSocketAddress("127.0.0.1", 0),
-                                                                                       new InetSocketAddress("127.0.0.2", 0));
+        OutboundConnectionIdentifier connectionId = OutboundConnectionIdentifier.small(InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", 0),
+                                                                                       InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", 0));
         OutboundMessagingConnection omc = new NonSendingOutboundMessagingConnection(connectionId, null, Optional.empty());
         channel = new EmbeddedChannel();
         channelWriter = ChannelWriter.create(channel, omc::handleMessageResult, Optional.empty());
@@ -91,7 +93,7 @@ public class MessageOutHandlerTest
     }
 
     @Test
-    public void write_WithFlush() throws ExecutionException, InterruptedException, TimeoutException
+    public void write_WithFlush() throws Exception
     {
         setup(1);
         MessageOut message = new MessageOut(MessagingService.Verb.ECHO);
@@ -217,7 +219,7 @@ public class MessageOutHandlerTest
     public void captureTracingInfo_ForceException()
     {
         MessageOut message = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
-                             .withParameter(Tracing.TRACE_HEADER, new byte[9]);
+                             .withParameter(ParameterType.TRACE_SESSION, new byte[9]);
         handler.captureTracingInfo(new QueuedMessage(message, 42));
     }
 
@@ -226,7 +228,7 @@ public class MessageOutHandlerTest
     {
         UUID uuid = UUID.randomUUID();
         MessageOut message = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
-                             .withParameter(Tracing.TRACE_HEADER, UUIDGen.decompose(uuid));
+                             .withParameter(ParameterType.TRACE_SESSION, uuid);
         handler.captureTracingInfo(new QueuedMessage(message, 42));
     }
 

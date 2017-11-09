@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
-import java.net.InetAddress;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -26,6 +25,7 @@ import java.util.UUID;
 
 import org.junit.Test;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
@@ -514,13 +514,13 @@ public class CreateTest extends CQLTester
         DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
         {
             @Override
-            public String getRack(InetAddress endpoint) { return RACK1; }
+            public String getRack(InetAddressAndPort endpoint) { return RACK1; }
 
             @Override
-            public String getDatacenter(InetAddress endpoint) { return "us-east-1"; }
+            public String getDatacenter(InetAddressAndPort endpoint) { return "us-east-1"; }
 
             @Override
-            public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2) { return 0; }
+            public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2) { return 0; }
         });
 
         execute("CREATE KEYSPACE Foo WITH replication = { 'class' : 'NetworkTopologyStrategy', 'us-east-1' : 1 };");

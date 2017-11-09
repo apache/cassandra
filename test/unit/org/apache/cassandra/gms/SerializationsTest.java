@@ -24,6 +24,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -31,7 +32,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -78,9 +78,9 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testGossipDigestWrite() throws IOException
     {
-        Map<InetAddress, EndpointState> states = new HashMap<InetAddress, EndpointState>();
-        states.put(InetAddress.getByName("127.0.0.1"), Statics.EndpointSt);
-        states.put(InetAddress.getByName("127.0.0.2"), Statics.EndpointSt);
+        Map<InetAddressAndPort, EndpointState> states = new HashMap<>();
+        states.put(InetAddressAndPort.getByName("127.0.0.1"), Statics.EndpointSt);
+        states.put(InetAddressAndPort.getByName("127.0.0.2"), Statics.EndpointSt);
         GossipDigestAck ack = new GossipDigestAck(Statics.Digests, states);
         GossipDigestAck2 ack2 = new GossipDigestAck2(states);
         GossipDigestSyn syn = new GossipDigestSyn("Not a real cluster name",
@@ -132,9 +132,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         {
             HeartbeatSt.updateHeartBeat();
             EndpointSt.addApplicationState(ApplicationState.LOAD, vv0);
-            EndpointSt.addApplicationState(ApplicationState.STATUS, vv1);
+            EndpointSt.addApplicationState(ApplicationState.STATUS_WITH_PORT, vv1);
             for (int i = 0; i < 100; i++)
-                Digests.add(new GossipDigest(FBUtilities.getBroadcastAddress(), 100 + i, 1000 + 2 * i));
+                Digests.add(new GossipDigest(FBUtilities.getBroadcastAddressAndPort(), 100 + i, 1000 + 2 * i));
         }
     }
 }

@@ -55,6 +55,7 @@ import org.apache.cassandra.io.util.SsdDiskOptimizationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.net.BackPressureStrategy;
 import org.apache.cassandra.net.RateBasedBackPressure;
@@ -110,7 +111,7 @@ public class DatabaseDescriptor
     private static long indexSummaryCapacityInMB;
 
     private static String localDC;
-    private static Comparator<InetAddress> localComparator;
+    private static Comparator<InetAddressAndPort> localComparator;
     private static EncryptionContext encryptionContext;
     private static boolean hasLoggedConfig;
 
@@ -307,6 +308,7 @@ public class DatabaseDescriptor
 
     private static void applyAll() throws ConfigurationException
     {
+        //InetAddressAndPort cares that applySimpleConfig runs first
         applySimpleConfig();
 
         applyPartitioner();
@@ -324,6 +326,9 @@ public class DatabaseDescriptor
 
     private static void applySimpleConfig()
     {
+        //Doing this first before all other things in case other pieces of config want to construct
+        //InetAddressAndPort and get the right defaults
+        InetAddressAndPort.initializeDefaultPort(getStoragePort());
 
         if (conf.commitlog_sync == null)
         {
@@ -827,7 +832,7 @@ public class DatabaseDescriptor
         }
         else
         {
-            rpcAddress = FBUtilities.getLocalAddress();
+            rpcAddress = FBUtilities.getJustLocalAddress();
         }
 
         /* RPC address to broadcast */
@@ -956,10 +961,10 @@ public class DatabaseDescriptor
         snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
         EndpointSnitchInfo.create();
 
-        localDC = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
-        localComparator = new Comparator<InetAddress>()
+        localDC = snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+        localComparator = new Comparator<InetAddressAndPort>()
         {
-            public int compare(InetAddress endpoint1, InetAddress endpoint2)
+            public int compare(InetAddressAndPort endpoint1, InetAddressAndPort endpoint2)
             {
                 boolean local1 = localDC.equals(snitch.getDatacenter(endpoint1));
                 boolean local2 = localDC.equals(snitch.getDatacenter(endpoint2));
@@ -1319,14 +1324,14 @@ public class DatabaseDescriptor
         return conf.num_tokens;
     }
 
-    public static InetAddress getReplaceAddress()
+    public static InetAddressAndPort getReplaceAddress()
     {
         try
         {
             if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null) != null)
-                return InetAddress.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null));
+                return InetAddressAndPort.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null));
             else if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null) != null)
-                return InetAddress.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null));
+                return InetAddressAndPort.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null));
             return null;
         }
         catch (UnknownHostException e)
@@ -1651,9 +1656,9 @@ public class DatabaseDescriptor
         return conf.saved_caches_directory;
     }
 
-    public static Set<InetAddress> getSeeds()
+    public static Set<InetAddressAndPort> getSeeds()
     {
-        return ImmutableSet.<InetAddress>builder().addAll(seedProvider.getSeeds()).build();
+        return ImmutableSet.<InetAddressAndPort>builder().addAll(seedProvider.getSeeds()).build();
     }
 
     public static InetAddress getListenAddress()
@@ -2206,7 +2211,7 @@ public class DatabaseDescriptor
         return localDC;
     }
 
-    public static Comparator<InetAddress> getLocalComparator()
+    public static Comparator<InetAddressAndPort> getLocalComparator()
     {
         return localComparator;
     }

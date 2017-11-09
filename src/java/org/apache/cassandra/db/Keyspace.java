@@ -352,6 +352,7 @@ public class Keyspace
 
     private void createReplicationStrategy(KeyspaceMetadata ksm)
     {
+        logger.info("Creating replication strategy " + ksm .name + " params " + ksm.params);
         replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(ksm.name,
                                                                                     ksm.params.replication.klass,
                                                                                     StorageService.instance.getTokenMetadata(),

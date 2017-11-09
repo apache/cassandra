@@ -18,7 +18,6 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Map;
 
@@ -31,8 +30,8 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService.Verb;
-
 /**
  * The receiving node's view of a {@link MessageOut}. See documentation on {@link MessageOut} for details on the
  * serialization format.
@@ -41,16 +40,16 @@ import org.apache.cassandra.net.MessagingService.Verb;
  */
 public class MessageIn<T>
 {
-    public final InetAddress from;
+    public final InetAddressAndPort from;
     public final T payload;
-    public final Map<String, byte[]> parameters;
-    public final Verb verb;
+    public final Map<ParameterType, Object> parameters;
+    public final MessagingService.Verb verb;
     public final int version;
     public final long constructionTime;
 
-    private MessageIn(InetAddress from,
+    private MessageIn(InetAddressAndPort from,
                       T payload,
-                      Map<String, byte[]> parameters,
+                      Map<ParameterType, Object> parameters,
                       Verb verb,
                       int version,
                       long constructionTime)
@@ -63,9 +62,9 @@ public class MessageIn<T>
         this.constructionTime = constructionTime;
     }
 
-    public static <T> MessageIn<T> create(InetAddress from,
+    public static <T> MessageIn<T> create(InetAddressAndPort from,
                                           T payload,
-                                          Map<String, byte[]> parameters,
+                                          Map<ParameterType, Object> parameters,
                                           Verb verb,
                                           int version,
                                           long constructionTime)
@@ -73,9 +72,9 @@ public class MessageIn<T>
         return new MessageIn<>(from, payload, parameters, verb, version, constructionTime);
     }
 
-    public static <T> MessageIn<T> create(InetAddress from,
+    public static <T> MessageIn<T> create(InetAddressAndPort from,
                                           T payload,
-                                          Map<String, byte[]> parameters,
+                                          Map<ParameterType, Object> parameters,
                                           MessagingService.Verb verb,
                                           int version)
     {
@@ -89,37 +88,46 @@ public class MessageIn<T>
 
     public static <T2> MessageIn<T2> read(DataInputPlus in, int version, int id, long constructionTime) throws IOException
     {
-        InetAddress from = CompactEndpointSerializationHelper.deserialize(in);
+        InetAddressAndPort from = CompactEndpointSerializationHelper.instance.deserialize(in, version);
 
         MessagingService.Verb verb = MessagingService.Verb.fromId(in.readInt());
-        Map<String, byte[]> parameters = readParameters(in);
+        Map<ParameterType, Object> parameters = readParameters(in, version);
         int payloadSize = in.readInt();
         return read(in, version, id, constructionTime, from, payloadSize, verb, parameters);
     }
 
-    public static Map<String, byte[]> readParameters(DataInputPlus in) throws IOException
+    public static Map<ParameterType, Object> readParameters(DataInputPlus in, int version) throws IOException
     {
         int parameterCount = in.readInt();
+        Map<ParameterType, Object> parameters;
         if (parameterCount == 0)
         {
             return Collections.emptyMap();
         }
         else
         {
-            ImmutableMap.Builder<String, byte[]> builder = ImmutableMap.builder();
+            ImmutableMap.Builder<ParameterType, Object> builder = ImmutableMap.builder();
             for (int i = 0; i < parameterCount; i++)
             {
                 String key = in.readUTF();
-                byte[] value = new byte[in.readInt()];
-                in.readFully(value);
-                builder.put(key, value);
+                ParameterType type = ParameterType.byName.get(key);
+                if (type != null)
+                {
+                    byte[] value = new byte[in.readInt()];
+                    in.readFully(value);
+                    builder.put(type, type.serializer.deserialize(new DataInputBuffer(value), version));
+                }
+                else
+                {
+                    in.skipBytes(in.readInt());
+                }
             }
             return builder.build();
         }
     }
 
     public static <T2> MessageIn<T2> read(DataInputPlus in, int version, int id, long constructionTime,
-                                          InetAddress from, int payloadSize, Verb verb, Map<String, byte[]> parameters) throws IOException
+                                          InetAddressAndPort from, int payloadSize, Verb verb, Map<ParameterType, Object> parameters) throws IOException
     {
         IVersionedSerializer<T2> serializer = (IVersionedSerializer<T2>) MessagingService.verbSerializers.get(verb);
         if (serializer instanceof MessagingService.CallbackDeterminedSerializer)
@@ -140,7 +148,7 @@ public class MessageIn<T>
         return MessageIn.create(from, payload, parameters, verb, version, constructionTime);
     }
 
-    public static long deriveConstructionTime(InetAddress from, int messageTimestamp, long currentTime)
+    public static long deriveConstructionTime(InetAddressAndPort from, int messageTimestamp, long currentTime)
     {
         // Reconstruct the message construction time sent by the remote host (we sent only the lower 4 bytes, assuming the
         // higher 4 bytes wouldn't change between the sender and receiver)
@@ -182,36 +190,18 @@ public class MessageIn<T>
 
     public boolean doCallbackOnFailure()
     {
-        return parameters.containsKey(MessagingService.FAILURE_CALLBACK_PARAM);
+        return parameters.containsKey(ParameterType.FAILURE_CALLBACK);
     }
 
     public boolean isFailureResponse()
     {
-        return parameters.containsKey(MessagingService.FAILURE_RESPONSE_PARAM);
-    }
-
-    public boolean containsFailureReason()
-    {
-        return parameters.containsKey(MessagingService.FAILURE_REASON_PARAM);
+        return parameters.containsKey(ParameterType.FAILURE_RESPONSE);
     }
 
     public RequestFailureReason getFailureReason()
     {
-        if (containsFailureReason())
-        {
-            try (DataInputBuffer in = new DataInputBuffer(parameters.get(MessagingService.FAILURE_REASON_PARAM)))
-            {
-                return RequestFailureReason.fromCode(in.readUnsignedShort());
-            }
-            catch (IOException ex)
-            {
-                throw new RuntimeException(ex);
-            }
-        }
-        else
-        {
-            return RequestFailureReason.UNKNOWN;
-        }
+        Short code = (Short)parameters.get(ParameterType.FAILURE_REASON);
+        return code != null ? RequestFailureReason.fromCode(code) : RequestFailureReason.UNKNOWN;
     }
 
     public long getTimeout()

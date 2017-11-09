@@ -18,7 +18,6 @@
 package org.apache.cassandra.repair.messages;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -30,6 +29,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
@@ -45,14 +45,14 @@ public class SyncRequest extends RepairMessage
 {
     public static MessageSerializer serializer = new SyncRequestSerializer();
 
-    public final InetAddress initiator;
-    public final InetAddress src;
-    public final InetAddress dst;
+    public final InetAddressAndPort initiator;
+    public final InetAddressAndPort src;
+    public final InetAddressAndPort dst;
     public final Collection<Range<Token>> ranges;
     public final PreviewKind previewKind;
 
-    public SyncRequest(RepairJobDesc desc, InetAddress initiator, InetAddress src, InetAddress dst, Collection<Range<Token>> ranges, PreviewKind previewKind)
-    {
+   public SyncRequest(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, Collection<Range<Token>> ranges, PreviewKind previewKind)
+   {
         super(Type.SYNC_REQUEST, desc);
         this.initiator = initiator;
         this.src = src;
@@ -87,9 +87,9 @@ public class SyncRequest extends RepairMessage
         public void serialize(SyncRequest message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
-            CompactEndpointSerializationHelper.serialize(message.initiator, out);
-            CompactEndpointSerializationHelper.serialize(message.src, out);
-            CompactEndpointSerializationHelper.serialize(message.dst, out);
+            CompactEndpointSerializationHelper.instance.serialize(message.initiator, out, version);
+            CompactEndpointSerializationHelper.instance.serialize(message.src, out, version);
+            CompactEndpointSerializationHelper.instance.serialize(message.dst, out, version);
             out.writeInt(message.ranges.size());
             for (Range<Token> range : message.ranges)
             {
@@ -102,9 +102,9 @@ public class SyncRequest extends RepairMessage
         public SyncRequest deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
-            InetAddress owner = CompactEndpointSerializationHelper.deserialize(in);
-            InetAddress src = CompactEndpointSerializationHelper.deserialize(in);
-            InetAddress dst = CompactEndpointSerializationHelper.deserialize(in);
+            InetAddressAndPort owner = CompactEndpointSerializationHelper.instance.deserialize(in, version);
+            InetAddressAndPort src = CompactEndpointSerializationHelper.instance.deserialize(in, version);
+            InetAddressAndPort dst = CompactEndpointSerializationHelper.instance.deserialize(in, version);
             int rangesCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangesCount);
             for (int i = 0; i < rangesCount; ++i)
@@ -116,7 +116,7 @@ public class SyncRequest extends RepairMessage
         public long serializedSize(SyncRequest message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
-            size += 3 * CompactEndpointSerializationHelper.serializedSize(message.initiator);
+            size += 3 * CompactEndpointSerializationHelper.instance.serializedSize(message.initiator, version);
             size += TypeSizes.sizeof(message.ranges.size());
             for (Range<Token> range : message.ranges)
                 size += AbstractBounds.tokenSerializer.serializedSize(range, version);

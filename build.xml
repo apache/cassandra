@@ -306,7 +306,7 @@
       <!-- define the remote repositories we use -->
       <artifact:remoteRepository id="central"   url="${artifact.remoteRepository.central}"/>
       <artifact:remoteRepository id="apache"    url="${artifact.remoteRepository.apache}"/>
-      
+
       <macrodef name="install">
         <attribute name="pomFile"/>
         <attribute name="file"/>
@@ -437,7 +437,7 @@
           <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" />
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
 	  <!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
-          <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="3.0.1" classifier="shaded">
+          <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="4.0.0-SNAPSHOT" classifier="shaded">
             <exclusion groupId="io.netty" artifactId="netty-buffer"/>
             <exclusion groupId="io.netty" artifactId="netty-codec"/>
             <exclusion groupId="io.netty" artifactId="netty-handler"/>
@@ -522,7 +522,7 @@
       	<dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster"/>
       	<dependency groupId="com.google.code.findbugs" artifactId="jsr305"/>
         <dependency groupId="org.antlr" artifactId="antlr"/>
-	<!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE	
+	<!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
 	-->
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
@@ -543,7 +543,7 @@
         <dependency groupId="junit" artifactId="junit"/>
 	<!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
-	-->     
+	-->
         <dependency groupId="io.netty" artifactId="netty-all"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
@@ -624,7 +624,7 @@
           <exclusion groupId="io.netty" artifactId="netty-transport"/>
         </dependency>
 	-->
-	
+
         <!-- don't need jna to run, but nice to have -->
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>
 

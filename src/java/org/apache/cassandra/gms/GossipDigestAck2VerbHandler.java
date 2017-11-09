@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.gms;
 
-import java.net.InetAddress;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 
@@ -34,7 +34,7 @@ public class GossipDigestAck2VerbHandler implements IVerbHandler<GossipDigestAck
     {
         if (logger.isTraceEnabled())
         {
-            InetAddress from = message.from;
+            InetAddressAndPort from = message.from;
             logger.trace("Received a GossipDigestAck2Message from {}", from);
         }
         if (!Gossiper.instance.isEnabled())
@@ -43,7 +43,7 @@ public class GossipDigestAck2VerbHandler implements IVerbHandler<GossipDigestAck
                 logger.trace("Ignoring GossipDigestAck2Message because gossip is disabled");
             return;
         }
-        Map<InetAddress, EndpointState> remoteEpStateMap = message.payload.getEndpointStateMap();
+        Map<InetAddressAndPort, EndpointState> remoteEpStateMap = message.payload.getEndpointStateMap();
         /* Notify the Failure Detector */
         Gossiper.instance.notifyFailureDetector(remoteEpStateMap);
         Gossiper.instance.applyStateLocally(remoteEpStateMap);

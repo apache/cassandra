@@ -24,11 +24,15 @@ import java.net.InetAddress;
 import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.primitives.Ints;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
 
@@ -227,9 +231,9 @@ public class HandshakeProtocol
         private static final int MIN_LENGTH = 9;
 
         final int messagingVersion;
-        final InetAddress address;
+        final InetAddressAndPort address;
 
-        ThirdHandshakeMessage(int messagingVersion, InetAddress address)
+        ThirdHandshakeMessage(int messagingVersion, InetAddressAndPort address)
         {
             this.messagingVersion = messagingVersion;
             this.address = address;
@@ -238,14 +242,14 @@ public class HandshakeProtocol
         @SuppressWarnings("resource")
         public ByteBuf encode(ByteBufAllocator allocator)
         {
-            int bufLength = Integer.BYTES + CompactEndpointSerializationHelper.serializedSize(address);
+            int bufLength = Ints.checkedCast(Integer.BYTES + CompactEndpointSerializationHelper.instance.serializedSize(address, messagingVersion));
             ByteBuf buffer = allocator.directBuffer(bufLength, bufLength);
             buffer.writerIndex(0);
             buffer.writeInt(messagingVersion);
             try
             {
-                DataOutput bbos = new ByteBufOutputStream(buffer);
-                CompactEndpointSerializationHelper.serialize(address, bbos);
+                DataOutputPlus dop = new ByteBufDataOutputPlus(buffer);
+                CompactEndpointSerializationHelper.instance.serialize(address, dop, messagingVersion);
                 return buffer;
             }
             catch (IOException e)
@@ -263,10 +267,10 @@ public class HandshakeProtocol
 
             in.markReaderIndex();
             int version = in.readInt();
-            DataInput inputStream = new ByteBufInputStream(in);
+            DataInputPlus input = new ByteBufDataInputPlus(in);
             try
             {
-                InetAddress address = CompactEndpointSerializationHelper.deserialize(inputStream);
+                InetAddressAndPort address = CompactEndpointSerializationHelper.instance.deserialize(input, version);
                 return new ThirdHandshakeMessage(version, address);
             }
             catch (IOException e)

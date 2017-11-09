@@ -21,7 +21,6 @@ package org.apache.cassandra.streaming.async;
 import java.io.EOFException;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -38,6 +37,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.FastThreadLocalThread;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.async.RebufferingByteBufDataInputPlus;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
@@ -65,7 +65,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     private static final int AUTO_READ_LOW_WATER_MARK = 1 << 15;
     private static final int AUTO_READ_HIGH_WATER_MARK = 1 << 16;
 
-    private final InetSocketAddress remoteAddress;
+    private final InetAddressAndPort remoteAddress;
     private final int protocolVersion;
 
     private final StreamSession session;
@@ -82,7 +82,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 
     private volatile boolean closed;
 
-    public StreamingInboundHandler(InetSocketAddress remoteAddress, int protocolVersion, @Nullable StreamSession session)
+    public StreamingInboundHandler(InetAddressAndPort remoteAddress, int protocolVersion, @Nullable StreamSession session)
     {
         this.remoteAddress = remoteAddress;
         this.protocolVersion = protocolVersion;
@@ -254,11 +254,11 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
      */
     static class SessionIdentifier
     {
-        final InetAddress from;
+        final InetAddressAndPort from;
         final UUID planId;
         final int sessionIndex;
 
-        SessionIdentifier(InetAddress from, UUID planId, int sessionIndex)
+        SessionIdentifier(InetAddressAndPort from, UUID planId, int sessionIndex)
         {
             this.from = from;
             this.planId = planId;

@@ -54,6 +54,7 @@ public class JavaDriverClient
     private Cluster cluster;
     private Session session;
     private final LoadBalancingPolicy loadBalancingPolicy;
+    private final boolean allowServerPortDiscovery;
 
     private static final ConcurrentMap<String, PreparedStatement> stmts = new ConcurrentHashMap<>();
 
@@ -73,6 +74,7 @@ public class JavaDriverClient
         this.encryptionOptions = encryptionOptions;
         this.loadBalancingPolicy = loadBalancingPolicy(settings);
         this.connectionsPerHost = settings.mode.connectionsPerHost == null ? 8 : settings.mode.connectionsPerHost;
+        this.allowServerPortDiscovery = settings.node.allowServerPortDiscovery;
 
         int maxThreadCount = 0;
         if (settings.rate.auto)
@@ -134,6 +136,9 @@ public class JavaDriverClient
                                                 .withoutJMXReporting()
                                                 .withProtocolVersion(protocolVersion)
                                                 .withoutMetrics(); // The driver uses metrics 3 with conflict with our version
+        if (allowServerPortDiscovery)
+            clusterBuilder = clusterBuilder.allowServerPortDiscovery();
+
         if (loadBalancingPolicy != null)
             clusterBuilder.withLoadBalancingPolicy(loadBalancingPolicy);
         clusterBuilder.withCompression(compression);
@@ -166,7 +171,7 @@ public class JavaDriverClient
         for (Host host : metadata.getAllHosts())
         {
             System.out.printf("Datacenter: %s; Host: %s; Rack: %s%n",
-                    host.getDatacenter(), host.getAddress(), host.getRack());
+                    host.getDatacenter(), host.getAddress() + ":" + host.getSocketAddress().getPort(), host.getRack());
         }
 
         session = cluster.connect();

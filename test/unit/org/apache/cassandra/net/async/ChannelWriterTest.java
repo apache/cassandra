@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import com.google.common.net.InetAddresses;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -37,6 +38,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.WriteBufferWaterMark;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.async.ChannelWriter.CoalescingChannelWriter;
@@ -68,8 +70,8 @@ public class ChannelWriterTest
     @Before
     public void setup()
     {
-        OutboundConnectionIdentifier id = OutboundConnectionIdentifier.small(new InetSocketAddress("127.0.0.1", 0),
-                                                                             new InetSocketAddress("127.0.0.2", 0));
+        OutboundConnectionIdentifier id = OutboundConnectionIdentifier.small(InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.1"), 0),
+                                                                             InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.2"), 0));
         channel = new EmbeddedChannel();
         omc = new NonSendingOutboundMessagingConnection(id, null, Optional.empty());
         channelWriter = ChannelWriter.create(channel, omc::handleMessageResult, Optional.empty());

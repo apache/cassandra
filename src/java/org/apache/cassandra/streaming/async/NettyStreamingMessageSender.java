@@ -137,7 +137,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     @Override
     public void initialize() throws IOException
     {
-        StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddress(),
+        StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddressAndPort(),
                                                           session.sessionIndex(),
                                                           session.planId(),
                                                           session.streamOperation(),
@@ -183,7 +183,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     {
         Channel channel = factory.createConnection(connectionId, protocolVersion);
         ChannelPipeline pipeline = channel.pipeline();
-        pipeline.addLast(NettyFactory.instance.streamingGroup, NettyFactory.INBOUND_STREAM_HANDLER_NAME, new StreamingInboundHandler(connectionId.remoteAddress(), protocolVersion, session));
+        pipeline.addLast(NettyFactory.instance.streamingGroup, NettyFactory.INBOUND_STREAM_HANDLER_NAME, new StreamingInboundHandler(connectionId.remote(), protocolVersion, session));
         channel.attr(TRANSFERRING_FILE_ATTR).set(Boolean.FALSE);
         return channel;
     }

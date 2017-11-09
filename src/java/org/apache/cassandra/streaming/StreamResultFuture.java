@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -103,7 +104,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
     public static synchronized StreamResultFuture initReceivingSide(int sessionIndex,
                                                                     UUID planId,
                                                                     StreamOperation streamOperation,
-                                                                    InetAddress from,
+                                                                    InetAddressAndPort from,
                                                                     Channel channel,
                                                                     boolean keepSSTableLevel,
                                                                     UUID pendingRepair,
@@ -135,11 +136,15 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         return coordinator;
     }
 
-    private void attachConnection(InetAddress from, int sessionIndex, Channel channel)
+    private void attachConnection(InetAddressAndPort from, int sessionIndex, Channel channel)
     {
         SocketAddress addr = channel.remoteAddress();
-        InetAddress connecting = (addr instanceof InetSocketAddress ? ((InetSocketAddress) addr).getAddress() : from);
-        StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex, connecting);
+        //In the case of unit tests, if you use the EmbeddedChannel, channel.remoteAddress()
+        //does not return an InetSocketAddress, but an EmbeddedSocketAddress. Hence why we need the type check here
+        InetAddress connecting = (addr instanceof InetSocketAddress ? ((InetSocketAddress) addr).getAddress() : from.address);
+        //Need to turn connecting into a InetAddressAndPort with the correct port. I think getting the port from "from"
+        //Will work since we don't actually have ports diverge across network interfaces
+        StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex, InetAddressAndPort.getByAddressOverrideDefaults(connecting, from.port));
         session.init(this);
         session.attach(channel);
     }
@@ -228,7 +233,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         }
     }
 
-    StreamSession getSession(InetAddress peer, int sessionIndex)
+    StreamSession getSession(InetAddressAndPort peer, int sessionIndex)
     {
         return coordinator.getSessionById(peer, sessionIndex);
     }

@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +29,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
@@ -67,13 +67,13 @@ public class FileMessageHeader
     public final UUID pendingRepair;
     public final int sstableLevel;
     public final SerializationHeader.Component header;
-    public final InetAddress sender;
+    public final InetAddressAndPort sender;
 
     /* cached size value */
     private transient final long size;
 
     private FileMessageHeader(TableId tableId,
-                             InetAddress sender,
+                             InetAddressAndPort sender,
                              UUID planId,
                              int sessionIndex,
                              int sequenceNumber,
@@ -106,7 +106,7 @@ public class FileMessageHeader
     }
 
     public FileMessageHeader(TableId tableId,
-                             InetAddress sender,
+                             InetAddressAndPort sender,
                              UUID planId,
                              int sessionIndex,
                              int sequenceNumber,
@@ -218,7 +218,7 @@ public class FileMessageHeader
         public CompressionInfo serialize(FileMessageHeader header, DataOutputPlus out, int version) throws IOException
         {
             header.tableId.serialize(out);
-            CompactEndpointSerializationHelper.serialize(header.sender, out);
+            CompactEndpointSerializationHelper.streamingInstance.serialize(header.sender, out, version);
             UUIDSerializer.serializer.serialize(header.planId, out, version);
             out.writeInt(header.sessionIndex);
             out.writeInt(header.sequenceNumber);
@@ -252,7 +252,7 @@ public class FileMessageHeader
         public FileMessageHeader deserialize(DataInputPlus in, int version) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
-            InetAddress sender = CompactEndpointSerializationHelper.deserialize(in);
+            InetAddressAndPort sender = CompactEndpointSerializationHelper.streamingInstance.deserialize(in, version);
             UUID planId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
             int sessionIndex = in.readInt();
             int sequenceNumber = in.readInt();
@@ -276,7 +276,7 @@ public class FileMessageHeader
         public long serializedSize(FileMessageHeader header, int version)
         {
             long size = header.tableId.serializedSize();
-            size += CompactEndpointSerializationHelper.serializedSize(header.sender);
+            size += CompactEndpointSerializationHelper.streamingInstance.serializedSize(header.sender, version);
             size += UUIDSerializer.serializer.serializedSize(header.planId, version);
             size += TypeSizes.sizeof(header.sessionIndex);
             size += TypeSizes.sizeof(header.sequenceNumber);
