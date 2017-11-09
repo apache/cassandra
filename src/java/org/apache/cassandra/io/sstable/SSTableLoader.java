@@ -169,7 +169,7 @@ public class SSTableLoader implements StreamEventHandler
             return plan.execute();
         }
 
-        outputHandler.output(String.format("Streaming relevant part of %sto %s", names(sstables), endpointToRanges.keySet()));
+        outputHandler.output(String.format("Streaming relevant part of %s to %s", names(sstables), endpointToRanges.keySet()));
 
         for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : endpointToRanges.entrySet())
         {
