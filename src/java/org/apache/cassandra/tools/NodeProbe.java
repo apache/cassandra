@@ -450,39 +450,39 @@ public class NodeProbe implements AutoCloseable
         ssProxy.drain();
     }
 
-    public Map<String, String> getTokenToEndpointMap()
+    public Map<String, String> getTokenToEndpointMap(boolean withPort)
     {
-        return ssProxy.getTokenToEndpointMap();
+        return withPort ? ssProxy.getTokenToEndpointWithPortMap() : ssProxy.getTokenToEndpointMap();
     }
 
-    public List<String> getLiveNodes()
+    public List<String> getLiveNodes(boolean withPort)
     {
-        return ssProxy.getLiveNodes();
+        return withPort ? ssProxy.getLiveNodesWithPort() : ssProxy.getLiveNodes();
     }
 
-    public List<String> getJoiningNodes()
+    public List<String> getJoiningNodes(boolean withPort)
     {
-        return ssProxy.getJoiningNodes();
+        return withPort ? ssProxy.getJoiningNodesWithPort() : ssProxy.getJoiningNodes();
     }
 
-    public List<String> getLeavingNodes()
+    public List<String> getLeavingNodes(boolean withPort)
     {
-        return ssProxy.getLeavingNodes();
+        return withPort ? ssProxy.getLeavingNodesWithPort() : ssProxy.getLeavingNodes();
     }
 
-    public List<String> getMovingNodes()
+    public List<String> getMovingNodes(boolean withPort)
     {
-        return ssProxy.getMovingNodes();
+        return withPort ? ssProxy.getMovingNodesWithPort() : ssProxy.getMovingNodes();
     }
 
-    public List<String> getUnreachableNodes()
+    public List<String> getUnreachableNodes(boolean withPort)
     {
-        return ssProxy.getUnreachableNodes();
+        return withPort ? ssProxy.getUnreachableNodesWithPort() : ssProxy.getUnreachableNodes();
     }
 
-    public Map<String, String> getLoadMap()
+    public Map<String, String> getLoadMap(boolean withPort)
     {
-        return ssProxy.getLoadMap();
+        return withPort ? ssProxy.getLoadMapWithPort() : ssProxy.getLoadMap();
     }
 
     public Map<InetAddress, Float> getOwnership()
@@ -490,9 +490,19 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getOwnership();
     }
 
+    public Map<String, Float> getOwnershipWithPort()
+    {
+        return ssProxy.getOwnershipWithPort();
+    }
+
     public Map<InetAddress, Float> effectiveOwnership(String keyspace) throws IllegalStateException
     {
         return ssProxy.effectiveOwnership(keyspace);
+    }
+
+    public Map<String, Float> effectiveOwnershipWithPort(String keyspace) throws IllegalStateException
+    {
+        return ssProxy.effectiveOwnershipWithPort(keyspace);
     }
 
     public CacheServiceMBean getCacheServiceMBean()
@@ -557,9 +567,9 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getLocalHostId();
     }
 
-    public Map<String, String> getHostIdMap()
+    public Map<String, String> getHostIdMap(boolean withPort)
     {
-        return ssProxy.getEndpointToHostId();
+        return withPort ? ssProxy.getEndpointWithPortToHostId() : ssProxy.getEndpointToHostId();
     }
 
     public String getLoadString()
@@ -686,9 +696,9 @@ public class NodeProbe implements AutoCloseable
         ssProxy.removeNode(token);
     }
 
-    public String getRemovalStatus()
+    public String getRemovalStatus(boolean withPort)
     {
-        return ssProxy.getRemovalStatus();
+        return withPort ? ssProxy.getRemovalStatusWithPort() : ssProxy.getRemovalStatus();
     }
 
     public void forceRemoveCompletion()
@@ -773,6 +783,11 @@ public class NodeProbe implements AutoCloseable
     public void setHintedHandoffThrottleInKB(int throttleInKB)
     {
         ssProxy.setHintedHandoffThrottleInKB(throttleInKB);
+    }
+
+    public List<String> getEndpointsWithPort(String keyspace, String cf, String key)
+    {
+        return ssProxy.getNaturalEndpointsWithPort(keyspace, cf, key);
     }
 
     public List<InetAddress> getEndpoints(String keyspace, String cf, String key)
@@ -1144,9 +1159,9 @@ public class NodeProbe implements AutoCloseable
         ssProxy.rebuildSecondaryIndex(ksName, cfName, idxNames);
     }
 
-    public String getGossipInfo()
+    public String getGossipInfo(boolean withPort)
     {
-        return fdProxy.getAllEndpointStates();
+        return withPort ? fdProxy.getAllEndpointStatesWithPort() : fdProxy.getAllEndpointStates();
     }
 
     public void stop(String string)
@@ -1212,9 +1227,9 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getSchemaVersion();
     }
 
-    public List<String> describeRing(String keyspaceName) throws IOException
+    public List<String> describeRing(String keyspaceName, boolean withPort) throws IOException
     {
-        return ssProxy.describeRingJMX(keyspaceName);
+        return withPort ? ssProxy.describeRingWithPortJMX(keyspaceName) : ssProxy.describeRingJMX(keyspaceName);
     }
 
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources)
@@ -1580,11 +1595,11 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
-    public TabularData getFailureDetectorPhilValues()
+    public TabularData getFailureDetectorPhilValues(boolean withPort)
     {
         try
         {
-            return fdProxy.getPhiValues();
+            return withPort ? fdProxy.getPhiValuesWithPort() : fdProxy.getPhiValues();
         }
         catch (OpenDataException e)
         {

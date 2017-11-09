@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
 import org.junit.Test;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -36,7 +36,7 @@ public class SessionInfoTest
     public void testTotals()
     {
         TableId tableId = TableId.generate();
-        InetAddress local = FBUtilities.getLocalAddress();
+        InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
 
         Collection<StreamSummary> summaries = new ArrayList<>();
         for (int i = 0; i < 10; i++)

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +34,7 @@ import junit.framework.Assert;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -69,7 +69,7 @@ public class StreamingTransferTest
         DatabaseDescriptor.daemonInitialization();
     }
 
-    public static final InetAddress LOCAL = FBUtilities.getBroadcastAddress();
+    public static final InetAddressAndPort LOCAL = FBUtilities.getBroadcastAddressAndPort();
     public static final String KEYSPACE1 = "StreamingTransferTest1";
     public static final String CF_STANDARD = "Standard1";
     public static final String CF_COUNTER = "Counter1";

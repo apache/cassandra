@@ -18,7 +18,6 @@
 package org.apache.cassandra.hints;
 
 import java.io.File;
-import java.net.InetAddress;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
@@ -36,6 +35,7 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 
 /**
@@ -50,10 +50,10 @@ final class HintsDispatchExecutor
     private final File hintsDirectory;
     private final ExecutorService executor;
     private final AtomicBoolean isPaused;
-    private final Predicate<InetAddress> isAlive;
+    private final Predicate<InetAddressAndPort> isAlive;
     private final Map<UUID, Future> scheduledDispatches;
 
-    HintsDispatchExecutor(File hintsDirectory, int maxThreads, AtomicBoolean isPaused, Predicate<InetAddress> isAlive)
+    HintsDispatchExecutor(File hintsDirectory, int maxThreads, AtomicBoolean isPaused, Predicate<InetAddressAndPort> isAlive)
     {
         this.hintsDirectory = hintsDirectory;
         this.isPaused = isPaused;
@@ -154,7 +154,7 @@ final class HintsDispatchExecutor
         public void run()
         {
             UUID hostId = hostIdSupplier.get();
-            InetAddress address = StorageService.instance.getEndpointForHostId(hostId);
+            InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
             logger.info("Transferring all hints to {}: {}", address, hostId);
             if (transfer(hostId))
                 return;
@@ -257,7 +257,7 @@ final class HintsDispatchExecutor
         {
             logger.trace("Dispatching hints file {}", descriptor.fileName());
 
-            InetAddress address = StorageService.instance.getEndpointForHostId(hostId);
+            InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
             if (address != null)
                 return deliver(descriptor, address);
 
@@ -266,7 +266,7 @@ final class HintsDispatchExecutor
             return true;
         }
 
-        private boolean deliver(HintsDescriptor descriptor, InetAddress address)
+        private boolean deliver(HintsDescriptor descriptor, InetAddressAndPort address)
         {
             File file = new File(hintsDirectory, descriptor.fileName());
             InputPosition offset = store.getDispatchOffset(descriptor);

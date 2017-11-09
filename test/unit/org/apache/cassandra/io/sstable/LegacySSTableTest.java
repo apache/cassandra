@@ -215,7 +215,7 @@ public class LegacySSTableTest
         details.add(new StreamSession.SSTableStreamingSections(sstable.ref(),
                                                                sstable.getPositionsForRanges(ranges),
                                                                sstable.estimatedKeysForRanges(ranges)));
-        new StreamPlan(StreamOperation.OTHER).transferFiles(FBUtilities.getBroadcastAddress(), details)
+        new StreamPlan(StreamOperation.OTHER).transferFiles(FBUtilities.getBroadcastAddressAndPort(), details)
                                   .execute().get();
     }
 

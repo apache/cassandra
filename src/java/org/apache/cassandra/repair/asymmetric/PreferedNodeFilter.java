@@ -18,10 +18,11 @@
 
 package org.apache.cassandra.repair.asymmetric;
 
-import java.net.InetAddress;
 import java.util.Set;
+
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public interface PreferedNodeFilter
 {
-    public Set<InetAddress> apply(InetAddress streamingNode, Set<InetAddress> toStream);
+    public Set<InetAddressAndPort> apply(InetAddressAndPort streamingNode, Set<InetAddressAndPort> toStream);
 }

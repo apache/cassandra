@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair.asymmetric;
 
-import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * Tracks incoming streams for a single host
@@ -60,7 +60,7 @@ public class IncomingRepairStreamTracker
      * @param range the range we need to stream from streamFromNode
      * @param streamFromNode the node we should stream from
      */
-    public void addIncomingRangeFrom(Range<Token> range, InetAddress streamFromNode)
+    public void addIncomingRangeFrom(Range<Token> range, InetAddressAndPort streamFromNode)
     {
         logger.trace("adding incoming range {} from {}", range, streamFromNode);
         Set<Range<Token>> newInput = RangeDenormalizer.denormalize(range, incoming);

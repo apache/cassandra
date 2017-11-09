@@ -28,6 +28,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.net.BackPressureState;
 import org.apache.cassandra.net.MessageOut;
@@ -56,14 +57,14 @@ public class OutboundMessagingPool
      * An override address on which to communicate with the peer. Typically used for something like EC2 public IP addresses
      * which need to be used for communication between EC2 regions.
      */
-    private InetSocketAddress preferredRemoteAddr;
+    private InetAddressAndPort preferredRemoteAddr;
 
-    public OutboundMessagingPool(InetSocketAddress remoteAddr, InetSocketAddress localAddr, ServerEncryptionOptions encryptionOptions,
+    public OutboundMessagingPool(InetAddressAndPort remoteAddr, InetAddressAndPort localAddr, ServerEncryptionOptions encryptionOptions,
                                  BackPressureState backPressureState, IInternodeAuthenticator authenticator)
     {
         preferredRemoteAddr = remoteAddr;
         this.backPressureState = backPressureState;
-        metrics = new ConnectionMetrics(localAddr.getAddress(), this);
+        metrics = new ConnectionMetrics(localAddr, this);
 
 
         smallMessageChannel = new OutboundMessagingConnection(OutboundConnectionIdentifier.small(localAddr, preferredRemoteAddr),
@@ -76,10 +77,10 @@ public class OutboundMessagingPool
                                                         encryptionOptions, Optional.empty(), authenticator);
     }
 
-    private static Optional<CoalescingStrategy> coalescingStrategy(InetSocketAddress remoteAddr)
+    private static Optional<CoalescingStrategy> coalescingStrategy(InetAddressAndPort remoteAddr)
     {
         String strategyName = DatabaseDescriptor.getOtcCoalescingStrategy();
-        String displayName = remoteAddr.getAddress().getHostAddress();
+        String displayName = remoteAddr.toString();
         return CoalescingStrategies.newCoalescingStrategy(strategyName,
                                                           DatabaseDescriptor.getOtcCoalescingWindow(),
                                                           OutboundMessagingConnection.logger,
@@ -117,7 +118,7 @@ public class OutboundMessagingPool
      *
      * @param addr IP Address to use (and prefer) going forward for connecting to the peer
      */
-    public void reconnectWithNewIp(InetSocketAddress addr)
+    public void reconnectWithNewIp(InetAddressAndPort addr)
     {
         preferredRemoteAddr = addr;
         gossipChannel.reconnectWithNewIp(addr);
@@ -166,7 +167,7 @@ public class OutboundMessagingPool
         return metrics.timeouts.getCount();
     }
 
-    public InetSocketAddress getPreferredRemoteAddr()
+    public InetAddressAndPort getPreferredRemoteAddr()
     {
         return preferredRemoteAddr;
     }

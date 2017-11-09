@@ -19,7 +19,6 @@
 package org.apache.cassandra.locator;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -73,9 +72,9 @@ public class NetworkTopologyStrategyTest
         assert strategy.getReplicationFactor("DC2") == 2;
         assert strategy.getReplicationFactor("DC3") == 1;
         // Query for the natural hosts
-        ArrayList<InetAddress> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
+        ArrayList<InetAddressAndPort> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
         assert 6 == endpoints.size();
-        assert 6 == new HashSet<InetAddress>(endpoints).size(); // ensure uniqueness
+        assert 6 == new HashSet<>(endpoints).size(); // ensure uniqueness
     }
 
     @Test
@@ -97,9 +96,9 @@ public class NetworkTopologyStrategyTest
         assert strategy.getReplicationFactor("DC2") == 3;
         assert strategy.getReplicationFactor("DC3") == 0;
         // Query for the natural hosts
-        ArrayList<InetAddress> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
+        ArrayList<InetAddressAndPort> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
         assert 6 == endpoints.size();
-        assert 6 == new HashSet<InetAddress>(endpoints).size(); // ensure uniqueness
+        assert 6 == new HashSet<>(endpoints).size(); // ensure uniqueness
     }
 
     @Test
@@ -113,7 +112,7 @@ public class NetworkTopologyStrategyTest
         DatabaseDescriptor.setEndpointSnitch(snitch);
         TokenMetadata metadata = new TokenMetadata();
         Map<String, String> configOptions = new HashMap<String, String>();
-        Multimap<InetAddress, Token> tokens = HashMultimap.create();
+        Multimap<InetAddressAndPort, Token> tokens = HashMultimap.create();
 
         int totalRF = 0;
         for (int dc = 0; dc < dcRacks.length; ++dc)
@@ -125,7 +124,7 @@ public class NetworkTopologyStrategyTest
                 for (int ep = 1; ep <= dcEndpoints[dc]/dcRacks[dc]; ++ep)
                 {
                     byte[] ipBytes = new byte[]{10, (byte)dc, (byte)rack, (byte)ep};
-                    InetAddress address = InetAddress.getByAddress(ipBytes);
+                    InetAddressAndPort address = InetAddressAndPort.getByAddress(ipBytes);
                     StringToken token = new StringToken(String.format("%02x%02x%02x", ep, rack, dc));
                     logger.debug("adding node {} at {}", address, token);
                     tokens.put(address, token);
@@ -138,8 +137,8 @@ public class NetworkTopologyStrategyTest
 
         for (String testToken : new String[]{"123456", "200000", "000402", "ffffff", "400200"})
         {
-            List<InetAddress> endpoints = strategy.calculateNaturalEndpoints(new StringToken(testToken), metadata);
-            Set<InetAddress> epSet = new HashSet<InetAddress>(endpoints);
+            List<InetAddressAndPort> endpoints = strategy.calculateNaturalEndpoints(new StringToken(testToken), metadata);
+            Set<InetAddressAndPort> epSet = new HashSet<>(endpoints);
 
             Assert.assertEquals(totalRF, endpoints.size());
             Assert.assertEquals(totalRF, epSet.size());
@@ -172,7 +171,7 @@ public class NetworkTopologyStrategyTest
     public void tokenFactory(TokenMetadata metadata, String token, byte[] bytes) throws UnknownHostException
     {
         Token token1 = new StringToken(token);
-        InetAddress add1 = InetAddress.getByAddress(bytes);
+        InetAddressAndPort add1 = InetAddressAndPort.getByAddress(bytes);
         metadata.updateNormalToken(token1, add1);
     }
 
@@ -184,9 +183,9 @@ public class NetworkTopologyStrategyTest
         final int RUNS = 10;
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         Map<String, Integer> datacenters = ImmutableMap.of("rf1", 1, "rf3", 3, "rf5_1", 5, "rf5_2", 5, "rf5_3", 5);
-        List<InetAddress> nodes = new ArrayList<>(NODES);
+        List<InetAddressAndPort> nodes = new ArrayList<>(NODES);
         for (byte i=0; i<NODES; ++i)
-            nodes.add(InetAddress.getByAddress(new byte[]{127, 0, 0, i}));
+            nodes.add(InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, i}));
         for (int run=0; run<RUNS; ++run)
         {
             Random rand = new Random();
@@ -209,8 +208,8 @@ public class NetworkTopologyStrategyTest
         for (int i=0; i<1000; ++i)
         {
             Token token = Murmur3Partitioner.instance.getRandomToken(rand);
-            List<InetAddress> expected = calculateNaturalEndpoints(token, tokenMetadata, datacenters, snitch);
-            List<InetAddress> actual = nts.calculateNaturalEndpoints(token, tokenMetadata);
+            List<InetAddressAndPort> expected = calculateNaturalEndpoints(token, tokenMetadata, datacenters, snitch);
+            List<InetAddressAndPort> actual = nts.calculateNaturalEndpoints(token, tokenMetadata);
             if (endpointsDiffer(expected, actual))
             {
                 System.err.println("Endpoints mismatch for token " + token);
@@ -221,7 +220,7 @@ public class NetworkTopologyStrategyTest
         }
     }
 
-    private boolean endpointsDiffer(List<InetAddress> ep1, List<InetAddress> ep2)
+    private boolean endpointsDiffer(List<InetAddressAndPort> ep1, List<InetAddressAndPort> ep2)
     {
         // Because the old algorithm does not put the nodes in the correct order in the case where more replicas
         // are required than there are racks in a dc, we accept different order as long as the primary
@@ -230,15 +229,15 @@ public class NetworkTopologyStrategyTest
             return false;
         if (!ep1.get(0).equals(ep2.get(0)))
             return true;
-        Set<InetAddress> s1 = new HashSet<>(ep1);
-        Set<InetAddress> s2 = new HashSet<>(ep2);
+        Set<InetAddressAndPort> s1 = new HashSet<>(ep1);
+        Set<InetAddressAndPort> s2 = new HashSet<>(ep2);
         return !s1.equals(s2);
     }
 
-    IEndpointSnitch generateSnitch(Map<String, Integer> datacenters, Collection<InetAddress> nodes, Random rand)
+    IEndpointSnitch generateSnitch(Map<String, Integer> datacenters, Collection<InetAddressAndPort> nodes, Random rand)
     {
-        final Map<InetAddress, String> nodeToRack = new HashMap<>();
-        final Map<InetAddress, String> nodeToDC = new HashMap<>();
+        final Map<InetAddressAndPort, String> nodeToRack = new HashMap<>();
+        final Map<InetAddressAndPort, String> nodeToDC = new HashMap<>();
         Map<String, List<String>> racksPerDC = new HashMap<>();
         datacenters.forEach((dc, rf) -> racksPerDC.put(dc, randomRacks(rf, rand)));
         int rf = datacenters.values().stream().mapToInt(x -> x).sum();
@@ -250,7 +249,7 @@ public class NetworkTopologyStrategyTest
                 dcs[pos++] = dce.getKey();
         }
 
-        for (InetAddress node : nodes)
+        for (InetAddressAndPort node : nodes)
         {
             String dc = dcs[rand.nextInt(rf)];
             List<String> racks = racksPerDC.get(dc);
@@ -261,12 +260,12 @@ public class NetworkTopologyStrategyTest
 
         return new AbstractNetworkTopologySnitch()
         {
-            public String getRack(InetAddress endpoint)
+            public String getRack(InetAddressAndPort endpoint)
             {
                 return nodeToRack.get(endpoint);
             }
 
-            public String getDatacenter(InetAddress endpoint)
+            public String getDatacenter(InetAddressAndPort endpoint)
             {
                 return nodeToDC.get(endpoint);
             }
@@ -283,20 +282,20 @@ public class NetworkTopologyStrategyTest
     }
 
     // Copy of older endpoints calculation algorithm for comparison
-    public static List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata, Map<String, Integer> datacenters, IEndpointSnitch snitch)
+    public static List<InetAddressAndPort> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata, Map<String, Integer> datacenters, IEndpointSnitch snitch)
     {
         // we want to preserve insertion order so that the first added endpoint becomes primary
-        Set<InetAddress> replicas = new LinkedHashSet<>();
+        Set<InetAddressAndPort> replicas = new LinkedHashSet<>();
         // replicas we have found in each DC
-        Map<String, Set<InetAddress>> dcReplicas = new HashMap<>(datacenters.size());
+        Map<String, Set<InetAddressAndPort>> dcReplicas = new HashMap<>(datacenters.size());
         for (Map.Entry<String, Integer> dc : datacenters.entrySet())
-            dcReplicas.put(dc.getKey(), new HashSet<InetAddress>(dc.getValue()));
+            dcReplicas.put(dc.getKey(), new HashSet<InetAddressAndPort>(dc.getValue()));
 
         Topology topology = tokenMetadata.getTopology();
         // all endpoints in each DC, so we can check when we have exhausted all the members of a DC
-        Multimap<String, InetAddress> allEndpoints = topology.getDatacenterEndpoints();
+        Multimap<String, InetAddressAndPort> allEndpoints = topology.getDatacenterEndpoints();
         // all racks in a DC so we can check when we have exhausted all racks in a DC
-        Map<String, Multimap<String, InetAddress>> racks = topology.getDatacenterRacks();
+        Map<String, Multimap<String, InetAddressAndPort>> racks = topology.getDatacenterRacks();
         assert !allEndpoints.isEmpty() && !racks.isEmpty() : "not aware of any cluster members";
 
         // tracks the racks we have already placed replicas in
@@ -306,15 +305,15 @@ public class NetworkTopologyStrategyTest
 
         // tracks the endpoints that we skipped over while looking for unique racks
         // when we relax the rack uniqueness we can append this to the current result so we don't have to wind back the iterator
-        Map<String, Set<InetAddress>> skippedDcEndpoints = new HashMap<>(datacenters.size());
+        Map<String, Set<InetAddressAndPort>> skippedDcEndpoints = new HashMap<>(datacenters.size());
         for (Map.Entry<String, Integer> dc : datacenters.entrySet())
-            skippedDcEndpoints.put(dc.getKey(), new LinkedHashSet<InetAddress>());
+            skippedDcEndpoints.put(dc.getKey(), new LinkedHashSet<InetAddressAndPort>());
 
         Iterator<Token> tokenIter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken, false);
         while (tokenIter.hasNext() && !hasSufficientReplicas(dcReplicas, allEndpoints, datacenters))
         {
             Token next = tokenIter.next();
-            InetAddress ep = tokenMetadata.getEndpoint(next);
+            InetAddressAndPort ep = tokenMetadata.getEndpoint(next);
             String dc = snitch.getDatacenter(ep);
             // have we already found all replicas for this dc?
             if (!datacenters.containsKey(dc) || hasSufficientReplicas(dc, dcReplicas, allEndpoints, datacenters))
@@ -341,10 +340,10 @@ public class NetworkTopologyStrategyTest
                     // if we've run out of distinct racks, add the hosts we skipped past already (up to RF)
                     if (seenRacks.get(dc).size() == racks.get(dc).keySet().size())
                     {
-                        Iterator<InetAddress> skippedIt = skippedDcEndpoints.get(dc).iterator();
+                        Iterator<InetAddressAndPort> skippedIt = skippedDcEndpoints.get(dc).iterator();
                         while (skippedIt.hasNext() && !hasSufficientReplicas(dc, dcReplicas, allEndpoints, datacenters))
                         {
-                            InetAddress nextSkipped = skippedIt.next();
+                            InetAddressAndPort nextSkipped = skippedIt.next();
                             dcReplicas.get(dc).add(nextSkipped);
                             replicas.add(nextSkipped);
                         }
@@ -353,15 +352,15 @@ public class NetworkTopologyStrategyTest
             }
         }
 
-        return new ArrayList<InetAddress>(replicas);
+        return new ArrayList<InetAddressAndPort>(replicas);
     }
 
-    private static boolean hasSufficientReplicas(String dc, Map<String, Set<InetAddress>> dcReplicas, Multimap<String, InetAddress> allEndpoints, Map<String, Integer> datacenters)
+    private static boolean hasSufficientReplicas(String dc, Map<String, Set<InetAddressAndPort>> dcReplicas, Multimap<String, InetAddressAndPort> allEndpoints, Map<String, Integer> datacenters)
     {
         return dcReplicas.get(dc).size() >= Math.min(allEndpoints.get(dc).size(), getReplicationFactor(dc, datacenters));
     }
 
-    private static boolean hasSufficientReplicas(Map<String, Set<InetAddress>> dcReplicas, Multimap<String, InetAddress> allEndpoints, Map<String, Integer> datacenters)
+    private static boolean hasSufficientReplicas(Map<String, Set<InetAddressAndPort>> dcReplicas, Multimap<String, InetAddressAndPort> allEndpoints, Map<String, Integer> datacenters)
     {
         for (String dc : datacenters.keySet())
             if (!hasSufficientReplicas(dc, dcReplicas, allEndpoints, datacenters))

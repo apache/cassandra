@@ -28,6 +28,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.SSLHandshakeException;
 
+import com.google.common.net.InetAddresses;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -45,6 +46,7 @@ import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceTest;
@@ -59,9 +61,9 @@ import static org.apache.cassandra.net.async.OutboundMessagingConnection.State.R
 
 public class OutboundMessagingConnectionTest
 {
-    private static final InetSocketAddress LOCAL_ADDR = new InetSocketAddress("127.0.0.1", 9998);
-    private static final InetSocketAddress REMOTE_ADDR = new InetSocketAddress("127.0.0.2", 9999);
-    private static final InetSocketAddress RECONNECT_ADDR = new InetSocketAddress("127.0.0.3", 9999);
+    private static final InetAddressAndPort LOCAL_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.1"), 9998);
+    private static final InetAddressAndPort REMOTE_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.2"), 9999);
+    private static final InetAddressAndPort RECONNECT_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.3"), 9999);
     private static final int MESSAGING_VERSION = MessagingService.current_version;
 
     private OutboundConnectionIdentifier connectionId;
@@ -131,47 +133,47 @@ public class OutboundMessagingConnectionTest
     public void shouldCompressConnection_None()
     {
         DatabaseDescriptor.setInternodeCompression(Config.InternodeCompression.none);
-        Assert.assertFalse(OutboundMessagingConnection.shouldCompressConnection(LOCAL_ADDR.getAddress(), REMOTE_ADDR.getAddress()));
+        Assert.assertFalse(OutboundMessagingConnection.shouldCompressConnection(LOCAL_ADDR, REMOTE_ADDR));
     }
 
     @Test
     public void shouldCompressConnection_All()
     {
         DatabaseDescriptor.setInternodeCompression(Config.InternodeCompression.all);
-        Assert.assertTrue(OutboundMessagingConnection.shouldCompressConnection(LOCAL_ADDR.getAddress(), REMOTE_ADDR.getAddress()));
+        Assert.assertTrue(OutboundMessagingConnection.shouldCompressConnection(LOCAL_ADDR, REMOTE_ADDR));
     }
 
     @Test
     public void shouldCompressConnection_SameDc()
     {
         TestSnitch snitch = new TestSnitch();
-        snitch.add(LOCAL_ADDR.getAddress(), "dc1");
-        snitch.add(REMOTE_ADDR.getAddress(), "dc1");
+        snitch.add(LOCAL_ADDR, "dc1");
+        snitch.add(REMOTE_ADDR, "dc1");
         DatabaseDescriptor.setEndpointSnitch(snitch);
         DatabaseDescriptor.setInternodeCompression(Config.InternodeCompression.dc);
-        Assert.assertFalse(OutboundMessagingConnection.shouldCompressConnection(LOCAL_ADDR.getAddress(), REMOTE_ADDR.getAddress()));
+        Assert.assertFalse(OutboundMessagingConnection.shouldCompressConnection(LOCAL_ADDR, REMOTE_ADDR));
     }
 
     private static class TestSnitch extends AbstractEndpointSnitch
     {
-        private Map<InetAddress, String> nodeToDc = new HashMap<>();
+        private Map<InetAddressAndPort, String> nodeToDc = new HashMap<>();
 
-        void add(InetAddress node, String dc)
+        void add(InetAddressAndPort node, String dc)
         {
             nodeToDc.put(node, dc);
         }
 
-        public String getRack(InetAddress endpoint)
+        public String getRack(InetAddressAndPort endpoint)
         {
             return null;
         }
 
-        public String getDatacenter(InetAddress endpoint)
+        public String getDatacenter(InetAddressAndPort endpoint)
         {
             return nodeToDc.get(endpoint);
         }
 
-        public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2)
+        public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2)
         {
             return 0;
         }
@@ -181,11 +183,11 @@ public class OutboundMessagingConnectionTest
     public void shouldCompressConnection_DifferentDc()
     {
         TestSnitch snitch = new TestSnitch();
-        snitch.add(LOCAL_ADDR.getAddress(), "dc1");
-        snitch.add(REMOTE_ADDR.getAddress(), "dc2");
+        snitch.add(LOCAL_ADDR, "dc1");
+        snitch.add(REMOTE_ADDR, "dc2");
         DatabaseDescriptor.setEndpointSnitch(snitch);
         DatabaseDescriptor.setInternodeCompression(Config.InternodeCompression.dc);
-        Assert.assertTrue(OutboundMessagingConnection.shouldCompressConnection(LOCAL_ADDR.getAddress(), REMOTE_ADDR.getAddress()));
+        Assert.assertTrue(OutboundMessagingConnection.shouldCompressConnection(LOCAL_ADDR, REMOTE_ADDR));
     }
 
     @Test
@@ -247,7 +249,7 @@ public class OutboundMessagingConnectionTest
 
         MessageOut messageOut = new MessageOut(MessagingService.Verb.GOSSIP_DIGEST_ACK);
         OutboundMessagingPool pool = new OutboundMessagingPool(REMOTE_ADDR, LOCAL_ADDR, null,
-                                                               new MessagingServiceTest.MockBackPressureStrategy(null).newState(REMOTE_ADDR.getAddress()), auth);
+                                                               new MessagingServiceTest.MockBackPressureStrategy(null).newState(REMOTE_ADDR), auth);
         omc = pool.getConnection(messageOut);
         Assert.assertSame(State.NOT_READY, omc.getState());
         Assert.assertFalse(omc.connect());
@@ -371,7 +373,7 @@ public class OutboundMessagingConnectionTest
         Assert.assertFalse(channelWriter.isClosed());
         Assert.assertEquals(channelWriter, omc.getChannelWriter());
         Assert.assertEquals(READY, omc.getState());
-        Assert.assertEquals(MESSAGING_VERSION, MessagingService.instance().getVersion(REMOTE_ADDR.getAddress()));
+        Assert.assertEquals(MESSAGING_VERSION, MessagingService.instance().getVersion(REMOTE_ADDR));
         Assert.assertNull(omc.getConnectionTimeoutFuture());
         Assert.assertTrue(connectionTimeoutFuture.isCancelled());
     }
@@ -391,7 +393,7 @@ public class OutboundMessagingConnectionTest
         Assert.assertTrue(channelWriter.isClosed());
         Assert.assertNull(omc.getChannelWriter());
         Assert.assertEquals(CLOSED, omc.getState());
-        Assert.assertEquals(MESSAGING_VERSION, MessagingService.instance().getVersion(REMOTE_ADDR.getAddress()));
+        Assert.assertEquals(MESSAGING_VERSION, MessagingService.instance().getVersion(REMOTE_ADDR));
         Assert.assertNull(omc.getConnectionTimeoutFuture());
         Assert.assertTrue(connectionTimeoutFuture.isCancelled());
     }
@@ -408,7 +410,7 @@ public class OutboundMessagingConnectionTest
         omc.finishHandshake(result);
         Assert.assertNotNull(omc.getChannelWriter());
         Assert.assertEquals(CREATING_CHANNEL, omc.getState());
-        Assert.assertEquals(MESSAGING_VERSION, MessagingService.instance().getVersion(REMOTE_ADDR.getAddress()));
+        Assert.assertEquals(MESSAGING_VERSION, MessagingService.instance().getVersion(REMOTE_ADDR));
         Assert.assertEquals(count, omc.backlogSize());
     }
 
@@ -423,7 +425,7 @@ public class OutboundMessagingConnectionTest
         HandshakeResult result = HandshakeResult.failed();
         omc.finishHandshake(result);
         Assert.assertEquals(NOT_READY, omc.getState());
-        Assert.assertEquals(MESSAGING_VERSION, MessagingService.instance().getVersion(REMOTE_ADDR.getAddress()));
+        Assert.assertEquals(MESSAGING_VERSION, MessagingService.instance().getVersion(REMOTE_ADDR));
         Assert.assertEquals(0, omc.backlogSize());
     }
 
@@ -512,8 +514,8 @@ public class OutboundMessagingConnectionTest
         OutboundConnectionIdentifier connectionId = omc.getConnectionId();
         omc.maybeUpdateConnectionId();
         Assert.assertNotEquals(connectionId, omc.getConnectionId());
-        Assert.assertEquals(new InetSocketAddress(REMOTE_ADDR.getAddress(), DatabaseDescriptor.getSSLStoragePort()), omc.getConnectionId().remoteAddress());
-        Assert.assertEquals(new InetSocketAddress(REMOTE_ADDR.getAddress(), DatabaseDescriptor.getSSLStoragePort()), omc.getConnectionId().connectionAddress());
+        Assert.assertEquals(InetAddressAndPort.getByAddressOverrideDefaults(REMOTE_ADDR.address, DatabaseDescriptor.getSSLStoragePort()), omc.getConnectionId().remote());
+        Assert.assertEquals(InetAddressAndPort.getByAddressOverrideDefaults(REMOTE_ADDR.address, DatabaseDescriptor.getSSLStoragePort()), omc.getConnectionId().connectionAddress());
         Assert.assertEquals(peerVersion, omc.getTargetVersion());
     }
 }

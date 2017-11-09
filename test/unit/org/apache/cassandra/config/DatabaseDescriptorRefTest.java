@@ -77,6 +77,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.EncryptionOptions$ClientEncryptionOptions",
     "org.apache.cassandra.config.EncryptionOptions$ServerEncryptionOptions",
     "org.apache.cassandra.config.EncryptionOptions$ServerEncryptionOptions$InternodeEncryption",
+    "org.apache.cassandra.config.EncryptionOptions$ServerEncryptionOptions$OutgoingEncryptedPortSource",
     "org.apache.cassandra.config.YamlConfigurationLoader",
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker",
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker$1",
@@ -126,6 +127,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.EncryptionOptions$ServerEncryptionOptionsCustomizer",
     "org.apache.cassandra.ConsoleAppenderBeanInfo",
     "org.apache.cassandra.ConsoleAppenderCustomizer",
+    "org.apache.cassandra.locator.InetAddressAndPort"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));

@@ -20,6 +20,7 @@ package org.apache.cassandra.repair.consistent;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.Date;
@@ -33,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -49,13 +51,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -141,13 +148,13 @@ public class LocalSessions
     }
 
     @VisibleForTesting
-    protected InetAddress getBroadcastAddress()
+    protected InetAddressAndPort getBroadcastAddressAndPort()
     {
-        return FBUtilities.getBroadcastAddress();
+        return FBUtilities.getBroadcastAddressAndPort();
     }
 
     @VisibleForTesting
-    protected boolean isAlive(InetAddress address)
+    protected boolean isAlive(InetAddressAndPort address)
     {
         return FailureDetector.instance.isAlive(address);
     }
@@ -177,14 +184,14 @@ public class LocalSessions
         logger.info("Cancelling local repair session {}", sessionID);
         LocalSession session = getSession(sessionID);
         Preconditions.checkArgument(session != null, "Session {} does not exist", sessionID);
-        Preconditions.checkArgument(force || session.coordinator.equals(getBroadcastAddress()),
+        Preconditions.checkArgument(force || session.coordinator.equals(getBroadcastAddressAndPort()),
                                     "Cancel session %s from it's coordinator (%s) or use --force",
                                     sessionID, session.coordinator);
 
         setStateAndSave(session, FAILED);
-        for (InetAddress participant : session.participants)
+        for (InetAddressAndPort participant : session.participants)
         {
-            if (!participant.equals(getBroadcastAddress()))
+            if (!participant.equals(getBroadcastAddressAndPort()))
                 sendMessage(participant, new FailSession(sessionID));
         }
     }
@@ -335,10 +342,12 @@ public class LocalSessions
                        "repaired_at, " +
                        "state, " +
                        "coordinator, " +
+                       "coordinator_port, " +
                        "participants, " +
+                       "participants_wp," +
                        "ranges, " +
                        "cfids) " +
-                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         QueryProcessor.executeInternal(String.format(query, keyspace, table),
                                        session.sessionID,
@@ -346,8 +355,10 @@ public class LocalSessions
                                        Date.from(Instant.ofEpochSecond(session.getLastUpdate())),
                                        Date.from(Instant.ofEpochMilli(session.repairedAt)),
                                        session.getState().ordinal(),
-                                       session.coordinator,
-                                       session.participants,
+                                       session.coordinator.address,
+                                       session.coordinator.port,
+                                       session.participants.stream().map(participant -> participant.address).collect(Collectors.toSet()),
+                                       session.participants.stream().map(participant -> participant.toString()).collect(Collectors.toSet()),
                                        serializeRanges(session.ranges),
                                        tableIdToUuid(session.tableIds));
     }
@@ -362,12 +373,27 @@ public class LocalSessions
         LocalSession.Builder builder = LocalSession.builder();
         builder.withState(ConsistentSession.State.valueOf(row.getInt("state")));
         builder.withSessionID(row.getUUID("parent_id"));
-        builder.withCoordinator(row.getInetAddress("coordinator"));
+        InetAddressAndPort coordinator = InetAddressAndPort.getByAddressOverrideDefaults(
+            row.getInetAddress("coordinator"),
+            row.getInt("coordinator_port"));
+        builder.withCoordinator(coordinator);
         builder.withTableIds(uuidToTableId(row.getSet("cfids", UUIDType.instance)));
         builder.withRepairedAt(row.getTimestamp("repaired_at").getTime());
         builder.withRanges(deserializeRanges(row.getSet("ranges", BytesType.instance)));
-        builder.withParticipants(row.getSet("participants", InetAddressType.instance));
-
+        //There is no cross version streaming and thus no cross version repair so assume that
+        //any valid repair sessions has the participants_wp column and any that doesn't is malformed
+        Set<String> participants = row.getSet("participants_wp", UTF8Type.instance);
+        builder.withParticipants(participants.stream().map(participant ->
+                                                             {
+                                                                 try
+                                                                 {
+                                                                     return InetAddressAndPort.getByName(participant);
+                                                                 }
+                                                                 catch (UnknownHostException e)
+                                                                 {
+                                                                     throw new RuntimeException(e);
+                                                                 }
+                                                             }).collect(Collectors.toSet()));
         builder.withStartedAt(dateToSeconds(row.getTimestamp("started_at")));
         builder.withLastUpdate(dateToSeconds(row.getTimestamp("last_update")));
 
@@ -440,7 +466,7 @@ public class LocalSessions
     }
 
     @VisibleForTesting
-    LocalSession createSessionUnsafe(UUID sessionId, ActiveRepairService.ParentRepairSession prs, Set<InetAddress> peers)
+    LocalSession createSessionUnsafe(UUID sessionId, ActiveRepairService.ParentRepairSession prs, Set<InetAddressAndPort> peers)
     {
         LocalSession.Builder builder = LocalSession.builder();
         builder.withState(ConsistentSession.State.PREPARING);
@@ -464,7 +490,7 @@ public class LocalSessions
         return ActiveRepairService.instance.getParentRepairSession(sessionID);
     }
 
-    protected void sendMessage(InetAddress destination, RepairMessage message)
+    protected void sendMessage(InetAddressAndPort destination, RepairMessage message)
     {
         logger.trace("sending {} to {}", message, destination);
         MessageOut<RepairMessage> messageOut = new MessageOut<RepairMessage>(MessagingService.Verb.REPAIR_MESSAGE, message, RepairMessage.serializer);
@@ -536,12 +562,12 @@ public class LocalSessions
      * successfully. If the pending anti compaction fails, a failure message is sent to the coordinator,
      * cancelling the session.
      */
-    public void handlePrepareMessage(InetAddress from, PrepareConsistentRequest request)
+    public void handlePrepareMessage(InetAddressAndPort from, PrepareConsistentRequest request)
     {
         logger.trace("received {} from {}", request, from);
         UUID sessionID = request.parentSession;
-        InetAddress coordinator = request.coordinator;
-        Set<InetAddress> peers = request.participants;
+        InetAddressAndPort coordinator = request.coordinator;
+        Set<InetAddressAndPort> peers = request.participants;
 
         ActiveRepairService.ParentRepairSession parentSession;
         try
@@ -568,7 +594,7 @@ public class LocalSessions
             {
                 logger.debug("Prepare phase for incremental repair session {} completed", sessionID);
                 setStateAndSave(session, PREPARED);
-                sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddress(), true));
+                sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), true));
                 executor.shutdown();
             }
 
@@ -587,7 +613,7 @@ public class LocalSessions
                 {
                     logger.error("Prepare phase for incremental repair session {} failed", sessionID, t);
                 }
-                sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddress(), false));
+                sendMessage(coordinator, new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), false));
                 failSession(sessionID, false);
                 executor.shutdown();
             }
@@ -604,7 +630,7 @@ public class LocalSessions
         }
     }
 
-    public void handleFinalizeProposeMessage(InetAddress from, FinalizePropose propose)
+    public void handleFinalizeProposeMessage(InetAddressAndPort from, FinalizePropose propose)
     {
         logger.trace("received {} from {}", propose, from);
         UUID sessionID = propose.sessionID;
@@ -629,7 +655,7 @@ public class LocalSessions
              */
             syncTable();
 
-            sendMessage(from, new FinalizePromise(sessionID, getBroadcastAddress(), true));
+            sendMessage(from, new FinalizePromise(sessionID, getBroadcastAddressAndPort(), true));
             logger.debug("Received FinalizePropose message for incremental repair session {}, responded with FinalizePromise", sessionID);
         }
         catch (IllegalArgumentException e)
@@ -659,7 +685,7 @@ public class LocalSessions
      * as part of the compaction process, and avoids having to worry about in progress compactions interfering with the
      * promotion.
      */
-    public void handleFinalizeCommitMessage(InetAddress from, FinalizeCommit commit)
+    public void handleFinalizeCommitMessage(InetAddressAndPort from, FinalizeCommit commit)
     {
         logger.trace("received {} from {}", commit, from);
         UUID sessionID = commit.sessionID;
@@ -674,7 +700,7 @@ public class LocalSessions
         logger.info("Finalized local repair session {}", sessionID);
     }
 
-    public void handleFailSessionMessage(InetAddress from, FailSession msg)
+    public void handleFailSessionMessage(InetAddressAndPort from, FailSession msg)
     {
         logger.trace("received {} from {}", msg, from);
         failSession(msg.sessionID, false);
@@ -684,16 +710,16 @@ public class LocalSessions
     {
         logger.debug("Attempting to learn the outcome of unfinished local incremental repair session {}", session.sessionID);
         StatusRequest request = new StatusRequest(session.sessionID);
-        for (InetAddress participant : session.participants)
+        for (InetAddressAndPort participant : session.participants)
         {
-            if (!getBroadcastAddress().equals(participant) && isAlive(participant))
+            if (!getBroadcastAddressAndPort().equals(participant) && isAlive(participant))
             {
                 sendMessage(participant, request);
             }
         }
     }
 
-    public void handleStatusRequest(InetAddress from, StatusRequest request)
+    public void handleStatusRequest(InetAddressAndPort from, StatusRequest request)
     {
         logger.trace("received {} from {}", request, from);
         UUID sessionID = request.sessionID;
@@ -710,7 +736,7 @@ public class LocalSessions
        }
     }
 
-    public void handleStatusResponse(InetAddress from, StatusResponse response)
+    public void handleStatusResponse(InetAddressAndPort from, StatusResponse response)
     {
         logger.trace("received {} from {}", response, from);
         UUID sessionID = response.sessionID;

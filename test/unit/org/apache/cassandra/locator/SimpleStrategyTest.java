@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.locator;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -98,22 +97,22 @@ public class SimpleStrategyTest
         {
             tmd = new TokenMetadata();
             strategy = getStrategy(keyspaceName, tmd);
-            List<InetAddress> hosts = new ArrayList<InetAddress>();
+            List<InetAddressAndPort> hosts = new ArrayList<>();
             for (int i = 0; i < endpointTokens.length; i++)
             {
-                InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
+                InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + String.valueOf(i + 1));
                 tmd.updateNormalToken(endpointTokens[i], ep);
                 hosts.add(ep);
             }
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyTokens[i]);
+                List<InetAddressAndPort> endpoints = strategy.getNaturalEndpoints(keyTokens[i]);
                 assertEquals(strategy.getReplicationFactor(), endpoints.size());
-                List<InetAddress> correctEndpoints = new ArrayList<InetAddress>();
+                List<InetAddressAndPort> correctEndpoints = new ArrayList<>();
                 for (int j = 0; j < endpoints.size(); j++)
                     correctEndpoints.add(hosts.get((i + j + 1) % hosts.size()));
-                assertEquals(new HashSet<InetAddress>(correctEndpoints), new HashSet<InetAddress>(endpoints));
+                assertEquals(new HashSet<>(correctEndpoints), new HashSet<>(endpoints));
             }
         }
     }
@@ -135,17 +134,17 @@ public class SimpleStrategyTest
             keyTokens[i] = new BigIntegerToken(String.valueOf(RING_SIZE * 2 * i + RING_SIZE));
         }
 
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<InetAddressAndPort> hosts = new ArrayList<>();
         for (int i = 0; i < endpointTokens.length; i++)
         {
-            InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
+            InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + String.valueOf(i + 1));
             tmd.updateNormalToken(endpointTokens[i], ep);
             hosts.add(ep);
         }
 
         // bootstrap at the end of the ring
         Token bsToken = new BigIntegerToken(String.valueOf(210));
-        InetAddress bootstrapEndpoint = InetAddress.getByName("127.0.0.11");
+        InetAddressAndPort bootstrapEndpoint = InetAddressAndPort.getByName("127.0.0.11");
         tmd.addBootstrapToken(bsToken, bootstrapEndpoint);
 
         AbstractReplicationStrategy strategy = null;
@@ -159,7 +158,7 @@ public class SimpleStrategyTest
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                Collection<InetAddress> endpoints = tmd.getWriteEndpoints(keyTokens[i], keyspaceName, strategy.getNaturalEndpoints(keyTokens[i]));
+                Collection<InetAddressAndPort> endpoints = tmd.getWriteEndpoints(keyTokens[i], keyspaceName, strategy.getNaturalEndpoints(keyTokens[i]));
                 assertTrue(endpoints.size() >= replicationFactor);
 
                 for (int j = 0; j < replicationFactor; j++)

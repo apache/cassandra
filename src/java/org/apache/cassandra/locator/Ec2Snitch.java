@@ -21,7 +21,6 @@ import java.io.DataInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.InetAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -46,7 +45,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
     protected static final String ZONE_NAME_QUERY_URL = "http://169.254.169.254/latest/meta-data/placement/availability-zone";
     private static final String DEFAULT_DC = "UNKNOWN-DC";
     private static final String DEFAULT_RACK = "UNKNOWN-RACK";
-    private Map<InetAddress, Map<String, String>> savedEndpoints;
+    private Map<InetAddressAndPort, Map<String, String>> savedEndpoints;
     protected String ec2zone;
     protected String ec2region;
 
@@ -92,9 +91,9 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
         }
     }
 
-    public String getRack(InetAddress endpoint)
+    public String getRack(InetAddressAndPort endpoint)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return ec2zone;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (state == null || state.getApplicationState(ApplicationState.RACK) == null)
@@ -108,9 +107,9 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
         return state.getApplicationState(ApplicationState.RACK).value;
     }
 
-    public String getDatacenter(InetAddress endpoint)
+    public String getDatacenter(InetAddressAndPort endpoint)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return ec2region;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (state == null || state.getApplicationState(ApplicationState.DC) == null)

@@ -21,10 +21,12 @@ package org.apache.cassandra.repair.consistent;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -40,6 +42,7 @@ public class LocalSessionInfo
     public static final String LAST_UPDATE = "LAST_UPDATE";
     public static final String COORDINATOR = "COORDINATOR";
     public static final String PARTICIPANTS = "PARTICIPANTS";
+    public static final String PARTICIPANTS_WP = "PARTICIPANTS_WP";
     public static final String TABLES = "TABLES";
 
 
@@ -59,7 +62,8 @@ public class LocalSessionInfo
         m.put(STARTED, Integer.toString(session.getStartedAt()));
         m.put(LAST_UPDATE, Integer.toString(session.getLastUpdate()));
         m.put(COORDINATOR, session.coordinator.toString());
-        m.put(PARTICIPANTS, Joiner.on(',').join(Iterables.transform(session.participants, InetAddress::toString)));
+        m.put(PARTICIPANTS, Joiner.on(',').join(Iterables.transform(session.participants.stream().map(peer -> peer.address).collect(Collectors.toList()), InetAddress::getHostAddress)));
+        m.put(PARTICIPANTS_WP, Joiner.on(',').join(Iterables.transform(session.participants, InetAddressAndPort::toString)));
         m.put(TABLES, Joiner.on(',').join(Iterables.transform(session.tableIds, LocalSessionInfo::tableString)));
 
         return m;

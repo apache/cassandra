@@ -236,7 +236,7 @@ public class JMXServerUtils
         String hostName;
         if (serverAddress == null)
         {
-            hostName = FBUtilities.getBroadcastAddress() instanceof Inet6Address ? "[::]" : "0.0.0.0";
+            hostName = FBUtilities.getJustBroadcastAddress() instanceof Inet6Address ? "[::]" : "0.0.0.0";
         }
         else
         {

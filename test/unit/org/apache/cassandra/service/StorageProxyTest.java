@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
 import java.util.List;
 
 import org.junit.BeforeClass;
@@ -27,6 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 
 import static org.apache.cassandra.Util.rp;
@@ -81,8 +81,8 @@ public class StorageProxyTest
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.getHintsDirectory().mkdir();
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-        tmd.updateNormalToken(token("1"), InetAddress.getByName("127.0.0.1"));
-        tmd.updateNormalToken(token("6"), InetAddress.getByName("127.0.0.6"));
+        tmd.updateNormalToken(token("1"), InetAddressAndPort.getByName("127.0.0.1"));
+        tmd.updateNormalToken(token("6"), InetAddressAndPort.getByName("127.0.0.6"));
     }
 
     // test getRestrictedRanges for token

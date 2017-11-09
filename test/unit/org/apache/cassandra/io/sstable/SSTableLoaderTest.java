@@ -104,7 +104,7 @@ public class SSTableLoaderTest
         {
             this.keyspace = keyspace;
             for (Range<Token> range : StorageService.instance.getLocalRanges(KEYSPACE1))
-                addRangeForEndpoint(range, FBUtilities.getBroadcastAddress());
+                addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
         }
 
         public TableMetadataRef getTableMetadata(String tableName)

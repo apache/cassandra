@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair.consistent;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Set;
 import java.util.UUID;
@@ -33,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -41,19 +41,19 @@ import org.apache.cassandra.utils.UUIDGen;
 @Ignore
 public abstract class AbstractConsistentSessionTest
 {
-    protected static final InetAddress COORDINATOR;
-    protected static final InetAddress PARTICIPANT1;
-    protected static final InetAddress PARTICIPANT2;
-    protected static final InetAddress PARTICIPANT3;
+    protected static final InetAddressAndPort COORDINATOR;
+    protected static final InetAddressAndPort PARTICIPANT1;
+    protected static final InetAddressAndPort PARTICIPANT2;
+    protected static final InetAddressAndPort PARTICIPANT3;
 
     static
     {
         try
         {
-            COORDINATOR = InetAddress.getByName("10.0.0.1");
-            PARTICIPANT1 = InetAddress.getByName("10.0.0.1");
-            PARTICIPANT2 = InetAddress.getByName("10.0.0.2");
-            PARTICIPANT3 = InetAddress.getByName("10.0.0.3");
+            COORDINATOR = InetAddressAndPort.getByName("10.0.0.1");
+            PARTICIPANT1 = InetAddressAndPort.getByName("10.0.0.1");
+            PARTICIPANT2 = InetAddressAndPort.getByName("10.0.0.2");
+            PARTICIPANT3 = InetAddressAndPort.getByName("10.0.0.3");
         }
         catch (UnknownHostException e)
         {
@@ -64,7 +64,7 @@ public abstract class AbstractConsistentSessionTest
         DatabaseDescriptor.daemonInitialization();
     }
 
-    protected static final Set<InetAddress> PARTICIPANTS = ImmutableSet.of(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3);
+    protected static final Set<InetAddressAndPort> PARTICIPANTS = ImmutableSet.of(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3);
 
     protected static Token t(int v)
     {

@@ -72,7 +72,7 @@ public class EndpointStateTest
             public void run()
             {
                 state.addApplicationState(ApplicationState.TOKENS, valueFactory.tokens(tokens));
-                state.addApplicationState(ApplicationState.STATUS, valueFactory.normal(tokens));
+                state.addApplicationState(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens));
             }
         });
 
@@ -86,7 +86,7 @@ public class EndpointStateTest
                     for (Map.Entry<ApplicationState, VersionedValue> entry : state.states())
                         values.put(entry.getKey(), entry.getValue());
 
-                    if (values.containsKey(ApplicationState.STATUS) && !values.containsKey(ApplicationState.TOKENS))
+                    if (values.containsKey(ApplicationState.STATUS_WITH_PORT) && !values.containsKey(ApplicationState.TOKENS))
                     {
                         numFailures.incrementAndGet();
                         System.out.println(String.format("Failed: %s", values));
@@ -129,7 +129,7 @@ public class EndpointStateTest
             {
                 Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
                 states.put(ApplicationState.TOKENS, valueFactory.tokens(tokens));
-                states.put(ApplicationState.STATUS, valueFactory.normal(tokens));
+                states.put(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens));
                 state.addApplicationStates(states);
             }
         });
@@ -158,7 +158,7 @@ public class EndpointStateTest
         for (Map.Entry<ApplicationState, VersionedValue> entry : states)
             values.put(entry.getKey(), entry.getValue());
 
-        assertTrue(values.containsKey(ApplicationState.STATUS));
+        assertTrue(values.containsKey(ApplicationState.STATUS_WITH_PORT));
         assertTrue(values.containsKey(ApplicationState.TOKENS));
         assertTrue(values.containsKey(ApplicationState.INTERNAL_IP));
         assertTrue(values.containsKey(ApplicationState.HOST_ID));

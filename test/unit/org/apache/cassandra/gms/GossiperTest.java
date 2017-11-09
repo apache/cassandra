@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.gms;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 
@@ -49,7 +49,7 @@ public class GossiperTest
     TokenMetadata tmd = StorageService.instance.getTokenMetadata();
     ArrayList<Token> endpointTokens = new ArrayList<>();
     ArrayList<Token> keyTokens = new ArrayList<>();
-    List<InetAddress> hosts = new ArrayList<>();
+    List<InetAddressAndPort> hosts = new ArrayList<>();
     List<UUID> hostIds = new ArrayList<>();
 
     @Before
@@ -62,7 +62,7 @@ public class GossiperTest
     public void testLargeGenerationJump() throws UnknownHostException, InterruptedException
     {
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
-        InetAddress remoteHostAddress = hosts.get(1);
+        InetAddressAndPort remoteHostAddress = hosts.get(1);
 
         EndpointState initialRemoteState = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress);
         HeartBeatState initialRemoteHeartBeat = initialRemoteState.getHeartBeatState();

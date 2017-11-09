@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.repair;
 
-import java.net.InetAddress;
 import java.util.List;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.AsymmetricSyncRequest;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -33,14 +33,14 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class AsymmetricRemoteSyncTask extends AsymmetricSyncTask implements CompletableRemoteSyncTask
 {
-    public AsymmetricRemoteSyncTask(RepairJobDesc desc, InetAddress fetchNode, InetAddress fetchFrom, List<Range<Token>> rangesToFetch, PreviewKind previewKind)
+    public AsymmetricRemoteSyncTask(RepairJobDesc desc, InetAddressAndPort fetchNode, InetAddressAndPort fetchFrom, List<Range<Token>> rangesToFetch, PreviewKind previewKind)
     {
         super(desc, fetchNode, fetchFrom, rangesToFetch, previewKind);
     }
 
     public void startSync(List<Range<Token>> rangesToFetch)
     {
-        InetAddress local = FBUtilities.getBroadcastAddress();
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         AsymmetricSyncRequest request = new AsymmetricSyncRequest(desc, local, fetchingNode, fetchFrom, rangesToFetch, previewKind);
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.fetchingNode, request.fetchFrom);
         Tracing.traceRepair(message);

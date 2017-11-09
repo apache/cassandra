@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
@@ -40,6 +39,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -87,7 +87,7 @@ public class DataResolver extends ResponseResolver
         // at the beginning of this method), so grab the response count once and use that through the method.
         int count = responses.size();
         List<UnfilteredPartitionIterator> iters = new ArrayList<>(count);
-        InetAddress[] sources = new InetAddress[count];
+        InetAddressAndPort[] sources = new InetAddressAndPort[count];
         for (int i = 0; i < count; i++)
         {
             MessageIn<ReadResponse> msg = responses.get(i);
@@ -120,7 +120,7 @@ public class DataResolver extends ResponseResolver
     }
 
     private UnfilteredPartitionIterator mergeWithShortReadProtection(List<UnfilteredPartitionIterator> results,
-                                                                     InetAddress[] sources,
+                                                                     InetAddressAndPort[] sources,
                                                                      DataLimits.Counter mergedResultCounter)
     {
         // If we have only one results, there is no read repair to do and we can't get short reads
@@ -140,9 +140,9 @@ public class DataResolver extends ResponseResolver
 
     private class RepairMergeListener implements UnfilteredPartitionIterators.MergeListener
     {
-        private final InetAddress[] sources;
+        private final InetAddressAndPort[] sources;
 
-        private RepairMergeListener(InetAddress[] sources)
+        private RepairMergeListener(InetAddressAndPort[] sources)
         {
             this.sources = sources;
         }
@@ -471,7 +471,7 @@ public class DataResolver extends ResponseResolver
                         sendRepairMutation(repairs[i].build(), sources[i]);
             }
 
-            private void sendRepairMutation(PartitionUpdate partition, InetAddress destination)
+            private void sendRepairMutation(PartitionUpdate partition, InetAddressAndPort destination)
             {
                 Mutation mutation = new Mutation(partition);
                 int messagingVersion = MessagingService.instance().getVersion(destination);
@@ -514,7 +514,7 @@ public class DataResolver extends ResponseResolver
     }
 
     private UnfilteredPartitionIterator extendWithShortReadProtection(UnfilteredPartitionIterator partitions,
-                                                                      InetAddress source,
+                                                                      InetAddressAndPort source,
                                                                       DataLimits.Counter mergedResultCounter)
     {
         DataLimits.Counter singleResultCounter =
@@ -557,7 +557,7 @@ public class DataResolver extends ResponseResolver
      */
     private class ShortReadPartitionsProtection extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
     {
-        private final InetAddress source;
+        private final InetAddressAndPort source;
 
         private final DataLimits.Counter singleResultCounter; // unmerged per-source counter
         private final DataLimits.Counter mergedResultCounter; // merged end-result counter
@@ -568,7 +568,7 @@ public class DataResolver extends ResponseResolver
 
         private final long queryStartNanoTime;
 
-        private ShortReadPartitionsProtection(InetAddress source,
+        private ShortReadPartitionsProtection(InetAddressAndPort source,
                                               DataLimits.Counter singleResultCounter,
                                               DataLimits.Counter mergedResultCounter,
                                               long queryStartNanoTime)

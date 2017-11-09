@@ -19,7 +19,6 @@ package org.apache.cassandra.hints;
 
 import java.io.File;
 import java.lang.management.ManagementFactory;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.UUID;
@@ -40,6 +39,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.dht.Token;
@@ -267,10 +267,10 @@ public final class HintsService implements HintsServiceMBean
      */
     public void deleteAllHintsForEndpoint(String address)
     {
-        InetAddress target;
+        InetAddressAndPort target;
         try
         {
-            target = InetAddress.getByName(address);
+            target = InetAddressAndPort.getByName(address);
         }
         catch (UnknownHostException e)
         {
@@ -284,7 +284,7 @@ public final class HintsService implements HintsServiceMBean
      *
      * @param target inet address of the target node
      */
-    public void deleteAllHintsForEndpoint(InetAddress target)
+    public void deleteAllHintsForEndpoint(InetAddressAndPort target)
     {
         UUID hostId = StorageService.instance.getHostIdForEndpoint(target);
         if (hostId == null)

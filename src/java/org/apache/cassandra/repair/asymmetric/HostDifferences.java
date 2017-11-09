@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair.asymmetric;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,23 +27,24 @@ import java.util.Set;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * Tracks the differences for a single host
  */
 public class HostDifferences
 {
-    private final Map<InetAddress, List<Range<Token>>> perHostDifferences = new HashMap<>();
+    private final Map<InetAddressAndPort, List<Range<Token>>> perHostDifferences = new HashMap<>();
 
     /**
      * Adds a set of differences between the node this instance is tracking and endpoint
      */
-    public void add(InetAddress endpoint, List<Range<Token>> difference)
+    public void add(InetAddressAndPort endpoint, List<Range<Token>> difference)
     {
         perHostDifferences.put(endpoint, difference);
     }
 
-    public void addSingleRange(InetAddress remoteNode, Range<Token> rangeToFetch)
+    public void addSingleRange(InetAddressAndPort remoteNode, Range<Token> rangeToFetch)
     {
         perHostDifferences.computeIfAbsent(remoteNode, (x) -> new ArrayList<>()).add(rangeToFetch);
     }
@@ -52,7 +52,7 @@ public class HostDifferences
     /**
      * Does this instance have differences for range with node2?
      */
-    public boolean hasDifferencesFor(InetAddress node2, Range<Token> range)
+    public boolean hasDifferencesFor(InetAddressAndPort node2, Range<Token> range)
     {
         List<Range<Token>> differences = get(node2);
         for (Range<Token> diff : differences)
@@ -64,12 +64,12 @@ public class HostDifferences
         return false;
     }
 
-    public Set<InetAddress> hosts()
+    public Set<InetAddressAndPort> hosts()
     {
         return perHostDifferences.keySet();
     }
 
-    public List<Range<Token>> get(InetAddress differingHost)
+    public List<Range<Token>> get(InetAddressAndPort differingHost)
     {
         return perHostDifferences.getOrDefault(differingHost, Collections.emptyList());
     }

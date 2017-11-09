@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.locator;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Collection;
@@ -42,11 +41,11 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         super(keyspaceName, tokenMetadata, snitch, configOptions);
     }
 
-    public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+    public List<InetAddressAndPort> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
         int replicas = getReplicationFactor();
         ArrayList<Token> tokens = metadata.sortedTokens();
-        List<InetAddress> endpoints = new ArrayList<InetAddress>(replicas);
+        List<InetAddressAndPort> endpoints = new ArrayList<InetAddressAndPort>(replicas);
 
         if (tokens.isEmpty())
             return endpoints;
@@ -55,7 +54,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token, false);
         while (endpoints.size() < replicas && iter.hasNext())
         {
-            InetAddress ep = metadata.getEndpoint(iter.next());
+            InetAddressAndPort ep = metadata.getEndpoint(iter.next());
             if (!endpoints.contains(ep))
                 endpoints.add(ep);
         }

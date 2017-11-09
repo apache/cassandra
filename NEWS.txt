@@ -1,3 +1,4 @@
+//TODO update news.txt. Also validate that no existing public apis are using the new address string format or mbean interfaces were changed
 GENERAL UPGRADING ADVICE FOR ANY VERSION
 ========================================
 
@@ -39,7 +40,7 @@ New features
      This property can be modified at runtime through both JMX and the new `setconcurrentviewbuilders`
      and `getconcurrentviewbuilders` nodetool commands. See CASSANDRA-12245 for more details.
    - There is now a binary full query log based on Chronicle Queue that can be controlled using
-     nodetool enablefullquerylog, disablefullquerylog, and resetfullquerylog. The log 
+     nodetool enablefullquerylog, disablefullquerylog, and resetfullquerylog. The log
      contains all queries invoked, approximate time they were invoked, any parameters necessary
      to bind wildcard values, and all query options. A human readable version of the log can be
      dumped or tailed using the new bin/fqltool utility. The full query log is designed to be safe
@@ -103,6 +104,22 @@ Upgrading
 	  but blocks for up to a configurable number of milliseconds between disk flushes.
 	- nodetool clearsnapshot now required the --all flag to remove all snapshots.
 	  Previous behavior would delete all snapshots by default.
+    - Nodes are now identified by a combination of IP, and storage port.
+      Existing JMX APIs, nodetool, and system tables continue to work
+      and accept/return just an IP, but there is a new
+      version of each that works with the full unambiguous identifier.
+      You should prefer these over the deprecated ambiguous versions that only
+      work with an IP. This was done to support multiple instances per IP.
+      Additionally we are moving to only using a single port for encrypted and
+      unencrypted traffic and if you want multiple instances per IP you must
+      first switch encrypted traffic to the storage port and not a separate
+      encrypted port. If you want to use multiple instances per IP
+      with SSL you will need to use StartTLS on storage_port and set
+      outgoing_encrypted_port_source to gossip outbound connections
+      know what port to connect to for each instance. Before changing
+      storage port or native port at nodes you must first upgrade the entire cluster
+      and clients to 4.0 so they can handle the port not being consistent across
+      the cluster.
 
 Materialized Views
 -------------------

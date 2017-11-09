@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * Interface on which interested parties can be notified of high level endpoint
@@ -35,33 +35,33 @@ public interface IEndpointLifecycleSubscriber
      *
      * @param endpoint the newly added endpoint.
      */
-    public void onJoinCluster(InetAddress endpoint);
+    public void onJoinCluster(InetAddressAndPort endpoint);
 
     /**
      * Called when a new node leave the cluster (decommission or removeToken).
      *
      * @param endpoint the endpoint that is leaving.
      */
-    public void onLeaveCluster(InetAddress endpoint);
+    public void onLeaveCluster(InetAddressAndPort endpoint);
 
     /**
      * Called when a node is marked UP.
      *
      * @param endpoint the endpoint marked UP.
      */
-    public void onUp(InetAddress endpoint);
+    public void onUp(InetAddressAndPort endpoint);
 
     /**
      * Called when a node is marked DOWN.
      *
      * @param endpoint the endpoint marked DOWN.
      */
-    public void onDown(InetAddress endpoint);
+    public void onDown(InetAddressAndPort endpoint);
 
     /**
      * Called when a node has moved (to a new token).
      *
      * @param endpoint the endpoint that has moved.
      */
-    public void onMove(InetAddress endpoint);
+    public void onMove(InetAddressAndPort endpoint);
 }

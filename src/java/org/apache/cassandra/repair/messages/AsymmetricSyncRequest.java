@@ -30,6 +30,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
@@ -39,13 +40,13 @@ public class AsymmetricSyncRequest extends RepairMessage
 {
     public static MessageSerializer serializer = new SyncRequestSerializer();
 
-    public final InetAddress initiator;
-    public final InetAddress fetchingNode;
-    public final InetAddress fetchFrom;
+    public final InetAddressAndPort initiator;
+    public final InetAddressAndPort fetchingNode;
+    public final InetAddressAndPort fetchFrom;
     public final Collection<Range<Token>> ranges;
     public final PreviewKind previewKind;
 
-    public AsymmetricSyncRequest(RepairJobDesc desc, InetAddress initiator, InetAddress fetchingNode, InetAddress fetchFrom, Collection<Range<Token>> ranges, PreviewKind previewKind)
+    public AsymmetricSyncRequest(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort fetchingNode, InetAddressAndPort fetchFrom, Collection<Range<Token>> ranges, PreviewKind previewKind)
     {
         super(Type.ASYMMETRIC_SYNC_REQUEST, desc);
         this.initiator = initiator;
@@ -80,9 +81,9 @@ public class AsymmetricSyncRequest extends RepairMessage
         public void serialize(AsymmetricSyncRequest message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
-            CompactEndpointSerializationHelper.serialize(message.initiator, out);
-            CompactEndpointSerializationHelper.serialize(message.fetchingNode, out);
-            CompactEndpointSerializationHelper.serialize(message.fetchFrom, out);
+            CompactEndpointSerializationHelper.instance.serialize(message.initiator, out, version);
+            CompactEndpointSerializationHelper.instance.serialize(message.fetchingNode, out, version);
+            CompactEndpointSerializationHelper.instance.serialize(message.fetchFrom, out, version);
             out.writeInt(message.ranges.size());
             for (Range<Token> range : message.ranges)
             {
@@ -95,9 +96,9 @@ public class AsymmetricSyncRequest extends RepairMessage
         public AsymmetricSyncRequest deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
-            InetAddress owner = CompactEndpointSerializationHelper.deserialize(in);
-            InetAddress src = CompactEndpointSerializationHelper.deserialize(in);
-            InetAddress dst = CompactEndpointSerializationHelper.deserialize(in);
+            InetAddressAndPort owner = CompactEndpointSerializationHelper.instance.deserialize(in, version);
+            InetAddressAndPort src = CompactEndpointSerializationHelper.instance.deserialize(in, version);
+            InetAddressAndPort dst = CompactEndpointSerializationHelper.instance.deserialize(in, version);
             int rangesCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangesCount);
             for (int i = 0; i < rangesCount; ++i)
@@ -109,7 +110,9 @@ public class AsymmetricSyncRequest extends RepairMessage
         public long serializedSize(AsymmetricSyncRequest message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
-            size += 3 * CompactEndpointSerializationHelper.serializedSize(message.initiator);
+            size += CompactEndpointSerializationHelper.instance.serializedSize(message.initiator, version);
+            size += CompactEndpointSerializationHelper.instance.serializedSize(message.fetchingNode, version);
+            size += CompactEndpointSerializationHelper.instance.serializedSize(message.fetchFrom, version);
             size += TypeSizes.sizeof(message.ranges.size());
             for (Range<Token> range : message.ranges)
                 size += AbstractBounds.tokenSerializer.serializedSize(range, version);

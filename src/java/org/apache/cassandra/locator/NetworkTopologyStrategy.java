@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.locator;
 
-import java.net.InetAddress;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -72,7 +71,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         }
 
         datacenters = Collections.unmodifiableMap(newDatacenters);
-        logger.trace("Configured datacenter replicas are {}", FBUtilities.toString(datacenters));
+        logger.info("Configured datacenter replicas are {}", FBUtilities.toString(datacenters));
     }
 
     /**
@@ -81,7 +80,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     private static final class DatacenterEndpoints
     {
         /** List accepted endpoints get pushed into. */
-        Set<InetAddress> endpoints;
+        Set<InetAddressAndPort> endpoints;
         /**
          * Racks encountered so far. Replicas are put into separate racks while possible.
          * For efficiency the set is shared between the instances, using the location pair (dc, rack) to make sure
@@ -93,7 +92,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         int rfLeft;
         int acceptableRackRepeats;
 
-        DatacenterEndpoints(int rf, int rackCount, int nodeCount, Set<InetAddress> endpoints, Set<Pair<String, String>> racks)
+        DatacenterEndpoints(int rf, int rackCount, int nodeCount, Set<InetAddressAndPort> endpoints, Set<Pair<String, String>> racks)
         {
             this.endpoints = endpoints;
             this.racks = racks;
@@ -108,7 +107,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
          * Attempts to add an endpoint to the replicas for this datacenter, adding to the endpoints set if successful.
          * Returns true if the endpoint was added, and this datacenter does not require further replicas.
          */
-        boolean addEndpointAndCheckIfDone(InetAddress ep, Pair<String,String> location)
+        boolean addEndpointAndCheckIfDone(InetAddressAndPort ep, Pair<String,String> location)
         {
             if (done())
                 return false;
@@ -143,17 +142,17 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     /**
      * calculate endpoints in one pass through the tokens by tracking our progress in each DC.
      */
-    public List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
+    public List<InetAddressAndPort> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
     {
         // we want to preserve insertion order so that the first added endpoint becomes primary
-        Set<InetAddress> replicas = new LinkedHashSet<>();
+        Set<InetAddressAndPort> replicas = new LinkedHashSet<>();
         Set<Pair<String, String>> seenRacks = new HashSet<>();
 
         Topology topology = tokenMetadata.getTopology();
         // all endpoints in each DC, so we can check when we have exhausted all the members of a DC
-        Multimap<String, InetAddress> allEndpoints = topology.getDatacenterEndpoints();
+        Multimap<String, InetAddressAndPort> allEndpoints = topology.getDatacenterEndpoints();
         // all racks in a DC so we can check when we have exhausted all racks in a DC
-        Map<String, Multimap<String, InetAddress>> racks = topology.getDatacenterRacks();
+        Map<String, Multimap<String, InetAddressAndPort>> racks = topology.getDatacenterRacks();
         assert !allEndpoints.isEmpty() && !racks.isEmpty() : "not aware of any cluster members";
 
         int dcsToFill = 0;
@@ -178,7 +177,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         while (dcsToFill > 0 && tokenIter.hasNext())
         {
             Token next = tokenIter.next();
-            InetAddress ep = tokenMetadata.getEndpoint(next);
+            InetAddressAndPort ep = tokenMetadata.getEndpoint(next);
             Pair<String, String> location = topology.getLocation(ep);
             DatacenterEndpoints dcEndpoints = dcs.get(location.left);
             if (dcEndpoints != null && dcEndpoints.addEndpointAndCheckIfDone(ep, location))
@@ -227,9 +226,9 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
 
         // Add data center of localhost.
-        validDataCenters.add(snitch.getDatacenter(FBUtilities.getBroadcastAddress()));
+        validDataCenters.add(snitch.getDatacenter(FBUtilities.getBroadcastAddressAndPort()));
         // Fetch and add DCs of all peers.
-        for (final InetAddress peer : StorageService.instance.getTokenMetadata().getAllEndpoints())
+        for (final InetAddressAndPort peer : StorageService.instance.getTokenMetadata().getAllEndpoints())
         {
             validDataCenters.add(snitch.getDatacenter(peer));
         }

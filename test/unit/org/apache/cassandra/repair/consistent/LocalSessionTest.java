@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair.consistent;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,6 +41,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.repair.AbstractRepairTest;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -106,20 +106,20 @@ public class LocalSessionTest extends AbstractRepairTest
         }
     }
 
-    private static void assertNoMessagesSent(InstrumentedLocalSessions sessions, InetAddress to)
+    private static void assertNoMessagesSent(InstrumentedLocalSessions sessions, InetAddressAndPort to)
     {
         Assert.assertNull(sessions.sentMessages.get(to));
     }
 
-    private static void assertMessagesSent(InstrumentedLocalSessions sessions, InetAddress to, RepairMessage... expected)
+    private static void assertMessagesSent(InstrumentedLocalSessions sessions, InetAddressAndPort to, RepairMessage... expected)
     {
         Assert.assertEquals(Lists.newArrayList(expected), sessions.sentMessages.get(to));
     }
 
     static class InstrumentedLocalSessions extends LocalSessions
     {
-        Map<InetAddress, List<RepairMessage>> sentMessages = new HashMap<>();
-        protected void sendMessage(InetAddress destination, RepairMessage message)
+        Map<InetAddressAndPort, List<RepairMessage>> sentMessages = new HashMap<>();
+        protected void sendMessage(InetAddressAndPort destination, RepairMessage message)
         {
             if (!sentMessages.containsKey(destination))
             {
@@ -159,12 +159,13 @@ public class LocalSessionTest extends AbstractRepairTest
             return getSession(sessionID);
         }
 
-        protected InetAddress getBroadcastAddress()
+        @Override
+        protected InetAddressAndPort getBroadcastAddressAndPort()
         {
             return PARTICIPANT1;
         }
 
-        protected boolean isAlive(InetAddress address)
+        protected boolean isAlive(InetAddressAndPort address)
         {
             return true;
         }
@@ -811,7 +812,7 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.start();
         Assert.assertNotNull(sessions.getSession(session.sessionID));
 
-        QueryProcessor.instance.executeInternal("DELETE participants FROM system.repairs WHERE parent_id=?", session.sessionID);
+        QueryProcessor.instance.executeInternal("DELETE participants, participants_wp FROM system.repairs WHERE parent_id=?", session.sessionID);
 
         sessions = new LocalSessions();
         sessions.start();

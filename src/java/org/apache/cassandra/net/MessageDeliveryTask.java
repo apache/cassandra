@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.util.EnumSet;
 
+import com.google.common.primitives.Shorts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,6 +29,7 @@ import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.index.IndexNotAvailableException;
+import org.apache.cassandra.io.DummyByteVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
 public class MessageDeliveryTask implements Runnable
@@ -96,19 +98,11 @@ public class MessageDeliveryTask implements Runnable
         if (message.doCallbackOnFailure())
         {
             MessageOut response = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
-                                                .withParameter(MessagingService.FAILURE_RESPONSE_PARAM, MessagingService.ONE_BYTE);
+                                                .withParameter(ParameterType.FAILURE_RESPONSE, MessagingService.ONE_BYTE);
 
             if (t instanceof TombstoneOverwhelmingException)
             {
-                try (DataOutputBuffer out = new DataOutputBuffer())
-                {
-                    out.writeShort(RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code);
-                    response = response.withParameter(MessagingService.FAILURE_REASON_PARAM, out.getData());
-                }
-                catch (IOException ex)
-                {
-                    throw new RuntimeException(ex);
-                }
+                response = response.withParameter(ParameterType.FAILURE_REASON, Shorts.checkedCast(RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code));
             }
 
             MessagingService.instance().sendReply(response, id, message.from);

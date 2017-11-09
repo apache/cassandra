@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -41,6 +40,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -64,7 +64,7 @@ public class Validator implements Runnable
     private static final Logger logger = LoggerFactory.getLogger(Validator.class);
 
     public final RepairJobDesc desc;
-    public final InetAddress initiator;
+    public final InetAddressAndPort initiator;
     public final int nowInSec;
     private final boolean evenTreeDistribution;
     public final boolean isIncremental;
@@ -81,17 +81,17 @@ public class Validator implements Runnable
 
     private final PreviewKind previewKind;
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int nowInSec, PreviewKind previewKind)
     {
         this(desc, initiator, nowInSec, false, false, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, boolean isIncremental, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int nowInSec, boolean isIncremental, PreviewKind previewKind)
     {
         this(desc, initiator, nowInSec, false, isIncremental, previewKind);
     }
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
+    public Validator(RepairJobDesc desc, InetAddressAndPort initiator, int nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
     {
         this.desc = desc;
         this.initiator = initiator;
@@ -352,7 +352,7 @@ public class Validator implements Runnable
     public void run()
     {
         // respond to the request that triggered this validation
-        if (!initiator.equals(FBUtilities.getBroadcastAddress()))
+        if (!initiator.equals(FBUtilities.getBroadcastAddressAndPort()))
         {
             logger.info("{} Sending completed merkle tree to {} for {}.{}", previewKind.logPrefix(desc.sessionId), initiator, desc.keyspace, desc.columnFamily);
             Tracing.traceRepair("Sending completed merkle tree to {} for {}.{}", initiator, desc.keyspace, desc.columnFamily);
