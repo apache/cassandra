@@ -21,7 +21,6 @@ package org.apache.cassandra.net.async;
 import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -37,9 +36,12 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.exceptions.UnknownTableException;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ParameterType;
 
 /**
  * Parses out individual messages from the incoming buffers. Each message, both header and payload, is incrementally built up
@@ -79,7 +81,7 @@ class MessageInHandler extends ByteToMessageDecoder
      */
     private static final int SECOND_SECTION_BYTE_COUNT = 8;
 
-    private final InetAddress peer;
+    private final InetAddressAndPort peer;
     private final int messagingVersion;
 
     /**
@@ -91,12 +93,12 @@ class MessageInHandler extends ByteToMessageDecoder
     private State state;
     private MessageHeader messageHeader;
 
-    MessageInHandler(InetAddress peer, int messagingVersion)
+    MessageInHandler(InetAddressAndPort peer, int messagingVersion)
     {
         this (peer, messagingVersion, MESSAGING_SERVICE_CONSUMER);
     }
 
-    MessageInHandler(InetAddress peer, int messagingVersion, BiConsumer<MessageIn, Integer> messageConsumer)
+    MessageInHandler(InetAddressAndPort peer, int messagingVersion, BiConsumer<MessageIn, Integer> messageConsumer)
     {
         this.peer = peer;
         this.messagingVersion = messagingVersion;
@@ -140,7 +142,7 @@ class MessageInHandler extends ByteToMessageDecoder
                         int serializedAddrSize;
                         if (readableBytes < 1 || readableBytes < (serializedAddrSize = in.getByte(in.readerIndex()) + 1))
                             return;
-                        messageHeader.from = CompactEndpointSerializationHelper.deserialize(inputPlus);
+                        messageHeader.from = CompactEndpointSerializationHelper.instance.deserialize(inputPlus, messagingVersion);
                         state = State.READ_SECOND_CHUNK;
                         readableBytes -= serializedAddrSize;
                         // fall-through
@@ -199,7 +201,7 @@ class MessageInHandler extends ByteToMessageDecoder
     /**
      * @return <code>true</code> if all the parameters have been read from the {@link ByteBuf}; else, <code>false</code>.
      */
-    private boolean readParameters(ByteBuf in, ByteBufDataInputPlus inputPlus, int parameterCount, Map<String, byte[]> parameters) throws IOException
+    private boolean readParameters(ByteBuf in, ByteBufDataInputPlus inputPlus, int parameterCount, Map<ParameterType, Object> parameters) throws IOException
     {
         // makes the assumption that map.size() is a constant time function (HashMap.size() is)
         while (parameters.size() < parameterCount)
@@ -208,9 +210,10 @@ class MessageInHandler extends ByteToMessageDecoder
                 return false;
 
             String key = DataInputStream.readUTF(inputPlus);
+            ParameterType parameterType = ParameterType.byName.get(key);
             byte[] value = new byte[in.readInt()];
             in.readBytes(value);
-            parameters.put(key, value);
+            parameters.put(parameterType, parameterType.serializer.deserialize(new DataInputBuffer(value), messagingVersion));
         }
 
         return true;
@@ -300,11 +303,11 @@ class MessageInHandler extends ByteToMessageDecoder
     {
         int messageId;
         long constructionTime;
-        InetAddress from;
+        InetAddressAndPort from;
         MessagingService.Verb verb;
         int payloadSize;
 
-        Map<String, byte[]> parameters = Collections.emptyMap();
+        Map<ParameterType, Object> parameters = Collections.emptyMap();
 
         /**
          * Total number of incoming parameters.

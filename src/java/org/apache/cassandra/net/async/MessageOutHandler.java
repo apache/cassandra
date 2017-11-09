@@ -40,6 +40,7 @@ import io.netty.handler.timeout.IdleStateEvent;
 
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ParameterType;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.NanoTimeToCurrentTimeMillis;
@@ -196,10 +197,9 @@ class MessageOutHandler extends ChannelDuplexHandler
     {
         try
         {
-            byte[] sessionBytes = msg.message.parameters.get(Tracing.TRACE_HEADER);
-            if (sessionBytes != null)
+            UUID sessionId =  (UUID)msg.message.getParameter(ParameterType.TRACE_SESSION);
+            if (sessionId != null)
             {
-                UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
                 TraceState state = Tracing.instance.get(sessionId);
                 String message = String.format("Sending %s message to %s, size = %d bytes",
                                                msg.message.verb, connectionId.connectionAddress(),
@@ -207,9 +207,9 @@ class MessageOutHandler extends ChannelDuplexHandler
                 // session may have already finished; see CASSANDRA-5668
                 if (state == null)
                 {
-                    byte[] traceTypeBytes = msg.message.parameters.get(Tracing.TRACE_TYPE);
-                    Tracing.TraceType traceType = traceTypeBytes == null ? Tracing.TraceType.QUERY : Tracing.TraceType.deserialize(traceTypeBytes[0]);
-                    Tracing.instance.trace(ByteBuffer.wrap(sessionBytes), message, traceType.getTTL());
+                    Tracing.TraceType traceType = (Tracing.TraceType)msg.message.getParameter(ParameterType.TRACE_TYPE);
+                    traceType = traceType == null ? Tracing.TraceType.QUERY : traceType;
+                    Tracing.instance.trace(ByteBuffer.wrap(UUIDGen.decompose(sessionId)), message, traceType.getTTL());
                 }
                 else
                 {

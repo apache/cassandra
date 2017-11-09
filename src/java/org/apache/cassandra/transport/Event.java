@@ -24,6 +24,7 @@ import java.util.List;
 
 import com.google.common.base.Objects;
 import io.netty.buffer.ByteBuf;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public abstract class Event
 {
@@ -110,19 +111,19 @@ public abstract class Event
             this.change = change;
         }
 
-        public static TopologyChange newNode(InetAddress host, int port)
+        public static TopologyChange newNode(InetAddressAndPort address)
         {
-            return new TopologyChange(Change.NEW_NODE, new InetSocketAddress(host, port));
+            return new TopologyChange(Change.NEW_NODE, new InetSocketAddress(address.address, address.port));
         }
 
-        public static TopologyChange removedNode(InetAddress host, int port)
+        public static TopologyChange removedNode(InetAddressAndPort address)
         {
-            return new TopologyChange(Change.REMOVED_NODE, new InetSocketAddress(host, port));
+            return new TopologyChange(Change.REMOVED_NODE, new InetSocketAddress(address.address, address.port));
         }
 
-        public static TopologyChange movedNode(InetAddress host, int port)
+        public static TopologyChange movedNode(InetAddressAndPort address)
         {
-            return new TopologyChange(Change.MOVED_NODE, new InetSocketAddress(host, port));
+            return new TopologyChange(Change.MOVED_NODE, new InetSocketAddress(address.address, address.port));
         }
 
         // Assumes the type has already been deserialized
@@ -181,14 +182,14 @@ public abstract class Event
             this.status = status;
         }
 
-        public static StatusChange nodeUp(InetAddress host, int port)
+        public static StatusChange nodeUp(InetAddressAndPort address)
         {
-            return new StatusChange(Status.UP, new InetSocketAddress(host, port));
+            return new StatusChange(Status.UP, new InetSocketAddress(address.address, address.port));
         }
 
-        public static StatusChange nodeDown(InetAddress host, int port)
+        public static StatusChange nodeDown(InetAddressAndPort address)
         {
-            return new StatusChange(Status.DOWN, new InetSocketAddress(host, port));
+            return new StatusChange(Status.DOWN, new InetSocketAddress(address.address, address.port));
         }
 
         // Assumes the type has already been deserialized

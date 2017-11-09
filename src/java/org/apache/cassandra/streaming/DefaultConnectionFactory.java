@@ -19,6 +19,7 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
+import java.net.Socket;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
@@ -36,6 +37,7 @@ import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.net.async.NettyFactory;
 import org.apache.cassandra.net.async.OutboundConnectionIdentifier;
 import org.apache.cassandra.net.async.OutboundConnectionParams;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class DefaultConnectionFactory implements StreamConnectionFactory
 {

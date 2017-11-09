@@ -223,7 +223,6 @@ public class PreparedStatementsTest extends CQLTester
                                  .withClusterName("Test Cluster")
                                  .withPort(nativePort)
                                  .withoutJMXReporting()
-                                 .allowBetaProtocolVersion()
                                  .build())
         {
             try (Session newSession = newCluster.connect())
@@ -531,7 +530,7 @@ public class PreparedStatementsTest extends CQLTester
     @Test
     public void testPrepareWithBatchLWT() throws Throwable
     {
-        testPrepareWithBatchLWT(ProtocolVersion.V4);
+//        testPrepareWithBatchLWT(ProtocolVersion.V4);
         testPrepareWithBatchLWT(ProtocolVersion.V5);
     }
 

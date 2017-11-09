@@ -42,12 +42,14 @@ import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Serialization/deserialization tests for protocol objects and messages.
  */
 public class SerDeserTest
 {
+
     @BeforeClass
     public static void setupDD()
     {
@@ -113,12 +115,12 @@ public class SerDeserTest
     {
         List<Event> events = new ArrayList<>();
 
-        events.add(TopologyChange.newNode(FBUtilities.getBroadcastAddress(), 42));
-        events.add(TopologyChange.removedNode(FBUtilities.getBroadcastAddress(), 42));
-        events.add(TopologyChange.movedNode(FBUtilities.getBroadcastAddress(), 42));
+        events.add(TopologyChange.newNode(FBUtilities.getBroadcastAddressAndPort()));
+        events.add(TopologyChange.removedNode(FBUtilities.getBroadcastAddressAndPort()));
+        events.add(TopologyChange.movedNode(FBUtilities.getBroadcastAddressAndPort()));
 
-        events.add(StatusChange.nodeUp(FBUtilities.getBroadcastAddress(), 42));
-        events.add(StatusChange.nodeDown(FBUtilities.getBroadcastAddress(), 42));
+        events.add(StatusChange.nodeUp(FBUtilities.getBroadcastAddressAndPort()));
+        events.add(StatusChange.nodeDown(FBUtilities.getBroadcastAddressAndPort()));
 
         events.add(new SchemaChange(SchemaChange.Change.CREATED, "ks"));
         events.add(new SchemaChange(SchemaChange.Change.UPDATED, "ks"));

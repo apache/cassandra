@@ -43,9 +43,6 @@ public class Mutation implements IMutation
 {
     public static final MutationSerializer serializer = new MutationSerializer();
 
-    public static final String FORWARD_TO = "FWD_TO";
-    public static final String FORWARD_FROM = "FWD_FRM";
-
     // todo this is redundant
     // when we remove it, also restore SerializationsTest.testMutationRead to not regenerate new Mutations each test
     private final String keyspaceName;
