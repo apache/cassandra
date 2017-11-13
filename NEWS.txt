@@ -82,6 +82,11 @@ Upgrading
       the per token range view building status is stored in the new table
       `system.view_builds_in_progress`. The old table `system.views_builds_in_progress`
       is no longer used and can be removed. See CASSANDRA-12245 for more details.
+	- Config option commitlog_sync_batch_window_in_ms has been deprecated as it's
+	  documentation has been incorrect and the setting itself near useless.
+	  Batch mode remains a valid commit log mode, however.
+	- There is a new commit log mode, group, which is similar to batch mode
+	  but blocks for up to a configurable number of milliseconds between disk flushes.
 
 Materialized Views
 -------------------

@@ -71,8 +71,9 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+@Ignore
 @RunWith(Parameterized.class)
-public class CommitLogTest
+public abstract class CommitLogTest
 {
     private static final String KEYSPACE1 = "CommitLogTest";
     private static final String KEYSPACE2 = "CommitLogTestNonDurable";
@@ -99,7 +100,6 @@ public class CommitLogTest
             {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
     }
 
-    @BeforeClass
     public static void beforeClass() throws ConfigurationException
     {
         // Disable durable writes for system keyspaces to prevent system mutations, e.g. sstable_activity,

@@ -15,28 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.db.commitlog;
 
-class BatchCommitLogService extends AbstractCommitLogService
-{
-    /**
-     * Batch mode does not rely on the sync thread in {@link AbstractCommitLogService} to wake up for triggering
-     * the disk sync. Instead we trigger it explicitly in {@link #maybeWaitForSync(CommitLogSegment.Allocation)}.
-     * This value here is largely irrelevant, but should high enough so the sync thread is not continually waking up.
-     */
-    private static final int POLL_TIME_MILLIS = 1000;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
-    public BatchCommitLogService(CommitLog commitLog)
+/**
+ * A commitlog service that will block returning an ACK back to the a coordinator/client
+ * for a minimum amount of time as we wait until the the commit log segment is flushed.
+ */
+public class GroupCommitLogService extends AbstractCommitLogService
+{
+    public GroupCommitLogService(CommitLog commitLog)
     {
-        super(commitLog, "COMMIT-LOG-WRITER", POLL_TIME_MILLIS);
+        super(commitLog, "GROUP-COMMIT-LOG-WRITER", (int) DatabaseDescriptor.getCommitLogSyncGroupWindow());
     }
 
     protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)
     {
         // wait until record has been safely persisted to disk
         pending.incrementAndGet();
-        requestExtraSync();
+        // wait for commitlog_sync_group_window_in_ms
         alloc.awaitDiskSync(commitLog.metrics.waitingOnCommit);
         pending.decrementAndGet();
     }
 }
+
