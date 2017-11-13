@@ -275,6 +275,7 @@ public class TableMetrics
         }
     });
 
+    public final Meter readRepairRequests;
     public final Meter shortReadProtectionRequests;
 
     public final Map<Sampler, TopKSampler<ByteBuffer>> samplers;
@@ -845,6 +846,7 @@ public class TableMetrics
             return 0.0;
         });
 
+        readRepairRequests = Metrics.meter(factory.createMetricName("ReadRepairRequests"));
         shortReadProtectionRequests = Metrics.meter(factory.createMetricName("ShortReadProtectionRequests"));
     }
 
