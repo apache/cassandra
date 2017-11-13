@@ -119,7 +119,7 @@ public class SimpleClient implements Closeable
         this(host, port, new EncryptionOptions());
     }
 
-    public void connect(boolean useCompression) throws IOException
+    public SimpleClient connect(boolean useCompression) throws IOException
     {
         establishConnection();
 
@@ -131,6 +131,8 @@ public class SimpleClient implements Closeable
             connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
         }
         execute(new StartupMessage(options));
+
+        return this;
     }
 
     public void setEventHandler(EventHandler eventHandler)

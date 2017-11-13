@@ -53,6 +53,7 @@ import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -65,6 +66,8 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
 public abstract class ModificationStatement implements CQLStatement
 {
     protected static final Logger logger = LoggerFactory.getLogger(ModificationStatement.class);
+
+    private final static MD5Digest EMPTY_HASH = MD5Digest.wrap(new byte[] {});
 
     public static final String CUSTOM_EXPRESSIONS_NOT_ALLOWED =
         "Custom index expressions cannot be used in WHERE clauses for UPDATE or DELETE statements";
@@ -502,7 +505,7 @@ public abstract class ModificationStatement implements CQLStatement
         List<ColumnSpecification> specs = new ArrayList<>();
         specs.add(casResultColumnSpecification(ksName, cfName));
 
-        return new ResultSet.ResultMetadata(specs);
+        return new ResultSet.ResultMetadata(EMPTY_HASH, specs);
     }
 
     private static ColumnSpecification casResultColumnSpecification(String ksName, String cfName)
@@ -547,7 +550,7 @@ public abstract class ModificationStatement implements CQLStatement
             row.addAll(right.rows.get(i));
             rows.add(row);
         }
-        return new ResultSet(new ResultSet.ResultMetadata(specs), rows);
+        return new ResultSet(new ResultSet.ResultMetadata(EMPTY_HASH, specs), rows);
     }
 
     private static ResultSet buildCasFailureResultSet(RowIterator partition, Iterable<ColumnMetadata> columnsWithConditions, boolean isBatch, QueryOptions options)

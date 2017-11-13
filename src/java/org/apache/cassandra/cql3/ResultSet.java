@@ -28,6 +28,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
@@ -247,6 +249,24 @@ public class ResultSet
         public int valueCount()
         {
             return names == null ? columnCount : names.size();
+        }
+
+        @VisibleForTesting
+        public EnumSet<Flag> getFlags()
+        {
+            return flags;
+        }
+
+        @VisibleForTesting
+        public int getColumnCount()
+        {
+            return columnCount;
+        }
+
+        @VisibleForTesting
+        public PagingState getPagingState()
+        {
+            return pagingState;
         }
 
         /**

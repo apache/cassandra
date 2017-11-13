@@ -47,6 +47,7 @@ import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.FunctionName;
@@ -843,6 +844,11 @@ public abstract class CQLTester
         requireNetwork();
 
         return sessions.get(protocolVersion);
+    }
+
+    protected SimpleClient newSimpleClient(ProtocolVersion version, boolean compression) throws IOException
+    {
+        return new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, version.isBeta(), new EncryptionOptions()).connect(compression);
     }
 
     protected String formatQuery(String query)
