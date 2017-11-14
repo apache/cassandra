@@ -235,9 +235,7 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
 
                 if (traceState != null)
                     traceState.trace("Digest mismatch: {}", e.toString());
-                if (logger.isDebugEnabled())
-                    logger.debug("Digest mismatch:", e);
-                
+
                 ReadRepairMetrics.repairedBackground.mark();
                 
                 final DataResolver repairResolver = new DataResolver(keyspace, command, consistencyLevel, endpoints.size());
