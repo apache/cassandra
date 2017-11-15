@@ -44,6 +44,10 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.service.reads.AbstractReadExecutor;
+import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
@@ -1751,139 +1755,54 @@ public class StorageProxy implements StorageProxyMBean
     {
         int cmdCount = commands.size();
 
-        SinglePartitionReadLifecycle[] reads = new SinglePartitionReadLifecycle[cmdCount];
-        for (int i = 0; i < cmdCount; i++)
-            reads[i] = new SinglePartitionReadLifecycle(commands.get(i), consistencyLevel, queryStartNanoTime);
+        AbstractReadExecutor[] reads = new AbstractReadExecutor[cmdCount];
 
-        for (int i = 0; i < cmdCount; i++)
-            reads[i].doInitialQueries();
+        for (int i=0; i<cmdCount; i++)
+        {
+            reads[i] = AbstractReadExecutor.getReadExecutor(commands.get(i), consistencyLevel, queryStartNanoTime);
+        }
 
-        for (int i = 0; i < cmdCount; i++)
+        for (int i=0; i<cmdCount; i++)
+        {
+            reads[i].executeAsync();
+        }
+
+        for (int i=0; i<cmdCount; i++)
+        {
             reads[i].maybeTryAdditionalReplicas();
+        }
 
-        for (int i = 0; i < cmdCount; i++)
-            reads[i].awaitResultsAndRetryOnDigestMismatch();
+        for (int i=0; i<cmdCount; i++)
+        {
+            reads[i].awaitResponses();
+        }
 
-        for (int i = 0; i < cmdCount; i++)
-            if (!reads[i].isDone())
-                reads[i].maybeAwaitFullDataRead();
+        for (int i=0; i<cmdCount; i++)
+        {
+            reads[i].maybeRepairAdditionalReplicas();
+        }
+
+        for (int i=0; i<cmdCount; i++)
+        {
+            reads[i].awaitReadRepair();
+        }
 
         List<PartitionIterator> results = new ArrayList<>(cmdCount);
-        for (int i = 0; i < cmdCount; i++)
+        for (int i=0; i<cmdCount; i++)
         {
-            assert reads[i].isDone();
             results.add(reads[i].getResult());
         }
 
         return PartitionIterators.concat(results);
     }
 
-    private static class SinglePartitionReadLifecycle
-    {
-        private final SinglePartitionReadCommand command;
-        private final AbstractReadExecutor executor;
-        private final ConsistencyLevel consistency;
-        private final long queryStartNanoTime;
-
-        private PartitionIterator result;
-        private ReadCallback repairHandler;
-
-        SinglePartitionReadLifecycle(SinglePartitionReadCommand command, ConsistencyLevel consistency, long queryStartNanoTime)
-        {
-            this.command = command;
-            this.executor = AbstractReadExecutor.getReadExecutor(command, consistency, queryStartNanoTime);
-            this.consistency = consistency;
-            this.queryStartNanoTime = queryStartNanoTime;
-        }
-
-        boolean isDone()
-        {
-            return result != null;
-        }
-
-        void doInitialQueries()
-        {
-            executor.executeAsync();
-        }
-
-        void maybeTryAdditionalReplicas()
-        {
-            executor.maybeTryAdditionalReplicas();
-        }
-
-        void awaitResultsAndRetryOnDigestMismatch() throws ReadFailureException, ReadTimeoutException
-        {
-            try
-            {
-                result = executor.get();
-            }
-            catch (DigestMismatchException ex)
-            {
-                Tracing.trace("Digest mismatch: {}", ex.getMessage());
-
-                ReadRepairMetrics.repairedBlocking.mark();
-
-                // Do a full data read to resolve the correct response (and repair node that need be)
-                Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-                DataResolver resolver = new DataResolver(keyspace, command, ConsistencyLevel.ALL, executor.handler.endpoints.size(), queryStartNanoTime);
-                repairHandler = new ReadCallback(resolver,
-                                                 ConsistencyLevel.ALL,
-                                                 executor.getContactedReplicas().size(),
-                                                 command,
-                                                 keyspace,
-                                                 executor.handler.endpoints,
-                                                 queryStartNanoTime);
-
-                for (InetAddressAndPort endpoint : executor.getContactedReplicas())
-                {
-                    Tracing.trace("Enqueuing full data read to {}", endpoint);
-                    MessagingService.instance().sendRRWithFailure(command.createMessage(), endpoint, repairHandler);
-                }
-            }
-        }
-
-        void maybeAwaitFullDataRead() throws ReadTimeoutException
-        {
-            // There wasn't a digest mismatch, we're good
-            if (repairHandler == null)
-                return;
-
-            // Otherwise, get the result from the full-data read and check that it's not a short read
-            try
-            {
-                result = repairHandler.get();
-            }
-            catch (DigestMismatchException e)
-            {
-                throw new AssertionError(e); // full data requested from each node here, no digests should be sent
-            }
-            catch (ReadTimeoutException e)
-            {
-                if (Tracing.isTracing())
-                    Tracing.trace("Timed out waiting on digest mismatch repair requests");
-                else
-                    logger.trace("Timed out waiting on digest mismatch repair requests");
-                // the caught exception here will have CL.ALL from the repair command,
-                // not whatever CL the initial command was at (CASSANDRA-7947)
-                int blockFor = consistency.blockFor(Keyspace.open(command.metadata().keyspace));
-                throw new ReadTimeoutException(consistency, blockFor-1, blockFor, true);
-            }
-        }
-
-        PartitionIterator getResult()
-        {
-            assert result != null;
-            return result;
-        }
-    }
-
-    static class LocalReadRunnable extends DroppableRunnable
+    public static class LocalReadRunnable extends DroppableRunnable
     {
         private final ReadCommand command;
         private final ReadCallback handler;
         private final long start = System.nanoTime();
 
-        LocalReadRunnable(ReadCommand command, ReadCallback handler)
+        public LocalReadRunnable(ReadCommand command, ReadCallback handler)
         {
             super(MessagingService.Verb.READ);
             this.command = command;
@@ -2081,11 +2000,13 @@ public class StorageProxy implements StorageProxyMBean
 
     private static class SingleRangeResponse extends AbstractIterator<RowIterator> implements PartitionIterator
     {
+        private final DataResolver resolver;
         private final ReadCallback handler;
         private PartitionIterator result;
 
-        private SingleRangeResponse(ReadCallback handler)
+        private SingleRangeResponse(DataResolver resolver, ReadCallback handler)
         {
+            this.resolver = resolver;
             this.handler = handler;
         }
 
@@ -2094,14 +2015,8 @@ public class StorageProxy implements StorageProxyMBean
             if (result != null)
                 return;
 
-            try
-            {
-                result = handler.get();
-            }
-            catch (DigestMismatchException e)
-            {
-                throw new AssertionError(e); // no digests in range slices yet
-            }
+            handler.awaitResults();
+            result = resolver.resolve();
         }
 
         protected RowIterator computeNext()
@@ -2223,12 +2138,13 @@ public class StorageProxy implements StorageProxyMBean
         {
             PartitionRangeReadCommand rangeCommand = command.forSubRange(toQuery.range, isFirst);
 
-            DataResolver resolver = new DataResolver(keyspace, rangeCommand, consistency, toQuery.filteredEndpoints.size(), queryStartNanoTime);
+            ReadRepair readRepair = ReadRepair.create(command, toQuery.filteredEndpoints, queryStartNanoTime, consistency);
+            DataResolver resolver = new DataResolver(keyspace, rangeCommand, consistency, toQuery.filteredEndpoints.size(), queryStartNanoTime, readRepair);
 
             int blockFor = consistency.blockFor(keyspace);
             int minResponses = Math.min(toQuery.filteredEndpoints.size(), blockFor);
             List<InetAddressAndPort> minimalEndpoints = toQuery.filteredEndpoints.subList(0, minResponses);
-            ReadCallback handler = new ReadCallback(resolver, consistency, rangeCommand, minimalEndpoints, queryStartNanoTime);
+            ReadCallback handler = new ReadCallback(resolver, consistency, rangeCommand, minimalEndpoints, queryStartNanoTime, readRepair);
 
             handler.assureSufficientLiveNodes();
 
@@ -2245,7 +2161,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
 
-            return new SingleRangeResponse(handler);
+            return new SingleRangeResponse(resolver, handler);
         }
 
         private PartitionIterator sendNextRequests()

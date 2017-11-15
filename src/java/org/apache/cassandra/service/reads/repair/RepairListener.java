@@ -15,21 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service;
 
-import java.nio.ByteBuffer;
+package org.apache.cassandra.service.reads.repair;
 
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
-@SuppressWarnings("serial")
-public class DigestMismatchException extends Exception
+public interface RepairListener
 {
-    public DigestMismatchException(DecoratedKey key, ByteBuffer digest1, ByteBuffer digest2)
+    interface PartitionRepair
     {
-        super(String.format("Mismatch for key %s (%s vs %s)",
-                            key.toString(),
-                            ByteBufferUtil.bytesToHex(digest1),
-                            ByteBufferUtil.bytesToHex(digest2)));
+        void reportMutation(InetAddressAndPort endpoint, Mutation mutation);
+        void finish();
     }
+
+    PartitionRepair startPartitionRepair();
+    void awaitRepairs(long timeoutMillis);
 }
