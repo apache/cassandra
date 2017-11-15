@@ -38,6 +38,7 @@ def _show_control_chars(match):
         txt = txt[1:-1]
     return txt
 
+
 bits_to_turn_red_re = re.compile(r'\\([^uUx]|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|U[0-9a-fA-F]{8})')
 
 
@@ -48,6 +49,7 @@ def _make_turn_bits_red_f(color1, color2):
             return '\\'
         return color1 + txt + color2
     return _turn_bits_red
+
 
 default_null_placeholder = 'null'
 default_time_format = ''
@@ -101,6 +103,7 @@ def format_value_default(val, colormap, **_):
     bval = controlchars_re.sub(_show_control_chars, escapedval)
     return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap)
 
+
 # Mapping cql type base names ("int", "map", etc) to formatter functions,
 # making format_value a generic function
 _formatters = {}
@@ -128,6 +131,8 @@ def formatter_for(typname):
 def format_value_blob(val, colormap, **_):
     bval = '0x' + binascii.hexlify(str(val))
     return colorme(bval, colormap, 'blob')
+
+
 formatter_for('buffer')(format_value_blob)
 
 
@@ -188,6 +193,7 @@ def format_floating_point_type(val, colormap, float_precision, decimal_sep=None,
 
     return colorme(bval, colormap, 'float')
 
+
 formatter_for('float')(format_floating_point_type)
 
 
@@ -195,6 +201,7 @@ def format_integer_type(val, colormap, thousands_sep=None, **_):
     # base-10 only for now; support others?
     bval = format_integer_with_thousands_sep(val, thousands_sep) if thousands_sep else str(val)
     return colorme(bval, colormap, 'int')
+
 
 # We can get rid of this in cassandra-2.2
 if sys.version_info >= (2, 7):
@@ -221,6 +228,7 @@ def format_value_timestamp(val, colormap, time_format, quote=False, **_):
         bval = "'%s'" % bval
     return colorme(bval, colormap, 'timestamp')
 
+
 formatter_for('datetime')(format_value_timestamp)
 
 
@@ -240,6 +248,7 @@ def format_value_text(val, encoding, colormap, quote=False, **_):
         bval = "'%s'" % bval
 
     return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap, wcwidth.wcswidth(bval.decode(encoding)))
+
 
 # name alias
 formatter_for('unicode')(format_value_text)
@@ -286,6 +295,8 @@ def format_value_set(val, encoding, colormap, time_format, float_precision, null
     return format_simple_collection(sorted(val), '{', '}', encoding, colormap,
                                     time_format, float_precision, nullval,
                                     decimal_sep, thousands_sep, boolean_styles)
+
+
 formatter_for('frozenset')(format_value_set)
 # This code is used by cqlsh (bundled driver version 2.7.2 using sortedset),
 # and the dtests, which use whichever driver on the machine, i.e. 3.0.0 (SortedSet)
@@ -314,6 +325,8 @@ def format_value_map(val, encoding, colormap, time_format, float_precision, null
         + rb
     displaywidth = 4 * len(subs) + sum(k.displaywidth + v.displaywidth for (k, v) in subs)
     return FormattedValue(bval, coloredval, displaywidth)
+
+
 formatter_for('OrderedDict')(format_value_map)
 formatter_for('OrderedMap')(format_value_map)
 formatter_for('OrderedMapSerializedKey')(format_value_map)
