@@ -15,23 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.service.reads;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.service.reads.repair.ReadRepair;
+import org.apache.cassandra.tracing.TraceState;
 
 public class DigestResolver extends ResponseResolver
 {
     private volatile ReadResponse dataResponse;
 
-    public DigestResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, int maxResponseCount)
+    public DigestResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, ReadRepair readRepair, int maxResponseCount)
     {
-        super(keyspace, command, consistency, maxResponseCount);
+        super(keyspace, command, consistency, readRepair, maxResponseCount);
+        Preconditions.checkArgument(command instanceof SinglePartitionReadCommand,
+                                    "DigestResolver can only be used with SinglePartitionReadCommand commands");
     }
 
     @Override
@@ -42,43 +48,17 @@ public class DigestResolver extends ResponseResolver
             dataResponse = message.payload;
     }
 
-    /**
-     * Special case of resolve() so that CL.ONE reads never throw DigestMismatchException in the foreground
-     */
     public PartitionIterator getData()
     {
         assert isDataPresent();
         return UnfilteredPartitionIterators.filter(dataResponse.makeIterator(command), command.nowInSec());
     }
 
-    /*
-     * This method handles two different scenarios:
-     *
-     * a) we're handling the initial read of data from the closest replica + digests
-     *    from the rest. In this case we check the digests against each other,
-     *    throw an exception if there is a mismatch, otherwise return the data row.
-     *
-     * b) we're checking additional digests that arrived after the minimum to handle
-     *    the requested ConsistencyLevel, i.e. asynchronous read repair check
-     */
-    public PartitionIterator resolve() throws DigestMismatchException
-    {
-        if (responses.size() == 1)
-            return getData();
-
-        if (logger.isTraceEnabled())
-            logger.trace("resolving {} responses", responses.size());
-
-        compareResponses();
-
-        return UnfilteredPartitionIterators.filter(dataResponse.makeIterator(command), command.nowInSec());
-    }
-
-    public void compareResponses() throws DigestMismatchException
+    public boolean responsesMatch()
     {
         long start = System.nanoTime();
 
-        // validate digests against each other; throw immediately on mismatch.
+        // validate digests against each other; return false immediately on mismatch.
         ByteBuffer digest = null;
         for (MessageIn<ReadResponse> message : responses)
         {
@@ -89,11 +69,21 @@ public class DigestResolver extends ResponseResolver
                 digest = newDigest;
             else if (!digest.equals(newDigest))
                 // rely on the fact that only single partition queries use digests
-                throw new DigestMismatchException(((SinglePartitionReadCommand)command).partitionKey(), digest, newDigest);
+                return false;
         }
 
         if (logger.isTraceEnabled())
-            logger.trace("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+            logger.trace("responsesMatch: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+
+        return true;
+    }
+
+    public void evaluateAllResponses(TraceState traceState)
+    {
+        if (!responsesMatch())
+        {
+            readRepair.backgroundDigestRepair(traceState);
+        }
     }
 
     public boolean isDataPresent()

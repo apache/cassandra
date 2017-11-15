@@ -7,28 +7,31 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.service.reads;
 
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
+import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -44,6 +47,9 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.reads.repair.ReadRepair;
+import org.apache.cassandra.service.reads.repair.RepairListener;
+import org.apache.cassandra.service.reads.repair.TestableReadRepair;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -74,8 +80,7 @@ public class DataResolverTest
     private ColumnMetadata m;
     private int nowInSec;
     private ReadCommand command;
-    private MessageRecorder messageRecorder;
-
+    private TestableReadRepair readRepair;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -113,43 +118,13 @@ public class DataResolverTest
 
         nowInSec = FBUtilities.nowInSeconds();
         command = Util.cmd(cfs, dk).withNowInSeconds(nowInSec).build();
-    }
-
-    @Before
-    public void injectMessageSink()
-    {
-        // install an IMessageSink to capture all messages
-        // so we can inspect them during tests
-        messageRecorder = new MessageRecorder();
-        MessagingService.instance().addMessageSink(messageRecorder);
-    }
-
-    @After
-    public void removeMessageSink()
-    {
-        // should be unnecessary, but good housekeeping
-        MessagingService.instance().clearMessageSinks();
-    }
-
-    /**
-     * Checks that the provided data resolver has the expected number of repair futures created.
-     * This method also "release" those future by faking replica responses to those repair, which is necessary or
-     * every test would timeout when closing the result of resolver.resolve(), since it waits on those futures.
-     */
-    private void assertRepairFuture(DataResolver resolver, int expectedRepairs)
-    {
-        assertEquals(expectedRepairs, resolver.repairResults.size());
-
-        // Signal all future. We pass a completely fake response message, but it doesn't matter as we just want
-        // AsyncOneResponse to signal success, and it only cares about a non-null MessageIn (it collects the payload).
-        for (AsyncOneResponse<?> future : resolver.repairResults)
-            future.response(MessageIn.create(null, null, null, null, -1));
+        readRepair = new TestableReadRepair(command);
     }
 
     @Test
     public void testResolveNewerSingleRow() throws UnknownHostException
     {
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
         InetAddressAndPort peer1 = peer();
         resolver.preprocess(readResponseMessage(peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
                                                                                                        .add("c1", "v1")
@@ -167,21 +142,20 @@ public class DataResolverTest
                 assertColumns(row, "c1");
                 assertColumn(cfm, row, "c1", "v2", 1);
             }
-            assertRepairFuture(resolver, 1);
         }
 
-        assertEquals(1, messageRecorder.sent.size());
+        assertEquals(1, readRepair.sent.size());
         // peer 1 just needs to repair with the row from peer 2
-        MessageOut msg = getSentMessage(peer1);
-        assertRepairMetadata(msg);
-        assertRepairContainsNoDeletions(msg);
-        assertRepairContainsColumn(msg, "1", "c1", "v2", 1);
+        Mutation mutation = readRepair.getForEndpoint(peer1);
+        assertRepairMetadata(mutation);
+        assertRepairContainsNoDeletions(mutation);
+        assertRepairContainsColumn(mutation, "1", "c1", "v2", 1);
     }
 
     @Test
     public void testResolveDisjointSingleRow()
     {
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
         InetAddressAndPort peer1 = peer();
         resolver.preprocess(readResponseMessage(peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
                                                                                                        .add("c1", "v1")
@@ -201,25 +175,23 @@ public class DataResolverTest
                 assertColumn(cfm, row, "c1", "v1", 0);
                 assertColumn(cfm, row, "c2", "v2", 1);
             }
-            assertRepairFuture(resolver, 2);
         }
 
-        assertEquals(2, messageRecorder.sent.size());
+        assertEquals(2, readRepair.sent.size());
         // each peer needs to repair with each other's column
-        MessageOut msg = getSentMessage(peer1);
-        assertRepairMetadata(msg);
-        assertRepairContainsColumn(msg, "1", "c2", "v2", 1);
+        Mutation mutation = readRepair.getForEndpoint(peer1);
+        assertRepairMetadata(mutation);
+        assertRepairContainsColumn(mutation, "1", "c2", "v2", 1);
 
-        msg = getSentMessage(peer2);
-        assertRepairMetadata(msg);
-        assertRepairContainsColumn(msg, "1", "c1", "v1", 0);
+        mutation = readRepair.getForEndpoint(peer2);
+        assertRepairMetadata(mutation);
+        assertRepairContainsColumn(mutation, "1", "c1", "v1", 0);
     }
 
     @Test
     public void testResolveDisjointMultipleRows() throws UnknownHostException
     {
-
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
         InetAddressAndPort peer1 = peer();
         resolver.preprocess(readResponseMessage(peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
                                                                                                        .add("c1", "v1")
@@ -247,26 +219,25 @@ public class DataResolverTest
                 assertFalse(rows.hasNext());
                 assertFalse(data.hasNext());
             }
-            assertRepairFuture(resolver, 2);
         }
 
-        assertEquals(2, messageRecorder.sent.size());
+        assertEquals(2, readRepair.sent.size());
         // each peer needs to repair the row from the other
-        MessageOut msg = getSentMessage(peer1);
-        assertRepairMetadata(msg);
-        assertRepairContainsNoDeletions(msg);
-        assertRepairContainsColumn(msg, "2", "c2", "v2", 1);
+        Mutation mutation = readRepair.getForEndpoint(peer1);
+        assertRepairMetadata(mutation);
+        assertRepairContainsNoDeletions(mutation);
+        assertRepairContainsColumn(mutation, "2", "c2", "v2", 1);
 
-        msg = getSentMessage(peer2);
-        assertRepairMetadata(msg);
-        assertRepairContainsNoDeletions(msg);
-        assertRepairContainsColumn(msg, "1", "c1", "v1", 0);
+        mutation = readRepair.getForEndpoint(peer2);
+        assertRepairMetadata(mutation);
+        assertRepairContainsNoDeletions(mutation);
+        assertRepairContainsColumn(mutation, "1", "c1", "v1", 0);
     }
 
     @Test
     public void testResolveDisjointMultipleRowsWithRangeTombstones()
     {
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 4, System.nanoTime());
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 4, System.nanoTime(), readRepair);
 
         RangeTombstone tombstone1 = tombstone("1", "11", 1, nowInSec);
         RangeTombstone tombstone2 = tombstone("3", "31", 1, nowInSec);
@@ -313,41 +284,40 @@ public class DataResolverTest
 
                 assertFalse(rows.hasNext());
             }
-            assertRepairFuture(resolver, 4);
         }
 
-        assertEquals(4, messageRecorder.sent.size());
+        assertEquals(4, readRepair.sent.size());
         // peer1 needs the rows from peers 2 and 4
-        MessageOut msg = getSentMessage(peer1);
-        assertRepairMetadata(msg);
-        assertRepairContainsNoDeletions(msg);
-        assertRepairContainsColumn(msg, "0", "c1", "v0", 0);
-        assertRepairContainsColumn(msg, "3", "one", "A", 2);
+        Mutation mutation = readRepair.getForEndpoint(peer1);
+        assertRepairMetadata(mutation);
+        assertRepairContainsNoDeletions(mutation);
+        assertRepairContainsColumn(mutation, "0", "c1", "v0", 0);
+        assertRepairContainsColumn(mutation, "3", "one", "A", 2);
 
         // peer2 needs to get the row from peer4 and the RTs
-        msg = getSentMessage(peer2);
-        assertRepairMetadata(msg);
-        assertRepairContainsDeletions(msg, null, tombstone1, tombstone2);
-        assertRepairContainsColumn(msg, "3", "one", "A", 2);
+        mutation = readRepair.getForEndpoint(peer2);
+        assertRepairMetadata(mutation);
+        assertRepairContainsDeletions(mutation, null, tombstone1, tombstone2);
+        assertRepairContainsColumn(mutation, "3", "one", "A", 2);
 
         // peer 3 needs both rows and the RTs
-        msg = getSentMessage(peer3);
-        assertRepairMetadata(msg);
-        assertRepairContainsDeletions(msg, null, tombstone1, tombstone2);
-        assertRepairContainsColumn(msg, "0", "c1", "v0", 0);
-        assertRepairContainsColumn(msg, "3", "one", "A", 2);
+        mutation = readRepair.getForEndpoint(peer3);
+        assertRepairMetadata(mutation);
+        assertRepairContainsDeletions(mutation, null, tombstone1, tombstone2);
+        assertRepairContainsColumn(mutation, "0", "c1", "v0", 0);
+        assertRepairContainsColumn(mutation, "3", "one", "A", 2);
 
         // peer4 needs the row from peer2  and the RTs
-        msg = getSentMessage(peer4);
-        assertRepairMetadata(msg);
-        assertRepairContainsDeletions(msg, null, tombstone1, tombstone2);
-        assertRepairContainsColumn(msg, "0", "c1", "v0", 0);
+        mutation = readRepair.getForEndpoint(peer4);
+        assertRepairMetadata(mutation);
+        assertRepairContainsDeletions(mutation, null, tombstone1, tombstone2);
+        assertRepairContainsColumn(mutation, "0", "c1", "v0", 0);
     }
 
     @Test
     public void testResolveWithOneEmpty()
     {
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
         InetAddressAndPort peer1 = peer();
         resolver.preprocess(readResponseMessage(peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).clustering("1")
                                                                                                        .add("c2", "v2")
@@ -363,37 +333,36 @@ public class DataResolverTest
                 assertColumns(row, "c2");
                 assertColumn(cfm, row, "c2", "v2", 1);
             }
-            assertRepairFuture(resolver, 1);
         }
 
-        assertEquals(1, messageRecorder.sent.size());
+        assertEquals(1, readRepair.sent.size());
         // peer 2 needs the row from peer 1
-        MessageOut msg = getSentMessage(peer2);
-        assertRepairMetadata(msg);
-        assertRepairContainsNoDeletions(msg);
-        assertRepairContainsColumn(msg, "1", "c2", "v2", 1);
+        Mutation mutation = readRepair.getForEndpoint(peer2);
+        assertRepairMetadata(mutation);
+        assertRepairContainsNoDeletions(mutation);
+        assertRepairContainsColumn(mutation, "1", "c2", "v2", 1);
     }
 
     @Test
     public void testResolveWithBothEmpty()
     {
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        TestableReadRepair readRepair = new TestableReadRepair(command);
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
         resolver.preprocess(readResponseMessage(peer(), EmptyIterators.unfilteredPartition(cfm)));
         resolver.preprocess(readResponseMessage(peer(), EmptyIterators.unfilteredPartition(cfm)));
 
         try(PartitionIterator data = resolver.resolve())
         {
             assertFalse(data.hasNext());
-            assertRepairFuture(resolver, 0);
         }
 
-        assertTrue(messageRecorder.sent.isEmpty());
+        assertTrue(readRepair.sent.isEmpty());
     }
 
     @Test
     public void testResolveDeleted()
     {
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
         // one response with columns timestamped before a delete in another response
         InetAddressAndPort peer1 = peer();
         resolver.preprocess(readResponseMessage(peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
@@ -405,21 +374,20 @@ public class DataResolverTest
         try (PartitionIterator data = resolver.resolve())
         {
             assertFalse(data.hasNext());
-            assertRepairFuture(resolver, 1);
         }
 
         // peer1 should get the deletion from peer2
-        assertEquals(1, messageRecorder.sent.size());
-        MessageOut msg = getSentMessage(peer1);
-        assertRepairMetadata(msg);
-        assertRepairContainsDeletions(msg, new DeletionTime(1, nowInSec));
-        assertRepairContainsNoColumns(msg);
+        assertEquals(1, readRepair.sent.size());
+        Mutation mutation = readRepair.getForEndpoint(peer1);
+        assertRepairMetadata(mutation);
+        assertRepairContainsDeletions(mutation, new DeletionTime(1, nowInSec));
+        assertRepairContainsNoColumns(mutation);
     }
 
     @Test
     public void testResolveMultipleDeleted()
     {
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 4, System.nanoTime());
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 4, System.nanoTime(), readRepair);
         // deletes and columns with interleaved timestamp, with out of order return sequence
         InetAddressAndPort peer1 = peer();
         resolver.preprocess(readResponseMessage(peer1, fullPartitionDelete(cfm, dk, 0, nowInSec)));
@@ -445,33 +413,32 @@ public class DataResolverTest
                 assertColumns(row, "two");
                 assertColumn(cfm, row, "two", "B", 3);
             }
-            assertRepairFuture(resolver, 4);
         }
 
         // peer 1 needs to get the partition delete from peer 4 and the row from peer 3
-        assertEquals(4, messageRecorder.sent.size());
-        MessageOut msg = getSentMessage(peer1);
-        assertRepairMetadata(msg);
-        assertRepairContainsDeletions(msg, new DeletionTime(2, nowInSec));
-        assertRepairContainsColumn(msg, "1", "two", "B", 3);
+        assertEquals(4, readRepair.sent.size());
+        Mutation mutation = readRepair.getForEndpoint(peer1);
+        assertRepairMetadata(mutation);
+        assertRepairContainsDeletions(mutation, new DeletionTime(2, nowInSec));
+        assertRepairContainsColumn(mutation, "1", "two", "B", 3);
 
         // peer 2 needs the deletion from peer 4 and the row from peer 3
-        msg = getSentMessage(peer2);
-        assertRepairMetadata(msg);
-        assertRepairContainsDeletions(msg, new DeletionTime(2, nowInSec));
-        assertRepairContainsColumn(msg, "1", "two", "B", 3);
+        mutation = readRepair.getForEndpoint(peer2);
+        assertRepairMetadata(mutation);
+        assertRepairContainsDeletions(mutation, new DeletionTime(2, nowInSec));
+        assertRepairContainsColumn(mutation, "1", "two", "B", 3);
 
         // peer 3 needs just the deletion from peer 4
-        msg = getSentMessage(peer3);
-        assertRepairMetadata(msg);
-        assertRepairContainsDeletions(msg, new DeletionTime(2, nowInSec));
-        assertRepairContainsNoColumns(msg);
+        mutation = readRepair.getForEndpoint(peer3);
+        assertRepairMetadata(mutation);
+        assertRepairContainsDeletions(mutation, new DeletionTime(2, nowInSec));
+        assertRepairContainsNoColumns(mutation);
 
         // peer 4 needs just the row from peer 3
-        msg = getSentMessage(peer4);
-        assertRepairMetadata(msg);
-        assertRepairContainsNoDeletions(msg);
-        assertRepairContainsColumn(msg, "1", "two", "B", 3);
+        mutation = readRepair.getForEndpoint(peer4);
+        assertRepairMetadata(mutation);
+        assertRepairContainsNoDeletions(mutation);
+        assertRepairContainsColumn(mutation, "1", "two", "B", 3);
     }
 
     @Test
@@ -504,7 +471,7 @@ public class DataResolverTest
      */
     private void resolveRangeTombstonesOnBoundary(long timestamp1, long timestamp2)
     {
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
         InetAddressAndPort peer1 = peer();
         InetAddressAndPort peer2 = peer();
 
@@ -531,16 +498,15 @@ public class DataResolverTest
         try (PartitionIterator data = resolver.resolve())
         {
             assertFalse(data.hasNext());
-            assertRepairFuture(resolver, 2);
         }
 
-        assertEquals(2, messageRecorder.sent.size());
+        assertEquals(2, readRepair.sent.size());
 
-        MessageOut msg1 = getSentMessage(peer1);
+        Mutation msg1 = readRepair.getForEndpoint(peer1);
         assertRepairMetadata(msg1);
         assertRepairContainsNoColumns(msg1);
 
-        MessageOut msg2 = getSentMessage(peer2);
+        Mutation msg2 = readRepair.getForEndpoint(peer2);
         assertRepairMetadata(msg2);
         assertRepairContainsNoColumns(msg2);
 
@@ -565,9 +531,9 @@ public class DataResolverTest
     public void testRepairRangeTombstoneBoundary() throws UnknownHostException
     {
         testRepairRangeTombstoneBoundary(1, 0, 1);
-        messageRecorder.sent.clear();
+        readRepair.sent.clear();
         testRepairRangeTombstoneBoundary(1, 1, 0);
-        messageRecorder.sent.clear();
+        readRepair.sent.clear();
         testRepairRangeTombstoneBoundary(1, 1, 1);
     }
 
@@ -578,7 +544,7 @@ public class DataResolverTest
      */
     private void testRepairRangeTombstoneBoundary(int timestamp1, int timestamp2, int timestamp3) throws UnknownHostException
     {
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
         InetAddressAndPort peer1 = peer();
         InetAddressAndPort peer2 = peer();
 
@@ -603,24 +569,23 @@ public class DataResolverTest
         try (PartitionIterator data = resolver.resolve())
         {
             assertFalse(data.hasNext());
-            assertRepairFuture(resolver, shouldHaveRepair ? 1 : 0);
         }
 
-        assertEquals(shouldHaveRepair? 1 : 0, messageRecorder.sent.size());
+        assertEquals(shouldHaveRepair? 1 : 0, readRepair.sent.size());
 
         if (!shouldHaveRepair)
             return;
 
-        MessageOut msg = getSentMessage(peer2);
-        assertRepairMetadata(msg);
-        assertRepairContainsNoColumns(msg);
+        Mutation mutation = readRepair.getForEndpoint(peer2);
+        assertRepairMetadata(mutation);
+        assertRepairContainsNoColumns(mutation);
 
         RangeTombstone expected = timestamp1 != timestamp2
                                   // We've repaired the 1st part
                                   ? tombstone("0", true, "5", false, timestamp1, nowInSec)
                                   // We've repaired the 2nd part
                                   : tombstone("5", true, "9", true, timestamp1, nowInSec);
-        assertRepairContainsDeletions(msg, null, expected);
+        assertRepairContainsDeletions(mutation, null, expected);
     }
 
     /**
@@ -630,7 +595,7 @@ public class DataResolverTest
     @Test
     public void testRepairRangeTombstoneWithPartitionDeletion()
     {
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
         InetAddressAndPort peer1 = peer();
         InetAddressAndPort peer2 = peer();
 
@@ -651,16 +616,15 @@ public class DataResolverTest
         {
             assertFalse(data.hasNext());
             // 2nd stream should get repaired
-            assertRepairFuture(resolver, 1);
         }
 
-        assertEquals(1, messageRecorder.sent.size());
+        assertEquals(1, readRepair.sent.size());
 
-        MessageOut msg = getSentMessage(peer2);
-        assertRepairMetadata(msg);
-        assertRepairContainsNoColumns(msg);
+        Mutation mutation = readRepair.getForEndpoint(peer2);
+        assertRepairMetadata(mutation);
+        assertRepairContainsNoColumns(mutation);
 
-        assertRepairContainsDeletions(msg, new DeletionTime(10, nowInSec));
+        assertRepairContainsDeletions(mutation, new DeletionTime(10, nowInSec));
     }
 
     /**
@@ -669,7 +633,7 @@ public class DataResolverTest
     @Test
     public void testRepairRangeTombstoneWithPartitionDeletion2()
     {
-        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime());
+        DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
         InetAddressAndPort peer1 = peer();
         InetAddressAndPort peer2 = peer();
 
@@ -697,17 +661,16 @@ public class DataResolverTest
         {
             assertFalse(data.hasNext());
             // 2nd stream should get repaired
-            assertRepairFuture(resolver, 1);
         }
 
-        assertEquals(1, messageRecorder.sent.size());
+        assertEquals(1, readRepair.sent.size());
 
-        MessageOut msg = getSentMessage(peer2);
-        assertRepairMetadata(msg);
-        assertRepairContainsNoColumns(msg);
+        Mutation mutation = readRepair.getForEndpoint(peer2);
+        assertRepairMetadata(mutation);
+        assertRepairContainsNoColumns(mutation);
 
         // 2nd stream should get both the partition deletion, as well as the part of the 1st stream RT that it misses
-        assertRepairContainsDeletions(msg, new DeletionTime(10, nowInSec),
+        assertRepairContainsDeletions(mutation, new DeletionTime(10, nowInSec),
                                       tombstone("0", true, "2", false, 11, nowInSec),
                                       tombstone("3", false, "9", true, 11, nowInSec));
     }
@@ -752,7 +715,8 @@ public class DataResolverTest
     public void testResolveComplexDelete()
     {
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime());
+        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
 
         long[] ts = {100, 200};
 
@@ -782,12 +746,11 @@ public class DataResolverTest
                 Assert.assertNull(row.getCell(m, CellPath.create(bb(0))));
                 Assert.assertNotNull(row.getCell(m, CellPath.create(bb(1))));
             }
-            assertRepairFuture(resolver, 1);
         }
 
-        MessageOut<Mutation> msg;
-        msg = getSentMessage(peer1);
-        Iterator<Row> rowIter = msg.payload.getPartitionUpdate(cfm2).iterator();
+
+        Mutation mutation = readRepair.getForEndpoint(peer1);
+        Iterator<Row> rowIter = mutation.getPartitionUpdate(cfm2).iterator();
         assertTrue(rowIter.hasNext());
         Row row = rowIter.next();
         assertFalse(rowIter.hasNext());
@@ -797,15 +760,15 @@ public class DataResolverTest
         assertEquals(Collections.singleton(expectedCell), Sets.newHashSet(cd));
         assertEquals(expectedCmplxDelete, cd.complexDeletion());
 
-        Assert.assertNull(messageRecorder.sent.get(peer2));
+        Assert.assertNull(readRepair.sent.get(peer2));
     }
 
     @Test
     public void testResolveDeletedCollection()
     {
-
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime());
+        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
 
         long[] ts = {100, 200};
 
@@ -827,12 +790,10 @@ public class DataResolverTest
         try(PartitionIterator data = resolver.resolve())
         {
             assertFalse(data.hasNext());
-            assertRepairFuture(resolver, 1);
         }
 
-        MessageOut<Mutation> msg;
-        msg = getSentMessage(peer1);
-        Iterator<Row> rowIter = msg.payload.getPartitionUpdate(cfm2).iterator();
+        Mutation mutation = readRepair.getForEndpoint(peer1);
+        Iterator<Row> rowIter = mutation.getPartitionUpdate(cfm2).iterator();
         assertTrue(rowIter.hasNext());
         Row row = rowIter.next();
         assertFalse(rowIter.hasNext());
@@ -842,14 +803,15 @@ public class DataResolverTest
         assertEquals(Collections.emptySet(), Sets.newHashSet(cd));
         assertEquals(expectedCmplxDelete, cd.complexDeletion());
 
-        Assert.assertNull(messageRecorder.sent.get(peer2));
+        Assert.assertNull(readRepair.sent.get(peer2));
     }
 
     @Test
     public void testResolveNewCollection()
     {
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime());
+        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
 
         long[] ts = {100, 200};
 
@@ -877,14 +839,12 @@ public class DataResolverTest
                 ComplexColumnData cd = row.getComplexColumnData(m);
                 assertEquals(Collections.singleton(expectedCell), Sets.newHashSet(cd));
             }
-            assertRepairFuture(resolver, 1);
         }
 
-        Assert.assertNull(messageRecorder.sent.get(peer1));
+        Assert.assertNull(readRepair.sent.get(peer1));
 
-        MessageOut<Mutation> msg;
-        msg = getSentMessage(peer2);
-        Iterator<Row> rowIter = msg.payload.getPartitionUpdate(cfm2).iterator();
+        Mutation mutation = readRepair.getForEndpoint(peer2);
+        Iterator<Row> rowIter = mutation.getPartitionUpdate(cfm2).iterator();
         assertTrue(rowIter.hasNext());
         Row row = rowIter.next();
         assertFalse(rowIter.hasNext());
@@ -899,7 +859,8 @@ public class DataResolverTest
     public void testResolveNewCollectionOverwritingDeleted()
     {
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
-        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime());
+        TestableReadRepair readRepair = new TestableReadRepair(cmd);
+        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2, System.nanoTime(), readRepair);
 
         long[] ts = {100, 200};
 
@@ -930,19 +891,16 @@ public class DataResolverTest
                 ComplexColumnData cd = row.getComplexColumnData(m);
                 assertEquals(Collections.singleton(expectedCell), Sets.newHashSet(cd));
             }
-            assertRepairFuture(resolver, 1);
         }
 
-        MessageOut<Mutation> msg;
-        msg = getSentMessage(peer1);
-        Row row = Iterators.getOnlyElement(msg.payload.getPartitionUpdate(cfm2).iterator());
+        Row row = Iterators.getOnlyElement(readRepair.getForEndpoint(peer1).getPartitionUpdate(cfm2).iterator());
 
         ComplexColumnData cd = row.getComplexColumnData(m);
 
         assertEquals(Collections.singleton(expectedCell), Sets.newHashSet(cd));
         assertEquals(expectedCmplxDelete, cd.complexDeletion());
 
-        Assert.assertNull(messageRecorder.sent.get(peer2));
+        Assert.assertNull(readRepair.sent.get(peer2));
     }
 
     private InetAddressAndPort peer()
@@ -957,18 +915,11 @@ public class DataResolverTest
         }
     }
 
-    private MessageOut<Mutation> getSentMessage(InetAddressAndPort target)
-    {
-        MessageOut<Mutation> message = messageRecorder.sent.get(target);
-        assertNotNull(String.format("No repair message was sent to %s", target), message);
-        return message;
-    }
-
-    private void assertRepairContainsDeletions(MessageOut<Mutation> message,
+    private void assertRepairContainsDeletions(Mutation mutation,
                                                DeletionTime deletionTime,
                                                RangeTombstone...rangeTombstones)
     {
-        PartitionUpdate update = ((Mutation)message.payload).getPartitionUpdates().iterator().next();
+        PartitionUpdate update = mutation.getPartitionUpdates().iterator().next();
         DeletionInfo deletionInfo = update.deletionInfo();
         if (deletionTime != null)
             assertEquals(deletionTime, deletionInfo.getPartitionDeletion());
@@ -985,34 +936,33 @@ public class DataResolverTest
         }
     }
 
-    private void assertRepairContainsNoDeletions(MessageOut<Mutation> message)
+    private void assertRepairContainsNoDeletions(Mutation mutation)
     {
-        PartitionUpdate update = ((Mutation)message.payload).getPartitionUpdates().iterator().next();
+        PartitionUpdate update = mutation.getPartitionUpdates().iterator().next();
         assertTrue(update.deletionInfo().isLive());
     }
 
-    private void assertRepairContainsColumn(MessageOut<Mutation> message,
+    private void assertRepairContainsColumn(Mutation mutation,
                                             String clustering,
                                             String columnName,
                                             String value,
                                             long timestamp)
     {
-        PartitionUpdate update = ((Mutation)message.payload).getPartitionUpdates().iterator().next();
+        PartitionUpdate update = mutation.getPartitionUpdates().iterator().next();
         Row row = update.getRow(update.metadata().comparator.make(clustering));
         assertNotNull(row);
         assertColumn(cfm, row, columnName, value, timestamp);
     }
 
-    private void assertRepairContainsNoColumns(MessageOut<Mutation> message)
+    private void assertRepairContainsNoColumns(Mutation mutation)
     {
-        PartitionUpdate update = ((Mutation)message.payload).getPartitionUpdates().iterator().next();
+        PartitionUpdate update = mutation.getPartitionUpdates().iterator().next();
         assertFalse(update.iterator().hasNext());
     }
 
-    private void assertRepairMetadata(MessageOut<Mutation> message)
+    private void assertRepairMetadata(Mutation mutation)
     {
-        assertEquals(MessagingService.Verb.READ_REPAIR, message.verb);
-        PartitionUpdate update = ((Mutation)message.payload).getPartitionUpdates().iterator().next();
+        PartitionUpdate update = mutation.getPartitionUpdates().iterator().next();
         assertEquals(update.metadata().keyspace, cfm.keyspace);
         assertEquals(update.metadata().name, cfm.name);
     }
@@ -1076,21 +1026,6 @@ public class DataResolverTest
     private UnfilteredPartitionIterator fullPartitionDelete(TableMetadata table, DecoratedKey dk, long timestamp, int nowInSec)
     {
         return new SingletonUnfilteredPartitionIterator(PartitionUpdate.fullPartitionDelete(table, dk, timestamp, nowInSec).unfilteredIterator());
-    }
-
-    private static class MessageRecorder implements IMessageSink
-    {
-        Map<InetAddressAndPort, MessageOut> sent = new HashMap<>();
-        public boolean allowOutgoingMessage(MessageOut message, int id, InetAddressAndPort to)
-        {
-            sent.put(to, message);
-            return false;
-        }
-
-        public boolean allowIncomingMessage(MessageIn message, int id)
-        {
-            return false;
-        }
     }
 
     private UnfilteredPartitionIterator iter(PartitionUpdate update)

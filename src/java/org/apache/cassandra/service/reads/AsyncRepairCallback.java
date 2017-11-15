@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.service.reads;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -24,6 +24,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class AsyncRepairCallback implements IAsyncCallback<ReadResponse>
@@ -47,7 +48,7 @@ public class AsyncRepairCallback implements IAsyncCallback<ReadResponse>
             {
                 protected void runMayThrow()
                 {
-                    repairResolver.compareResponses();
+                    repairResolver.evaluateAllResponses();
                 }
             });
         }

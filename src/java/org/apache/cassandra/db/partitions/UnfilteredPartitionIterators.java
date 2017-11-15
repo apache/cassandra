@@ -49,6 +49,16 @@ public abstract class UnfilteredPartitionIterators
     {
         public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions);
         public void close();
+
+        public static MergeListener NOOP = new MergeListener()
+        {
+            public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
+            {
+                return UnfilteredRowIterators.MergeListener.NOOP;
+            }
+
+            public void close() {}
+        };
     }
 
     @SuppressWarnings("resource") // The created resources are returned right away
