@@ -453,11 +453,11 @@ A table supports the following options:
 +================================+==========+=============+===========================================================+
 | ``comment``                    | *simple* | none        | A free-form, human-readable comment.                      |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
-| ``read_repair_chance``         | *simple* | 0.1         | The probability with which to query extra nodes (e.g.     |
+| ``read_repair_chance``         | *simple* | 0           | The probability with which to query extra nodes (e.g.     |
 |                                |          |             | more nodes than required by the consistency level) for    |
 |                                |          |             | the purpose of read repairs.                              |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
-| ``dclocal_read_repair_chance`` | *simple* | 0           | The probability with which to query extra nodes (e.g.     |
+| ``dclocal_read_repair_chance`` | *simple* | 0.1         | The probability with which to query extra nodes (e.g.     |
 |                                |          |             | more nodes than required by the consistency level)        |
 |                                |          |             | belonging to the same data center than the read           |
 |                                |          |             | coordinator for the purpose of read repairs.              |
