@@ -152,7 +152,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
             sawCDCMutation = false;
             commitLogReader.readCommitLogSegment(this, file, globalPosition, i == filteredLogs.size());
             if (sawCDCMutation)
-                handleCDCReplayCompletion(clogs[i]);
+                handleCDCReplayCompletion(file);
         }
     }
 
