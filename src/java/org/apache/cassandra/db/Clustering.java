@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -74,6 +75,17 @@ public interface Clustering extends ClusteringPrefix
             sb.append(i == 0 ? "" : ", ").append(c.type.getString(get(i)));
         }
         return sb.toString();
+    }
+
+    public default List<String> toCQLList(TableMetadata metadata)
+    {
+        List<String> cqlList = new ArrayList<>();
+        for (int i = 0; i < size(); i++)
+        {
+            ColumnMetadata c = metadata.clusteringColumns().get(i);
+            cqlList.add(c.type.getString(get(i)));
+        }
+        return cqlList;
     }
 
     public static Clustering make(ByteBuffer... values)
