@@ -913,38 +913,70 @@ public class SASIIndexTest
         {{
             put("key01", Pair.create("a", 33));
             put("key02", Pair.create("a", 41));
+        }};
+
+        Map<String, Pair<String, Integer>> part2 = new HashMap<String, Pair<String, Integer>>()
+        {{
             put("key03", Pair.create("a", 22));
             put("key04", Pair.create("a", 45));
+        }};
+
+        Map<String, Pair<String, Integer>> part3 = new HashMap<String, Pair<String, Integer>>()
+        {{
             put("key05", Pair.create("a", 32));
             put("key06", Pair.create("a", 38));
+        }};
+
+        Map<String, Pair<String, Integer>> part4 = new HashMap<String, Pair<String, Integer>>()
+        {{
             put("key07", Pair.create("a", 36));
             put("key08", Pair.create("a", 36));
+        }};
+
+        Map<String, Pair<String, Integer>> part5 = new HashMap<String, Pair<String, Integer>>()
+        {{
             put("key09", Pair.create("a", 21));
             put("key10", Pair.create("a", 35));
         }};
 
         ColumnFamilyStore store = loadData(part1, 1000, forceFlush);
+        loadData(part2, forceFlush);
+        loadData(part3, forceFlush);
 
         final ByteBuffer firstName = UTF8Type.instance.decompose("first_name");
 
         Set<String> rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertEquals(rows.toString(), 10, rows.size());
+        Assert.assertEquals(rows.toString(), 6, rows.size());
+
+        loadData(part4, forceFlush);
+        rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
+        Assert.assertEquals(rows.toString(), 8, rows.size());
+
+        loadData(part5, forceFlush);
 
         int minIndexInterval = store.metadata.params.minIndexInterval;
-        store.metadata.minIndexInterval(minIndexInterval * 2);
         try
         {
-            IndexSummaryManager.instance.redistributeSummaries();
-
-            if (forceFlush)
-                store.forceBlockingFlush();
-
-            rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-            Assert.assertEquals(rows.toString(), 10, rows.size());
+            redistributeSummaries(10, forceFlush, store, firstName, minIndexInterval * 2);
+            redistributeSummaries(10, forceFlush, store, firstName, minIndexInterval * 4);
+            redistributeSummaries(10, forceFlush, store, firstName, minIndexInterval * 8);
+            redistributeSummaries(10, forceFlush, store, firstName, minIndexInterval * 16);
         } finally
         {
             store.metadata.minIndexInterval(minIndexInterval);
         }
+    }
+
+    private void redistributeSummaries(int expected, boolean forceFlush, ColumnFamilyStore store, ByteBuffer firstName, int minIndexInterval) throws IOException
+    {
+        store.metadata.minIndexInterval(minIndexInterval);
+        IndexSummaryManager.instance.redistributeSummaries();
+
+        if (forceFlush)
+            store.forceBlockingFlush();
+
+        Set<String> rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
+        Assert.assertEquals(rows.toString(), expected, rows.size());
     }
 
     @Test

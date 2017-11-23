@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sasi.conf.view;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.index.sasi.SSTableIndex;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
@@ -57,6 +58,8 @@ public class View implements Iterable<SSTableIndex>
     {
         Map<Descriptor, SSTableIndex> newView = new HashMap<>();
 
+        Set<SSTableReader> newSSTables = newIndexes.stream().map(newIndex -> newIndex.getSSTable()).collect(Collectors.toSet());
+
         AbstractType<?> validator = index.getValidator();
         TermTree.Builder termTreeBuilder = (validator instanceof AsciiType || validator instanceof UTF8Type)
                                             ? new PrefixTermTree.Builder(index.getMode().mode, validator)
@@ -66,9 +69,12 @@ public class View implements Iterable<SSTableIndex>
         for (SSTableIndex sstableIndex : currentIndexes)
         {
             SSTableReader sstable = sstableIndex.getSSTable();
-            if (oldSSTables.contains(sstable) || sstable.isMarkedCompacted() || newView.containsKey(sstable.descriptor))
+            boolean markedCompacted = sstable.isMarkedCompacted();
+            if (oldSSTables.contains(sstable) || markedCompacted || newView.containsKey(sstable.descriptor))
             {
-                sstableIndex.release();
+                boolean keepFile = newSSTables.contains(sstable);
+                logger.debug("Releasing current SSTableIndex: {} (keepFile={}, markedCompacted={})", sstableIndex.getPath(), keepFile, markedCompacted);
+                sstableIndex.release(keepFile);
                 continue;
             }
 
@@ -78,14 +84,16 @@ public class View implements Iterable<SSTableIndex>
         for (SSTableIndex sstableIndex : newIndexes)
         {
             SSTableReader sstable = sstableIndex.getSSTable();
-            if (newView.containsKey(sstable.descriptor) || sstable.isMarkedCompacted())
+            if (newView.containsKey(sstable.descriptor))
             {
+                logger.debug("Releasing new SSTableIndex: {}", sstableIndex.getPath());
                 sstableIndex.release();
                 continue;
             }
 
             addIndexToView(index, newView, termTreeBuilder, keyIntervals, sstableIndex, sstable);
         }
+
 
         this.view = newView;
         this.termTree = termTreeBuilder.build();
