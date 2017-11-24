@@ -26,6 +26,7 @@ import java.util.UUID;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -33,13 +34,12 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class RangeAwareSSTableWriter implements SSTableMultiWriter
 {
     private final List<PartitionPosition> boundaries;
-    private final Directories.DataDirectory[] directories;
+    private final List<Directories.DataDirectory> directories;
     private final int sstableLevel;
     private final long estimatedKeys;
     private final long repairedAt;
@@ -55,16 +55,17 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
 
     public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, UUID pendingRepair, SSTableFormat.Type format, int sstableLevel, long totalSize, LifecycleTransaction txn, SerializationHeader header) throws IOException
     {
-        directories = cfs.getDirectories().getWriteableLocations();
+        DiskBoundaries db = cfs.getDiskBoundaries();
+        directories = db.directories;
         this.sstableLevel = sstableLevel;
         this.cfs = cfs;
-        this.estimatedKeys = estimatedKeys / directories.length;
+        this.estimatedKeys = estimatedKeys / directories.size();
         this.repairedAt = repairedAt;
         this.pendingRepair = pendingRepair;
         this.format = format;
         this.txn = txn;
         this.header = header;
-        boundaries = StorageService.getDiskBoundaries(cfs, directories);
+        boundaries = db.positions;
         if (boundaries == null)
         {
             Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
@@ -93,7 +94,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
             if (currentWriter != null)
                 finishedWriters.add(currentWriter);
 
-            Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(directories[currentIndex]), format);
+            Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(directories.get(currentIndex)), format);
             currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, sstableLevel, header, txn);
         }
     }

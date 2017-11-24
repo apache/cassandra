@@ -29,6 +29,7 @@ import java.util.function.Supplier;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.index.Index;
 
@@ -39,7 +40,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.dht.Range;
@@ -52,7 +52,6 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.notifications.*;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -253,7 +252,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     public AbstractCompactionStrategy getCompactionStrategyFor(SSTableReader sstable)
     {
-        int index = getCompactionStrategyIndex(cfs, getDirectories(), sstable);
+        int index = getCompactionStrategyIndex(cfs, sstable);
         readLock.lock();
         try
         {
@@ -279,21 +278,20 @@ public class CompactionStrategyManager implements INotificationConsumer
      * sstables in the correct locations and give them to the correct compaction strategy instance.
      *
      * @param cfs
-     * @param locations
      * @param sstable
      * @return
      */
-    public static int getCompactionStrategyIndex(ColumnFamilyStore cfs, Directories locations, SSTableReader sstable)
+    public static int getCompactionStrategyIndex(ColumnFamilyStore cfs, SSTableReader sstable)
     {
         if (!cfs.getPartitioner().splitter().isPresent())
             return 0;
 
-        Directories.DataDirectory[] directories = locations.getWriteableLocations();
-        List<PartitionPosition> boundaries = StorageService.getDiskBoundaries(cfs, directories);
-        if (boundaries == null)
-            return getCompactionStrategyIndex(locations, sstable.descriptor);
+        DiskBoundaries boundaries = cfs.getDiskBoundaries();
+        List<Directories.DataDirectory> directories = boundaries.directories;
+        if (boundaries.positions == null)
+            return getCompactionStrategyIndex(directories, sstable.descriptor);
 
-        int pos = Collections.binarySearch(boundaries, sstable.first);
+        int pos = Collections.binarySearch(boundaries.positions, sstable.first);
         assert pos < 0; // boundaries are .minkeybound and .maxkeybound so they should never be equal
         return -pos - 1;
     }
@@ -304,13 +302,12 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @param descriptor
      * @return
      */
-    private static int getCompactionStrategyIndex(Directories locations, Descriptor descriptor)
+    private static int getCompactionStrategyIndex(List<Directories.DataDirectory> directories, Descriptor descriptor)
     {
-         Directories.DataDirectory[] directories = locations.getWriteableLocations();
          // try to figure out location based on sstable directory:
-         for (int i = 0; i < directories.length; i++)
+         for (int i = 0; i < directories.size(); i++)
          {
-             Directories.DataDirectory directory = directories[i];
+             Directories.DataDirectory directory = directories.get(i);
              if (descriptor.directory.getAbsolutePath().startsWith(directory.location.getAbsolutePath()))
                  return i;
          }
@@ -553,7 +550,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
         for (SSTableReader sstable : removed)
         {
-            int i = getCompactionStrategyIndex(cfs, getDirectories(), sstable);
+            int i = getCompactionStrategyIndex(cfs, sstable);
             if (sstable.isPendingRepair())
                 pendingRemoved.get(i).add(sstable);
             else if (sstable.isRepaired())
@@ -563,7 +560,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
         for (SSTableReader sstable : added)
         {
-            int i = getCompactionStrategyIndex(cfs, getDirectories(), sstable);
+            int i = getCompactionStrategyIndex(cfs, sstable);
             if (sstable.isPendingRepair())
                 pendingAdded.get(i).add(sstable);
             else if (sstable.isRepaired())
@@ -613,7 +610,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             for (SSTableReader sstable : sstables)
             {
-                int index = getCompactionStrategyIndex(cfs, getDirectories(), sstable);
+                int index = getCompactionStrategyIndex(cfs, sstable);
                 if (sstable.isPendingRepair())
                 {
                     pendingRepairs.get(index).addSSTable(sstable);
@@ -746,7 +743,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             for (SSTableReader sstable : sstables)
             {
-                int idx = getCompactionStrategyIndex(cfs, getDirectories(), sstable);
+                int idx = getCompactionStrategyIndex(cfs, sstable);
                 if (sstable.isPendingRepair())
                     pendingSSTables.get(idx).add(sstable);
                 else if (sstable.isRepaired())
@@ -807,7 +804,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            Map<Integer, List<SSTableReader>> groups = sstablesToGroup.stream().collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, getDirectories(), s)));
+            Map<Integer, List<SSTableReader>> groups = sstablesToGroup.stream().collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, s)));
             Collection<Collection<SSTableReader>> anticompactionGroups = new ArrayList<>();
 
             for (Map.Entry<Integer, List<SSTableReader>> group : groups.entrySet())
@@ -845,14 +842,14 @@ public class CompactionStrategyManager implements INotificationConsumer
         SSTableReader firstSSTable = Iterables.getFirst(input, null);
         assert firstSSTable != null;
         boolean repaired = firstSSTable.isRepaired();
-        int firstIndex = getCompactionStrategyIndex(cfs, directories, firstSSTable);
+        int firstIndex = getCompactionStrategyIndex(cfs, firstSSTable);
         boolean isPending = firstSSTable.isPendingRepair();
         UUID pendingRepair = firstSSTable.getSSTableMetadata().pendingRepair;
         for (SSTableReader sstable : input)
         {
             if (sstable.isRepaired() != repaired)
                 throw new UnsupportedOperationException("You can't mix repaired and unrepaired data in a compaction");
-            if (firstIndex != getCompactionStrategyIndex(cfs, directories, sstable))
+            if (firstIndex != getCompactionStrategyIndex(cfs, sstable))
                 throw new UnsupportedOperationException("You can't mix sstables from different directories in a compaction");
             if (isPending && !pendingRepair.equals(sstable.getSSTableMetadata().pendingRepair))
                 throw new UnsupportedOperationException("You can't compact sstables from different pending repair sessions");
@@ -923,15 +920,15 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             Map<Integer, List<SSTableReader>> repairedSSTables = sstables.stream()
                                                                          .filter(s -> !s.isMarkedSuspect() && s.isRepaired() && !s.isPendingRepair())
-                                                                         .collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, getDirectories(), s)));
+                                                                         .collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, s)));
 
             Map<Integer, List<SSTableReader>> unrepairedSSTables = sstables.stream()
                                                                            .filter(s -> !s.isMarkedSuspect() && !s.isRepaired() && !s.isPendingRepair())
-                                                                           .collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, getDirectories(), s)));
+                                                                           .collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, s)));
 
             Map<Integer, List<SSTableReader>> pendingSSTables = sstables.stream()
                                                                         .filter(s -> !s.isMarkedSuspect() && s.isPendingRepair())
-                                                                        .collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, getDirectories(), s)));
+                                                                        .collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, s)));
 
             for (Map.Entry<Integer, List<SSTableReader>> group : repairedSSTables.entrySet())
                 ret.add(repaired.get(group.getKey()).getUserDefinedTask(group.getValue(), gcBefore));
@@ -1086,7 +1083,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             // to avoid creating a compaction strategy for the wrong pending repair manager, we get the index based on where the sstable is to be written
             int index = cfs.getPartitioner().splitter().isPresent()
-                        ? getCompactionStrategyIndex(getDirectories(), descriptor)
+                        ? getCompactionStrategyIndex(Arrays.asList(getDirectories().getWriteableLocations()), descriptor)
                         : 0;
             if (pendingRepair != ActiveRepairService.NO_PENDING_REPAIR)
                 return pendingRepairs.get(index).getOrCreate(pendingRepair).createSSTableMultiWriter(descriptor, keyCount, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, collector, header, indexes, txn);
