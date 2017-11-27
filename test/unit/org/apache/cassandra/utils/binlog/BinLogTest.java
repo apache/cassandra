@@ -21,7 +21,6 @@ package org.apache.cassandra.utils.binlog;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Semaphore;
@@ -73,6 +72,10 @@ public class BinLogTest
         if (binLog != null)
         {
             binLog.stop();
+        }
+        for (File f : path.toFile().listFiles())
+        {
+            f.delete();
         }
     }
 
@@ -365,6 +368,36 @@ public class BinLogTest
         binLog.stop();
         binLog.put(record(testString));
         assertEquals(null, binLog.sampleQueue.poll());
+    }
+
+    /**
+     * Test for a bug where files were deleted but the space was not reclaimed when tracking so
+     * all log segemnts were incorrectly deleted when rolled.
+     */
+    @Test
+    public void testTrucationReleasesLogSpace() throws Exception
+    {
+        StringBuilder sb = new StringBuilder();
+        for (int ii = 0; ii < 1024 * 1024 * 2; ii++)
+        {
+            sb.append('a');
+        }
+
+        String queryString = sb.toString();
+
+        //This should fill up the log so when it rolls in the future it will always delete the rolled segment;
+        for (int ii = 0; ii < 129; ii++)
+        {
+            binLog.put(record(queryString));
+        }
+
+        for (int ii = 0; ii < 2; ii++)
+        {
+            Thread.sleep(2000);
+            binLog.put(record(queryString));
+        }
+
+        Util.spinAssertEquals(2, () -> readBinLogRecords(path).size(), 60);
     }
 
     static BinLog.ReleaseableWriteMarshallable record(String text)

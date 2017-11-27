@@ -203,7 +203,7 @@ public class BinLog implements Runnable, StoreFileListener
      * @param cycle
      * @param file
      */
-    public void onReleased(int cycle, File file)
+    public synchronized void onReleased(int cycle, File file)
     {
         chronicleStoreFiles.offer(file);
         //This isn't accurate because the files are sparse, but it's at least pessimistic
@@ -221,6 +221,7 @@ public class BinLog implements Runnable, StoreFileListener
             }
             else
             {
+                bytesInStoreFiles -= toDeleteLength;
                 logger.info("Deleted chronicle store file: {} store file size: {} bytes in store files: {} max log size: {}.", file.getPath(), toDeleteLength, bytesInStoreFiles, maxLogSize);
             }
         }
