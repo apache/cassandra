@@ -16,12 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if [ "`basename "$0"`" = 'nodeprobe' ]; then
-    echo "***************************************************************" >&2
-    echo "WARNING: $0 is obsolete, use `dirname "$0"`/nodetool instead" >&2
-    echo "***************************************************************" >&2
-fi
-
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     # Locations (in order) to use when searching for an include file.
     for include in "`dirname "$0"`/cassandra.in.sh" \
