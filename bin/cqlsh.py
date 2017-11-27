@@ -481,7 +481,7 @@ class Shell(cmd.Cmd):
                                 load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
                                 control_connection_timeout=connect_timeout,
                                 connect_timeout=connect_timeout,
-                                allow_server_port_discovery=allow_server_port_discovery
+                                allow_server_port_discovery=allow_server_port_discovery,
                                 **kwargs)
         self.owns_connection = not use_conn
 
