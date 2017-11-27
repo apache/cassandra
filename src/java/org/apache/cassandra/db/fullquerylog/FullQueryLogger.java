@@ -90,15 +90,25 @@ public class FullQueryLogger
     {
     }
 
+    /**
+     * Configure the global instance of the FullQueryLogger
+     * @param path Dedicated path where the FQL can store it's files.
+     * @param rollCycle How often to roll FQL log segments so they can potentially be reclaimed
+     * @param blocking Whether the FQL should block if the FQL falls behind or should drop log records
+     * @param maxQueueWeight Maximum weight of in memory queue for records waiting to be written to the file before blocking or dropping
+     * @param maxLogSize Maximum size of the rolled files to retain on disk before deleting the oldest file
+     */
     public synchronized void configure(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize)
     {
-        File pathAsFile = path.toFile();
         Preconditions.checkNotNull(path, "path was null");
-        //Exists and is a directory or can be created
-        Preconditions.checkArgument((pathAsFile.exists() && pathAsFile.isDirectory()) | (!pathAsFile.exists() && pathAsFile.mkdirs()), "path exists and is not a directory or couldn't be created");
-        Preconditions.checkArgument(pathAsFile.canRead() && pathAsFile.canWrite() && pathAsFile.canExecute(), "path is not readable, writable, and executable");
+        File pathAsFile = path.toFile();
         Preconditions.checkNotNull(rollCycle, "rollCycle was null");
-        Preconditions.checkNotNull(RollCycles.valueOf(rollCycle = rollCycle.toUpperCase()), "unrecognized roll cycle");
+        rollCycle = rollCycle.toUpperCase();
+
+        //Exists and is a directory or can be created
+        Preconditions.checkArgument((pathAsFile.exists() && pathAsFile.isDirectory()) || (!pathAsFile.exists() && pathAsFile.mkdirs()), "path exists and is not a directory or couldn't be created");
+        Preconditions.checkArgument(pathAsFile.canRead() && pathAsFile.canWrite() && pathAsFile.canExecute(), "path is not readable, writable, and executable");
+        Preconditions.checkNotNull(RollCycles.valueOf(rollCycle), "unrecognized roll cycle");
         Preconditions.checkArgument(maxQueueWeight > 0, "maxQueueWeight must be > 0");
         Preconditions.checkArgument(maxLogSize > 0, "maxLogSize must be > 0");
         logger.info("Attempting to configure full query logger path: {} Roll cycle: {} Blocking: {} Max queue weight: {} Max log size:{}", path, rollCycle, blocking, maxQueueWeight, maxLogSize);
@@ -123,9 +133,11 @@ public class FullQueryLogger
         binLog.start();
     }
 
-    //Need the path as a parameter as well because if the process is restarted the config file might be the only
-    //location for retrieving the path to the full query log files, but JMX also allows you to specify a path
-    //that isn't persisted anywhere so we have to clean that one a well.
+    /**
+     * Need the path as a parameter as well because if the process is restarted the config file might be the only
+     * location for retrieving the path to the full query log files, but JMX also allows you to specify a path
+     * that isn't persisted anywhere so we have to clean that one a well.
+     */
     public synchronized void reset(String fullQueryLogPath)
     {
         try
@@ -184,6 +196,9 @@ public class FullQueryLogger
         }
     }
 
+    /**
+     * Stop the full query log leaving behind any generated files.
+     */
     public synchronized void stop()
     {
         try
@@ -202,13 +217,19 @@ public class FullQueryLogger
         }
     }
 
+    /**
+     * Check whether the full query log is enabled.
+     * @return true if records are recorded and false otherwise.
+     */
     public boolean enabled()
     {
         return binLog != null;
     }
 
-    //This is potentially lossy, but it's not super critical as we will always generally know
-    //when this is happening and roughly how bad it is.
+    /**
+     * This is potentially lossy, but it's not super critical as we will always generally know
+     * when this is happening and roughly how bad it is.
+     */
     private void logDroppedSample()
     {
         droppedSamplesSinceLastLog.incrementAndGet();
@@ -218,6 +239,14 @@ public class FullQueryLogger
         }
     }
 
+    /**
+     * Log an invocation of a batch of queries
+     * @param type The type of the batch
+     * @param queries CQL text of the queries
+     * @param values Values to bind to as parameters for the queries
+     * @param queryOptions Options associated with the query invocation
+     * @param batchTimeMillis Approximate time in milliseconds since the epoch since the batch was invoked
+     */
     public void logBatch(String type, List<String> queries,  List<List<ByteBuffer>> values, QueryOptions queryOptions, long batchTimeMillis)
     {
         Preconditions.checkNotNull(type, "type was null");
@@ -276,6 +305,12 @@ public class FullQueryLogger
         }
     }
 
+    /**
+     * Log a single CQL query
+     * @param query CQL query text
+     * @param queryOptions Options associated with the query invocation
+     * @param queryTimeMillis Approximate time in milliseconds since the epoch since the batch was invoked
+     */
     public void logQuery(String query, QueryOptions queryOptions, long queryTimeMillis)
     {
         Preconditions.checkNotNull(query, "query was null");

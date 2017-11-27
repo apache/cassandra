@@ -188,7 +188,9 @@ public class WeightedQueueTest
         queue.offer(null);
     }
 
-    //This also tests that natural weight (weighable interface) is respected
+    /**
+     * This also tests that natural weight (weighable interface) is respected
+     */
     @Test
     public void offerFullFails() throws Exception
     {
@@ -196,7 +198,9 @@ public class WeightedQueueTest
         assertFalse(queue.offer(weighable(1)));
     }
 
-    //Validate permits aren't leaked and return values are correct
+    /**
+     * Validate permits aren't leaked and return values are correct
+     */
     @Test
     public void testOfferWrappedQueueRefuses() throws Exception
     {
@@ -206,7 +210,9 @@ public class WeightedQueueTest
         assertEquals(10, queue.availableWeight.availablePermits());
     }
 
-    //Validate permits aren't leaked and return values are correct
+    /**
+     * Validate permits aren't leaked and return values are correct
+     */
     @Test
     public void testOfferWrappedQueueThrows() throws Exception
     {
@@ -224,7 +230,9 @@ public class WeightedQueueTest
         assertEquals(10, queue.availableWeight.availablePermits());
     }
 
-    //If not weighable and not custom weigher the default weight is 1
+    /**
+     * If not weighable and not custom weigher the default weight is 1
+     */
     @Test
     public void defaultWeightRespected() throws Exception
     {
@@ -261,7 +269,9 @@ public class WeightedQueueTest
         queue.offer(null, 1, null);
     }
 
-    //This is how it seems to be handled in java.util.concurrent, it's the same as just try
+    /**
+     * This is how it seems to be handled in java.util.concurrent, it's the same as just try
+     */
     @Test
     public void timedOfferNegativeTimeIgnored() throws Exception
     {
@@ -269,7 +279,9 @@ public class WeightedQueueTest
         queue.offer(new Object(), -1, TimeUnit.SECONDS);
     }
 
-    //This also tests that natural weight (weighable interface) is respected
+    /**
+     * This also tests that natural weight (weighable interface) is respected
+     */
     @Test
     public void timedOfferFullFails() throws Exception
     {
@@ -300,7 +312,9 @@ public class WeightedQueueTest
         assertEquals(t.getState(), Thread.State.TERMINATED);
     }
 
-    //Validate permits aren't leaked and return values are correct
+    /**
+     * Validate permits aren't leaked and return values are correct
+     */
     @Test
     public void testTimedOfferWrappedQueueRefuses() throws Exception
     {
@@ -310,7 +324,9 @@ public class WeightedQueueTest
         assertEquals(10, queue.availableWeight.availablePermits());
     }
 
-    //Validate permits aren't leaked and return values are correct
+    /**
+     * Validate permits aren't leaked and return values are correct
+     */
     @Test
     public void testTimedOfferWrappedQueueThrows() throws Exception
     {
@@ -463,10 +479,14 @@ public class WeightedQueueTest
         new WeightedQueue(1, new LinkedBlockingQueue<>(), null);
     }
 
-    //A blocking queue that throws or refuses on every method
+    /**
+     * A blocking queue that throws or refuses on every method
+     */
     private static class BadQueue implements BlockingQueue<Object>
     {
-        //Refuse instead of throwing for some methods that have a boolean return value
+        /**
+         * Refuse instead of throwing for some methods that have a boolean return value
+         */
         private boolean refuse = false;
 
         private BadQueue(boolean refuse)

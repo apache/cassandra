@@ -87,6 +87,13 @@ public class BinLog implements Runnable, StoreFileListener
 
     private volatile boolean shouldContinue = true;
 
+    /**
+     *
+     * @param path Path to store the BinLog. Can't be shared with anything else.
+     * @param rollCycle How often to roll the log file so it can potentially be deleted
+     * @param maxQueueWeight Maximum weight of in memory queue for records waiting to be written to the file before blocking or dropping
+     * @param maxLogSize Maximum size of the rolled files to retain on disk before deleting the oldest file
+     */
     public BinLog(Path path, RollCycle rollCycle, int maxQueueWeight, long maxLogSize)
     {
         Preconditions.checkNotNull(path, "path was null");
@@ -102,6 +109,9 @@ public class BinLog implements Runnable, StoreFileListener
         this.maxLogSize = maxLogSize;
     }
 
+    /**
+     * Start the consumer thread that writes log records. Can only be done once.
+     */
     public void start()
     {
         if (!shouldContinue)
@@ -111,6 +121,10 @@ public class BinLog implements Runnable, StoreFileListener
         binLogThread.start();
     }
 
+    /**
+     * Stop the consumer thread that writes log records. Can be called multiple times.
+     * @throws InterruptedException
+     */
     public synchronized void stop() throws InterruptedException
     {
         if (!shouldContinue)
@@ -123,6 +137,11 @@ public class BinLog implements Runnable, StoreFileListener
         binLogThread.join();
     }
 
+    /**
+     * Offer a record to the log. If the in memory queue is full the record will be dropped and offer will return false.
+     * @param record The record to write to the log
+     * @return true if the record was queued and false otherwise
+     */
     public boolean offer(ReleaseableWriteMarshallable record)
     {
         if (!shouldContinue)
@@ -133,6 +152,11 @@ public class BinLog implements Runnable, StoreFileListener
         return sampleQueue.offer(record);
     }
 
+    /**
+     * Put a record into the log. If the in memory queue is full the putting thread will be blocked until there is space or it is interrupted.
+     * @param record The record to write to the log
+     * @throws InterruptedException
+     */
     public void put(ReleaseableWriteMarshallable record) throws InterruptedException
     {
         if (!shouldContinue)
@@ -227,9 +251,11 @@ public class BinLog implements Runnable, StoreFileListener
         }
     }
 
-    //There is a race where we might not release a buffer, going to let finalization
-    //catch it since it shouldn't happen to a lot of buffers. Only test code would run
-    //into it anyways.
+    /**
+     * There is a race where we might not release a buffer, going to let finalization
+     * catch it since it shouldn't happen to a lot of buffers. Only test code would run
+     * into it anyways.
+     */
     @Override
     public void finalize()
     {

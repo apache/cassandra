@@ -163,7 +163,9 @@ public class FullQueryLoggerTest
         FullQueryLogger.instance.stop();
     }
 
-    //Both the last used and supplied directory should get cleaned
+    /**
+     * Both the last used and supplied directory should get cleaned
+     */
     @Test
     public void testResetCleansPaths() throws Exception
     {
@@ -176,7 +178,9 @@ public class FullQueryLoggerTest
         assertFalse(tempB.exists());
     }
 
-    //The last used and configured directory are the same and it shouldn't be an issue
+    /**
+     * The last used and configured directory are the same and it shouldn't be an issue
+     */
     @Test
     public void testResetSamePath() throws Exception
     {
@@ -223,7 +227,9 @@ public class FullQueryLoggerTest
         assertFalse(FullQueryLogger.instance.enabled());
     }
 
-    //Test that a thread will block if the FQL is over weight, and unblock once the backup is cleared
+    /**
+     * Test that a thread will block if the FQL is over weight, and unblock once the backup is cleared
+     */
     @Test
     public void testBlocking() throws Exception
     {

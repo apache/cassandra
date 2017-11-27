@@ -103,8 +103,10 @@ public class BinLogTest
         new BinLog(tempDir(), RollCycles.TEST_SECONDLY, 1, 0);
     }
 
-    //Check that we can start and stop the bin log and that it releases resources held by any subsequent appended
-    //records
+    /**
+     * Check that we can start and stop the bin log and that it releases resources held by any subsequent appended
+     * records
+     */
     @Test
     public void testBinLogStartStop() throws Exception
     {
@@ -162,7 +164,9 @@ public class BinLogTest
         Util.spinAssertEquals(Thread.State.TERMINATED, binLog.binLogThread::getState, 60);
      }
 
-    //Check that the finalizer releases any stragglers in the queue
+    /**
+     * Check that the finalizer releases any stragglers in the queue
+     */
     @Test
     public void testBinLogFinalizer() throws Exception
     {
@@ -193,7 +197,9 @@ public class BinLogTest
         fail("Finalizer never released resources");
     }
 
-    //Test that put blocks and unblocks and creates records
+    /**
+     * Test that put blocks and unblocks and creates records
+     */
     @Test
     public void testPut() throws Exception
     {
@@ -331,7 +337,9 @@ public class BinLogTest
         Util.spinAssertEquals(14, () -> readBinLogRecords(path).size(), 60);
     }
 
-    //Set a very small segment size so on rolling the segments are always deleted
+    /**
+     * Set a very small segment size so on rolling the segments are always deleted
+     */
     @Test
     public void testCleanupOnOversize() throws Exception
     {
