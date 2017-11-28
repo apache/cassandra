@@ -347,7 +347,7 @@ public final class JsonTransformer
                 }
                 else
                 {
-                    json.writeString(column.cellValueType().getString(clustering.get(i)));
+                    json.writeRawValue(column.cellValueType().toJSONString(clustering.get(i), Server.CURRENT_VERSION));
                 }
             }
             json.writeEndArray();

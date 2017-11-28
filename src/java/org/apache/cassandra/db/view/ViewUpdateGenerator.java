@@ -25,7 +25,6 @@ import com.google.common.collect.PeekingIterator;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
@@ -404,11 +403,13 @@ public class ViewUpdateGenerator
         if (timestamp > rowDeletion)
         {
             /**
-              * TODO: This is a hack and overload of LivenessInfo and we should probably modify
-              * the storage engine to properly support this, but on the meantime this
-              * should be fine because it only happens in some specific scenarios explained above.
+              * We use an expired liveness instead of a row tombstone to allow a shadowed MV
+              * entry to co-exist with a row tombstone, see ViewComplexTest#testCommutativeRowDeletion.
+              *
+              * TODO This is a dirty overload of LivenessInfo and we should modify
+              * the storage engine to properly support this on CASSANDRA-13826.
               */
-            LivenessInfo info = LivenessInfo.create(timestamp, Integer.MAX_VALUE, nowInSec);
+            LivenessInfo info = LivenessInfo.create(timestamp, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSec);
             currentViewEntryBuilder.addPrimaryKeyLivenessInfo(info);
         }
         currentViewEntryBuilder.addRowDeletion(mergedBaseRow.deletion());
