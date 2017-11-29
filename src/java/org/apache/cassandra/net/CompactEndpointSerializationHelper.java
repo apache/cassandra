@@ -130,7 +130,7 @@ public class CompactEndpointSerializationHelper implements IVersionedSerializer<
 
     public long serializedSize(InetAddressAndPort from, int version)
     {
-        //4.0 includes port numbers for regular and SSL
+        //4.0 includes a port number
         if (version >= MessagingService.VERSION_40)
         {
             if (from.address instanceof Inet4Address)

@@ -228,7 +228,7 @@ public class MessageOutHandlerTest
     {
         UUID uuid = UUID.randomUUID();
         MessageOut message = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
-                             .withParameter(ParameterType.TRACE_SESSION, UUIDGen.decompose(uuid));
+                             .withParameter(ParameterType.TRACE_SESSION, uuid);
         handler.captureTracingInfo(new QueuedMessage(message, 42));
     }
 

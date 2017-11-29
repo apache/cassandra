@@ -207,7 +207,7 @@ public class MessageOut<T>
         for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
         {
             ParameterType type = (ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET);
-            size += TypeSizes.sizeof(type.name());
+            size += TypeSizes.sizeof(type.key());
             size += 4;//length prefix
             IVersionedSerializer serializer = type.serializer;
             Object parameter = parameters.get(ii + PARAMETER_TUPLE_PARAMETER_OFFSET);

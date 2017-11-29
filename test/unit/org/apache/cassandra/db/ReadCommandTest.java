@@ -50,9 +50,11 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -312,7 +314,8 @@ public class ReadCommandTest
         }
     }
 
-    public void serializerTest() throws IOException
+    @Test
+    public void testSerializer() throws IOException
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF2);
 
@@ -324,10 +327,11 @@ public class ReadCommandTest
 
         ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).includeRow("dd").build();
         int messagingVersion = MessagingService.current_version;
-        long size = ReadCommand.serializer.serializedSize(readCommand, messagingVersion);
-
         FakeOutputStream out = new FakeOutputStream();
-        ReadCommand.serializer.serialize(readCommand, new WrappedDataOutputStreamPlus(out), messagingVersion);
+        Tracing.instance.newSession(Tracing.TraceType.QUERY);
+        MessageOut<ReadCommand> messageOut = new MessageOut(MessagingService.Verb.READ, readCommand, ReadCommand.serializer);
+        long size = messageOut.serializedSize(messagingVersion);
+        messageOut.serialize(new WrappedDataOutputStreamPlus(out), messagingVersion);
         Assert.assertEquals(size, out.count);
     }
 
