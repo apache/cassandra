@@ -319,7 +319,7 @@ public final class SystemKeyspace
           + "state int, "
           + "coordinator inet, "
           + "coordinator_port int,"
-          + "participants set<text>,"
+          + "participants set<inet>,"
           + "participants_wp set<text>,"
           + "ranges set<blob>, "
           + "cfids set<uuid>, "
