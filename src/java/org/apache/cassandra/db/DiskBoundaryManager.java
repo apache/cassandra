@@ -75,7 +75,8 @@ public class DiskBoundaryManager
         {
             tmd = StorageService.instance.getTokenMetadata();
             ringVersion = tmd.getRingVersion();
-            if (StorageService.instance.isBootstrapMode())
+            if (StorageService.instance.isBootstrapMode()
+                && !StorageService.isReplacingSameAddress()) // When replacing same address, the node marks itself as UN locally
             {
                 localRanges = tmd.getPendingRanges(cfs.keyspace.getName(), FBUtilities.getBroadcastAddress());
             }
