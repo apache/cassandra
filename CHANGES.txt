@@ -1,4 +1,5 @@
 4.0
+ * Remove unused and deprecated methods from AbstractCompactionStrategy (CASSANDRA-14081)
  * Fix Distribution.average in cassandra-stress (CASSANDRA-14090)
  * Support a means of logging all queries as they were invoked (CASSANDRA-13983)
  * Presize collections (CASSANDRA-13760)
