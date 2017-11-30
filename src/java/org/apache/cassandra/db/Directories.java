@@ -579,6 +579,13 @@ public class Directories
         {
             return location.hashCode();
         }
+
+        public String toString()
+        {
+            return "DataDirectory{" +
+                   "location=" + location +
+                   '}';
+        }
     }
 
     static final class DataDirectoryCandidate implements Comparable<DataDirectoryCandidate>

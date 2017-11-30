@@ -42,38 +42,27 @@ public class DiskBoundaryManager
     public DiskBoundaries getDiskBoundaries(ColumnFamilyStore cfs)
     {
         if (!cfs.getPartitioner().splitter().isPresent())
-            return new DiskBoundaries(cfs.getDirectories().getWriteableLocations(), null, -1, -1);
-        // copy the reference to avoid getting nulled out by invalidate() below
-        // - it is ok to race, compaction will move any incorrect tokens to their correct places, but
-        // returning null would be bad
-        DiskBoundaries db = diskBoundaries;
-        if (isOutOfDate(diskBoundaries))
+            return new DiskBoundaries(cfs.getDirectories().getWriteableLocations(), BlacklistedDirectories.getDirectoriesVersion());
+        if (diskBoundaries == null || diskBoundaries.isOutOfDate())
         {
             synchronized (this)
             {
-                db = diskBoundaries;
-                if (isOutOfDate(diskBoundaries))
+                if (diskBoundaries == null || diskBoundaries.isOutOfDate())
                 {
                     logger.debug("Refreshing disk boundary cache for {}.{}", cfs.keyspace.getName(), cfs.getTableName());
                     DiskBoundaries oldBoundaries = diskBoundaries;
-                    db = diskBoundaries = getDiskBoundaryValue(cfs);
+                    diskBoundaries = getDiskBoundaryValue(cfs);
                     logger.debug("Updating boundaries from {} to {} for {}.{}", oldBoundaries, diskBoundaries, cfs.keyspace.getName(), cfs.getTableName());
                 }
             }
         }
-        return db;
+        return diskBoundaries;
     }
 
-    /**
-     * check if the given disk boundaries are out of date due not being set or to having too old diskVersion/ringVersion
-     */
-    private boolean isOutOfDate(DiskBoundaries db)
+    public void invalidate()
     {
-        if (db == null)
-            return true;
-        long currentRingVersion = StorageService.instance.getTokenMetadata().getRingVersion();
-        int currentDiskVersion = BlacklistedDirectories.getDirectoriesVersion();
-        return currentRingVersion != db.ringVersion || currentDiskVersion != db.directoriesVersion;
+       if (diskBoundaries != null)
+           diskBoundaries.invalidate();
     }
 
     private static DiskBoundaries getDiskBoundaryValue(ColumnFamilyStore cfs)
@@ -144,10 +133,5 @@ public class DiskBoundaryManager
             diskBoundaries.add(boundaries.get(i).maxKeyBound());
         diskBoundaries.add(partitioner.getMaximumToken().maxKeyBound());
         return diskBoundaries;
-    }
-
-    public void invalidate()
-    {
-        diskBoundaries = null;
     }
 }

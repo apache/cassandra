@@ -104,6 +104,12 @@ public class CompactionsCQLTest extends CQLTester
         assertFalse(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         getCurrentColumnFamilyStore().enableAutoCompaction();
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
+
+        // Alter keyspace replication settings to force compaction strategy reload and check strategy is still enabled
+        execute("alter keyspace "+keyspace()+" with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 }");
+        getCurrentColumnFamilyStore().getCompactionStrategyManager().maybeReloadDiskBoundaries();
+        assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
+
         execute("insert into %s (id) values ('1')");
         flush();
         execute("insert into %s (id) values ('1')");
@@ -161,8 +167,14 @@ public class CompactionsCQLTest extends CQLTester
         localOptions.put("class", "DateTieredCompactionStrategy");
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
+        // Invalidate disk boundaries to ensure that boundary invalidation will not cause the old strategy to be reloaded
+        getCurrentColumnFamilyStore().invalidateDiskBoundaries();
         // altering something non-compaction related
         execute("ALTER TABLE %s WITH gc_grace_seconds = 1000");
+        // should keep the local compaction strat
+        assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
+        // Alter keyspace replication settings to force compaction strategy reload
+        execute("alter keyspace "+keyspace()+" with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 }");
         // should keep the local compaction strat
         assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
         // altering a compaction option
@@ -170,7 +182,6 @@ public class CompactionsCQLTest extends CQLTester
         // will use the new option
         assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), SizeTieredCompactionStrategy.class));
     }
-
 
     @Test
     public void testSetLocalCompactionStrategyDisable() throws Throwable

@@ -525,7 +525,7 @@ public class CompactionManager implements CompactionManagerMBean
                 transaction.cancel(Sets.difference(originals, needsRelocation));
 
                 Map<Integer, List<SSTableReader>> groupedByDisk = needsRelocation.stream().collect(Collectors.groupingBy((s) ->
-                        CompactionStrategyManager.getCompactionStrategyIndex(cfs, s)));
+                                                                                                                         cfs.getCompactionStrategyManager().getCompactionStrategyIndex(s)));
 
                 int maxSize = 0;
                 for (List<SSTableReader> diskSSTables : groupedByDisk.values())
@@ -545,7 +545,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 if (!cfs.getPartitioner().splitter().isPresent())
                     return true;
-                int directoryIndex = CompactionStrategyManager.getCompactionStrategyIndex(cfs, sstable);
+                int directoryIndex = cfs.getCompactionStrategyManager().getCompactionStrategyIndex(sstable);
                 Directories.DataDirectory[] locations = cfs.getDirectories().getWriteableLocations();
 
                 Directories.DataDirectory location = locations[directoryIndex];
