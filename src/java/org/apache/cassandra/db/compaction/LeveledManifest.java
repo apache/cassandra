@@ -170,8 +170,28 @@ public class LeveledManifest
             {
                 logger.error("Could not change sstable level - adding it at level 0 anyway, we will find it at restart.", e);
             }
-            generations[0].add(reader);
+            if (!contains(reader))
+            {
+                generations[0].add(reader);
+            }
+            else
+            {
+                // An SSTable being added multiple times to this manifest indicates a programming error, but we don't
+                // throw an AssertionError because this shouldn't break the compaction strategy. Instead we log it
+                // together with a RuntimeException so the stack is print for troubleshooting if this ever happens.
+                logger.warn("SSTable {} is already present on leveled manifest and should not be re-added.", reader, new RuntimeException());
+            }
         }
+    }
+
+    private boolean contains(SSTableReader reader)
+    {
+        for (int i = 0; i < generations.length; i++)
+        {
+            if (generations[i].contains(reader))
+                return true;
+        }
+        return false;
     }
 
     public synchronized void replace(Collection<SSTableReader> removed, Collection<SSTableReader> added)

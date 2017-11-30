@@ -163,6 +163,7 @@
 
 
 3.11.2
+ * Prevent compaction strategies from looping indefinitely (CASSANDRA-14079)
  * Cache disk boundaries (CASSANDRA-13215)
  * Add asm jar to build.xml for maven builds (CASSANDRA-11193)
  * Round buffer size to powers of 2 for the chunk cache (CASSANDRA-13897)
