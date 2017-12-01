@@ -46,7 +46,7 @@ public abstract class Distribution implements Serializable
     {
         double sum = 0;
         double d = 0d;
-        for (int count = 0; count < 51 ; count++)
+        for (int count = 0; count < 50 ; count++)
         {
             sum += inverseCumProb(d);
             d += 0.02d;
