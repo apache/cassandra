@@ -1,4 +1,5 @@
 3.0.16
+ * Reduce garbage created by DynamicSnitch (CASSANDRA-14091)
  * More frequent commitlog chained markers (CASSANDRA-13987)
  * Fix serialized size of DataLimits (CASSANDRA-14057)
  * Add flag to allow dropping oversized read repair mutations (CASSANDRA-13975)
