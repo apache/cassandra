@@ -19,11 +19,13 @@
 package org.apache.cassandra.locator;
 
 import java.lang.management.ManagementFactory;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
 import javax.management.MBeanServer;
@@ -340,7 +342,12 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
        samples.clear();
     }
 
-    public Map<InetAddressAndPort, Double> getScores()
+    public Map<InetAddress, Double> getScores()
+    {
+        return scores.entrySet().stream().collect(Collectors.toMap(address -> address.getKey().address, Map.Entry::getValue));
+    }
+
+    public Map<InetAddressAndPort, Double> getScoresWithPort()
     {
         return scores;
     }

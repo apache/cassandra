@@ -17,13 +17,16 @@
  */
 package org.apache.cassandra.locator;
 
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Map;
 import java.util.List;
 
 public interface DynamicEndpointSnitchMBean 
 {
-    public Map<InetAddressAndPort, Double> getScores();
+    public Map<InetAddressAndPort, Double> getScoresWithPort();
+    @Deprecated
+    public Map<InetAddress, Double> getScores();
     public int getUpdateInterval();
     public int getResetInterval();
     public double getBadnessThreshold();
