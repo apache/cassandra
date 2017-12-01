@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
+import org.apache.cassandra.db.fullquerylog.FullQueryLogger;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -162,7 +163,17 @@ public class ExecuteMessage extends Message.Request
             // Some custom QueryHandlers are interested by the bound names. We provide them this information
             // by wrapping the QueryOptions.
             QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.boundNames);
+            boolean fqlEnabled = FullQueryLogger.instance.enabled();
+            long fqlTime = 0;
+            if (fqlEnabled)
+            {
+                fqlTime = System.currentTimeMillis();
+            }
             Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
+            if (fqlEnabled)
+            {
+                FullQueryLogger.instance.logQuery(prepared.rawCQLStatement, options, fqlTime);
+            }
 
             if (response instanceof ResultMessage.Rows)
             {

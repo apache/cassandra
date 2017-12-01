@@ -2453,4 +2453,9 @@ public class DatabaseDescriptor
     {
         return conf.repair_command_pool_full_strategy;
     }
+
+    public static String getFullQueryLogPath()
+    {
+        return  conf.full_query_log_dir;
+    }
 }
