@@ -195,13 +195,7 @@ public class StartupChecks
                 logger.warn("32bit JVM detected.  It is recommended to run Cassandra on a 64bit JVM for better performance.");
 
             String javaVmName = System.getProperty("java.vm.name");
-            if (javaVmName.contains("OpenJDK"))
-            {
-                // There is essentially no QA done on OpenJDK builds, and
-                // clusters running OpenJDK have seen many heap and load issues.
-                logger.warn("OpenJDK is not recommended. Please upgrade to the newest Oracle Java release");
-            }
-            else if (!javaVmName.contains("HotSpot"))
+            if (!(javaVmName.contains("HotSpot") || javaVmName.contains("OpenJDK")))
             {
                 logger.warn("Non-Oracle JVM detected.  Some features, such as immediate unmap of compacted SSTables, may not work as intended");
             }
