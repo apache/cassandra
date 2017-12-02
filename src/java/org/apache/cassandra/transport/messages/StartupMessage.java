@@ -106,7 +106,7 @@ public class StartupMessage extends Message.Request
 
     private static Map<String, String> upperCaseKeys(Map<String, String> options)
     {
-        Map<String, String> newMap = new HashMap<String, String>(options.size());
+        Map<String, String> newMap = new HashMap<>(options.size());
         for (Map.Entry<String, String> entry : options.entrySet())
             newMap.put(entry.getKey().toUpperCase(), entry.getValue());
         return newMap;

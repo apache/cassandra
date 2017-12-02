@@ -92,7 +92,7 @@ public class SizeTieredCompactionStrategyTest
     @Test
     public void testGetBuckets()
     {
-        List<Pair<String, Long>> pairs = new ArrayList<Pair<String, Long>>();
+        List<Pair<String, Long>> pairs = new ArrayList<>();
         String[] strings = { "a", "bbbb", "cccccccc", "cccccccc", "bbbb", "a" };
         for (String st : strings)
         {

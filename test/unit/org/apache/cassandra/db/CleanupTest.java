@@ -291,7 +291,7 @@ public class CleanupTest
 
     protected List<Long> getMaxTimestampList(ColumnFamilyStore cfs)
     {
-        List<Long> list = new LinkedList<Long>();
+        List<Long> list = new LinkedList<>();
         for (SSTableReader sstable : cfs.getLiveSSTables())
             list.add(sstable.getMaxTimestamp());
         return list;

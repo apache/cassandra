@@ -198,7 +198,7 @@ public abstract class PartitionerTestCase
 
     private void testDescribeOwnershipWith(int numTokens)
     {
-        List<Token> tokens = new ArrayList<Token>();
+        List<Token> tokens = new ArrayList<>();
         while (tokens.size() < numTokens)
         {
             Token randomToken = partitioner.getRandomToken();

@@ -493,7 +493,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static void sendCommit(Commit commit, Iterable<InetAddress> replicas)
     {
-        MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_COMMIT, commit, Commit.serializer);
+        MessageOut<Commit> message = new MessageOut<>(MessagingService.Verb.PAXOS_COMMIT, commit, Commit.serializer);
         for (InetAddress target : replicas)
             MessagingService.instance().sendOneWay(message, target);
     }
@@ -502,7 +502,7 @@ public class StorageProxy implements StorageProxyMBean
     throws WriteTimeoutException
     {
         PrepareCallback callback = new PrepareCallback(toPrepare.update.partitionKey(), toPrepare.update.metadata(), requiredParticipants, consistencyForPaxos, queryStartNanoTime);
-        MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PREPARE, toPrepare, Commit.serializer);
+        MessageOut<Commit> message = new MessageOut<>(MessagingService.Verb.PAXOS_PREPARE, toPrepare, Commit.serializer);
         for (InetAddress target : endpoints)
         {
             if (canDoLocalRequest(target))
@@ -540,7 +540,7 @@ public class StorageProxy implements StorageProxyMBean
     throws WriteTimeoutException
     {
         ProposeCallback callback = new ProposeCallback(endpoints.size(), requiredParticipants, !timeoutIfPartial, consistencyLevel, queryStartNanoTime);
-        MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PROPOSE, proposal, Commit.serializer);
+        MessageOut<Commit> message = new MessageOut<>(MessagingService.Verb.PAXOS_PROPOSE, proposal, Commit.serializer);
         for (InetAddress target : endpoints)
         {
             if (canDoLocalRequest(target))
@@ -598,7 +598,7 @@ public class StorageProxy implements StorageProxyMBean
             responseHandler.setSupportsBackPressure(false);
         }
 
-        MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_COMMIT, proposal, Commit.serializer);
+        MessageOut<Commit> message = new MessageOut<>(MessagingService.Verb.PAXOS_COMMIT, proposal, Commit.serializer);
         for (InetAddress destination : Iterables.concat(naturalEndpoints, pendingEndpoints))
         {
             checkHintOverload(destination);
@@ -952,7 +952,7 @@ public class StorageProxy implements StorageProxyMBean
         Tracing.trace("Determining replicas for atomic batch");
         long startTime = System.nanoTime();
 
-        List<WriteResponseHandlerWrapper> wrappers = new ArrayList<WriteResponseHandlerWrapper>(mutations.size());
+        List<WriteResponseHandlerWrapper> wrappers = new ArrayList<>(mutations.size());
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
 
         try
@@ -1957,7 +1957,7 @@ public class StorageProxy implements StorageProxyMBean
         //   so will be very small (< RF). In that case, retainAll is in fact more efficient.
         //   2) we do ultimately need a list so converting everything to sets don't make sense
         //   3) l1 and l2 are sorted by proximity. The use of retainAll  maintain that sorting in the result, while using sets wouldn't.
-        List<InetAddress> inter = new ArrayList<InetAddress>(l1);
+        List<InetAddress> inter = new ArrayList<>(l1);
         inter.retainAll(l2);
         return inter;
     }
@@ -2328,7 +2328,7 @@ public class StorageProxy implements StorageProxyMBean
     public static Map<String, List<String>> describeSchemaVersions()
     {
         final String myVersion = Schema.instance.getVersion().toString();
-        final Map<InetAddress, UUID> versions = new ConcurrentHashMap<InetAddress, UUID>();
+        final Map<InetAddress, UUID> versions = new ConcurrentHashMap<>();
         final Set<InetAddress> liveHosts = Gossiper.instance.getLiveMembers();
         final CountDownLatch latch = new CountDownLatch(liveHosts.size());
 
@@ -2362,7 +2362,7 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         // maps versions to hosts that are on that version.
-        Map<String, List<String>> results = new HashMap<String, List<String>>();
+        Map<String, List<String>> results = new HashMap<>();
         Iterable<InetAddress> allHosts = Iterables.concat(Gossiper.instance.getLiveMembers(), Gossiper.instance.getUnreachableMembers());
         for (InetAddress host : allHosts)
         {
@@ -2408,7 +2408,7 @@ public class StorageProxy implements StorageProxyMBean
 
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
 
-        List<AbstractBounds<T>> ranges = new ArrayList<AbstractBounds<T>>();
+        List<AbstractBounds<T>> ranges = new ArrayList<>();
         // divide the queryRange into pieces delimited by the ring and minimum tokens
         Iterator<Token> ringIter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), queryRange.left.getToken(), true);
         AbstractBounds<T> remainder = queryRange;

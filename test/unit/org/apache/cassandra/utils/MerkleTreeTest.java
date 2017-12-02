@@ -514,8 +514,8 @@ public class MerkleTreeTest
      */
     byte[] hashed(byte[] val, Integer... depths)
     {
-        ArrayDeque<Integer> dstack = new ArrayDeque<Integer>();
-        ArrayDeque<byte[]> hstack = new ArrayDeque<byte[]>();
+        ArrayDeque<Integer> dstack = new ArrayDeque<>();
+        ArrayDeque<byte[]> hstack = new ArrayDeque<>();
         Iterator<Integer> depthiter = Arrays.asList(depths).iterator();
         if (depthiter.hasNext())
         {
@@ -545,7 +545,7 @@ public class MerkleTreeTest
 
         public HIterator(int... tokens)
         {
-            List<Token> tlist = new LinkedList<Token>();
+            List<Token> tlist = new LinkedList<>();
             for (int token : tokens)
                 tlist.add(tok(token));
             this.tokens = tlist.iterator();

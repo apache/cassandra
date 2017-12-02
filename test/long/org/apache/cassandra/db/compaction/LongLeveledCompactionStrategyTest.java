@@ -96,7 +96,7 @@ public class LongLeveledCompactionStrategyTest
         ExecutorService executor = new ThreadPoolExecutor(4, 4,
                                                           Long.MAX_VALUE, TimeUnit.SECONDS,
                                                           new LinkedBlockingDeque<Runnable>());
-        List<Runnable> tasks = new ArrayList<Runnable>();
+        List<Runnable> tasks = new ArrayList<>();
         while (true)
         {
             while (true)
@@ -115,7 +115,7 @@ public class LongLeveledCompactionStrategyTest
             if (tasks.isEmpty())
                 break;
 
-            List<Future<?>> futures = new ArrayList<Future<?>>(tasks.size());
+            List<Future<?>> futures = new ArrayList<>(tasks.size());
             for (Runnable r : tasks)
                 futures.add(executor.submit(r));
             FBUtilities.waitOnFutures(futures);

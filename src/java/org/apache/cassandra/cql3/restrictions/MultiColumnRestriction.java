@@ -357,7 +357,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         {
             boolean reversed = getFirstColumn().isReversedType();
 
-            EnumMap<Bound, List<ByteBuffer>> componentBounds = new EnumMap<Bound, List<ByteBuffer>>(Bound.class);
+            EnumMap<Bound, List<ByteBuffer>> componentBounds = new EnumMap<>(Bound.class);
             componentBounds.put(Bound.START, componentBounds(Bound.START, options));
             componentBounds.put(Bound.END, componentBounds(Bound.END, options));
 

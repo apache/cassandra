@@ -206,7 +206,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         }
 
         // add primary key columns to the bind variables
-        List<ByteBuffer> allValues = new ArrayList<ByteBuffer>(values);
+        List<ByteBuffer> allValues = new ArrayList<>(values);
         for (ColumnMetadata column : partitionKeyColumns)
             allValues.add(keyColumns.get(column.getName()));
         for (ColumnMetadata column : clusterColumns)

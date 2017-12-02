@@ -78,7 +78,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testGossipDigestWrite() throws IOException
     {
-        Map<InetAddress, EndpointState> states = new HashMap<InetAddress, EndpointState>();
+        Map<InetAddress, EndpointState> states = new HashMap<>();
         states.put(InetAddress.getByName("127.0.0.1"), Statics.EndpointSt);
         states.put(InetAddress.getByName("127.0.0.2"), Statics.EndpointSt);
         GossipDigestAck ack = new GossipDigestAck(Statics.Digests, states);

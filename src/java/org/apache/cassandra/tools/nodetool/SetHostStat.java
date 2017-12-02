@@ -26,7 +26,7 @@ import java.util.Map;
 
 public class SetHostStat implements Iterable<HostStat>
 {
-    final List<HostStat> hostStats = new ArrayList<HostStat>();
+    final List<HostStat> hostStats = new ArrayList<>();
     final boolean resolveIp;
 
     public SetHostStat(boolean resolveIp)

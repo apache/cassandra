@@ -32,7 +32,7 @@ public final class Resources
      */
     public static List<? extends IResource> chain(IResource resource)
     {
-        List<IResource> chain = new ArrayList<IResource>();
+        List<IResource> chain = new ArrayList<>();
         while (true)
         {
            chain.add(resource);

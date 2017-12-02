@@ -205,7 +205,7 @@ public class CommitLogReaderTest extends CQLTester
 
     static class TestCLRHandler implements CommitLogReadHandler
     {
-        public List<Mutation> seenMutations = new ArrayList<Mutation>();
+        public List<Mutation> seenMutations = new ArrayList<>();
         public boolean sawStopOnErrorCheck = false;
 
         private final TableMetadata metadata;

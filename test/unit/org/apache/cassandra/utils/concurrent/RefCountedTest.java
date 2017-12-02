@@ -127,7 +127,7 @@ public class RefCountedTest
     @Test
     public void testLinkedList()
     {
-        final List<Object> iterable = new LinkedList<Object>();
+        final List<Object> iterable = new LinkedList<>();
         Pair<Object, Object> p = Pair.create(iterable, iterable);
         RefCounted.Tidy tidier = new RefCounted.Tidy() {
             Object ref = iterable;
@@ -178,7 +178,7 @@ public class RefCountedTest
 
     private void testConcurrentLinkedQueueImpl(boolean bugTest)
     {
-        final Queue<Object> iterable = new ConcurrentLinkedQueue<Object>();
+        final Queue<Object> iterable = new ConcurrentLinkedQueue<>();
         Pair<Object, Object> p = Pair.create(iterable, iterable);
         RefCounted.Tidy tidier = new RefCounted.Tidy() {
             Object ref = iterable;
@@ -230,7 +230,7 @@ public class RefCountedTest
     @Test
     public void testBlockingQueue()
     {
-        final BlockingQueue<Object> iterable = new LinkedBlockingQueue<Object>();
+        final BlockingQueue<Object> iterable = new LinkedBlockingQueue<>();
         Pair<Object, Object> p = Pair.create(iterable, iterable);
         RefCounted.Tidy tidier = new RefCounted.Tidy() {
             Object ref = iterable;
@@ -265,7 +265,7 @@ public class RefCountedTest
     @Test
     public void testConcurrentMap()
     {
-        final Map<Object, Object> map = new ConcurrentHashMap<Object, Object>();
+        final Map<Object, Object> map = new ConcurrentHashMap<>();
         RefCounted.Tidy tidier = new RefCounted.Tidy() {
             Object ref = map;
             @Override
@@ -302,7 +302,7 @@ public class RefCountedTest
     @Test
     public void testHashMap()
     {
-        final Map<Object, Object> map = new HashMap<Object, Object>();
+        final Map<Object, Object> map = new HashMap<>();
         RefCounted.Tidy tidier = new RefCounted.Tidy() {
             Object ref = map;
             @Override

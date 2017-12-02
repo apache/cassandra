@@ -494,7 +494,7 @@ public class LeveledManifest
                     Range<PartitionPosition> boundaries = new Range<>(min, max);
                     for (SSTableReader sstable : getLevel(i))
                     {
-                        Range<PartitionPosition> r = new Range<PartitionPosition>(sstable.first, sstable.last);
+                        Range<PartitionPosition> r = new Range<>(sstable.first, sstable.last);
                         if (boundaries.contains(r) && !compacting.contains(sstable))
                         {
                             logger.info("Adding high-level (L{}) {} to candidates", sstable.getSSTableLevel(), sstable);
@@ -607,7 +607,7 @@ public class LeveledManifest
     {
         assert start.compareTo(end) <= 0;
         Set<SSTableReader> overlapped = new HashSet<>();
-        Bounds<Token> promotedBounds = new Bounds<Token>(start, end);
+        Bounds<Token> promotedBounds = new Bounds<>(start, end);
 
         for (Map.Entry<SSTableReader, Bounds<Token>> pair : sstables.entrySet())
         {

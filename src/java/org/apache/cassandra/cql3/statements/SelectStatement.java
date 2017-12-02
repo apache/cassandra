@@ -1170,8 +1170,8 @@ public class SelectStatement implements CQLStatement
 
             Map<ColumnIdentifier, Integer> orderingIndexes = getOrderingIndex(metadata, selection, orderingColumns);
 
-            List<Integer> idToSort = new ArrayList<Integer>();
-            List<Comparator<ByteBuffer>> sorters = new ArrayList<Comparator<ByteBuffer>>();
+            List<Integer> idToSort = new ArrayList<>();
+            List<Comparator<ByteBuffer>> sorters = new ArrayList<>();
 
             for (ColumnMetadata orderingColumn : orderingColumns.keySet())
             {

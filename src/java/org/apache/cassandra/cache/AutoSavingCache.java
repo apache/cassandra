@@ -208,7 +208,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                                               + " does not match current schema version "
                                               + Schema.instance.getVersion());
 
-                ArrayDeque<Future<Pair<K, V>>> futures = new ArrayDeque<Future<Pair<K, V>>>();
+                ArrayDeque<Future<Pair<K, V>>> futures = new ArrayDeque<>();
                 while (in.available() > 0)
                 {
                     //tableId and indexName are serialized by the serializers in CacheService

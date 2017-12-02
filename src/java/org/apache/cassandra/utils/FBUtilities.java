@@ -138,7 +138,7 @@ public class FBUtilities
 
     public static Collection<InetAddress> getAllLocalAddresses()
     {
-        Set<InetAddress> localAddresses = new HashSet<InetAddress>();
+        Set<InetAddress> localAddresses = new HashSet<>();
         try
         {
             Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
@@ -518,7 +518,7 @@ public class FBUtilities
 
     public static <T> NavigableSet<T> singleton(T column, Comparator<? super T> comparator)
     {
-        NavigableSet<T> s = new TreeSet<T>(comparator);
+        NavigableSet<T> s = new TreeSet<>(comparator);
         s.add(column);
         return s;
     }

@@ -35,7 +35,7 @@ public class PrepareVerbHandler implements IVerbHandler<Commit>
 
     public void doVerb(MessageIn<Commit> message, int id)
     {
-        MessageOut<PrepareResponse> reply = new MessageOut<PrepareResponse>(MessagingService.Verb.REQUEST_RESPONSE, doPrepare(message.payload), PrepareResponse.serializer);
+        MessageOut<PrepareResponse> reply = new MessageOut<>(MessagingService.Verb.REQUEST_RESPONSE, doPrepare(message.payload), PrepareResponse.serializer);
         MessagingService.instance().sendReply(reply, id, message.from);
     }
 }

@@ -48,7 +48,7 @@ public class TokenSerializer
 
     public static Collection<Token> deserialize(IPartitioner partitioner, DataInput in) throws IOException
     {
-        Collection<Token> tokens = new ArrayList<Token>();
+        Collection<Token> tokens = new ArrayList<>();
         while (true)
         {
             int size = in.readInt();

@@ -45,7 +45,7 @@ public class StreamingTombstoneHistogramBuilderTest
         }
 
         // should end up (2,1),(9.5,2),(17.5,2),(23,1),(36,1)
-        Map<Double, Long> expected1 = new LinkedHashMap<Double, Long>(5);
+        Map<Double, Long> expected1 = new LinkedHashMap<>(5);
         expected1.put(2.0, 1L);
         expected1.put(9.0, 2L);
         expected1.put(17.0, 2L);
@@ -86,7 +86,7 @@ public class StreamingTombstoneHistogramBuilderTest
         TombstoneHistogram deserialized = TombstoneHistogram.serializer.deserialize(new DataInputBuffer(bytes));
 
         // deserialized histogram should have following values
-        Map<Double, Long> expected1 = new LinkedHashMap<Double, Long>(5);
+        Map<Double, Long> expected1 = new LinkedHashMap<>(5);
         expected1.put(2.0, 1L);
         expected1.put(9.0, 2L);
         expected1.put(17.0, 2L);

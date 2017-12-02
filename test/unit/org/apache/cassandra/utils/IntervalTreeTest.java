@@ -42,7 +42,7 @@ public class IntervalTreeTest
     @Test
     public void testSearch() throws Exception
     {
-        List<Interval<Integer, Void>> intervals = new ArrayList<Interval<Integer, Void>>();
+        List<Interval<Integer, Void>> intervals = new ArrayList<>();
 
         intervals.add(Interval.<Integer, Void>create(-300, -200));
         intervals.add(Interval.<Integer, Void>create(-3, -2));
@@ -68,7 +68,7 @@ public class IntervalTreeTest
         assertEquals(2, it.search(Interval.<Integer, Void>create(0, 1)).size());
         assertEquals(0, it.search(Interval.<Integer, Void>create(10, 12)).size());
 
-        List<Interval<Integer, Void>> intervals2 = new ArrayList<Interval<Integer, Void>>();
+        List<Interval<Integer, Void>> intervals2 = new ArrayList<>();
 
         //stravinsky 1880-1971
         intervals2.add(Interval.<Integer, Void>create(1880, 1971));
@@ -98,7 +98,7 @@ public class IntervalTreeTest
     @Test
     public void testIteration()
     {
-        List<Interval<Integer, Void>> intervals = new ArrayList<Interval<Integer, Void>>();
+        List<Interval<Integer, Void>> intervals = new ArrayList<>();
 
         intervals.add(Interval.<Integer, Void>create(-300, -200));
         intervals.add(Interval.<Integer, Void>create(-3, -2));
@@ -117,7 +117,7 @@ public class IntervalTreeTest
 
         Collections.sort(intervals, Interval.<Integer, Void>minOrdering());
 
-        List<Interval<Integer, Void>> l = new ArrayList<Interval<Integer, Void>>();
+        List<Interval<Integer, Void>> l = new ArrayList<>();
         for (Interval<Integer, Void> i : it)
             l.add(i);
 
@@ -127,7 +127,7 @@ public class IntervalTreeTest
     @Test
     public void testSerialization() throws Exception
     {
-        List<Interval<Integer, String>> intervals = new ArrayList<Interval<Integer, String>>();
+        List<Interval<Integer, String>> intervals = new ArrayList<>();
 
         intervals.add(Interval.<Integer, String>create(-300, -200, "a"));
         intervals.add(Interval.<Integer, String>create(-3, -2, "b"));
@@ -189,7 +189,7 @@ public class IntervalTreeTest
         DataInputPlus in = new DataInputBuffer(out.toByteArray());
 
         IntervalTree<Integer, String, Interval<Integer, String>> it2 = serializer.deserialize(in, 0);
-        List<Interval<Integer, String>> intervals2 = new ArrayList<Interval<Integer, String>>();
+        List<Interval<Integer, String>> intervals2 = new ArrayList<>();
         for (Interval<Integer, String> i : it2)
             intervals2.add(i);
 

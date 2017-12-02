@@ -64,7 +64,7 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
         final int targetClusterSize = TARGET_CLUSTER_SIZE;
         NavigableMap<Token, Unit> tokenMap = Maps.newTreeMap();
 
-        NoReplicationTokenAllocator<Unit> t = new NoReplicationTokenAllocator<Unit>(tokenMap, rs, partitioner);
+        NoReplicationTokenAllocator<Unit> t = new NoReplicationTokenAllocator<>(tokenMap, rs, partitioner);
         grow(t, targetClusterSize * 2 / 5, tc, perUnitCount, false);
         grow(t, targetClusterSize, tc, perUnitCount, true);
         System.out.println();
@@ -96,7 +96,7 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
                                                                       IPartitioner partitioner)
     {
         super.random(map, rs, unitCount, tc, perUnitCount, partitioner);
-        NoReplicationTokenAllocator<Unit> t = new NoReplicationTokenAllocator<Unit>(map, rs, partitioner);
+        NoReplicationTokenAllocator<Unit> t = new NoReplicationTokenAllocator<>(map, rs, partitioner);
         t.createTokenInfos();
         return t;
     }

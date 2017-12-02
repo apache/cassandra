@@ -138,7 +138,7 @@ public class OldNetworkTopologyStrategyTest
 
     private ArrayList<InetAddress> buildResult(String... addresses) throws UnknownHostException
     {
-        ArrayList<InetAddress> result = new ArrayList<InetAddress>();
+        ArrayList<InetAddress> result = new ArrayList<>();
         for (String address : addresses)
         {
             result.add(InetAddress.getByName(address));

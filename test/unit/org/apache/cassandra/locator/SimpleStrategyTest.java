@@ -65,8 +65,8 @@ public class SimpleStrategyTest
     @Test
     public void testBigIntegerEndpoints() throws UnknownHostException
     {
-        List<Token> endpointTokens = new ArrayList<Token>();
-        List<Token> keyTokens = new ArrayList<Token>();
+        List<Token> endpointTokens = new ArrayList<>();
+        List<Token> keyTokens = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
             keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
@@ -79,8 +79,8 @@ public class SimpleStrategyTest
     {
         IPartitioner partitioner = OrderPreservingPartitioner.instance;
 
-        List<Token> endpointTokens = new ArrayList<Token>();
-        List<Token> keyTokens = new ArrayList<Token>();
+        List<Token> endpointTokens = new ArrayList<>();
+        List<Token> keyTokens = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             endpointTokens.add(new StringToken(String.valueOf((char)('a' + i * 2))));
             keyTokens.add(partitioner.getToken(ByteBufferUtil.bytes(String.valueOf((char) ('a' + i * 2 + 1)))));
@@ -98,7 +98,7 @@ public class SimpleStrategyTest
         {
             tmd = new TokenMetadata();
             strategy = getStrategy(keyspaceName, tmd);
-            List<InetAddress> hosts = new ArrayList<InetAddress>();
+            List<InetAddress> hosts = new ArrayList<>();
             for (int i = 0; i < endpointTokens.length; i++)
             {
                 InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
@@ -110,7 +110,7 @@ public class SimpleStrategyTest
             {
                 List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyTokens[i]);
                 assertEquals(strategy.getReplicationFactor(), endpoints.size());
-                List<InetAddress> correctEndpoints = new ArrayList<InetAddress>();
+                List<InetAddress> correctEndpoints = new ArrayList<>();
                 for (int j = 0; j < endpoints.size(); j++)
                     correctEndpoints.add(hosts.get((i + j + 1) % hosts.size()));
                 assertEquals(new HashSet<InetAddress>(correctEndpoints), new HashSet<InetAddress>(endpoints));
@@ -135,7 +135,7 @@ public class SimpleStrategyTest
             keyTokens[i] = new BigIntegerToken(String.valueOf(RING_SIZE * 2 * i + RING_SIZE));
         }
 
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
+        List<InetAddress> hosts = new ArrayList<>();
         for (int i = 0; i < endpointTokens.length; i++)
         {
             InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));

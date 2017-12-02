@@ -101,7 +101,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
         if (head == null)
             return Collections.<D>emptyList();
 
-        List<D> results = new ArrayList<D>();
+        List<D> results = new ArrayList<>();
         head.searchInternal(searchInterval, results);
         return results;
     }
@@ -177,7 +177,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
             else
             {
                 // Find min, median and max
-                List<C> allEndpoints = new ArrayList<C>(toBisect.size() * 2);
+                List<C> allEndpoints = new ArrayList<>(toBisect.size() * 2);
                 for (I interval : toBisect)
                 {
                     allEndpoints.add(interval.min);
@@ -191,9 +191,9 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
                 high = allEndpoints.get(allEndpoints.size() - 1);
 
                 // Separate interval in intersecting center, left of center and right of center
-                List<I> intersects = new ArrayList<I>();
-                List<I> leftSegment = new ArrayList<I>();
-                List<I> rightSegment = new ArrayList<I>();
+                List<I> intersects = new ArrayList<>();
+                List<I> leftSegment = new ArrayList<>();
+                List<I> rightSegment = new ArrayList<>();
 
                 for (I candidate : toBisect)
                 {
@@ -340,7 +340,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
             try
             {
                 int count = in.readInt();
-                List<I> intervals = new ArrayList<I>(count);
+                List<I> intervals = new ArrayList<>(count);
                 for (int i = 0; i < count; i++)
                 {
                     C min = pointSerializer.deserialize(in);

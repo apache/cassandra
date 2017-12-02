@@ -143,7 +143,7 @@ public class BigTableScanner implements ISSTableScanner
             if (requested.right.compareTo(sstable.first) >= 0)
             {
                 // since we wrap, we must contain the whole sstable prior to stopKey()
-                Boundary<PartitionPosition> left = new Boundary<PartitionPosition>(sstable.first, true);
+                Boundary<PartitionPosition> left = new Boundary<>(sstable.first, true);
                 Boundary<PartitionPosition> right;
                 right = requested.rightBoundary();
                 right = minRight(right, sstable.last, true);
@@ -153,7 +153,7 @@ public class BigTableScanner implements ISSTableScanner
             if (requested.left.compareTo(sstable.last) <= 0)
             {
                 // since we wrap, we must contain the whole sstable after dataRange.startKey()
-                Boundary<PartitionPosition> right = new Boundary<PartitionPosition>(sstable.last, true);
+                Boundary<PartitionPosition> right = new Boundary<>(sstable.last, true);
                 Boundary<PartitionPosition> left;
                 left = requested.leftBoundary();
                 left = maxLeft(left, sstable.first, true);

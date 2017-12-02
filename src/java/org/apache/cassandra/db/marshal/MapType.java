@@ -219,7 +219,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public List<ByteBuffer> serializedValues(Iterator<Cell> cells)
     {
         assert isMultiCell;
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>();
+        List<ByteBuffer> bbs = new ArrayList<>();
         while (cells.hasNext())
         {
             Cell c = cells.next();

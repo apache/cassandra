@@ -65,7 +65,7 @@ class GossipDigestAck2Serializer implements IVersionedSerializer<GossipDigestAck
     public GossipDigestAck2 deserialize(DataInputPlus in, int version) throws IOException
     {
         int size = in.readInt();
-        Map<InetAddress, EndpointState> epStateMap = new HashMap<InetAddress, EndpointState>(size);
+        Map<InetAddress, EndpointState> epStateMap = new HashMap<>(size);
 
         for (int i = 0; i < size; ++i)
         {

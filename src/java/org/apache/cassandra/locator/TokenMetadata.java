@@ -871,7 +871,7 @@ public class TokenMetadata
         TokenMetadata allLeftMetadata = removeEndpoints(metadata.cloneOnlyTokenMap(), leavingEndpoints);
 
         // get all ranges that will be affected by leaving nodes
-        Set<Range<Token>> affectedRanges = new HashSet<Range<Token>>();
+        Set<Range<Token>> affectedRanges = new HashSet<>();
         for (InetAddress endpoint : leavingEndpoints)
             affectedRanges.addAll(addressRanges.get(endpoint));
 

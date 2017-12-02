@@ -58,7 +58,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
 
-        Map<String, Integer> newDatacenters = new HashMap<String, Integer>();
+        Map<String, Integer> newDatacenters = new HashMap<>();
         if (configOptions != null)
         {
             for (Entry<String, String> entry : configOptions.entrySet())

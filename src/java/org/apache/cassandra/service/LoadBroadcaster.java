@@ -38,7 +38,7 @@ public class LoadBroadcaster implements IEndpointStateChangeSubscriber
 
     private static final Logger logger = LoggerFactory.getLogger(LoadBroadcaster.class);
 
-    private ConcurrentMap<InetAddress, Double> loadInfo = new ConcurrentHashMap<InetAddress, java.lang.Double>();
+    private ConcurrentMap<InetAddress, Double> loadInfo = new ConcurrentHashMap<>();
 
     private LoadBroadcaster()
     {

@@ -185,7 +185,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 
     public List<InetAddress> getSortedListByProximity(final InetAddress address, Collection<InetAddress> addresses)
     {
-        List<InetAddress> list = new ArrayList<InetAddress>(addresses);
+        List<InetAddress> list = new ArrayList<>(addresses);
         sortByProximity(address, list);
         return list;
     }
@@ -367,7 +367,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     public List<Double> dumpTimings(String hostname) throws UnknownHostException
     {
         InetAddress host = InetAddress.getByName(hostname);
-        ArrayList<Double> timings = new ArrayList<Double>();
+        ArrayList<Double> timings = new ArrayList<>();
         ExponentiallyDecayingReservoir sample = samples.get(host);
         if (sample != null)
         {

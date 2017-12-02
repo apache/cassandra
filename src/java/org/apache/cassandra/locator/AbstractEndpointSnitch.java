@@ -34,7 +34,7 @@ public abstract class AbstractEndpointSnitch implements IEndpointSnitch
      */
     public List<InetAddress> getSortedListByProximity(InetAddress address, Collection<InetAddress> unsortedAddress)
     {
-        List<InetAddress> preferred = new ArrayList<InetAddress>(unsortedAddress);
+        List<InetAddress> preferred = new ArrayList<>(unsortedAddress);
         sortByProximity(address, preferred);
         return preferred;
     }

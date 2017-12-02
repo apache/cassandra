@@ -43,8 +43,8 @@ public class IncludingExcludingBounds<T extends RingPosition<T>> extends Abstrac
     public Pair<AbstractBounds<T>, AbstractBounds<T>> split(T position)
     {
         assert contains(position);
-        AbstractBounds<T> lb = new Bounds<T>(left, position);
-        AbstractBounds<T> rb = new ExcludingBounds<T>(position, right);
+        AbstractBounds<T> lb = new Bounds<>(left, position);
+        AbstractBounds<T> rb = new ExcludingBounds<>(position, right);
         return Pair.create(lb, rb);
     }
 

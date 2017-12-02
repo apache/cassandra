@@ -107,7 +107,7 @@ public class SSTableReaderTest
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store, false);
 
-        List<Range<Token>> ranges = new ArrayList<Range<Token>>();
+        List<Range<Token>> ranges = new ArrayList<>();
         // 1 key
         ranges.add(new Range<>(t(0), t(1)));
         // 2 keys
@@ -451,7 +451,7 @@ public class SSTableReaderTest
 
         // construct a range which is present in the sstable, but whose
         // keys are not found in the first segment of the index.
-        List<Range<Token>> ranges = new ArrayList<Range<Token>>();
+        List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(new Range<Token>(t(98), t(99)));
 
         SSTableReader sstable = store.getLiveSSTables().iterator().next();

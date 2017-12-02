@@ -41,7 +41,7 @@ public class DebuggableThreadPoolExecutorTest
     @Test
     public void testSerialization()
     {
-        LinkedBlockingQueue<Runnable> q = new LinkedBlockingQueue<Runnable>(1);
+        LinkedBlockingQueue<Runnable> q = new LinkedBlockingQueue<>(1);
         DebuggableThreadPoolExecutor executor = new DebuggableThreadPoolExecutor(1,
                                                                                  Integer.MAX_VALUE,
                                                                                  TimeUnit.MILLISECONDS,

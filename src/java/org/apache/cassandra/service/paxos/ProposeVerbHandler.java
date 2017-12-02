@@ -36,7 +36,7 @@ public class ProposeVerbHandler implements IVerbHandler<Commit>
 
     public void doVerb(MessageIn<Commit> message, int id)
     {
-        MessageOut<Boolean> reply = new MessageOut<Boolean>(MessagingService.Verb.REQUEST_RESPONSE, doPropose(message.payload), BooleanSerializer.serializer);
+        MessageOut<Boolean> reply = new MessageOut<>(MessagingService.Verb.REQUEST_RESPONSE, doPropose(message.payload), BooleanSerializer.serializer);
         MessagingService.instance().sendReply(reply, id, message.from);
     }
 }

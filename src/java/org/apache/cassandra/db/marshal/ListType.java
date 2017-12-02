@@ -195,7 +195,7 @@ public class ListType<T> extends CollectionType<List<T>>
     public List<ByteBuffer> serializedValues(Iterator<Cell> cells)
     {
         assert isMultiCell;
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>();
+        List<ByteBuffer> bbs = new ArrayList<>();
         while (cells.hasNext())
             bbs.add(cells.next().value());
         return bbs;

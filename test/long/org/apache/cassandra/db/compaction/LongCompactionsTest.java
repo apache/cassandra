@@ -152,7 +152,7 @@ public class LongCompactionsTest
         cfs.disableAutoCompaction();
 
         long maxTimestampExpected = Long.MIN_VALUE;
-        Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
+        Set<DecoratedKey> inserted = new HashSet<>();
         for (int j = 0; j < SSTABLES; j++) {
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
                 DecoratedKey key = Util.dk(String.valueOf(i % 2));
@@ -187,7 +187,7 @@ public class LongCompactionsTest
         // loop submitting parallel compactions until they all return 0
         do
         {
-            ArrayList<Future<?>> compactions = new ArrayList<Future<?>>();
+            ArrayList<Future<?>> compactions = new ArrayList<>();
             for (int i = 0; i < 10; i++)
                 compactions.addAll(CompactionManager.instance.submitBackground(cfs));
             // another compaction attempt will be launched in the background by

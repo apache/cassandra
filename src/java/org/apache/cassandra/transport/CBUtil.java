@@ -294,7 +294,7 @@ public abstract class CBUtil
     public static List<String> readStringList(ByteBuf cb)
     {
         int length = cb.readUnsignedShort();
-        List<String> l = new ArrayList<String>(length);
+        List<String> l = new ArrayList<>(length);
         for (int i = 0; i < length; i++)
             l.add(readString(cb));
         return l;
@@ -318,7 +318,7 @@ public abstract class CBUtil
     public static Map<String, String> readStringMap(ByteBuf cb)
     {
         int length = cb.readUnsignedShort();
-        Map<String, String> m = new HashMap<String, String>(length);
+        Map<String, String> m = new HashMap<>(length);
         for (int i = 0; i < length; i++)
         {
             String k = readString(cb);
@@ -352,7 +352,7 @@ public abstract class CBUtil
     public static Map<String, List<String>> readStringToStringListMap(ByteBuf cb)
     {
         int length = cb.readUnsignedShort();
-        Map<String, List<String>> m = new HashMap<String, List<String>>(length);
+        Map<String, List<String>> m = new HashMap<>(length);
         for (int i = 0; i < length; i++)
         {
             String k = readString(cb).toUpperCase();
@@ -470,7 +470,7 @@ public abstract class CBUtil
         if (size == 0)
             return Collections.<ByteBuffer>emptyList();
 
-        List<ByteBuffer> l = new ArrayList<ByteBuffer>(size);
+        List<ByteBuffer> l = new ArrayList<>(size);
         for (int i = 0; i < size; i++)
             l.add(readBoundValue(cb, protocolVersion));
         return l;

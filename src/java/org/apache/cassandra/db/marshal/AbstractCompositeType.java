@@ -97,7 +97,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
      */
     public ByteBuffer[] split(ByteBuffer name)
     {
-        List<ByteBuffer> l = new ArrayList<ByteBuffer>();
+        List<ByteBuffer> l = new ArrayList<>();
         ByteBuffer bb = name.duplicate();
         readIsStatic(bb);
         int i = 0;
@@ -151,7 +151,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         if (input.isEmpty())
             return Collections.<String>emptyList();
 
-        List<String> res = new ArrayList<String>();
+        List<String> res = new ArrayList<>();
         int prev = 0;
         for (int i = 0; i < input.length(); i++)
         {
@@ -196,8 +196,8 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     public ByteBuffer fromString(String source)
     {
         List<String> parts = split(source);
-        List<ByteBuffer> components = new ArrayList<ByteBuffer>(parts.size());
-        List<ParsedComparator> comparators = new ArrayList<ParsedComparator>(parts.size());
+        List<ByteBuffer> components = new ArrayList<>(parts.size());
+        List<ParsedComparator> comparators = new ArrayList<>(parts.size());
         int totalLength = 0, i = 0;
         boolean lastByteIsOne = false;
         boolean lastByteIsMinusOne = false;

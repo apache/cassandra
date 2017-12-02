@@ -285,7 +285,7 @@ public abstract class AbstractCompactionStrategy
     @SuppressWarnings("resource")
     public ScannerList getScanners(Collection<SSTableReader> sstables, Collection<Range<Token>> ranges)
     {
-        ArrayList<ISSTableScanner> scanners = new ArrayList<ISSTableScanner>();
+        ArrayList<ISSTableScanner> scanners = new ArrayList<>();
         try
         {
             for (SSTableReader sstable : sstables)
@@ -432,7 +432,7 @@ public abstract class AbstractCompactionStrategy
             }
             // first, calculate estimated keys that do not overlap
             long keys = sstable.estimatedKeys();
-            Set<Range<Token>> ranges = new HashSet<Range<Token>>(overlaps.size());
+            Set<Range<Token>> ranges = new HashSet<>(overlaps.size());
             for (SSTableReader overlap : overlaps)
                 ranges.add(new Range<>(overlap.first.getToken(), overlap.last.getToken()));
             long remainingKeys = keys - sstable.estimatedKeysForRanges(ranges);
@@ -506,7 +506,7 @@ public abstract class AbstractCompactionStrategy
             }
         }
 
-        Map<String, String> uncheckedOptions = new HashMap<String, String>(options);
+        Map<String, String> uncheckedOptions = new HashMap<>(options);
         uncheckedOptions.remove(TOMBSTONE_THRESHOLD_OPTION);
         uncheckedOptions.remove(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
         uncheckedOptions.remove(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
