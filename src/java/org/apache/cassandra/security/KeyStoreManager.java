@@ -74,6 +74,7 @@ public class KeyStoreManager
     private static final Logger logger = LoggerFactory.getLogger(KeyStoreManager.class);
 
     protected final static int RENEWAL_CHECK_DELAY_HOURS = 24;
+    protected final static int CHECK_KS_REFRESH_INTERVAL_SECS = 120;
 
     public static KeyStoreManager internodeInstance;
     public static KeyStoreManager clientInstance;
@@ -87,9 +88,11 @@ public class KeyStoreManager
     protected EncryptionOptions encryptionOptions;
 
     protected volatile KeyStore keystore;
+    protected volatile long keystoreModificationTime = 0;
 
     private ScheduledFuture<?> scheduledRenewalTask;
     private ScheduledFuture<?> periodicRenewalCheck;
+    private ScheduledFuture<?> periodicRefreshCheck;
 
     private final AtomicReference<CompletableFuture<KeyStore>> pendingKeystoreCreationOp = new AtomicReference<>();
 
@@ -198,10 +201,12 @@ public class KeyStoreManager
             throw new RuntimeException("Encryption not enabled");
 
         KeyStore existingLocalKeyStore = null;
+        long existingLocalKeyStoreModifiedAt = 0;
         File file = new File(encryptionOptions.keystore);
         if (file.isFile() && file.canRead())
         {
             existingLocalKeyStore = loadKeystore(encryptionOptions.keystore, encryptionOptions.keystore_password.toCharArray(), encryptionOptions.store_type);
+            existingLocalKeyStoreModifiedAt = file.lastModified();
         }
 
         if (issuer != null)
@@ -214,6 +219,16 @@ public class KeyStoreManager
                                                                                               RENEWAL_CHECK_DELAY_HOURS,
                                                                                               TimeUnit.HOURS);
         }
+        else if (existingLocalKeyStore != null)
+        {
+            // Monitor local keystore for changes in case it is not managed by an issuer implementation.
+            // This allows operators or side car processes to renew the keystore without having to restart
+            // the Cassandra instance.
+            this.periodicRefreshCheck = ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(this::refreshLocalKeystore,
+                                                                                              CHECK_KS_REFRESH_INTERVAL_SECS,
+                                                                                              CHECK_KS_REFRESH_INTERVAL_SECS,
+                                                                                              TimeUnit.SECONDS);
+        }
 
         final CompletableFuture<KeyStore> creationResult;
         if (existingLocalKeyStore != null)
@@ -225,7 +240,7 @@ public class KeyStoreManager
             if (issuer == null)
             {
                 // no issuer provided - simply stick to the local KS
-                switchKeystore(existingLocalKeyStore);
+                switchKeystore(existingLocalKeyStore, existingLocalKeyStoreModifiedAt);
                 notifyListenersOnUpdate();
                 return;
             }
@@ -238,7 +253,7 @@ public class KeyStoreManager
                 }
                 else
                 {
-                    switchKeystore(existingLocalKeyStore);
+                    switchKeystore(existingLocalKeyStore, existingLocalKeyStoreModifiedAt);
                     notifyListenersOnUpdate();
                     return;
                 }
@@ -287,6 +302,10 @@ public class KeyStoreManager
             periodicRenewalCheck.cancel(true);
         periodicRenewalCheck = null;
 
+        if (periodicRefreshCheck != null && !periodicRefreshCheck.isCancelled())
+            periodicRefreshCheck.cancel(true);
+        periodicRefreshCheck = null;
+
         if (scheduledRenewalTask != null && !scheduledRenewalTask.isDone())
             scheduledRenewalTask.cancel(true);
         scheduledRenewalTask = null;
@@ -334,15 +353,16 @@ public class KeyStoreManager
                     logger.warn("Could not write local keystore. Acquired X.509 credentials will be lost after next restart.", ex);
                 }
             }
-            switchKeystore(ks);
+            switchKeystore(ks, System.currentTimeMillis());
             notifyListenersOnUpdate();
         });
     }
 
-    protected void switchKeystore(KeyStore ks)
+    protected void switchKeystore(KeyStore ks, long updatedAt)
     {
         logger.debug("Switching keystore");
         keystore = ks;
+        keystoreModificationTime = updatedAt;
     }
 
     protected void notifyListenersOnUpdate()
@@ -413,6 +433,36 @@ public class KeyStoreManager
                 logger.warn("Certificate renewal failed, retrying in {} minutes", minsLeft);
                 this.scheduledRenewalTask = ScheduledExecutors.scheduledTasks.schedule(this::renew, minsLeft, TimeUnit.MINUTES);
             }
+        }
+    }
+
+    /**
+     * Checks if local keystore file has been modified since last loaded and reloads keystore.
+     */
+    protected void refreshLocalKeystore()
+    {
+        try
+        {
+            File file = new File(encryptionOptions.keystore);
+            if (!file.isFile() || !file.canRead())
+            {
+                logger.error("Keystore missing or inaccessible: " + file.getAbsolutePath());
+                return;
+            }
+
+            long lastModified = file.lastModified();
+            if (lastModified > this.keystoreModificationTime)
+            {
+                logger.info("Reloading modified keystore: " + file.getAbsolutePath());
+                KeyStore ks = loadKeystore(encryptionOptions.keystore, encryptionOptions.keystore_password.toCharArray(), encryptionOptions.store_type);
+                switchKeystore(ks, lastModified);
+                notifyListenersOnUpdate();
+            }
+        }
+        catch (Throwable t)
+        {
+            // catch anything so we keep any periodic task scheduled
+            logger.error(t.getMessage(), t);
         }
     }
 

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.security;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -26,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.KeyStore;
@@ -183,6 +185,34 @@ public class KeyStoreManagerTest
         X509Credentials cred = KeyStoreManager.extractCredentials(ks, KS_PASS);
         assertFalse(KeyStoreManager.expired(cred));
         assertFalse(KeyStoreManager.needsRenewal(cred, 0));
+    }
+
+    @Test
+    public void testLocalRefresh() throws Exception
+    {
+        Path tmpDir = Files.createTempDirectory("testLocalRefresh_");
+        Path ksPath = tmpDir.resolve("test_keystore.jks");
+        File ksCopy = ksPath.toFile();
+
+        // copy fixture ks to tmp path
+        KeyStore ks = KeyStoreManager.loadKeystore(PKI_KEYSTORE_PATH, KS_PASS, "PKCS12");
+        try (FileOutputStream fos = new FileOutputStream(ksCopy))
+        {
+            ks.store(fos, KS_PASS);
+        }
+
+        KeyStoreManager ksm = new KeyStoreManager(serverOptions(ksCopy.getPath()), null);
+        AtomicInteger notified = new AtomicInteger(0);
+        ksm.addListener(notified::incrementAndGet);
+        ksm.initKeystore();
+        assertEquals(1, notified.get());
+
+        long lm = ksCopy.lastModified();
+        Files.setLastModifiedTime(ksPath, FileTime.fromMillis(lm+10000));
+        ksm.refreshLocalKeystore();
+        assertEquals(2, notified.get());
+        Files.delete(ksPath);
+        Files.delete(tmpDir);
     }
 
     @Test

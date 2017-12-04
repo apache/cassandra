@@ -944,6 +944,7 @@ dynamic_snitch_badness_threshold: 0.1
 # The passwords used in these options must match the passwords used when generating
 # the keystore and truststore.  For instructions on generating these files, see:
 # http://download.oracle.com/javase/8/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore
+# The keystore will be checked for changes periodically and reloaded dynamically if needed.
 #
 server_encryption_options:
     # set to true for allowing secure incoming connections
