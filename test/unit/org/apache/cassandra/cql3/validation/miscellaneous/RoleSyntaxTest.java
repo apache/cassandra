@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.cql3.validation.miscellaneous;
 
+import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.cql3.CQLTester;
 
 public class RoleSyntaxTest extends CQLTester
@@ -157,5 +159,26 @@ public class RoleSyntaxTest extends CQLTester
         assertValidSyntax("LIST ROLES OF 'r1'");
         assertValidSyntax("LIST ROLES OF \"r1\"");
         assertValidSyntax("LIST ROLES OF $$ r '1' $$");
+    }
+
+    @Test
+    public void roleNameTest()
+    {
+        // we used to split on all "/" which meant role names containing a / would trigger an exception in RoleResource.fromName()
+        RoleResource t1 = RoleResource.role("ki/ng");
+        RoleResource t2 = RoleResource.role("emperor");
+        RoleResource t3 = RoleResource.role("aeou/!@*%");
+        RoleResource t4 = RoleResource.role("do$\\$P#?:");
+        RoleResource t5 = RoleResource.root();
+        RoleResource r1 = RoleResource.fromName("roles/ki/ng");
+        RoleResource r2 = RoleResource.fromName("roles/emperor");
+        RoleResource r3 = RoleResource.fromName("roles/aeou/!@*%");
+        RoleResource r4 = RoleResource.fromName("roles/do$\\$P#?:");
+        RoleResource r5 = RoleResource.fromName("roles");
+        Assert.assertEquals(t1, r1);
+        Assert.assertEquals(t2, r2);
+        Assert.assertEquals(t3, r3);
+        Assert.assertEquals(t4, r4);
+        Assert.assertEquals(t5, r5);
     }
 }
