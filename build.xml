@@ -204,6 +204,7 @@
 
     <target name="realclean" depends="clean" description="Remove the entire build directory and all downloaded artifacts">
         <delete dir="${build.dir}" />
+        <delete dir="${doc.dir}/build" />
     </target>
 
     <!--

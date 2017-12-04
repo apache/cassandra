@@ -1,0 +1,9 @@
+# docker-compose.yml for building the Cassandra documentation.
+
+version: '2.0'
+
+services:
+  build-docs:
+    build: .
+    volumes:
+      - ..:/usr/src/code
