@@ -499,7 +499,7 @@ public class FullQueryLogger
     {
         if (!directory.exists())
         {
-            return Throwables.merge(accumulate, new RuntimeException(String.format("%s does not exists")));
+            return Throwables.merge(accumulate, new RuntimeException(String.format("%s does not exists", directory)));
         }
         if (!directory.isDirectory())
         {
