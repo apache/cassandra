@@ -32,7 +32,6 @@ import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.utils.Hex;
-import org.apache.cassandra.utils.SyncUtil;
 
 import static org.apache.cassandra.security.EncryptionUtils.ENCRYPTED_BLOCK_HEADER_SIZE;
 
@@ -143,8 +142,6 @@ public class EncryptedSegment extends FileDirectSegment
 
             channel.position(syncMarkerPosition);
             channel.write(buffer);
-
-            SyncUtil.force(channel, true);
         }
         catch (Exception e)
         {

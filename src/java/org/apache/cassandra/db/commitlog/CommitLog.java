@@ -221,9 +221,9 @@ public class CommitLog implements CommitLogMBean
     /**
      * Forces a disk flush on the commit log files that need it.  Blocking.
      */
-    public void sync() throws IOException
+    public void sync(boolean flush) throws IOException
     {
-        segmentManager.sync();
+        segmentManager.sync(flush);
     }
 
     /**
