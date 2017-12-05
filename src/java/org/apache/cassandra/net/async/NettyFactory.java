@@ -248,7 +248,7 @@ public final class NettyFactory
         }
         else
         {
-            logger.debug("Creating SSL handler for %s:%d", peer.getHostString(), peer.getPort());
+            logger.debug("Creating SSL handler for {}:{}", peer.getHostString(), peer.getPort());
             SslHandler sslHandler = sslContext.newHandler(channel.alloc(), peer.getHostString(), peer.getPort());
             SSLEngine engine = sslHandler.engine();
             SSLParameters sslParameters = engine.getSSLParameters();
