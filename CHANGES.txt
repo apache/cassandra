@@ -1,4 +1,5 @@
 2.2.12
+ * Fix race that prevents submitting compaction for a table when executor is full (CASSANDRA-13801)
  * Rely on the JVM to handle OutOfMemoryErrors (CASSANDRA-13006)
  * Grab refs during scrub/index redistribution/cleanup (CASSANDRA-13873)
 
