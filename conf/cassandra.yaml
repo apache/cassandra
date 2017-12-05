@@ -375,9 +375,17 @@ counter_cache_save_period: 7200
 #
 # the default option is "periodic" where writes may be acked immediately
 # and the CommitLog is simply synced every commitlog_sync_period_in_ms
-# milliseconds. 
+# milliseconds.
 commitlog_sync: periodic
 commitlog_sync_period_in_ms: 10000
+
+# Time interval in millis at which we should update the chained markers in the commitlog.
+# This allows more of the commitlog to be replayed from the mmapped file
+# if the cassandra process crashes; this does not help in durability for surviving a host fail.
+# This value only makes sense if it is significantly less that commitlog_sync_period_in_ms,
+# and only applies to periodic mode when not using commitlog compression or encryption.
+# commitlog_marker_period_in_ms: 100
+
 
 # The size of the individual commitlog file segments.  A commitlog
 # segment may be archived, deleted, or recycled once all the data

@@ -167,7 +167,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
             .build().apply();
 
-        CommitLog.instance.sync();
+        CommitLog.instance.sync(true);
         CommitLogSegment currentSegment = CommitLog.instance.segmentManager.allocatingFrom();
         int syncOffset = currentSegment.lastSyncedOffset;
 
@@ -233,7 +233,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         Assert.assertFalse("Expected index file to not be created but found: " + cdcIndexFile, cdcIndexFile.exists());
 
         // Sync and confirm no index written as index is written on flush
-        CommitLog.instance.sync();
+        CommitLog.instance.sync(true);
         Assert.assertTrue("File does not exist: " + linked, Files.exists(linked));
         Assert.assertFalse("Expected index file to not be created but found: " + cdcIndexFile, cdcIndexFile.exists());
 
@@ -260,7 +260,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         Assert.assertTrue("File does not exist: " + linked, Files.exists(linked));
 
         // Sync and confirm index written as index is written on flush
-        CommitLog.instance.sync();
+        CommitLog.instance.sync(true);
         Assert.assertTrue("File does not exist: " + linked, Files.exists(linked));
         Assert.assertTrue("Expected cdc index file after flush but found none: " + cdcIndexFile, cdcIndexFile.exists());
 
@@ -293,7 +293,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             // pass
         }
 
-        CommitLog.instance.sync();
+        CommitLog.instance.sync(true);
         CommitLog.instance.stopUnsafe(false);
 
         // Build up a list of expected index files after replay and then clear out cdc_raw

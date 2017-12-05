@@ -341,7 +341,7 @@ public abstract class CommitLogTest
 
         // "Flush": this won't delete anything
         TableId id1 = rm.getTableIds().iterator().next();
-        CommitLog.instance.sync();
+        CommitLog.instance.sync(true);
         CommitLog.instance.discardCompletedSegments(id1, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
 
         assertEquals(1, CommitLog.instance.segmentManager.getActiveSegments().size());
@@ -676,7 +676,7 @@ public abstract class CommitLogTest
         cellCount += 1;
         CommitLog.instance.add(rm2);
 
-        CommitLog.instance.sync();
+        CommitLog.instance.sync(true);
 
         SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, CommitLogPosition.NONE, cfs.metadata());
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
@@ -713,7 +713,7 @@ public abstract class CommitLogTest
             }
         }
 
-        CommitLog.instance.sync();
+        CommitLog.instance.sync(true);
 
         SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, commitLogPosition, cfs.metadata());
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
@@ -806,7 +806,7 @@ public abstract class CommitLogTest
             DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
         }
 
-        CommitLog.instance.sync();
+        CommitLog.instance.sync(true);
         System.setProperty("cassandra.replayList", KEYSPACE1 + "." + STANDARD1);
         // Currently we don't attempt to re-flush a memtable that failed, thus make sure data is replayed by commitlog.
         // If retries work subsequent flushes should clear up error and this should change to expect 0.
@@ -839,7 +839,7 @@ public abstract class CommitLogTest
         for (SSTableReader reader : cfs.getLiveSSTables())
             reader.reloadSSTableMetadata();
 
-        CommitLog.instance.sync();
+        CommitLog.instance.sync(true);
         System.setProperty("cassandra.replayList", KEYSPACE1 + "." + STANDARD1);
         // In the absence of error, this should be 0 because forceBlockingFlush/forceRecycleAllSegments would have
         // persisted all data in the commit log. Because we know there was an error, there must be something left to

@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.utils.SyncUtil;
 
 /**
  * Writes to the backing commit log file only on sync, allowing transformations of the mutations,
@@ -61,6 +62,19 @@ public abstract class FileDirectSegment extends CommitLogSegment
         finally
         {
             manager.notifyBufferFreed();
+        }
+    }
+
+    @Override
+    protected void flush(int startMarker, int nextMarker)
+    {
+        try
+        {
+            SyncUtil.force(channel, true);
+        }
+        catch (Exception e)
+        {
+            throw new FSWriteError(e, getPath());
         }
     }
 }

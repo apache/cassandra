@@ -97,6 +97,12 @@ public abstract class CommitLogSegment
     @VisibleForTesting
     volatile int lastSyncedOffset;
 
+    /**
+     * Everything before this offset has it's markers written into the {@link #buffer}, but has not necessarily
+     * been flushed to disk. This value should be greater than or equal to {@link #lastSyncedOffset}.
+     */
+    private volatile int lastMarkerOffset;
+
     // The end position of the buffer. Initially set to its capacity and updated to point to the last written position
     // as the segment is being closed.
     // No need to be volatile as writes are protected by appendOrder barrier.
@@ -184,7 +190,8 @@ public abstract class CommitLogSegment
     {
         CommitLogDescriptor.writeHeader(buffer, descriptor, additionalHeaderParameters());
         endOfBuffer = buffer.capacity();
-        lastSyncedOffset = buffer.position();
+
+        lastSyncedOffset = lastMarkerOffset = buffer.position();
         allocatePosition.set(lastSyncedOffset + SYNC_MARKER_SIZE);
         headerWritten = true;
     }
@@ -261,7 +268,7 @@ public abstract class CommitLogSegment
     // ensures no more of this segment is writeable, by allocating any unused section at the end and marking it discarded
     void discardUnusedTail()
     {
-        // We guard this with the OpOrdering instead of synchronised due to potential dead-lock with CLSM.advanceAllocatingFrom()
+        // We guard this with the OpOrdering instead of synchronised due to potential dead-lock with ACLSM.advanceAllocatingFrom()
         // Ensures endOfBuffer update is reflected in the buffer end position picked up by sync().
         // This actually isn't strictly necessary, as currently all calls to discardUnusedTail are executed either by the thread
         // running sync or within a mutation already protected by this OpOrdering, but to prevent future potential mistakes,
@@ -300,15 +307,20 @@ public abstract class CommitLogSegment
     }
 
     /**
-     * Forces a disk flush for this segment file.
+     * Update the chained markers in the commit log buffer and possibly force a disk flush for this segment file.
+     *
+     * @param flush true if the segment should flush to disk; else, false for just updating the chained markers.
      */
-    synchronized void sync()
+    synchronized void sync(boolean flush)
     {
         if (!headerWritten)
             throw new IllegalStateException("commit log header has not been written");
-        boolean close = false;
+        assert lastMarkerOffset >= lastSyncedOffset : String.format("commit log segment positions are incorrect: last marked = %d, last synced = %d",
+                                                                    lastMarkerOffset, lastSyncedOffset);
         // check we have more work to do
-        if (allocatePosition.get() <= lastSyncedOffset + SYNC_MARKER_SIZE)
+        final boolean needToMarkData = allocatePosition.get() > lastMarkerOffset + SYNC_MARKER_SIZE;
+        final boolean hasDataToFlush = lastSyncedOffset != lastMarkerOffset;
+        if (!(needToMarkData || hasDataToFlush))
             return;
         // Note: Even if the very first allocation of this sync section failed, we still want to enter this
         // to ensure the segment is closed. As allocatePosition is set to 1 beyond the capacity of the buffer,
@@ -316,34 +328,50 @@ public abstract class CommitLogSegment
         // succeeded in the previous sync.
         assert buffer != null;  // Only close once.
 
-        int startMarker = lastSyncedOffset;
-        // Allocate a new sync marker; this is both necessary in itself, but also serves to demarcate
-        // the point at which we can safely consider records to have been completely written to.
-        int nextMarker = allocate(SYNC_MARKER_SIZE);
-        if (nextMarker < 0)
+        boolean close = false;
+        int startMarker = lastMarkerOffset;
+        int nextMarker, sectionEnd;
+        if (needToMarkData)
         {
-            // Ensure no more of this CLS is writeable, and mark ourselves for closing.
-            discardUnusedTail();
-            close = true;
+            // Allocate a new sync marker; this is both necessary in itself, but also serves to demarcate
+            // the point at which we can safely consider records to have been completely written to.
+            nextMarker = allocate(SYNC_MARKER_SIZE);
+            if (nextMarker < 0)
+            {
+                // Ensure no more of this CLS is writeable, and mark ourselves for closing.
+                discardUnusedTail();
+                close = true;
 
-            // We use the buffer size as the synced position after a close instead of the end of the actual data
-            // to make sure we only close the buffer once.
-            // The endOfBuffer position may be incorrect at this point (to be written by another stalled thread).
-            nextMarker = buffer.capacity();
+                // We use the buffer size as the synced position after a close instead of the end of the actual data
+                // to make sure we only close the buffer once.
+                // The endOfBuffer position may be incorrect at this point (to be written by another stalled thread).
+                nextMarker = buffer.capacity();
+            }
+            // Wait for mutations to complete as well as endOfBuffer to have been written.
+            waitForModifications();
+            sectionEnd = close ? endOfBuffer : nextMarker;
+
+            // Possibly perform compression or encryption and update the chained markers
+            write(startMarker, sectionEnd);
+            lastMarkerOffset = sectionEnd;
+        }
+        else
+        {
+            // note: we don't need to waitForModifications() as, once we get to this block, we are only doing the flush
+            // and any mutations have already been fully written into the segment (as we wait for it in the previous block).
+            nextMarker = lastMarkerOffset;
+            sectionEnd = nextMarker;
         }
 
-        // Wait for mutations to complete as well as endOfBuffer to have been written.
-        waitForModifications();
-        int sectionEnd = close ? endOfBuffer : nextMarker;
 
-        // Possibly perform compression or encryption, writing to file and flush.
-        write(startMarker, sectionEnd);
+        if (flush || close)
+        {
+            flush(startMarker, sectionEnd);
+            if (cdcState == CDCState.CONTAINS)
+                writeCDCIndexFile(descriptor, sectionEnd, close);
+            lastSyncedOffset = lastMarkerOffset = nextMarker;
+        }
 
-        if (cdcState == CDCState.CONTAINS)
-            writeCDCIndexFile(descriptor, sectionEnd, close);
-
-        // Signal the sync as complete.
-        lastSyncedOffset = nextMarker;
         if (close)
             internalClose();
         syncComplete.signalAll();
@@ -393,6 +421,8 @@ public abstract class CommitLogSegment
     }
 
     abstract void write(int lastSyncedOffset, int nextMarker);
+
+    abstract void flush(int startMarker, int nextMarker);
 
     public boolean isStillAllocating()
     {
@@ -488,7 +518,7 @@ public abstract class CommitLogSegment
     synchronized void close()
     {
         discardUnusedTail();
-        sync();
+        sync(true);
         assert buffer == null;
     }
 

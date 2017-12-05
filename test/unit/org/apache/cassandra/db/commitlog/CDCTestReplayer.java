@@ -39,7 +39,7 @@ public class CDCTestReplayer extends CommitLogReplayer
     public CDCTestReplayer() throws IOException
     {
         super(CommitLog.instance, CommitLogPosition.NONE, null, ReplayFilter.create());
-        CommitLog.instance.sync();
+        CommitLog.instance.sync(true);
         commitLogReader = new CommitLogTestReader();
     }
 
