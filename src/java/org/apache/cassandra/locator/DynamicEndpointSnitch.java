@@ -316,16 +316,21 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         // We're going to weight the latency for each host against the worst one we see, to
         // arrive at sort of a 'badness percentage' for them. First, find the worst for each:
         HashMap<InetAddress, Double> newScores = new HashMap<>();
+        Double[] medians = new Double[samples.size()]; // cache for medians
+        int i = 0;
         for (Map.Entry<InetAddress, ExponentiallyDecayingReservoir> entry : samples.entrySet())
         {
-            double mean = entry.getValue().getSnapshot().getMedian();
-            if (mean > maxLatency)
-                maxLatency = mean;
+            double median = entry.getValue().getSnapshot().getMedian();
+            medians[i++] = median;
+            if (median > maxLatency)
+                maxLatency = median;
         }
+        i = 0;
         // now make another pass to do the weighting based on the maximums we found before
         for (Map.Entry<InetAddress, ExponentiallyDecayingReservoir> entry: samples.entrySet())
         {
-            double score = entry.getValue().getSnapshot().getMedian() / maxLatency;
+            // We have the same order of medians here as before
+            double score = medians[i++] / maxLatency;
             // finally, add the severity without any weighting, since hosts scale this relative to their own load and the size of the task causing the severity.
             // "Severity" is basically a measure of compaction activity (CASSANDRA-3722).
             if (USE_SEVERITY)
