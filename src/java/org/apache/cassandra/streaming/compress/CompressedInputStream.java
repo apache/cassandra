@@ -136,7 +136,8 @@ public class CompressedInputStream extends InputStream
         totalCompressedBytesRead += compressed.length;
 
         // validate crc randomly
-        if (this.crcCheckChanceSupplier.get() > ThreadLocalRandom.current().nextDouble())
+        if (this.crcCheckChanceSupplier.get() >= 1d ||
+            this.crcCheckChanceSupplier.get() > ThreadLocalRandom.current().nextDouble())
         {
             checksum.update(compressed, 0, compressed.length - checksumBytes.length);
 

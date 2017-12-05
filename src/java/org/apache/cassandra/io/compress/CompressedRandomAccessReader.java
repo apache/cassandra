@@ -129,7 +129,8 @@ public class CompressedRandomAccessReader extends RandomAccessReader
                 buffer.flip();
             }
 
-            if (getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
+            if (getCrcCheckChance() >= 1d ||
+                getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
             {
                 compressed.rewind();
                 metadata.checksumType.update( checksum, (compressed));
@@ -191,7 +192,8 @@ public class CompressedRandomAccessReader extends RandomAccessReader
                 buffer.flip();
             }
 
-            if (getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
+            if (getCrcCheckChance() >= 1d ||
+                getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
             {
                 compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
 
