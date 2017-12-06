@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.*;
 import org.junit.Test;
-
-import static junit.framework.Assert.*;
 
 public class SimpleQueryTest extends CQLTester
 {
@@ -529,4 +526,24 @@ public class SimpleQueryTest extends CQLTester
             row(0, 0, 0, 0)
         );
     }
+
+    @Test
+    public void testSStableTimestampOrdering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 int, v1 int, v2 int, PRIMARY KEY (k1))");
+        disableCompaction();
+
+        // sstable1
+        execute("INSERT INTO %s(k1,v1,v2) VALUES(1,1,1)  USING TIMESTAMP 5");
+        flush();
+
+        // sstable2
+        execute("INSERT INTO %s(k1,v1,v2) VALUES(1,1,2)  USING TIMESTAMP 8");
+        flush();
+
+        execute("INSERT INTO %s(k1) VALUES(1)  USING TIMESTAMP 7");
+        execute("DELETE FROM %s USING TIMESTAMP 6 WHERE k1 = 1");
+
+        assertRows(execute("SELECT * FROM %s WHERE k1=1"), row(1, 1, 2));
+    } 
 }
