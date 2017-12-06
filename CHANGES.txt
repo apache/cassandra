@@ -8,6 +8,7 @@
  * Avoid locks when checking LCS fanout and if we should defrag (CASSANDRA-13930)
 Merged from 3.0:
 3.0.16
+ * Fix updating base table rows with TTL not removing view entries (CASSANDRA-14071)
  * Reduce garbage created by DynamicSnitch (CASSANDRA-14091)
  * More frequent commitlog chained markers (CASSANDRA-13987)
  * Fix serialized size of DataLimits (CASSANDRA-14057)
