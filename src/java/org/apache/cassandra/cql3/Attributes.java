@@ -34,6 +34,12 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class Attributes
 {
+    /**
+     * If this limit is ever raised, make sure @{@link Integer#MAX_VALUE} is not allowed,
+     * as this is used as a flag to represent expired liveness.
+     *
+     * See {@link org.apache.cassandra.db.LivenessInfo#EXPIRED_LIVENESS_TTL}
+     */
     public static final int MAX_TTL = 20 * 365 * 24 * 60 * 60; // 20 years in seconds
 
     private final Term timestamp;

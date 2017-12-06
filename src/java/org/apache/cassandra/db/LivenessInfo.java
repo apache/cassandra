@@ -41,6 +41,13 @@ public class LivenessInfo
 {
     public static final long NO_TIMESTAMP = Long.MIN_VALUE;
     public static final int NO_TTL = 0;
+    /**
+     * Used as flag for representing an expired liveness.
+     *
+     * TTL per request is at most 20 yrs, so this shouldn't conflict
+     * (See {@link org.apache.cassandra.cql3.Attributes#MAX_TTL})
+     */
+    public static final int EXPIRED_LIVENESS_TTL = Integer.MAX_VALUE;
     public static final int NO_EXPIRATION_TIME = Integer.MAX_VALUE;
 
     public static final LivenessInfo EMPTY = new LivenessInfo(NO_TIMESTAMP);
@@ -59,6 +66,7 @@ public class LivenessInfo
 
     public static LivenessInfo expiring(long timestamp, int ttl, int nowInSec)
     {
+        assert ttl != EXPIRED_LIVENESS_TTL;
         return new ExpiringLivenessInfo(timestamp, ttl, nowInSec + ttl);
     }
 
@@ -73,6 +81,8 @@ public class LivenessInfo
     // Use when you know that's what you want.
     public static LivenessInfo withExpirationTime(long timestamp, int ttl, int localExpirationTime)
     {
+        if (ttl == EXPIRED_LIVENESS_TTL)
+            return new ExpiredLivenessInfo(timestamp, ttl, localExpirationTime);
         return ttl == NO_TTL ? new LivenessInfo(timestamp) : new ExpiringLivenessInfo(timestamp, ttl, localExpirationTime);
     }
 
@@ -174,11 +184,15 @@ public class LivenessInfo
      *
      * </br>
      *
-     * If timestamps are the same, livenessInfo with greater TTL supersedes another.
+     * If timestamps are the same and none of them are expired livenessInfo,
+     * livenessInfo with greater TTL supersedes another. It also means, if timestamps are the same,
+     * ttl superseders no-ttl. This is the same rule as {@link Conflicts#resolveRegular}
      *
-     * It also means, if timestamps are the same, ttl superseders no-ttl.
+     * If timestamps are the same and one of them is expired livenessInfo. Expired livenessInfo
+     * supersedes, ie. tombstone supersedes.
      *
-     * This is the same rule as {@link Conflicts#resolveRegular}
+     * If timestamps are the same and both of them are expired livenessInfo(Ideally it shouldn't happen),
+     * greater localDeletionTime wins.
      *
      * @param other
      *            the {@code LivenessInfo} to compare this info to.
@@ -189,9 +203,16 @@ public class LivenessInfo
     {
         if (timestamp != other.timestamp)
             return timestamp > other.timestamp;
+        if (isExpired() ^ other.isExpired())
+            return isExpired();
         if (isExpiring() == other.isExpiring())
             return localExpirationTime() > other.localExpirationTime();
         return isExpiring();
+    }
+
+    protected boolean isExpired()
+    {
+        return false;
     }
 
     /**
@@ -229,6 +250,41 @@ public class LivenessInfo
     public int hashCode()
     {
         return Objects.hash(timestamp(), ttl(), localExpirationTime());
+    }
+
+    /**
+     * Effectively acts as a PK tombstone. This is used for Materialized Views to shadow
+     * updated entries while co-existing with row tombstones.
+     *
+     * See {@link org.apache.cassandra.db.view.ViewUpdateGenerator#deleteOldEntryInternal}.
+     */
+    private static class ExpiredLivenessInfo extends ExpiringLivenessInfo
+    {
+        private ExpiredLivenessInfo(long timestamp, int ttl, int localExpirationTime)
+        {
+            super(timestamp, ttl, localExpirationTime);
+            assert ttl == EXPIRED_LIVENESS_TTL;
+            assert timestamp != NO_TIMESTAMP;
+        }
+
+        @Override
+        public boolean isExpired()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean isLive(int nowInSec)
+        {
+            // used as tombstone to shadow entire PK
+            return false;
+        }
+
+        @Override
+        public LivenessInfo withUpdatedTimestamp(long newTimestamp)
+        {
+            return new ExpiredLivenessInfo(newTimestamp, ttl(), localExpirationTime());
+        }
     }
 
     private static class ExpiringLivenessInfo extends LivenessInfo
