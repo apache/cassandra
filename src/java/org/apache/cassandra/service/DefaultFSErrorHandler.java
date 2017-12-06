@@ -46,14 +46,19 @@ public class DefaultFSErrorHandler implements FSErrorHandler
         if (!StorageService.instance.isDaemonSetupCompleted())
             handleStartupFSError(e);
 
-        switch (DatabaseDescriptor.getDiskFailurePolicy())
+        switch (DatabaseDescriptor.getCorruptSSTablePolicy())
         {
             case die:
-            case stop_paranoid:
+            case stop:
                 // exception not logged here on purpose as it is already logged
-                logger.error("Stopping transports as disk_failure_policy is " + DatabaseDescriptor.getDiskFailurePolicy());
+                logger.error("Stopping transports as getCorruptSSTablePolicy is " + DatabaseDescriptor.getCorruptSSTablePolicy());
                 StorageService.instance.stopTransports();
                 break;
+            case ignore:
+                // already logged, so left nothing to do
+                break;
+            default:
+                throw new IllegalStateException();
         }
     }
 

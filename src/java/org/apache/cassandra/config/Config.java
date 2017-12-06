@@ -111,6 +111,7 @@ public class Config
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
 
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
+    public CorruptSSTablePolicy corrupt_sstable_policy = CorruptSSTablePolicy.ignore;
     public CommitFailurePolicy commit_failure_policy = CommitFailurePolicy.stop;
 
     public volatile boolean use_deterministic_table_id = false;
@@ -1114,6 +1115,13 @@ public class Config
         stop,
         ignore,
         stop_paranoid,
+        die
+    }
+
+    public enum CorruptSSTablePolicy
+    {
+        stop,
+        ignore,
         die
     }
 

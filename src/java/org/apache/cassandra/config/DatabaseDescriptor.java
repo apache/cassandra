@@ -3061,6 +3061,16 @@ public class DatabaseDescriptor
         return conf.disk_failure_policy;
     }
 
+    public static void setCorruptSSTablePolicy(Config.CorruptSSTablePolicy policy)
+    {
+        conf.corrupt_sstable_policy = policy;
+    }
+
+    public static Config.CorruptSSTablePolicy getCorruptSSTablePolicy()
+    {
+        return conf.corrupt_sstable_policy;
+    }
+
     public static void setCommitFailurePolicy(Config.CommitFailurePolicy policy)
     {
         conf.commit_failure_policy = policy;

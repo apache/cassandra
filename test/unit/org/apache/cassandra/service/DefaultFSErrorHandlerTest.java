@@ -47,9 +47,9 @@ public class DefaultFSErrorHandlerTest
 {
     private FSErrorHandler handler = new DefaultFSErrorHandler();
     Config.DiskFailurePolicy oldDiskPolicy;
-    Config.DiskFailurePolicy testDiskPolicy;
-    private boolean gossipRunningFSError;
-    private boolean gossipRunningCorruptedSStableException;
+    Config.CorruptSSTablePolicy oldSSTablePolicy;
+    Object testPolicy;
+    private boolean gossipRunning;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -75,25 +75,28 @@ public class DefaultFSErrorHandlerTest
         oldDiskPolicy = DatabaseDescriptor.getDiskFailurePolicy();
     }
 
-    public DefaultFSErrorHandlerTest(Config.DiskFailurePolicy policy,
-                                     boolean gossipRunningFSError,
-                                     boolean gossipRunningCorruptedSStableException)
+    public DefaultFSErrorHandlerTest(Object policy,
+                                     boolean gossipRunning)
     {
-        this.testDiskPolicy = policy;
-        this.gossipRunningFSError = gossipRunningFSError;
-        this.gossipRunningCorruptedSStableException = gossipRunningCorruptedSStableException;
+        this.testPolicy = policy;
+        this.gossipRunning = gossipRunning;
     }
 
     @Parameterized.Parameters
     public static Collection<Object[]> generateData()
     {
         return Arrays.asList(new Object[][]{
-                             { Config.DiskFailurePolicy.die, false, false},
-                             { Config.DiskFailurePolicy.ignore, true, true},
-                             { Config.DiskFailurePolicy.stop, false,  true},
-                             { Config.DiskFailurePolicy.stop_paranoid, false, false},
-                             { Config.DiskFailurePolicy.best_effort, true, true}
-                             }
+            // tests for disk failure policies
+            {Config.DiskFailurePolicy.die, false},
+            {Config.DiskFailurePolicy.ignore, true},
+            {Config.DiskFailurePolicy.stop, false},
+            {Config.DiskFailurePolicy.stop_paranoid, false},
+            {Config.DiskFailurePolicy.best_effort, true},
+            // tests for corrupted SSTable policies
+            {Config.CorruptSSTablePolicy.ignore, true},
+            {Config.CorruptSSTablePolicy.stop, false},
+            {Config.CorruptSSTablePolicy.die, false},
+        }
         );
     }
 
@@ -101,21 +104,26 @@ public class DefaultFSErrorHandlerTest
     public void teardown()
     {
         DatabaseDescriptor.setDiskFailurePolicy(oldDiskPolicy);
+        DatabaseDescriptor.setCorruptSSTablePolicy(oldSSTablePolicy);
     }
 
     @Test
     public void testFSErrors()
     {
-        DatabaseDescriptor.setDiskFailurePolicy(testDiskPolicy);
-        handler.handleFSError(new FSReadError(new IOException(), "blah"));
-        assertEquals(gossipRunningFSError, Gossiper.instance.isEnabled());
+        if (testPolicy instanceof Config.DiskFailurePolicy) {
+            DatabaseDescriptor.setDiskFailurePolicy((Config.DiskFailurePolicy)testPolicy);
+            handler.handleFSError(new FSReadError(new IOException(), "blah"));
+            assertEquals(gossipRunning, Gossiper.instance.isEnabled());
+        }
     }
 
     @Test
     public void testCorruptSSTableException()
     {
-        DatabaseDescriptor.setDiskFailurePolicy(testDiskPolicy);
-        handler.handleCorruptSSTable(new CorruptSSTableException(new IOException(), "blah"));
-        assertEquals(gossipRunningCorruptedSStableException, Gossiper.instance.isEnabled());
+        if (testPolicy instanceof Config.CorruptSSTablePolicy) {
+            DatabaseDescriptor.setCorruptSSTablePolicy((Config.CorruptSSTablePolicy) testPolicy);
+            handler.handleCorruptSSTable(new CorruptSSTableException(new IOException(), "blah"));
+            assertEquals(gossipRunning, Gossiper.instance.isEnabled());
+        }
     }
 }

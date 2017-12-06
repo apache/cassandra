@@ -136,9 +136,13 @@ public final class JVMStabilityInspector
         if (t instanceof InterruptedException)
             throw new UncheckedInterruptedException((InterruptedException) t);
 
-        if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
-            if (t instanceof FSError || t instanceof CorruptSSTableException)
-                isUnstable = true;
+        if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die
+            && t instanceof FSError)
+            isUnstable = true;
+
+        if (DatabaseDescriptor.getCorruptSSTablePolicy() == Config.CorruptSSTablePolicy.die
+            && t instanceof CorruptSSTableException)
+            isUnstable = true;
 
         // Check for file handle exhaustion
         if (t instanceof FileNotFoundException || t instanceof FileSystemException || t instanceof SocketException)

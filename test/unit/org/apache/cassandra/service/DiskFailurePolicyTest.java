@@ -31,6 +31,7 @@ import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
+import org.apache.cassandra.config.Config.CorruptSSTablePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DisallowedDirectories;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -42,11 +43,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 
-import static org.apache.cassandra.config.Config.DiskFailurePolicy.best_effort;
-import static org.apache.cassandra.config.Config.DiskFailurePolicy.die;
-import static org.apache.cassandra.config.Config.DiskFailurePolicy.ignore;
-import static org.apache.cassandra.config.Config.DiskFailurePolicy.stop;
-import static org.apache.cassandra.config.Config.DiskFailurePolicy.stop_paranoid;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -55,9 +51,10 @@ import static org.junit.Assert.assertTrue;
 public class DiskFailurePolicyTest
 {
     DiskFailurePolicy originalDiskFailurePolicy;
+    CorruptSSTablePolicy originalCorruptSSTablePolicy;
     JVMStabilityInspector.Killer originalKiller;
     KillerForTests killerForTests;
-    DiskFailurePolicy testPolicy;
+    Object testPolicy;
     boolean isStartUpInProgress;
     Throwable t;
     boolean expectGossipRunning;
@@ -73,7 +70,7 @@ public class DiskFailurePolicyTest
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
     }
 
-    public DiskFailurePolicyTest(DiskFailurePolicy testPolicy, boolean isStartUpInProgress, Throwable t,
+    public DiskFailurePolicyTest(Object testPolicy, boolean isStartUpInProgress, Throwable t,
                                  boolean expectGossipRunning, boolean jvmKilled, boolean jvmKilledQuiet)
     {
         this.testPolicy = testPolicy;
@@ -88,26 +85,27 @@ public class DiskFailurePolicyTest
     public static Collection<Object[]> generateData()
     {
         return Arrays.asList(new Object[][]{
-                             { die, true, new FSReadError(new IOException(), "blah"), false, true, true},
-                             { ignore, true, new FSReadError(new IOException(), "blah"), true, false, false},
-                             { stop, true, new FSReadError(new IOException(), "blah"), false, true, true},
-                             { stop_paranoid, true, new FSReadError(new IOException(), "blah"), false, true, true},
-                             { die, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
-                             { ignore, true, new CorruptSSTableException(new IOException(), "blah"), true, false, false},
-                             { stop, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
-                             { stop_paranoid, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
-                             { die, false, new FSReadError(new IOException(), "blah"), false, true, false},
-                             { ignore, false, new FSReadError(new IOException(), "blah"), true, false, false},
-                             { stop, false, new FSReadError(new IOException(), "blah"), false, false, false},
-                             { stop_paranoid, false, new FSReadError(new IOException(), "blah"), false, false, false},
-                             { die, false, new CorruptSSTableException(new IOException(), "blah"), false, true, false},
-                             { ignore, false, new CorruptSSTableException(new IOException(), "blah"), true, false, false},
-                             { stop, false, new CorruptSSTableException(new IOException(), "blah"), true, false, false},
-                             { stop_paranoid, false, new CorruptSSTableException(new IOException(), "blah"), false, false, false},
-                             { best_effort, false, new FSReadError(new IOException(new OutOfMemoryError("Java heap space")), "best_effort_oom"), true, false, false},
-                             { best_effort, false, new FSReadError(new IOException(), "best_effort_io_exception"), true, false, false},
-                             }
-        );
+            // startup in progress
+            {DiskFailurePolicy.die, true, new FSReadError(new IOException(), "blah"), false, true, true},
+            {DiskFailurePolicy.ignore, true, new FSReadError(new IOException(), "blah"), true, false, false},
+            {DiskFailurePolicy.stop, true, new FSReadError(new IOException(), "blah"), false, true, true},
+            {DiskFailurePolicy.stop_paranoid, true, new FSReadError(new IOException(), "blah"), false, true, true},
+            {DiskFailurePolicy.die, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
+            {DiskFailurePolicy.ignore, true, new CorruptSSTableException(new IOException(), "blah"), true, false, false},
+            {DiskFailurePolicy.stop, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
+            {DiskFailurePolicy.stop_paranoid, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
+            // startup done
+            {DiskFailurePolicy.die, false, new FSReadError(new IOException(), "blah"), false, true, false},
+            {DiskFailurePolicy.ignore, false, new FSReadError(new IOException(), "blah"), true, false, false},
+            {DiskFailurePolicy.stop, false, new FSReadError(new IOException(), "blah"), false, false, false},
+            {DiskFailurePolicy.stop_paranoid, false, new FSReadError(new IOException(), "blah"), false, false, false},
+            // after startup is done, CorruptSSTableException is handled by CorruptSSTablePolicy
+            {CorruptSSTablePolicy.die, false, new CorruptSSTableException(new IOException(), "blah"), false, true, false},
+            {CorruptSSTablePolicy.ignore, false, new CorruptSSTableException(new IOException(), "blah"), true, false, false},
+            {CorruptSSTablePolicy.stop, false, new CorruptSSTableException(new IOException(), "blah"), false, false, false},
+            {DiskFailurePolicy.best_effort, false, new FSReadError(new IOException(new OutOfMemoryError("Java heap space")), "best_effort_oom"), true, false, false},
+            {DiskFailurePolicy.best_effort, false, new FSReadError(new IOException(), "best_effort_io_exception"), true, false, false},
+        });
     }
 
     @Before
@@ -120,6 +118,7 @@ public class DiskFailurePolicyTest
         killerForTests = new KillerForTests();
         originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         originalDiskFailurePolicy = DatabaseDescriptor.getDiskFailurePolicy();
+        originalCorruptSSTablePolicy = DatabaseDescriptor.getCorruptSSTablePolicy();
         StorageService.instance.startGossiping();
         assertTrue(Gossiper.instance.isEnabled());
     }
@@ -129,19 +128,25 @@ public class DiskFailurePolicyTest
     {
         JVMStabilityInspector.replaceKiller(originalKiller);
         DatabaseDescriptor.setDiskFailurePolicy(originalDiskFailurePolicy);
+        DatabaseDescriptor.setCorruptSSTablePolicy(originalCorruptSSTablePolicy);
     }
 
     @Test
     public void testPolicies()
     {
-        DatabaseDescriptor.setDiskFailurePolicy(testPolicy);
+        if (testPolicy instanceof DiskFailurePolicy) {
+            DatabaseDescriptor.setDiskFailurePolicy((DiskFailurePolicy) testPolicy);
+        }
+        if (testPolicy instanceof CorruptSSTablePolicy) {
+            DatabaseDescriptor.setCorruptSSTablePolicy((CorruptSSTablePolicy) testPolicy);
+        }
         try
         {
             JVMStabilityInspector.inspectThrowable(t);
         }
         catch (OutOfMemoryError e)
         {
-            if (testPolicy == best_effort)
+            if (testPolicy == DiskFailurePolicy.best_effort)
             {
                 if (t.getCause().getCause() != e)
                     throw e;
@@ -150,11 +155,11 @@ public class DiskFailurePolicyTest
                 throw e;
         }
 
-        if (testPolicy == best_effort && ((FSReadError) t).path.equals("best_effort_io_exception"))
+        if (testPolicy == DiskFailurePolicy.best_effort && ((FSReadError) t).path.equals("best_effort_io_exception"))
             assertTrue(DisallowedDirectories.isUnreadable(new File("best_effort_io_exception")));
 
         // when we have OOM, as cause, there is no reason to remove data
-        if (testPolicy == best_effort && ((FSReadError) t).path.equals("best_effort_oom"))
+        if (testPolicy == DiskFailurePolicy.best_effort && ((FSReadError) t).path.equals("best_effort_oom"))
             assertFalse(DisallowedDirectories.isUnreadable(new File("best_effort_oom")));
 
         assertEquals(expectJVMKilled, killerForTests.wasKilled());

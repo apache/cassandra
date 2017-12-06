@@ -358,6 +358,19 @@ cdc_enabled: false
 #    ignore fatal errors and let requests fail, as in pre-1.2 Cassandra
 disk_failure_policy: stop
 
+# policy for corrupted SSTable exception:
+#
+# die
+#   shut down gossip and client transports and kill the JVM
+#
+# stop
+#   shut down gossip and client transports, leaving the node effectively dead, but can
+#   still be inspected via JMX.
+#
+# ignore
+#   ignore CorruptSSTableException, an exception is logged.
+corrupt_sstable_policy: ignore
+
 # Policy for commit disk failures:
 #
 # die

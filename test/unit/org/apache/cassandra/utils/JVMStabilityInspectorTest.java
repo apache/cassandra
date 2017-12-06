@@ -59,6 +59,7 @@ public class JVMStabilityInspectorTest
 
         Config.DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
         Config.CommitFailurePolicy oldCommitPolicy = DatabaseDescriptor.getCommitFailurePolicy();
+        Config.CorruptSSTablePolicy oldCorruptSSTablePolicy = DatabaseDescriptor.getCorruptSSTablePolicy();
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
         try
         {
@@ -85,14 +86,6 @@ public class JVMStabilityInspectorTest
                     JVMStabilityInspector.inspectThrowable(new FSWriteError(new IOException(), "blah"));
                     assertTrue(killerForTests.wasKilled());
 
-                    killerForTests.reset();
-                    JVMStabilityInspector.inspectThrowable(new CorruptSSTableException(new IOException(), "blah"));
-                    assertTrue(killerForTests.wasKilled());
-
-                    killerForTests.reset();
-                    JVMStabilityInspector.inspectThrowable(new RuntimeException(new CorruptSSTableException(new IOException(), "blah")));
-                    assertTrue(killerForTests.wasKilled());
-
                     DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.die);
                     killerForTests.reset();
                     JVMStabilityInspector.inspectCommitLogThrowable(new Throwable());
@@ -101,6 +94,29 @@ public class JVMStabilityInspectorTest
                     killerForTests.reset();
                     JVMStabilityInspector.inspectThrowable(new Exception(new IOException()));
                     assertFalse(killerForTests.wasKilled());
+
+                    // If daemonSetup hasn't completed, the behavior is the same as DiskFailurePolicy
+                    // Corrupt SSTable Policy is effective only after startup
+                    DatabaseDescriptor.setCorruptSSTablePolicy(oldCorruptSSTablePolicy);
+                    killerForTests.reset();
+                    JVMStabilityInspector.inspectThrowable(new CorruptSSTableException(new IOException(), "blah"));
+                    if (daemonSetupCompleted) {
+                        assertFalse(killerForTests.wasKilled());
+                    }
+
+                    DatabaseDescriptor.setCorruptSSTablePolicy(Config.CorruptSSTablePolicy.stop);
+                    killerForTests.reset();
+                    JVMStabilityInspector.inspectThrowable(new CorruptSSTableException(new IOException(), "blah"));
+                    if (daemonSetupCompleted) {
+                        assertFalse(killerForTests.wasKilled());
+                    }
+
+                    DatabaseDescriptor.setCorruptSSTablePolicy(Config.CorruptSSTablePolicy.die);
+                    killerForTests.reset();
+                    JVMStabilityInspector.inspectThrowable(new CorruptSSTableException(new IOException(), "blah"));
+                    if (daemonSetupCompleted) {
+                        assertTrue(killerForTests.wasKilled());
+                    }
                 }
                 catch (Exception | Error e)
                 {
@@ -113,6 +129,7 @@ public class JVMStabilityInspectorTest
             JVMStabilityInspector.replaceKiller(originalKiller);
             DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
             DatabaseDescriptor.setCommitFailurePolicy(oldCommitPolicy);
+            DatabaseDescriptor.setCorruptSSTablePolicy(oldCorruptSSTablePolicy);
             StorageService.instance.registerDaemon(null);
             FileUtils.setFSErrorHandler(null);
         }
