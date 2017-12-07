@@ -16,6 +16,6 @@
 
 Overview
 --------
-The following describes the basica Structure of a Cassandra Cluster.
+The following describes the basic Structure of a Cassandra Cluster.
 
 ^^^^^
