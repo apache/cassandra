@@ -8,6 +8,7 @@
  * Avoid locks when checking LCS fanout and if we should defrag (CASSANDRA-13930)
 Merged from 3.0:
 3.0.16
+ * Fix SStable ordering by max timestamp in SinglePartitionReadCommand (CASSANDRA-14010)
  * Accept role names containing forward-slash (CASSANDRA-14088)
  * Optimize CRC check chance probability calculations (CASSANDRA-14094)
  * Fix cleanup on keyspace with no replicas (CASSANDRA-13526)
