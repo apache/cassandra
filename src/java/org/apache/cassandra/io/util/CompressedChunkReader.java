@@ -139,7 +139,8 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                     uncompressed.flip();
                 }
 
-                if (getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
+                if (getCrcCheckChance() >= 1d ||
+                    getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
                 {
                     compressed.rewind();
                     int checksum = (int) metadata.checksumType.of(compressed);
@@ -200,7 +201,8 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                     uncompressed.flip();
                 }
 
-                if (getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
+                if (getCrcCheckChance() >= 1d ||
+                    getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
                 {
                     compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
 
