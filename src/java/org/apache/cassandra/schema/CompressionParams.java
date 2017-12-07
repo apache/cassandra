@@ -540,7 +540,8 @@ public final class CompressionParams
     public boolean shouldCheckCrc()
     {
         double checkChance = getCrcCheckChance();
-        return checkChance > 0d && checkChance > ThreadLocalRandom.current().nextDouble();
+        return checkChance >= 1d ||
+               (checkChance > 0d && checkChance > ThreadLocalRandom.current().nextDouble());
     }
 
     @Override

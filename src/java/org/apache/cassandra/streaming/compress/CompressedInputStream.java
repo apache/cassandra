@@ -175,7 +175,8 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
 
         // validate crc randomly
         double crcCheckChance = this.crcCheckChanceSupplier.getAsDouble();
-        if (crcCheckChance > 0d && crcCheckChance > ThreadLocalRandom.current().nextDouble())
+        if (crcCheckChance >= 1d ||
+            (crcCheckChance > 0d && crcCheckChance > ThreadLocalRandom.current().nextDouble()))
         {
             ByteBuffer crcBuf = compressed.duplicate();
             crcBuf.limit(length - CHECKSUM_LENGTH).position(0);
