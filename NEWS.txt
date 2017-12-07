@@ -18,6 +18,10 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - An experimental option to compare all merkle trees together has been added - for example, in
+     a 3 node cluster with 2 replicas identical and 1 out-of-date, with this option enabled, the
+     out-of-date replica will only stream a single copy from up-to-date replica. Enable it by adding
+     "-os" to nodetool repair. See CASSANDRA-3200.
    - The currentTimestamp, currentDate, currentTime and currentTimeUUID functions have been added.
      See CASSANDRA-13132
    - Support for arithmetic operations between `timestamp`/`date` and `duration` has been added.

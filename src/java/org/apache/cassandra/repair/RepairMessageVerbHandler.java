@@ -144,8 +144,30 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     // forwarded sync request
                     SyncRequest request = (SyncRequest) message.payload;
                     logger.debug("Syncing {}", request);
-                    StreamingRepairTask task = new StreamingRepairTask(desc, request, isIncremental(desc.parentSessionId) ? desc.parentSessionId : null, request.previewKind);
+                    StreamingRepairTask task = new StreamingRepairTask(desc,
+                                                                       request.initiator,
+                                                                       request.src,
+                                                                       request.dst,
+                                                                       request.ranges,
+                                                                       isIncremental(desc.parentSessionId) ? desc.parentSessionId : null,
+                                                                       request.previewKind,
+                                                                       false);
                     task.run();
+                    break;
+
+                case ASYMMETRIC_SYNC_REQUEST:
+                    // forwarded sync request
+                    AsymmetricSyncRequest asymmetricSyncRequest = (AsymmetricSyncRequest) message.payload;
+                    logger.debug("Syncing {}", asymmetricSyncRequest);
+                    StreamingRepairTask asymmetricTask = new StreamingRepairTask(desc,
+                                                                                 asymmetricSyncRequest.initiator,
+                                                                                 asymmetricSyncRequest.fetchingNode,
+                                                                                 asymmetricSyncRequest.fetchFrom,
+                                                                                 asymmetricSyncRequest.ranges,
+                                                                                 isIncremental(desc.parentSessionId) ? desc.parentSessionId : null,
+                                                                                 asymmetricSyncRequest.previewKind,
+                                                                                 true);
+                    asymmetricTask.run();
                     break;
 
                 case CLEANUP:

@@ -104,10 +104,11 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     // Each validation task waits response from replica in validating ConcurrentMap (keyed by CF name and endpoint address)
     private final ConcurrentMap<Pair<RepairJobDesc, InetAddress>, ValidationTask> validating = new ConcurrentHashMap<>();
     // Remote syncing jobs wait response in syncingTasks map
-    private final ConcurrentMap<Pair<RepairJobDesc, NodePair>, RemoteSyncTask> syncingTasks = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Pair<RepairJobDesc, NodePair>, CompletableRemoteSyncTask> syncingTasks = new ConcurrentHashMap<>();
 
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
     public final ListeningExecutorService taskExecutor = MoreExecutors.listeningDecorator(DebuggableThreadPoolExecutor.createCachedThreadpoolWithMaxSize("RepairJobTask"));
+    private final boolean optimiseStreams;
 
     private volatile boolean terminated = false;
 
@@ -134,6 +135,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                          boolean pullRepair,
                          boolean force,
                          PreviewKind previewKind,
+                         boolean optimiseStreams,
                          String... cfnames)
     {
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
@@ -174,6 +176,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.previewKind = previewKind;
         this.pullRepair = pullRepair;
         this.skippedReplicas = forceSkippedReplicas;
+        this.optimiseStreams = optimiseStreams;
     }
 
     public UUID getId()
@@ -191,10 +194,11 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         validating.put(key, task);
     }
 
-    public void waitForSync(Pair<RepairJobDesc, NodePair> key, RemoteSyncTask task)
+    public void waitForSync(Pair<RepairJobDesc, NodePair> key, CompletableRemoteSyncTask task)
     {
         syncingTasks.put(key, task);
     }
+
 
     /**
      * Receive merkle tree response or failed response from {@code endpoint} for current repair job.
@@ -227,7 +231,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      */
     public void syncComplete(RepairJobDesc desc, NodePair nodes, boolean success, List<SessionSummary> summaries)
     {
-        RemoteSyncTask task = syncingTasks.get(Pair.create(desc, nodes));
+        CompletableRemoteSyncTask task = syncingTasks.get(Pair.create(desc, nodes));
         if (task == null)
         {
             assert terminated;
@@ -301,7 +305,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         List<ListenableFuture<RepairResult>> jobs = new ArrayList<>(cfnames.length);
         for (String cfname : cfnames)
         {
-            RepairJob job = new RepairJob(this, cfname, isIncremental, previewKind);
+            RepairJob job = new RepairJob(this, cfname, isIncremental, previewKind, optimiseStreams);
             executor.execute(job);
             jobs.add(job);
         }

@@ -66,7 +66,7 @@ public class RepairSessionTest
         RepairSession session = new RepairSession(parentSessionId, sessionId, Arrays.asList(repairRange),
                                                   "Keyspace1", RepairParallelism.SEQUENTIAL,
                                                   endpoints, false, false, false,
-                                                  PreviewKind.NONE, "Standard1");
+                                                  PreviewKind.NONE, false, "Standard1");
 
         // perform convict
         session.convict(remote, Double.MAX_VALUE);

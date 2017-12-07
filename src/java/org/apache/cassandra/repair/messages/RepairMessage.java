@@ -60,7 +60,8 @@ public abstract class RepairMessage
         FINALIZE_COMMIT(12, FinalizeCommit.serializer),
         FAILED_SESSION(13, FailSession.serializer),
         STATUS_REQUEST(14, StatusRequest.serializer),
-        STATUS_RESPONSE(15, StatusResponse.serializer);
+        STATUS_RESPONSE(15, StatusResponse.serializer),
+        ASYMMETRIC_SYNC_REQUEST(16, AsymmetricSyncRequest.serializer);
 
         private final byte type;
         private final MessageSerializer<RepairMessage> serializer;

@@ -19,7 +19,9 @@ package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
 import java.util.*;
+import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +29,13 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.repair.asymmetric.DifferenceHolder;
+import org.apache.cassandra.repair.asymmetric.HostDifferences;
+import org.apache.cassandra.repair.asymmetric.PreferedNodeFilter;
+import org.apache.cassandra.repair.asymmetric.ReduceHelper;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -45,6 +53,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     private final ListeningExecutorService taskExecutor;
     private final boolean isIncremental;
     private final PreviewKind previewKind;
+    private final boolean optimiseStreams;
 
     /**
      * Create repair job to run on specific columnfamily
@@ -52,7 +61,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      * @param session RepairSession that this RepairJob belongs
      * @param columnFamily name of the ColumnFamily to repair
      */
-    public RepairJob(RepairSession session, String columnFamily, boolean isIncremental, PreviewKind previewKind)
+    public RepairJob(RepairSession session, String columnFamily, boolean isIncremental, PreviewKind previewKind, boolean optimiseStreams)
     {
         this.session = session;
         this.desc = new RepairJobDesc(session.parentRepairSession, session.getId(), session.keyspace, columnFamily, session.getRanges());
@@ -60,6 +69,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         this.parallelismDegree = session.parallelismDegree;
         this.isIncremental = isIncremental;
         this.previewKind = previewKind;
+        this.optimiseStreams = optimiseStreams;
     }
 
     /**
@@ -118,39 +128,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         }
 
         // When all validations complete, submit sync tasks
-        ListenableFuture<List<SyncStat>> syncResults = Futures.transformAsync(validations, new AsyncFunction<List<TreeResponse>, List<SyncStat>>()
-        {
-            public ListenableFuture<List<SyncStat>> apply(List<TreeResponse> trees)
-            {
-                InetAddress local = FBUtilities.getLocalAddress();
-
-                List<SyncTask> syncTasks = new ArrayList<>();
-                // We need to difference all trees one against another
-                for (int i = 0; i < trees.size() - 1; ++i)
-                {
-                    TreeResponse r1 = trees.get(i);
-                    for (int j = i + 1; j < trees.size(); ++j)
-                    {
-                        TreeResponse r2 = trees.get(j);
-                        SyncTask task;
-                        if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
-                        {
-                            task = new LocalSyncTask(desc, r1, r2, isIncremental ? desc.parentSessionId : null, session.pullRepair, session.previewKind);
-                        }
-                        else
-                        {
-                            task = new RemoteSyncTask(desc, r1, r2, session.previewKind);
-                            // RemoteSyncTask expects SyncComplete message sent back.
-                            // Register task to RepairSession to receive response.
-                            session.waitForSync(Pair.create(desc, new NodePair(r1.endpoint, r2.endpoint)), (RemoteSyncTask) task);
-                        }
-                        syncTasks.add(task);
-                        taskExecutor.submit(task);
-                    }
-                }
-                return Futures.allAsList(syncTasks);
-            }
-        }, taskExecutor);
+        ListenableFuture<List<SyncStat>> syncResults = Futures.transformAsync(validations, optimiseStreams && !session.pullRepair ? optimisedSyncing() : standardSyncing(), taskExecutor);
 
         // When all sync complete, set the final result
         Futures.addCallback(syncResults, new FutureCallback<List<SyncStat>>()
@@ -180,6 +158,97 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 setException(t);
             }
         }, taskExecutor);
+    }
+
+    private AsyncFunction<List<TreeResponse>, List<SyncStat>> standardSyncing()
+    {
+        return trees ->
+        {
+            InetAddress local = FBUtilities.getLocalAddress();
+
+            List<SyncTask> syncTasks = new ArrayList<>();
+            // We need to difference all trees one against another
+            for (int i = 0; i < trees.size() - 1; ++i)
+            {
+                TreeResponse r1 = trees.get(i);
+                for (int j = i + 1; j < trees.size(); ++j)
+                {
+                    TreeResponse r2 = trees.get(j);
+                    SyncTask task;
+                    if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
+                    {
+                        task = new LocalSyncTask(desc, r1, r2, isIncremental ? desc.parentSessionId : null, session.pullRepair, session.previewKind);
+                    }
+                    else
+                    {
+                        task = new RemoteSyncTask(desc, r1, r2, session.previewKind);
+                        // RemoteSyncTask expects SyncComplete message sent back.
+                        // Register task to RepairSession to receive response.
+                        session.waitForSync(Pair.create(desc, new NodePair(r1.endpoint, r2.endpoint)), (RemoteSyncTask) task);
+                    }
+                    syncTasks.add(task);
+                    taskExecutor.submit(task);
+                }
+            }
+            return Futures.allAsList(syncTasks);
+        };
+    }
+
+    private AsyncFunction<List<TreeResponse>, List<SyncStat>> optimisedSyncing()
+    {
+        return trees ->
+        {
+            InetAddress local = FBUtilities.getLocalAddress();
+
+            List<AsymmetricSyncTask> syncTasks = new ArrayList<>();
+            // We need to difference all trees one against another
+            DifferenceHolder diffHolder = new DifferenceHolder(trees);
+
+            logger.debug("diffs = {}", diffHolder);
+            PreferedNodeFilter preferSameDCFilter = (streaming, candidates) ->
+                                                    candidates.stream()
+                                                              .filter(node -> getDC(streaming)
+                                                                              .equals(getDC(node)))
+                                                              .collect(Collectors.toSet());
+            ImmutableMap<InetAddress, HostDifferences> reducedDifferences = ReduceHelper.reduce(diffHolder, preferSameDCFilter);
+
+            for (int i = 0; i < trees.size(); i++)
+            {
+                InetAddress address = trees.get(i).endpoint;
+                HostDifferences streamsFor = reducedDifferences.get(address);
+                if (streamsFor != null)
+                {
+                    assert streamsFor.get(address).isEmpty() : "We should not fetch ranges from ourselves";
+                    for (InetAddress fetchFrom : streamsFor.hosts())
+                    {
+                        List<Range<Token>> toFetch = streamsFor.get(fetchFrom);
+                        logger.debug("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
+                        AsymmetricSyncTask task;
+                        if (address.equals(local))
+                        {
+                            task = new AsymmetricLocalSyncTask(desc, fetchFrom, toFetch, isIncremental ? desc.parentSessionId : null, previewKind);
+                        }
+                        else
+                        {
+                            task = new AsymmetricRemoteSyncTask(desc, address, fetchFrom, toFetch, previewKind);
+                            session.waitForSync(Pair.create(desc, new NodePair(address, fetchFrom)),(AsymmetricRemoteSyncTask)task);
+                        }
+                        syncTasks.add(task);
+                        taskExecutor.submit(task);
+                    }
+                }
+                else
+                {
+                    logger.debug("Node {} has nothing to stream", address);
+                }
+            }
+            return Futures.allAsList(syncTasks);
+        };
+    }
+
+    private String getDC(InetAddress address)
+    {
+        return DatabaseDescriptor.getEndpointSnitch().getDatacenter(address);
     }
 
     /**
