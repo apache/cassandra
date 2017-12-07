@@ -95,9 +95,9 @@ public class RoleResource implements IResource, Comparable<RoleResource>
      */
     public static RoleResource fromName(String name)
     {
-        String[] parts = StringUtils.split(name, '/');
+        String[] parts = StringUtils.split(name, "/", 2);
 
-        if (!parts[0].equals(ROOT_NAME) || parts.length > 2)
+        if (!parts[0].equals(ROOT_NAME))
             throw new IllegalArgumentException(String.format("%s is not a valid role resource name", name));
 
         if (parts.length == 1)

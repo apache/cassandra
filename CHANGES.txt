@@ -179,6 +179,7 @@
  * Avoid locks when checking LCS fanout and if we should defrag (CASSANDRA-13930)
 Merged from 3.0:
 3.0.16
+ * Accept role names containing forward-slash (CASSANDRA-14088)
  * Optimize CRC check chance probability calculations (CASSANDRA-14094)
  * Fix cleanup on keyspace with no replicas (CASSANDRA-13526)
  * Fix updating base table rows with TTL not removing materialized view entries (CASSANDRA-14071)
