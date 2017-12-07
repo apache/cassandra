@@ -916,7 +916,7 @@ public class DatabaseDescriptor
 
         if(conf.counter_write_request_timeout_in_ms < LOWEST_ACCEPTED_TIMEOUT)
         {
-           logInfo("counter_write_request_timeout_in_ms", conf.counter_cache_keys_to_save, LOWEST_ACCEPTED_TIMEOUT);
+           logInfo("counter_write_request_timeout_in_ms", conf.counter_write_request_timeout_in_ms, LOWEST_ACCEPTED_TIMEOUT);
            conf.counter_write_request_timeout_in_ms = LOWEST_ACCEPTED_TIMEOUT;
         }
 
