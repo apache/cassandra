@@ -171,6 +171,7 @@
 
 
 3.11.2
+ * Reload compaction strategies when disk boundaries are invalidated (CASSANDRA-13948)
  * Remove OpenJDK log warning (CASSANDRA-13916)
  * Prevent compaction strategies from looping indefinitely (CASSANDRA-14079)
  * Cache disk boundaries (CASSANDRA-13215)

@@ -61,7 +61,7 @@ public class DiskBoundaryManagerTest extends CQLTester
     @Test
     public void getBoundariesTest()
     {
-        DiskBoundaries dbv = dbm.getDiskBoundaries(mock);
+        DiskBoundaries dbv = mock.getDiskBoundaries();
         Assert.assertEquals(3, dbv.positions.size());
         assertEquals(dbv.directories, dirs.getWriteableLocations());
     }
@@ -69,11 +69,11 @@ public class DiskBoundaryManagerTest extends CQLTester
     @Test
     public void blackListTest()
     {
-        DiskBoundaries dbv = dbm.getDiskBoundaries(mock);
+        DiskBoundaries dbv = mock.getDiskBoundaries();
         Assert.assertEquals(3, dbv.positions.size());
         assertEquals(dbv.directories, dirs.getWriteableLocations());
         BlacklistedDirectories.maybeMarkUnwritable(new File("/tmp/3"));
-        dbv = dbm.getDiskBoundaries(mock);
+        dbv = mock.getDiskBoundaries();
         Assert.assertEquals(2, dbv.positions.size());
         Assert.assertEquals(Lists.newArrayList(new Directories.DataDirectory(new File("/tmp/1")),
                                         new Directories.DataDirectory(new File("/tmp/2"))),
@@ -83,9 +83,9 @@ public class DiskBoundaryManagerTest extends CQLTester
     @Test
     public void updateTokensTest() throws UnknownHostException
     {
-        DiskBoundaries dbv1 = dbm.getDiskBoundaries(mock);
+        DiskBoundaries dbv1 = mock.getDiskBoundaries();
         StorageService.instance.getTokenMetadata().updateNormalTokens(BootStrapper.getRandomTokens(StorageService.instance.getTokenMetadata(), 10), InetAddress.getByName("127.0.0.10"));
-        DiskBoundaries dbv2 = dbm.getDiskBoundaries(mock);
+        DiskBoundaries dbv2 = mock.getDiskBoundaries();
         assertFalse(dbv1.equals(dbv2));
     }
 

@@ -99,7 +99,7 @@ public class Scrubber implements Closeable
 
         List<SSTableReader> toScrub = Collections.singletonList(sstable);
 
-        int locIndex = CompactionStrategyManager.getCompactionStrategyIndex(cfs, sstable);
+        int locIndex = cfs.getCompactionStrategyManager().getCompactionStrategyIndex(sstable);
         this.destination = cfs.getDirectories().getLocationForDisk(cfs.getDirectories().getWriteableLocations()[locIndex]);
         this.isCommutative = cfs.metadata().isCounter();
 
@@ -510,7 +510,7 @@ public class Scrubber implements Closeable
                         nextToOffer = peek; // Offer peek in next call
                         return next;
                     }
-    
+
                     // Duplicate row, merge it.
                     next = Rows.merge((Row) next, (Row) peek, FBUtilities.nowInSeconds());
                 }

@@ -22,15 +22,14 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.DiskBoundaries;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.index.Index;
 
 import org.slf4j.Logger;
@@ -51,6 +50,7 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.notifications.*;
 import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.Pair;
 
@@ -59,6 +59,17 @@ import org.apache.cassandra.utils.Pair;
  *
  * For each directory, a separate compaction strategy instance for both repaired and unrepaired data, and also one instance
  * for each pending repair. This is done to keep the different sets of sstables completely separate.
+ *
+ * Operations on this class are guarded by a {@link ReentrantReadWriteLock}. This lock performs mutual exclusion on
+ * reads and writes to the following variables: {@link this#repaired}, {@link this#unrepaired}, {@link this#isActive},
+ * {@link this#params}, {@link this#currentBoundaries}. Whenever performing reads on these variables,
+ * the {@link this#readLock} should be acquired. Likewise, updates to these variables should be guarded by
+ * {@link this#writeLock}.
+ *
+ * Whenever the {@link DiskBoundaries} change, the compaction strategies must be reloaded, so in order to ensure
+ * the compaction strategy placement reflect most up-to-date disk boundaries, call {@link this#maybeReloadDiskBoundaries()}
+ * before acquiring the read lock to acess the strategies.
+ *
  */
 
 public class CompactionStrategyManager implements INotificationConsumer
@@ -66,40 +77,57 @@ public class CompactionStrategyManager implements INotificationConsumer
     private static final Logger logger = LoggerFactory.getLogger(CompactionStrategyManager.class);
     public final CompactionLogger compactionLogger;
     private final ColumnFamilyStore cfs;
-    private final List<AbstractCompactionStrategy> repaired = new ArrayList<>();
-    private final List<AbstractCompactionStrategy> unrepaired = new ArrayList<>();
-    private final List<PendingRepairManager> pendingRepairs = new ArrayList<>();
-    private volatile boolean enabled = true;
-    private volatile boolean isActive = true;
-    private volatile CompactionParams params;
+    private final boolean partitionSSTablesByTokenRange;
+    private final Supplier<DiskBoundaries> boundariesSupplier;
+
+    /**
+     * Performs mutual exclusion on the variables below
+     */
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
     private final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
 
+    /**
+     * Variables guarded by read and write lock above
+     */
+    private final List<AbstractCompactionStrategy> repaired = new ArrayList<>();
+    private final List<AbstractCompactionStrategy> unrepaired = new ArrayList<>();
+    private final List<PendingRepairManager> pendingRepairs = new ArrayList<>();
+    private volatile CompactionParams params;
+    private DiskBoundaries currentBoundaries;
+    private volatile boolean enabled = true;
+    private volatile boolean isActive = true;
+
     /*
         We keep a copy of the schema compaction parameters here to be able to decide if we
-        should update the compaction strategy in maybeReloadCompactionStrategy() due to an ALTER.
+        should update the compaction strategy in maybeReload() due to an ALTER.
 
         If a user changes the local compaction strategy and then later ALTERs a compaction parameter,
         we will use the new compaction parameters.
      */
     private volatile CompactionParams schemaCompactionParams;
-    private Directories.DataDirectory[] locations;
     private boolean shouldDefragment;
     private int fanout;
 
 
     public CompactionStrategyManager(ColumnFamilyStore cfs)
     {
+        this(cfs, cfs::getDiskBoundaries, cfs.getPartitioner().splitter().isPresent());
+    }
+
+    @VisibleForTesting
+    public CompactionStrategyManager(ColumnFamilyStore cfs, Supplier<DiskBoundaries> boundariesSupplier,
+                                     boolean partitionSSTablesByTokenRange)
+    {
         cfs.getTracker().subscribe(this);
         logger.trace("{} subscribed to the data tracker.", this);
         this.cfs = cfs;
         this.compactionLogger = new CompactionLogger(cfs, this);
-        reload(cfs.metadata());
+        this.boundariesSupplier = boundariesSupplier;
+        this.partitionSSTablesByTokenRange = partitionSSTablesByTokenRange;
         params = cfs.metadata().params.compaction;
-        locations = getDirectories().getWriteableLocations();
         enabled = params.isEnabled();
-
+        reload(cfs.metadata().params.compaction);
     }
 
     /**
@@ -110,13 +138,12 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
+        maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
             if (!isEnabled())
                 return null;
-
-            maybeReload(cfs.metadata());
 
             // first try to promote/demote sstables from completed repairs
             ArrayList<Pair<Integer, PendingRepairManager>> pendingRepairManagers = new ArrayList<>(pendingRepairs.size());
@@ -224,7 +251,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
             {
                 if (sstable.openReason != SSTableReader.OpenReason.EARLY)
-                    getCompactionStrategyFor(sstable).addSSTable(sstable);
+                    compactionStrategyFor(sstable).addSSTable(sstable);
             }
             repaired.forEach(AbstractCompactionStrategy::startup);
             unrepaired.forEach(AbstractCompactionStrategy::startup);
@@ -252,10 +279,18 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     public AbstractCompactionStrategy getCompactionStrategyFor(SSTableReader sstable)
     {
-        int index = getCompactionStrategyIndex(cfs, sstable);
+        maybeReloadDiskBoundaries();
+        return compactionStrategyFor(sstable);
+    }
+
+    @VisibleForTesting
+    protected AbstractCompactionStrategy compactionStrategyFor(SSTableReader sstable)
+    {
+        // should not call maybeReloadDiskBoundaries because it may be called from within lock
         readLock.lock();
         try
         {
+            int index = compactionStrategyIndexFor(sstable);
             if (sstable.isPendingRepair())
                 return pendingRepairs.get(index).getOrCreate(sstable);
             else if (sstable.isRepaired())
@@ -277,41 +312,33 @@ public class CompactionStrategyManager implements INotificationConsumer
      * the sstable is on currently (unless we don't know the local tokens yet). Once we start compacting we will write out
      * sstables in the correct locations and give them to the correct compaction strategy instance.
      *
-     * @param cfs
      * @param sstable
      * @return
      */
-    public static int getCompactionStrategyIndex(ColumnFamilyStore cfs, SSTableReader sstable)
+    public int getCompactionStrategyIndex(SSTableReader sstable)
     {
-        if (!cfs.getPartitioner().splitter().isPresent())
-            return 0;
-
-        DiskBoundaries boundaries = cfs.getDiskBoundaries();
-        List<Directories.DataDirectory> directories = boundaries.directories;
-        if (boundaries.positions == null)
-            return getCompactionStrategyIndex(directories, sstable.descriptor);
-
-        int pos = Collections.binarySearch(boundaries.positions, sstable.first);
-        assert pos < 0; // boundaries are .minkeybound and .maxkeybound so they should never be equal
-        return -pos - 1;
+        maybeReloadDiskBoundaries();
+        return compactionStrategyIndexFor(sstable);
     }
 
-    /**
-     * get the index for the descriptor based on the existing directories
-     * @param locations
-     * @param descriptor
-     * @return
-     */
-    private static int getCompactionStrategyIndex(List<Directories.DataDirectory> directories, Descriptor descriptor)
+    @VisibleForTesting
+    protected int compactionStrategyIndexFor(SSTableReader sstable)
     {
-         // try to figure out location based on sstable directory:
-         for (int i = 0; i < directories.size(); i++)
-         {
-             Directories.DataDirectory directory = directories.get(i);
-             if (descriptor.directory.getAbsolutePath().startsWith(directory.location.getAbsolutePath()))
-                 return i;
-         }
-         return 0;
+        // should not call maybeReloadDiskBoundaries because it may be called from within lock
+        readLock.lock();
+        try
+        {
+            //We only have a single compaction strategy when sstables are not
+            //partitioned by token range
+            if (!partitionSSTablesByTokenRange)
+                return 0;
+
+            return currentBoundaries.getDiskIndex(sstable);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     @VisibleForTesting
@@ -367,14 +394,48 @@ public class CompactionStrategyManager implements INotificationConsumer
     public void maybeReload(TableMetadata metadata)
     {
         // compare the old schema configuration to the new one, ignore any locally set changes.
-        if (metadata.params.compaction.equals(schemaCompactionParams) &&
-            Arrays.equals(locations, cfs.getDirectories().getWriteableLocations())) // any drives broken?
+        if (metadata.params.compaction.equals(schemaCompactionParams))
             return;
 
         writeLock.lock();
         try
         {
-            reload(metadata);
+            // compare the old schema configuration to the new one, ignore any locally set changes.
+            if (metadata.params.compaction.equals(schemaCompactionParams))
+                return;
+            reload(metadata.params.compaction);
+        }
+        finally
+        {
+            writeLock.unlock();
+        }
+    }
+
+    /**
+     * Checks if the disk boundaries changed and reloads the compaction strategies
+     * to reflect the most up-to-date disk boundaries.
+     *
+     * This is typically called before acquiring the {@link this#readLock} to ensure the most up-to-date
+     * disk locations and boundaries are used.
+     *
+     * This should *never* be called inside by a thread holding the {@link this#readLock}, since it
+     * will potentially acquire the {@link this#writeLock} to update the compaction strategies
+     * what can cause a deadlock.
+     */
+    //TODO improve this to reload after receiving a notification rather than trying to reload on every operation
+    @VisibleForTesting
+    protected boolean maybeReloadDiskBoundaries()
+    {
+        if (!currentBoundaries.isOutOfDate())
+            return false;
+
+        writeLock.lock();
+        try
+        {
+            if (!currentBoundaries.isOutOfDate())
+                return false;
+            reload(params);
+            return true;
         }
         finally
         {
@@ -386,20 +447,28 @@ public class CompactionStrategyManager implements INotificationConsumer
      * Reload the compaction strategies
      *
      * Called after changing configuration and at startup.
-     * @param metadata
+     * @param newCompactionParams
      */
-    private void reload(TableMetadata metadata)
+    private void reload(CompactionParams newCompactionParams)
     {
+        boolean enabledWithJMX = enabled && !shouldBeEnabled();
         boolean disabledWithJMX = !enabled && shouldBeEnabled();
-        if (!metadata.params.compaction.equals(schemaCompactionParams))
-            logger.trace("Recreating compaction strategy - compaction parameters changed for {}.{}", cfs.keyspace.getName(), cfs.getTableName());
-        else if (!Arrays.equals(locations, cfs.getDirectories().getWriteableLocations()))
-            logger.trace("Recreating compaction strategy - writeable locations changed for {}.{}", cfs.keyspace.getName(), cfs.getTableName());
 
-        setStrategy(metadata.params.compaction);
-        schemaCompactionParams = metadata.params.compaction;
+        if (currentBoundaries != null)
+        {
+            if (!newCompactionParams.equals(schemaCompactionParams))
+                logger.debug("Recreating compaction strategy - compaction parameters changed for {}.{}", cfs.keyspace.getName(), cfs.getTableName());
+            else if (currentBoundaries.isOutOfDate())
+                logger.debug("Recreating compaction strategy - disk boundaries are out of date for {}.{}.", cfs.keyspace.getName(), cfs.getTableName());
+        }
 
-        if (disabledWithJMX || !shouldBeEnabled())
+        if (currentBoundaries == null || currentBoundaries.isOutOfDate())
+            currentBoundaries = boundariesSupplier.get();
+
+        setStrategy(newCompactionParams);
+        schemaCompactionParams = cfs.metadata().params.compaction;
+
+        if (disabledWithJMX || !shouldBeEnabled() && !enabledWithJMX)
             disable();
         else
             enable();
@@ -408,6 +477,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public int getUnleveledSSTables()
     {
+        maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
@@ -438,6 +508,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public int[] getSSTableCountPerLevel()
     {
+        maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
@@ -491,6 +562,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public Directories getDirectories()
     {
+        maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
@@ -505,11 +577,16 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private void handleFlushNotification(Iterable<SSTableReader> added)
     {
+        // If reloaded, SSTables will be placed in their correct locations
+        // so there is no need to process notification
+        if (maybeReloadDiskBoundaries())
+            return;
+
         readLock.lock();
         try
         {
             for (SSTableReader sstable : added)
-                getCompactionStrategyFor(sstable).addSSTable(sstable);
+                compactionStrategyFor(sstable).addSSTable(sstable);
         }
         finally
         {
@@ -519,52 +596,56 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private void handleListChangedNotification(Iterable<SSTableReader> added, Iterable<SSTableReader> removed)
     {
-        // a bit of gymnastics to be able to replace sstables in compaction strategies
-        // we use this to know that a compaction finished and where to start the next compaction in LCS
-        Directories.DataDirectory [] locations = cfs.getDirectories().getWriteableLocations();
-        int locationSize = cfs.getPartitioner().splitter().isPresent() ? locations.length : 1;
+        // If reloaded, SSTables will be placed in their correct locations
+        // so there is no need to process notification
+        if (maybeReloadDiskBoundaries())
+            return;
 
-        List<Set<SSTableReader>> pendingRemoved = new ArrayList<>(locationSize);
-        List<Set<SSTableReader>> pendingAdded = new ArrayList<>(locationSize);
-        List<Set<SSTableReader>> repairedRemoved = new ArrayList<>(locationSize);
-        List<Set<SSTableReader>> repairedAdded = new ArrayList<>(locationSize);
-        List<Set<SSTableReader>> unrepairedRemoved = new ArrayList<>(locationSize);
-        List<Set<SSTableReader>> unrepairedAdded = new ArrayList<>(locationSize);
-
-        for (int i = 0; i < locationSize; i++)
-        {
-            pendingRemoved.add(new HashSet<>());
-            pendingAdded.add(new HashSet<>());
-            repairedRemoved.add(new HashSet<>());
-            repairedAdded.add(new HashSet<>());
-            unrepairedRemoved.add(new HashSet<>());
-            unrepairedAdded.add(new HashSet<>());
-        }
-
-        for (SSTableReader sstable : removed)
-        {
-            int i = getCompactionStrategyIndex(cfs, sstable);
-            if (sstable.isPendingRepair())
-                pendingRemoved.get(i).add(sstable);
-            else if (sstable.isRepaired())
-                repairedRemoved.get(i).add(sstable);
-            else
-                unrepairedRemoved.get(i).add(sstable);
-        }
-        for (SSTableReader sstable : added)
-        {
-            int i = getCompactionStrategyIndex(cfs, sstable);
-            if (sstable.isPendingRepair())
-                pendingAdded.get(i).add(sstable);
-            else if (sstable.isRepaired())
-                repairedAdded.get(i).add(sstable);
-            else
-                unrepairedAdded.get(i).add(sstable);
-        }
-        // we need write lock here since we might be moving sstables between strategies
-        writeLock.lock();
+        readLock.lock();
         try
         {
+            // a bit of gymnastics to be able to replace sstables in compaction strategies
+            // we use this to know that a compaction finished and where to start the next compaction in LCS
+            Directories.DataDirectory [] locations = cfs.getDirectories().getWriteableLocations();
+            int locationSize = cfs.getPartitioner().splitter().isPresent() ? locations.length : 1;
+
+            List<Set<SSTableReader>> pendingRemoved = new ArrayList<>(locationSize);
+            List<Set<SSTableReader>> pendingAdded = new ArrayList<>(locationSize);
+            List<Set<SSTableReader>> repairedRemoved = new ArrayList<>(locationSize);
+            List<Set<SSTableReader>> repairedAdded = new ArrayList<>(locationSize);
+            List<Set<SSTableReader>> unrepairedRemoved = new ArrayList<>(locationSize);
+            List<Set<SSTableReader>> unrepairedAdded = new ArrayList<>(locationSize);
+
+            for (int i = 0; i < locationSize; i++)
+            {
+                pendingRemoved.add(new HashSet<>());
+                pendingAdded.add(new HashSet<>());
+                repairedRemoved.add(new HashSet<>());
+                repairedAdded.add(new HashSet<>());
+                unrepairedRemoved.add(new HashSet<>());
+                unrepairedAdded.add(new HashSet<>());
+            }
+
+            for (SSTableReader sstable : removed)
+            {
+                int i = compactionStrategyIndexFor(sstable);
+                if (sstable.isPendingRepair())
+                    pendingRemoved.get(i).add(sstable);
+                else if (sstable.isRepaired())
+                    repairedRemoved.get(i).add(sstable);
+                else
+                    unrepairedRemoved.get(i).add(sstable);
+            }
+            for (SSTableReader sstable : added)
+            {
+                int i = compactionStrategyIndexFor(sstable);
+                if (sstable.isPendingRepair())
+                    pendingAdded.get(i).add(sstable);
+                else if (sstable.isRepaired())
+                    repairedAdded.get(i).add(sstable);
+                else
+                    unrepairedAdded.get(i).add(sstable);
+            }
             for (int i = 0; i < locationSize; i++)
             {
 
@@ -591,19 +672,23 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
         finally
         {
-            writeLock.unlock();
+            readLock.unlock();
         }
     }
 
     private void handleRepairStatusChangedNotification(Iterable<SSTableReader> sstables)
     {
+        // If reloaded, SSTables will be placed in their correct locations
+        // so there is no need to process notification
+        if (maybeReloadDiskBoundaries())
+            return;
         // we need a write lock here since we move sstables from one strategy instance to another
-        writeLock.lock();
+        readLock.lock();
         try
         {
             for (SSTableReader sstable : sstables)
             {
-                int index = getCompactionStrategyIndex(cfs, sstable);
+                int index = compactionStrategyIndexFor(sstable);
                 if (sstable.isPendingRepair())
                 {
                     pendingRepairs.get(index).addSSTable(sstable);
@@ -626,26 +711,29 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
         finally
         {
-            writeLock.unlock();
+            readLock.unlock();
         }
     }
 
     private void handleDeletingNotification(SSTableReader deleted)
     {
-        writeLock.lock();
+        // If reloaded, SSTables will be placed in their correct locations
+        // so there is no need to process notification
+        if (maybeReloadDiskBoundaries())
+            return;
+        readLock.lock();
         try
         {
             getCompactionStrategyFor(deleted).removeSSTable(deleted);
         }
         finally
         {
-            writeLock.unlock();
+            readLock.unlock();
         }
     }
 
     public void handleNotification(INotification notification, Object sender)
     {
-        maybeReload(cfs.metadata());
         if (notification instanceof SSTableAddedNotification)
         {
             handleFlushNotification(((SSTableAddedNotification) notification).added);
@@ -703,29 +791,29 @@ public class CompactionStrategyManager implements INotificationConsumer
     @SuppressWarnings("resource")
     public AbstractCompactionStrategy.ScannerList maybeGetScanners(Collection<SSTableReader> sstables,  Collection<Range<Token>> ranges)
     {
-        assert repaired.size() == unrepaired.size();
-        assert repaired.size() == pendingRepairs.size();
-
-        int numRepaired = repaired.size();
-        List<Set<SSTableReader>> pendingSSTables = new ArrayList<>(numRepaired);
-        List<Set<SSTableReader>> repairedSSTables = new ArrayList<>(numRepaired);
-        List<Set<SSTableReader>> unrepairedSSTables = new ArrayList<>(numRepaired);
-
-        for (int i = 0; i < numRepaired; i++)
-        {
-            pendingSSTables.add(new HashSet<>());
-            repairedSSTables.add(new HashSet<>());
-            unrepairedSSTables.add(new HashSet<>());
-        }
-
-        List<ISSTableScanner> scanners = new ArrayList<>(sstables.size());
-
+        maybeReloadDiskBoundaries();
         readLock.lock();
+        List<ISSTableScanner> scanners = new ArrayList<>(sstables.size());
         try
         {
+            assert repaired.size() == unrepaired.size();
+            assert repaired.size() == pendingRepairs.size();
+
+            int numRepaired = repaired.size();
+            List<Set<SSTableReader>> pendingSSTables = new ArrayList<>(numRepaired);
+            List<Set<SSTableReader>> repairedSSTables = new ArrayList<>(numRepaired);
+            List<Set<SSTableReader>> unrepairedSSTables = new ArrayList<>(numRepaired);
+
+            for (int i = 0; i < numRepaired; i++)
+            {
+                pendingSSTables.add(new HashSet<>());
+                repairedSSTables.add(new HashSet<>());
+                unrepairedSSTables.add(new HashSet<>());
+            }
+
             for (SSTableReader sstable : sstables)
             {
-                int idx = getCompactionStrategyIndex(cfs, sstable);
+                int idx = compactionStrategyIndexFor(sstable);
                 if (sstable.isPendingRepair())
                     pendingSSTables.get(idx).add(sstable);
                 else if (sstable.isRepaired())
@@ -783,10 +871,11 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
     {
+        maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
-            Map<Integer, List<SSTableReader>> groups = sstablesToGroup.stream().collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, s)));
+            Map<Integer, List<SSTableReader>> groups = sstablesToGroup.stream().collect(Collectors.groupingBy((s) -> compactionStrategyIndexFor(s)));
             Collection<Collection<SSTableReader>> anticompactionGroups = new ArrayList<>();
 
             for (Map.Entry<Integer, List<SSTableReader>> group : groups.entrySet())
@@ -814,33 +903,50 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, int gcBefore, long maxSSTableBytes)
     {
-        maybeReload(cfs.metadata());
-        validateForCompaction(txn.originals(), cfs, getDirectories());
-        return getCompactionStrategyFor(txn.originals().iterator().next()).getCompactionTask(txn, gcBefore, maxSSTableBytes);
+        maybeReloadDiskBoundaries();
+        readLock.lock();
+        try
+        {
+            validateForCompaction(txn.originals());
+            return compactionStrategyFor(txn.originals().iterator().next()).getCompactionTask(txn, gcBefore, maxSSTableBytes);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
+
     }
 
-    private static void validateForCompaction(Iterable<SSTableReader> input, ColumnFamilyStore cfs, Directories directories)
+    private void validateForCompaction(Iterable<SSTableReader> input)
     {
-        SSTableReader firstSSTable = Iterables.getFirst(input, null);
-        assert firstSSTable != null;
-        boolean repaired = firstSSTable.isRepaired();
-        int firstIndex = getCompactionStrategyIndex(cfs, firstSSTable);
-        boolean isPending = firstSSTable.isPendingRepair();
-        UUID pendingRepair = firstSSTable.getSSTableMetadata().pendingRepair;
-        for (SSTableReader sstable : input)
+        readLock.lock();
+        try
         {
-            if (sstable.isRepaired() != repaired)
-                throw new UnsupportedOperationException("You can't mix repaired and unrepaired data in a compaction");
-            if (firstIndex != getCompactionStrategyIndex(cfs, sstable))
-                throw new UnsupportedOperationException("You can't mix sstables from different directories in a compaction");
-            if (isPending && !pendingRepair.equals(sstable.getSSTableMetadata().pendingRepair))
-                throw new UnsupportedOperationException("You can't compact sstables from different pending repair sessions");
+            SSTableReader firstSSTable = Iterables.getFirst(input, null);
+            assert firstSSTable != null;
+            boolean repaired = firstSSTable.isRepaired();
+            int firstIndex = compactionStrategyIndexFor(firstSSTable);
+            boolean isPending = firstSSTable.isPendingRepair();
+            UUID pendingRepair = firstSSTable.getSSTableMetadata().pendingRepair;
+            for (SSTableReader sstable : input)
+            {
+                if (sstable.isRepaired() != repaired)
+                    throw new UnsupportedOperationException("You can't mix repaired and unrepaired data in a compaction");
+                if (firstIndex != compactionStrategyIndexFor(sstable))
+                    throw new UnsupportedOperationException("You can't mix sstables from different directories in a compaction");
+                if (isPending && !pendingRepair.equals(sstable.getSSTableMetadata().pendingRepair))
+                    throw new UnsupportedOperationException("You can't compact sstables from different pending repair sessions");
+            }
+        }
+        finally
+        {
+            readLock.unlock();
         }
     }
 
     public Collection<AbstractCompactionTask> getMaximalTasks(final int gcBefore, final boolean splitOutput)
     {
-        maybeReload(cfs.metadata());
+        maybeReloadDiskBoundaries();
         // runWithCompactionsDisabled cancels active compactions and disables them, then we are able
         // to make the repaired/unrepaired strategies mark their own sstables as compacting. Once the
         // sstables are marked the compactions are re-enabled
@@ -895,22 +1001,22 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     public List<AbstractCompactionTask> getUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
     {
-        maybeReload(cfs.metadata());
+        maybeReloadDiskBoundaries();
         List<AbstractCompactionTask> ret = new ArrayList<>();
         readLock.lock();
         try
         {
             Map<Integer, List<SSTableReader>> repairedSSTables = sstables.stream()
                                                                          .filter(s -> !s.isMarkedSuspect() && s.isRepaired() && !s.isPendingRepair())
-                                                                         .collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, s)));
+                                                                         .collect(Collectors.groupingBy((s) -> compactionStrategyIndexFor(s)));
 
             Map<Integer, List<SSTableReader>> unrepairedSSTables = sstables.stream()
                                                                            .filter(s -> !s.isMarkedSuspect() && !s.isRepaired() && !s.isPendingRepair())
-                                                                           .collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, s)));
+                                                                           .collect(Collectors.groupingBy((s) -> compactionStrategyIndexFor(s)));
 
             Map<Integer, List<SSTableReader>> pendingSSTables = sstables.stream()
                                                                         .filter(s -> !s.isMarkedSuspect() && s.isPendingRepair())
-                                                                        .collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, s)));
+                                                                        .collect(Collectors.groupingBy((s) -> compactionStrategyIndexFor(s)));
 
             for (Map.Entry<Integer, List<SSTableReader>> group : repairedSSTables.entrySet())
                 ret.add(repaired.get(group.getKey()).getUserDefinedTask(group.getValue(), gcBefore));
@@ -931,6 +1037,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public int getEstimatedRemainingTasks()
     {
+        maybeReloadDiskBoundaries();
         int tasks = 0;
         readLock.lock();
         try
@@ -956,6 +1063,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public String getName()
     {
+        maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
@@ -969,6 +1077,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public List<List<AbstractCompactionStrategy>> getStrategies()
     {
+        maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
@@ -1010,10 +1119,9 @@ public class CompactionStrategyManager implements INotificationConsumer
         unrepaired.clear();
         pendingRepairs.clear();
 
-        if (cfs.getPartitioner().splitter().isPresent())
+        if (partitionSSTablesByTokenRange)
         {
-            locations = cfs.getDirectories().getWriteableLocations();
-            for (int i = 0; i < locations.length; i++)
+            for (int i = 0; i < currentBoundaries.directories.size(); i++)
             {
                 repaired.add(cfs.createCompactionStrategyInstance(params));
                 unrepaired.add(cfs.createCompactionStrategyInstance(params));
@@ -1048,13 +1156,12 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        Collection<Index> indexes,
                                                        LifecycleTransaction txn)
     {
+        maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
             // to avoid creating a compaction strategy for the wrong pending repair manager, we get the index based on where the sstable is to be written
-            int index = cfs.getPartitioner().splitter().isPresent()
-                        ? getCompactionStrategyIndex(Arrays.asList(getDirectories().getWriteableLocations()), descriptor)
-                        : 0;
+            int index = partitionSSTablesByTokenRange? currentBoundaries.getBoundariesFromSSTableDirectory(descriptor) : 0;
             if (pendingRepair != ActiveRepairService.NO_PENDING_REPAIR)
                 return pendingRepairs.get(index).getOrCreate(pendingRepair).createSSTableMultiWriter(descriptor, keyCount, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, collector, header, indexes, txn);
             else if (repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
@@ -1076,7 +1183,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     public List<String> getStrategyFolders(AbstractCompactionStrategy strategy)
     {
         Directories.DataDirectory[] locations = cfs.getDirectories().getWriteableLocations();
-        if (cfs.getPartitioner().splitter().isPresent())
+        if (partitionSSTablesByTokenRange)
         {
             int unrepairedIndex = unrepaired.indexOf(strategy);
             if (unrepairedIndex > 0)
