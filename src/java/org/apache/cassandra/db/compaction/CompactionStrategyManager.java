@@ -862,11 +862,19 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     public List<AbstractCompactionTask> getUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
     {
+        return getUserDefinedTasks(sstables, gcBefore, false);
+    }
+
+    public List<AbstractCompactionTask> getUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore, boolean validateForCompaction)
+    {
         maybeReloadDiskBoundaries();
         List<AbstractCompactionTask> ret = new ArrayList<>();
         readLock.lock();
         try
         {
+            if (validateForCompaction)
+                validateForCompaction(sstables);
+
             Map<Integer, List<SSTableReader>> repairedSSTables = sstables.stream()
                                                                          .filter(s -> !s.isMarkedSuspect() && s.isRepaired())
                                                                          .collect(Collectors.groupingBy((s) -> compactionStrategyIndexFor(s)));
@@ -888,6 +896,17 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             readLock.unlock();
         }
+    }
+
+    /**
+     * @deprecated use {@link #getUserDefinedTasks(Collection, int)} instead.
+     */
+    @Deprecated()
+    public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
+    {
+        List<AbstractCompactionTask> tasks = getUserDefinedTasks(sstables, gcBefore, true);
+        assert tasks.size() == 1;
+        return tasks.get(0);
     }
 
     public int getEstimatedRemainingTasks()
