@@ -975,7 +975,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public static boolean isReplacingSameAddress()
     {
-        return DatabaseDescriptor.getReplaceAddress().equals(FBUtilities.getBroadcastAddress());
+        InetAddress replaceAddress = DatabaseDescriptor.getReplaceAddress();
+        return replaceAddress != null && replaceAddress.equals(FBUtilities.getBroadcastAddress());
     }
 
     public void gossipSnitchInfo()
