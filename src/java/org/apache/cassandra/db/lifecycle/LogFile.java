@@ -281,18 +281,23 @@ final class LogFile implements AutoCloseable
 
     void add(Type type, SSTable table)
     {
-        if (!addRecord(makeRecord(type, table)))
+        add(makeRecord(type, table));
+    }
+
+    void add(LogRecord record)
+    {
+        if (!addRecord(record))
             throw new IllegalStateException();
     }
 
     public void addAll(Type type, Iterable<SSTableReader> toBulkAdd)
     {
-        for (LogRecord record : makeRecords(type, toBulkAdd))
+        for (LogRecord record : makeRecords(type, toBulkAdd).values())
             if (!addRecord(record))
                 throw new IllegalStateException();
     }
 
-    private Collection<LogRecord> makeRecords(Type type, Iterable<SSTableReader> tables)
+    Map<SSTable, LogRecord> makeRecords(Type type, Iterable<SSTableReader> tables)
     {
         assert type == Type.ADD || type == Type.REMOVE;
 
@@ -311,6 +316,20 @@ final class LogFile implements AutoCloseable
         File folder = table.descriptor.directory;
         replicas.maybeCreateReplica(folder, getFileName(folder), records);
         return LogRecord.make(type, table);
+    }
+
+    /**
+     * this version of makeRecord takes an existing LogRecord and converts it to a
+     * record with the given type. This avoids listing the directory and if the
+     * LogRecord already exists, we have all components for the sstable
+     */
+    private LogRecord makeRecord(Type type, SSTable table, LogRecord record)
+    {
+        assert type == Type.ADD || type == Type.REMOVE;
+
+        File folder = table.descriptor.directory;
+        replicas.maybeCreateReplica(folder, getFileName(folder), records);
+        return record.asType(type);
     }
 
     private boolean addRecord(LogRecord record)
@@ -334,7 +353,17 @@ final class LogFile implements AutoCloseable
 
     boolean contains(Type type, SSTable table)
     {
-        return records.contains(makeRecord(type, table));
+        return contains(makeRecord(type, table));
+    }
+
+    boolean contains(Type type, SSTable sstable, LogRecord record)
+    {
+        return contains(makeRecord(type, sstable, record));
+    }
+
+    private boolean contains(LogRecord record)
+    {
+        return records.contains(record);
     }
 
     void deleteFilesForRecordsOfType(Type type)
