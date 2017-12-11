@@ -52,6 +52,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
@@ -790,13 +791,20 @@ public abstract class CassandraIndex implements Index
         return getFunctions(indexMetadata, parseTarget(baseCfs.metadata, indexMetadata)).newIndexInstance(baseCfs, indexMetadata);
     }
 
-    // Public because it's also used to convert index metadata into a thrift-compatible format
-    public static Pair<ColumnDefinition, IndexTarget.Type> parseTarget(CFMetaData cfm,
-                                                                       IndexMetadata indexDef)
+    public static Pair<ColumnDefinition, IndexTarget.Type> parseTarget(CFMetaData cfm, IndexMetadata indexDef)
     {
         String target = indexDef.options.get("target");
         assert target != null : String.format("No target definition found for index %s", indexDef.name);
+        Pair<ColumnDefinition, IndexTarget.Type> result = parseTarget(cfm, target);
+        if (result == null)
+            throw new ConfigurationException(String.format("Unable to parse targets for index %s (%s)", indexDef.name, target));
+        return result;
+    }
 
+    // Public because it's also used to convert index metadata into a thrift-compatible format
+    public static Pair<ColumnDefinition, IndexTarget.Type> parseTarget(CFMetaData cfm,
+                                                                       String target)
+    {
         // if the regex matches then the target is in the form "keys(foo)", "entries(bar)" etc
         // if not, then it must be a simple column name and implictly its type is VALUES
         Matcher matcher = TARGET_REGEX.matcher(target);
@@ -826,15 +834,18 @@ public abstract class CassandraIndex implements Index
         }
 
         // if it's not a CQL table, we can't assume that the column name is utf8, so
-        // in that case we have to do a linear scan of the cfm's columns to get the matching one
-        if (cfm.isCQLTable())
-            return Pair.create(cfm.getColumnDefinition(new ColumnIdentifier(columnName, true)), targetType);
-        else
-            for (ColumnDefinition column : cfm.allColumns())
-                if (column.name.toString().equals(columnName))
-                    return Pair.create(column, targetType);
+        // in that case we have to do a linear scan of the cfm's columns to get the matching one.
+        // After dropping compact storage (see CASSANDRA-10857), we can't distinguish between the
+        // former compact/thrift table, so we have to fall back to linear scan in both cases.
+        ColumnDefinition cd = cfm.getColumnDefinition(new ColumnIdentifier(columnName, true));
+        if (cd != null)
+            return Pair.create(cd, targetType);
 
-        throw new RuntimeException(String.format("Unable to parse targets for index %s (%s)", indexDef.name, target));
+        for (ColumnDefinition column : cfm.allColumns())
+            if (column.name.toString().equals(columnName))
+                return Pair.create(column, targetType);
+
+        return null;
     }
 
     static CassandraIndexFunctions getFunctions(IndexMetadata indexDef,

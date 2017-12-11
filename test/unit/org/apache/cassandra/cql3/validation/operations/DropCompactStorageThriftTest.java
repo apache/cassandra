@@ -19,15 +19,19 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -37,7 +41,9 @@ import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.Column;
@@ -49,7 +55,11 @@ import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.thrift.SuperColumn;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.UUIDGen;
 
+import static junit.framework.Assert.assertFalse;
+import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.thrift.ConsistencyLevel.ONE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -489,6 +499,112 @@ public class DropCompactStorageThriftTest extends ThriftCQLTester
         assertRows(resultSet,
                    row("key1", "ckey1", "sval2", ByteBufferUtil.bytes("val1")),
                    row("key1", "ckey2", "sval2", ByteBufferUtil.bytes("val2")));
+    }
+
+    @Test
+    public void denseCompositeWithIndexesTest() throws Throwable
+    {
+        final String KEYSPACE = "thrift_dense_composite_table_test_ks";
+        final String TABLE = "dense_composite_table";
+
+        ByteBuffer aCol = createDynamicCompositeKey(ByteBufferUtil.bytes("a"));
+        ByteBuffer bCol = createDynamicCompositeKey(ByteBufferUtil.bytes("b"));
+        ByteBuffer cCol = createDynamicCompositeKey(ByteBufferUtil.bytes("c"));
+
+        String compositeType = "DynamicCompositeType(a => BytesType, b => TimeUUIDType, c => UTF8Type)";
+
+        CfDef cfDef = new CfDef();
+        cfDef.setName(TABLE);
+        cfDef.setComparator_type(compositeType);
+        cfDef.setKeyspace(KEYSPACE);
+
+        cfDef.setColumn_metadata(
+        Arrays.asList(new ColumnDef(aCol, "BytesType").setIndex_type(IndexType.KEYS).setIndex_name(KEYSPACE + "_a"),
+                      new ColumnDef(bCol, "BytesType").setIndex_type(IndexType.KEYS).setIndex_name(KEYSPACE + "_b"),
+                      new ColumnDef(cCol, "BytesType").setIndex_type(IndexType.KEYS).setIndex_name(KEYSPACE + "_c")));
+
+
+        KsDef ksDef = new KsDef(KEYSPACE,
+                                SimpleStrategy.class.getName(),
+                                Collections.singletonList(cfDef));
+        ksDef.setStrategy_options(Collections.singletonMap("replication_factor", "1"));
+
+        Cassandra.Client client = getClient();
+        client.system_add_keyspace(ksDef);
+        client.set_keyspace(KEYSPACE);
+
+        CFMetaData cfm = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).metadata;
+        assertFalse(cfm.isCQLTable());
+
+        List<Pair<ColumnDefinition, IndexTarget.Type>> compactTableTargets = new ArrayList<>();
+        compactTableTargets.add(CassandraIndex.parseTarget(cfm, "a"));
+        compactTableTargets.add(CassandraIndex.parseTarget(cfm, "b"));
+        compactTableTargets.add(CassandraIndex.parseTarget(cfm, "c"));
+
+        execute(String.format("ALTER TABLE %s.%s DROP COMPACT STORAGE", KEYSPACE, TABLE));
+        cfm = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).metadata;
+        assertTrue(cfm.isCQLTable());
+
+        List<Pair<ColumnDefinition, IndexTarget.Type>> cqlTableTargets = new ArrayList<>();
+        cqlTableTargets.add(CassandraIndex.parseTarget(cfm, "a"));
+        cqlTableTargets.add(CassandraIndex.parseTarget(cfm, "b"));
+        cqlTableTargets.add(CassandraIndex.parseTarget(cfm, "c"));
+
+        assertEquals(compactTableTargets, cqlTableTargets);
+    }
+
+    private static ByteBuffer createDynamicCompositeKey(Object... objects)
+    {
+        int length = 0;
+
+        for (Object object : objects)
+        {
+            length += 2 * Short.BYTES +  Byte.BYTES;
+            if (object instanceof String)
+                length += ((String) object).length();
+            else if (object instanceof UUID)
+                length += 2 * Long.BYTES;
+            else if (object instanceof ByteBuffer)
+                length += ((ByteBuffer) object).remaining();
+            else
+                throw new MarshalException(object.getClass().getName() + " is not recognized as a valid type for this composite");
+        }
+
+        ByteBuffer out = ByteBuffer.allocate(length);
+
+        for (Object object : objects)
+        {
+            if (object instanceof String)
+            {
+                String cast = (String) object;
+
+                out.putShort((short) (0x8000 | 's'));
+                out.putShort((short) cast.length());
+                out.put(cast.getBytes());
+                out.put((byte) 0);
+            }
+            else if (object instanceof UUID)
+            {
+                out.putShort((short) (0x8000 | 't'));
+                out.putShort((short) 16);
+                out.put(UUIDGen.decompose((UUID) object));
+                out.put((byte) 0);
+            }
+            else if (object instanceof ByteBuffer)
+            {
+                ByteBuffer bytes = ((ByteBuffer) object).duplicate();
+                out.putShort((short) (0x8000 | 'b'));
+                out.putShort((short) bytes.remaining());
+                out.put(bytes);
+                out.put((byte) 0);
+            }
+            else
+            {
+                throw new MarshalException(object.getClass().getName() + " is not recognized as a valid type for this composite");
+            }
+        }
+
+        return out;
     }
 
     private Column getColumnForInsert(ByteBuffer columnName, ByteBuffer value)
