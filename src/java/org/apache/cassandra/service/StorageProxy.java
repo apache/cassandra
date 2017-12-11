@@ -525,7 +525,7 @@ public class StorageProxy implements StorageProxyMBean
                         }
                         catch (Exception ex)
                         {
-                            logger.error("Failed paxos prepare locally : {}", ex);
+                            logger.error("Failed paxos prepare locally", ex);
                         }
                     }
                 });
@@ -563,7 +563,7 @@ public class StorageProxy implements StorageProxyMBean
                         }
                         catch (Exception ex)
                         {
-                            logger.error("Failed paxos propose locally : {}", ex);
+                            logger.error("Failed paxos propose locally", ex);
                         }
                     }
                 });

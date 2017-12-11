@@ -1,4 +1,5 @@
 4.0
+ * Fix trivial log format error (CASSANDRA-14015)
  * Allow sstabledump to do a json object per partition (CASSANDRA-13848)
  * Add option to optimise merkle tree comparison across replicas (CASSANDRA-3200)
  * Remove unused and deprecated methods from AbstractCompactionStrategy (CASSANDRA-14081)

@@ -203,15 +203,13 @@ public class DynamicCompositeType extends AbstractCompositeType
             {
                 // ByteBufferUtil.string failed.
                 // Log it here and we'll further throw an exception below since comparator == null
-                logger.error("Failed with [{}] when decoding the byte buffer in ByteBufferUtil.string()",
-                   ce);
+                logger.error("Failed when decoding the byte buffer in ByteBufferUtil.string()", ce);
             }
             catch (Exception e)
             {
                 // parse failed.
                 // Log it here and we'll further throw an exception below since comparator == null
-                logger.error("Failed to parse value string \"{}\" with exception: [{}]",
-                   valueStr, e);
+                logger.error("Failed to parse value string \"{}\" with exception:", valueStr, e);
             }
         }
         else

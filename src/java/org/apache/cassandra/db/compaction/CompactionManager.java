@@ -348,7 +348,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             Throwable fail = Throwables.close(null, transactions);
             if (fail != null)
-                logger.error("Failed to cleanup lifecycle transactions {}", fail);
+                logger.error("Failed to cleanup lifecycle transactions", fail);
         }
     }
 
