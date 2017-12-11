@@ -48,6 +48,8 @@ import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.concurrent.Transactional;
 import org.apache.cassandra.utils.concurrent.Ref;
 
+import static java.lang.Math.toIntExact;
+
 /**
  * Holds metadata about compressed file
  */
@@ -248,7 +250,7 @@ public class CompressionMetadata
                                 ? compressedFileLength
                                 : chunkOffsets.getLong(idx + 8);
 
-        return new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset - 4)); // "4" bytes reserved for checksum
+        return new Chunk(chunkOffset, toIntExact(nextChunkOffset - chunkOffset - 4)); // "4" bytes reserved for checksum
     }
 
     /**
@@ -308,7 +310,7 @@ public class CompressionMetadata
                 long nextChunkOffset = offset + 8 == chunkOffsetsSize
                                      ? compressedFileLength
                                      : chunkOffsets.getLong(offset + 8);
-                offsets.add(new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset - 4))); // "4" bytes reserved for checksum
+                offsets.add(new Chunk(chunkOffset, toIntExact(nextChunkOffset - chunkOffset - 4))); // "4" bytes reserved for checksum
             }
         }
 
