@@ -198,6 +198,8 @@ Merged from 3.0:
  * Provide a JMX call to sync schema with local storage (CASSANDRA-13954)
  * Mishandling of cells for removed/dropped columns when reading legacy files (CASSANDRA-13939)
  * Deserialise sstable metadata in nodetool verify (CASSANDRA-13922)
+Merged from 2.2:
+ * Grab refs during scrub/index redistribution/cleanup (CASSANDRA-13873)
 
 
 3.11.1
