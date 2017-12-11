@@ -1097,6 +1097,7 @@ public class CompactionManager implements CompactionManagerMBean
         try (SSTableRewriter writer = SSTableRewriter.construct(cfs, txn, false, sstable.maxDataAge);
              ISSTableScanner scanner = cleanupStrategy.getScanner(sstable, null);
              CompactionController controller = new CompactionController(cfs, txn.originals(), getDefaultGcBefore(cfs, nowInSec));
+             Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable));
              CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, UUIDGen.getTimeUUID(), metrics))
         {
             writer.switchWriter(createWriter(cfs, compactionFileLocation, expectedBloomFilterSize, sstable.getSSTableMetadata().repairedAt, sstable, txn));
