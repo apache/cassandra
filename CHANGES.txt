@@ -1,4 +1,5 @@
 4.0
+ * Fix cassandra-stress startup failure (CASSANDRA-14106)
  * Remove initialDirectories from CFS (CASSANDRA-13928)
  * Fix trivial log format error (CASSANDRA-14015)
  * Allow sstabledump to do a json object per partition (CASSANDRA-13848)
