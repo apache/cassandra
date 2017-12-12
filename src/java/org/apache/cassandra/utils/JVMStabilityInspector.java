@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +42,8 @@ public final class JVMStabilityInspector
     private static final Logger logger = LoggerFactory.getLogger(JVMStabilityInspector.class);
     private static Killer killer = new Killer();
 
+    private static Object lock = new Object();
+    private static boolean printingHeapHistogram;
 
     private JVMStabilityInspector() {}
 
@@ -55,8 +58,25 @@ public final class JVMStabilityInspector
         boolean isUnstable = false;
         if (t instanceof OutOfMemoryError)
         {
-            isUnstable = true;
-            HeapUtils.generateHeapDump();
+            if (Boolean.getBoolean("cassandra.printHeapHistogramOnOutOfMemoryError"))
+            {
+                // We want to avoid printing multiple time the heap histogram if multiple OOM errors happen in a short
+                // time span.
+                synchronized(lock)
+                {
+                    if (printingHeapHistogram)
+                        return;
+                    printingHeapHistogram = true;
+                }
+                HeapUtils.logHeapHistogram();
+            }
+
+            logger.error("OutOfMemory error letting the JVM handle the error:", t);
+
+            StorageService.instance.removeShutdownHook();
+            // We let the JVM handle the error. The startup checks should have warned the user if it did not configure
+            // the JVM behavior in case of OOM (CASSANDRA-13006).
+            throw (OutOfMemoryError) t;
         }
 
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)

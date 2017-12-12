@@ -27,8 +27,10 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 
+import static java.util.Arrays.asList;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class JVMStabilityInspectorTest
 {
@@ -46,10 +48,6 @@ public class JVMStabilityInspectorTest
             JVMStabilityInspector.inspectThrowable(new IOException());
             assertFalse(killerForTests.wasKilled());
 
-            killerForTests.reset();
-            JVMStabilityInspector.inspectThrowable(new OutOfMemoryError());
-            assertTrue(killerForTests.wasKilled());
-
             DatabaseDescriptor.setDiskFailurePolicy(Config.DiskFailurePolicy.die);
             killerForTests.reset();
             JVMStabilityInspector.inspectThrowable(new FSReadError(new IOException(), "blah"));
@@ -63,17 +61,29 @@ public class JVMStabilityInspectorTest
             killerForTests.reset();
             JVMStabilityInspector.inspectThrowable(new Exception(new IOException()));
             assertFalse(killerForTests.wasKilled());
-
-            killerForTests.reset();
-            JVMStabilityInspector.inspectThrowable(new Exception(new OutOfMemoryError()));
-            assertTrue(killerForTests.wasKilled());
-
         }
         finally
         {
             JVMStabilityInspector.replaceKiller(originalKiller);
             DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
             DatabaseDescriptor.setCommitFailurePolicy(oldCommitPolicy);
+        }
+    }
+
+    @Test
+    public void testOutOfMemoryHandling()
+    {
+        for (Throwable oom : asList(new OutOfMemoryError(), new Exception(new OutOfMemoryError())))
+        {
+            try
+            {
+                JVMStabilityInspector.inspectThrowable(oom);
+                fail("The JVMStabilityInspector should delegate the handling of OutOfMemoryErrors to the JVM");
+            }
+            catch (OutOfMemoryError e)
+            {
+                assertTrue(true);
+            }
         }
     }
 
