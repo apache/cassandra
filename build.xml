@@ -1282,6 +1282,17 @@
     </testmacro>
   </target>
 
+  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+    ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ViewLongTest -Dtest.methods=testConflictResolution
+  -->
+  <target name="long-testsome" depends="build-test" description="Execute specific long unit tests" >
+    <testmacro inputdir="${test.long.src}" timeout="${test.long.timeout}">
+      <test name="${test.name}" methods="${test.methods}"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+    </testmacro>
+  </target>
+
   <target name="test-compression" depends="build-test,stress-build" description="Execute unit tests with sstable compression enabled">
     <property name="compressed_yaml" value="${build.test.dir}/cassandra.compressed.yaml"/>
     <concat destfile="${compressed_yaml}">
