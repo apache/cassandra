@@ -26,7 +26,8 @@ class PeriodicCommitLogService extends AbstractCommitLogService
 
     public PeriodicCommitLogService(final CommitLog commitLog)
     {
-        super(commitLog, "PERIODIC-COMMIT-LOG-SYNCER", DatabaseDescriptor.getCommitLogSyncPeriod(), DatabaseDescriptor.getCommitLogMarkerPeriod());
+        super(commitLog, "PERIODIC-COMMIT-LOG-SYNCER", DatabaseDescriptor.getCommitLogSyncPeriod(),
+              !commitLog.configuration.useCompression());
     }
 
     protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)

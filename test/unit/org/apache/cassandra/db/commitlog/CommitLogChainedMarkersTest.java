@@ -65,7 +65,6 @@ public class CommitLogChainedMarkersTest
         DatabaseDescriptor.setCommitLogSegmentSize(5);
         DatabaseDescriptor.setCommitLogSync(Config.CommitLogSync.periodic);
         DatabaseDescriptor.setCommitLogSyncPeriod(10000 * 1000);
-        DatabaseDescriptor.setCommitLogMarkerPeriod(1);
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
