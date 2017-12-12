@@ -19,11 +19,6 @@ package org.apache.cassandra.utils;
 
 import java.io.*;
 import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.text.StrBuilder;
@@ -32,7 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Utility to generate heap dumps.
+ * Utility to log heap histogram.
  *
  */
 public final class HeapUtils
@@ -43,54 +38,33 @@ public final class HeapUtils
      * Generates a HEAP dump in the directory specified by the <code>HeapDumpPath</code> JVM option
      * or in the <code>CASSANDRA_HOME</code> directory.
      */
-    public static void generateHeapDump()
+    public static void logHeapHistogram()
     {
-        Long processId = getProcessId();
-        if (processId == null)
+        try
         {
-            logger.error("The process ID could not be retrieved. Skipping heap dump generation.");
-            return;
-        }
+            logger.info("Trying to log the heap histogram using jmap");
 
-        String heapDumpPath = getHeapDumpPathOption();
-        if (heapDumpPath == null)
-        {
-            String cassandraHome = System.getenv("CASSANDRA_HOME");
-            if (cassandraHome == null)
+            Long processId = getProcessId();
+            if (processId == null)
             {
+                logger.error("The process ID could not be retrieved. Skipping heap histogram generation.");
                 return;
             }
 
-            heapDumpPath = cassandraHome;
-        }
+            String jmapPath = getJmapPath();
 
-        Path dumpPath = FileSystems.getDefault().getPath(heapDumpPath);
-        if (Files.isDirectory(dumpPath))
-        {
-            dumpPath = dumpPath.resolve("java_pid" + processId + ".hprof");
-        }
+            // The jmap file could not be found. In this case let's default to jmap in the hope that it is in the path.
+            String jmapCommand = jmapPath == null ? "jmap" : jmapPath;
 
-        String jmapPath = getJmapPath();
+            String[] histoCommands = new String[] {jmapCommand,
+                    "-histo",
+                    processId.toString()};
 
-        // The jmap file could not be found. In this case let's default to jmap in the hope that it is in the path.
-        String jmapCommand = jmapPath == null ? "jmap" : jmapPath;
-
-        String[] dumpCommands = new String[] {jmapCommand,
-                                              "-dump:format=b,file=" + dumpPath,
-                                              processId.toString()};
-
-        // Lets also log the Heap histogram
-        String[] histoCommands = new String[] {jmapCommand,
-                                               "-histo",
-                                               processId.toString()};
-        try
-        {
-            logProcessOutput(Runtime.getRuntime().exec(dumpCommands));
             logProcessOutput(Runtime.getRuntime().exec(histoCommands));
         }
-        catch (IOException e)
+        catch (Throwable e)
         {
-            logger.error("The heap dump could not be generated due to the following error: ", e);
+            logger.error("The heap histogram could not be generated due to the following error: ", e);
         }
     }
 
@@ -134,32 +108,6 @@ public final class HeapUtils
             builder.appendln(line);
         }
         logger.info(builder.toString());
-    }
-
-    /**
-     * Retrieves the value of the <code>HeapDumpPath</code> JVM option.
-     * @return the value of the <code>HeapDumpPath</code> JVM option or <code>null</code> if the value has not been
-     * specified.
-     */
-    private static String getHeapDumpPathOption()
-    {
-        RuntimeMXBean runtimeMxBean = ManagementFactory.getRuntimeMXBean();
-        List<String> inputArguments = runtimeMxBean.getInputArguments();
-        String heapDumpPathOption = null;
-        for (String argument : inputArguments)
-        {
-            if (argument.startsWith("-XX:HeapDumpPath="))
-            {
-                heapDumpPathOption = argument;
-                // We do not break in case the option has been specified several times.
-                // In general it seems that JVMs use the right-most argument as the winner.
-            }
-        }
-
-        if (heapDumpPathOption == null)
-            return null;
-
-        return heapDumpPathOption.substring(17, heapDumpPathOption.length());
     }
 
     /**

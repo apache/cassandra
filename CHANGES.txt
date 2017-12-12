@@ -1,4 +1,5 @@
 2.2.12
+ * Rely on the JVM to handle OutOfMemoryErrors (CASSANDRA-13006)
  * Grab refs during scrub/index redistribution/cleanup (CASSANDRA-13873)
 
 2.2.11

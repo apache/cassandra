@@ -28,6 +28,7 @@
 #
 #   CLASSPATH -- A Java classpath containing everything necessary to run.
 #   JVM_OPTS -- Additional arguments to the JVM for heap size, etc
+#   JVM_ON_OUT_OF_MEMORY_ERROR_OPT -- The OnOutOfMemoryError JVM option if specified
 #   CASSANDRA_CONF -- Directory containing Cassandra configuration files.
 #
 # As a convenience, a fragment of shell is sourced in order to set one or
@@ -199,12 +200,22 @@ launch_service()
     # to close stdout/stderr, but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-foreground=yes"
-        exec $NUMACTL "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class"
+        if [ "x$JVM_ON_OUT_OF_MEMORY_ERROR_OPT" != "x" ]; then
+            exec $NUMACTL "$JAVA" $JVM_OPTS "$JVM_ON_OUT_OF_MEMORY_ERROR_OPT" $cassandra_parms -cp "$CLASSPATH" $props "$class"
+        else
+            exec $NUMACTL "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class"
+        fi
     # Startup CassandraDaemon, background it, and write the pid.
     else
-        exec $NUMACTL "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class" <&- &
-        [ ! -z "$pidpath" ] && printf "%d" $! > "$pidpath"
-        true
+        if [ "x$JVM_ON_OUT_OF_MEMORY_ERROR_OPT" != "x" ]; then
+            exec $NUMACTL "$JAVA" $JVM_OPTS "$JVM_ON_OUT_OF_MEMORY_ERROR_OPT" $cassandra_parms -cp "$CLASSPATH" $props "$class" <&- &
+            [ ! -z "$pidpath" ] && printf "%d" $! > "$pidpath"
+            true
+        else
+            exec $NUMACTL "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class" <&- &
+            [ ! -z "$pidpath" ] && printf "%d" $! > "$pidpath"
+            true
+        fi
     fi
 
     return $?
