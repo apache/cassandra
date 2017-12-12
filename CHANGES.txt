@@ -182,6 +182,7 @@
  * Update jackson JSON jars (CASSANDRA-13949)
  * Avoid locks when checking LCS fanout and if we should defrag (CASSANDRA-13930)
 Merged from 3.0:
+ * Extra range tombstone bound creates double rows (CASSANDRA-14008)
  * Fix SStable ordering by max timestamp in SinglePartitionReadCommand (CASSANDRA-14010)
  * Accept role names containing forward-slash (CASSANDRA-14088)
  * Optimize CRC check chance probability calculations (CASSANDRA-14094)
