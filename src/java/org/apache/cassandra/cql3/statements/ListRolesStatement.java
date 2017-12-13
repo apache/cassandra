@@ -48,7 +48,8 @@ public class ListRolesStatement extends AuthorizationStatement
         ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("role", true), UTF8Type.instance),
                          new ColumnSpecification(KS, CF, new ColumnIdentifier("super", true), BooleanType.instance),
                          new ColumnSpecification(KS, CF, new ColumnIdentifier("login", true), BooleanType.instance),
-                         new ColumnSpecification(KS, CF, new ColumnIdentifier("options", true), optionsType));
+                         new ColumnSpecification(KS, CF, new ColumnIdentifier("options", true), optionsType),
+                         new ColumnSpecification(KS, CF, new ColumnIdentifier("datacenters", true), UTF8Type.instance));
 
     private final RoleResource grantee;
     private final boolean recursive;
@@ -118,12 +119,14 @@ public class ListRolesStatement extends AuthorizationStatement
         ResultSet result = new ResultSet(resultMetadata);
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+        INetworkAuthorizer networkAuthorizer = DatabaseDescriptor.getNetworkAuthorizer();
         for (RoleResource role : sortedRoles)
         {
             result.addColumnValue(UTF8Type.instance.decompose(role.getRoleName()));
             result.addColumnValue(BooleanType.instance.decompose(roleManager.isSuper(role)));
             result.addColumnValue(BooleanType.instance.decompose(roleManager.canLogin(role)));
             result.addColumnValue(optionsType.decompose(roleManager.getCustomOptions(role)));
+            result.addColumnValue(UTF8Type.instance.decompose(networkAuthorizer.authorize(role).toString()));
         }
         return new ResultMessage.Rows(result);
     }

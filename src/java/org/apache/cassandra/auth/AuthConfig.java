@@ -25,7 +25,6 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
-import org.hsqldb.Database;
 
 /**
  * Only purpose is to Initialize authentication/authorization via {@link #applyAuth()}.
@@ -98,12 +97,21 @@ public final class AuthConfig
         if (conf.internode_authenticator != null)
             DatabaseDescriptor.setInternodeAuthenticator(FBUtilities.construct(conf.internode_authenticator, "internode_authenticator"));
 
+        // network authorizer
+        INetworkAuthorizer networkAuthorizer = FBUtilities.newNetworkAuthorizer(conf.network_authorizer);
+        DatabaseDescriptor.setNetworkAuthorizer(networkAuthorizer);
+        if (networkAuthorizer.requireAuthorization() && !authenticator.requireAuthentication())
+        {
+            throw new ConfigurationException(conf.network_authorizer + " can't be used with " + conf.authenticator, false);
+        }
+
         // Validate at last to have authenticator, authorizer, role-manager and internode-auth setup
         // in case these rely on each other.
 
         authenticator.validateConfiguration();
         authorizer.validateConfiguration();
         roleManager.validateConfiguration();
+        networkAuthorizer.validateConfiguration();
         DatabaseDescriptor.getInternodeAuthenticator().validateConfiguration();
     }
 }

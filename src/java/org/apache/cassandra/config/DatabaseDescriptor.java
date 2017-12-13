@@ -41,6 +41,7 @@ import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
+import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
@@ -101,6 +102,7 @@ public class DatabaseDescriptor
 
     private static IAuthenticator authenticator;
     private static IAuthorizer authorizer;
+    private static INetworkAuthorizer networkAuthorizer;
     // Don't initialize the role manager until applying config. The options supported by CassandraRoleManager
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
@@ -1064,6 +1066,16 @@ public class DatabaseDescriptor
     public static void setAuthorizer(IAuthorizer authorizer)
     {
         DatabaseDescriptor.authorizer = authorizer;
+    }
+
+    public static INetworkAuthorizer getNetworkAuthorizer()
+    {
+        return networkAuthorizer;
+    }
+
+    public static void setNetworkAuthorizer(INetworkAuthorizer networkAuthorizer)
+    {
+        DatabaseDescriptor.networkAuthorizer = networkAuthorizer;
     }
 
     public static IRoleManager getRoleManager()

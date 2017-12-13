@@ -1,4 +1,5 @@
 4.0
+ * Add network authz (CASSANDRA-13985)
  * Use the correct IP/Port for Streaming when localAddress is left unbound (CASSANDAR-14389)
  * nodetool listsnapshots is missing local system keyspace snapshots (CASSANDRA-14381)
  * Remove StreamCoordinator.streamExecutor thread pool (CASSANDRA-14402)

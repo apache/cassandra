@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.*;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
@@ -388,6 +389,12 @@ public class CassandraRoleManager implements IRoleManager
         }
     }
 
+    @VisibleForTesting
+    ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
+    {
+        return statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
+    }
+
     /*
      * Get a single Role instance given the role name. This never returns null, instead it
      * uses the null object NULL_ROLE when a role with the given name cannot be found. So
@@ -395,11 +402,9 @@ public class CassandraRoleManager implements IRoleManager
      */
     private Role getRole(String name)
     {
-        ResultMessage.Rows rows =
-            loadRoleStatement.execute(QueryState.forInternalCalls(),
-                              QueryOptions.forInternalCalls(consistencyForRole(name),
-                                                            Collections.singletonList(ByteBufferUtil.bytes(name))),
-                              System.nanoTime());
+        QueryOptions options = QueryOptions.forInternalCalls(consistencyForRole(name),
+                                                             Collections.singletonList(ByteBufferUtil.bytes(name)));
+        ResultMessage.Rows rows = select(loadRoleStatement, options);
         if (rows.result.isEmpty())
             return NULL_ROLE;
 
@@ -498,7 +503,8 @@ public class CassandraRoleManager implements IRoleManager
      * This shouldn't be used during setup as this will directly return an error if the manager is not setup yet. Setup tasks
      * should use QueryProcessor.process directly.
      */
-    private UntypedResultSet process(String query, ConsistencyLevel consistencyLevel) throws RequestValidationException, RequestExecutionException
+    @VisibleForTesting
+    UntypedResultSet process(String query, ConsistencyLevel consistencyLevel) throws RequestValidationException, RequestExecutionException
     {
         if (!isClusterReady)
             throw new InvalidRequestException("Cannot process role related query as the role manager isn't yet setup. "
