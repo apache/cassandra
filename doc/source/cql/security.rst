@@ -46,6 +46,8 @@ Creating a role uses the ``CREATE ROLE`` statement:
               :| LOGIN '=' `boolean`
               :| SUPERUSER '=' `boolean`
               :| OPTIONS '=' `map_literal`
+              :| ACCESS TO DATACENTERS `set_literal`
+              :| ACCESS TO ALL DATACENTERS
 
 For instance::
 
@@ -53,6 +55,8 @@ For instance::
     CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
     CREATE ROLE bob WITH PASSWORD = 'password_b' AND LOGIN = true AND SUPERUSER = true;
     CREATE ROLE carlos WITH OPTIONS = { 'custom_option1' : 'option1_value', 'custom_option2' : 99 };
+    CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND ACCESS TO DATACENTERS {'DC1', 'DC3'};
+    CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND ACCESS TO ALL DATACENTERS;
 
 By default roles do not possess ``LOGIN`` privileges or ``SUPERUSER`` status.
 
@@ -81,6 +85,14 @@ quotation marks.
 If internal authentication has not been set up or the role does not have ``LOGIN`` privileges, the ``WITH PASSWORD``
 clause is not necessary.
 
+Restricting connections to specific datacenters
+```````````````````````````````````````````````
+
+If a ``network_authorizer`` has been configured, you can restrict login roles to specific datacenters with the
+``ACCESS TO DATACENTERS`` clause followed by a set literal of datacenters the user can access. Not specifiying
+datacenters implicitly grants access to all datacenters. The clause ``ACCESS TO ALL DATACENTERS`` can be used for
+explicitness, but there's no functional difference.
+
 Creating a role conditionally
 `````````````````````````````
 
@@ -104,6 +116,13 @@ Altering a role options uses the ``ALTER ROLE`` statement:
 For instance::
 
     ALTER ROLE bob WITH PASSWORD = 'PASSWORD_B' AND SUPERUSER = false;
+
+Restricting connections to specific datacenters
+```````````````````````````````````````````````
+
+If a ``network_authorizer`` has been configured, you can restrict login roles to specific datacenters with the
+``ACCESS TO DATACENTERS`` clause followed by a set literal of datacenters the user can access. To remove any
+data center restrictions, use the ``ACCESS TO ALL DATACENTERS`` clause.
 
 Conditions on executing ``ALTER ROLE`` statements:
 

@@ -40,6 +40,7 @@ import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.triggers.ITrigger;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -49,7 +50,6 @@ import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
 import static junit.framework.Assert.fail;
 import static org.apache.cassandra.cql3.Duration.*;
-import static org.junit.Assert.assertEquals;
 
 public class CreateTest extends CQLTester
 {
@@ -523,6 +523,9 @@ public class CreateTest extends CQLTester
             public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2) { return 0; }
         });
 
+        // this forces the dc above to be added to the list of known datacenters (fixes static init problem
+        // with this group of tests), ok to remove at some point if doing so doesn't break the test
+        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.0.0.255"));
         execute("CREATE KEYSPACE Foo WITH replication = { 'class' : 'NetworkTopologyStrategy', 'us-east-1' : 1 };");
 
         // Restore the previous EndpointSnitch

@@ -1093,6 +1093,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             DatabaseDescriptor.getRoleManager().setup();
             DatabaseDescriptor.getAuthenticator().setup();
             DatabaseDescriptor.getAuthorizer().setup();
+            DatabaseDescriptor.getNetworkAuthorizer().setup();
             Schema.instance.registerListener(new AuthSchemaChangeListener());
             authSetupComplete = true;
         }

@@ -122,6 +122,16 @@ authorizer: AllowAllAuthorizer
 #   increase system_auth keyspace replication factor if you use this role manager.
 role_manager: CassandraRoleManager
 
+# Network authorization backend, implementing INetworkAuthorizer; used to restrict user
+# access to certain DCs
+# Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllNetworkAuthorizer,
+# CassandraNetworkAuthorizer}.
+#
+# - AllowAllNetworkAuthorizer allows access to any DC to any user - set it to disable authorization.
+# - CassandraNetworkAuthorizer stores permissions in system_auth.network_permissions table. Please
+#   increase system_auth keyspace replication factor if you use this authorizer.
+network_authorizer: AllowAllNetworkAuthorizer
+
 # Validity period for roles cache (fetching granted roles can be an expensive
 # operation depending on the role manager, CassandraRoleManager is one example)
 # Granted roles are cached for authenticated sessions in AuthenticatedUser and

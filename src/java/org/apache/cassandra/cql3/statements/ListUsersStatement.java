@@ -41,7 +41,8 @@ public class ListUsersStatement extends ListRolesStatement
 
     private static final List<ColumnSpecification> metadata =
         ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("name", true), UTF8Type.instance),
-                         new ColumnSpecification(KS, CF, new ColumnIdentifier("super", true), BooleanType.instance));
+                         new ColumnSpecification(KS, CF, new ColumnIdentifier("super", true), BooleanType.instance),
+                         new ColumnSpecification(KS, CF, new ColumnIdentifier("datacenters", true), UTF8Type.instance));
 
     @Override
     protected ResultMessage formatResults(List<RoleResource> sortedRoles)
@@ -50,12 +51,14 @@ public class ListUsersStatement extends ListRolesStatement
         ResultSet result = new ResultSet(resultMetadata);
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+        INetworkAuthorizer networkAuthorizer = DatabaseDescriptor.getNetworkAuthorizer();
         for (RoleResource role : sortedRoles)
         {
             if (!roleManager.canLogin(role))
                 continue;
             result.addColumnValue(UTF8Type.instance.decompose(role.getRoleName()));
             result.addColumnValue(BooleanType.instance.decompose(Roles.hasSuperuserStatus(role)));
+            result.addColumnValue(UTF8Type.instance.decompose(networkAuthorizer.authorize(role).toString()));
         }
 
         return new ResultMessage.Rows(result);

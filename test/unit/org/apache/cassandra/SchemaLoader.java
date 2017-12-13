@@ -21,6 +21,12 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import org.apache.cassandra.auth.AuthKeyspace;
+import org.apache.cassandra.auth.AuthSchemaChangeListener;
+import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.INetworkAuthorizer;
+import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sasi.SASIIndex;
@@ -270,6 +276,20 @@ public class SchemaLoader
     public static void createKeyspace(String name, KeyspaceParams params, Tables tables, Types types)
     {
         MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables, Views.none(), types, Functions.none()), true);
+    }
+
+    public static void setupAuth(IRoleManager roleManager, IAuthenticator authenticator, IAuthorizer authorizer, INetworkAuthorizer networkAuthorizer)
+    {
+        DatabaseDescriptor.setRoleManager(roleManager);
+        DatabaseDescriptor.setAuthenticator(authenticator);
+        DatabaseDescriptor.setAuthorizer(authorizer);
+        DatabaseDescriptor.setNetworkAuthorizer(networkAuthorizer);
+        MigrationManager.announceNewKeyspace(AuthKeyspace.metadata(), true);
+        DatabaseDescriptor.getRoleManager().setup();
+        DatabaseDescriptor.getAuthenticator().setup();
+        DatabaseDescriptor.getAuthorizer().setup();
+        DatabaseDescriptor.getNetworkAuthorizer().setup();
+        Schema.instance.registerListener(new AuthSchemaChangeListener());
     }
 
     public static ColumnMetadata integerColumn(String ksName, String cfName)
