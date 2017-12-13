@@ -524,6 +524,22 @@ public final class Schema
     }
 
     /**
+     * Checks whether the given schema version is the same as the current local schema.
+     */
+    public boolean isSameVersion(UUID schemaVersion)
+    {
+        return schemaVersion != null && schemaVersion.equals(version);
+    }
+
+    /**
+     * Checks whether the current schema is empty.
+     */
+    public boolean isEmpty()
+    {
+        return SchemaConstants.emptyVersion.equals(version);
+    }
+
+    /**
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
      */
@@ -818,5 +834,19 @@ public final class Schema
     private void notifyDropAggregate(UDAggregate udf)
     {
         changeListeners.forEach(l -> l.onDropAggregate(udf.name().keyspace, udf.name().name, udf.argTypes()));
+    }
+
+
+    /**
+     * Converts the given schema version to a string. Returns {@code unknown}, if {@code version} is {@code null}
+     * or {@code "(empty)"}, if {@code version} refers to an {@link SchemaConstants#emptyVersion empty) schema.
+     */
+    public static String schemaVersionToString(UUID version)
+    {
+        return version == null
+               ? "unknown"
+               : SchemaConstants.emptyVersion.equals(version)
+                 ? "(empty)"
+                 : version.toString();
     }
 }

@@ -796,9 +796,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (int i = 0; i < delay; i += 1000)
         {
             // if we see schema, we can proceed to the next check directly
-            if (!Schema.instance.getVersion().equals(SchemaConstants.emptyVersion))
+            if (!Schema.instance.isEmpty())
             {
-                logger.debug("got schema: {}", Schema.instance.getVersion());
+                logger.debug("current schema version: {}", Schema.instance.getVersion());
                 break;
             }
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
