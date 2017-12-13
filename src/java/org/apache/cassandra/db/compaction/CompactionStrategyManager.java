@@ -271,12 +271,6 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @param sstable
      * @return
      */
-    public int getCompactionStrategyIndex(SSTableReader sstable)
-    {
-        maybeReloadDiskBoundaries();
-        return compactionStrategyIndexFor(sstable);
-    }
-
     @VisibleForTesting
     protected int compactionStrategyIndexFor(SSTableReader sstable)
     {
