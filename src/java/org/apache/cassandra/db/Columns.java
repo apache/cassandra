@@ -367,6 +367,13 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
             digest.update(c.name.bytes.duplicate());
     }
 
+    public void digest(MessageDigest digest, Set<ByteBuffer> columnsToExclude)
+    {
+        for (ColumnDefinition c : this)
+            if (!columnsToExclude.contains(c.name.bytes))
+                digest.update(c.name.bytes.duplicate());
+    }
+
     /**
      * Apply a function to each column definition in forwards or reversed order.
      * @param function

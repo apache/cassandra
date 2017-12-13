@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +34,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.LocalStrategy;
@@ -40,7 +42,6 @@ import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ConcurrentBiMap;
 import org.apache.cassandra.utils.Pair;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class Schema
 {
@@ -58,6 +59,7 @@ public class Schema
     private final ConcurrentBiMap<Pair<String, String>, UUID> cfIdMap = new ConcurrentBiMap<>();
 
     private volatile UUID version;
+    private volatile UUID altVersion;
 
     /**
      * Initialize empty schema object and load the hardcoded system tables
@@ -518,30 +520,82 @@ public class Schema
     /* Version control */
 
     /**
-     * @return current schema version
+     * The schema version to announce.
+     * This will be either the "real" schema version including the {@code cdc} column,
+     * if no node in the cluster is running at 3.0, or a 3.0 compatible
+     * schema version, with the {@code cdc} column excluded, if at least one node is
+     * running 3.0.
+     *
+     * @return "current" schema version
      */
     public UUID getVersion()
+    {
+        return Gossiper.instance.isEnabled() && Gossiper.instance.isAnyNodeOn30()
+               ? altVersion
+               : version;
+    }
+
+    /**
+     * The 3.11 schema version, always includes the {@code cdc} column.
+     */
+    public UUID getRealVersion()
     {
         return version;
     }
 
     /**
+     * The "alternative" schema version, compatible to 3.0, always excludes the
+     * {@code cdc} column.
+     */
+    public UUID getAltVersion()
+    {
+        return altVersion;
+    }
+
+    /**
+     * Checks whether the given schema version is the same as the current local schema
+     * version, either the 3.0 compatible or "real" one.
+     */
+    public boolean isSameVersion(UUID schemaVersion)
+    {
+        return schemaVersion != null
+               && (schemaVersion.equals(version) || schemaVersion.equals(altVersion));
+    }
+
+    /**
+     * Checks whether the current schema is empty.
+     */
+    public boolean isEmpty()
+    {
+        return SchemaConstants.emptyVersion.equals(version);
+    }
+
+    /**
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
+     *
+     * 3.11 note: we calculate the "real" schema version and the 3.0 compatible schema
+     * version here.
      */
     public void updateVersion()
     {
-        version = SchemaKeyspace.calculateSchemaDigest();
-        SystemKeyspace.updateSchemaVersion(version);
+        Pair<UUID, UUID> mixedVersions = SchemaKeyspace.calculateSchemaDigest();
+        version = mixedVersions.left;
+        altVersion = mixedVersions.right;
+        SystemKeyspace.updateSchemaVersion(getVersion());
     }
 
-    /*
+    /**
      * Like updateVersion, but also announces via gossip
+     *
+     * 3.11 note: we announce the "current" schema version, which can be either the 3.0
+     * compatible one, if at least one node is still running 3.0, or the "real" schema version.
      */
     public void updateVersionAndAnnounce()
     {
         updateVersion();
-        MigrationManager.passiveAnnounce(version);
+        UUID current = getVersion();
+        MigrationManager.passiveAnnounce(current, current == getAltVersion());
     }
 
     /**
@@ -784,5 +838,18 @@ public class Schema
         setKeyspaceMetadata(transformed);
 
         return transformed;
+    }
+
+    /**
+     * Converts the given schema version to a string. Returns {@code unknown}, if {@code version} is {@code null}
+     * or {@code "(empty)"}, if {@code version} refers to an {@link SchemaConstants#emptyVersion empty) schema.
+     */
+    public static String schemaVersionToString(UUID version)
+    {
+        return version == null
+               ? "unknown"
+               : SchemaConstants.emptyVersion.equals(version)
+                 ? "(empty)"
+                 : version.toString();
     }
 }

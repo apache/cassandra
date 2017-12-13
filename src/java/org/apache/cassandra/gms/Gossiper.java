@@ -24,7 +24,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
-
+import javax.annotation.Nullable;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -32,9 +32,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Uninterruptibles;
-
-import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,14 +40,17 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -75,6 +75,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     static final List<String> DEAD_STATES = Arrays.asList(VersionedValue.REMOVING_TOKEN, VersionedValue.REMOVED_TOKEN,
                                                           VersionedValue.STATUS_LEFT, VersionedValue.HIBERNATE);
     static ArrayList<String> SILENT_SHUTDOWN_STATES = new ArrayList<>();
+
     static
     {
         SILENT_SHUTDOWN_STATES.addAll(DEAD_STATES);
@@ -130,6 +131,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private final Map<InetAddress, Long> expireTimeEndpointMap = new ConcurrentHashMap<InetAddress, Long>();
 
+    private volatile boolean anyNodeOn30 = false; // we assume the regular case here - all nodes are on 3.11
     private volatile boolean inShadowRound = false;
     // seeds gathered during shadow round that indicated to be in the shadow round phase as well
     private final Set<InetAddress> seedsInShadowRound = new ConcurrentSkipListSet<>(inetcomparator);
@@ -852,20 +854,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return endpointStateMap.get(ep);
     }
 
-    public boolean valuesEqual(InetAddress ep1, InetAddress ep2, ApplicationState as)
-    {
-        EndpointState state1 = getEndpointStateForEndpoint(ep1);
-        EndpointState state2 = getEndpointStateForEndpoint(ep2);
-
-        if (state1 == null || state2 == null)
-            return false;
-
-        VersionedValue value1 = state1.getApplicationState(as);
-        VersionedValue value2 = state2.getApplicationState(as);
-
-        return !(value1 == null || value2 == null) && value1.value.equals(value2.value);
-    }
-
     public Set<Entry<InetAddress, EndpointState>> getEndpointStates()
     {
         return endpointStateMap.entrySet();
@@ -1198,6 +1186,26 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 handleMajorStateChange(ep, remoteState);
             }
         }
+
+        boolean any30 = anyEndpointOn30();
+        if (any30 != anyNodeOn30)
+        {
+            logger.info(any30
+                        ? "There is at least one 3.0 node in the cluster - will store and announce compatible schema version"
+                        : "There are no 3.0 nodes in the cluster - will store and announce real schema version");
+
+            anyNodeOn30 = any30;
+            executor.submit(Schema.instance::updateVersionAndAnnounce);
+        }
+    }
+
+    private boolean anyEndpointOn30()
+    {
+        return endpointStateMap.values()
+                               .stream()
+                               .map(EndpointState::getReleaseVersion)
+                               .filter(Objects::nonNull)
+                               .anyMatch(CassandraVersion::is30);
     }
 
     private void applyNewStates(InetAddress addr, EndpointState localState, EndpointState remoteState)
@@ -1547,6 +1555,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return (scheduledGossipTask != null) && (!scheduledGossipTask.isCancelled());
     }
 
+    public boolean isAnyNodeOn30()
+    {
+        return anyNodeOn30;
+    }
+
     protected void maybeFinishShadowRound(InetAddress respondent, boolean isInShadowRound, Map<InetAddress, EndpointState> epStateMap)
     {
         if (inShadowRound)
@@ -1629,16 +1642,18 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return System.currentTimeMillis() + Gossiper.aVeryLongTime;
     }
 
+    @Nullable
     public CassandraVersion getReleaseVersion(InetAddress ep)
     {
         EndpointState state = getEndpointStateForEndpoint(ep);
-        if (state != null)
-        {
-            VersionedValue applicationState = state.getApplicationState(ApplicationState.RELEASE_VERSION);
-            if (applicationState != null)
-                return new CassandraVersion(applicationState.value);
-        }
-        return null;
+        return state != null ? state.getReleaseVersion() : null;
+    }
+
+    @Nullable
+    public UUID getSchemaVersion(InetAddress ep)
+    {
+        EndpointState state = getEndpointStateForEndpoint(ep);
+        return state != null ? state.getSchemaVersion() : null;
     }
 
     public static void waitToSettle()

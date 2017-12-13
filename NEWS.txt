@@ -25,6 +25,15 @@ Upgrading
     - Cassandra is not logging anymore by default an Heap histogram on OutOfMemoryError. To enable that behavior
       set the 'cassandra.printHeapHistogramOnOutOfMemoryError' System property to 'true'. See CASSANDRA-13006
       for more details.
+    - Upgrades from 3.0 might have produced unnecessary schema migrations while
+      there was at least one 3.0 node in the cluster. It is therefore highly
+      recommended to upgrade from 3.0 to at least 3.11.2. The root cause of
+      this schema mismatch was a difference in the way how schema digests were computed
+      in 3.0 and 3.11.2. To mitigate this issue, 3.11.2 and newer announce
+      3.0 compatible digests as long as there is at least one 3.0 node in the
+      cluster. Once all nodes have been upgraded, the "real" schema version will be
+      announced. Note: this fix is only necessary in 3.11.2 and therefore only applies
+      to 3.11. (CASSANDRA-14109)
 
 Materialized Views
 -------------------

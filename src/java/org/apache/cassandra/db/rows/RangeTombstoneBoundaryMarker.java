@@ -20,6 +20,7 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
@@ -149,6 +150,12 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
         bound.digest(digest);
         endDeletion.digest(digest);
         startDeletion.digest(digest);
+    }
+
+    @Override
+    public void digest(MessageDigest digest, Set<ByteBuffer> columnsToExclude)
+    {
+        digest(digest);
     }
 
     public String toString(CFMetaData metadata)

@@ -19,7 +19,9 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.AbstractCollection;
+import java.util.Collections;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -63,6 +65,11 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
 
     public void digest(MessageDigest digest)
     {
+        digest(digest, Collections.emptySet());
+    }
+
+    public void digest(MessageDigest digest, Set<ByteBuffer> columnsToExclude)
+    {
         FBUtilities.updateWithByte(digest, kind().ordinal());
         clustering().digest(digest);
 
@@ -70,7 +77,8 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
         primaryKeyLivenessInfo().digest(digest);
 
         for (ColumnData cd : this)
-            cd.digest(digest);
+            if (!columnsToExclude.contains(cd.column.name.bytes))
+                cd.digest(digest);
     }
 
     public void validateData(CFMetaData metadata)

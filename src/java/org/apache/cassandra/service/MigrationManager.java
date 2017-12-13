@@ -31,7 +31,6 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
@@ -78,10 +77,9 @@ public class MigrationManager
 
     public static void scheduleSchemaPull(InetAddress endpoint, EndpointState state)
     {
-        VersionedValue value = state.getApplicationState(ApplicationState.SCHEMA);
-
-        if (!endpoint.equals(FBUtilities.getBroadcastAddress()) && value != null)
-            maybeScheduleSchemaPull(UUID.fromString(value.value), endpoint);
+        UUID schemaVersion = state.getSchemaVersion();
+        if (!endpoint.equals(FBUtilities.getBroadcastAddress()) && schemaVersion != null)
+            maybeScheduleSchemaPull(schemaVersion, endpoint);
     }
 
     /**
@@ -90,16 +88,37 @@ public class MigrationManager
      */
     private static void maybeScheduleSchemaPull(final UUID theirVersion, final InetAddress endpoint)
     {
-        if ((Schema.instance.getVersion() != null && Schema.instance.getVersion().equals(theirVersion)) || !shouldPullSchemaFrom(endpoint))
+        if (Schema.instance.getVersion() == null)
+        {
+            logger.debug("Not pulling schema from {}, because local schama version is not known yet",
+                         endpoint);
+            return;
+        }
+        if (Schema.instance.isSameVersion(theirVersion))
+        {
+            logger.debug("Not pulling schema from {}, because schema versions match: " +
+                         "local/real={}, local/compatible={}, remote={}",
+                         endpoint,
+                         Schema.schemaVersionToString(Schema.instance.getRealVersion()),
+                         Schema.schemaVersionToString(Schema.instance.getAltVersion()),
+                         Schema.schemaVersionToString(theirVersion));
+            return;
+        }
+        if (!shouldPullSchemaFrom(endpoint))
         {
             logger.debug("Not pulling schema because versions match or shouldPullSchemaFrom returned false");
             return;
         }
 
-        if (SchemaConstants.emptyVersion.equals(Schema.instance.getVersion()) || runtimeMXBean.getUptime() < MIGRATION_DELAY_IN_MS)
+        if (Schema.instance.isEmpty() || runtimeMXBean.getUptime() < MIGRATION_DELAY_IN_MS)
         {
             // If we think we may be bootstrapping or have recently started, submit MigrationTask immediately
-            logger.debug("Submitting migration task for {}", endpoint);
+            logger.debug("Immediately submitting migration task for {}, " +
+                         "schema versions: local/real={}, local/compatible={}, remote={}",
+                         endpoint,
+                         Schema.schemaVersionToString(Schema.instance.getRealVersion()),
+                         Schema.schemaVersionToString(Schema.instance.getAltVersion()),
+                         Schema.schemaVersionToString(theirVersion));
             submitMigrationTask(endpoint);
         }
         else
@@ -109,20 +128,22 @@ public class MigrationManager
             Runnable runnable = () ->
             {
                 // grab the latest version of the schema since it may have changed again since the initial scheduling
-                EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-                if (epState == null)
+                UUID epSchemaVersion = Gossiper.instance.getSchemaVersion(endpoint);
+                if (epSchemaVersion == null)
                 {
                     logger.debug("epState vanished for {}, not submitting migration task", endpoint);
                     return;
                 }
-                VersionedValue value = epState.getApplicationState(ApplicationState.SCHEMA);
-                UUID currentVersion = UUID.fromString(value.value);
-                if (Schema.instance.getVersion().equals(currentVersion))
+                if (Schema.instance.isSameVersion(epSchemaVersion))
                 {
-                    logger.debug("not submitting migration task for {} because our versions match", endpoint);
+                    logger.debug("Not submitting migration task for {} because our versions match ({})", endpoint, epSchemaVersion);
                     return;
                 }
-                logger.debug("submitting migration task for {}", endpoint);
+                logger.debug("submitting migration task for {}, schema version mismatch: local/real={}, local/compatible={}, remote={}",
+                             endpoint,
+                             Schema.schemaVersionToString(Schema.instance.getRealVersion()),
+                             Schema.schemaVersionToString(Schema.instance.getAltVersion()),
+                             Schema.schemaVersionToString(epSchemaVersion));
                 submitMigrationTask(endpoint);
             };
             ScheduledExecutors.nonPeriodicTasks.schedule(runnable, MIGRATION_DELAY_IN_MS, TimeUnit.MILLISECONDS);
@@ -585,11 +606,14 @@ public class MigrationManager
      * Used to notify nodes as they arrive in the cluster.
      *
      * @param version The schema version to announce
+     * @param compatible flag whether {@code version} is a 3.0 compatible version
      */
-    public static void passiveAnnounce(UUID version)
+    public static void passiveAnnounce(UUID version, boolean compatible)
     {
         Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(version));
-        logger.debug("Gossiping my schema version {}", version);
+        logger.debug("Gossiping my {} schema version {}",
+                     compatible ? "3.0 compatible" : "3.11",
+                     Schema.schemaVersionToString(version));
     }
 
     /**

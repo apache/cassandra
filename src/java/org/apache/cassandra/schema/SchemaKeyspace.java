@@ -311,18 +311,24 @@ public final class SchemaKeyspace
     /**
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
+     *
+     * This implementation is special cased for 3.11 as it returns the schema digests for 3.11
+     * <em>and</em> 3.0 - i.e. with and without the beloved {@code cdc} column.
      */
-    public static UUID calculateSchemaDigest()
+    public static Pair<UUID, UUID> calculateSchemaDigest()
     {
         MessageDigest digest;
+        MessageDigest digest30;
         try
         {
             digest = MessageDigest.getInstance("MD5");
+            digest30 = MessageDigest.getInstance("MD5");
         }
         catch (NoSuchAlgorithmException e)
         {
             throw new RuntimeException(e);
         }
+        Set<ByteBuffer> cdc = Collections.singleton(ByteBufferUtil.bytes("cdc"));
 
         for (String table : ALL_FOR_DIGEST)
         {
@@ -340,12 +346,15 @@ public final class SchemaKeyspace
                     try (RowIterator partition = schema.next())
                     {
                         if (!isSystemKeyspaceSchemaPartition(partition.partitionKey()))
-                            RowIterators.digest(partition, digest);
+                        {
+                            RowIterators.digest(partition, digest, digest30, cdc);
+                        }
                     }
                 }
             }
         }
-        return UUID.nameUUIDFromBytes(digest.digest());
+
+        return Pair.create(UUID.nameUUIDFromBytes(digest.digest()), UUID.nameUUIDFromBytes(digest30.digest()));
     }
 
     /**
