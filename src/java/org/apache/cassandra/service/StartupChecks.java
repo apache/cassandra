@@ -50,6 +50,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JavaUtils;
 import org.apache.cassandra.utils.SigarLibrary;
 
 /**
@@ -203,7 +204,7 @@ public class StartupChecks
             }
             else
             {
-                    checkOutOfMemoryHandling();
+                checkOutOfMemoryHandling();
             }
         }
 
@@ -212,13 +213,7 @@ public class StartupChecks
          */
         private void checkOutOfMemoryHandling()
         {
-            int version = getJavaVersion();
-            int update = getUpdate();
-            // The ExitOnOutOfMemory and CrashOnOutOfMemory are supported since the version 7u101 and 8u92
-            boolean jreSupportExitOnOutOfMemory = version > 8
-                                                    || (version == 7 && update >= 101)
-                                                    || (version == 8 && update >= 92);
-            if (jreSupportExitOnOutOfMemory)
+            if (JavaUtils.supportExitOnOutOfMemory(System.getProperty("java.version")))
             {
                 if (!jvmOptionsContainsOneOf("-XX:OnOutOfMemoryError=", "-XX:+ExitOnOutOfMemoryError", "-XX:+CrashOnOutOfMemoryError"))
                     logger.warn("The JVM is not configured to stop on OutOfMemoryError which can cause data corruption."
@@ -232,29 +227,6 @@ public class StartupChecks
                             + " Either upgrade your JRE to a version greater or equal to 8u92 and use -XX:+ExitOnOutOfMemoryError/-XX:+CrashOnOutOfMemoryError"
                             + " or use -XX:OnOutOfMemoryError=\"<cmd args>;<cmd args>\" on your current JRE.");
             }
-        }
-
-        /**
-         * Returns the java version number for an Oracle JVM.
-         * @return the java version number
-         */
-        private int getJavaVersion()
-        {
-            String jreVersion = System.getProperty("java.version");
-            String version = jreVersion.startsWith("1.") ? jreVersion.substring(2, 3) // Pre 9 version
-                                                         : jreVersion.substring(0, jreVersion.indexOf('.'));
-            return Integer.parseInt(version);
-        }
-
-        /**
-         * Return the update number for an Oracle JVM.
-         * @return the update number
-         */
-        private int getUpdate()
-        {
-            String jreVersion = System.getProperty("java.version");
-            int updateSeparatorIndex = jreVersion.indexOf('_');
-            return Integer.parseInt(jreVersion.substring(updateSeparatorIndex + 1));
         }
 
         /**
