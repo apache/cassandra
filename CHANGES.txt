@@ -19,6 +19,7 @@
  * Mishandling of cells for removed/dropped columns when reading legacy files (CASSANDRA-13939)
  * Deserialise sstable metadata in nodetool verify (CASSANDRA-13922)
 Merged from 2.2:
+ * Fix the inspectJvmOptions startup check (CASSANDRA-14112)
  * Fix race that prevents submitting compaction for a table when executor is full (CASSANDRA-13801)
  * Rely on the JVM to handle OutOfMemoryErrors (CASSANDRA-13006)
  * Grab refs during scrub/index redistribution/cleanup (CASSANDRA-13873)
