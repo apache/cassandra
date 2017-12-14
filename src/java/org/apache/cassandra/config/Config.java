@@ -200,7 +200,6 @@ public class Config
     public CommitLogSync commitlog_sync;
     public double commitlog_sync_batch_window_in_ms = Double.NaN;
     public int commitlog_sync_period_in_ms;
-    public int commitlog_marker_period_in_ms = 0;
     public int commitlog_segment_size_in_mb = 32;
     public ParameterizedClass commitlog_compression;
     public int commitlog_max_compression_buffers_in_pool = 3;

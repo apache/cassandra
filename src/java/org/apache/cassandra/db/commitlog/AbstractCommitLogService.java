@@ -28,13 +28,19 @@ import com.codahale.metrics.Timer.Context;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 public abstract class AbstractCommitLogService
 {
+    /**
+     * When in {@link Config.CommitLogSync#periodic} mode, the default number of milliseconds to wait between updating
+     * the commit log chained markers.
+     */
+    static final long DEFAULT_MARKER_INTERVAL_MILLIS = 100;
+
     private Thread thread;
     private volatile boolean shutdown = false;
 
@@ -54,13 +60,13 @@ public abstract class AbstractCommitLogService
     /**
      * The duration between syncs to disk.
      */
-    private final long syncIntervalNanos;
+    final long syncIntervalNanos;
 
     /**
      * The duration between updating the chained markers in the the commit log file. This value should be
      * 0 < {@link #markerIntervalNanos} <= {@link #syncIntervalNanos}.
      */
-    private final long markerIntervalNanos;
+    final long markerIntervalNanos;
 
     /**
      * A flag that callers outside of the sync thread can use to signal they want the commitlog segments
@@ -77,9 +83,9 @@ public abstract class AbstractCommitLogService
      *
      * Subclasses may be notified when a sync finishes by using the syncComplete WaitQueue.
      */
-    AbstractCommitLogService(final CommitLog commitLog, final String name, final long syncIntervalMillis)
+    AbstractCommitLogService(final CommitLog commitLog, final String name, long syncIntervalMillis)
     {
-        this(commitLog, name, syncIntervalMillis, syncIntervalMillis);
+        this (commitLog, name, syncIntervalMillis, false);
     }
 
     /**
@@ -87,27 +93,36 @@ public abstract class AbstractCommitLogService
      * Batch or Periodic contract.
      *
      * Subclasses may be notified when a sync finishes by using the syncComplete WaitQueue.
+     *
+     * @param markHeadersFaster true if the chained markers should be updated more frequently than on the disk sync bounds.
      */
-    AbstractCommitLogService(final CommitLog commitLog, final String name, final long syncIntervalMillis, long markerIntervalMillis)
+    AbstractCommitLogService(final CommitLog commitLog, final String name, long syncIntervalMillis, boolean markHeadersFaster)
     {
         this.commitLog = commitLog;
         this.name = name;
-        this.syncIntervalNanos = TimeUnit.NANOSECONDS.convert(syncIntervalMillis, TimeUnit.MILLISECONDS);
 
-        // if we are not using periodic mode, or we using compression/encryption, we shouldn't update the chained markers
-        // faster than the sync interval
-        if (DatabaseDescriptor.getCommitLogSync() != Config.CommitLogSync.periodic || commitLog.configuration.useCompression() || commitLog.configuration.useEncryption())
-            markerIntervalMillis = syncIntervalMillis;
-
-        // apply basic bounds checking on the marker interval
-        if (markerIntervalMillis <= 0 || markerIntervalMillis > syncIntervalMillis)
+        final long markerIntervalMillis;
+        if (markHeadersFaster && syncIntervalMillis > DEFAULT_MARKER_INTERVAL_MILLIS)
         {
-            logger.debug("commit log marker interval {} is less than zero or above the sync interval {}; setting value to sync interval",
-                        markerIntervalMillis, syncIntervalMillis);
+            markerIntervalMillis = DEFAULT_MARKER_INTERVAL_MILLIS;
+            long modulo = syncIntervalMillis % markerIntervalMillis;
+            if (modulo != 0)
+            {
+                // quantize syncIntervalMillis to a multiple of markerIntervalMillis
+                syncIntervalMillis -= modulo;
+
+                if (modulo >= markerIntervalMillis / 2)
+                    syncIntervalMillis += markerIntervalMillis;
+            }
+            logger.debug("Will update the commitlog markers every {}ms and flush every {}ms", markerIntervalMillis, syncIntervalMillis);
+        }
+        else
+        {
             markerIntervalMillis = syncIntervalMillis;
         }
-
+        assert syncIntervalMillis % markerIntervalMillis == 0;
         this.markerIntervalNanos = TimeUnit.NANOSECONDS.convert(markerIntervalMillis, TimeUnit.MILLISECONDS);
+        this.syncIntervalNanos = TimeUnit.NANOSECONDS.convert(syncIntervalMillis, TimeUnit.MILLISECONDS);
     }
 
     // Separated into individual method to ensure relevant objects are constructed before this is started.
@@ -116,95 +131,109 @@ public abstract class AbstractCommitLogService
         if (syncIntervalNanos < 1)
             throw new IllegalArgumentException(String.format("Commit log flush interval must be positive: %fms",
                                                              syncIntervalNanos * 1e-6));
-
-        Runnable runnable = new Runnable()
-        {
-            public void run()
-            {
-                long firstLagAt = 0;
-                long totalSyncDuration = 0; // total time spent syncing since firstLagAt
-                long syncExceededIntervalBy = 0; // time that syncs exceeded pollInterval since firstLagAt
-                int lagCount = 0;
-                int syncCount = 0;
-
-                while (true)
-                {
-                    // always run once after shutdown signalled
-                    boolean shutdownRequested = shutdown;
-
-                    try
-                    {
-                        // sync and signal
-                        long pollStarted = System.nanoTime();
-                        if (lastSyncedAt + syncIntervalNanos <= pollStarted || shutdownRequested || syncRequested)
-                        {
-                            // in this branch, we want to flush the commit log to disk
-                            commitLog.sync(true);
-                            syncRequested = false;
-                            lastSyncedAt = pollStarted;
-                            syncComplete.signalAll();
-                        }
-                        else
-                        {
-                            // in this branch, just update the commit log sync headers
-                            commitLog.sync(false);
-                        }
-
-                        // sleep any time we have left before the next one is due
-                        long now = System.nanoTime();
-                        long wakeUpAt = pollStarted + markerIntervalNanos;
-                        if (wakeUpAt < now)
-                        {
-                            // if we have lagged noticeably, update our lag counter
-                            if (firstLagAt == 0)
-                            {
-                                firstLagAt = now;
-                                totalSyncDuration = syncExceededIntervalBy = syncCount = lagCount = 0;
-                            }
-                            syncExceededIntervalBy += now - wakeUpAt;
-                            lagCount++;
-                        }
-                        syncCount++;
-                        totalSyncDuration += now - pollStarted;
-
-                        if (firstLagAt > 0)
-                        {
-                            //Only reset the lag tracking if it actually logged this time
-                            boolean logged = NoSpamLogger.log(logger,
-                                                              NoSpamLogger.Level.WARN,
-                                                              5,
-                                                              TimeUnit.MINUTES,
-                                                              "Out of {} commit log syncs over the past {}s with average duration of {}ms, {} have exceeded the configured commit interval by an average of {}ms",
-                                                              syncCount,
-                                                              String.format("%.2f", (now - firstLagAt) * 1e-9d),
-                                                              String.format("%.2f", totalSyncDuration * 1e-6d / syncCount),
-                                                              lagCount,
-                                                              String.format("%.2f", syncExceededIntervalBy * 1e-6d / lagCount));
-                           if (logged)
-                               firstLagAt = 0;
-                        }
-
-                        if (shutdownRequested)
-                            return;
-
-                        if (wakeUpAt > now)
-                            LockSupport.parkNanos(wakeUpAt - now);
-                    }
-                    catch (Throwable t)
-                    {
-                        if (!CommitLog.handleCommitError("Failed to persist commits to disk", t))
-                            break;
-
-                        // sleep for full poll-interval after an error, so we don't spam the log file
-                        LockSupport.parkNanos(markerIntervalNanos);
-                    }
-                }
-            }
-        };
-
         shutdown = false;
+        Runnable runnable = new SyncRunnable(new Clock());
         thread = NamedThreadFactory.createThread(runnable, name);
         thread.start();
+    }
+
+    class SyncRunnable implements Runnable
+    {
+        private final Clock clock;
+        private long firstLagAt = 0;
+        private long totalSyncDuration = 0; // total time spent syncing since firstLagAt
+        private long syncExceededIntervalBy = 0; // time that syncs exceeded pollInterval since firstLagAt
+        private int lagCount = 0;
+        private int syncCount = 0;
+
+        SyncRunnable(Clock clock)
+        {
+            this.clock = clock;
+        }
+
+        public void run()
+        {
+            while (true)
+            {
+                if (!sync())
+                    break;
+            }
+        }
+
+        boolean sync()
+        {
+            // always run once after shutdown signalled
+            boolean shutdownRequested = shutdown;
+
+            try
+            {
+                // sync and signal
+                long pollStarted = clock.nanoTime();
+                if (lastSyncedAt + syncIntervalNanos <= pollStarted || shutdownRequested || syncRequested)
+                {
+                    // in this branch, we want to flush the commit log to disk
+                    commitLog.sync(true);
+                    syncRequested = false;
+                    lastSyncedAt = pollStarted;
+                    syncComplete.signalAll();
+                    syncCount++;
+                }
+                else
+                {
+                    // in this branch, just update the commit log sync headers
+                    commitLog.sync(false);
+                }
+
+                // sleep any time we have left before the next one is due
+                long now = clock.nanoTime();
+                long wakeUpAt = pollStarted + markerIntervalNanos;
+                if (wakeUpAt < now)
+                {
+                    // if we have lagged noticeably, update our lag counter
+                    if (firstLagAt == 0)
+                    {
+                        firstLagAt = now;
+                        totalSyncDuration = syncExceededIntervalBy = syncCount = lagCount = 0;
+                    }
+                    syncExceededIntervalBy += now - wakeUpAt;
+                    lagCount++;
+                }
+                totalSyncDuration += now - pollStarted;
+
+                if (firstLagAt > 0)
+                {
+                    //Only reset the lag tracking if it actually logged this time
+                    boolean logged = NoSpamLogger.log(logger,
+                                                      NoSpamLogger.Level.WARN,
+                                                      5,
+                                                      TimeUnit.MINUTES,
+                                                      "Out of {} commit log syncs over the past {}s with average duration of {}ms, {} have exceeded the configured commit interval by an average of {}ms",
+                                                      syncCount,
+                                                      String.format("%.2f", (now - firstLagAt) * 1e-9d),
+                                                      String.format("%.2f", totalSyncDuration * 1e-6d / syncCount),
+                                                      lagCount,
+                                                      String.format("%.2f", syncExceededIntervalBy * 1e-6d / lagCount));
+                    if (logged)
+                        firstLagAt = 0;
+                }
+
+                if (shutdownRequested)
+                    return false;
+
+                if (wakeUpAt > now)
+                    LockSupport.parkNanos(wakeUpAt - now);
+            }
+            catch (Throwable t)
+            {
+                if (!CommitLog.handleCommitError("Failed to persist commits to disk", t))
+                    return false;
+
+                // sleep for full poll-interval after an error, so we don't spam the log file
+                LockSupport.parkNanos(markerIntervalNanos);
+            }
+
+            return true;
+        }
     }
 
     /**

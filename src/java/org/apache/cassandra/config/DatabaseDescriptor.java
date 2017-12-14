@@ -1837,16 +1837,6 @@ public class DatabaseDescriptor
         conf.commitlog_sync_period_in_ms = periodMillis;
     }
 
-    public static void setCommitLogMarkerPeriod(int markerPeriod)
-    {
-        conf.commitlog_marker_period_in_ms = markerPeriod;
-    }
-
-    public static int getCommitLogMarkerPeriod()
-    {
-        return conf.commitlog_marker_period_in_ms;
-    }
-
     public static Config.CommitLogSync getCommitLogSync()
     {
         return conf.commitlog_sync;

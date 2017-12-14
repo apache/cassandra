@@ -65,13 +65,13 @@ public class CommitLogSegmentBackpressureTest
 
     @Test
     @BMRules(rules = {@BMRule(name = "Acquire Semaphore before sync",
-                              targetClass = "AbstractCommitLogService$1",
-                              targetMethod = "run",
+                              targetClass = "AbstractCommitLogService$SyncRunnable",
+                              targetMethod = "sync",
                               targetLocation = "AT INVOKE org.apache.cassandra.db.commitlog.CommitLog.sync(boolean)",
                               action = "org.apache.cassandra.db.commitlog.CommitLogSegmentBackpressureTest.allowSync.acquire()"),
                       @BMRule(name = "Release Semaphore after sync",
-                              targetClass = "AbstractCommitLogService$1",
-                              targetMethod = "run",
+                              targetClass = "AbstractCommitLogService$SyncRunnable",
+                              targetMethod = "sync",
                               targetLocation = "AFTER INVOKE org.apache.cassandra.db.commitlog.CommitLog.sync(boolean)",
                               action = "org.apache.cassandra.db.commitlog.CommitLogSegmentBackpressureTest.allowSync.release()")})
     public void testCompressedCommitLogBackpressure() throws Throwable
