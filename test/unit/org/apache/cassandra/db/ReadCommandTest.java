@@ -50,6 +50,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.metrics.TableMetrics.TableHistogram;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
@@ -340,4 +342,173 @@ public class ReadCommandTest
             count++;
         }
     }
+
+    @Test
+    public void testCountDeletedRows() throws Exception
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF3);
+        // cfs = Mockito.spy(cfs);
+        // TableMetrics metricsMock = Mockito.mock(TableMetrics.class);
+        // Mockito.doReturn(metricsMock).when(cfs).metric;
+
+        String[][][] groups = new String[][][] {
+                new String[][] {
+                        new String[] { "1", "key1", "aa", "a" }, // "1" indicates to create the data, "-1" to delete the
+                                                                 // row
+                        new String[] { "1", "key2", "bb", "b" },
+                        new String[] { "1", "key3", "cc", "c" }
+                },
+                new String[][] {
+                        new String[] { "1", "key3", "dd", "d" },
+                        new String[] { "1", "key2", "ee", "e" },
+                        new String[] { "1", "key1", "ff", "f" }
+                },
+                new String[][] {
+                        new String[] { "1", "key6", "aa", "a" },
+                        new String[] { "1", "key5", "bb", "b" },
+                        new String[] { "1", "key4", "cc", "c" }
+                },
+                new String[][] {
+                        new String[] { "1", "key2", "aa", "a" },
+                        new String[] { "1", "key2", "cc", "c" },
+                        new String[] { "1", "key2", "dd", "d" }
+                },
+                new String[][] {
+                        new String[] { "-1", "key6", "aa", "a" },
+                        new String[] { "-1", "key2", "bb", "b" },
+                        new String[] { "-1", "key2", "ee", "e" },
+                        new String[] { "-1", "key2", "aa", "a" },
+                        new String[] { "-1", "key2", "cc", "c" },
+                        new String[] { "-1", "key2", "dd", "d" }
+                }
+        };
+
+        List<ByteBuffer> buffers = new ArrayList<>(groups.length);
+        int nowInSeconds = FBUtilities.nowInSeconds();
+        ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata()).build();
+        RowFilter rowFilter = RowFilter.create();
+        Slice slice = Slice.make(ClusteringBound.BOTTOM, ClusteringBound.TOP);
+        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(
+                Slices.with(cfs.metadata().comparator, slice), false);
+
+        for (String[][] group : groups)
+        {
+            cfs.truncateBlocking();
+
+            List<SinglePartitionReadCommand> commands = new ArrayList<>(group.length);
+
+            for (String[] data : group)
+            {
+                if (data[0].equals("1"))
+                {
+                    new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes(data[1]))
+                            .clustering(data[2])
+                            .add(data[3], ByteBufferUtil.bytes("blah"))
+                            .build()
+                            .apply();
+                }
+                else
+                {
+                    RowUpdateBuilder.deleteRow(cfs.metadata(), FBUtilities.timestampMicros(),
+                            ByteBufferUtil.bytes(data[1]), data[2]).apply();
+                }
+                commands.add(SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, columnFilter, rowFilter,
+                        DataLimits.NONE, Util.dk(data[1]), sliceFilter));
+            }
+
+            cfs.forceBlockingFlush();
+
+            ReadQuery query = new SinglePartitionReadCommand.Group(commands, DataLimits.NONE);
+
+            try (ReadExecutionController executionController = query.executionController();
+                    UnfilteredPartitionIterator iter = query.executeLocally(executionController);
+                    DataOutputBuffer buffer = new DataOutputBuffer())
+            {
+                UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter,
+                        columnFilter,
+                        buffer,
+                        MessagingService.current_version);
+                buffers.add(buffer.buffer());
+            }
+        }
+
+        assertEquals(5, cfs.metric.tombstoneScannedHistogram.cf.getSnapshot().getMax());
+    }
+
+    @Test
+    public void testCountWithNoDeletedRow() throws Exception
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF3);
+
+        String[][][] groups = new String[][][] {
+                new String[][] {
+                        new String[] { "1", "key1", "aa", "a" }, // "1" indicates to create the data, "-1" to delete the
+                                                                 // row
+                        new String[] { "1", "key2", "bb", "b" },
+                        new String[] { "1", "key3", "cc", "c" }
+                },
+                new String[][] {
+                        new String[] { "1", "key3", "dd", "d" },
+                        new String[] { "1", "key2", "ee", "e" },
+                        new String[] { "1", "key1", "ff", "f" }
+                },
+                new String[][] {
+                        new String[] { "1", "key6", "aa", "a" },
+                        new String[] { "1", "key5", "bb", "b" },
+                        new String[] { "1", "key4", "cc", "c" }
+                }
+        };
+
+        List<ByteBuffer> buffers = new ArrayList<>(groups.length);
+        int nowInSeconds = FBUtilities.nowInSeconds();
+        ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata()).build();
+        RowFilter rowFilter = RowFilter.create();
+        Slice slice = Slice.make(ClusteringBound.BOTTOM, ClusteringBound.TOP);
+        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(
+                Slices.with(cfs.metadata().comparator, slice), false);
+
+        for (String[][] group : groups)
+        {
+            cfs.truncateBlocking();
+
+            List<SinglePartitionReadCommand> commands = new ArrayList<>(group.length);
+
+            for (String[] data : group)
+            {
+                if (data[0].equals("1"))
+                {
+                    new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes(data[1]))
+                            .clustering(data[2])
+                            .add(data[3], ByteBufferUtil.bytes("blah"))
+                            .build()
+                            .apply();
+                }
+                else
+                {
+                    RowUpdateBuilder.deleteRow(cfs.metadata(), FBUtilities.timestampMicros(),
+                            ByteBufferUtil.bytes(data[1]), data[2]).apply();
+                }
+                commands.add(SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, columnFilter, rowFilter,
+                        DataLimits.NONE, Util.dk(data[1]), sliceFilter));
+            }
+
+            cfs.forceBlockingFlush();
+
+            ReadQuery query = new SinglePartitionReadCommand.Group(commands, DataLimits.NONE);
+
+            try (ReadExecutionController executionController = query.executionController();
+                    UnfilteredPartitionIterator iter = query.executeLocally(executionController);
+                    DataOutputBuffer buffer = new DataOutputBuffer())
+            {
+                UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter,
+                        columnFilter,
+                        buffer,
+                        MessagingService.current_version);
+                buffers.add(buffer.buffer());
+            }
+        }
+
+        assertEquals(1, cfs.metric.tombstoneScannedHistogram.cf.getSnapshot().getMax());
+    }
+
 }
