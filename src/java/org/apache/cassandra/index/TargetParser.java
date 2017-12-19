@@ -77,13 +77,16 @@ public class TargetParser
         }
 
         // if it's not a CQL table, we can't assume that the column name is utf8, so
-        // in that case we have to do a linear scan of the cfm's columns to get the matching one
-        if (cfm.isCQLTable())
-            return Pair.create(cfm.getColumnDefinition(new ColumnIdentifier(columnName, true)), targetType);
-        else
-            for (ColumnDefinition column : cfm.allColumns())
-                if (column.name.toString().equals(columnName))
-                    return Pair.create(column, targetType);
+        // in that case we have to do a linear scan of the cfm's columns to get the matching one.
+        // After dropping compact storage (see CASSANDRA-10857), we can't distinguish between the
+        // former compact/thrift table, so we have to fall back to linear scan in both cases.
+        ColumnDefinition cd = cfm.getColumnDefinition(new ColumnIdentifier(columnName, true));
+        if (cd != null)
+            return Pair.create(cd, targetType);
+
+        for (ColumnDefinition column : cfm.allColumns())
+            if (column.name.toString().equals(columnName))
+                return Pair.create(column, targetType);
 
         return null;
     }
