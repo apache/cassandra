@@ -183,6 +183,7 @@
  * Update jackson JSON jars (CASSANDRA-13949)
  * Avoid locks when checking LCS fanout and if we should defrag (CASSANDRA-13930)
 Merged from 3.0:
+ * Fix index target computation for dense composite tables with dropped compact storage (CASSANDRA-14104)
  * Improve commit log chain marker updating (CASSANDRA-14108)
  * Extra range tombstone bound creates double rows (CASSANDRA-14008)
  * Fix SStable ordering by max timestamp in SinglePartitionReadCommand (CASSANDRA-14010)
