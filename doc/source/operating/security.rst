@@ -26,12 +26,13 @@ There are three main components to the security features provided by Cassandra:
 
 By default, these features are disabled as Cassandra is configured to easily find and be found by other members of a
 cluster. In other words, an out-of-the-box Cassandra installation presents a large attack surface for a bad actor.
-Possible attack vectors include:
+Enabling authentication for clients using the binary protocol is not sufficient to protect a cluster. Malicious users
+able to access internode communication and JMX ports can still:
 
-- Crafted internode messages to insert users into authentication schema
-- Crafted internode messages to truncate or drop schema
-- Use of tools such as ``sstableloader`` to overwrite ``system_auth`` tables 
-- Attaching to the cluster directly to capture write traffic
+- Craft internode messages to insert users into authentication schema
+- Craft internode messages to truncate or drop schema
+- Use tools such as ``sstableloader`` to overwrite ``system_auth`` tables 
+- Attach to the cluster directly to capture write traffic
 
 Correct configuration of all three security components should negate theses vectors. Therefore, understanding Cassandra's
 security features is crucial to configuring your cluster to meet your security needs.
