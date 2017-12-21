@@ -19,14 +19,18 @@ package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.*;
 import java.util.*;
+import java.util.zip.CRC32;
 
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -35,11 +39,13 @@ import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
+
 /**
- * Metadata serializer for SSTables {@code version >= 'k'}.
+ * Metadata serializer for SSTables {@code version >= 'na'}.
  *
  * <pre>
- * File format := | number of components (4 bytes) | toc | component1 | component2 | ... |
+ * File format := | number of components (4 bytes) | crc | toc | crc | component1 | c1 crc | component2 | c2 crc | ... |
  * toc         := | component type (4 bytes) | position of component |
  * </pre>
  *
@@ -49,30 +55,59 @@ public class MetadataSerializer implements IMetadataSerializer
 {
     private static final Logger logger = LoggerFactory.getLogger(MetadataSerializer.class);
 
+    private static final int CHECKSUM_LENGTH = 4; // CRC32
+
     public void serialize(Map<MetadataType, MetadataComponent> components, DataOutputPlus out, Version version) throws IOException
     {
+        boolean checksum = version.hasMetadataChecksum();
+        CRC32 crc = new CRC32();
         // sort components by type
         List<MetadataComponent> sortedComponents = Lists.newArrayList(components.values());
         Collections.sort(sortedComponents);
 
         // write number of component
         out.writeInt(components.size());
+        updateChecksumInt(crc, components.size());
+        maybeWriteChecksum(crc, out, version);
+
         // build and write toc
-        int lastPosition = 4 + (8 * sortedComponents.size());
+        int lastPosition = 4 + (8 * sortedComponents.size()) + (checksum ? 2 * CHECKSUM_LENGTH : 0);
+        Map<MetadataType, Integer> sizes = new EnumMap<>(MetadataType.class);
         for (MetadataComponent component : sortedComponents)
         {
             MetadataType type = component.getType();
             // serialize type
             out.writeInt(type.ordinal());
+            updateChecksumInt(crc, type.ordinal());
             // serialize position
             out.writeInt(lastPosition);
-            lastPosition += type.serializer.serializedSize(version, component);
+            updateChecksumInt(crc, lastPosition);
+            int size = type.serializer.serializedSize(version, component);
+            lastPosition += size + (checksum ? CHECKSUM_LENGTH : 0);
+            sizes.put(type, size);
         }
+        maybeWriteChecksum(crc, out, version);
+
         // serialize components
         for (MetadataComponent component : sortedComponents)
         {
-            component.getType().serializer.serialize(version, component, out);
+            byte[] bytes;
+            try (DataOutputBuffer dob = new DataOutputBuffer(sizes.get(component.getType())))
+            {
+                component.getType().serializer.serialize(version, component, dob);
+                bytes = dob.getData();
+            }
+            out.write(bytes);
+
+            crc.reset(); crc.update(bytes);
+            maybeWriteChecksum(crc, out, version);
         }
+    }
+
+    private static void maybeWriteChecksum(CRC32 crc, DataOutputPlus out, Version version) throws IOException
+    {
+        if (version.hasMetadataChecksum())
+            out.writeInt((int) crc.getValue());
     }
 
     public Map<MetadataType, MetadataComponent> deserialize( Descriptor descriptor, EnumSet<MetadataType> types) throws IOException
@@ -101,29 +136,87 @@ public class MetadataSerializer implements IMetadataSerializer
         return deserialize(descriptor, EnumSet.of(type)).get(type);
     }
 
-    public Map<MetadataType, MetadataComponent> deserialize(Descriptor descriptor, FileDataInput in, EnumSet<MetadataType> types) throws IOException
+    public Map<MetadataType, MetadataComponent> deserialize(Descriptor descriptor,
+                                                            FileDataInput in,
+                                                            EnumSet<MetadataType> selectedTypes)
+    throws IOException
     {
-        Map<MetadataType, MetadataComponent> components = new EnumMap<>(MetadataType.class);
-        // read number of components
-        int numComponents = in.readInt();
-        // read toc
-        Map<MetadataType, Integer> toc = new EnumMap<>(MetadataType.class);
-        MetadataType[] values = MetadataType.values();
-        for (int i = 0; i < numComponents; i++)
+        boolean isChecksummed = descriptor.version.hasMetadataChecksum();
+        CRC32 crc = new CRC32();
+
+        /*
+         * Read TOC
+         */
+
+        int length = (int) in.bytesRemaining();
+
+        int count = in.readInt();
+        updateChecksumInt(crc, count);
+        maybeValidateChecksum(crc, in, descriptor);
+
+        int[] ordinals = new int[count];
+        int[]  offsets = new int[count];
+        int[]  lengths = new int[count];
+
+        for (int i = 0; i < count; i++)
         {
-            toc.put(values[in.readInt()], in.readInt());
+            ordinals[i] = in.readInt();
+            updateChecksumInt(crc, ordinals[i]);
+
+            offsets[i] = in.readInt();
+            updateChecksumInt(crc, offsets[i]);
         }
-        for (MetadataType type : types)
+        maybeValidateChecksum(crc, in, descriptor);
+
+        lengths[count - 1] = length - offsets[count - 1];
+        for (int i = 0; i < count - 1; i++)
+            lengths[i] = offsets[i + 1] - offsets[i];
+
+        /*
+         * Read components
+         */
+
+        MetadataType[] allMetadataTypes = MetadataType.values();
+
+        Map<MetadataType, MetadataComponent> components = new EnumMap<>(MetadataType.class);
+
+        for (int i = 0; i < count; i++)
         {
-            Integer offset = toc.get(type);
-            if (offset != null)
+            MetadataType type = allMetadataTypes[ordinals[i]];
+
+            if (!selectedTypes.contains(type))
             {
-                in.seek(offset);
-                MetadataComponent component = type.serializer.deserialize(descriptor.version, in);
-                components.put(type, component);
+                in.skipBytes(lengths[i]);
+                continue;
+            }
+
+            byte[] buffer = new byte[isChecksummed ? lengths[i] - CHECKSUM_LENGTH : lengths[i]];
+            in.readFully(buffer);
+
+            crc.reset(); crc.update(buffer);
+            maybeValidateChecksum(crc, in, descriptor);
+            try (DataInputBuffer dataInputBuffer = new DataInputBuffer(buffer))
+            {
+                components.put(type, type.serializer.deserialize(descriptor.version, dataInputBuffer));
             }
         }
+
         return components;
+    }
+
+    private static void maybeValidateChecksum(CRC32 crc, FileDataInput in, Descriptor descriptor) throws IOException
+    {
+        if (!descriptor.version.hasMetadataChecksum())
+            return;
+
+        int actualChecksum = (int) crc.getValue();
+        int expectedChecksum = in.readInt();
+
+        if (actualChecksum != expectedChecksum)
+        {
+            String filename = descriptor.filenameFor(Component.STATS);
+            throw new CorruptSSTableException(new IOException("Checksums do not match for " + filename), filename);
+        }
     }
 
     public void mutateLevel(Descriptor descriptor, int newLevel) throws IOException
@@ -136,13 +229,14 @@ public class MetadataSerializer implements IMetadataSerializer
         rewriteSSTableMetadata(descriptor, currentComponents);
     }
 
-    public void mutateRepairedAt(Descriptor descriptor, long newRepairedAt) throws IOException
+    public void mutateRepaired(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair) throws IOException
     {
-        logger.trace("Mutating {} to repairedAt time {}", descriptor.filenameFor(Component.STATS), newRepairedAt);
+        logger.trace("Mutating {} to repairedAt time {} and pendingRepair {}",
+                     descriptor.filenameFor(Component.STATS), newRepairedAt, newPendingRepair);
         Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
         StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
-        // mutate level
-        currentComponents.put(MetadataType.STATS, stats.mutateRepairedAt(newRepairedAt));
+        // mutate time & id
+        currentComponents.put(MetadataType.STATS, stats.mutateRepairedAt(newRepairedAt).mutatePendingRepair(newPendingRepair));
         rewriteSSTableMetadata(descriptor, currentComponents);
     }
 

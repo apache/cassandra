@@ -21,6 +21,8 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.io.PrintStream;
 import java.util.List;
 
+import org.apache.cassandra.utils.FBUtilities;
+
 public class TableStatsPrinter
 {
     public static StatsPrinter from(String format)
@@ -85,6 +87,10 @@ public class TableStatsPrinter
                     out.printf("\t\tLocal write latency: %01.3f ms%n", table.localWriteLatencyMs);
                     out.println("\t\tPending flushes: " + table.pendingFlushes);
                     out.println("\t\tPercent repaired: " + table.percentRepaired);
+
+                    out.println("\t\tBytes repaired: " + FBUtilities.prettyPrintMemory(table.bytesRepaired));
+                    out.println("\t\tBytes unrepaired: " + FBUtilities.prettyPrintMemory(table.bytesUnrepaired));
+                    out.println("\t\tBytes pending repair: " + FBUtilities.prettyPrintMemory(table.bytesPendingRepair));
 
                     out.println("\t\tBloom filter false positives: " + table.bloomFilterFalsePositives);
                     out.printf("\t\tBloom filter false ratio: %01.5f%n", table.bloomFilterFalseRatio);

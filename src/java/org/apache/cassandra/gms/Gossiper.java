@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
+
 import javax.annotation.Nullable;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -32,6 +33,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,17 +44,14 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -75,7 +76,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     static final List<String> DEAD_STATES = Arrays.asList(VersionedValue.REMOVING_TOKEN, VersionedValue.REMOVED_TOKEN,
                                                           VersionedValue.STATUS_LEFT, VersionedValue.HIBERNATE);
     static ArrayList<String> SILENT_SHUTDOWN_STATES = new ArrayList<>();
-
     static
     {
         SILENT_SHUTDOWN_STATES.addAll(DEAD_STATES);
@@ -131,7 +131,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private final Map<InetAddress, Long> expireTimeEndpointMap = new ConcurrentHashMap<InetAddress, Long>();
 
-    private volatile boolean anyNodeOn30 = false; // we assume the regular case here - all nodes are on 3.11
     private volatile boolean inShadowRound = false;
     // seeds gathered during shadow round that indicated to be in the shadow round phase as well
     private final Set<InetAddress> seedsInShadowRound = new ConcurrentSkipListSet<>(inetcomparator);
@@ -979,12 +978,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void markAlive(final InetAddress addr, final EndpointState localState)
     {
-        if (MessagingService.instance().getVersion(addr) < MessagingService.VERSION_20)
-        {
-            realMarkAlive(addr, localState);
-            return;
-        }
-
         localState.markDead();
 
         MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.ECHO, EchoMessage.instance, EchoMessage.serializer);
@@ -1186,26 +1179,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 handleMajorStateChange(ep, remoteState);
             }
         }
-
-        boolean any30 = anyEndpointOn30();
-        if (any30 != anyNodeOn30)
-        {
-            logger.info(any30
-                        ? "There is at least one 3.0 node in the cluster - will store and announce compatible schema version"
-                        : "There are no 3.0 nodes in the cluster - will store and announce real schema version");
-
-            anyNodeOn30 = any30;
-            executor.submit(Schema.instance::updateVersionAndAnnounce);
-        }
-    }
-
-    private boolean anyEndpointOn30()
-    {
-        return endpointStateMap.values()
-                               .stream()
-                               .map(EndpointState::getReleaseVersion)
-                               .filter(Objects::nonNull)
-                               .anyMatch(CassandraVersion::is30);
     }
 
     private void applyNewStates(InetAddress addr, EndpointState localState, EndpointState remoteState)
@@ -1365,6 +1338,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * Do a single 'shadow' round of gossip by retrieving endpoint states that will be stored exclusively in the
      * map return value, instead of endpointStateMap.
      *
+     * Used when preparing to join the ring:
      * <ul>
      *     <li>when replacing a node, to get and assume its tokens</li>
      *     <li>when joining, to check that the local host id matches any previous id for the endpoint address</li>
@@ -1553,11 +1527,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public boolean isEnabled()
     {
         return (scheduledGossipTask != null) && (!scheduledGossipTask.isCancelled());
-    }
-
-    public boolean isAnyNodeOn30()
-    {
-        return anyNodeOn30;
     }
 
     protected void maybeFinishShadowRound(InetAddress respondent, boolean isInShadowRound, Map<InetAddress, EndpointState> epStateMap)

@@ -28,7 +28,6 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClockAndCount;
-import org.apache.cassandra.db.LegacyLayout.LegacyCell;
 import org.apache.cassandra.db.context.CounterContext.Relationship;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
@@ -556,8 +555,6 @@ public class CounterContextTest
 
         assertEquals(ClockAndCount.create(1L, 10L), cc.getClockAndCountOf(updateContext, CounterContext.UPDATE_CLOCK_ID));
         assertTrue(cc.isUpdate(updateContext));
-        LegacyCell updateCell = LegacyCell.counter(null, updateContext);
-        assertTrue(updateCell.isCounterUpdate());
 
 
         /*
@@ -571,7 +568,5 @@ public class CounterContextTest
         ByteBuffer notUpdateContext = notUpdateContextState.context;
 
         assertFalse(cc.isUpdate(notUpdateContext));
-        LegacyCell notUpdateCell = LegacyCell.counter(null, notUpdateContext);
-        assertFalse(notUpdateCell.isCounterUpdate());
     }
 }

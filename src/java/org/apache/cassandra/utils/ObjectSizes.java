@@ -138,6 +138,7 @@ public class ObjectSizes
      * @param str String to calculate memory size of
      * @return Total in-memory size of the String
      */
+    //@TODO hard coding this to 2 isn't necessarily correct in Java 9
     public static long sizeOf(String str)
     {
         return STRING_EMPTY_SIZE + sizeOfArray(str.length(), 2);

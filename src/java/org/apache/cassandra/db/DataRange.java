@@ -19,8 +19,8 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -241,12 +241,12 @@ public class DataRange
         return new DataRange(range, clusteringIndexFilter);
     }
 
-    public String toString(CFMetaData metadata)
+    public String toString(TableMetadata metadata)
     {
-        return String.format("range=%s pfilter=%s", keyRange.getString(metadata.getKeyValidator()), clusteringIndexFilter.toString(metadata));
+        return String.format("range=%s pfilter=%s", keyRange.getString(metadata.partitionKeyType), clusteringIndexFilter.toString(metadata));
     }
 
-    public String toCQLString(CFMetaData metadata)
+    public String toCQLString(TableMetadata metadata)
     {
         if (isUnrestricted())
             return "UNRESTRICTED";
@@ -274,15 +274,15 @@ public class DataRange
         return sb.toString();
     }
 
-    private void appendClause(PartitionPosition pos, StringBuilder sb, CFMetaData metadata, boolean isStart, boolean isInclusive)
+    private void appendClause(PartitionPosition pos, StringBuilder sb, TableMetadata metadata, boolean isStart, boolean isInclusive)
     {
         sb.append("token(");
-        sb.append(ColumnDefinition.toCQLString(metadata.partitionKeyColumns()));
+        sb.append(ColumnMetadata.toCQLString(metadata.partitionKeyColumns()));
         sb.append(") ").append(getOperator(isStart, isInclusive)).append(" ");
         if (pos instanceof DecoratedKey)
         {
             sb.append("token(");
-            appendKeyString(sb, metadata.getKeyValidator(), ((DecoratedKey)pos).getKey());
+            appendKeyString(sb, metadata.partitionKeyType, ((DecoratedKey)pos).getKey());
             sb.append(")");
         }
         else
@@ -385,10 +385,10 @@ public class DataRange
         }
 
         @Override
-        public String toString(CFMetaData metadata)
+        public String toString(TableMetadata metadata)
         {
             return String.format("range=%s (paging) pfilter=%s lastReturned=%s (%s)",
-                                 keyRange.getString(metadata.getKeyValidator()),
+                                 keyRange.getString(metadata.partitionKeyType),
                                  clusteringIndexFilter.toString(metadata),
                                  lastReturned.toString(metadata),
                                  inclusive ? "included" : "excluded");
@@ -397,7 +397,7 @@ public class DataRange
 
     public static class Serializer
     {
-        public void serialize(DataRange range, DataOutputPlus out, int version, CFMetaData metadata) throws IOException
+        public void serialize(DataRange range, DataOutputPlus out, int version, TableMetadata metadata) throws IOException
         {
             AbstractBounds.rowPositionSerializer.serialize(range.keyRange, out, version);
             ClusteringIndexFilter.serializer.serialize(range.clusteringIndexFilter, out, version);
@@ -410,7 +410,7 @@ public class DataRange
             }
         }
 
-        public DataRange deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
+        public DataRange deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             AbstractBounds<PartitionPosition> range = AbstractBounds.rowPositionSerializer.deserialize(in, metadata.partitioner, version);
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
@@ -427,7 +427,7 @@ public class DataRange
             }
         }
 
-        public long serializedSize(DataRange range, int version, CFMetaData metadata)
+        public long serializedSize(DataRange range, int version, TableMetadata metadata)
         {
             long size = AbstractBounds.rowPositionSerializer.serializedSize(range.keyRange, version)
                       + ClusteringIndexFilter.serializer.serializedSize(range.clusteringIndexFilter, version)

@@ -151,6 +151,9 @@ public class ErrorMessage extends Message.Response
                 case CONFIG_ERROR:
                     te = new ConfigurationException(msg);
                     break;
+                case CDC_WRITE_FAILURE:
+                    te = new CDCWriteException(msg);
+                    break;
                 case ALREADY_EXISTS:
                     String ksName = CBUtil.readString(body);
                     String cfName = CBUtil.readString(body);
@@ -305,6 +308,8 @@ public class ErrorMessage extends Message.Response
                     WriteFailureException wfe = (WriteFailureException) msg.error;
                     return new WriteTimeoutException(wfe.writeType, wfe.consistency, wfe.received, wfe.blockFor);
                 case FUNCTION_FAILURE:
+                    return new InvalidRequestException(msg.toString());
+                case CDC_WRITE_FAILURE:
                     return new InvalidRequestException(msg.toString());
             }
         }

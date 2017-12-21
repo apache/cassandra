@@ -98,7 +98,7 @@ public class SSTableReaderTest
         CompactionManager.instance.disableAutoCompaction();
         for (int j = 0; j < 10; j++)
         {
-            new RowUpdateBuilder(store.metadata, j, String.valueOf(j))
+            new RowUpdateBuilder(store.metadata(), j, String.valueOf(j))
                 .clustering("0")
                 .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build()
@@ -144,7 +144,7 @@ public class SSTableReaderTest
             CompactionManager.instance.disableAutoCompaction();
             for (int j = 0; j < 100; j += 2)
             {
-                new RowUpdateBuilder(store.metadata, j, String.valueOf(j))
+                new RowUpdateBuilder(store.metadata(), j, String.valueOf(j))
                 .clustering("0")
                 .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build()
@@ -186,7 +186,7 @@ public class SSTableReaderTest
 
         for (int j = 0; j < 100; j += 2)
         {
-            new RowUpdateBuilder(store.metadata, j, String.valueOf(j))
+            new RowUpdateBuilder(store.metadata(), j, String.valueOf(j))
             .clustering("0")
             .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
@@ -214,7 +214,7 @@ public class SSTableReaderTest
 
         for (int j = 0; j < 10; j++)
         {
-            new RowUpdateBuilder(store.metadata, j, String.valueOf(j))
+            new RowUpdateBuilder(store.metadata(), j, String.valueOf(j))
             .clustering("0")
             .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
@@ -247,7 +247,7 @@ public class SSTableReaderTest
         for (int j = 0; j < 10; j++)
         {
 
-            new RowUpdateBuilder(store.metadata, j, String.valueOf(j))
+            new RowUpdateBuilder(store.metadata(), j, String.valueOf(j))
             .clustering("0")
             .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
@@ -280,7 +280,7 @@ public class SSTableReaderTest
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_INDEXED);
         partitioner = store.getPartitioner();
 
-        new RowUpdateBuilder(store.metadata, System.currentTimeMillis(), "k1")
+        new RowUpdateBuilder(store.metadata(), System.currentTimeMillis(), "k1")
             .clustering("0")
             .add("birthdate", 1L)
             .build()
@@ -302,7 +302,7 @@ public class SSTableReaderTest
         CompactionManager.instance.disableAutoCompaction();
         for (int j = 0; j < 10; j++)
         {
-            new RowUpdateBuilder(store.metadata, j, String.valueOf(j))
+            new RowUpdateBuilder(store.metadata(), j, String.valueOf(j))
             .clustering("0")
             .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
@@ -339,18 +339,18 @@ public class SSTableReaderTest
 
         DecoratedKey firstKey = null, lastKey = null;
         long timestamp = System.currentTimeMillis();
-        for (int i = 0; i < store.metadata.params.minIndexInterval; i++)
+        for (int i = 0; i < store.metadata().params.minIndexInterval; i++)
         {
             DecoratedKey key = Util.dk(String.valueOf(i));
             if (firstKey == null)
                 firstKey = key;
             if (lastKey == null)
                 lastKey = key;
-            if (store.metadata.getKeyValidator().compare(lastKey.getKey(), key.getKey()) < 0)
+            if (store.metadata().partitionKeyType.compare(lastKey.getKey(), key.getKey()) < 0)
                 lastKey = key;
 
 
-            new RowUpdateBuilder(store.metadata, timestamp, key.getKey())
+            new RowUpdateBuilder(store.metadata(), timestamp, key.getKey())
                 .clustering("col")
                 .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build()
@@ -377,7 +377,7 @@ public class SSTableReaderTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Indexed1");
 
-        new RowUpdateBuilder(store.metadata, System.currentTimeMillis(), "k1")
+        new RowUpdateBuilder(store.metadata(), System.currentTimeMillis(), "k1")
         .clustering("0")
         .add("birthdate", 1L)
         .build()
@@ -406,7 +406,7 @@ public class SSTableReaderTest
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
         partitioner = store.getPartitioner();
 
-        new RowUpdateBuilder(store.metadata, 0, "k1")
+        new RowUpdateBuilder(store.metadata(), 0, "k1")
             .clustering("xyz")
             .add("val", "abc")
             .build()
@@ -416,7 +416,7 @@ public class SSTableReaderTest
         boolean foundScanner = false;
         for (SSTableReader s : store.getLiveSSTables())
         {
-            try (ISSTableScanner scanner = s.getScanner(new Range<Token>(t(0), t(1)), null))
+            try (ISSTableScanner scanner = s.getScanner(new Range<Token>(t(0), t(1))))
             {
                 scanner.next(); // throws exception pre 5407
                 foundScanner = true;
@@ -439,7 +439,7 @@ public class SSTableReaderTest
         for (int j = 0; j < 130; j++)
         {
 
-            new RowUpdateBuilder(store.metadata, j, String.valueOf(j))
+            new RowUpdateBuilder(store.metadata(), j, String.valueOf(j))
             .clustering("0")
             .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
@@ -478,7 +478,7 @@ public class SSTableReaderTest
         final int NUM_PARTITIONS = 512;
         for (int j = 0; j < NUM_PARTITIONS; j++)
         {
-            new RowUpdateBuilder(store.metadata, j, String.format("%3d", j))
+            new RowUpdateBuilder(store.metadata(), j, String.format("%3d", j))
             .clustering("0")
             .add("val", String.format("%3d", j))
             .build()
@@ -557,7 +557,7 @@ public class SSTableReaderTest
         final int NUM_PARTITIONS = 512;
         for (int j = 0; j < NUM_PARTITIONS; j++)
         {
-            new RowUpdateBuilder(store.metadata, j, String.format("%3d", j))
+            new RowUpdateBuilder(store.metadata(), j, String.format("%3d", j))
             .clustering("0")
             .add("val", String.format("%3d", j))
             .build()

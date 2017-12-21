@@ -20,7 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
@@ -40,9 +40,9 @@ public abstract class MultiColumnRestriction implements SingleRestriction
     /**
      * The columns to which the restriction apply.
      */
-    protected final List<ColumnDefinition> columnDefs;
+    protected final List<ColumnMetadata> columnDefs;
 
-    public MultiColumnRestriction(List<ColumnDefinition> columnDefs)
+    public MultiColumnRestriction(List<ColumnMetadata> columnDefs)
     {
         this.columnDefs = columnDefs;
     }
@@ -54,19 +54,19 @@ public abstract class MultiColumnRestriction implements SingleRestriction
     }
 
     @Override
-    public ColumnDefinition getFirstColumn()
+    public ColumnMetadata getFirstColumn()
     {
         return columnDefs.get(0);
     }
 
     @Override
-    public ColumnDefinition getLastColumn()
+    public ColumnMetadata getLastColumn()
     {
         return columnDefs.get(columnDefs.size() - 1);
     }
 
     @Override
-    public List<ColumnDefinition> getColumnDefs()
+    public List<ColumnMetadata> getColumnDefs()
     {
         return columnDefs;
     }
@@ -96,14 +96,14 @@ public abstract class MultiColumnRestriction implements SingleRestriction
      */
     protected final String getColumnsInCommons(Restriction otherRestriction)
     {
-        Set<ColumnDefinition> commons = new HashSet<>(getColumnDefs());
+        Set<ColumnMetadata> commons = new HashSet<>(getColumnDefs());
         commons.retainAll(otherRestriction.getColumnDefs());
         StringBuilder builder = new StringBuilder();
-        for (ColumnDefinition columnDefinition : commons)
+        for (ColumnMetadata columnMetadata : commons)
         {
             if (builder.length() != 0)
                 builder.append(" ,");
-            builder.append(columnDefinition.name);
+            builder.append(columnMetadata.name);
         }
         return builder.toString();
     }
@@ -130,10 +130,16 @@ public abstract class MultiColumnRestriction implements SingleRestriction
     {
         protected final Term value;
 
-        public EQRestriction(List<ColumnDefinition> columnDefs, Term value)
+        public EQRestriction(List<ColumnMetadata> columnDefs, Term value)
         {
             super(columnDefs);
             this.value = value;
+        }
+
+        @Override
+        public boolean isEQ()
+        {
+            return true;
         }
 
         @Override
@@ -158,7 +164,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         protected boolean isSupportedBy(Index index)
         {
-            for(ColumnDefinition column : columnDefs)
+            for(ColumnMetadata column : columnDefs)
                 if (index.supportsExpression(column, Operator.EQ))
                     return true;
             return false;
@@ -185,7 +191,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
 
             for (int i = 0, m = columnDefs.size(); i < m; i++)
             {
-                ColumnDefinition columnDef = columnDefs.get(i);
+                ColumnMetadata columnDef = columnDefs.get(i);
                 filter.add(columnDef, Operator.EQ, values.get(i));
             }
         }
@@ -193,7 +199,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
 
     public abstract static class INRestriction extends MultiColumnRestriction
     {
-        public INRestriction(List<ColumnDefinition> columnDefs)
+        public INRestriction(List<ColumnMetadata> columnDefs)
         {
             super(columnDefs);
         }
@@ -208,7 +214,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
             builder.addAllElementsToAll(splitInValues);
 
             if (builder.containsNull())
-                throw invalidRequest("Invalid null value in condition for columns: %s", ColumnDefinition.toIdentifiers(columnDefs));
+                throw invalidRequest("Invalid null value in condition for columns: %s", ColumnMetadata.toIdentifiers(columnDefs));
             return builder;
         }
 
@@ -228,7 +234,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         protected boolean isSupportedBy(Index index)
         {
-            for (ColumnDefinition column: columnDefs)
+            for (ColumnMetadata column: columnDefs)
                 if (index.supportsExpression(column, Operator.IN))
                     return true;
             return false;
@@ -253,7 +259,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
     {
         protected final List<Term> values;
 
-        public InRestrictionWithValues(List<ColumnDefinition> columnDefs, List<Term> values)
+        public InRestrictionWithValues(List<ColumnMetadata> columnDefs, List<Term> values)
         {
             super(columnDefs);
             this.values = values;
@@ -292,7 +298,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
     {
         protected final AbstractMarker marker;
 
-        public InRestrictionWithMarker(List<ColumnDefinition> columnDefs, AbstractMarker marker)
+        public InRestrictionWithMarker(List<ColumnMetadata> columnDefs, AbstractMarker marker)
         {
             super(columnDefs);
             this.marker = marker;
@@ -323,12 +329,12 @@ public abstract class MultiColumnRestriction implements SingleRestriction
     {
         private final TermSlice slice;
 
-        public SliceRestriction(List<ColumnDefinition> columnDefs, Bound bound, boolean inclusive, Term term)
+        public SliceRestriction(List<ColumnMetadata> columnDefs, Bound bound, boolean inclusive, Term term)
         {
             this(columnDefs, TermSlice.newInstance(bound, inclusive, term));
         }
 
-        SliceRestriction(List<ColumnDefinition> columnDefs, TermSlice slice)
+        SliceRestriction(List<ColumnMetadata> columnDefs, TermSlice slice)
         {
             super(columnDefs);
             this.slice = slice;
@@ -360,7 +366,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
 
             for (int i = 0, m = columnDefs.size(); i < m; i++)
             {
-                ColumnDefinition column = columnDefs.get(i);
+                ColumnMetadata column = columnDefs.get(i);
                 Bound b = bound.reverseIfNeeded(column);
 
                 // For mixed order columns, we need to create additional slices when 2 columns are in reverse order
@@ -410,7 +416,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         protected boolean isSupportedBy(Index index)
         {
-            for(ColumnDefinition def : columnDefs)
+            for(ColumnMetadata def : columnDefs)
                 if (slice.isSupportedBy(def, index))
                     return true;
             return false;
@@ -443,7 +449,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
 
             if (!getFirstColumn().equals(otherRestriction.getFirstColumn()))
             {
-                ColumnDefinition column = getFirstColumn().position() > otherRestriction.getFirstColumn().position()
+                ColumnMetadata column = getFirstColumn().position() > otherRestriction.getFirstColumn().position()
                         ? getFirstColumn() : otherRestriction.getFirstColumn();
 
                 throw invalidRequest("Column \"%s\" cannot be restricted by two inequalities not starting with the same column",
@@ -458,7 +464,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
                        getColumnsInCommons(otherRestriction));
 
             SliceRestriction otherSlice = (SliceRestriction) otherRestriction;
-            List<ColumnDefinition> newColumnDefs = columnDefs.size() >= otherSlice.columnDefs.size() ?  columnDefs : otherSlice.columnDefs;
+            List<ColumnMetadata> newColumnDefs = columnDefs.size() >= otherSlice.columnDefs.size() ? columnDefs : otherSlice.columnDefs;
 
             return new SliceRestriction(newColumnDefs, slice.merge(otherSlice.slice));
         }
@@ -507,7 +513,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
 
     public static class NotNullRestriction extends MultiColumnRestriction
     {
-        public NotNullRestriction(List<ColumnDefinition> columnDefs)
+        public NotNullRestriction(List<ColumnMetadata> columnDefs)
         {
             super(columnDefs);
             assert columnDefs.size() == 1;
@@ -540,7 +546,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         protected boolean isSupportedBy(Index index)
         {
-            for(ColumnDefinition column : columnDefs)
+            for(ColumnMetadata column : columnDefs)
                 if (index.supportsExpression(column, Operator.IS_NOT))
                     return true;
             return false;

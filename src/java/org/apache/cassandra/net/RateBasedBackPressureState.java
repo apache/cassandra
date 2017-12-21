@@ -28,8 +28,7 @@ import org.apache.cassandra.utils.concurrent.IntervalLock;
 
 /**
  * The rate-based back-pressure state, tracked per replica host.
- * <br/><br/>
- *
+ * <p>
  * This back-pressure state is made up of the following attributes:
  * <ul>
  * <li>windowSize: the length of the back-pressure window in milliseconds.</li>
@@ -37,18 +36,17 @@ import org.apache.cassandra.utils.concurrent.IntervalLock;
  * <li>outgoingRate: the rate of back-pressure supporting outgoing messages.</li>
  * <li>rateLimiter: the rate limiter to eventually apply to outgoing messages.</li>
  * </ul>
- * <br/>
  * The incomingRate and outgoingRate are updated together when a response is received to guarantee consistency between
  * the two.
- * <br/>
+ * <p>
  * It also provides methods to exclusively lock/release back-pressure windows at given intervals;
  * this allows to apply back-pressure even under concurrent modifications. Please also note a read lock is acquired
  * during response processing so that no concurrent rate updates can screw rate computations.
+ * </p>
  */
 class RateBasedBackPressureState extends IntervalLock implements BackPressureState
 {
     private final InetAddress host;
-    private final long windowSize;
     final SlidingTimeRate incomingRate;
     final SlidingTimeRate outgoingRate;
     final RateLimiter rateLimiter;
@@ -57,9 +55,8 @@ class RateBasedBackPressureState extends IntervalLock implements BackPressureSta
     {
         super(timeSource);
         this.host = host;
-        this.windowSize = windowSize;
-        this.incomingRate = new SlidingTimeRate(timeSource, this.windowSize, this.windowSize / 10, TimeUnit.MILLISECONDS);
-        this.outgoingRate = new SlidingTimeRate(timeSource, this.windowSize, this.windowSize / 10, TimeUnit.MILLISECONDS);
+        this.incomingRate = new SlidingTimeRate(timeSource, windowSize, windowSize / 10, TimeUnit.MILLISECONDS);
+        this.outgoingRate = new SlidingTimeRate(timeSource, windowSize, windowSize / 10, TimeUnit.MILLISECONDS);
         this.rateLimiter = RateLimiter.create(Double.POSITIVE_INFINITY);
     }
 

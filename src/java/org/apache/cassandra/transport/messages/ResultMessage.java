@@ -17,19 +17,16 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import java.util.*;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.transport.*;
-import org.apache.cassandra.thrift.CqlPreparedResult;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.CqlResultType;
 import org.apache.cassandra.utils.MD5Digest;
 
 public abstract class ResultMessage extends Message.Response
@@ -56,12 +53,12 @@ public abstract class ResultMessage extends Message.Response
 
     public enum Kind
     {
-        VOID         (1, Void.subcodec),
-        ROWS         (2, Rows.subcodec),
-        SET_KEYSPACE (3, SetKeyspace.subcodec),
-        PREPARED     (4, Prepared.subcodec),
-        SCHEMA_CHANGE(5, SchemaChange.subcodec);
 
+        VOID               (1, Void.subcodec),
+        ROWS               (2, Rows.subcodec),
+        SET_KEYSPACE       (3, SetKeyspace.subcodec),
+        PREPARED           (4, Prepared.subcodec),
+        SCHEMA_CHANGE      (5, SchemaChange.subcodec);
         public final int id;
         public final Message.Codec<ResultMessage> subcodec;
 
@@ -103,8 +100,6 @@ public abstract class ResultMessage extends Message.Response
         this.kind = kind;
     }
 
-    public abstract CqlResult toThriftResult();
-
     public static class Void extends ResultMessage
     {
         // Even though we have no specific information here, don't make a
@@ -131,11 +126,6 @@ public abstract class ResultMessage extends Message.Response
                 return 0;
             }
         };
-
-        public CqlResult toThriftResult()
-        {
-            return new CqlResult(CqlResultType.VOID);
-        }
 
         @Override
         public String toString()
@@ -174,11 +164,6 @@ public abstract class ResultMessage extends Message.Response
                 return CBUtil.sizeOfString(((SetKeyspace)msg).keyspace);
             }
         };
-
-        public CqlResult toThriftResult()
-        {
-            return new CqlResult(CqlResultType.VOID);
-        }
 
         @Override
         public String toString()
@@ -219,11 +204,6 @@ public abstract class ResultMessage extends Message.Response
             this.result = result;
         }
 
-        public CqlResult toThriftResult()
-        {
-            return result.toThriftResult();
-        }
-
         @Override
         public String toString()
         {
@@ -238,13 +218,16 @@ public abstract class ResultMessage extends Message.Response
             public ResultMessage decode(ByteBuf body, ProtocolVersion version)
             {
                 MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
+                MD5Digest resultMetadataId = null;
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    resultMetadataId = MD5Digest.wrap(CBUtil.readBytes(body));
                 ResultSet.PreparedMetadata metadata = ResultSet.PreparedMetadata.codec.decode(body, version);
 
                 ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.EMPTY;
                 if (version.isGreaterThan(ProtocolVersion.V1))
                     resultMetadata = ResultSet.ResultMetadata.codec.decode(body, version);
 
-                return new Prepared(id, -1, metadata, resultMetadata);
+                return new Prepared(id, resultMetadataId, metadata, resultMetadata);
             }
 
             public void encode(ResultMessage msg, ByteBuf dest, ProtocolVersion version)
@@ -254,6 +237,9 @@ public abstract class ResultMessage extends Message.Response
                 assert prepared.statementId != null;
 
                 CBUtil.writeBytes(prepared.statementId.bytes, dest);
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    CBUtil.writeBytes(prepared.resultMetadataId.bytes, dest);
+
                 ResultSet.PreparedMetadata.codec.encode(prepared.metadata, dest, version);
                 if (version.isGreaterThan(ProtocolVersion.V1))
                     ResultSet.ResultMetadata.codec.encode(prepared.resultMetadata, dest, version);
@@ -267,6 +253,8 @@ public abstract class ResultMessage extends Message.Response
 
                 int size = 0;
                 size += CBUtil.sizeOfBytes(prepared.statementId.bytes);
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    size += CBUtil.sizeOfBytes(prepared.resultMetadataId.bytes);
                 size += ResultSet.PreparedMetadata.codec.encodedSize(prepared.metadata, version);
                 if (version.isGreaterThan(ProtocolVersion.V1))
                     size += ResultSet.ResultMetadata.codec.encodedSize(prepared.resultMetadata, version);
@@ -275,6 +263,7 @@ public abstract class ResultMessage extends Message.Response
         };
 
         public final MD5Digest statementId;
+        public final MD5Digest resultMetadataId;
 
         /** Describes the variables to be bound in the prepared statement */
         public final ResultSet.PreparedMetadata metadata;
@@ -282,51 +271,19 @@ public abstract class ResultMessage extends Message.Response
         /** Describes the results of executing this prepared statement */
         public final ResultSet.ResultMetadata resultMetadata;
 
-        // statement id for CQL-over-thrift compatibility. The binary protocol ignore that.
-        private final int thriftStatementId;
-
-        public Prepared(MD5Digest statementId, ParsedStatement.Prepared prepared)
-        {
-            this(statementId, -1, new ResultSet.PreparedMetadata(prepared.boundNames, prepared.partitionKeyBindIndexes), extractResultMetadata(prepared.statement));
-        }
-
-        public static Prepared forThrift(int statementId, List<ColumnSpecification> names)
-        {
-            return new Prepared(null, statementId, new ResultSet.PreparedMetadata(names, null), ResultSet.ResultMetadata.EMPTY);
-        }
-
-        private Prepared(MD5Digest statementId, int thriftStatementId, ResultSet.PreparedMetadata metadata, ResultSet.ResultMetadata resultMetadata)
+        public Prepared(MD5Digest statementId, MD5Digest resultMetadataId, ResultSet.PreparedMetadata metadata, ResultSet.ResultMetadata resultMetadata)
         {
             super(Kind.PREPARED);
             this.statementId = statementId;
-            this.thriftStatementId = thriftStatementId;
+            this.resultMetadataId = resultMetadataId;
             this.metadata = metadata;
             this.resultMetadata = resultMetadata;
         }
 
-        private static ResultSet.ResultMetadata extractResultMetadata(CQLStatement statement)
+        @VisibleForTesting
+        public Prepared withResultMetadata(ResultSet.ResultMetadata resultMetadata)
         {
-            if (!(statement instanceof SelectStatement))
-                return ResultSet.ResultMetadata.EMPTY;
-
-            return ((SelectStatement)statement).getResultMetadata();
-        }
-
-        public CqlResult toThriftResult()
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public CqlPreparedResult toThriftPreparedResult()
-        {
-            List<String> namesString = new ArrayList<String>(metadata.names.size());
-            List<String> typesString = new ArrayList<String>(metadata.names.size());
-            for (ColumnSpecification name : metadata.names)
-            {
-                namesString.add(name.toString());
-                typesString.add(name.type.toString());
-            }
-            return new CqlPreparedResult(thriftStatementId, metadata.names.size()).setVariable_types(typesString).setVariable_names(namesString);
+            return new Prepared(statementId, resultMetadata.getResultMetadataId(), metadata, resultMetadata);
         }
 
         @Override
@@ -367,11 +324,6 @@ public abstract class ResultMessage extends Message.Response
                 return scm.change.eventSerializedSize(version);
             }
         };
-
-        public CqlResult toThriftResult()
-        {
-            return new CqlResult(CqlResultType.VOID);
-        }
 
         @Override
         public String toString()

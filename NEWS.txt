@@ -13,6 +13,103 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+4.0
+===
+
+New features
+------------
+   - An experimental option to compare all merkle trees together has been added - for example, in
+     a 3 node cluster with 2 replicas identical and 1 out-of-date, with this option enabled, the
+     out-of-date replica will only stream a single copy from up-to-date replica. Enable it by adding
+     "-os" to nodetool repair. See CASSANDRA-3200.
+   - The currentTimestamp, currentDate, currentTime and currentTimeUUID functions have been added.
+     See CASSANDRA-13132
+   - Support for arithmetic operations between `timestamp`/`date` and `duration` has been added.
+     See CASSANDRA-11936
+   - Support for arithmetic operations on number has been added. See CASSANDRA-11935
+   - Preview expected streaming required for a repair (nodetool repair --preview), and validate the
+     consistency of repaired data between nodes (nodetool repair --validate). See CASSANDRA-13257
+   - Support for selecting Map values and Set elements has been added for SELECT queries. See CASSANDRA-7396
+   - Change-Data-Capture has been modified to make CommitLogSegments available
+     immediately upon creation via hard-linking the files. This means that incomplete
+     segments will be available in cdc_raw rather than fully flushed. See documentation
+     and CASSANDRA-12148 for more detail.
+   - The initial build of materialized views can be parallelized. The number of concurrent builder
+     threads is specified by the property `cassandra.yaml:concurrent_materialized_view_builders`.
+     This property can be modified at runtime through both JMX and the new `setconcurrentviewbuilders`
+     and `getconcurrentviewbuilders` nodetool commands. See CASSANDRA-12245 for more details.
+   - There is now a binary full query log based on Chronicle Queue that can be controlled using
+     nodetool enablefullquerylog, disablefullquerylog, and resetfullquerylog. The log 
+     contains all queries invoked, approximate time they were invoked, any parameters necessary
+     to bind wildcard values, and all query options. A human readable version of the log can be
+     dumped or tailed using the new bin/fqltool utility. The full query log is designed to be safe
+     to use in production and limits utilization of heap memory and disk space with limits
+     you can specify when enabling the log.
+     See nodetool and fqltool help text for more information.
+   - SSTableDump now supports the -l option to output each partition as it's own json object
+     See CASSANDRA-13848 for more detail
+
+Upgrading
+---------
+    - Cassandra 4.0 removed support for COMPACT STORAGE tables. All Compact Tables
+      have to be migrated using `ALTER ... DROP COMPACT STORAGE` statement in 3.0/3.11.
+      Cassandra starting 4.0 will not start if flags indicate that the table is non-CQL.
+      Syntax for creating compact tables is also deprecated.
+    - Support for legacy auth tables in the system_auth keyspace (users,
+      permissions, credentials) and the migration code has been removed. Migration
+      of these legacy auth tables must have been completed before the upgrade to
+      4.0 and the legacy tables must have been removed. See the 'Upgrading' section
+      for version 2.2 for migration instructions.
+    - Cassandra 4.0 removed support for the deprecated Thrift interface. Amongst
+      other things, this implies the removal of all yaml options related to thrift
+      ('start_rpc', rpc_port, ...).
+    - Cassandra 4.0 removed support for any pre-3.0 format. This means you
+      cannot upgrade from a 2.x version to 4.0 directly, you have to upgrade to
+      a 3.0.x/3.x version first (and run upgradesstable). In particular, this
+      mean Cassandra 4.0 cannot load or read pre-3.0 sstables in any way: you
+      will need to upgrade those sstable in 3.0.x/3.x first.
+    - Upgrades from 3.0.x or 3.x are supported since 3.0.13 or 3.11.0, previous
+      versions will causes issues during rolling upgrades (CASSANDRA-13274).
+    - Cassandra will no longer allow invalid keyspace replication options, such
+      as invalid datacenter names for NetworkTopologyStrategy. Operators MUST
+      add new nodes to a datacenter before they can set set ALTER or CREATE
+      keyspace replication policies using that datacenter. Existing keyspaces
+      will continue to operate, but CREATE and ALTER will validate that all
+      datacenters specified exist in the cluster.
+    - Cassandra 4.0 fixes a problem with incremental repair which caused repaired
+      data to be inconsistent between nodes. The fix changes the behavior of both
+      full and incremental repairs. For full repairs, data is no longer marked
+      repaired. For incremental repairs, anticompaction is run at the beginning
+      of the repair, instead of at the end. If incremental repair was being used
+      prior to upgrading, a full repair should be run after upgrading to resolve
+      any inconsistencies.
+    - Config option index_interval has been removed (it was deprecated since 2.0)
+    - Deprecated repair JMX APIs are removed.
+    - The version of snappy-java has been upgraded to 1.1.2.6
+	- the miniumum value for internode message timeouts is 10ms. Previously, any
+	  positive value was allowed. See cassandra.yaml entries like
+	  read_request_timeout_in_ms for more details.
+	- Cassandra 4.0 allows a single port to be used for both secure and insecure
+	  connections between cassandra nodes (CASSANDRA-10404). See the yaml for
+	  specific property changes, and see the security doc for full details.
+    - Due to the parallelization of the initial build of materialized views,
+      the per token range view building status is stored in the new table
+      `system.view_builds_in_progress`. The old table `system.views_builds_in_progress`
+      is no longer used and can be removed. See CASSANDRA-12245 for more details.
+	- Config option commitlog_sync_batch_window_in_ms has been deprecated as it's
+	  documentation has been incorrect and the setting itself near useless.
+	  Batch mode remains a valid commit log mode, however.
+	- There is a new commit log mode, group, which is similar to batch mode
+	  but blocks for up to a configurable number of milliseconds between disk flushes.
+
+Materialized Views
+-------------------
+   - Following a discussion regarding concerns about the design and safety of Materialized Views, the C* development
+     community no longer recommends them for production use, and considers them experimental. Warnings messages will
+     now be logged when they are created. (See https://www.mail-archive.com/dev@cassandra.apache.org/msg11511.html)
+   - An 'enable_materialized_views' flag has been added to cassandra.yaml to allow operators to prevent creation of
+     views
+
 3.11.2
 ======
 
@@ -25,23 +122,6 @@ Upgrading
     - Cassandra is not logging anymore by default an Heap histogram on OutOfMemoryError. To enable that behavior
       set the 'cassandra.printHeapHistogramOnOutOfMemoryError' System property to 'true'. See CASSANDRA-13006
       for more details.
-    - Upgrades from 3.0 might have produced unnecessary schema migrations while
-      there was at least one 3.0 node in the cluster. It is therefore highly
-      recommended to upgrade from 3.0 to at least 3.11.2. The root cause of
-      this schema mismatch was a difference in the way how schema digests were computed
-      in 3.0 and 3.11.2. To mitigate this issue, 3.11.2 and newer announce
-      3.0 compatible digests as long as there is at least one 3.0 node in the
-      cluster. Once all nodes have been upgraded, the "real" schema version will be
-      announced. Note: this fix is only necessary in 3.11.2 and therefore only applies
-      to 3.11. (CASSANDRA-14109)
-
-Materialized Views
--------------------
-   - Following a discussion regarding concerns about the design and safety of Materialized Views, the C* development
-     community no longer recommends them for production use, and considers them experimental. Warnings messages will
-     now be logged when they are created. (See https://www.mail-archive.com/dev@cassandra.apache.org/msg11511.html)
-   - An 'enable_materialized_views' flag has been added to cassandra.yaml to allow operators to prevent creation of
-     views
 
 3.11.1
 ======
@@ -76,7 +156,7 @@ Compact Storage (only when upgrading from 3.X or any version lower than 3.0.15)
 Materialized Views
 -------------------
 
-Materialized Views (only when upgrading from 3.X or any version lower than 3.0.15)
+Materialized Views (only when upgrading from any version lower than 3.0.15 (3.0 series) or 3.11.1 (3.X series))
 ---------------------------------------------------------------------------------------
     - Cassandra will no longer allow dropping columns on tables with Materialized Views.
     - A change was made in the way the Materialized View timestamp is computed, which
@@ -99,31 +179,12 @@ Materialized Views (only when upgrading from 3.X or any version lower than 3.0.1
 
 Upgrading
 ---------
-   - ALTER TABLE (ADD/DROP COLUMN) operations concurrent with a read might
-     result into data corruption (see CASSANDRA-13004 for more details).
-     Fixing this bug required a messaging protocol version bump. By default,
-     Cassandra 3.11 will use 3014 version for messaging.
-
-     Since Schema Migrations rely the on exact messaging protocol version
-     match between nodes, if you need schema changes during the upgrade
-     process, you have to start your nodes with `-Dcassandra.force_3_0_protocol_version=true`
-     first, in order to temporarily force a backwards compatible protocol.
-     After the whole cluster is upgraded to 3.11, do a rolling
-     restart of the cluster without setting that flag.
-
-     3.11 nodes with and withouot the flag set will be able to do schema
-     migrations with other 3.x and 3.0.x releases.
-
-     While running the cluster with the flag set to true on 3.11 (in
-     compatibility mode), avoid adding or removing any columns to/from
-     existing tables.
-
-     If your cluster can do without schema migrations during the upgrade
-     time, just start the cluster normally without setting aforementioned
-     flag.
-
-     If you are upgrading from 3.0.14+ (of 3.0.x branch), you do not have
-     to set an flag while upgrading to ensure schema migrations.
+   - Creating Materialized View with filtering on non-primary-key base column
+     (added in CASSANDRA-10368) is disabled, because the liveness of view row
+     is depending on multiple filtered base non-key columns and base non-key
+     column used in view primary-key. This semantic cannot be supported without
+     storage format change, see CASSANDRA-13826. For append-only use case, you
+     may still use this feature with a startup flag: "-Dcassandra.mv.allow_filtering_nonkey_columns_unsafe=true"
    - The NativeAccessMBean isAvailable method will only return true if the
      native library has been successfully linked. Previously it was returning
      true if JNA could be found but was not taking into account link failures.

@@ -23,8 +23,8 @@ import java.util.Map;
 
 import com.google.common.base.Function;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.CompactionParams;
 
 /**
  * For specifying replication options
@@ -67,8 +67,9 @@ class OptionCompaction extends OptionMulti
         {
             try
             {
-                CFMetaData.createCompactionStrategy(name);
-            } catch (ConfigurationException e)
+                CompactionParams.classFromName(name);
+            }
+            catch (ConfigurationException e)
             {
                 throw new IllegalArgumentException("Invalid compaction strategy: " + name);
             }

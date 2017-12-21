@@ -19,16 +19,16 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.junit.Assert;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.Unfiltered.Kind;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.btree.BTree;
 
 public class UnfilteredRowsGenerator
@@ -111,7 +111,7 @@ public class UnfilteredRowsGenerator
         }
     }
 
-    public List<Unfiltered> generateSource(Random r, int items, int range, int del_range, Function<Integer, Integer> timeGenerator)
+    public List<Unfiltered> generateSource(Random r, int items, int range, int del_range, IntUnaryOperator timeGenerator)
     {
         int[] positions = new int[items + 1];
         for (int i=0; i<items; ++i)
@@ -219,10 +219,10 @@ public class UnfilteredRowsGenerator
         return out;
     }
 
-    static Row emptyRowAt(int pos, Function<Integer, Integer> timeGenerator)
+    static Row emptyRowAt(int pos, IntUnaryOperator timeGenerator)
     {
         final Clustering clustering = clusteringFor(pos);
-        final LivenessInfo live = LivenessInfo.create(timeGenerator.apply(pos), UnfilteredRowIteratorsMergeTest.nowInSec);
+        final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos), UnfilteredRowIteratorsMergeTest.nowInSec);
         return BTreeRow.noCellLiveRow(clustering, live);
     }
 
@@ -289,12 +289,12 @@ public class UnfilteredRowsGenerator
                                              new DeletionTime(delTime, delTime));
     }
 
-    public static UnfilteredRowIterator source(Iterable<Unfiltered> content, CFMetaData metadata, DecoratedKey partitionKey)
+    public static UnfilteredRowIterator source(Iterable<Unfiltered> content, TableMetadata metadata, DecoratedKey partitionKey)
     {
         return source(content, metadata, partitionKey, DeletionTime.LIVE);
     }
 
-    public static UnfilteredRowIterator source(Iterable<Unfiltered> content, CFMetaData metadata, DecoratedKey partitionKey, DeletionTime delTime)
+    public static UnfilteredRowIterator source(Iterable<Unfiltered> content, TableMetadata metadata, DecoratedKey partitionKey, DeletionTime delTime)
     {
         return new Source(content.iterator(), metadata, partitionKey, delTime, false);
     }
@@ -303,12 +303,12 @@ public class UnfilteredRowsGenerator
     {
         Iterator<Unfiltered> content;
 
-        protected Source(Iterator<Unfiltered> content, CFMetaData metadata, DecoratedKey partitionKey, DeletionTime partitionLevelDeletion, boolean reversed)
+        protected Source(Iterator<Unfiltered> content, TableMetadata metadata, DecoratedKey partitionKey, DeletionTime partitionLevelDeletion, boolean reversed)
         {
             super(metadata,
                   partitionKey,
                   partitionLevelDeletion,
-                  metadata.partitionColumns(),
+                  metadata.regularAndStaticColumns(),
                   Rows.EMPTY_STATIC_ROW,
                   reversed,
                   EncodingStats.NO_STATS);

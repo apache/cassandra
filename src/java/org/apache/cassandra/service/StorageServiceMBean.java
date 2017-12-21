@@ -21,12 +21,11 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-
+import javax.annotation.Nullable;
 import javax.management.NotificationEmitter;
 import javax.management.openmbean.TabularData;
 
@@ -322,61 +321,22 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public int repairAsync(String keyspace, Map<String, String> options);
 
-    /**
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     */
-    @Deprecated
-    public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts,  boolean primaryRange, boolean fullRepair, String... tableNames) throws IOException;
-
-    /**
-     * Invoke repair asynchronously.
-     * You can track repair progress by subscribing JMX notification sent from this StorageServiceMBean.
-     * Notification format is:
-     *   type: "repair"
-     *   userObject: int array of length 2, [0]=command number, [1]=ordinal of ActiveRepairService.Status
-     *
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     *
-     * @param parallelismDegree 0: sequential, 1: parallel, 2: DC parallel
-     * @return Repair command number, or 0 if nothing to repair
-     */
-    @Deprecated
-    public int forceRepairAsync(String keyspace, int parallelismDegree, Collection<String> dataCenters, Collection<String> hosts, boolean primaryRange, boolean fullRepair, String... tableNames);
-
-    /**
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     */
-    @Deprecated
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, String... tableNames) throws IOException;
-
-    /**
-     * Same as forceRepairAsync, but handles a specified range
-     *
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     *
-     * @param parallelismDegree 0: sequential, 1: parallel, 2: DC parallel
-     */
-    @Deprecated
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, int parallelismDegree, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, String... tableNames);
-
-    /**
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     */
-    @Deprecated
-    public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, String... tableNames);
-
-    /**
-     * @deprecated use {@link #repairAsync(String keyspace, Map options)} instead.
-     */
-    @Deprecated
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean fullRepair, String... tableNames);
-
     public void forceTerminateAllRepairSessions();
 
     /**
-     * transfer this node's data to other machines and remove it from service.
+     * Get the status of a given parent repair session.
+     * @param cmd the int reference returned when issuing the repair
+     * @return status of parent repair from enum {@link org.apache.cassandra.repair.RepairRunnable.Status}
+     * followed by final message or messages of the session
      */
-    public void decommission() throws InterruptedException;
+    @Nullable
+    public List<String> getParentRepairStatus(int cmd);
+
+    /**
+     * transfer this node's data to other machines and remove it from service.
+     * @param force Decommission even if this will reduce N to be less than RF.
+     */
+    public void decommission(boolean force) throws InterruptedException;
 
     /**
      * @param newToken token to move this node to.
@@ -510,15 +470,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     // to determine if initialization has completed
     public boolean isInitialized();
 
-    // allows a user to disable thrift
-    public void stopRPCServer();
-
-    // allows a user to reenable thrift
-    public void startRPCServer();
-
-    // to determine if thrift is running
-    public boolean isRPCServerRunning();
-
     public void stopNativeTransport();
     public void startNativeTransport();
     public boolean isNativeTransportRunning();
@@ -550,9 +501,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setTruncateRpcTimeout(long value);
     public long getTruncateRpcTimeout();
 
-    public void setStreamingSocketTimeout(int value);
-    public int getStreamingSocketTimeout();
-
     public void setStreamThroughputMbPerSec(int value);
     public int getStreamThroughputMbPerSec();
 
@@ -562,8 +510,17 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
 
+    public int getBatchlogReplayThrottleInKB();
+    public void setBatchlogReplayThrottleInKB(int value);
+
     public int getConcurrentCompactors();
     public void setConcurrentCompactors(int value);
+
+    public int getConcurrentValidators();
+    public void setConcurrentValidators(int value);
+
+    public int getConcurrentViewBuilders();
+    public void setConcurrentViewBuilders(int value);
 
     public boolean isIncrementalBackupsEnabled();
     public void setIncrementalBackupsEnabled(boolean value);
@@ -626,7 +583,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void reloadLocalSchema();
 
     /**
-     * Enables/Disables tracing for the whole system. Only thrift requests can start tracing currently.
+     * Enables/Disables tracing for the whole system.
      *
      * @param probability
      *            ]0,1[ will enable tracing on a partial number of requests with the provided probability. 0 will
@@ -641,6 +598,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     void disableAutoCompaction(String ks, String ... tables) throws IOException;
     void enableAutoCompaction(String ks, String ... tables) throws IOException;
+    Map<String, Boolean> getAutoCompactionStatus(String ks, String... tables) throws IOException;
 
     public void deliverHints(String host) throws UnknownHostException;
 
@@ -663,6 +621,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int getBatchSizeFailureThreshold();
     /** Sets the threshold for rejecting queries due to a large batch size */
     public void setBatchSizeFailureThreshold(int batchSizeDebugThreshold);
+
+    /** Returns the threshold for warning queries due to a large batch size */
+    public int getBatchSizeWarnThreshold();
+    /** Sets the threshold for warning queries due to a large batch size */
+    public void setBatchSizeWarnThreshold(int batchSizeDebugThreshold);
 
     /** Sets the hinted handoff throttle in kb per second, per delivery thread. */
     public void setHintedHandoffThrottleInKB(int throttleInKB);

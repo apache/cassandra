@@ -23,9 +23,9 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CoderResult;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,13 +58,14 @@ public abstract class CBUtil
 {
     public static final boolean USE_HEAP_ALLOCATOR = Boolean.getBoolean(Config.PROPERTY_PREFIX + "netty_use_heap_allocator");
     public static final ByteBufAllocator allocator = USE_HEAP_ALLOCATOR ? new UnpooledByteBufAllocator(false) : new PooledByteBufAllocator(true);
+    private static final int UUID_SIZE = 16;
 
     private final static FastThreadLocal<CharsetDecoder> TL_UTF8_DECODER = new FastThreadLocal<CharsetDecoder>()
     {
         @Override
         protected CharsetDecoder initialValue()
         {
-            return Charset.forName("UTF-8").newDecoder();
+            return StandardCharsets.UTF_8.newDecoder();
         }
     };
 
@@ -140,8 +141,8 @@ public abstract class CBUtil
     {
         int writerIndex = cb.writerIndex();
         cb.writeShort(0);
-        int lengthBytes = ByteBufUtil.writeUtf8(cb, str);
-        cb.setShort(writerIndex, lengthBytes);
+        int written = ByteBufUtil.writeUtf8(cb, str);
+        cb.setShort(writerIndex, written);
     }
 
     public static int sizeOfString(String str)
@@ -164,14 +165,15 @@ public abstract class CBUtil
 
     public static void writeLongString(String str, ByteBuf cb)
     {
-        byte[] bytes = str.getBytes(CharsetUtil.UTF_8);
-        cb.writeInt(bytes.length);
-        cb.writeBytes(bytes);
+        int writerIndex = cb.writerIndex();
+        cb.writeInt(0);
+        int written = ByteBufUtil.writeUtf8(cb, str);
+        cb.setInt(writerIndex, written);
     }
 
     public static int sizeOfLongString(String str)
     {
-        return 4 + str.getBytes(CharsetUtil.UTF_8).length;
+        return 4 + TypeSizes.encodedUTF8Length(str);
     }
 
     public static byte[] readBytes(ByteBuf cb)
@@ -274,9 +276,9 @@ public abstract class CBUtil
 
     public static UUID readUUID(ByteBuf cb)
     {
-        byte[] bytes = new byte[16];
-        cb.readBytes(bytes);
-        return UUIDGen.getUUID(ByteBuffer.wrap(bytes));
+        ByteBuffer buffer = cb.nioBuffer(cb.readerIndex(), UUID_SIZE);
+        cb.skipBytes(buffer.remaining());
+        return UUIDGen.getUUID(buffer);
     }
 
     public static void writeUUID(UUID uuid, ByteBuf cb)
@@ -286,7 +288,7 @@ public abstract class CBUtil
 
     public static int sizeOfUUID(UUID uuid)
     {
-        return 16;
+        return UUID_SIZE;
     }
 
     public static List<String> readStringList(ByteBuf cb)
@@ -386,9 +388,19 @@ public abstract class CBUtil
         int length = cb.readInt();
         if (length < 0)
             return null;
-        ByteBuf slice = cb.readSlice(length);
 
-        return ByteBuffer.wrap(readRawBytes(slice));
+        return ByteBuffer.wrap(readRawBytes(cb, length));
+    }
+
+    public static ByteBuffer readValueNoCopy(ByteBuf cb)
+    {
+        int length = cb.readInt();
+        if (length < 0)
+            return null;
+
+        ByteBuffer buffer = cb.nioBuffer(cb.readerIndex(), length);
+        cb.skipBytes(length);
+        return buffer;
     }
 
     public static ByteBuffer readBoundValue(ByteBuf cb, ProtocolVersion protocolVersion)
@@ -405,9 +417,7 @@ public abstract class CBUtil
             else
                 throw new ProtocolException("Invalid ByteBuf length " + length);
         }
-        ByteBuf slice = cb.readSlice(length);
-
-        return ByteBuffer.wrap(readRawBytes(slice));
+        return ByteBuffer.wrap(readRawBytes(cb, length));
     }
 
     public static void writeValue(byte[] bytes, ByteBuf cb)
@@ -560,7 +570,12 @@ public abstract class CBUtil
      */
     public static byte[] readRawBytes(ByteBuf cb)
     {
-        byte[] bytes = new byte[cb.readableBytes()];
+        return readRawBytes(cb, cb.readableBytes());
+    }
+
+    private static byte[] readRawBytes(ByteBuf cb, int length)
+    {
+        byte[] bytes = new byte[length];
         cb.readBytes(bytes);
         return bytes;
     }

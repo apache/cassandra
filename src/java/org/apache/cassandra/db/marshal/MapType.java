@@ -19,6 +19,8 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Maps;
@@ -35,8 +37,8 @@ import org.apache.cassandra.utils.Pair;
 public class MapType<K, V> extends CollectionType<Map<K, V>>
 {
     // interning instances
-    private static final Map<Pair<AbstractType<?>, AbstractType<?>>, MapType> instances = new HashMap<>();
-    private static final Map<Pair<AbstractType<?>, AbstractType<?>>, MapType> frozenInstances = new HashMap<>();
+    private static final ConcurrentMap<Pair<AbstractType<?>, AbstractType<?>>, MapType> instances = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<Pair<AbstractType<?>, AbstractType<?>>, MapType> frozenInstances = new ConcurrentHashMap<>();
 
     private final AbstractType<K> keys;
     private final AbstractType<V> values;
@@ -52,16 +54,13 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         return getInstance(l.get(0), l.get(1), true);
     }
 
-    public static synchronized <K, V> MapType<K, V> getInstance(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
+    public static <K, V> MapType<K, V> getInstance(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
     {
-        Map<Pair<AbstractType<?>, AbstractType<?>>, MapType> internMap = isMultiCell ? instances : frozenInstances;
+        ConcurrentMap<Pair<AbstractType<?>, AbstractType<?>>, MapType> internMap = isMultiCell ? instances : frozenInstances;
         Pair<AbstractType<?>, AbstractType<?>> p = Pair.<AbstractType<?>, AbstractType<?>>create(keys, values);
         MapType<K, V> t = internMap.get(p);
         if (t == null)
-        {
-            t = new MapType<>(keys, values, isMultiCell);
-            internMap.put(p, t);
-        }
+            t = internMap.computeIfAbsent(p, k -> new MapType<>(k.left, k.right, isMultiCell) );
         return t;
     }
 

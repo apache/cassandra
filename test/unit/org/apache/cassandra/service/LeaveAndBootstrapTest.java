@@ -22,7 +22,6 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -35,9 +34,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.Util.PartitionerSwitcher;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -50,7 +47,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.*;
 
@@ -560,7 +556,7 @@ public class LeaveAndBootstrapTest
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(2))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(2))));
 
-        assertTrue(tmd.getLeavingEndpoints().isEmpty());
+        assertTrue(tmd.getSizeOfLeavingEndpoints() == 0);
         assertEquals(keyTokens.get(2), tmd.getToken(hosts.get(2)));
 
         // node 3 goes through leave and left and then jumps to normal at its new token
@@ -571,7 +567,7 @@ public class LeaveAndBootstrapTest
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(4))));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
-        assertTrue(tmd.getLeavingEndpoints().isEmpty());
+        assertTrue(tmd.getSizeOfLeavingEndpoints() == 0);
         assertEquals(keyTokens.get(4), tmd.getToken(hosts.get(2)));
     }
 
@@ -681,9 +677,8 @@ public class LeaveAndBootstrapTest
         Util.createInitialRing(ss, partitioner, endpointTokens, new ArrayList<Token>(), hosts, new ArrayList<UUID>(), 2);
 
         InetAddress toRemove = hosts.get(1);
-        final ExecutorService executor = StageManager.getStage(Stage.MUTATION);
-        FBUtilities.waitOnFuture(SystemKeyspace.updatePeerInfo(toRemove, "data_center", "dc42", executor));
-        FBUtilities.waitOnFuture(SystemKeyspace.updatePeerInfo(toRemove, "rack", "rack42", executor));
+        SystemKeyspace.updatePeerInfo(toRemove, "data_center", "dc42");
+        SystemKeyspace.updatePeerInfo(toRemove, "rack", "rack42");
         assertEquals("rack42", SystemKeyspace.loadDcRackInfo().get(toRemove).get("rack"));
 
         // mark the node as removed
@@ -720,7 +715,7 @@ public class LeaveAndBootstrapTest
 
     private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd)
     {
-        KeyspaceMetadata ksmd = Schema.instance.getKSMetaData(keyspaceName);
+        KeyspaceMetadata ksmd = Schema.instance.getKeyspaceMetadata(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(
                 keyspaceName,
                 ksmd.params.replication.klass,

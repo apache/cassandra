@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
@@ -115,7 +115,7 @@ public class Expression
     @VisibleForTesting
     public Expression(String name, AbstractType<?> validator)
     {
-        this(null, new ColumnIndex(UTF8Type.instance, ColumnDefinition.regularDef("sasi", "internal", name, validator), null));
+        this(null, new ColumnIndex(UTF8Type.instance, ColumnMetadata.regularColumn("sasi", "internal", name, validator), null));
     }
 
     public Expression setLower(Bound newLower)
@@ -410,6 +410,14 @@ public class Expression
 
             Bound o = (Bound) other;
             return value.equals(o.value) && inclusive == o.inclusive;
+        }
+
+        public int hashCode()
+        {
+            HashCodeBuilder builder = new HashCodeBuilder();
+            builder.append(value);
+            builder.append(inclusive);
+            return builder.toHashCode();
         }
     }
 }

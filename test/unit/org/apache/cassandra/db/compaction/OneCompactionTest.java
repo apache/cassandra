@@ -64,7 +64,7 @@ public class OneCompactionTest
         Set<String> inserted = new HashSet<>();
         for (int j = 0; j < insertsPerTable; j++) {
             String key = String.valueOf(j);
-            new RowUpdateBuilder(store.metadata, j, key)
+            new RowUpdateBuilder(store.metadata(), j, key)
                 .clustering("0")
                 .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build()

@@ -28,11 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.RawSelector;
@@ -45,12 +41,15 @@ import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
 public class CreateViewStatement extends SchemaAlteringStatement
@@ -60,8 +59,8 @@ public class CreateViewStatement extends SchemaAlteringStatement
     private final CFName baseName;
     private final List<RawSelector> selectClause;
     private final WhereClause whereClause;
-    private final List<ColumnDefinition.Raw> partitionKeys;
-    private final List<ColumnDefinition.Raw> clusteringKeys;
+    private final List<ColumnMetadata.Raw> partitionKeys;
+    private final List<ColumnMetadata.Raw> clusteringKeys;
     public final CFProperties properties = new CFProperties();
     private final boolean ifNotExists;
 
@@ -69,8 +68,8 @@ public class CreateViewStatement extends SchemaAlteringStatement
                                CFName baseName,
                                List<RawSelector> selectClause,
                                WhereClause whereClause,
-                               List<ColumnDefinition.Raw> partitionKeys,
-                               List<ColumnDefinition.Raw> clusteringKeys,
+                               List<ColumnMetadata.Raw> partitionKeys,
+                               List<ColumnMetadata.Raw> clusteringKeys,
                                boolean ifNotExists)
     {
         super(viewName);
@@ -100,11 +99,11 @@ public class CreateViewStatement extends SchemaAlteringStatement
         void add(ColumnIdentifier identifier, AbstractType<?> type);
     }
 
-    private void add(CFMetaData baseCfm, Iterable<ColumnIdentifier> columns, AddColumn adder)
+    private void add(TableMetadata baseCfm, Iterable<ColumnIdentifier> columns, AddColumn adder)
     {
         for (ColumnIdentifier column : columns)
         {
-            AbstractType<?> type = baseCfm.getColumnDefinition(column).type;
+            AbstractType<?> type = baseCfm.getColumn(column).type;
             if (properties.definedOrdering.containsKey(column))
             {
                 boolean desc = properties.definedOrdering.get(column);
@@ -147,16 +146,14 @@ public class CreateViewStatement extends SchemaAlteringStatement
         if (!baseName.getKeyspace().equals(keyspace()))
             throw new InvalidRequestException("Cannot create a materialized view on a table in a separate keyspace");
 
-        CFMetaData cfm = ThriftValidation.validateColumnFamily(baseName.getKeyspace(), baseName.getColumnFamily());
+        TableMetadata metadata = Schema.instance.validateTable(baseName.getKeyspace(), baseName.getColumnFamily());
 
-        if (cfm.isCounter())
+        if (metadata.isCounter())
             throw new InvalidRequestException("Materialized views are not supported on counter tables");
-        if (cfm.isSuper())
-            throw new InvalidRequestException("Materialized views are not supported on SuperColumn tables");
-        if (cfm.isView())
+        if (metadata.isView())
             throw new InvalidRequestException("Materialized views cannot be created against other materialized views");
 
-        if (cfm.params.gcGraceSeconds == 0)
+        if (metadata.params.gcGraceSeconds == 0)
         {
             throw new InvalidRequestException(String.format("Cannot create materialized view '%s' for base table " +
                                                             "'%s' with gc_grace_seconds of 0, since this value is " +
@@ -176,24 +173,28 @@ public class CreateViewStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("Cannot use function when defining a materialized view");
             if (selectable instanceof Selectable.WritetimeOrTTL.Raw)
                 throw new InvalidRequestException("Cannot use function when defining a materialized view");
+            if (selectable instanceof Selectable.WithElementSelection.Raw)
+                throw new InvalidRequestException("Cannot use collection element selection when defining a materialized view");
+            if (selectable instanceof Selectable.WithSliceSelection.Raw)
+                throw new InvalidRequestException("Cannot use collection slice selection when defining a materialized view");
             if (selector.alias != null)
                 throw new InvalidRequestException("Cannot use alias when defining a materialized view");
 
-            Selectable s = selectable.prepare(cfm);
+            Selectable s = selectable.prepare(metadata);
             if (s instanceof Term.Raw)
                 throw new InvalidRequestException("Cannot use terms in selection when defining a materialized view");
 
-            ColumnDefinition cdef = (ColumnDefinition)s;
+            ColumnMetadata cdef = (ColumnMetadata)s;
             included.add(cdef.name);
         }
 
-        Set<ColumnDefinition.Raw> targetPrimaryKeys = new HashSet<>();
-        for (ColumnDefinition.Raw identifier : Iterables.concat(partitionKeys, clusteringKeys))
+        Set<ColumnMetadata.Raw> targetPrimaryKeys = new HashSet<>();
+        for (ColumnMetadata.Raw identifier : Iterables.concat(partitionKeys, clusteringKeys))
         {
             if (!targetPrimaryKeys.add(identifier))
                 throw new InvalidRequestException("Duplicate entry found in PRIMARY KEY: "+identifier);
 
-            ColumnDefinition cdef = identifier.prepare(cfm);
+            ColumnMetadata cdef = identifier.prepare(metadata);
 
             if (cdef.type.isMultiCell())
                 throw new InvalidRequestException(String.format("Cannot use MultiCell column '%s' in PRIMARY KEY of materialized view", identifier));
@@ -206,8 +207,8 @@ public class CreateViewStatement extends SchemaAlteringStatement
         }
 
         // build the select statement
-        Map<ColumnDefinition.Raw, Boolean> orderings = Collections.emptyMap();
-        List<ColumnDefinition.Raw> groups = Collections.emptyList();
+        Map<ColumnMetadata.Raw, Boolean> orderings = Collections.emptyMap();
+        List<ColumnMetadata.Raw> groups = Collections.emptyList();
         SelectStatement.Parameters parameters = new SelectStatement.Parameters(orderings, groups, false, true, false);
 
         SelectStatement.RawStatement rawSelect = new SelectStatement.RawStatement(baseName, parameters, selectClause, whereClause, null, null);
@@ -218,7 +219,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
         rawSelect.prepareKeyspace(state);
         rawSelect.setBoundVariables(getBoundVariables());
 
-        ParsedStatement.Prepared prepared = rawSelect.prepare(true, queryState.getClientState());
+        ParsedStatement.Prepared prepared = rawSelect.prepare(true);
         SelectStatement select = (SelectStatement) prepared.statement;
         StatementRestrictions restrictions = select.getRestrictions();
 
@@ -242,7 +243,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
         String whereClauseText = View.relationsToWhereClause(whereClause.relations);
 
         Set<ColumnIdentifier> basePrimaryKeyCols = new HashSet<>();
-        for (ColumnDefinition definition : Iterables.concat(cfm.partitionKeyColumns(), cfm.clusteringColumns()))
+        for (ColumnMetadata definition : Iterables.concat(metadata.partitionKeyColumns(), metadata.clusteringColumns()))
             basePrimaryKeyCols.add(definition.name);
 
         List<ColumnIdentifier> targetClusteringColumns = new ArrayList<>();
@@ -250,11 +251,11 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
         // This is only used as an intermediate state; this is to catch whether multiple non-PK columns are used
         boolean hasNonPKColumn = false;
-        for (ColumnDefinition.Raw raw : partitionKeys)
-            hasNonPKColumn |= getColumnIdentifier(cfm, basePrimaryKeyCols, hasNonPKColumn, raw, targetPartitionKeys, restrictions);
+        for (ColumnMetadata.Raw raw : partitionKeys)
+            hasNonPKColumn |= getColumnIdentifier(metadata, basePrimaryKeyCols, hasNonPKColumn, raw, targetPartitionKeys, restrictions);
 
-        for (ColumnDefinition.Raw raw : clusteringKeys)
-            hasNonPKColumn |= getColumnIdentifier(cfm, basePrimaryKeyCols, hasNonPKColumn, raw, targetClusteringColumns, restrictions);
+        for (ColumnMetadata.Raw raw : clusteringKeys)
+            hasNonPKColumn |= getColumnIdentifier(metadata, basePrimaryKeyCols, hasNonPKColumn, raw, targetClusteringColumns, restrictions);
 
         // We need to include all of the primary key columns from the base table in order to make sure that we do not
         // overwrite values in the view. We cannot support "collapsing" the base table into a smaller number of rows in
@@ -264,7 +265,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
         boolean missingClusteringColumns = false;
         StringBuilder columnNames = new StringBuilder();
         List<ColumnIdentifier> includedColumns = new ArrayList<>();
-        for (ColumnDefinition def : cfm.allColumns())
+        for (ColumnMetadata def : metadata.columns())
         {
             ColumnIdentifier identifier = def.name;
             boolean includeDef = included.isEmpty() || included.contains(identifier);
@@ -311,25 +312,27 @@ public class CreateViewStatement extends SchemaAlteringStatement
                                               "the corresponding data in the parent table.");
         }
 
-        CFMetaData.Builder cfmBuilder = CFMetaData.Builder.createView(keyspace(), columnFamily());
-        add(cfm, targetPartitionKeys, cfmBuilder::addPartitionKey);
-        add(cfm, targetClusteringColumns, cfmBuilder::addClusteringColumn);
-        add(cfm, includedColumns, cfmBuilder::addRegularColumn);
-        cfmBuilder.withId(properties.properties.getId());
+        TableMetadata.Builder builder =
+            TableMetadata.builder(keyspace(), columnFamily(), properties.properties.getId())
+                         .isView(true)
+                         .params(params);
 
-        CFMetaData viewCfm = cfmBuilder.build().params(params);
-        ViewDefinition definition = new ViewDefinition(keyspace(),
-                                                       columnFamily(),
-                                                       Schema.instance.getId(keyspace(), baseName.getColumnFamily()),
-                                                       baseName.getColumnFamily(),
-                                                       included.isEmpty(),
-                                                       rawSelect,
-                                                       whereClauseText,
-                                                       viewCfm);
+        add(metadata, targetPartitionKeys, builder::addPartitionKeyColumn);
+        add(metadata, targetClusteringColumns, builder::addClusteringColumn);
+        add(metadata, includedColumns, builder::addRegularColumn);
+
+        ViewMetadata definition = new ViewMetadata(keyspace(),
+                                                   columnFamily(),
+                                                   metadata.id,
+                                                   metadata.name,
+                                                   included.isEmpty(),
+                                                   rawSelect,
+                                                   whereClauseText,
+                                                   builder.build());
 
         logger.warn("Creating materialized view {} for {}.{}. " +
                     "Materialized views are experimental and are not recommended for production use.",
-                    definition.viewName, cfm.ksName, cfm.cfName);
+                    definition.name, metadata.keyspace, metadata.name);
 
         try
         {
@@ -345,14 +348,14 @@ public class CreateViewStatement extends SchemaAlteringStatement
         }
     }
 
-    private static boolean getColumnIdentifier(CFMetaData cfm,
+    private static boolean getColumnIdentifier(TableMetadata cfm,
                                                Set<ColumnIdentifier> basePK,
                                                boolean hasNonPKColumn,
-                                               ColumnDefinition.Raw raw,
+                                               ColumnMetadata.Raw raw,
                                                List<ColumnIdentifier> columns,
                                                StatementRestrictions restrictions)
     {
-        ColumnDefinition def = raw.prepare(cfm);
+        ColumnMetadata def = raw.prepare(cfm);
 
         boolean isPk = basePK.contains(def.name);
         if (!isPk && hasNonPKColumn)

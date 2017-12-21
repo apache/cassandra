@@ -19,8 +19,7 @@ implementation.
 ## Using SASI
 
 The examples below walk through creating a table and indexes on its
-columns, and performing queries on some inserted data. The patchset in
-this repository includes support for the Thrift and CQL3 interfaces.
+columns, and performing queries on some inserted data.
 
 The examples below assume the `demo` keyspace has been created and is
 in use.
@@ -203,7 +202,7 @@ cqlsh:demo> SELECT first_name, last_name, age, height, created_at FROM sasi
 #### Suffix Queries
 
 The next example demonstrates `CONTAINS` mode on the `last_name`
-column. By using this mode predicates can search for any strings
+column. By using this mode, predicates can search for any strings
 containing the search string as a sub-string. In this case the strings
 containing "a" or "an".
 
@@ -331,7 +330,7 @@ cqlsh:demo> SELECT * FROM sasi WHERE bio LIKE 'soft eng';
 While SASI, at the surface, is simply an implementation of the
 `Index` interface, at its core there are several data
 structures and algorithms used to satisfy it. These are described
-here. Additionally, the changes internal to Cassandra to support SASIs
+here. Additionally, the changes internal to Cassandra to support SASI's
 integration are described.
 
 The `Index` interface divides responsibility of the
@@ -350,7 +349,7 @@ performed, and later stitched back together, to reduce memory
 usage. These data structures are optimized for this use case.
 
 Taking advantage of Cassandra's ordered data model, at query time,
-candidate indexes are narrowed down for searching minimize the amount
+candidate indexes are narrowed down for searching, minimizing the amount
 of work done. Searching is then performed using an efficient method
 that streams data off disk as needed.
 
@@ -369,7 +368,7 @@ these are stored per-indexed term in
 for writing, and
 [`TokenTree`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/TokenTree.java)s
 for querying. These index files are memory mapped after being written
-to disk, for quicker access. For indexing data in the memtable SASI
+to disk, for quicker access. For indexing data in the memtable, SASI
 uses its
 [`IndexMemtable`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/memory/IndexMemtable.java)
 class.
@@ -396,8 +395,8 @@ point to the data itself, contained in [`TokenTree`](https://github.com/apache/c
 The terms written to the
 [`OnDiskIndex`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/OnDiskIndex.java)
 vary depending on its "mode": either `PREFIX`, `CONTAINS`, or
-`SPARSE`. In the `PREFIX` and `SPARSE` cases terms exact values are
-written exactly once per `OnDiskIndex`. For example, a `PREFIX` index
+`SPARSE`. In the `PREFIX` and `SPARSE` cases, terms' exact values are
+written exactly once per `OnDiskIndex`. For example, when using a `PREFIX` index
 with terms `Jason`, `Jordan`, `Pavel`, all three will be included in
 the index. A `CONTAINS` index writes additional terms for each suffix of
 each term recursively. Continuing with the example, a `CONTAINS` index
@@ -431,7 +430,7 @@ completely loads its interior nodes as the tree is built and it uses
 the well-known algorithm optimized for bulk-loading the data
 structure.
 
-[`TokenTree`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/TokenTree.java)s provide the means to iterate a tokens, and file
+[`TokenTree`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/TokenTree.java)s provide the means to iterate over tokens, and file
 positions, that match a given term, and to skip forward in that
 iteration, an operation used heavily at query time.
 
@@ -449,7 +448,7 @@ per-column. The choice of which index type is used is data
 dependent. The
 [`TrieMemIndex`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/memory/TrieMemIndex.java)
 is used for literal types. `AsciiType` and `UTF8Type` are literal
-types by defualt but any column can be configured as a literal type
+types by default but any column can be configured as a literal type
 using the `is_literal` option at index creation time. For non-literal
 types the
 [`SkipListMemIndex`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/memory/SkipListMemIndex.java)
@@ -458,7 +457,7 @@ is used. The
 is an implementation that can efficiently support prefix queries on
 character-like data. The
 [`SkipListMemIndex`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/memory/SkipListMemIndex.java),
-conversely, is better suited for Cassandra other data types like
+conversely, is better suited for other Cassandra data types like
 numbers.
 
 The
@@ -479,25 +478,25 @@ representation into SASI's
 [`Operation`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java)
 and
 [`Expression`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Expression.java)
-tree, optimizing the tree to reduce the amount of work done, and
-driving the query itself the
+trees, optimizing the trees to reduce the amount of work done, and
+driving the query itself, the
 [`QueryPlan`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryPlan.java)
 is the work horse of SASI's querying implementation. To efficiently
-perform union and intersection operations SASI provides several
-iterators similar to Cassandra's `MergeIterator` but tailored
-specifically for SASIs use, and with more features. The
+perform union and intersection operations, SASI provides several
+iterators similar to Cassandra's `MergeIterator`, but tailored
+specifically for SASI's use while including more features. The
 [`RangeUnionIterator`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/utils/RangeUnionIterator.java),
-like its name suggests, performs set union over sets of tokens/keys
+like its name suggests, performs set unions over sets of tokens/keys
 matching the query, only reading as much data as it needs from each
 set to satisfy the query. The
 [`RangeIntersectionIterator`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/utils/RangeIntersectionIterator.java),
-similar to its counterpart, performs set intersection over its data.
+similar to its counterpart, performs set intersections over its data.
 
 #### QueryPlan
 
 The
 [`QueryPlan`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryPlan.java)
-instantiated per search query is at the core of SASIs querying
+instantiated per search query is at the core of SASI's querying
 implementation. Its work can be divided in two stages: analysis and
 execution.
 
@@ -512,7 +511,7 @@ section below for more details). This process produces a tree of
 [`Operation`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java)s, which in turn may contain [`Expression`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Expression.java)s, all of which
 provide an alternative, more efficient, representation of the query.
 
-During execution the
+During execution, the
 [`QueryPlan`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryPlan.java)
 uses the `DecoratedKey`-generating iterator created from the
 [`Operation`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java) tree. These keys are read from disk and a final check to
@@ -525,7 +524,7 @@ The number of queries (total/failed/timed-out), and their latencies,
 are maintined per-table/column family.
 
 SASI also supports concurrently iterating terms for the same index
-accross SSTables. The concurrency factor is controlled by the
+across SSTables. The concurrency factor is controlled by the
 `cassandra.search_concurrency_factor` system property. The default is
 `1`.
 
@@ -538,7 +537,7 @@ references a
 used throughout the execution phase. The
 [`QueryController`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryController.java)
 has two responsibilities: to manage and ensure the proper cleanup of
-resources (indexes), and to strictly enforce the time bound for query,
+resources (indexes), and to strictly enforce the time bound per query,
 specified by the user via the range slice timeout. All indexes are
 accessed via the
 [`QueryController`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryController.java)
@@ -556,7 +555,7 @@ these optimizations is to reduce the amount of work performed during
 the execution phase.
 
 The simplest optimization performed is compacting multiple expressions
-joined by logical intersection (`AND`) into a single [`Operation`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java) with
+joined by logical intersections (`AND`) into a single [`Operation`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java) with
 three or more [`Expression`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Expression.java)s. For example, the query `WHERE age < 100 AND
 fname = 'p*' AND first_name != 'pa*' AND age > 21` would,
 without modification, have the following tree:
@@ -660,11 +659,11 @@ Besides participating in the optimizations performed by the
 [`QueryPlan`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryPlan.java),
 [`Operation`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java)
 is also responsible for taking a row that has been returned by the
-query and making a final validation that it in fact does match. This
+query and performing a final validation that it in fact does match. This
 `satisfiesBy` operation is performed recursively from the root of the
 [`Operation`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java)
 tree for a given query. These checks are performed directly on the
-data in a given row. For more details on how `satisfiesBy` works see
+data in a given row. For more details on how `satisfiesBy` works, see
 the documentation
 [in the code](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java#L87-L123).
 
@@ -736,7 +735,7 @@ components, controls writing of all indexes for an SSTable via its
 [`PerSSTableIndexWriter`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/PerSSTableIndexWriter.java), and initiates searches with
 `Searcher`. These classes glue the previously
 mentioned indexing components together with Cassandra's SSTable
-life-cycle ensuring indexes are not only written when Memtable's flush
+life-cycle ensuring indexes are not only written when Memtable's flush,
 but also as SSTable's are compacted. For querying, the
 `Searcher` does little but defer to
 [`QueryPlan`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryPlan.java)

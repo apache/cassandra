@@ -18,17 +18,33 @@
 package org.apache.cassandra.db;
 
 import java.util.Collection;
-import java.util.UUID;
 
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.TableId;
 
 public interface IMutation
 {
     public void apply();
     public String getKeyspaceName();
-    public Collection<UUID> getColumnFamilyIds();
+    public Collection<TableId> getTableIds();
     public DecoratedKey key();
     public long getTimeout();
     public String toString(boolean shallow);
     public Collection<PartitionUpdate> getPartitionUpdates();
+
+    /**
+     * Computes the total data size of the specified mutations.
+     * @param mutations the mutations
+     * @return the total data size of the specified mutations
+     */
+    public static long dataSize(Collection<? extends IMutation> mutations)
+    {
+        long size = 0;
+        for (IMutation mutation : mutations)
+        {
+            for (PartitionUpdate update : mutation.getPartitionUpdates())
+                size += update.dataSize();
+        }
+        return size;
+    }
 }

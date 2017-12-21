@@ -28,6 +28,7 @@ import com.google.common.base.Splitter;
 
 import org.apache.cassandra.auth.PasswordAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -37,13 +38,11 @@ import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
 
-import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
-
 public class Client extends SimpleClient
 {
     private final SimpleEventHandler eventHandler = new SimpleEventHandler();
 
-    public Client(String host, int port, ProtocolVersion version, ClientEncryptionOptions encryptionOptions)
+    public Client(String host, int port, ProtocolVersion version, EncryptionOptions encryptionOptions)
     {
         super(host, port, version, encryptionOptions);
         setEventHandler(eventHandler);
@@ -136,18 +135,20 @@ public class Client extends SimpleClient
                     return null;
                 }
             }
-            return new QueryMessage(query, QueryOptions.create(ConsistencyLevel.ONE, Collections.<ByteBuffer>emptyList(), false, pageSize, null, null, version));
+            return new QueryMessage(query, QueryOptions.create(ConsistencyLevel.ONE, Collections.<ByteBuffer>emptyList(), false, pageSize, null, null, version, null));
         }
         else if (msgType.equals("PREPARE"))
         {
             String query = line.substring(8);
-            return new PrepareMessage(query);
+            return new PrepareMessage(query, null);
         }
         else if (msgType.equals("EXECUTE"))
         {
             try
             {
-                byte[] id = Hex.hexToBytes(iter.next());
+                byte[] preparedStatementId = Hex.hexToBytes(iter.next());
+                byte[] resultMetadataId = Hex.hexToBytes(iter.next());
+
                 List<ByteBuffer> values = new ArrayList<ByteBuffer>();
                 while(iter.hasNext())
                 {
@@ -164,7 +165,7 @@ public class Client extends SimpleClient
                     }
                     values.add(bb);
                 }
-                return new ExecuteMessage(MD5Digest.wrap(id), QueryOptions.forInternalCalls(ConsistencyLevel.ONE, values));
+                return new ExecuteMessage(MD5Digest.wrap(preparedStatementId), MD5Digest.wrap(resultMetadataId), QueryOptions.forInternalCalls(ConsistencyLevel.ONE, values));
             }
             catch (Exception e)
             {
@@ -174,13 +175,6 @@ public class Client extends SimpleClient
         else if (msgType.equals("OPTIONS"))
         {
             return new OptionsMessage();
-        }
-        else if (msgType.equals("CREDENTIALS"))
-        {
-            System.err.println("[WARN] CREDENTIALS command is deprecated, use AUTHENTICATE instead");
-            CredentialsMessage msg = new CredentialsMessage();
-            msg.credentials.putAll(readCredentials(iter));
-            return msg;
         }
         else if (msgType.equals("AUTHENTICATE"))
         {
@@ -253,7 +247,7 @@ public class Client extends SimpleClient
         int port = Integer.parseInt(args[1]);
         ProtocolVersion version = args.length == 3 ? ProtocolVersion.decode(Integer.parseInt(args[2])) : ProtocolVersion.CURRENT;
 
-        ClientEncryptionOptions encryptionOptions = new ClientEncryptionOptions();
+        EncryptionOptions encryptionOptions = new EncryptionOptions();
         System.out.println("CQL binary protocol console " + host + "@" + port + " using native protocol version " + version);
 
         new Client(host, port, version, encryptionOptions).run();

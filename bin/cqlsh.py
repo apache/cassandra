@@ -104,7 +104,7 @@ elif webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '
     webbrowser._tryorder.remove('xdg-open')
     webbrowser._tryorder.append('xdg-open')
 
-# use bundled libs for python-cql and thrift, if available. if there
+# use bundled lib for python-cql if available. if there
 # is a ../lib dir, use bundled libs there preferentially.
 ZIPLIB_DIRS = [os.path.join(CASSANDRA_PATH, 'lib')]
 myplatform = platform.system()
@@ -209,7 +209,6 @@ parser.add_option("--browser", dest='browser', help="""The browser to use to dis
                                                     - one of the supported browsers in https://docs.python.org/2/library/webbrowser.html.
                                                     - browser path followed by %s, example: /usr/bin/google-chrome-stable %s""")
 parser.add_option('--ssl', action='store_true', help='Use SSL', default=False)
-parser.add_option('--no_compact', action='store_true', help='No Compact', default=False)
 parser.add_option("-u", "--username", help="Authenticate as user.")
 parser.add_option("-p", "--password", help="Authenticate using password.")
 parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.')
@@ -442,7 +441,6 @@ class Shell(cmd.Cmd):
                  completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
                  cqlver=None, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
-                 no_compact=False,
                  display_nanotime_format=DEFAULT_NANOTIME_FORMAT,
                  display_timestamp_format=DEFAULT_TIMESTAMP_FORMAT,
                  display_date_format=DEFAULT_DATE_FORMAT,
@@ -477,7 +475,6 @@ class Shell(cmd.Cmd):
                 kwargs['protocol_version'] = protocol_version
             self.conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=cqlver,
                                 auth_provider=self.auth_provider,
-                                no_compact=no_compact,
                                 ssl_options=sslhandling.ssl_settings(hostname, CONFIG_FILE) if ssl else None,
                                 load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
                                 control_connection_timeout=connect_timeout,
@@ -1087,7 +1084,9 @@ class Shell(cmd.Cmd):
                     num_rows += len(result.current_rows)
                     self.print_static_result(result, table_meta)
                 if result.has_more_pages:
-                    raw_input("---MORE---")
+                    if self.shunted_query_out is None:
+                        # Only pause when not capturing.
+                        raw_input("---MORE---")
                     result.fetch_next_page()
                 else:
                     break
@@ -1120,7 +1119,7 @@ class Shell(cmd.Cmd):
             ks_meta = self.conn.metadata.keyspaces.get(ks_name, None)
             cql_types = [CqlType(cql_typename(t), ks_meta) for t in result.column_types]
 
-        formatted_values = [map(self.myformat_value, row.values(), cql_types) for row in result.current_rows]
+        formatted_values = [map(self.myformat_value, [row[c] for c in column_names], cql_types) for row in result.current_rows]
 
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values)
@@ -1699,8 +1698,8 @@ class Shell(cmd.Cmd):
         SHOW VERSION
 
           Shows the version and build of the connected Cassandra instance, as
-          well as the versions of the CQL spec and the Thrift protocol that
-          the connected Cassandra instance understands.
+          well as the version of the CQL spec that the connected Cassandra
+          instance understands.
 
         SHOW HOST
 
@@ -2241,8 +2240,7 @@ def read_options(cmdlineargs, environment):
 
     optvalues.debug = False
     optvalues.file = None
-    optvalues.ssl = False
-    optvalues.no_compact = False
+    optvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', DEFAULT_SSL)
     optvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
 
     optvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
@@ -2403,7 +2401,6 @@ def main(options, hostname, port):
                       protocol_version=options.protocol_version,
                       cqlver=options.cqlversion,
                       keyspace=options.keyspace,
-                      no_compact=options.no_compact,
                       display_timestamp_format=options.time_format,
                       display_nanotime_format=options.nanotime_format,
                       display_date_format=options.date_format,

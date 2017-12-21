@@ -41,6 +41,7 @@ public class ViewComplexTest extends CQLTester
     {
         requireNetwork();
     }
+
     @Before
     public void begin()
     {
@@ -79,7 +80,7 @@ public class ViewComplexTest extends CQLTester
             Keyspace.open(keyspace()).flush();
     }
 
-    // for now, unselected column cannot be fully supported, SEE CASSANDRA-13826
+    // for now, unselected column cannot be fully supported, SEE CASSANDRA-11500
     @Ignore
     @Test
     public void testPartialDeleteUnselectedColumn() throws Throwable
@@ -1403,5 +1404,4 @@ public class ViewComplexTest extends CQLTester
             }
         }
     }
-
 }

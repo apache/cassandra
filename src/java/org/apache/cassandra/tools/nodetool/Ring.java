@@ -18,9 +18,9 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static java.lang.String.format;
-import io.airlift.command.Arguments;
-import io.airlift.command.Command;
-import io.airlift.command.Option;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;

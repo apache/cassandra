@@ -27,10 +27,9 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.SchemaConstants;
-import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.exceptions.ConfigurationException;
+
+import static java.lang.String.format;
 
 /**
  * An immutable representation of keyspace metadata (name, params, tables, types, and functions).
@@ -94,15 +93,15 @@ public final class KeyspaceMetadata
         return new KeyspaceMetadata(name, params, tables, views, types, functions);
     }
 
-    public Iterable<CFMetaData> tablesAndViews()
+    public Iterable<TableMetadata> tablesAndViews()
     {
         return Iterables.concat(tables, views.metadatas());
     }
 
     @Nullable
-    public CFMetaData getTableOrViewNullable(String tableOrViewName)
+    public TableMetadata getTableOrViewNullable(String tableOrViewName)
     {
-        ViewDefinition view = views.getNullable(tableOrViewName);
+        ViewMetadata view = views.getNullable(tableOrViewName);
         return view == null
              ? tables.getNullable(tableOrViewName)
              : view.metadata;
@@ -111,18 +110,18 @@ public final class KeyspaceMetadata
     public Set<String> existingIndexNames(String cfToExclude)
     {
         Set<String> indexNames = new HashSet<>();
-        for (CFMetaData table : tables)
-            if (cfToExclude == null || !table.cfName.equals(cfToExclude))
-                for (IndexMetadata index : table.getIndexes())
+        for (TableMetadata table : tables)
+            if (cfToExclude == null || !table.name.equals(cfToExclude))
+                for (IndexMetadata index : table.indexes)
                     indexNames.add(index.name);
         return indexNames;
     }
 
-    public Optional<CFMetaData> findIndexedTable(String indexName)
+    public Optional<TableMetadata> findIndexedTable(String indexName)
     {
-        for (CFMetaData cfm : tablesAndViews())
-            if (cfm.getIndexes().has(indexName))
-                return Optional.of(cfm);
+        for (TableMetadata table : tablesAndViews())
+            if (table.indexes.has(indexName))
+                return Optional.of(table);
 
         return Optional.empty();
     }
@@ -167,12 +166,28 @@ public final class KeyspaceMetadata
 
     public void validate()
     {
-        if (!CFMetaData.isNameValid(name))
-            throw new ConfigurationException(String.format("Keyspace name must not be empty, more than %s characters long, "
-                                                           + "or contain non-alphanumeric-underscore characters (got \"%s\")",
-                                                           SchemaConstants.NAME_LENGTH,
-                                                           name));
+        if (!SchemaConstants.isValidName(name))
+        {
+            throw new ConfigurationException(format("Keyspace name must not be empty, more than %s characters long, "
+                                                    + "or contain non-alphanumeric-underscore characters (got \"%s\")",
+                                                    SchemaConstants.NAME_LENGTH,
+                                                    name));
+        }
+
         params.validate(name);
-        tablesAndViews().forEach(CFMetaData::validate);
+
+        tablesAndViews().forEach(TableMetadata::validate);
+
+        Set<String> indexNames = new HashSet<>();
+        for (TableMetadata table : tables)
+        {
+            for (IndexMetadata index : table.indexes)
+            {
+                if (indexNames.contains(index.name))
+                    throw new ConfigurationException(format("Duplicate index name %s in keyspace %s", index.name, name));
+
+                indexNames.add(index.name);
+            }
+        }
     }
 }

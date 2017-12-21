@@ -18,10 +18,8 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
-import java.net.SocketException;
-import java.nio.ByteBuffer;
-import java.nio.channels.ReadableByteChannel;
 
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.streaming.StreamSession;
 
@@ -33,72 +31,50 @@ import org.apache.cassandra.streaming.StreamSession;
 public abstract class StreamMessage
 {
     /** Streaming protocol version */
-    public static final int VERSION_20 = 2;
-    public static final int VERSION_22 = 3;
-    public static final int VERSION_30 = 4;
-    public static final int CURRENT_VERSION = VERSION_30;
-
-    private transient volatile boolean sent = false;
+    public static final int VERSION_40 = 5;
+    public static final int CURRENT_VERSION = VERSION_40;
 
     public static void serialize(StreamMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
     {
-        ByteBuffer buff = ByteBuffer.allocate(1);
         // message type
-        buff.put(message.type.type);
-        buff.flip();
-        out.write(buff);
+        out.writeByte(message.type.type);
         message.type.outSerializer.serialize(message, out, version, session);
     }
 
-    public static StreamMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
+    public static long serializedSize(StreamMessage message, int version) throws IOException
     {
-        ByteBuffer buff = ByteBuffer.allocate(1);
-        int readBytes = in.read(buff);
-        if (readBytes > 0)
-        {
-            buff.flip();
-            Type type = Type.get(buff.get());
-            return type.inSerializer.deserialize(in, version, session);
-        }
-        else if (readBytes == 0)
-        {
-            // input socket buffer was not filled yet
-            return null;
-        }
-        else
-        {
-            // possibly socket gets closed
-            throw new SocketException("End-of-stream reached");
-        }
+        return 1 + message.type.outSerializer.serializedSize(message, version);
     }
 
-    public void sent()
+    public static StreamMessage deserialize(DataInputPlus in, int version, StreamSession session) throws IOException
     {
-        sent = true;
-    }
-
-    public boolean wasSent()
-    {
-        return sent;
+        byte b = in.readByte();
+        if (b == 0)
+            b = -1;
+        Type type = Type.get(b);
+        return type.inSerializer.deserialize(in, version, session);
     }
 
     /** StreamMessage serializer */
     public static interface Serializer<V extends StreamMessage>
     {
-        V deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException;
+        V deserialize(DataInputPlus in, int version, StreamSession session) throws IOException;
         void serialize(V message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException;
+        long serializedSize(V message, int version) throws IOException;
     }
 
     /** StreamMessage types */
-    public static enum Type
+    public enum Type
     {
-        PREPARE(1, 5, PrepareMessage.serializer),
+        PREPARE_SYN(1, 5, PrepareSynMessage.serializer),
         FILE(2, 0, IncomingFileMessage.serializer, OutgoingFileMessage.serializer),
         RECEIVED(3, 4, ReceivedMessage.serializer),
-        RETRY(4, 4, RetryMessage.serializer),
         COMPLETE(5, 1, CompleteMessage.serializer),
         SESSION_FAILED(6, 5, SessionFailedMessage.serializer),
-        KEEP_ALIVE(7, 5, KeepAliveMessage.serializer);
+        KEEP_ALIVE(7, 5, KeepAliveMessage.serializer),
+        PREPARE_SYNACK(8, 5, PrepareSynAckMessage.serializer),
+        PREPARE_ACK(9, 5, PrepareAckMessage.serializer),
+        STREAM_INIT(10, 5, StreamInitMessage.serializer);
 
         public static Type get(byte type)
         {

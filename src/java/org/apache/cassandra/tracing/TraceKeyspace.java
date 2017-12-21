@@ -20,17 +20,22 @@ package org.apache.cassandra.tracing;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+
+import static java.lang.String.format;
 
 public final class TraceKeyspace
 {
@@ -41,36 +46,41 @@ public final class TraceKeyspace
     public static final String SESSIONS = "sessions";
     public static final String EVENTS = "events";
 
-    private static final CFMetaData Sessions =
-        compile(SESSIONS,
-                "tracing sessions",
-                "CREATE TABLE %s ("
-                + "session_id uuid,"
-                + "command text,"
-                + "client inet,"
-                + "coordinator inet,"
-                + "duration int,"
-                + "parameters map<text, text>,"
-                + "request text,"
-                + "started_at timestamp,"
-                + "PRIMARY KEY ((session_id)))");
+    private static final TableMetadata Sessions =
+        parse(SESSIONS,
+              "tracing sessions",
+              "CREATE TABLE %s ("
+              + "session_id uuid,"
+              + "command text,"
+              + "client inet,"
+              + "coordinator inet,"
+              + "duration int,"
+              + "parameters map<text, text>,"
+              + "request text,"
+              + "started_at timestamp,"
+              + "PRIMARY KEY ((session_id)))");
 
-    private static final CFMetaData Events =
-        compile(EVENTS,
-                "tracing events",
-                "CREATE TABLE %s ("
-                + "session_id uuid,"
-                + "event_id timeuuid,"
-                + "activity text,"
-                + "source inet,"
-                + "source_elapsed int,"
-                + "thread text,"
-                + "PRIMARY KEY ((session_id), event_id))");
+    private static final TableMetadata Events =
+        parse(EVENTS,
+              "tracing events",
+              "CREATE TABLE %s ("
+              + "session_id uuid,"
+              + "event_id timeuuid,"
+              + "activity text,"
+              + "source inet,"
+              + "source_elapsed int,"
+              + "thread text,"
+              + "PRIMARY KEY ((session_id), event_id))");
 
-    private static CFMetaData compile(String name, String description, String schema)
+    private static TableMetadata parse(String table, String description, String cql)
     {
-        return CFMetaData.compile(String.format(schema, name), SchemaConstants.TRACE_KEYSPACE_NAME)
-                         .comment(description);
+        return CreateTableStatement.parse(format(cql, table), SchemaConstants.TRACE_KEYSPACE_NAME)
+                                   .id(TableId.forSystemTable(SchemaConstants.TRACE_KEYSPACE_NAME, table))
+                                   .dcLocalReadRepairChance(0.0)
+                                   .gcGraceSeconds(0)
+                                   .memtableFlushPeriod((int) TimeUnit.HOURS.toMillis(1))
+                                   .comment(description)
+                                   .build();
     }
 
     public static KeyspaceMetadata metadata()

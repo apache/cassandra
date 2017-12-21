@@ -20,11 +20,12 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.schema.DroppedColumn;
 
 public class SerializationHelper
 {
@@ -50,24 +51,24 @@ public class SerializationHelper
     private final ColumnFilter columnsToFetch;
     private ColumnFilter.Tester tester;
 
-    private final Map<ByteBuffer, CFMetaData.DroppedColumn> droppedColumns;
-    private CFMetaData.DroppedColumn currentDroppedComplex;
+    private final Map<ByteBuffer, DroppedColumn> droppedColumns;
+    private DroppedColumn currentDroppedComplex;
 
 
-    public SerializationHelper(CFMetaData metadata, int version, Flag flag, ColumnFilter columnsToFetch)
+    public SerializationHelper(TableMetadata metadata, int version, Flag flag, ColumnFilter columnsToFetch)
     {
         this.flag = flag;
         this.version = version;
         this.columnsToFetch = columnsToFetch;
-        this.droppedColumns = metadata.getDroppedColumns();
+        this.droppedColumns = metadata.droppedColumns;
     }
 
-    public SerializationHelper(CFMetaData metadata, int version, Flag flag)
+    public SerializationHelper(TableMetadata metadata, int version, Flag flag)
     {
         this(metadata, version, flag, null);
     }
 
-    public boolean includes(ColumnDefinition column)
+    public boolean includes(ColumnMetadata column)
     {
         return columnsToFetch == null || columnsToFetch.fetches(column);
     }
@@ -83,7 +84,7 @@ public class SerializationHelper
         // actually requested by the user however (canSkipValue), we can skip the full cell if the cell
         // timestamp is lower than the row one, because in that case, the row timestamp is enough proof
         // of the liveness of the row. Otherwise, we'll only be able to skip the values of those cells.
-        ColumnDefinition column = cell.column();
+        ColumnMetadata column = cell.column();
         if (column.isComplex())
         {
             if (!includes(cell.path()))
@@ -102,7 +103,7 @@ public class SerializationHelper
         return path == null || tester == null || tester.fetches(path);
     }
 
-    public boolean canSkipValue(ColumnDefinition column)
+    public boolean canSkipValue(ColumnMetadata column)
     {
         return columnsToFetch != null && !columnsToFetch.fetchedColumnIsQueried(column);
     }
@@ -112,7 +113,7 @@ public class SerializationHelper
         return path != null && tester != null && !tester.fetchedCellIsQueried(path);
     }
 
-    public void startOfComplexColumn(ColumnDefinition column)
+    public void startOfComplexColumn(ColumnMetadata column)
     {
         this.tester = columnsToFetch == null ? null : columnsToFetch.newTester(column);
         this.currentDroppedComplex = droppedColumns.get(column.name.bytes);
@@ -125,7 +126,7 @@ public class SerializationHelper
 
     public boolean isDropped(Cell cell, boolean isComplex)
     {
-        CFMetaData.DroppedColumn dropped = isComplex ? currentDroppedComplex : droppedColumns.get(cell.column().name.bytes);
+        DroppedColumn dropped = isComplex ? currentDroppedComplex : droppedColumns.get(cell.column().name.bytes);
         return dropped != null && cell.timestamp() <= dropped.droppedTime;
     }
 

@@ -22,22 +22,22 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 
 /** Implements serializable to allow structured info to be returned via JMX. */
 public final class CompactionInfo implements Serializable
 {
     private static final long serialVersionUID = 3695381572726744816L;
-    private final CFMetaData cfm;
+    private final TableMetadata metadata;
     private final OperationType tasktype;
     private final long completed;
     private final long total;
     private final String unit;
     private final UUID compactionId;
 
-    public CompactionInfo(CFMetaData cfm, OperationType tasktype, long bytesComplete, long totalBytes, UUID compactionId)
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long bytesComplete, long totalBytes, UUID compactionId)
     {
-        this(cfm, tasktype, bytesComplete, totalBytes, "bytes", compactionId);
+        this(metadata, tasktype, bytesComplete, totalBytes, "bytes", compactionId);
     }
 
     public CompactionInfo(OperationType tasktype, long completed, long total, String unit, UUID compactionId)
@@ -45,12 +45,12 @@ public final class CompactionInfo implements Serializable
         this(null, tasktype, completed, total, unit, compactionId);
     }
 
-    public CompactionInfo(CFMetaData cfm, OperationType tasktype, long completed, long total, String unit, UUID compactionId)
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, String unit, UUID compactionId)
     {
         this.tasktype = tasktype;
         this.completed = completed;
         this.total = total;
-        this.cfm = cfm;
+        this.metadata = metadata;
         this.unit = unit;
         this.compactionId = compactionId;
     }
@@ -58,27 +58,27 @@ public final class CompactionInfo implements Serializable
     /** @return A copy of this CompactionInfo with updated progress. */
     public CompactionInfo forProgress(long complete, long total)
     {
-        return new CompactionInfo(cfm, tasktype, complete, total, unit, compactionId);
+        return new CompactionInfo(metadata, tasktype, complete, total, unit, compactionId);
     }
 
     public UUID getId()
     {
-        return cfm != null ? cfm.cfId : null;
+        return metadata != null ? metadata.id.asUUID() : null;
     }
 
     public String getKeyspace()
     {
-        return cfm != null ? cfm.ksName : null;
+        return metadata != null ? metadata.keyspace : null;
     }
 
     public String getColumnFamily()
     {
-        return cfm != null ? cfm.cfName : null;
+        return metadata != null ? metadata.name : null;
     }
 
-    public CFMetaData getCFMetaData()
+    public TableMetadata getTableMetadata()
     {
-        return cfm;
+        return metadata;
     }
 
     public long getCompleted()
@@ -105,7 +105,7 @@ public final class CompactionInfo implements Serializable
     {
         StringBuilder buff = new StringBuilder();
         buff.append(getTaskType());
-        if (cfm != null)
+        if (metadata != null)
         {
             buff.append('@').append(getId()).append('(');
             buff.append(getKeyspace()).append(", ").append(getColumnFamily()).append(", ");

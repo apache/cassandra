@@ -27,7 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -60,11 +60,11 @@ public class SSTableMetadataTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD3),
-                                    CFMetaData.Builder.create(KEYSPACE1, CF_STANDARDCOMPOSITE2)
-                                                      .addPartitionKey("key", AsciiType.instance)
-                                                      .addClusteringColumn("name", AsciiType.instance)
-                                                      .addClusteringColumn("int", IntegerType.instance)
-                                                      .addRegularColumn("val", AsciiType.instance).build(),
+                                    TableMetadata.builder(KEYSPACE1, CF_STANDARDCOMPOSITE2)
+                                                 .addPartitionKeyColumn("key", AsciiType.instance)
+                                                 .addClusteringColumn("name", AsciiType.instance)
+                                                 .addClusteringColumn("int", IntegerType.instance)
+                                                 .addRegularColumn("val", AsciiType.instance),
                                     SchemaLoader.counterCFMD(KEYSPACE1, CF_COUNTER1));
     }
 
@@ -78,7 +78,7 @@ public class SSTableMetadataTest
         {
             DecoratedKey key = Util.dk(Integer.toString(i));
             for (int j = 0; j < 10; j++)
-                new RowUpdateBuilder(store.metadata, timestamp, 10 + j, Integer.toString(i))
+                new RowUpdateBuilder(store.metadata(), timestamp, 10 + j, Integer.toString(i))
                     .clustering(Integer.toString(j))
                     .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                     .build()
@@ -86,7 +86,7 @@ public class SSTableMetadataTest
 
         }
 
-        new RowUpdateBuilder(store.metadata, timestamp, 10000, "longttl")
+        new RowUpdateBuilder(store.metadata(), timestamp, 10000, "longttl")
             .clustering("col")
             .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
@@ -104,7 +104,7 @@ public class SSTableMetadataTest
 
         }
 
-        new RowUpdateBuilder(store.metadata, timestamp, 20000, "longttl2")
+        new RowUpdateBuilder(store.metadata(), timestamp, 20000, "longttl2")
         .clustering("col")
         .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
         .build()
@@ -153,14 +153,14 @@ public class SSTableMetadataTest
         long timestamp = System.currentTimeMillis();
         DecoratedKey key = Util.dk("deletetest");
         for (int i = 0; i<5; i++)
-            new RowUpdateBuilder(store.metadata, timestamp, 100, "deletetest")
+            new RowUpdateBuilder(store.metadata(), timestamp, 100, "deletetest")
                 .clustering("deletecolumn" + i)
                 .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build()
                 .applyUnsafe();
 
 
-        new RowUpdateBuilder(store.metadata, timestamp, 1000, "deletetest")
+        new RowUpdateBuilder(store.metadata(), timestamp, 1000, "deletetest")
         .clustering("todelete")
         .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
         .build()
@@ -176,7 +176,7 @@ public class SSTableMetadataTest
             assertEquals(ttltimestamp + 1000, firstMaxDelTime, 10);
         }
 
-        RowUpdateBuilder.deleteRow(store.metadata, timestamp + 1, "deletetest", "todelete").applyUnsafe();
+        RowUpdateBuilder.deleteRow(store.metadata(), timestamp + 1, "deletetest", "todelete").applyUnsafe();
 
         store.forceBlockingFlush();
         assertEquals(2,store.getLiveSSTables().size());
@@ -208,7 +208,7 @@ public class SSTableMetadataTest
             String key = "row" + j;
             for (int i = 100; i<150; i++)
             {
-                new RowUpdateBuilder(store.metadata, System.currentTimeMillis(), key)
+                new RowUpdateBuilder(store.metadata(), System.currentTimeMillis(), key)
                     .clustering(j + "col" + i)
                     .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                     .build()
@@ -226,7 +226,7 @@ public class SSTableMetadataTest
 
         for (int i = 101; i<299; i++)
         {
-            new RowUpdateBuilder(store.metadata, System.currentTimeMillis(), key)
+            new RowUpdateBuilder(store.metadata(), System.currentTimeMillis(), key)
             .clustering(9 + "col" + i)
             .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
@@ -263,7 +263,7 @@ public class SSTableMetadataTest
 
         for (int i = 0; i < 10; i++)
         {
-            new RowUpdateBuilder(cfs.metadata, 0, "k")
+            new RowUpdateBuilder(cfs.metadata(), 0, "k")
                 .clustering("a" + (9 - i), getBytes(i))
                 .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build()
@@ -274,7 +274,7 @@ public class SSTableMetadataTest
 
         for (int i = 0; i < 10; i++)
         {
-            new RowUpdateBuilder(cfs.metadata, 0, "k2")
+            new RowUpdateBuilder(cfs.metadata(), 0, "k2")
             .clustering("b" + (9 - i), getBytes(i))
             .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()

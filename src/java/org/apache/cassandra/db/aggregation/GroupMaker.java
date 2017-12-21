@@ -18,12 +18,10 @@
 package org.apache.cassandra.db.aggregation;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * A <code>GroupMaker</code> can be used to determine if some sorted rows belongs to the same group or not.

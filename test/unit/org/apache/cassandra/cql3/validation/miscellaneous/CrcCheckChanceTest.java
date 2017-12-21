@@ -135,7 +135,7 @@ public class CrcCheckChanceTest extends CQLTester
             alterTable("ALTER TABLE %s WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance': 0.5}");
 
         //We should be able to get the new value by accessing directly the schema metadata
-        Assert.assertEquals(0.5, cfs.metadata.params.crcCheckChance);
+        Assert.assertEquals(0.5, cfs.metadata().params.crcCheckChance);
 
         //but previous JMX-set value will persist until next restart
         Assert.assertEquals(0.01, cfs.getLiveSSTables().iterator().next().getCrcCheckChance());

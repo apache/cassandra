@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.CachedPartition;
@@ -109,7 +109,7 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
         return Transformation.apply(iterator, new FilterNotIndexed());
     }
 
-    public Slices getSlices(CFMetaData metadata)
+    public Slices getSlices(TableMetadata metadata)
     {
         return slices;
     }
@@ -130,12 +130,12 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
         return slices.intersects(minClusteringValues, maxClusteringValues);
     }
 
-    public String toString(CFMetaData metadata)
+    public String toString(TableMetadata metadata)
     {
         return String.format("slice(slices=%s, reversed=%b)", slices, reversed);
     }
 
-    public String toCQLString(CFMetaData metadata)
+    public String toCQLString(TableMetadata metadata)
     {
         StringBuilder sb = new StringBuilder();
 
@@ -164,7 +164,7 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
 
     private static class SliceDeserializer implements InternalDeserializer
     {
-        public ClusteringIndexFilter deserialize(DataInputPlus in, int version, CFMetaData metadata, boolean reversed) throws IOException
+        public ClusteringIndexFilter deserialize(DataInputPlus in, int version, TableMetadata metadata, boolean reversed) throws IOException
         {
             Slices slices = Slices.serializer.deserialize(in, version, metadata);
             return new ClusteringIndexSliceFilter(slices, reversed);

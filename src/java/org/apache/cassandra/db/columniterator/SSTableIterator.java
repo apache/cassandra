@@ -43,10 +43,9 @@ public class SSTableIterator extends AbstractSSTableIterator
                            RowIndexEntry indexEntry,
                            Slices slices,
                            ColumnFilter columns,
-                           boolean isForThrift,
                            FileHandle ifile)
     {
-        super(sstable, file, key, indexEntry, slices, columns, isForThrift, ifile);
+        super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
     protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
@@ -214,7 +213,7 @@ public class SSTableIterator extends AbstractSSTableIterator
         private ForwardIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
-            this.indexState = new IndexState(this, sstable.metadata.comparator, indexEntry, false, ifile);
+            this.indexState = new IndexState(this, metadata.comparator, indexEntry, false, ifile);
             this.lastBlockIdx = indexState.blocksCount(); // if we never call setForSlice, that's where we want to stop
         }
 
@@ -271,12 +270,10 @@ public class SSTableIterator extends AbstractSSTableIterator
             // so if currentIdx == lastBlockIdx and slice.end < indexes[currentIdx].firstName, we're guaranteed that the
             // whole slice is between the previous block end and this block start, and thus has no corresponding
             // data. One exception is if the previous block ends with an openMarker as it will cover our slice
-            // and we need to return it (we also don't skip the slice for the old format because we didn't have the openMarker
-            // info in that case and can't rely on this optimization).
+            // and we need to return it.
             if (indexState.currentBlockIdx() == lastBlockIdx
                 && metadata().comparator.compare(slice.end(), indexState.currentIndex().firstName) < 0
-                && openMarker == null
-                && sstable.descriptor.version.storeRows())
+                && openMarker == null)
             {
                 sliceDone = true;
             }

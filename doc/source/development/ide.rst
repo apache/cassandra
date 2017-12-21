@@ -42,10 +42,6 @@ This may take a significant amount of time depending on whether artifacts have t
 
    You can setup multiple working trees for different Cassandra versions from the same repository using `git-worktree <https://git-scm.com/docs/git-worktree>`_.
 
-.. note::
-
-   `Bleeding edge development snapshots <http://cassci.datastax.com/job/trunk/lastSuccessfulBuild/>`_ of Cassandra are available from Jenkins continuous integration.
-
 Setting up Cassandra in IntelliJ IDEA
 =====================================
 

@@ -26,11 +26,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import junit.framework.Assert;
-import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -78,14 +78,14 @@ public class PstmtPersistenceTest extends CQLTester
         assertEquals(5, stmtIds.size());
         assertEquals(5, QueryProcessor.preparedStatementsCount());
 
-        Assert.assertEquals(5, numberOfStatementsOnDisk());
+        assertEquals(5, numberOfStatementsOnDisk());
 
         QueryHandler handler = ClientState.getCQLQueryHandler();
         validatePstmts(stmtIds, handler);
 
         // clear prepared statements cache
         QueryProcessor.clearPreparedStatements(true);
-        Assert.assertEquals(0, QueryProcessor.preparedStatementsCount());
+        assertEquals(0, QueryProcessor.preparedStatementsCount());
         for (MD5Digest stmtId : stmtIds)
             Assert.assertNull(handler.getPrepared(stmtId));
 
@@ -186,6 +186,6 @@ public class PstmtPersistenceTest extends CQLTester
 
     private MD5Digest prepareStatement(String stmt, String keyspace, String table, ClientState clientState)
     {
-        return QueryProcessor.prepare(String.format(stmt, keyspace + "." + table), clientState, false).statementId;
+        return QueryProcessor.prepare(String.format(stmt, keyspace + "." + table), clientState).statementId;
     }
 }

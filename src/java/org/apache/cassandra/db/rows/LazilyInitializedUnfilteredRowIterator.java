@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.db.rows;
 
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 
 /**
@@ -53,13 +53,13 @@ public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIte
         return iterator != null;
     }
 
-    public CFMetaData metadata()
+    public TableMetadata metadata()
     {
         maybeInit();
         return iterator.metadata();
     }
 
-    public PartitionColumns columns()
+    public RegularAndStaticColumns columns()
     {
         maybeInit();
         return iterator.columns();

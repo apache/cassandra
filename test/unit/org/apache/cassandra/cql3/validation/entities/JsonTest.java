@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
@@ -41,10 +42,17 @@ import static org.junit.Assert.fail;
 
 public class JsonTest extends CQLTester
 {
+    // This method will be ran instead of the CQLTester#setUpClass
     @BeforeClass
-    public static void setUp()
+    public static void setUpClass()
     {
+        if (ROW_CACHE_SIZE_IN_MB > 0)
+            DatabaseDescriptor.setRowCacheSizeInMB(ROW_CACHE_SIZE_IN_MB);
+
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+
+        // Once per-JVM is enough
+        prepareServer();
     }
 
     @Test

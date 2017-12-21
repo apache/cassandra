@@ -164,7 +164,7 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);
-                logger.warn("Uncaught exception on thread {}: {}", Thread.currentThread(), t);
+                logger.warn("Uncaught exception on thread {}: {}", Thread.currentThread(), t.getMessage());
                 result = t;
                 failure = true;
             }

@@ -19,8 +19,8 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
-import java.nio.channels.ReadableByteChannel;
 
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.streaming.StreamSession;
 
@@ -28,13 +28,18 @@ public class KeepAliveMessage extends StreamMessage
 {
     public static Serializer<KeepAliveMessage> serializer = new Serializer<KeepAliveMessage>()
     {
-        public KeepAliveMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
+        public KeepAliveMessage deserialize(DataInputPlus in, int version, StreamSession session) throws IOException
         {
             return new KeepAliveMessage();
         }
 
         public void serialize(KeepAliveMessage message, DataOutputStreamPlus out, int version, StreamSession session)
         {}
+
+        public long serializedSize(KeepAliveMessage message, int version)
+        {
+            return 0;
+        }
     };
 
     public KeepAliveMessage()

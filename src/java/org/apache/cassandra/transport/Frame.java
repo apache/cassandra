@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.handler.codec.ByteToMessageDecoder;
@@ -146,8 +148,8 @@ public class Frame
             this.factory = factory;
         }
 
-        @Override
-        protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> results)
+        @VisibleForTesting
+        Frame decodeFrame(ByteBuf buffer)
         throws Exception
         {
             if (discardingTooLongFrame)
@@ -156,12 +158,12 @@ public class Frame
                 // If we have discarded everything, throw the exception
                 if (bytesToDiscard <= 0)
                     fail();
-                return;
+                return null;
             }
 
             int readableBytes = buffer.readableBytes();
             if (readableBytes == 0)
-                return;
+                return null;
 
             int idx = buffer.readerIndex();
 
@@ -174,7 +176,7 @@ public class Frame
 
             // Wait until we have the complete header
             if (readableBytes < Header.LENGTH)
-                return;
+                return null;
 
             int flags = buffer.getByte(idx++);
             EnumSet<Header.Flag> decodedFlags = Header.Flag.deserialize(flags);
@@ -210,11 +212,11 @@ public class Frame
                 bytesToDiscard = discard(buffer, frameLength);
                 if (bytesToDiscard <= 0)
                     fail();
-                return;
+                return null;
             }
 
             if (buffer.readableBytes() < frameLength)
-                return;
+                return null;
 
             // extract body
             ByteBuf body = buffer.slice(idx, (int) bodyLength);
@@ -223,24 +225,33 @@ public class Frame
             idx += bodyLength;
             buffer.readerIndex(idx);
 
+            return new Frame(new Header(version, decodedFlags, streamId, type), body);
+        }
+
+        @Override
+        protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> results)
+        throws Exception
+        {
+            Frame frame = decodeFrame(buffer);
+            if (frame == null) return;
+
             Attribute<Connection> attrConn = ctx.channel().attr(Connection.attributeKey);
             Connection connection = attrConn.get();
             if (connection == null)
             {
                 // First message seen on this channel, attach the connection object
-                connection = factory.newConnection(ctx.channel(), version);
+                connection = factory.newConnection(ctx.channel(), frame.header.version);
                 attrConn.set(connection);
             }
-            else if (connection.getVersion() != version)
+            else if (connection.getVersion() != frame.header.version)
             {
                 throw ErrorMessage.wrap(
                         new ProtocolException(String.format(
                                 "Invalid message version. Got %s but previous messages on this connection had version %s",
-                                version, connection.getVersion())),
-                        streamId);
+                                frame.header.version, connection.getVersion())),
+                        frame.header.streamId);
             }
-
-            results.add(new Frame(new Header(version, decodedFlags, streamId, type), body));
+            results.add(frame);
         }
 
         private void fail()

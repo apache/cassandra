@@ -18,9 +18,7 @@
 package org.apache.cassandra.auth;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -28,10 +26,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
@@ -39,8 +35,6 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.serializers.SetSerializer;
-import org.apache.cassandra.serializers.UTF8Serializer;
 import org.apache.cassandra.service.ClientState;
 
 import org.apache.cassandra.cql3.QueryOptions;
@@ -63,12 +57,7 @@ public class CassandraAuthorizer implements IAuthorizer
     private static final String RESOURCE = "resource";
     private static final String PERMISSIONS = "permissions";
 
-    // used during upgrades to perform authz on mixed clusters
-    public static final String USERNAME = "username";
-    public static final String USER_PERMISSIONS = "permissions";
-
     private SelectStatement authorizeRoleStatement;
-    private SelectStatement legacyAuthorizeRoleStatement;
 
     public CassandraAuthorizer()
     {
@@ -82,20 +71,9 @@ public class CassandraAuthorizer implements IAuthorizer
             return resource.applicablePermissions();
 
         Set<Permission> permissions = EnumSet.noneOf(Permission.class);
-        try
-        {
-            for (RoleResource role: user.getRoles())
-                addPermissionsForRole(permissions, resource, role);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new AssertionError(e); // not supposed to happen
-        }
-        catch (RequestExecutionException e)
-        {
-            logger.warn("CassandraAuthorizer failed to authorize {} for {}", user, resource);
-            throw new RuntimeException(e);
-        }
+
+        for (RoleResource role: user.getRoles())
+            addPermissionsForRole(permissions, resource, role);
 
         return permissions;
     }
@@ -151,7 +129,9 @@ public class CassandraAuthorizer implements IAuthorizer
         }
         catch (RequestExecutionException | RequestValidationException e)
         {
-            logger.warn("CassandraAuthorizer failed to revoke all permissions of {}: {}",  revokee.getRoleName(), e);
+            logger.warn("CassandraAuthorizer failed to revoke all permissions of {}: {}",
+                        revokee.getRoleName(),
+                        e.getMessage());
         }
     }
 
@@ -188,7 +168,7 @@ public class CassandraAuthorizer implements IAuthorizer
         }
         catch (RequestExecutionException | RequestValidationException e)
         {
-            logger.warn("CassandraAuthorizer failed to revoke all permissions on {}: {}", droppedResource, e);
+            logger.warn("CassandraAuthorizer failed to revoke all permissions on {}: {}", droppedResource, e.getMessage());
             return;
         }
     }
@@ -215,19 +195,7 @@ public class CassandraAuthorizer implements IAuthorizer
                                                              Lists.newArrayList(ByteBufferUtil.bytes(role.getRoleName()),
                                                                                 ByteBufferUtil.bytes(resource.getName())));
 
-        SelectStatement statement;
-        // If it exists, read from the legacy user permissions table to handle the case where the cluster
-        // is being upgraded and so is running with mixed versions of the authz schema
-        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, USER_PERMISSIONS) == null)
-            statement = authorizeRoleStatement;
-        else
-        {
-            // If the permissions table was initialised only after the statement got prepared, re-prepare (CASSANDRA-12813)
-            if (legacyAuthorizeRoleStatement == null)
-                legacyAuthorizeRoleStatement = prepare(USERNAME, USER_PERMISSIONS);
-            statement = legacyAuthorizeRoleStatement;
-        }
-        ResultMessage.Rows rows = statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
+        ResultMessage.Rows rows = authorizeRoleStatement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
         UntypedResultSet result = UntypedResultSet.create(rows.result);
 
         if (!result.isEmpty() && result.one().has(PERMISSIONS))
@@ -303,11 +271,7 @@ public class CassandraAuthorizer implements IAuthorizer
     throws RequestExecutionException
     {
         Set<PermissionDetails> details = new HashSet<>();
-        // If it exists, try the legacy user permissions table first. This is to handle the case
-        // where the cluster is being upgraded and so is running with mixed versions of the perms table
-        boolean useLegacyTable = Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, USER_PERMISSIONS) != null;
-        String entityColumnName = useLegacyTable ? USERNAME : ROLE;
-        for (UntypedResultSet.Row row : process(buildListQuery(resource, role, useLegacyTable)))
+        for (UntypedResultSet.Row row : process(buildListQuery(resource, role)))
         {
             if (row.has(PERMISSIONS))
             {
@@ -315,7 +279,7 @@ public class CassandraAuthorizer implements IAuthorizer
                 {
                     Permission permission = Permission.valueOf(p);
                     if (permissions.contains(permission))
-                        details.add(new PermissionDetails(row.getString(entityColumnName),
+                        details.add(new PermissionDetails(row.getString(ROLE),
                                                           Resources.fromName(row.getString(RESOURCE)),
                                                           permission));
                 }
@@ -324,11 +288,9 @@ public class CassandraAuthorizer implements IAuthorizer
         return details;
     }
 
-    private String buildListQuery(IResource resource, RoleResource grantee, boolean useLegacyTable)
+    private String buildListQuery(IResource resource, RoleResource grantee)
     {
-        String tableName = useLegacyTable ? USER_PERMISSIONS : AuthKeyspace.ROLE_PERMISSIONS;
-        String entityName = useLegacyTable ? USERNAME : ROLE;
-        List<String> vars = Lists.newArrayList(SchemaConstants.AUTH_KEYSPACE_NAME, tableName);
+        List<String> vars = Lists.newArrayList(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLE_PERMISSIONS);
         List<String> conditions = new ArrayList<>();
 
         if (resource != null)
@@ -339,11 +301,11 @@ public class CassandraAuthorizer implements IAuthorizer
 
         if (grantee != null)
         {
-            conditions.add(entityName + " = '%s'");
+            conditions.add(ROLE + " = '%s'");
             vars.add(escape(grantee.getRoleName()));
         }
 
-        String query = "SELECT " + entityName + ", resource, permissions FROM %s.%s";
+        String query = "SELECT " + ROLE + ", resource, permissions FROM %s.%s";
 
         if (!conditions.isEmpty())
             query += " WHERE " + StringUtils.join(conditions, " AND ");
@@ -367,21 +329,6 @@ public class CassandraAuthorizer implements IAuthorizer
     public void setup()
     {
         authorizeRoleStatement = prepare(ROLE, AuthKeyspace.ROLE_PERMISSIONS);
-
-        // If old user permissions table exists, migrate the legacy authz data to the new table
-        // The delay is to give the node a chance to see its peers before attempting the conversion
-        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, "permissions") != null)
-        {
-            legacyAuthorizeRoleStatement = prepare(USERNAME, USER_PERMISSIONS);
-
-            ScheduledExecutors.optionalTasks.schedule(new Runnable()
-            {
-                public void run()
-                {
-                    convertLegacyData();
-                }
-            }, AuthKeyspace.SUPERUSER_SETUP_DELAY, TimeUnit.MILLISECONDS);
-        }
     }
 
     private SelectStatement prepare(String entityname, String permissionsTable)
@@ -391,71 +338,6 @@ public class CassandraAuthorizer implements IAuthorizer
                                      permissionsTable,
                                      entityname);
         return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls()).statement;
-    }
-
-    /**
-     * Copy legacy authz data from the system_auth.permissions table to the new system_auth.role_permissions table and
-     * also insert entries into the reverse lookup table.
-     * In theory, we could simply rename the existing table as the schema is structurally the same, but this would
-     * break mixed clusters during a rolling upgrade.
-     * This setup is not performed if AllowAllAuthenticator is configured (see Auth#setup).
-     */
-    private void convertLegacyData()
-    {
-        try
-        {
-            if (Schema.instance.getCFMetaData("system_auth", "permissions") != null)
-            {
-                logger.info("Converting legacy permissions data");
-                CQLStatement insertStatement =
-                    QueryProcessor.getStatement(String.format("INSERT INTO %s.%s (role, resource, permissions) " +
-                                                              "VALUES (?, ?, ?)",
-                                                              SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                              AuthKeyspace.ROLE_PERMISSIONS),
-                                                ClientState.forInternalCalls()).statement;
-                CQLStatement indexStatement =
-                    QueryProcessor.getStatement(String.format("INSERT INTO %s.%s (resource, role) VALUES (?,?)",
-                                                              SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                              AuthKeyspace.RESOURCE_ROLE_INDEX),
-                                                ClientState.forInternalCalls()).statement;
-
-                UntypedResultSet permissions = process("SELECT * FROM system_auth.permissions");
-                for (UntypedResultSet.Row row : permissions)
-                {
-                    final IResource resource = Resources.fromName(row.getString("resource"));
-                    Predicate<String> isApplicable = new Predicate<String>()
-                    {
-                        public boolean apply(String s)
-                        {
-                            return resource.applicablePermissions().contains(Permission.valueOf(s));
-                        }
-                    };
-                    SetSerializer<String> serializer = SetSerializer.getInstance(UTF8Serializer.instance, UTF8Type.instance);
-                    Set<String> originalPerms = serializer.deserialize(row.getBytes("permissions"));
-                    Set<String> filteredPerms = ImmutableSet.copyOf(Iterables.filter(originalPerms, isApplicable));
-                    insertStatement.execute(QueryState.forInternalCalls(),
-                                            QueryOptions.forInternalCalls(ConsistencyLevel.ONE,
-                                                                          Lists.newArrayList(row.getBytes("username"),
-                                                                                             row.getBytes("resource"),
-                                                                                             serializer.serialize(filteredPerms))),
-                                            System.nanoTime());
-
-                    indexStatement.execute(QueryState.forInternalCalls(),
-                                           QueryOptions.forInternalCalls(ConsistencyLevel.ONE,
-                                                                         Lists.newArrayList(row.getBytes("resource"),
-                                                                                            row.getBytes("username"))),
-                                           System.nanoTime());
-
-                }
-                logger.info("Completed conversion of legacy permissions");
-            }
-        }
-        catch (Exception e)
-        {
-            logger.info("Unable to complete conversion of legacy permissions data (perhaps not enough nodes are upgraded yet). " +
-                        "Conversion should not be considered complete");
-            logger.trace("Conversion error", e);
-        }
     }
 
     // We only worry about one character ('). Make sure it's properly escaped.

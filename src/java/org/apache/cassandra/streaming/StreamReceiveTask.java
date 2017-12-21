@@ -21,16 +21,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
@@ -38,6 +36,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.ThrottledUnfilteredIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Bounds;
@@ -45,8 +44,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -58,6 +58,8 @@ public class StreamReceiveTask extends StreamTask
     private static final Logger logger = LoggerFactory.getLogger(StreamReceiveTask.class);
 
     private static final ExecutorService executor = Executors.newCachedThreadPool(new NamedThreadFactory("StreamReceiveTask"));
+
+    private static final int MAX_ROWS_PER_BATCH = Integer.getInteger("cassandra.repair.mutation_repair_rows_per_batch", 100);
 
     // number of files to receive
     private final int totalFiles;
@@ -75,9 +77,9 @@ public class StreamReceiveTask extends StreamTask
 
     private int remoteSSTablesReceived = 0;
 
-    public StreamReceiveTask(StreamSession session, UUID cfId, int totalFiles, long totalSize)
+    public StreamReceiveTask(StreamSession session, TableId tableId, int totalFiles, long totalSize)
     {
-        super(session, cfId);
+        super(session, tableId);
         this.totalFiles = totalFiles;
         this.totalSize = totalSize;
         // this is an "offline" transaction, as we currently manually expose the sstables once done;
@@ -93,6 +95,8 @@ public class StreamReceiveTask extends StreamTask
      */
     public synchronized void received(SSTableMultiWriter sstable)
     {
+        Preconditions.checkState(!session.isPreview(), "we should never receive sstables when previewing");
+
         if (done)
         {
             logger.warn("[{}] Received sstable {} on already finished stream received task. Aborting sstable.", session.planId(),
@@ -102,7 +106,8 @@ public class StreamReceiveTask extends StreamTask
         }
 
         remoteSSTablesReceived++;
-        assert cfId.equals(sstable.getCfId());
+        assert tableId.equals(sstable.getTableId());
+        logger.debug("recevied {} of {} total files", remoteSSTablesReceived, totalFiles);
 
         Collection<SSTableReader> finished = null;
         try
@@ -136,7 +141,7 @@ public class StreamReceiveTask extends StreamTask
     public synchronized LifecycleTransaction getTransaction()
     {
         if (done)
-            throw new RuntimeException(String.format("Stream receive task %s of cf %s already finished.", session.planId(), cfId));
+            throw new RuntimeException(String.format("Stream receive task %s of cf %s already finished.", session.planId(), tableId));
         return txn;
     }
 
@@ -149,15 +154,64 @@ public class StreamReceiveTask extends StreamTask
             this.task = task;
         }
 
+        /*
+         * We have a special path for views and for CDC.
+         *
+         * For views, since the view requires cleaning up any pre-existing state, we must put all partitions
+         * through the same write path as normal mutations. This also ensures any 2is are also updated.
+         *
+         * For CDC-enabled tables, we want to ensure that the mutations are run through the CommitLog so they
+         * can be archived by the CDC process on discard.
+         */
+        private boolean requiresWritePath(ColumnFamilyStore cfs) {
+            return hasCDC(cfs) || (task.session.streamOperation().requiresViewBuild() && hasViews(cfs));
+        }
+
+        private boolean hasViews(ColumnFamilyStore cfs)
+        {
+            return !Iterables.isEmpty(View.findAll(cfs.metadata.keyspace, cfs.getTableName()));
+        }
+
+        private boolean hasCDC(ColumnFamilyStore cfs)
+        {
+            return cfs.metadata().params.cdc;
+        }
+
+        private void sendThroughWritePath(ColumnFamilyStore cfs, Collection<SSTableReader> readers) {
+            boolean hasCdc = hasCDC(cfs);
+            ColumnFilter filter = ColumnFilter.all(cfs.metadata());
+            for (SSTableReader reader : readers)
+            {
+                Keyspace ks = Keyspace.open(reader.getKeyspaceName());
+                // When doing mutation-based repair we split each partition into smaller batches
+                // ({@link Stream MAX_ROWS_PER_BATCH}) to avoid OOMing and generating heap pressure
+                try (ISSTableScanner scanner = reader.getScanner();
+                     CloseableIterator<UnfilteredRowIterator> throttledPartitions = ThrottledUnfilteredIterator.throttle(scanner, MAX_ROWS_PER_BATCH))
+                {
+                    while (throttledPartitions.hasNext())
+                    {
+                        // MV *can* be applied unsafe if there's no CDC on the CFS as we flush
+                        // before transaction is done.
+                        //
+                        // If the CFS has CDC, however, these updates need to be written to the CommitLog
+                        // so they get archived into the cdc_raw folder
+                        ks.apply(new Mutation(PartitionUpdate.fromIterator(throttledPartitions.next(), filter)),
+                                 hasCdc,
+                                 true,
+                                 false);
+                    }
+                }
+            }
+        }
+
         public void run()
         {
-            boolean hasViews = false;
-            boolean hasCDC = false;
             ColumnFamilyStore cfs = null;
+            boolean requiresWritePath = false;
             try
             {
-                Pair<String, String> kscf = Schema.instance.getCF(task.cfId);
-                if (kscf == null)
+                cfs = ColumnFamilyStore.getIfExists(task.tableId);
+                if (cfs == null)
                 {
                     // schema was dropped during streaming
                     task.sstables.clear();
@@ -165,57 +219,25 @@ public class StreamReceiveTask extends StreamTask
                     task.session.taskCompleted(task);
                     return;
                 }
-                cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
-                hasViews = !Iterables.isEmpty(View.findAll(kscf.left, kscf.right));
-                hasCDC = cfs.metadata.params.cdc;
 
+                requiresWritePath = requiresWritePath(cfs);
                 Collection<SSTableReader> readers = task.sstables;
 
                 try (Refs<SSTableReader> refs = Refs.ref(readers))
                 {
-                    /*
-                     * We have a special path for views and for CDC.
-                     *
-                     * For views, since the view requires cleaning up any pre-existing state, we must put all partitions
-                     * through the same write path as normal mutations. This also ensures any 2is are also updated.
-                     *
-                     * For CDC-enabled tables, we want to ensure that the mutations are run through the CommitLog so they
-                     * can be archived by the CDC process on discard.
-                     */
-                    if (hasViews || hasCDC)
+                    if (requiresWritePath)
                     {
-                        for (SSTableReader reader : readers)
-                        {
-                            Keyspace ks = Keyspace.open(reader.getKeyspaceName());
-                            try (ISSTableScanner scanner = reader.getScanner())
-                            {
-                                while (scanner.hasNext())
-                                {
-                                    try (UnfilteredRowIterator rowIterator = scanner.next())
-                                    {
-                                        Mutation m = new Mutation(PartitionUpdate.fromIterator(rowIterator, ColumnFilter.all(cfs.metadata)));
-
-                                        // MV *can* be applied unsafe if there's no CDC on the CFS as we flush below
-                                        // before transaction is done.
-                                        //
-                                        // If the CFS has CDC, however, these updates need to be written to the CommitLog
-                                        // so they get archived into the cdc_raw folder
-                                        ks.apply(m, hasCDC, true, false);
-                                    }
-                                }
-                            }
-                        }
+                        sendThroughWritePath(cfs, readers);
                     }
                     else
                     {
                         task.finishTransaction();
 
-                        // add sstables and build secondary indexes
+                        // add sstables (this will build secondary indexes too, see CASSANDRA-10130)
                         cfs.addSSTables(readers);
-                        cfs.indexManager.buildAllIndexesBlocking(readers);
 
                         //invalidate row and counter cache
-                        if (cfs.isRowCacheEnabled() || cfs.metadata.isCounter())
+                        if (cfs.isRowCacheEnabled() || cfs.metadata().isCounter())
                         {
                             List<Bounds<Token>> boundsToInvalidate = new ArrayList<>(readers.size());
                             readers.forEach(sstable -> boundsToInvalidate.add(new Bounds<Token>(sstable.first.getToken(), sstable.last.getToken())));
@@ -230,7 +252,7 @@ public class StreamReceiveTask extends StreamTask
                                                  cfs.keyspace.getName(), cfs.getTableName());
                             }
 
-                            if (cfs.metadata.isCounter())
+                            if (cfs.metadata().isCounter())
                             {
                                 int invalidatedKeys = cfs.invalidateCounterCache(nonOverlappingBounds);
                                 if (invalidatedKeys > 0)
@@ -252,7 +274,7 @@ public class StreamReceiveTask extends StreamTask
             {
                 // We don't keep the streamed sstables since we've applied them manually so we abort the txn and delete
                 // the streamed sstables.
-                if (hasViews || hasCDC)
+                if (requiresWritePath)
                 {
                     if (cfs != null)
                         cfs.forceBlockingFlush();

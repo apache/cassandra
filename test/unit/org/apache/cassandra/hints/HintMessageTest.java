@@ -23,8 +23,8 @@ import java.util.UUID;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -53,7 +53,7 @@ public class HintMessageTest
         UUID hostId = UUID.randomUUID();
         long now = FBUtilities.timestampMicros();
 
-        CFMetaData table = Schema.instance.getCFMetaData(KEYSPACE, TABLE);
+        TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
         Mutation mutation =
             new RowUpdateBuilder(table, now, bytes("key"))
                 .clustering("column")

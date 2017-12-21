@@ -53,7 +53,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
         this(ImmutableList.copyOf(clusteringTypes));
     }
 
-    public ClusteringComparator(List<AbstractType<?>> clusteringTypes)
+    public ClusteringComparator(Iterable<AbstractType<?>> clusteringTypes)
     {
         // copy the list to ensure despatch is monomorphic
         this.clusteringTypes = ImmutableList.copyOf(clusteringTypes);
@@ -62,7 +62,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
         this.indexReverseComparator = (o1, o2) -> ClusteringComparator.this.compare(o1.firstName, o2.firstName);
         this.reverseComparator = (c1, c2) -> ClusteringComparator.this.compare(c2, c1);
         for (AbstractType<?> type : clusteringTypes)
-            type.checkComparable(); // this should already be enforced by CFMetaData.rebuild, but we check again for other constructors
+            type.checkComparable(); // this should already be enforced by TableMetadata.Builder.addColumn, but we check again for other constructors
     }
 
     /**

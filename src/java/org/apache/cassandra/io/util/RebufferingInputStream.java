@@ -112,7 +112,7 @@ public abstract class RebufferingInputStream extends InputStream implements Data
     @Override
     public int skipBytes(int n) throws IOException
     {
-        if (n < 0)
+        if (n <= 0)
             return 0;
         int requested = n;
         int position = buffer.position(), limit = buffer.limit(), remaining;

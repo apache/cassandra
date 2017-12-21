@@ -28,14 +28,14 @@ import com.google.common.collect.Iterators;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Lists.PrecisionTime;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -132,11 +132,11 @@ public class ListsTest extends CQLTester
     private void testPrepender_execute(List<ByteBuffer> terms)
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<text>)");
-        CFMetaData metaData = currentTableMetadata();
+        TableMetadata metaData = currentTableMetadata();
 
-        ColumnDefinition columnDefinition = metaData.getColumnDefinition(ByteBufferUtil.bytes("l"));
+        ColumnMetadata columnMetadata = metaData.getColumn(ByteBufferUtil.bytes("l"));
         Term term = new Lists.Value(terms);
-        Lists.Prepender prepender = new Lists.Prepender(columnDefinition, term);
+        Lists.Prepender prepender = new Lists.Prepender(columnMetadata, term);
 
         ByteBuffer keyBuf = ByteBufferUtil.bytes("key");
         DecoratedKey key = Murmur3Partitioner.instance.decorateKey(keyBuf);

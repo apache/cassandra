@@ -28,7 +28,7 @@ import org.junit.Test;
 
 import junit.framework.Assert;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -74,7 +74,7 @@ public class ViewUtilsTest
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
-        Schema.instance.setKeyspaceMetadata(meta);
+        Schema.instance.load(meta);
 
         Optional<InetAddress> naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
                                                                        new StringToken("CA"),
@@ -107,7 +107,7 @@ public class ViewUtilsTest
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
-        Schema.instance.setKeyspaceMetadata(meta);
+        Schema.instance.load(meta);
 
         Optional<InetAddress> naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
                                                                        new StringToken("CA"),
@@ -139,7 +139,7 @@ public class ViewUtilsTest
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
-        Schema.instance.setKeyspaceMetadata(meta);
+        Schema.instance.load(meta);
 
         Optional<InetAddress> naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
                                                                        new StringToken("AB"),

@@ -36,6 +36,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -62,7 +63,10 @@ public class RepairSessionTest
         IPartitioner p = Murmur3Partitioner.instance;
         Range<Token> repairRange = new Range<>(p.getToken(ByteBufferUtil.bytes(0)), p.getToken(ByteBufferUtil.bytes(100)));
         Set<InetAddress> endpoints = Sets.newHashSet(remote);
-        RepairSession session = new RepairSession(parentSessionId, sessionId, Arrays.asList(repairRange), "Keyspace1", RepairParallelism.SEQUENTIAL, endpoints, ActiveRepairService.UNREPAIRED_SSTABLE, false, "Standard1");
+        RepairSession session = new RepairSession(parentSessionId, sessionId, Arrays.asList(repairRange),
+                                                  "Keyspace1", RepairParallelism.SEQUENTIAL,
+                                                  endpoints, false, false, false,
+                                                  PreviewKind.NONE, false, "Standard1");
 
         // perform convict
         session.convict(remote, Double.MAX_VALUE);

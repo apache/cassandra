@@ -28,7 +28,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class LongType extends AbstractType<Long>
+public class LongType extends NumberType<Long>
 {
     public static final LongType instance = new LongType();
 
@@ -120,8 +120,56 @@ public class LongType extends AbstractType<Long>
     }
 
     @Override
-    protected int valueLengthIfFixed()
+    public int valueLengthIfFixed()
     {
         return 8;
+    }
+
+    @Override
+    protected int toInt(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected float toFloat(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected long toLong(ByteBuffer value)
+    {
+        return ByteBufferUtil.toLong(value);
+    }
+
+    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) + rightType.toLong(right));
+    }
+
+    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) - rightType.toLong(right));
+    }
+
+    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) * rightType.toLong(right));
+    }
+
+    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) / rightType.toLong(right));
+    }
+
+    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) % rightType.toLong(right));
+    }
+
+    public ByteBuffer negate(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes(-toLong(input));
     }
 }

@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.command.Command;
-import io.airlift.command.Option;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 import java.lang.management.MemoryUsage;
 import java.util.Iterator;
@@ -47,7 +47,6 @@ public class Info extends NodeToolCmd
 
         System.out.printf("%-23s: %s%n", "ID", probe.getLocalHostId());
         System.out.printf("%-23s: %s%n", "Gossip active", gossipInitialized);
-        System.out.printf("%-23s: %s%n", "Thrift active", probe.isThriftServerRunning());
         System.out.printf("%-23s: %s%n", "Native Transport active", probe.isNativeTransportRunning());
         System.out.printf("%-23s: %s%n", "Load", probe.getLoadString());
         if (gossipInitialized)
@@ -174,7 +173,7 @@ public class Info extends NodeToolCmd
         {
             Entry<String, ColumnFamilyStoreMBean> entry = cfamilies.next();
             String keyspaceName = entry.getKey();
-            String cfName = entry.getValue().getColumnFamilyName();
+            String cfName = entry.getValue().getTableName();
 
             offHeapMemUsedInBytes += (Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableOffHeapSize");
             offHeapMemUsedInBytes += (Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "BloomFilterOffHeapMemoryUsed");

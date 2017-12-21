@@ -28,6 +28,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -37,34 +39,36 @@ import org.apache.cassandra.utils.FBUtilities;
  *
  * When RemoteSyncTask receives SyncComplete from remote node, task completes.
  */
-public class RemoteSyncTask extends SyncTask
+public class RemoteSyncTask extends SyncTask implements CompletableRemoteSyncTask
 {
     private static final Logger logger = LoggerFactory.getLogger(RemoteSyncTask.class);
 
-    public RemoteSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2)
+    public RemoteSyncTask(RepairJobDesc desc, TreeResponse r1, TreeResponse r2, PreviewKind previewKind)
     {
-        super(desc, r1, r2);
+        super(desc, r1, r2, previewKind);
     }
 
+    @Override
     protected void startSync(List<Range<Token>> differences)
     {
         InetAddress local = FBUtilities.getBroadcastAddress();
-        SyncRequest request = new SyncRequest(desc, local, r1.endpoint, r2.endpoint, differences);
+        SyncRequest request = new SyncRequest(desc, local, r1.endpoint, r2.endpoint, differences, previewKind);
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
-        logger.info("[repair #{}] {}", desc.sessionId, message);
+        logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
         MessagingService.instance().sendOneWay(request.createMessage(), request.src);
     }
 
-    public void syncComplete(boolean success)
+    public void syncComplete(boolean success, List<SessionSummary> summaries)
     {
         if (success)
         {
-            set(stat);
+            set(stat.withSummaries(summaries));
         }
         else
         {
-            setException(new RepairException(desc, String.format("Sync failed between %s and %s", r1.endpoint, r2.endpoint)));
+            setException(new RepairException(desc, previewKind, String.format("Sync failed between %s and %s", r1.endpoint, r2.endpoint)));
         }
+        finished();
     }
 }

@@ -24,7 +24,7 @@ import java.util.List;
 
 import com.google.common.collect.Multimap;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
 
 /**
@@ -34,5 +34,5 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 public interface SelectionColumns
 {
     List<ColumnSpecification> getColumnSpecifications();
-    Multimap<ColumnSpecification, ColumnDefinition> getMappings();
+    Multimap<ColumnSpecification, ColumnMetadata> getMappings();
 }

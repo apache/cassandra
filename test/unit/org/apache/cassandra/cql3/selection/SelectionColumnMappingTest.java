@@ -26,9 +26,9 @@ import java.util.List;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.marshal.*;
@@ -39,12 +39,13 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class SelectionColumnMappingTest extends CQLTester
 {
-    private static final ColumnDefinition NULL_DEF = null;
+    private static final ColumnMetadata NULL_DEF = null;
     String tableName;
     String typeName;
     UserType userType;
@@ -70,7 +71,7 @@ public class SelectionColumnMappingTest extends CQLTester
                                 " v1 int," +
                                 " v2 ascii," +
                                 " v3 frozen<" + typeName + ">)");
-        userType = Schema.instance.getKSMetaData(KEYSPACE).types.get(ByteBufferUtil.bytes(typeName)).get().freeze();
+        userType = Schema.instance.getKeyspaceMetadata(KEYSPACE).types.get(ByteBufferUtil.bytes(typeName)).get().freeze();
         functionName = createFunction(KEYSPACE, "int, ascii",
                                       "CREATE FUNCTION %s (i int, a ascii) " +
                                       "CALLED ON NULL INPUT " +
@@ -102,6 +103,14 @@ public class SelectionColumnMappingTest extends CQLTester
         testMixedColumnTypes();
         testMultipleUnaliasedSelectionOfSameColumn();
         testUserDefinedAggregate();
+        testListLitteral();
+        testEmptyListLitteral();
+        testSetLitteral();
+        testEmptySetLitteral();
+        testMapLitteral();
+        testEmptyMapLitteral();
+        testUDTLitteral();
+        testTupleLitteral();
     }
 
     @Test
@@ -121,7 +130,7 @@ public class SelectionColumnMappingTest extends CQLTester
     private void testSimpleTypes() throws Throwable
     {
         // simple column identifiers without aliases are represented in
-        // ResultSet.Metadata by the underlying ColumnDefinition
+        // ResultSet.Metadata by the underlying ColumnMetadata
         ColumnSpecification kSpec = columnSpecification("k", Int32Type.instance);
         ColumnSpecification v1Spec = columnSpecification("v1", Int32Type.instance);
         ColumnSpecification v2Spec = columnSpecification("v2", AsciiType.instance);
@@ -135,12 +144,12 @@ public class SelectionColumnMappingTest extends CQLTester
 
     private void testWildcard() throws Throwable
     {
-        // Wildcard select represents each column in the table with a ColumnDefinition
+        // Wildcard select represents each column in the table with a ColumnMetadata
         // in the ResultSet metadata
-        ColumnDefinition kSpec = columnDefinition("k");
-        ColumnDefinition v1Spec = columnDefinition("v1");
-        ColumnDefinition v2Spec = columnDefinition("v2");
-        ColumnDefinition v3Spec = columnDefinition("v3");
+        ColumnMetadata kSpec = columnDefinition("k");
+        ColumnMetadata v1Spec = columnDefinition("v1");
+        ColumnMetadata v2Spec = columnDefinition("v2");
+        ColumnMetadata v3Spec = columnDefinition("v3");
         SelectionColumnMapping expected = SelectionColumnMapping.newMapping()
                                                                 .addMapping(kSpec, columnDefinition("k"))
                                                                 .addMapping(v1Spec, columnDefinition("v1"))
@@ -153,7 +162,7 @@ public class SelectionColumnMappingTest extends CQLTester
     private void testSimpleTypesWithAliases() throws Throwable
     {
         // simple column identifiers with aliases are represented in ResultSet.Metadata
-        // by a ColumnSpecification based on the underlying ColumnDefinition
+        // by a ColumnSpecification based on the underlying ColumnMetadata
         ColumnSpecification kSpec = columnSpecification("k_alias", Int32Type.instance);
         ColumnSpecification v1Spec = columnSpecification("v1_alias", Int32Type.instance);
         ColumnSpecification v2Spec = columnSpecification("v2_alias", AsciiType.instance);
@@ -397,7 +406,7 @@ public class SelectionColumnMappingTest extends CQLTester
     private void testMultipleUnaliasedSelectionOfSameColumn() throws Throwable
     {
         // simple column identifiers without aliases are represented in
-        // ResultSet.Metadata by the underlying ColumnDefinition
+        // ResultSet.Metadata by the underlying ColumnMetadata
         SelectionColumns expected = SelectionColumnMapping.newMapping()
                                                           .addMapping(columnSpecification("v1", Int32Type.instance),
                                                                       columnDefinition("v1"))
@@ -405,6 +414,91 @@ public class SelectionColumnMappingTest extends CQLTester
                                                                       columnDefinition("v1"));
 
         verify(expected, "SELECT v1, v1 FROM %s");
+    }
+
+    private void testListLitteral() throws Throwable
+    {
+        ColumnSpecification listSpec = columnSpecification("[k, v1]", ListType.getInstance(Int32Type.instance, false));
+        SelectionColumnMapping expected = SelectionColumnMapping.newMapping()
+                                                                .addMapping(listSpec, asList(columnDefinition("k"),
+                                                                                             columnDefinition("v1")));
+
+        verify(expected, "SELECT [k, v1] FROM %s");
+    }
+
+    private void testEmptyListLitteral() throws Throwable
+    {
+        ColumnSpecification listSpec = columnSpecification("(list<int>)[]", ListType.getInstance(Int32Type.instance, false));
+        SelectionColumnMapping expected = SelectionColumnMapping.newMapping()
+                                                                .addMapping(listSpec, (ColumnMetadata) null);
+
+        verify(expected, "SELECT (list<int>)[] FROM %s");
+    }
+
+    private void testSetLitteral() throws Throwable
+    {
+        ColumnSpecification setSpec = columnSpecification("{k, v1}", SetType.getInstance(Int32Type.instance, false));
+        SelectionColumnMapping expected = SelectionColumnMapping.newMapping()
+                                                                .addMapping(setSpec, asList(columnDefinition("k"),
+                                                                                             columnDefinition("v1")));
+
+        verify(expected, "SELECT {k, v1} FROM %s");
+    }
+
+    private void testEmptySetLitteral() throws Throwable
+    {
+        ColumnSpecification setSpec = columnSpecification("(set<int>){}", SetType.getInstance(Int32Type.instance, false));
+        SelectionColumnMapping expected = SelectionColumnMapping.newMapping()
+                                                                .addMapping(setSpec, (ColumnMetadata) null);
+
+        verify(expected, "SELECT (set<int>){} FROM %s");
+    }
+
+    private void testMapLitteral() throws Throwable
+    {
+        ColumnSpecification mapSpec = columnSpecification("(map<text, int>){'min': system.min(v1), 'max': system.max(v1)}", MapType.getInstance(UTF8Type.instance, Int32Type.instance, false));
+        SelectionColumnMapping expected = SelectionColumnMapping.newMapping()
+                                                                .addMapping(mapSpec, asList(columnDefinition("v1")));
+
+        verify(expected, "SELECT (map<text, int>){'min': min(v1), 'max': max(v1)} FROM %s");
+    }
+
+    private void testEmptyMapLitteral() throws Throwable
+    {
+        ColumnSpecification mapSpec = columnSpecification("(map<text, int>){}", MapType.getInstance(UTF8Type.instance, Int32Type.instance, false));
+        SelectionColumnMapping expected = SelectionColumnMapping.newMapping()
+                                                                .addMapping(mapSpec, (ColumnMetadata) null);
+
+        verify(expected, "SELECT (map<text, int>){} FROM %s");
+    }
+
+    private void testUDTLitteral() throws Throwable
+    {
+        UserType type = new UserType(KEYSPACE, ByteBufferUtil.bytes(typeName),
+                                      asList(FieldIdentifier.forUnquoted("f1"),
+                                             FieldIdentifier.forUnquoted("f2")),
+                                      asList(Int32Type.instance,
+                                             UTF8Type.instance),
+                                      false);
+
+        ColumnSpecification spec = columnSpecification("(" + KEYSPACE + "." + typeName + "){f1: v1, f2: v2}", type);
+        SelectionColumnMapping expected = SelectionColumnMapping.newMapping()
+                                                                .addMapping(spec, asList(columnDefinition("v1"),
+                                                                                         columnDefinition("v2")));
+
+        verify(expected, "SELECT ("+ typeName + "){f1: v1, f2: v2} FROM %s");
+    }
+
+    private void testTupleLitteral() throws Throwable
+    {
+        TupleType type = new TupleType(asList(Int32Type.instance, UTF8Type.instance));
+
+        ColumnSpecification setSpec = columnSpecification("(tuple<int, text>)(v1, v2)", type);
+        SelectionColumnMapping expected = SelectionColumnMapping.newMapping()
+                                                                .addMapping(setSpec, asList(columnDefinition("v1"),
+                                                                                            columnDefinition("v2")));
+
+        verify(expected, "SELECT (tuple<int, text>)(v1, v2) FROM %s");
     }
 
     private void testMixedColumnTypes() throws Throwable
@@ -463,7 +557,7 @@ public class SelectionColumnMappingTest extends CQLTester
                                        " LANGUAGE javascript" +
                                        " AS 'a*a'");
 
-        ColumnDefinition v1 = columnDefinition("v1");
+        ColumnMetadata v1 = columnDefinition("v1");
         SelectionColumns expected = SelectionColumnMapping.newMapping()
                                                           .addMapping(columnSpecification(aFunc + "(v1)",
                                                                                           Int32Type.instance),
@@ -506,18 +600,17 @@ public class SelectionColumnMappingTest extends CQLTester
         assertEquals(expected, select.getSelection().getColumnMapping());
     }
 
-    private Iterable<ColumnDefinition> columnDefinitions(String...names)
+    private Iterable<ColumnMetadata> columnDefinitions(String...names)
     {
-        List<ColumnDefinition> defs = new ArrayList<>();
+        List<ColumnMetadata> defs = new ArrayList<>();
         for (String n : names)
             defs.add(columnDefinition(n));
         return defs;
     }
 
-    private ColumnDefinition columnDefinition(String name)
+    private ColumnMetadata columnDefinition(String name)
     {
-        return Schema.instance.getCFMetaData(KEYSPACE, tableName)
-                              .getColumnDefinition(new ColumnIdentifier(name, true));
+        return Schema.instance.getTableMetadata(KEYSPACE, tableName).getColumn(new ColumnIdentifier(name, true));
 
     }
 

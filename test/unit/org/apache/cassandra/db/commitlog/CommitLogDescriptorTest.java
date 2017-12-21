@@ -106,10 +106,10 @@ public class CommitLogDescriptorTest
     public void testDescriptorPersistence() throws IOException
     {
         testDescriptorPersistence(new CommitLogDescriptor(11, null, neverEnabledEncryption));
-        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.VERSION_21, 13, null, neverEnabledEncryption));
-        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.VERSION_22, 15, null, neverEnabledEncryption));
-        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.VERSION_22, 17, new ParameterizedClass("LZ4Compressor", null), neverEnabledEncryption));
-        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.VERSION_22, 19,
+        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.current_version, 13, null, neverEnabledEncryption));
+        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.current_version, 15, null, neverEnabledEncryption));
+        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.current_version, 17, new ParameterizedClass("LZ4Compressor", null), neverEnabledEncryption));
+        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.current_version, 19,
                                                           new ParameterizedClass("StubbyCompressor", ImmutableMap.of("parameter1", "value1", "flag2", "55", "argument3", "null")
                                                           ), neverEnabledEncryption));
     }
@@ -122,7 +122,7 @@ public class CommitLogDescriptorTest
         for (int i=0; i<65535; ++i)
             params.put("key"+i, Integer.toString(i, 16));
         try {
-            CommitLogDescriptor desc = new CommitLogDescriptor(CommitLogDescriptor.VERSION_22,
+            CommitLogDescriptor desc = new CommitLogDescriptor(CommitLogDescriptor.current_version,
                                                                21,
                                                                new ParameterizedClass("LZ4Compressor", params),
                                                                neverEnabledEncryption);

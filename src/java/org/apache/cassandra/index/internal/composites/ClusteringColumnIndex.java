@@ -52,7 +52,7 @@ public class ClusteringColumnIndex extends CassandraIndex
     public ClusteringColumnIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
     {
         super(baseCfs, indexDef);
-        this.enforceStrictLiveness = baseCfs.metadata.enforceStrictLiveness();
+        this.enforceStrictLiveness = baseCfs.metadata.get().enforceStrictLiveness();
     }
 
 
@@ -79,7 +79,7 @@ public class ClusteringColumnIndex extends CassandraIndex
     public IndexEntry decodeEntry(DecoratedKey indexedValue,
                                   Row indexEntry)
     {
-        int ckCount = baseCfs.metadata.clusteringColumns().size();
+        int ckCount = baseCfs.metadata().clusteringColumns().size();
 
         Clustering clustering = indexEntry.clustering();
         CBuilder builder = CBuilder.create(baseCfs.getComparator());

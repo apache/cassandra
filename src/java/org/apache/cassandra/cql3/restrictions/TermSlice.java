@@ -19,14 +19,14 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.List;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.index.Index;
 
-public final class TermSlice
+final class TermSlice
 {
     /**
      * The slice boundaries.
@@ -155,7 +155,7 @@ public final class TermSlice
      * @return <code>true</code> this type of <code>TermSlice</code> is supported by the specified index,
      * <code>false</code> otherwise.
      */
-    public boolean isSupportedBy(ColumnDefinition column, Index index)
+    public boolean isSupportedBy(ColumnMetadata column, Index index)
     {
         boolean supported = false;
 

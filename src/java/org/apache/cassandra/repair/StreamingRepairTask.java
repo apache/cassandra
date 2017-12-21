@@ -18,19 +18,25 @@
 package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
+import java.util.UUID;
+import java.util.Collections;
+import java.util.Collection;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.SyncComplete;
-import org.apache.cassandra.repair.messages.SyncRequest;
-import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.streaming.StreamOperation;
 
 /**
  * StreamingRepairTask performs data streaming between two remote replica which neither is not repair coordinator.
@@ -41,34 +47,44 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     private static final Logger logger = LoggerFactory.getLogger(StreamingRepairTask.class);
 
     private final RepairJobDesc desc;
-    private final SyncRequest request;
-    private final long repairedAt;
+    private final boolean asymmetric;
+    private final InetAddress initiator;
+    private final InetAddress src;
+    private final InetAddress dst;
+    private final Collection<Range<Token>> ranges;
+    private final UUID pendingRepair;
+    private final PreviewKind previewKind;
 
-    public StreamingRepairTask(RepairJobDesc desc, SyncRequest request, long repairedAt)
+    public StreamingRepairTask(RepairJobDesc desc, InetAddress initiator, InetAddress src, InetAddress dst, Collection<Range<Token>> ranges,  UUID pendingRepair, PreviewKind previewKind, boolean asymmetric)
     {
         this.desc = desc;
-        this.request = request;
-        this.repairedAt = repairedAt;
+        this.initiator = initiator;
+        this.src = src;
+        this.dst = dst;
+        this.ranges = ranges;
+        this.asymmetric = asymmetric;
+        this.pendingRepair = pendingRepair;
+        this.previewKind = previewKind;
     }
 
     public void run()
     {
-        InetAddress dest = request.dst;
+        InetAddress dest = dst;
         InetAddress preferred = SystemKeyspace.getPreferredIP(dest);
-        logger.info("[streaming task #{}] Performing streaming repair of {} ranges with {}", desc.sessionId, request.ranges.size(), request.dst);
-        boolean isIncremental = false;
-        if (desc.parentSessionId != null)
-        {
-            ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId);
-            isIncremental = prs.isIncremental;
-        }
-        new StreamPlan("Repair", repairedAt, 1, false, isIncremental, false).listeners(this)
-                                            .flushBeforeTransfer(true)
-                                            // request ranges from the remote node
-                                            .requestRanges(dest, preferred, desc.keyspace, request.ranges, desc.columnFamily)
-                                            // send ranges to the remote node
-                                            .transferRanges(dest, preferred, desc.keyspace, request.ranges, desc.columnFamily)
-                                            .execute();
+        logger.info("[streaming task #{}] Performing streaming repair of {} ranges with {}", desc.sessionId, ranges.size(), dst);
+        createStreamPlan(dest, preferred).execute();
+    }
+
+    @VisibleForTesting
+    StreamPlan createStreamPlan(InetAddress dest, InetAddress preferred)
+    {
+        StreamPlan sp = new StreamPlan(StreamOperation.REPAIR, 1, false, false, pendingRepair, previewKind)
+               .listeners(this)
+               .flushBeforeTransfer(pendingRepair == null) // sstables are isolated at the beginning of an incremental repair session, so flushing isn't neccessary
+               .requestRanges(dest, preferred, desc.keyspace, ranges, desc.columnFamily); // request ranges from the remote node
+        if (!asymmetric)
+            sp.transferRanges(dest, preferred, desc.keyspace, ranges, desc.columnFamily); // send ranges to the remote node
+        return sp;
     }
 
     public void handleStreamEvent(StreamEvent event)
@@ -82,8 +98,8 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
      */
     public void onSuccess(StreamState state)
     {
-        logger.info("[repair #{}] streaming task succeed, returning response to {}", desc.sessionId, request.initiator);
-        MessagingService.instance().sendOneWay(new SyncComplete(desc, request.src, request.dst, true).createMessage(), request.initiator);
+        logger.info("[repair #{}] streaming task succeed, returning response to {}", desc.sessionId, initiator);
+        MessagingService.instance().sendOneWay(new SyncComplete(desc, src, dst, true, state.createSummaries()).createMessage(), initiator);
     }
 
     /**
@@ -91,6 +107,6 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
      */
     public void onFailure(Throwable t)
     {
-        MessagingService.instance().sendOneWay(new SyncComplete(desc, request.src, request.dst, false).createMessage(), request.initiator);
+        MessagingService.instance().sendOneWay(new SyncComplete(desc, src, dst, false, Collections.emptyList()).createMessage(), initiator);
     }
 }

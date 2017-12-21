@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.dht;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -42,6 +42,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+
+import com.google.common.collect.Maps;
 
 public class ByteOrderedPartitioner implements IPartitioner
 {
@@ -219,7 +221,7 @@ public class ByteOrderedPartitioner implements IPartitioner
         return new BytesToken(buffer);
     }
 
-    private final Token.TokenFactory tokenFactory = new Token.TokenFactory() 
+    private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
     {
         public ByteBuffer toByteArray(Token token)
         {
@@ -273,7 +275,7 @@ public class ByteOrderedPartitioner implements IPartitioner
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
     {
         // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
-        Map<Token, Float> allTokens = new HashMap<Token, Float>();
+        Map<Token, Float> allTokens = Maps.newHashMapWithExpectedSize(sortedTokens.size());
         List<Range<Token>> sortedRanges = new ArrayList<Range<Token>>(sortedTokens.size());
 
         // this initializes the counts to 0 and calcs the ranges in order.
@@ -287,12 +289,12 @@ public class ByteOrderedPartitioner implements IPartitioner
 
         for (String ks : Schema.instance.getKeyspaces())
         {
-            for (CFMetaData cfmd : Schema.instance.getTablesAndViews(ks))
+            for (TableMetadata cfmd : Schema.instance.getTablesAndViews(ks))
             {
                 for (Range<Token> r : sortedRanges)
                 {
                     // Looping over every KS:CF:Range, get the splits size and add it to the count
-                    allTokens.put(r.right, allTokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.cfName, r, 1).size());
+                    allTokens.put(r.right, allTokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.name, r, 1).size());
                 }
             }
         }

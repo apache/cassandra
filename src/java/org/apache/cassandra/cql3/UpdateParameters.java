@@ -20,8 +20,8 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -35,8 +35,8 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class UpdateParameters
 {
-    public final CFMetaData metadata;
-    public final PartitionColumns updatedColumns;
+    public final TableMetadata metadata;
+    public final RegularAndStaticColumns updatedColumns;
     public final QueryOptions options;
 
     private final int nowInSec;
@@ -54,8 +54,8 @@ public class UpdateParameters
     // The builder currently in use. Will alias either staticBuilder or regularBuilder, which are themselves built lazily.
     private Row.Builder builder;
 
-    public UpdateParameters(CFMetaData metadata,
-                            PartitionColumns updatedColumns,
+    public UpdateParameters(TableMetadata metadata,
+                            RegularAndStaticColumns updatedColumns,
                             QueryOptions options,
                             long timestamp,
                             int ttl,
@@ -84,8 +84,7 @@ public class UpdateParameters
     {
         if (metadata.isDense() && !metadata.isCompound())
         {
-            // If it's a COMPACT STORAGE table with a single clustering column, the clustering value is
-            // translated in Thrift to the full Thrift column name, and for backward compatibility we
+            // If it's a COMPACT STORAGE table with a single clustering column and for backward compatibility we
             // don't want to allow that to be empty (even though this would be fine for the storage engine).
             assert clustering.size() == 1;
             ByteBuffer value = clustering.get(0);
@@ -122,31 +121,30 @@ public class UpdateParameters
     public void addRowDeletion()
     {
         // For compact tables, at the exclusion of the static row (of static compact tables), each row ever has a single column,
-        // the "compact" one. As such, deleting the row or deleting that single cell is equivalent. We favor the later however
-        // because that makes it easier when translating back to the old format layout (for thrift and pre-3.0 backward
-        // compatibility) as we don't have to special case for the row deletion. This is also in line with what we used to do pre-3.0.
-        if (metadata.isCompactTable() && builder.clustering() != Clustering.STATIC_CLUSTERING && !metadata.isSuper())
-            addTombstone(metadata.compactValueColumn());
+        // the "compact" one. As such, deleting the row or deleting that single cell is equivalent. We favor the later
+        // for backward compatibility (thought it doesn't truly matter anymore).
+        if (metadata.isCompactTable() && builder.clustering() != Clustering.STATIC_CLUSTERING)
+            addTombstone(metadata.compactValueColumn);
         else
             builder.addRowDeletion(Row.Deletion.regular(deletionTime));
     }
 
-    public void addTombstone(ColumnDefinition column) throws InvalidRequestException
+    public void addTombstone(ColumnMetadata column) throws InvalidRequestException
     {
         addTombstone(column, null);
     }
 
-    public void addTombstone(ColumnDefinition column, CellPath path) throws InvalidRequestException
+    public void addTombstone(ColumnMetadata column, CellPath path) throws InvalidRequestException
     {
         builder.addCell(BufferCell.tombstone(column, timestamp, nowInSec, path));
     }
 
-    public void addCell(ColumnDefinition column, ByteBuffer value) throws InvalidRequestException
+    public void addCell(ColumnMetadata column, ByteBuffer value) throws InvalidRequestException
     {
         addCell(column, null, value);
     }
 
-    public void addCell(ColumnDefinition column, CellPath path, ByteBuffer value) throws InvalidRequestException
+    public void addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
         Cell cell = ttl == LivenessInfo.NO_TTL
                   ? BufferCell.live(column, timestamp, value, path)
@@ -154,12 +152,7 @@ public class UpdateParameters
         builder.addCell(cell);
     }
 
-    public void addCounter(ColumnDefinition column, long increment) throws InvalidRequestException
-    {
-        addCounter(column, increment, null);
-    }
-
-    public void addCounter(ColumnDefinition column, long increment, CellPath path) throws InvalidRequestException
+    public void addCounter(ColumnMetadata column, long increment) throws InvalidRequestException
     {
         assert ttl == LivenessInfo.NO_TTL;
 
@@ -175,15 +168,15 @@ public class UpdateParameters
         //
         // We set counterid to a special value to differentiate between regular pre-2.0 local shards from pre-2.1 era
         // and "counter update" temporary state cells. Please see CounterContext.createUpdate() for further details.
-        builder.addCell(BufferCell.live(column, timestamp, CounterContext.instance().createUpdate(increment), path));
+        builder.addCell(BufferCell.live(column, timestamp, CounterContext.instance().createUpdate(increment)));
     }
 
-    public void setComplexDeletionTime(ColumnDefinition column)
+    public void setComplexDeletionTime(ColumnMetadata column)
     {
         builder.addComplexDeletion(column, deletionTime);
     }
 
-    public void setComplexDeletionTimeForOverwrite(ColumnDefinition column)
+    public void setComplexDeletionTimeForOverwrite(ColumnMetadata column)
     {
         builder.addComplexDeletion(column, new DeletionTime(deletionTime.markedForDeleteAt() - 1, deletionTime.localDeletionTime()));
     }

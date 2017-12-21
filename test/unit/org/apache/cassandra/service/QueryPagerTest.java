@@ -27,8 +27,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.*;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Cell;
@@ -63,23 +64,25 @@ public class QueryPagerTest
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
+
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
+
         SchemaLoader.createKeyspace(KEYSPACE_CQL,
                                     KeyspaceParams.simple(1),
-                                    CFMetaData.compile("CREATE TABLE " + CF_CQL + " ("
-                                                     + "k text,"
-                                                     + "c text,"
-                                                     + "v text,"
-                                                     + "PRIMARY KEY (k, c))", KEYSPACE_CQL),
-                                    CFMetaData.compile("CREATE TABLE " + CF_CQL_WITH_STATIC + " ("
-                                                     + "pk text, "
-                                                     + "ck int, "
-                                                     + "st int static, "
-                                                     + "v1 int, "
-                                                     + "v2 int, "
-                                                     + "PRIMARY KEY(pk, ck))", KEYSPACE_CQL));
+                                    CreateTableStatement.parse("CREATE TABLE " + CF_CQL + " ("
+                                                               + "k text,"
+                                                               + "c text,"
+                                                               + "v text,"
+                                                               + "PRIMARY KEY (k, c))", KEYSPACE_CQL),
+                                    CreateTableStatement.parse("CREATE TABLE " + CF_CQL_WITH_STATIC + " ("
+                                                               + "pk text, "
+                                                               + "ck int, "
+                                                               + "st int static, "
+                                                               + "v1 int, "
+                                                               + "v2 int, "
+                                                               + "PRIMARY KEY(pk, ck))", KEYSPACE_CQL));
         addData();
     }
 
@@ -112,7 +115,7 @@ public class QueryPagerTest
         {
             for (int j = 0; j < nbCols; j++)
             {
-                RowUpdateBuilder builder = new RowUpdateBuilder(cfs().metadata, FBUtilities.timestampMicros(), "k" + i);
+                RowUpdateBuilder builder = new RowUpdateBuilder(cfs().metadata(), FBUtilities.timestampMicros(), "k" + i);
                 builder.clustering("c" + j).add("val", "").build().applyUnsafe();
             }
         }
@@ -167,12 +170,12 @@ public class QueryPagerTest
     private static SinglePartitionReadCommand sliceQuery(String key, String start, String end, boolean reversed, int count)
     {
         ClusteringComparator cmp = cfs().getComparator();
-        CFMetaData metadata = cfs().metadata;
+        TableMetadata metadata = cfs().metadata();
 
         Slice slice = Slice.make(cmp.make(start), cmp.make(end));
         ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(Slices.with(cmp, slice), reversed);
 
-        return SinglePartitionReadCommand.create(cfs().metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.NONE, Util.dk(key), filter);
+        return SinglePartitionReadCommand.create(metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.NONE, Util.dk(key), filter);
     }
 
     private static ReadCommand rangeNamesQuery(String keyStart, String keyEnd, int count, String... names)
@@ -438,7 +441,7 @@ public class QueryPagerTest
         for (int i = 0; i < 5; i++)
             executeInternal(String.format("INSERT INTO %s.%s (k, c, v) VALUES ('k%d', 'c%d', null)", keyspace, table, 0, i));
 
-        ReadCommand command = SinglePartitionReadCommand.create(cfs.metadata, nowInSec, Util.dk("k0"), Slice.ALL);
+        ReadCommand command = SinglePartitionReadCommand.create(cfs.metadata(), nowInSec, Util.dk("k0"), Slice.ALL);
 
         QueryPager pager = command.getPager(null, ProtocolVersion.CURRENT);
 
@@ -463,17 +466,17 @@ public class QueryPagerTest
                                           KEYSPACE_CQL, CF_CQL_WITH_STATIC, i));
 
         // query the table in reverse with page size = 1 & check that the returned rows contain the correct cells
-        CFMetaData cfm = Keyspace.open(KEYSPACE_CQL).getColumnFamilyStore(CF_CQL_WITH_STATIC).metadata;
-        queryAndVerifyCells(cfm, true, "k0");
+        TableMetadata table = Keyspace.open(KEYSPACE_CQL).getColumnFamilyStore(CF_CQL_WITH_STATIC).metadata();
+        queryAndVerifyCells(table, true, "k0");
     }
 
-    private void queryAndVerifyCells(CFMetaData cfm, boolean reversed, String key) throws Exception
+    private void queryAndVerifyCells(TableMetadata table, boolean reversed, String key) throws Exception
     {
         ClusteringIndexFilter rowfilter = new ClusteringIndexSliceFilter(Slices.ALL, reversed);
-        ReadCommand command = SinglePartitionReadCommand.create(cfm, nowInSec, Util.dk(key), ColumnFilter.all(cfm), rowfilter);
+        ReadCommand command = SinglePartitionReadCommand.create(table, nowInSec, Util.dk(key), ColumnFilter.all(table), rowfilter);
         QueryPager pager = command.getPager(null, ProtocolVersion.CURRENT);
 
-        ColumnDefinition staticColumn = cfm.partitionColumns().statics.getSimple(0);
+        ColumnMetadata staticColumn = table.staticColumns().getSimple(0);
         assertEquals(staticColumn.name.toCQLString(), "st");
 
         for (int i=0; i<5; i++)
@@ -489,8 +492,8 @@ public class QueryPagerTest
                     int cellIndex = !reversed ? i : 4 - i;
 
                     assertEquals(row.clustering().get(0), ByteBufferUtil.bytes(cellIndex));
-                    assertCell(row, cfm.getColumnDefinition(new ColumnIdentifier("v1", false)), cellIndex);
-                    assertCell(row, cfm.getColumnDefinition(new ColumnIdentifier("v2", false)), cellIndex);
+                    assertCell(row, table.getColumn(new ColumnIdentifier("v1", false)), cellIndex);
+                    assertCell(row, table.getColumn(new ColumnIdentifier("v2", false)), cellIndex);
 
                     // the partition/page should contain just a single regular row
                     assertFalse(partition.hasNext());
@@ -506,7 +509,7 @@ public class QueryPagerTest
         }
     }
 
-    private void assertCell(Row row, ColumnDefinition column, int value)
+    private void assertCell(Row row, ColumnMetadata column, int value)
     {
         Cell cell = row.getCell(column);
         assertNotNull(cell);

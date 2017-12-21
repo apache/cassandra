@@ -33,7 +33,11 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.SchemaLoader;
@@ -45,13 +49,18 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.io.compress.DeflateCompressor;
+import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
 
 
-public class CommitLogStressTest
+@Ignore
+public abstract class CommitLogStressTest
 {
     static
     {
@@ -79,54 +88,18 @@ public class CommitLogStressTest
         return hash;
     }
 
-    public static void main(String[] args) throws Exception
+    private boolean failed = false;
+    private volatile boolean stop = false;
+    private boolean randomSize = false;
+    private boolean discardedRun = false;
+    private CommitLogPosition discardedPos;
+
+    public CommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext)
     {
-        try
-        {
-            if (args.length >= 1)
-            {
-                NUM_THREADS = Integer.parseInt(args[0]);
-                System.out.println("Setting num threads to: " + NUM_THREADS);
-            }
-
-            if (args.length >= 2)
-            {
-                numCells = Integer.parseInt(args[1]);
-                System.out.println("Setting num cells to: " + numCells);
-            }
-
-            if (args.length >= 3)
-            {
-                cellSize = Integer.parseInt(args[1]);
-                System.out.println("Setting cell size to: " + cellSize + " be aware the source corpus may be small");
-            }
-
-            if (args.length >= 4)
-            {
-                rateLimit = Integer.parseInt(args[1]);
-                System.out.println("Setting per thread rate limit to: " + rateLimit);
-            }
-            initialize();
-
-            CommitLogStressTest tester = new CommitLogStressTest();
-            tester.cleanDir();
-            tester.testFixedSize();
-        }
-        catch (Throwable e)
-        {
-            e.printStackTrace(System.err);
-        }
-        finally
-        {
-            System.exit(0);
-        }
+        DatabaseDescriptor.setCommitLogCompression(commitLogCompression);
+        DatabaseDescriptor.setEncryptionContext(encryptionContext);
+        DatabaseDescriptor.setCommitLogSegmentSize(32);
     }
-
-    boolean failed = false;
-    volatile boolean stop = false;
-    boolean randomSize = false;
-    boolean discardedRun = false;
-    CommitLogPosition discardedPos;
 
     @BeforeClass
     static public void initialize() throws IOException
@@ -165,12 +138,23 @@ public class CommitLogStressTest
         }
     }
 
+    @Parameters()
+    public static Collection<Object[]> buildParameterizedVariants()
+    {
+        return Arrays.asList(new Object[][]{
+        {null, EncryptionContextGenerator.createDisabledContext()}, // No compression, no encryption
+        {null, EncryptionContextGenerator.createContext(true)}, // Encryption
+        { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+        { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+        { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
+    }
+
     @Test
     public void testRandomSize() throws Exception
     {
         randomSize = true;
         discardedRun = false;
-        testAllLogConfigs();
+        testLog();
     }
 
     @Test
@@ -178,8 +162,7 @@ public class CommitLogStressTest
     {
         randomSize = false;
         discardedRun = false;
-
-        testAllLogConfigs();
+        testLog();
     }
 
     @Test
@@ -187,45 +170,18 @@ public class CommitLogStressTest
     {
         randomSize = true;
         discardedRun = true;
-
-        testAllLogConfigs();
+        testLog();
     }
 
-    public void testAllLogConfigs() throws IOException, InterruptedException
+    private void testLog() throws IOException, InterruptedException
     {
-        failed = false;
-        DatabaseDescriptor.setCommitLogSyncBatchWindow(1);
-        DatabaseDescriptor.setCommitLogSyncPeriod(30);
-        DatabaseDescriptor.setCommitLogSegmentSize(32);
-
-        // test plain vanilla commit logs (the choice of 98% of users)
-        testLog(null, EncryptionContextGenerator.createDisabledContext());
-
-        // test the compression types
-        testLog(new ParameterizedClass("LZ4Compressor", null), EncryptionContextGenerator.createDisabledContext());
-        testLog(new ParameterizedClass("SnappyCompressor", null), EncryptionContextGenerator.createDisabledContext());
-        testLog(new ParameterizedClass("DeflateCompressor", null), EncryptionContextGenerator.createDisabledContext());
-
-        // test the encrypted commit log
-        testLog(null, EncryptionContextGenerator.createContext(true));
-    }
-
-    public void testLog(ParameterizedClass compression, EncryptionContext encryptionContext) throws IOException, InterruptedException
-    {
-        DatabaseDescriptor.setCommitLogCompression(compression);
-        DatabaseDescriptor.setEncryptionContext(encryptionContext);
-
         String originalDir = DatabaseDescriptor.getCommitLogLocation();
         try
         {
             DatabaseDescriptor.setCommitLogLocation(location);
-            for (CommitLogSync sync : CommitLogSync.values())
-            {
-                DatabaseDescriptor.setCommitLogSync(sync);
-                CommitLog commitLog = new CommitLog(CommitLogArchiver.disabled()).start();
-                testLog(commitLog);
-                assert !failed;
-            }
+            CommitLog commitLog = new CommitLog(CommitLogArchiver.disabled()).start();
+            testLog(commitLog);
+            assert !failed;
         }
         finally
         {
@@ -233,7 +189,7 @@ public class CommitLogStressTest
         }
     }
 
-    public void testLog(CommitLog commitLog) throws IOException, InterruptedException {
+    private void testLog(CommitLog commitLog) throws IOException, InterruptedException {
         System.out.format("\nTesting commit log size %.0fmb, compressor: %s, encryption enabled: %b, sync %s%s%s\n",
                            mb(DatabaseDescriptor.getCommitLogSegmentSize()),
                            commitLog.configuration.getCompressorName(),
@@ -262,7 +218,7 @@ public class CommitLogStressTest
             }
             verifySizes(commitLog);
 
-            commitLog.discardCompletedSegments(Schema.instance.getCFMetaData("Keyspace1", "Standard1").cfId,
+            commitLog.discardCompletedSegments(Schema.instance.getTableMetadata("Keyspace1", "Standard1").id,
                     CommitLogPosition.NONE, discardedPos);
             threads.clear();
 
@@ -345,7 +301,7 @@ public class CommitLogStressTest
         Assert.assertTrue(ratios.isEmpty());
     }
 
-    public ScheduledExecutorService startThreads(final CommitLog commitLog, final List<CommitlogThread> threads)
+    private ScheduledExecutorService startThreads(final CommitLog commitLog, final List<CommitlogThread> threads)
     {
         stop = false;
         for (int ii = 0; ii < NUM_THREADS; ii++) {
@@ -404,7 +360,7 @@ public class CommitLogStressTest
         return maxMemory / (1024 * 1024);
     }
 
-    public static ByteBuffer randomBytes(int quantity, Random tlr)
+    private static ByteBuffer randomBytes(int quantity, Random tlr)
     {
         ByteBuffer slice = ByteBuffer.allocate(quantity);
         ByteBuffer source = dataSource.duplicate();
@@ -427,7 +383,7 @@ public class CommitLogStressTest
 
         volatile CommitLogPosition clsp;
 
-        public CommitlogThread(CommitLog commitLog, Random rand)
+        CommitlogThread(CommitLog commitLog, Random rand)
         {
             this.commitLog = commitLog;
             this.random = rand;
@@ -444,7 +400,7 @@ public class CommitLogStressTest
                     rl.acquire();
                 ByteBuffer key = randomBytes(16, rand);
 
-                UpdateBuilder builder = UpdateBuilder.create(Schema.instance.getCFMetaData("Keyspace1", "Standard1"), Util.dk(key));
+                UpdateBuilder builder = UpdateBuilder.create(Schema.instance.getTableMetadata("Keyspace1", "Standard1"), Util.dk(key));
                 for (int ii = 0; ii < numCells; ii++)
                 {
                     int sz = randomSize ? rand.nextInt(cellSize) : cellSize;
@@ -524,7 +480,7 @@ public class CommitLogStressTest
         }
     }
 
-    class DummyHandler implements CommitLogReadHandler
+    static class DummyHandler implements CommitLogReadHandler
     {
         public boolean shouldSkipSegmentOnError(CommitLogReadException exception) throws IOException { return false; }
 

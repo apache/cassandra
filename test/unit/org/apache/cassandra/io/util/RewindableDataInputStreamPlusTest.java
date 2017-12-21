@@ -378,7 +378,7 @@ public class RewindableDataInputStreamPlusTest
             //finish reading again previous sequence
 
             reader.mark();
-            //read 3 bytes - OK
+            //read 3 bytes - START
             assertEquals('a', reader.readChar());
             //read 1 more bytes - CAPACITY will exhaust when trying to reset :(
             assertEquals(1, reader.readShort());

@@ -25,7 +25,6 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessagingService;
 
 public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
 {

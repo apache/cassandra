@@ -24,6 +24,7 @@ import com.google.common.util.concurrent.AbstractFuture;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.MerkleTrees;
 
 /**
@@ -34,13 +35,15 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
 {
     private final RepairJobDesc desc;
     private final InetAddress endpoint;
-    private final int gcBefore;
+    private final int nowInSec;
+    private final PreviewKind previewKind;
 
-    public ValidationTask(RepairJobDesc desc, InetAddress endpoint, int gcBefore)
+    public ValidationTask(RepairJobDesc desc, InetAddress endpoint, int nowInSec, PreviewKind previewKind)
     {
         this.desc = desc;
         this.endpoint = endpoint;
-        this.gcBefore = gcBefore;
+        this.nowInSec = nowInSec;
+        this.previewKind = previewKind;
     }
 
     /**
@@ -48,7 +51,7 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
      */
     public void run()
     {
-        ValidationRequest request = new ValidationRequest(desc, gcBefore);
+        ValidationRequest request = new ValidationRequest(desc, nowInSec);
         MessagingService.instance().sendOneWay(request.createMessage(), endpoint);
     }
 
@@ -61,7 +64,7 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
     {
         if (trees == null)
         {
-            setException(new RepairException(desc, "Validation failed in " + endpoint));
+            setException(new RepairException(desc, previewKind, "Validation failed in " + endpoint));
         }
         else
         {

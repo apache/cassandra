@@ -18,27 +18,27 @@
 
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.transport.ProtocolVersion;
-
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public class ListSerializer<T> extends CollectionSerializer<List<T>>
 {
     // interning instances
-    private static final Map<TypeSerializer<?>, ListSerializer> instances = new HashMap<TypeSerializer<?>, ListSerializer>();
+    private static final ConcurrentMap<TypeSerializer<?>, ListSerializer> instances = new ConcurrentHashMap<TypeSerializer<?>, ListSerializer>();
 
     public final TypeSerializer<T> elements;
 
-    public static synchronized <T> ListSerializer<T> getInstance(TypeSerializer<T> elements)
+    public static <T> ListSerializer<T> getInstance(TypeSerializer<T> elements)
     {
         ListSerializer<T> t = instances.get(elements);
         if (t == null)
-        {
-            t = new ListSerializer<T>(elements);
-            instances.put(elements, t);
-        }
+            t = instances.computeIfAbsent(elements, k -> new ListSerializer<>(k) );
         return t;
     }
 
@@ -167,5 +167,17 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     public Class<List<T>> getType()
     {
         return (Class) List.class;
+    }
+
+    public ByteBuffer getSerializedValue(ByteBuffer collection, ByteBuffer key, AbstractType<?> comparator)
+    {
+        // We don't allow selecting an element of a list so we don't need this.
+        throw new UnsupportedOperationException();
+    }
+
+    public ByteBuffer getSliceFromSerialized(ByteBuffer collection, ByteBuffer from, ByteBuffer to, AbstractType<?> comparator)
+    {
+        // We don't allow slicing of list so we don't need this.
+        throw new UnsupportedOperationException();
     }
 }

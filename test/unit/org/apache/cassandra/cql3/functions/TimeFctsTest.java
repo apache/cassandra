@@ -34,6 +34,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 
+import static org.apache.cassandra.cql3.functions.TimeFcts.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
@@ -87,7 +88,7 @@ public class TimeFctsTest
 
         long timeInMillis = dateTime.getMillis();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
-        ByteBuffer output = executeFunction(TimeFcts.timeUuidToTimestamp, input);
+        ByteBuffer output = executeFunction(toTimestamp(TimeUUIDType.instance), input);
         assertEquals(dateTime.toDate(), TimestampType.instance.compose(output));
     }
 
@@ -113,7 +114,7 @@ public class TimeFctsTest
 
         long timeInMillis = dateTime.getMillis();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
-        ByteBuffer output = executeFunction(TimeFcts.timeUuidToUnixTimestamp, input);
+        ByteBuffer output = executeFunction(toUnixTimestamp(TimeUUIDType.instance), input);
         assertEquals(timeInMillis, LongType.instance.compose(output).longValue());
     }
 
@@ -126,7 +127,7 @@ public class TimeFctsTest
 
         long timeInMillis = dateTime.getMillis();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
-        ByteBuffer output = executeFunction(TimeFcts.timeUuidtoDate, input);
+        ByteBuffer output = executeFunction(toDate(TimeUUIDType.instance), input);
 
         long expectedTime = DateTimeFormat.forPattern("yyyy-MM-dd")
                                           .withZone(DateTimeZone.UTC)
@@ -144,7 +145,7 @@ public class TimeFctsTest
                                           .parseDateTime("2015-05-21");
 
         ByteBuffer input = SimpleDateType.instance.fromString("2015-05-21");
-        ByteBuffer output = executeFunction(TimeFcts.dateToTimestamp, input);
+        ByteBuffer output = executeFunction(toTimestamp(SimpleDateType.instance), input);
         assertEquals(dateTime.toDate(), TimestampType.instance.compose(output));
     }
 
@@ -156,7 +157,7 @@ public class TimeFctsTest
                                           .parseDateTime("2015-05-21");
 
         ByteBuffer input = SimpleDateType.instance.fromString("2015-05-21");
-        ByteBuffer output = executeFunction(TimeFcts.dateToUnixTimestamp, input);
+        ByteBuffer output = executeFunction(toUnixTimestamp(SimpleDateType.instance), input);
         assertEquals(dateTime.getMillis(), LongType.instance.compose(output).longValue());
     }
 
@@ -168,14 +169,14 @@ public class TimeFctsTest
                                           .parseDateTime("2015-05-21");
 
         ByteBuffer input = TimestampType.instance.fromString("2015-05-21 11:03:02+00");
-        ByteBuffer output = executeFunction(TimeFcts.timestampToDate, input);
+        ByteBuffer output = executeFunction(toDate(TimestampType.instance), input);
         assertEquals(dateTime.getMillis(), SimpleDateType.instance.toTimeInMillis(output));
     }
 
     @Test
     public void testTimestampToDateWithEmptyInput()
     {
-        ByteBuffer output = executeFunction(TimeFcts.timestampToDate, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        ByteBuffer output = executeFunction(toDate(TimestampType.instance), ByteBufferUtil.EMPTY_BYTE_BUFFER);
         assertNull(output);
     }
 
@@ -187,14 +188,14 @@ public class TimeFctsTest
                                           .parseDateTime("2015-05-21 11:03:02");
 
         ByteBuffer input = TimestampType.instance.decompose(dateTime.toDate());
-        ByteBuffer output = executeFunction(TimeFcts.timestampToUnixTimestamp, input);
+        ByteBuffer output = executeFunction(toUnixTimestamp(TimestampType.instance), input);
         assertEquals(dateTime.getMillis(), LongType.instance.compose(output).longValue());
     }
 
     @Test
     public void testTimestampToUnixTimestampWithEmptyInput()
     {
-        ByteBuffer output = executeFunction(TimeFcts.timestampToUnixTimestamp, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        ByteBuffer output = executeFunction(TimeFcts.toUnixTimestamp(TimestampType.instance), ByteBufferUtil.EMPTY_BYTE_BUFFER);
         assertNull(output);
     }
 

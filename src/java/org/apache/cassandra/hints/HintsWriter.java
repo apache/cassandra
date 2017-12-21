@@ -143,6 +143,12 @@ class HintsWriter implements AutoCloseable
         }
     }
 
+    @VisibleForTesting
+    File getFile()
+    {
+        return file;
+    }
+
     /**
      * Writes byte buffer into the file channel. Buffer should be flipped before calling this
      */

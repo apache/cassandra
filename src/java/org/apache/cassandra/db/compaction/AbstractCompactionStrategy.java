@@ -19,7 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 
-import com.google.common.base.Throwables;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
@@ -35,7 +35,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -44,7 +43,6 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * Pluggable compaction strategy determines how SSTables get merged.
@@ -114,8 +112,6 @@ public abstract class AbstractCompactionStrategy
             uncheckedTombstoneCompaction = optionValue == null ? DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION : Boolean.parseBoolean(optionValue);
             optionValue = options.get(LOG_ALL_OPTION);
             logAll = optionValue == null ? DEFAULT_LOG_ALL_OPTION : Boolean.parseBoolean(optionValue);
-            if (!shouldBeEnabled())
-                this.disable();
         }
         catch (ConfigurationException e)
         {
@@ -212,45 +208,6 @@ public abstract class AbstractCompactionStrategy
      */
     public abstract long getMaxSSTableBytes();
 
-    public void enable()
-    {
-    }
-
-    public void disable()
-    {
-    }
-
-    /**
-     * @return whether or not MeteredFlusher should be able to trigger memtable flushes for this CF.
-     */
-    public boolean isAffectedByMeteredFlusher()
-    {
-        return true;
-    }
-
-    /**
-     * If not affected by MeteredFlusher (and handling flushing on its own), override to tell MF how much
-     * space to reserve for this CF, i.e., how much space to subtract from `memtable_total_space_in_mb` when deciding
-     * if other memtables should be flushed or not.
-     */
-    public long getMemtableReservedSize()
-    {
-        return 0;
-    }
-
-    /**
-     * Handle a flushed memtable.
-     *
-     * @param memtable the flushed memtable
-     * @param sstables the written sstables. can be null or empty if the memtable was clean.
-     */
-    public void replaceFlushed(Memtable memtable, Collection<SSTableReader> sstables)
-    {
-        cfs.getTracker().replaceFlushed(memtable, sstables);
-        if (sstables != null && !sstables.isEmpty())
-            CompactionManager.instance.submitBackground(cfs);
-    }
-
     /**
      * Filters SSTables that are to be blacklisted from the given collection
      *
@@ -286,19 +243,11 @@ public abstract class AbstractCompactionStrategy
         try
         {
             for (SSTableReader sstable : sstables)
-                scanners.add(sstable.getScanner(ranges, null));
+                scanners.add(sstable.getScanner(ranges));
         }
         catch (Throwable t)
         {
-            try
-            {
-                new ScannerList(scanners).close();
-            }
-            catch (Throwable t2)
-            {
-                t.addSuppressed(t2);
-            }
-            throw t;
+            ISSTableScanner.closeAllAndPropagate(scanners, t);
         }
         return new ScannerList(scanners);
     }
@@ -330,6 +279,12 @@ public abstract class AbstractCompactionStrategy
     }
 
     public abstract void removeSSTable(SSTableReader sstable);
+
+    /**
+     * Returns the sstables managed by this strategy instance
+     */
+    @VisibleForTesting
+    protected abstract Set<SSTableReader> getSSTables();
 
     public static class ScannerList implements AutoCloseable
     {
@@ -376,24 +331,7 @@ public abstract class AbstractCompactionStrategy
 
         public void close()
         {
-            Throwable t = null;
-            for (ISSTableScanner scanner : scanners)
-            {
-                try
-                {
-                    scanner.close();
-                }
-                catch (Throwable t2)
-                {
-                    JVMStabilityInspector.inspectThrowable(t2);
-                    if (t == null)
-                        t = t2;
-                    else
-                        t.addSuppressed(t2);
-                }
-            }
-            if (t != null)
-                throw Throwables.propagate(t);
+            ISSTableScanner.closeAllAndPropagate(scanners, null);
         }
     }
 
@@ -533,14 +471,6 @@ public abstract class AbstractCompactionStrategy
         return uncheckedOptions;
     }
 
-    public boolean shouldBeEnabled()
-    {
-        String optionValue = options.get(COMPACTION_ENABLED);
-
-        return optionValue == null || Boolean.parseBoolean(optionValue);
-    }
-
-
     /**
      * Method for grouping similar SSTables together, This will be used by
      * anti-compaction to determine which SSTables should be anitcompacted
@@ -554,7 +484,7 @@ public abstract class AbstractCompactionStrategy
         Collections.sort(sortedSSTablesToGroup, SSTableReader.sstableComparator);
 
         Collection<Collection<SSTableReader>> groupedSSTables = new ArrayList<>();
-        Collection<SSTableReader> currGroup = new ArrayList<>();
+        Collection<SSTableReader> currGroup = new ArrayList<>(groupSize);
 
         for (SSTableReader sstable : sortedSSTablesToGroup)
         {
@@ -562,7 +492,7 @@ public abstract class AbstractCompactionStrategy
             if (currGroup.size() == groupSize)
             {
                 groupedSSTables.add(currGroup);
-                currGroup = new ArrayList<>();
+                currGroup = new ArrayList<>(groupSize);
             }
         }
 
@@ -579,12 +509,13 @@ public abstract class AbstractCompactionStrategy
     public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor,
                                                        long keyCount,
                                                        long repairedAt,
+                                                       UUID pendingRepair,
                                                        MetadataCollector meta,
                                                        SerializationHeader header,
                                                        Collection<Index> indexes,
                                                        LifecycleTransaction txn)
     {
-        return SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, cfs.metadata, meta, header, indexes, txn);
+        return SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, cfs.metadata, meta, header, indexes, txn);
     }
 
     public boolean supportsEarlyOpen()

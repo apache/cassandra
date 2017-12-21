@@ -135,13 +135,15 @@ Timeuuid functions
 ``now``
 #######
 
-The ``now`` function takes no arguments and generates, on the coordinator node, a new unique timeuuid (at the time where
-the statement using it is executed). Note that this method is useful for insertion but is largely non-sensical in
+The ``now`` function takes no arguments and generates, on the coordinator node, a new unique timeuuid at the 
+time the function is invoked. Note that this method is useful for insertion but is largely non-sensical in
 ``WHERE`` clauses. For instance, a query of the form::
 
     SELECT * FROM myTable WHERE t = now()
 
 will never return any result by design, since the value returned by ``now()`` is guaranteed to be unique.
+
+``currentTimeUUID`` is an alias of ``now``.
 
 ``minTimeuuid`` and ``maxTimeuuid``
 ###################################
@@ -164,8 +166,29 @@ maxTimeuuid('2013-01-01 00:05+0000')``.
    particular, the value returned by these 2 methods will not be unique. This means you should only use those methods
    for querying (as in the example above). Inserting the result of those methods is almost certainly *a bad idea*.
 
+Datetime functions
+``````````````````
+
+Retrieving the current date/time
+################################
+
+The following functions can be used to retrieve the date/time at the time where the function is invoked:
+
+===================== ===============
+ Function name         Output type
+===================== ===============
+ ``currentTimestamp``  ``timestamp``
+ ``currentDate``       ``date``
+ ``currentTime``       ``time``
+ ``currentTimeUUID``   ``timeUUID``
+===================== ===============
+
+For example the last 2 days of data can be retrieved using::
+
+    SELECT * FROM myTable WHERE date >= currentDate() - 2d
+
 Time conversion functions
-`````````````````````````
+#########################
 
 A number of functions are provided to “convert” a ``timeuuid``, a ``timestamp`` or a ``date`` into another ``native``
 type.

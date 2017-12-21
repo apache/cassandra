@@ -38,6 +38,7 @@ import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MigrationManager;
 
 import static org.junit.Assert.assertEquals;
 
@@ -78,23 +79,23 @@ public class IndexSummaryRedistributionTest
         long oldSize = 0;
         for (SSTableReader sstable : sstables)
         {
-            assertEquals(cfs.metadata.params.minIndexInterval, sstable.getEffectiveIndexInterval(), 0.001);
+            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getEffectiveIndexInterval(), 0.001);
             oldSize += sstable.bytesOnDisk();
         }
 
         load = StorageMetrics.load.getCount();
         long others = load - oldSize; // Other SSTables size, e.g. schema and other system SSTables
 
-        int originalMinIndexInterval = cfs.metadata.params.minIndexInterval;
+        int originalMinIndexInterval = cfs.metadata().params.minIndexInterval;
         // double the min_index_interval
-        cfs.metadata.minIndexInterval(originalMinIndexInterval * 2);
+        MigrationManager.announceTableUpdate(cfs.metadata().unbuild().minIndexInterval(originalMinIndexInterval * 2).build(), true);
         IndexSummaryManager.instance.redistributeSummaries();
 
         long newSize = 0;
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            assertEquals(cfs.metadata.params.minIndexInterval, sstable.getEffectiveIndexInterval(), 0.001);
-            assertEquals(numRows / cfs.metadata.params.minIndexInterval, sstable.getIndexSummarySize());
+            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getEffectiveIndexInterval(), 0.001);
+            assertEquals(numRows / cfs.metadata().params.minIndexInterval, sstable.getIndexSummarySize());
             newSize += sstable.bytesOnDisk();
         }
         newSize += others;
@@ -118,7 +119,7 @@ public class IndexSummaryRedistributionTest
             for (int row = 0; row < numRows; row++)
             {
                 String key = String.format("%3d", row);
-                new RowUpdateBuilder(cfs.metadata, 0, key)
+                new RowUpdateBuilder(cfs.metadata(), 0, key)
                 .clustering("column")
                 .add("val", value)
                 .build()

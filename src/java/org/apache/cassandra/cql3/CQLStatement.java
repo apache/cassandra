@@ -67,4 +67,12 @@ public interface CQLStatement
      * @return functions all functions found (may contain duplicates)
      */
     public Iterable<Function> getFunctions();
+
+    /**
+     * Whether or not this CQL Statement has LWT conditions
+     */
+    default public boolean hasConditions()
+    {
+        return false;
+    }
 }

@@ -254,7 +254,7 @@ public class TokenMetadata
             UUID storedId = endpointToHostIdMap.get(endpoint);
             if ((storedId != null) && (!storedId.equals(hostId)))
                 logger.warn("Changing {}'s host ID from {} to {}", endpoint, storedId, hostId);
-    
+
             endpointToHostIdMap.forcePut(endpoint, hostId);
         }
         finally
@@ -824,17 +824,17 @@ public class TokenMetadata
                 long startedAt = System.currentTimeMillis();
 
                 // create clone of current state
-                BiMultiValMap<Token, InetAddress> bootstrapTokens = new BiMultiValMap<>();
-                Set<InetAddress> leavingEndpoints = new HashSet<>();
-                Set<Pair<Token, InetAddress>> movingEndpoints = new HashSet<>();
+                BiMultiValMap<Token, InetAddress> bootstrapTokensClone = new BiMultiValMap<>();
+                Set<InetAddress> leavingEndpointsClone = new HashSet<>();
+                Set<Pair<Token, InetAddress>> movingEndpointsClone = new HashSet<>();
                 TokenMetadata metadata;
 
                 lock.readLock().lock();
                 try
                 {
-                    bootstrapTokens.putAll(this.bootstrapTokens);
-                    leavingEndpoints.addAll(this.leavingEndpoints);
-                    movingEndpoints.addAll(this.movingEndpoints);
+                    bootstrapTokensClone.putAll(this.bootstrapTokens);
+                    leavingEndpointsClone.addAll(this.leavingEndpoints);
+                    movingEndpointsClone.addAll(this.movingEndpoints);
                     metadata = this.cloneOnlyTokenMap();
                 }
                 finally
@@ -842,8 +842,8 @@ public class TokenMetadata
                     lock.readLock().unlock();
                 }
 
-                pendingRanges.put(keyspaceName, calculatePendingRanges(strategy, metadata, bootstrapTokens,
-                                                                       leavingEndpoints, movingEndpoints));
+                pendingRanges.put(keyspaceName, calculatePendingRanges(strategy, metadata, bootstrapTokensClone,
+                                                                       leavingEndpointsClone, movingEndpointsClone));
                 long took = System.currentTimeMillis() - startedAt;
 
                 if (logger.isDebugEnabled())
@@ -999,6 +999,16 @@ public class TokenMetadata
         }
     }
 
+    /**
+     * We think the size() operation is safe enough, so we call it without the read lock on purpose.
+     *
+     * see CASSANDRA-12999
+     */
+    public int getSizeOfAllEndpoints()
+    {
+        return endpointToHostIdMap.size();
+    }
+
     /** caller should not modify leavingEndpoints */
     public Set<InetAddress> getLeavingEndpoints()
     {
@@ -1011,6 +1021,16 @@ public class TokenMetadata
         {
             lock.readLock().unlock();
         }
+    }
+
+    /**
+     * We think the size() operation is safe enough, so we call it without the read lock on purpose.
+     *
+     * see CASSANDRA-12999
+     */
+    public int getSizeOfLeavingEndpoints()
+    {
+        return leavingEndpoints.size();
     }
 
     /**
@@ -1028,6 +1048,16 @@ public class TokenMetadata
         {
             lock.readLock().unlock();
         }
+    }
+
+    /**
+     * We think the size() operation is safe enough, so we call it without the read lock on purpose.
+     *
+     * see CASSANDRA-12999
+     */
+    public int getSizeOfMovingEndpoints()
+    {
+        return movingEndpoints.size();
     }
 
     public static int firstTokenIndex(final ArrayList<Token> ring, Token start, boolean insertMin)

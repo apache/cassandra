@@ -29,15 +29,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
-import org.apache.cassandra.stress.util.SimpleThriftClient;
-import org.apache.cassandra.stress.util.SmartThriftClient;
-import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.thrift.AuthenticationRequest;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.transport.SimpleClient;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TTransport;
 
 public class StressSettings implements Serializable
 {
@@ -90,81 +82,6 @@ public class StressSettings implements Serializable
         this.tokenRange = tokenRange;
     }
 
-    private SmartThriftClient tclient;
-
-    /**
-     * Thrift client connection
-     * @return cassandra client connection
-     */
-    public synchronized ThriftClient getThriftClient()
-    {
-        if (mode.api != ConnectionAPI.THRIFT_SMART)
-            return getSimpleThriftClient();
-
-        if (tclient == null)
-            tclient = getSmartThriftClient();
-
-        return tclient;
-    }
-
-    private SmartThriftClient getSmartThriftClient()
-    {
-        Metadata metadata = getJavaDriverClient().getCluster().getMetadata();
-        return new SmartThriftClient(this, schema.keyspace, metadata);
-    }
-
-    /**
-     * Thrift client connection
-     * @return cassandra client connection
-     */
-    private SimpleThriftClient getSimpleThriftClient()
-    {
-        return new SimpleThriftClient(getRawThriftClient(node.randomNode(), true));
-    }
-
-    public Cassandra.Client getRawThriftClient(boolean setKeyspace)
-    {
-        return getRawThriftClient(node.randomNode(), setKeyspace);
-    }
-
-    public Cassandra.Client getRawThriftClient(String host)
-    {
-        return getRawThriftClient(host, true);
-    }
-
-    public Cassandra.Client getRawThriftClient(String host, boolean setKeyspace)
-    {
-        Cassandra.Client client;
-
-        try
-        {
-            TTransport transport = this.transport.getFactory().openTransport(host, port.thriftPort);
-
-            client = new Cassandra.Client(new TBinaryProtocol(transport));
-
-            if (mode.cqlVersion.isCql())
-                client.set_cql_version(mode.cqlVersion.connectVersion);
-
-            if (setKeyspace)
-                client.set_keyspace(schema.keyspace);
-
-            if (mode.username != null)
-                client.login(new AuthenticationRequest(ImmutableMap.of("username", mode.username, "password", mode.password)));
-
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e.getWhy());
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        return client;
-    }
-
-
     public SimpleClient getSimpleNativeClient()
     {
         try
@@ -192,6 +109,17 @@ public class StressSettings implements Serializable
 
     public JavaDriverClient getJavaDriverClient(boolean setKeyspace)
     {
+        if (setKeyspace)
+        {
+            return getJavaDriverClient(schema.keyspace);
+        } else {
+            return getJavaDriverClient(null);
+        }
+    }
+
+
+    public JavaDriverClient getJavaDriverClient(String keyspace)
+    {
         if (client != null)
             return client;
 
@@ -206,11 +134,11 @@ public class StressSettings implements Serializable
                 if (client != null)
                     return client;
 
-                EncryptionOptions.ClientEncryptionOptions encOptions = transport.getEncryptionOptions();
+                EncryptionOptions encOptions = transport.getEncryptionOptions();
                 JavaDriverClient c = new JavaDriverClient(this, currentNode, port.nativePort, encOptions);
                 c.connect(mode.compression());
-                if (setKeyspace)
-                    c.execute("USE \"" + schema.keyspace + "\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
+                if (keyspace != null)
+                    c.execute("USE \"" + keyspace + "\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
 
                 return client = c;
             }
@@ -227,7 +155,7 @@ public class StressSettings implements Serializable
         if (command.type == Command.WRITE || command.type == Command.COUNTER_WRITE)
             schema.createKeySpaces(this);
         else if (command.type == Command.USER)
-            ((SettingsCommandUser) command).profile.maybeCreateSchema(this);
+            ((SettingsCommandUser) command).profiles.forEach((k,v) -> v.maybeCreateSchema(this));
     }
 
     public static StressSettings parse(String[] args)
@@ -379,8 +307,8 @@ public class StressSettings implements Serializable
         if (command.type == Command.USER)
         {
             out.println();
-            out.println("******************** Profile ********************");
-            ((SettingsCommandUser) command).profile.printSettings(out, this);
+            out.println("******************** Profile(s) ********************");
+            ((SettingsCommandUser) command).profiles.forEach((k,v) -> v.printSettings(out, this));
         }
         out.println();
 

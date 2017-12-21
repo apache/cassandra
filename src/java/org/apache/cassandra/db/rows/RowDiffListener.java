@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.rows;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.*;
 
 /**
@@ -63,7 +63,7 @@ public interface RowDiffListener
      * @param original the complex deletion of input {@code i} for column {@code column}. May be {@code null} if input {@code i}
      * had no complex deletion but the merged row has.
      */
-    public void onComplexDeletion(int i, Clustering clustering, ColumnDefinition column, DeletionTime merged, DeletionTime original);
+    public void onComplexDeletion(int i, Clustering clustering, ColumnMetadata column, DeletionTime merged, DeletionTime original);
 
     /**
      * Called for any cell that is either in the merged row or in input {@code i}.

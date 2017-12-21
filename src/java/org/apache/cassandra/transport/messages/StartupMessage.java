@@ -36,7 +36,6 @@ public class StartupMessage extends Message.Request
     public static final String CQL_VERSION = "CQL_VERSION";
     public static final String COMPRESSION = "COMPRESSION";
     public static final String PROTOCOL_VERSIONS = "PROTOCOL_VERSIONS";
-    public static final String NO_COMPACT = "NO_COMPACT";
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
@@ -98,9 +97,6 @@ public class StartupMessage extends Message.Request
                 throw new ProtocolException(String.format("Unknown compression algorithm: %s", compression));
             }
         }
-
-        if (options.containsKey(NO_COMPACT) && Boolean.parseBoolean(options.get(NO_COMPACT)))
-            state.getClientState().setNoCompactMode();
 
         if (DatabaseDescriptor.getAuthenticator().requireAuthentication())
             return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());

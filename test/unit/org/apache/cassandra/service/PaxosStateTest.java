@@ -18,8 +18,11 @@
 package org.apache.cassandra.service;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.service.paxos.PrepareVerbHandler;
+import org.apache.cassandra.service.paxos.ProposeVerbHandler;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -59,7 +62,7 @@ public class PaxosStateTest
         ColumnFamilyStore cfs = Keyspace.open("PaxosStateTestKeyspace1").getColumnFamilyStore("Standard1");
         String key = "key" + System.nanoTime();
         ByteBuffer value = ByteBufferUtil.bytes(0);
-        RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, FBUtilities.timestampMicros(), key);
+        RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros(), key);
         builder.clustering("a").add("val", value);
         PartitionUpdate update = Iterables.getOnlyElement(builder.build().getPartitionUpdates());
 
@@ -78,7 +81,7 @@ public class PaxosStateTest
         assertNoDataPresent(cfs, Util.dk(key));
 
         // Now try again with a ballot created after the truncation
-        long timestamp = SystemKeyspace.getTruncatedAt(update.metadata().cfId) + 1;
+        long timestamp = SystemKeyspace.getTruncatedAt(update.metadata().id) + 1;
         Commit afterTruncate = newProposal(timestamp, update);
         PaxosState.commit(afterTruncate);
         assertDataPresent(cfs, Util.dk(key), "val", value);
@@ -93,11 +96,32 @@ public class PaxosStateTest
     {
         Row row = Util.getOnlyRowUnfiltered(Util.cmd(cfs, key).build());
         assertEquals(0, ByteBufferUtil.compareUnsigned(value,
-                row.getCell(cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes(name))).value()));
+                row.getCell(cfs.metadata().getColumn(ByteBufferUtil.bytes(name))).value()));
     }
 
     private void assertNoDataPresent(ColumnFamilyStore cfs, DecoratedKey key)
     {
         Util.assertEmpty(Util.cmd(cfs, key).build());
+    }
+
+    @Test
+    public void testPrepareProposePaxos() throws Throwable
+    {
+        ColumnFamilyStore cfs = Keyspace.open("PaxosStateTestKeyspace1").getColumnFamilyStore("Standard1");
+        String key = "key" + System.nanoTime();
+        ByteBuffer value = ByteBufferUtil.bytes(0);
+        RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros(), key);
+        builder.clustering("a").add("val", value);
+        PartitionUpdate update = Iterables.getOnlyElement(builder.build().getPartitionUpdates());
+
+        // CFS should be empty initially
+        assertNoDataPresent(cfs, Util.dk(key));
+
+        UUID ballot = UUIDGen.getRandomTimeUUIDFromMicros(System.currentTimeMillis());
+
+        Commit commit = Commit.newPrepare(Util.dk(key), cfs.metadata(), ballot);
+
+        assertTrue("paxos prepare stage failed", PrepareVerbHandler.doPrepare(commit).promised);
+        assertTrue("paxos propose stage failed", ProposeVerbHandler.doPropose(commit));
     }
 }

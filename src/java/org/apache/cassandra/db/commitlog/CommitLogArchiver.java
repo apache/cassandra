@@ -42,7 +42,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Strings;
-import com.google.common.base.Throwables;
 
 public class CommitLogArchiver
 {
@@ -233,7 +232,7 @@ public class CommitLogArchiver
                     throw new IllegalStateException("Cannot safely construct descriptor for segment, either from its name or its header: " + fromFile.getPath());
                 else if (fromHeader != null && fromName != null && !fromHeader.equalsIgnoringCompression(fromName))
                     throw new IllegalStateException(String.format("Cannot safely construct descriptor for segment, as name and header descriptors do not match (%s vs %s): %s", fromHeader, fromName, fromFile.getPath()));
-                else if (fromName != null && fromHeader == null && fromName.version >= CommitLogDescriptor.VERSION_21)
+                else if (fromName != null && fromHeader == null)
                     throw new IllegalStateException("Cannot safely construct descriptor for segment, as name descriptor implies a version that should contain a header descriptor, but that descriptor could not be read: " + fromFile.getPath());
                 else if (fromHeader != null)
                     descriptor = fromHeader;

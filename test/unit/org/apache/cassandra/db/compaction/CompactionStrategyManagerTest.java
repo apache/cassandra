@@ -19,11 +19,14 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -48,6 +51,7 @@ import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.UUIDGen;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -82,7 +86,7 @@ public class CompactionStrategyManagerTest
     }
 
     @Test
-    public void testSSTablesAssignedToCorrectCompactionStrategy()
+    public void testSSTablesAssignedToCorrectCompactionStrategy() throws IOException
     {
         // Creates 100 SSTables with keys 0-99
         int numSSTables = 100;
@@ -92,9 +96,24 @@ public class CompactionStrategyManagerTest
                                                 .compaction(CompactionParams.scts(Collections.emptyMap())));
         ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
         cfs.disableAutoCompaction();
+        Set<SSTableReader> previousSSTables = cfs.getLiveSSTables();
         for (int i = 0; i < numSSTables; i++)
         {
             createSSTableWithKey(KS_PREFIX, TABLE_PREFIX, i);
+            Set<SSTableReader> currentSSTables = cfs.getLiveSSTables();
+            Set<SSTableReader> newSSTables = Sets.difference(currentSSTables, previousSSTables);
+            assertEquals(1, newSSTables.size());
+            if (i % 3 == 0)
+            {
+                //make 1 third of sstables repaired
+                cfs.getCompactionStrategyManager().mutateRepaired(newSSTables, System.currentTimeMillis(), null);
+            }
+            else if (i % 3 == 1)
+            {
+                //make 1 third of sstables pending repair
+                cfs.getCompactionStrategyManager().mutateRepaired(newSSTables, 0, UUIDGen.getTimeUUID());
+            }
+            previousSSTables = currentSSTables;
         }
 
         // Creates a CompactionStrategymanager with different numbers of disks and check
@@ -152,7 +171,7 @@ public class CompactionStrategyManagerTest
                 assertFalse(((SizeTieredCompactionStrategy)csm.compactionStrategyFor(reader)).sstables.contains(reader));
 
                 // Add SSTable again and check that is correctly assigned
-                csm.handleNotification(new SSTableAddedNotification(Collections.singleton(reader)), this);
+                csm.handleNotification(new SSTableAddedNotification(Collections.singleton(reader), null), this);
                 verifySSTableIsAssignedToCorrectStrategy(boundaries, csm, reader);
             }
         }
@@ -170,7 +189,7 @@ public class CompactionStrategyManagerTest
         }
 
         ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
-        MockCFS mockCFS = new MockCFS(cfs, new Directories(cfs.metadata, directories));
+        MockCFS mockCFS = new MockCFS(cfs, new Directories(cfs.metadata(), directories));
         mockCFS.disableAutoCompaction();
         mockCFS.addSSTables(cfs.getLiveSSTables());
         return mockCFS;
@@ -271,7 +290,7 @@ public class CompactionStrategyManagerTest
         long timestamp = System.currentTimeMillis();
         DecoratedKey dk = Util.dk(String.format("%04d", key));
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
-        new RowUpdateBuilder(cfs.metadata, timestamp, dk.getKey())
+        new RowUpdateBuilder(cfs.metadata(), timestamp, dk.getKey())
         .clustering(Integer.toString(key))
         .add("val", "val")
         .build()

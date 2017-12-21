@@ -22,7 +22,6 @@ import org.apache.cassandra.cql3.CQLTester;
 
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
 public class TypeTest extends CQLTester
 {

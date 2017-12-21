@@ -359,7 +359,7 @@ instance, given::
         a int,
         b int,
         c int,
-        PRIMARY KEY (a, c, d)
+        PRIMARY KEY (a, b, c)
     );
 
     SELECT * FROM t;
@@ -396,15 +396,14 @@ Compact tables
 
 .. warning:: Since Cassandra 3.0, compact tables have the exact same layout internally than non compact ones (for the
    same schema obviously), and declaring a table compact **only** creates artificial limitations on the table definition
-   and usage that are necessary to ensure backward compatibility with the deprecated Thrift API. And as ``COMPACT
+   and usage. It only exists for historical reason and is preserved for backward compatibility And as ``COMPACT
    STORAGE`` cannot, as of Cassandra |version|, be removed, it is strongly discouraged to create new table with the
    ``COMPACT STORAGE`` option.
 
-A *compact* table is one defined with the ``COMPACT STORAGE`` option. This option is mainly targeted towards backward
-compatibility for definitions created before CQL version 3 (see `www.datastax.com/dev/blog/thrift-to-cql3
-<http://www.datastax.com/dev/blog/thrift-to-cql3>`__ for more details) and shouldn't be used for new tables. Declaring a
-table with this option creates limitations for the table which are largely arbitrary but necessary for backward
-compatibility with the (deprecated) Thrift API. Amongst those limitation:
+A *compact* table is one defined with the ``COMPACT STORAGE`` option. This option is only maintained for backward
+compatibility for definitions created before CQL version 3 and shouldn't be used for new tables. Declaring a
+table with this option creates limitations for the table which are largely arbitrary (and exists for historical
+reasons). Amongst those limitation:
 
 - a compact table cannot use collections nor static columns.
 - if a compact table has at least one clustering column, then it must have *exactly* one column outside of the primary
@@ -454,14 +453,17 @@ A table supports the following options:
 +================================+==========+=============+===========================================================+
 | ``comment``                    | *simple* | none        | A free-form, human-readable comment.                      |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
-| ``read_repair_chance``         | *simple* | 0.1         | The probability with which to query extra nodes (e.g.     |
+| ``read_repair_chance``         | *simple* | 0           | The probability with which to query extra nodes (e.g.     |
 |                                |          |             | more nodes than required by the consistency level) for    |
 |                                |          |             | the purpose of read repairs.                              |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
-| ``dclocal_read_repair_chance`` | *simple* | 0           | The probability with which to query extra nodes (e.g.     |
+| ``dclocal_read_repair_chance`` | *simple* | 0.1         | The probability with which to query extra nodes (e.g.     |
 |                                |          |             | more nodes than required by the consistency level)        |
 |                                |          |             | belonging to the same data center than the read           |
 |                                |          |             | coordinator for the purpose of read repairs.              |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``speculative_retry``          | *simple* | 99PERCENTILE| :ref:`Speculative retry options                           |
+|                                |          |             | <speculative-retry-options>`.                             |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
 | ``gc_grace_seconds``           | *simple* | 864000      | Time to wait before garbage collecting tombstones         |
 |                                |          |             | (deletion markers).                                       |
@@ -480,6 +482,37 @@ A table supports the following options:
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
 | ``caching``                    | *map*    | *see below* | :ref:`Caching options <cql-caching-options>`.             |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``memtable_flush_period_in_ms``| *simple* | 0           | Time (in ms) before Cassandra flushes memtables to disk.  |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+
+.. _speculative-retry-options:
+
+Speculative retry options
+#########################
+
+By default, Cassandra read coordinators only query as many replicas as necessary to satisfy
+consistency levels: one for consistency level ``ONE``, a quorum for ``QUORUM``, and so on.
+``speculative_retry`` determines when coordinators may query additional replicas, which is useful
+when replicas are slow or unresponsive.  The following are legal values (case-insensitive):
+
+========================= ================ =============================================================================
+ Format                    Example          Description
+========================= ================ =============================================================================
+ ``XPERCENTILE``           90.5PERCENTILE   Coordinators record average per-table response times for all replicas.
+                                            If a replica takes longer than ``X`` percent of this table's average
+                                            response time, the coordinator queries an additional replica.
+                                            ``X`` must be between 0 and 100.
+ ``XP``                    90.5P            Synonym for ``XPERCENTILE``
+ ``Yms``                   25ms             If a replica takes more than ``Y`` milliseconds to respond,
+                                            the coordinator queries an additional replica.
+ ``ALWAYS``                                 Coordinators always query all replicas.
+ ``NONE``                                   Coordinators never query additional replicas.
+========================= ================ =============================================================================
+
+This setting does not affect reads with consistency level ``ALL`` because they already query all replicas.
+
+Note that frequently reading from additional replicas can hurt cluster performance.
+When in doubt, keep the default ``99PERCENTILE``.
 
 .. _cql-compaction-options:
 

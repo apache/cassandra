@@ -34,23 +34,14 @@ public final class WhereClause
 
     private WhereClause(Builder builder)
     {
-        this(builder.relations.build(), builder.expressions.build());
-    }
+        this.relations = builder.relations.build();
+        this.expressions = builder.expressions.build();
 
-    private WhereClause(List<Relation> relations, List<CustomIndexExpression> expressions)
-    {
-        this.relations = relations;
-        this.expressions = expressions;
     }
 
     public static WhereClause empty()
     {
         return EMPTY;
-    }
-
-    public WhereClause copy(List<Relation> newRelations)
-    {
-        return new WhereClause(newRelations, expressions);
     }
 
     public boolean containsCustomExpressions()

@@ -19,7 +19,7 @@ package org.apache.cassandra.index.internal.composites;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -57,7 +57,7 @@ public class CollectionEntryIndex extends CollectionKeyIndexBase
         ByteBuffer mapKey = components[0];
         ByteBuffer mapValue = components[1];
 
-        ColumnDefinition columnDef = indexedColumn;
+        ColumnMetadata columnDef = indexedColumn;
         Cell cell = data.getCell(columnDef, CellPath.create(mapKey));
         if (cell == null || !cell.isLive(nowInSec))
             return true;

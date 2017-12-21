@@ -64,24 +64,24 @@ public class BigTableWriterTest extends AbstractTransactionalTest
 
         private TestableBTW()
         {
-            this(cfs.getSSTablePath(cfs.getDirectories().getDirectoryForNewSSTables()));
+            this(cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables()));
         }
 
-        private TestableBTW(String file)
+        private TestableBTW(Descriptor desc)
         {
-            this(file, SSTableTxnWriter.create(cfs, file, 0, 0, new SerializationHeader(true, cfs.metadata, cfs.metadata.partitionColumns(), EncodingStats.NO_STATS)));
+            this(desc, SSTableTxnWriter.create(cfs, desc, 0, 0, null, new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS)));
         }
 
-        private TestableBTW(String file, SSTableTxnWriter sw)
+        private TestableBTW(Descriptor desc, SSTableTxnWriter sw)
         {
             super(sw);
-            this.file = new File(file);
-            this.descriptor = Descriptor.fromFilename(file);
+            this.file = new File(desc.filenameFor(Component.DATA));
+            this.descriptor = desc;
             this.writer = sw;
 
             for (int i = 0; i < 100; i++)
             {
-                UpdateBuilder update = UpdateBuilder.create(cfs.metadata, i);
+                UpdateBuilder update = UpdateBuilder.create(cfs.metadata(), i);
                 for (int j = 0; j < 10; j++)
                     update.newRow(j).add("val", SSTableRewriterTest.random(0, 1000));
                 writer.append(update.build().unfilteredIterator());

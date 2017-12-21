@@ -24,14 +24,15 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.io.Files;
-import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
@@ -63,26 +64,42 @@ public class LongStreamingTest
     }
 
     @Test
-    public void testCompressedStream() throws InvalidRequestException, IOException, ExecutionException, InterruptedException
+    public void testSstableCompressionStreaming() throws InterruptedException, ExecutionException, IOException
     {
-        String KS = "cql_keyspace";
+        testStream(true);
+    }
+
+    @Test
+    public void testStreamCompressionStreaming() throws InterruptedException, ExecutionException, IOException
+    {
+        testStream(false);
+    }
+
+    private void testStream(boolean useSstableCompression) throws InvalidRequestException, IOException, ExecutionException, InterruptedException
+    {
+        String KS = useSstableCompression ? "sstable_compression_ks" : "stream_compression_ks";
         String TABLE = "table1";
 
         File tempdir = Files.createTempDir();
         File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
         assert dataDir.mkdirs();
 
-        String schema = "CREATE TABLE cql_keyspace.table1 ("
+        String schema = "CREATE TABLE " + KS + '.'  + TABLE + "  ("
                         + "  k int PRIMARY KEY,"
                         + "  v1 text,"
                         + "  v2 int"
-                        + ");";// with compression = {};";
-        String insert = "INSERT INTO cql_keyspace.table1 (k, v1, v2) VALUES (?, ?, ?)";
+                        + ") with compression = " + (useSstableCompression ? "{'class': 'LZ4Compressor'};" : "{};");
+        String insert = "INSERT INTO " + KS + '.'  + TABLE + " (k, v1, v2) VALUES (?, ?, ?)";
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .sorted()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert).build();
+
+        CompressionParams compressionParams = Keyspace.open(KS).getColumnFamilyStore(TABLE).metadata().params.compression;
+        Assert.assertEquals(useSstableCompression, compressionParams.isEnabled());
+
+
         long start = System.nanoTime();
 
         for (int i = 0; i < 10_000_000; i++)
@@ -104,15 +121,15 @@ public class LongStreamingTest
             private String ks;
             public void init(String keyspace)
             {
-                for (Range<Token> range : StorageService.instance.getLocalRanges("cql_keyspace"))
+                for (Range<Token> range : StorageService.instance.getLocalRanges(KS))
                     addRangeForEndpoint(range, FBUtilities.getBroadcastAddress());
 
                 this.ks = keyspace;
             }
 
-            public CFMetaData getTableMetadata(String cfName)
+            public TableMetadataRef getTableMetadata(String cfName)
             {
-                return Schema.instance.getCFMetaData(ks, cfName);
+                return Schema.instance.getTableMetadataRef(ks, cfName);
             }
         }, new OutputHandler.SystemOutput(false, false));
 
@@ -131,15 +148,15 @@ public class LongStreamingTest
             private String ks;
             public void init(String keyspace)
             {
-                for (Range<Token> range : StorageService.instance.getLocalRanges("cql_keyspace"))
+                for (Range<Token> range : StorageService.instance.getLocalRanges(KS))
                     addRangeForEndpoint(range, FBUtilities.getBroadcastAddress());
 
                 this.ks = keyspace;
             }
 
-            public CFMetaData getTableMetadata(String cfName)
+            public TableMetadataRef getTableMetadata(String cfName)
             {
-                return Schema.instance.getCFMetaData(ks, cfName);
+                return Schema.instance.getTableMetadataRef(ks, cfName);
             }
         }, new OutputHandler.SystemOutput(false, false));
 
@@ -161,7 +178,7 @@ public class LongStreamingTest
                                          millis / 1000d,
                                          (dataSize * 2 / (1 << 20) / (millis / 1000d)) * 8));
 
-        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace.table1 limit 100;");
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + KS + '.'  + TABLE + " limit 100;");
         assertEquals(100, rs.size());
     }
 }

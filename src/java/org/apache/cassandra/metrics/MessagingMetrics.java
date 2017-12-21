@@ -38,11 +38,13 @@ public class MessagingMetrics
     private static final MetricNameFactory factory = new DefaultNameFactory("Messaging");
     public final Timer crossNodeLatency;
     public final ConcurrentHashMap<String, Timer> dcLatency;
+    public final ConcurrentHashMap<String, Timer> queueWaitLatency;
 
     public MessagingMetrics()
     {
         crossNodeLatency = Metrics.timer(factory.createMetricName("CrossNodeLatency"));
         dcLatency = new ConcurrentHashMap<>();
+        queueWaitLatency = new ConcurrentHashMap<>();
     }
 
     public void addTimeTaken(InetAddress from, long timeTaken)
@@ -55,5 +57,19 @@ public class MessagingMetrics
         }
         timer.update(timeTaken, TimeUnit.MILLISECONDS);
         crossNodeLatency.update(timeTaken, TimeUnit.MILLISECONDS);
+    }
+
+    public void addQueueWaitTime(String verb, long timeTaken)
+    {
+        if (timeTaken < 0)
+            // the measurement is not accurate, ignore the negative timeTaken
+            return;
+
+        Timer timer = queueWaitLatency.get(verb);
+        if (timer == null)
+        {
+            timer = queueWaitLatency.computeIfAbsent(verb, k -> Metrics.timer(factory.createMetricName(verb + "-WaitLatency")));
+        }
+        timer.update(timeTaken, TimeUnit.MILLISECONDS);
     }
 }

@@ -22,9 +22,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterables.filter;
 
@@ -80,6 +83,28 @@ public final class Functions implements Iterable<Function>
     public Stream<UDAggregate> udas()
     {
         return stream().filter(f -> f instanceof UDAggregate).map(f -> (UDAggregate) f);
+    }
+
+    MapDifference<Pair<FunctionName, List<String>>, UDFunction> udfsDiff(Functions other)
+    {
+        Map<Pair<FunctionName, List<String>>, UDFunction> before = new HashMap<>();
+        udfs().forEach(f -> before.put(Pair.create(f.name(), f.argumentsList()), f));
+
+        Map<Pair<FunctionName, List<String>>, UDFunction> after = new HashMap<>();
+        other.udfs().forEach(f -> after.put(Pair.create(f.name(), f.argumentsList()), f));
+
+        return Maps.difference(before, after);
+    }
+
+    MapDifference<Pair<FunctionName, List<String>>, UDAggregate> udasDiff(Functions other)
+    {
+        Map<Pair<FunctionName, List<String>>, UDAggregate> before = new HashMap<>();
+        udas().forEach(f -> before.put(Pair.create(f.name(), f.argumentsList()), f));
+
+        Map<Pair<FunctionName, List<String>>, UDAggregate> after = new HashMap<>();
+        other.udas().forEach(f -> after.put(Pair.create(f.name(), f.argumentsList()), f));
+
+        return Maps.difference(before, after);
     }
 
     /**
@@ -206,7 +231,7 @@ public final class Functions implements Iterable<Function>
         private Builder()
         {
             // we need deterministic iteration order; otherwise Functions.equals() breaks down
-            functions.orderValuesBy((f1, f2) -> Integer.compare(f1.hashCode(), f2.hashCode()));
+            functions.orderValuesBy(Comparator.comparingInt(Object::hashCode));
         }
 
         public Functions build()

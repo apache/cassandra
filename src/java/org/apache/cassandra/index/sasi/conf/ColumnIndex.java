@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Memtable;
@@ -57,7 +57,7 @@ public class ColumnIndex
 
     private final AbstractType<?> keyValidator;
 
-    private final ColumnDefinition column;
+    private final ColumnMetadata column;
     private final Optional<IndexMetadata> config;
 
     private final AtomicReference<IndexMemtable> memtable;
@@ -70,7 +70,7 @@ public class ColumnIndex
 
     private final boolean isTokenized;
 
-    public ColumnIndex(AbstractType<?> keyValidator, ColumnDefinition column, IndexMetadata metadata)
+    public ColumnIndex(AbstractType<?> keyValidator, ColumnMetadata column, IndexMetadata metadata)
     {
         this.keyValidator = keyValidator;
         this.column = column;
@@ -147,7 +147,7 @@ public class ColumnIndex
         tracker.update(oldSSTables, newSSTables);
     }
 
-    public ColumnDefinition getDefinition()
+    public ColumnMetadata getDefinition()
     {
         return column;
     }
@@ -229,7 +229,7 @@ public class ColumnIndex
 
     }
 
-    public static ByteBuffer getValueOf(ColumnDefinition column, Row row, int nowInSecs)
+    public static ByteBuffer getValueOf(ColumnMetadata column, Row row, int nowInSecs)
     {
         if (row == null)
             return null;

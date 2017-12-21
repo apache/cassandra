@@ -38,7 +38,8 @@ import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
@@ -70,8 +71,9 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+@Ignore
 @RunWith(Parameterized.class)
-public class CommitLogTest
+public abstract class CommitLogTest
 {
     private static final String KEYSPACE1 = "CommitLogTest";
     private static final String KEYSPACE2 = "CommitLogTestNonDurable";
@@ -98,7 +100,6 @@ public class CommitLogTest
             {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
     }
 
-    @BeforeClass
     public static void beforeClass() throws ConfigurationException
     {
         // Disable durable writes for system keyspaces to prevent system mutations, e.g. sstable_activity,
@@ -156,10 +157,9 @@ public class CommitLogTest
     }
 
     @Test
-    public void testRecoveryWithFinalEmptyLog() throws Exception
+    public void testRecoveryWithEmptyFinalLog() throws Exception
     {
-        // Even though it's empty, it's the last commitlog segment, so allowTruncation=true should allow it to pass
-        CommitLog.instance.recoverFiles(new File[]{tmpFile(CommitLogDescriptor.current_version)});
+        CommitLog.instance.recoverFiles(tmpFile(CommitLogDescriptor.current_version));
     }
 
     /**
@@ -215,15 +215,9 @@ public class CommitLogTest
     }
 
     @Test
-    public void testRecoveryWithEmptyLog20() throws Exception
-    {
-        CommitLog.instance.recoverFiles(tmpFile(CommitLogDescriptor.VERSION_20));
-    }
-
-    @Test
     public void testRecoveryWithZeroLog() throws Exception
     {
-        testRecovery(new byte[10], null);
+        testRecovery(new byte[10], CommitLogReplayException.class);
     }
 
     @Test
@@ -234,23 +228,10 @@ public class CommitLogTest
     }
 
     @Test
-    public void testRecoveryWithShortPadding() throws Exception
-    {
-            // If we have 0-3 bytes remaining, commitlog replayer
-            // should pass, because there's insufficient room
-            // left in the segment for the legacy size marker.
-            testRecovery(new byte[1], null);
-            testRecovery(new byte[2], null);
-            testRecovery(new byte[3], null);
-    }
-
-    @Test
     public void testRecoveryWithShortSize() throws Exception
     {
-        byte[] data = new byte[5];
-        data[3] = 1; // Not a legacy marker, give it a fake (short) size
         runExpecting(() -> {
-            testRecovery(data, CommitLogDescriptor.VERSION_20);
+            testRecovery(new byte[2], CommitLogDescriptor.current_version);
             return null;
         }, CommitLogReplayException.class);
     }
@@ -311,7 +292,7 @@ public class CommitLogTest
         ColumnFamilyStore cfs2 = ks.getColumnFamilyStore(STANDARD2);
 
         // Roughly 32 MB mutation
-        Mutation m = new RowUpdateBuilder(cfs1.metadata, 0, "k")
+        Mutation m = new RowUpdateBuilder(cfs1.metadata(), 0, "k")
                      .clustering("bytes")
                      .add("val", ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize() / 4))
                      .build();
@@ -324,7 +305,7 @@ public class CommitLogTest
         CommitLog.instance.add(m);
 
         // Adding new mutation on another CF
-        Mutation m2 = new RowUpdateBuilder(cfs2.metadata, 0, "k")
+        Mutation m2 = new RowUpdateBuilder(cfs2.metadata(), 0, "k")
                       .clustering("bytes")
                       .add("val", ByteBuffer.allocate(4))
                       .build();
@@ -332,8 +313,8 @@ public class CommitLogTest
 
         assertEquals(2, CommitLog.instance.segmentManager.getActiveSegments().size());
 
-        UUID cfid2 = m2.getColumnFamilyIds().iterator().next();
-        CommitLog.instance.discardCompletedSegments(cfid2, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
+        TableId id2 = m2.getTableIds().iterator().next();
+        CommitLog.instance.discardCompletedSegments(id2, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
 
         // Assert we still have both our segments
         assertEquals(2, CommitLog.instance.segmentManager.getActiveSegments().size());
@@ -347,7 +328,7 @@ public class CommitLogTest
         ColumnFamilyStore cfs2 = ks.getColumnFamilyStore(STANDARD2);
 
         // Roughly 32 MB mutation
-         Mutation rm = new RowUpdateBuilder(cfs1.metadata, 0, "k")
+         Mutation rm = new RowUpdateBuilder(cfs1.metadata(), 0, "k")
                   .clustering("bytes")
                   .add("val", ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/4) - 1))
                   .build();
@@ -359,14 +340,14 @@ public class CommitLogTest
         assertEquals(1, CommitLog.instance.segmentManager.getActiveSegments().size());
 
         // "Flush": this won't delete anything
-        UUID cfid1 = rm.getColumnFamilyIds().iterator().next();
+        TableId id1 = rm.getTableIds().iterator().next();
         CommitLog.instance.sync(true);
-        CommitLog.instance.discardCompletedSegments(cfid1, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
+        CommitLog.instance.discardCompletedSegments(id1, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
 
         assertEquals(1, CommitLog.instance.segmentManager.getActiveSegments().size());
 
         // Adding new mutation on another CF, large enough (including CL entry overhead) that a new segment is created
-        Mutation rm2 = new RowUpdateBuilder(cfs2.metadata, 0, "k")
+        Mutation rm2 = new RowUpdateBuilder(cfs2.metadata(), 0, "k")
                        .clustering("bytes")
                        .add("val", ByteBuffer.allocate(DatabaseDescriptor.getMaxMutationSize() - 200))
                        .build();
@@ -384,8 +365,8 @@ public class CommitLogTest
         // "Flush" second cf: The first segment should be deleted since we
         // didn't write anything on cf1 since last flush (and we flush cf2)
 
-        UUID cfid2 = rm2.getColumnFamilyIds().iterator().next();
-        CommitLog.instance.discardCompletedSegments(cfid2, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
+        TableId id2 = rm2.getTableIds().iterator().next();
+        CommitLog.instance.discardCompletedSegments(id2, CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
 
         segments = CommitLog.instance.segmentManager.getActiveSegments();
 
@@ -397,9 +378,9 @@ public class CommitLogTest
 
     private String getDirtyCFIds(Collection<CommitLogSegment> segments)
     {
-        return "Dirty cfIds: <"
+        return "Dirty tableIds: <"
                + String.join(", ", segments.stream()
-                                           .map(CommitLogSegment::getDirtyCFIDs)
+                                           .map(CommitLogSegment::getDirtyTableIds)
                                            .flatMap(uuids -> uuids.stream())
                                            .distinct()
                                            .map(uuid -> uuid.toString()).collect(Collectors.toList()))
@@ -412,7 +393,7 @@ public class CommitLogTest
         // We don't want to allocate a size of 0 as this is optimized under the hood and our computation would
         // break testEqualRecordLimit
         int allocSize = 1;
-        Mutation rm = new RowUpdateBuilder(cfs.metadata, 0, key)
+        Mutation rm = new RowUpdateBuilder(cfs.metadata(), 0, key)
                       .clustering(colName)
                       .add("val", ByteBuffer.allocate(allocSize)).build();
 
@@ -440,7 +421,7 @@ public class CommitLogTest
     public void testEqualRecordLimit() throws Exception
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
-        Mutation rm = new RowUpdateBuilder(cfs.metadata, 0, "k")
+        Mutation rm = new RowUpdateBuilder(cfs.metadata(), 0, "k")
                       .clustering("bytes")
                       .add("val", ByteBuffer.allocate(getMaxRecordDataSize()))
                       .build();
@@ -452,7 +433,7 @@ public class CommitLogTest
     {
         Keyspace ks = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(STANDARD1);
-        Mutation rm = new RowUpdateBuilder(cfs.metadata, 0, "k")
+        Mutation rm = new RowUpdateBuilder(cfs.metadata(), 0, "k")
                       .clustering("bytes")
                       .add("val", ByteBuffer.allocate(1 + getMaxRecordDataSize()))
                       .build();
@@ -607,8 +588,7 @@ public class CommitLogTest
     {
         ParameterizedClass commitLogCompression = DatabaseDescriptor.getCommitLogCompression();
         EncryptionContext encryptionContext = DatabaseDescriptor.getEncryptionContext();
-        runExpecting(() -> testRecovery(logData, CommitLogDescriptor.VERSION_20), expected);
-        runExpecting(() -> testRecovery(new CommitLogDescriptor(4, commitLogCompression, encryptionContext), logData), expected);
+        runExpecting(() -> testRecovery(logData, CommitLogDescriptor.current_version), expected);
     }
 
     @Test
@@ -623,10 +603,10 @@ public class CommitLogTest
             ColumnFamilyStore cfs1 = ks.getColumnFamilyStore(STANDARD1);
             ColumnFamilyStore cfs2 = ks.getColumnFamilyStore(STANDARD2);
 
-            new RowUpdateBuilder(cfs1.metadata, 0, "k").clustering("bytes").add("val", ByteBuffer.allocate(100)).build().applyUnsafe();
+            new RowUpdateBuilder(cfs1.metadata(), 0, "k").clustering("bytes").add("val", ByteBuffer.allocate(100)).build().applyUnsafe();
             cfs1.truncateBlocking();
             DatabaseDescriptor.setAutoSnapshot(prev);
-            Mutation m2 = new RowUpdateBuilder(cfs2.metadata, 0, "k")
+            Mutation m2 = new RowUpdateBuilder(cfs2.metadata(), 0, "k")
                           .clustering("bytes")
                           .add("val", ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize() / 4))
                           .build();
@@ -638,8 +618,8 @@ public class CommitLogTest
             CommitLogPosition position = CommitLog.instance.getCurrentPosition();
             for (Keyspace keyspace : Keyspace.system())
                 for (ColumnFamilyStore syscfs : keyspace.getColumnFamilyStores())
-                    CommitLog.instance.discardCompletedSegments(syscfs.metadata.cfId, CommitLogPosition.NONE, position);
-            CommitLog.instance.discardCompletedSegments(cfs2.metadata.cfId, CommitLogPosition.NONE, position);
+                    CommitLog.instance.discardCompletedSegments(syscfs.metadata().id, CommitLogPosition.NONE, position);
+            CommitLog.instance.discardCompletedSegments(cfs2.metadata().id, CommitLogPosition.NONE, position);
             assertEquals(1, CommitLog.instance.segmentManager.getActiveSegments().size());
         }
         finally
@@ -659,7 +639,7 @@ public class CommitLogTest
             Assert.assertFalse(notDurableKs.getMetadata().params.durableWrites);
 
             ColumnFamilyStore cfs = notDurableKs.getColumnFamilyStore("Standard1");
-            new RowUpdateBuilder(cfs.metadata, 0, "key1")
+            new RowUpdateBuilder(cfs.metadata(), 0, "key1")
             .clustering("bytes").add("val", bytes("abcd"))
             .build()
             .applyUnsafe();
@@ -682,14 +662,14 @@ public class CommitLogTest
     {
         int cellCount = 0;
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
-        final Mutation rm1 = new RowUpdateBuilder(cfs.metadata, 0, "k1")
+        final Mutation rm1 = new RowUpdateBuilder(cfs.metadata(), 0, "k1")
                              .clustering("bytes")
                              .add("val", bytes("this is a string"))
                              .build();
         cellCount += 1;
         CommitLog.instance.add(rm1);
 
-        final Mutation rm2 = new RowUpdateBuilder(cfs.metadata, 0, "k2")
+        final Mutation rm2 = new RowUpdateBuilder(cfs.metadata(), 0, "k2")
                              .clustering("bytes")
                              .add("val", bytes("this is a string"))
                              .build();
@@ -698,7 +678,7 @@ public class CommitLogTest
 
         CommitLog.instance.sync(true);
 
-        SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, CommitLogPosition.NONE, cfs.metadata);
+        SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, CommitLogPosition.NONE, cfs.metadata());
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         Assert.assertFalse(activeSegments.isEmpty());
 
@@ -719,7 +699,7 @@ public class CommitLogTest
 
         for (int i = 0; i < max; i++)
         {
-            final Mutation rm1 = new RowUpdateBuilder(cfs.metadata, 0, "k" + 1)
+            final Mutation rm1 = new RowUpdateBuilder(cfs.metadata(), 0, "k" + 1)
                                  .clustering("bytes")
                                  .add("val", bytes("this is a string"))
                                  .build();
@@ -735,7 +715,7 @@ public class CommitLogTest
 
         CommitLog.instance.sync(true);
 
-        SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, commitLogPosition, cfs.metadata);
+        SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, commitLogPosition, cfs.metadata());
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         Assert.assertFalse(activeSegments.isEmpty());
 
@@ -748,15 +728,15 @@ public class CommitLogTest
     class SimpleCountingReplayer extends CommitLogReplayer
     {
         private final CommitLogPosition filterPosition;
-        private final CFMetaData metadata;
+        private final TableMetadata metadata;
         int cells;
         int skipped;
 
-        SimpleCountingReplayer(CommitLog commitLog, CommitLogPosition filterPosition, CFMetaData cfm)
+        SimpleCountingReplayer(CommitLog commitLog, CommitLogPosition filterPosition, TableMetadata metadata)
         {
             super(commitLog, filterPosition, Collections.emptyMap(), ReplayFilter.create());
             this.filterPosition = filterPosition;
-            this.metadata = cfm;
+            this.metadata = metadata;
         }
 
         @SuppressWarnings("resource")
@@ -777,7 +757,7 @@ public class CommitLogTest
             {
                 // Only process mutations for the CF's we're testing against, since we can't deterministically predict
                 // whether or not system keyspaces will be mutated during a test.
-                if (partitionUpdate.metadata().cfName.equals(metadata.cfName))
+                if (partitionUpdate.metadata().name.equals(metadata.name))
                 {
                     for (Row row : partitionUpdate)
                         cells += Iterables.size(row.cells());
@@ -799,7 +779,7 @@ public class CommitLogTest
 
             for (int i = 0 ; i < 5 ; i++)
             {
-                new RowUpdateBuilder(cfs.metadata, 0, "k")
+                new RowUpdateBuilder(cfs.metadata(), 0, "k")
                     .clustering("c" + i).add("val", ByteBuffer.allocate(100))
                     .build()
                     .apply();
@@ -842,7 +822,7 @@ public class CommitLogTest
 
         for (int i = 0 ; i < 5 ; i++)
         {
-            new RowUpdateBuilder(cfs.metadata, 0, "k")
+            new RowUpdateBuilder(cfs.metadata(), 0, "k")
                 .clustering("c" + i).add("val", ByteBuffer.allocate(100))
                 .build()
                 .apply();

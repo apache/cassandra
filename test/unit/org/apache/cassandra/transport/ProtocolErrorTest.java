@@ -172,4 +172,25 @@ public class ProtocolErrorTest {
 
         Assert.assertEquals(expected, buf);
     }
+
+    @Test
+    public void testUnsupportedMessage() throws Exception
+    {
+        byte[] incomingFrame = new byte[] {
+        (byte) REQUEST.addToVersion(ProtocolVersion.CURRENT.asInt()),  // direction & version
+        0x00,  // flags
+        0x00, 0x01,  // stream ID
+        0x04,  // opcode for obsoleted CREDENTIALS message
+        0x00, (byte) 0x00, (byte) 0x00, (byte) 0x10,  // body length
+        };
+        byte[] body = new byte[0x10];
+        ByteBuf buf = Unpooled.wrappedBuffer(incomingFrame, body);
+        Frame decodedFrame = new Frame.Decoder(null).decodeFrame(buf);
+        try {
+            decodedFrame.header.type.codec.decode(decodedFrame.body, decodedFrame.header.version);
+            Assert.fail("Expected protocol error");
+        } catch (ProtocolException e) {
+            Assert.assertTrue(e.getMessage().contains("Unsupported message"));
+        }
+    }
 }

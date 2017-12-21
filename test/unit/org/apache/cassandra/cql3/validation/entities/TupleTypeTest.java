@@ -217,6 +217,14 @@ public class TupleTypeTest extends CQLTester
     }
 
     @Test
+    public void testTupleModification() throws Throwable
+    {
+        createTable("CREATE TABLE %s(pk int PRIMARY KEY, value tuple<int, int>)");
+        assertInvalidMessage("Invalid operation (value = value + (1, 1)) for tuple column value",
+                             "UPDATE %s SET value += (1, 1) WHERE k=0;");
+    }
+
+    @Test
     public void testReversedTypeTuple() throws Throwable
     {
         // CASSANDRA-13717
@@ -226,3 +234,4 @@ public class TupleTypeTest extends CQLTester
         assertRows(execute("SELECT tdemo FROM %s"), row(tuple( df.parse("2017-02-03 03:05+0000"), "Europe")));
     }
 }
+

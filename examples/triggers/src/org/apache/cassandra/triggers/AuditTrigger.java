@@ -22,8 +22,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Properties;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -40,13 +40,13 @@ public class AuditTrigger implements ITrigger
         String auditKeyspace = properties.getProperty("keyspace");
         String auditTable = properties.getProperty("table");
 
-        CFMetaData metadata = Schema.instance.getCFMetaData(auditKeyspace, auditTable);
+        TableMetadata metadata = Schema.instance.getTableMetadata(auditKeyspace, auditTable);
         PartitionUpdate.SimpleBuilder audit = PartitionUpdate.simpleBuilder(metadata, UUIDGen.getTimeUUID());
 
         audit.row()
-             .add("keyspace_name", update.metadata().ksName)
-             .add("table_name", update.metadata().cfName)
-             .add("primary_key", update.metadata().getKeyValidator().getString(update.partitionKey().getKey()));
+             .add("keyspace_name", update.metadata().keyspace)
+             .add("table_name", update.metadata().name)
+             .add("primary_key", update.metadata().partitionKeyType.getString(update.partitionKey().getKey()));
 
         return Collections.singletonList(audit.buildAsMutation());
     }

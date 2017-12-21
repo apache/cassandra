@@ -69,7 +69,7 @@ public class StreamStateStore implements StreamEventHandler
                 Set<String> keyspaces = se.transferredRangesPerKeyspace.keySet();
                 for (String keyspace : keyspaces)
                 {
-                    SystemKeyspace.updateTransferredRanges(se.description, se.peer, keyspace, se.transferredRangesPerKeyspace.get(keyspace));
+                    SystemKeyspace.updateTransferredRanges(se.streamOperation, se.peer, keyspace, se.transferredRangesPerKeyspace.get(keyspace));
                 }
                 for (StreamRequest request : se.requests)
                 {

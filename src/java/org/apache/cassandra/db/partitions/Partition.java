@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
@@ -34,11 +34,11 @@ import org.apache.cassandra.utils.SearchIterator;
  */
 public interface Partition
 {
-    public CFMetaData metadata();
+    public TableMetadata metadata();
     public DecoratedKey partitionKey();
     public DeletionTime partitionLevelDeletion();
 
-    public PartitionColumns columns();
+    public RegularAndStaticColumns columns();
 
     public EncodingStats stats();
 

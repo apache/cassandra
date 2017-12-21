@@ -19,9 +19,9 @@ package org.apache.cassandra.hints;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.schema.Schema;
 
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddress;
 

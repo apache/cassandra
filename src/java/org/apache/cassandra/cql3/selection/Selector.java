@@ -20,12 +20,12 @@ package org.apache.cassandra.cql3.selection;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -51,13 +51,13 @@ public abstract class Selector
          * Returns the column specification corresponding to the output value of the selector instances created by
          * this factory.
          *
-         * @param cfm the column family meta data
+         * @param table the table meta data
          * @return a column specification
          */
-        public final ColumnSpecification getColumnSpecification(CFMetaData cfm)
+        public ColumnSpecification getColumnSpecification(TableMetadata table)
         {
-            return new ColumnSpecification(cfm.ksName,
-                                           cfm.cfName,
+            return new ColumnSpecification(table.keyspace,
+                                           table.name,
                                            new ColumnIdentifier(getColumnName(), true), // note that the name is not necessarily
                                                                                         // a true column name so we shouldn't intern it
                                            getReturnType());
@@ -106,13 +106,25 @@ public abstract class Selector
         }
 
         /**
+         * Checks if this factory creates <code>Selector</code>s that simply return a column value.
+         *
+         * @param index the column index
+         * @return <code>true</code> if this factory creates <code>Selector</code>s that simply return a column value,
+         * <code>false</code> otherwise.
+         */
+        public boolean isSimpleSelectorFactory()
+        {
+            return false;
+        }
+
+        /**
          * Checks if this factory creates <code>Selector</code>s that simply return the specified column.
          *
          * @param index the column index
          * @return <code>true</code> if this factory creates <code>Selector</code>s that simply return
          * the specified column, <code>false</code> otherwise.
          */
-        public boolean isSimpleSelectorFactory(int index)
+        public boolean isSimpleSelectorFactoryFor(int index)
         {
             return false;
         }
@@ -144,7 +156,31 @@ public abstract class Selector
          *                      by the Selector are to be mapped
          */
         protected abstract void addColumnMapping(SelectionColumnMapping mapping, ColumnSpecification resultsColumn);
+
+        /**
+         * Checks if all the columns fetched by the selector created by this factory are known
+         * @return {@code true} if all the columns fetched by the selector created by this factory are known,
+         * {@code false} otherwise.
+         */
+        abstract boolean areAllFetchedColumnsKnown();
+
+        /**
+         * Adds the columns fetched by the selector created by this factory to the provided builder, assuming the
+         * factory is terminal (i.e. that {@code isTerminal() == true}).
+         *
+         * @param builder the column builder to add fetched columns (and potential subselection) to.
+         * @throws AssertionError if the method is called on a factory where {@code isTerminal()} returns {@code false}.
+         */
+        abstract void addFetchedColumns(ColumnFilter.Builder builder);
     }
+
+    /**
+     * Add to the provided builder the column (and potential subselections) to fetch for this
+     * selection.
+     *
+     * @param builder the builder to add columns and subselections to.
+     */
+    public abstract void addFetchedColumns(ColumnFilter.Builder builder);
 
     /**
      * Add the current value from the specified <code>ResultSetBuilder</code>.
@@ -170,17 +206,6 @@ public abstract class Selector
      * @return the <code>Selector</code> output type.
      */
     public abstract AbstractType<?> getType();
-
-    /**
-     * Checks if this <code>Selector</code> is creating aggregates.
-     *
-     * @return <code>true</code> if this <code>Selector</code> is creating aggregates <code>false</code>
-     * otherwise.
-     */
-    public boolean isAggregate()
-    {
-        return false;
-    }
 
     /**
      * Reset the internal state of this <code>Selector</code>.

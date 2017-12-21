@@ -19,11 +19,14 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -79,6 +82,11 @@ public class IndexInfo
         this.endOpenMarker = endOpenMarker;
     }
 
+    public static IndexInfo.Serializer serializer(Version version, SerializationHeader header)
+    {
+        return new IndexInfo.Serializer(version, header.clusteringTypes());
+    }
+
     public static class Serializer implements ISerializer<IndexInfo>
     {
         // This is the default index size that we use to delta-encode width when serializing so we get better vint-encoding.
@@ -87,21 +95,19 @@ public class IndexInfo
         // size so using the default is almost surely better than using no base at all.
         public static final long WIDTH_BASE = 64 * 1024;
 
-        private final ISerializer<ClusteringPrefix> clusteringSerializer;
-        private final Version version;
+        private final int version;
+        private final List<AbstractType<?>> clusteringTypes;
 
-        public Serializer(Version version, ISerializer<ClusteringPrefix> clusteringSerializer)
+        public Serializer(Version version, List<AbstractType<?>> clusteringTypes)
         {
-            this.clusteringSerializer = clusteringSerializer;
-            this.version = version;
+            this.version = version.correspondingMessagingVersion();
+            this.clusteringTypes = clusteringTypes;
         }
 
         public void serialize(IndexInfo info, DataOutputPlus out) throws IOException
         {
-            assert version.storeRows() : "We read old index files but we should never write them";
-
-            clusteringSerializer.serialize(info.firstName, out);
-            clusteringSerializer.serialize(info.lastName, out);
+            ClusteringPrefix.serializer.serialize(info.firstName, out, version, clusteringTypes);
+            ClusteringPrefix.serializer.serialize(info.lastName, out, version, clusteringTypes);
             out.writeUnsignedVInt(info.offset);
             out.writeVInt(info.width - WIDTH_BASE);
 
@@ -112,53 +118,33 @@ public class IndexInfo
 
         public void skip(DataInputPlus in) throws IOException
         {
-            clusteringSerializer.skip(in);
-            clusteringSerializer.skip(in);
-            if (version.storeRows())
-            {
-                in.readUnsignedVInt();
-                in.readVInt();
-                if (in.readBoolean())
-                    DeletionTime.serializer.skip(in);
-            }
-            else
-            {
-                in.skipBytes(TypeSizes.sizeof(0L));
-                in.skipBytes(TypeSizes.sizeof(0L));
-            }
+            ClusteringPrefix.serializer.skip(in, version, clusteringTypes);
+            ClusteringPrefix.serializer.skip(in, version, clusteringTypes);
+            in.readUnsignedVInt();
+            in.readVInt();
+            if (in.readBoolean())
+                DeletionTime.serializer.skip(in);
         }
 
         public IndexInfo deserialize(DataInputPlus in) throws IOException
         {
-            ClusteringPrefix firstName = clusteringSerializer.deserialize(in);
-            ClusteringPrefix lastName = clusteringSerializer.deserialize(in);
-            long offset;
-            long width;
+            ClusteringPrefix firstName = ClusteringPrefix.serializer.deserialize(in, version, clusteringTypes);
+            ClusteringPrefix lastName = ClusteringPrefix.serializer.deserialize(in, version, clusteringTypes);
+            long offset = in.readUnsignedVInt();
+            long width = in.readVInt() + WIDTH_BASE;
             DeletionTime endOpenMarker = null;
-            if (version.storeRows())
-            {
-                offset = in.readUnsignedVInt();
-                width = in.readVInt() + WIDTH_BASE;
-                if (in.readBoolean())
-                    endOpenMarker = DeletionTime.serializer.deserialize(in);
-            }
-            else
-            {
-                offset = in.readLong();
-                width = in.readLong();
-            }
+            if (in.readBoolean())
+                endOpenMarker = DeletionTime.serializer.deserialize(in);
             return new IndexInfo(firstName, lastName, offset, width, endOpenMarker);
         }
 
         public long serializedSize(IndexInfo info)
         {
-            assert version.storeRows() : "We read old index files but we should never write them";
-
-            long size = clusteringSerializer.serializedSize(info.firstName)
-                        + clusteringSerializer.serializedSize(info.lastName)
-                        + TypeSizes.sizeofUnsignedVInt(info.offset)
-                        + TypeSizes.sizeofVInt(info.width - WIDTH_BASE)
-                        + TypeSizes.sizeof(info.endOpenMarker != null);
+            long size = ClusteringPrefix.serializer.serializedSize(info.firstName, version, clusteringTypes)
+                      + ClusteringPrefix.serializer.serializedSize(info.lastName, version, clusteringTypes)
+                      + TypeSizes.sizeofUnsignedVInt(info.offset)
+                      + TypeSizes.sizeofVInt(info.width - WIDTH_BASE)
+                      + TypeSizes.sizeof(info.endOpenMarker != null);
 
             if (info.endOpenMarker != null)
                 size += DeletionTime.serializer.serializedSize(info.endOpenMarker);

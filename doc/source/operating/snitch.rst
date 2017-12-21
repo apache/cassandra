@@ -45,7 +45,7 @@ configured with the following properties on ``cassandra.yaml``:
 Snitch classes
 ^^^^^^^^^^^^^^
 
-The ``endpoint_snitch`` parameter in ``cassandra.yaml`` should be set to the class the class that implements
+The ``endpoint_snitch`` parameter in ``cassandra.yaml`` should be set to the class that implements
 ``IEndPointSnitch`` which will be wrapped by the dynamic snitch and decide if two endpoints are in the same data center
 or on the same rack. Out of the box, Cassandra provides the snitch implementations:
 

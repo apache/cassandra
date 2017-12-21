@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Iterator;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.Conflicts;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
@@ -197,7 +197,7 @@ public abstract class Cells
      * of cells from {@code existing} and {@code update} having the same cell path is empty, this
      * returns {@code Long.MAX_VALUE}.
      */
-    public static long reconcileComplex(ColumnDefinition column,
+    public static long reconcileComplex(ColumnMetadata column,
                                         Iterator<Cell> existing,
                                         Iterator<Cell> update,
                                         DeletionTime deletion,
@@ -282,7 +282,7 @@ public abstract class Cells
      * because deleted cells always have precedence on timestamp equality and deciding if a
      * cell is a live or not depends on the current time due to expiring cells).
      */
-    public static void addNonShadowedComplex(ColumnDefinition column,
+    public static void addNonShadowedComplex(ColumnMetadata column,
                                              Iterator<Cell> existing,
                                              Iterator<Cell> update,
                                              DeletionTime deletion,

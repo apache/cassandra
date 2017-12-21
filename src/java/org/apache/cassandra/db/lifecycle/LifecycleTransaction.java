@@ -21,7 +21,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiFunction;
-
+import java.util.function.BiPredicate;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
@@ -29,7 +29,7 @@ import com.google.common.collect.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -539,9 +539,9 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         return LogTransaction.removeUnfinishedLeftovers(cfs.getDirectories().getCFDirectories());
     }
 
-    public static boolean removeUnfinishedLeftovers(CFMetaData cfMetaData)
+    public static boolean removeUnfinishedLeftovers(TableMetadata metadata)
     {
-        return LogTransaction.removeUnfinishedLeftovers(cfMetaData);
+        return LogTransaction.removeUnfinishedLeftovers(metadata);
     }
 
     /**
@@ -556,7 +556,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
      * @param filter - A function that receives each file and its type, it should return true to have the file returned
      * @return - the list of files that were scanned and for which the filter returned true
      */
-    public static List<File> getFiles(Path folder, BiFunction<File, Directories.FileType, Boolean> filter, Directories.OnTxnErr onTxnErr)
+    public static List<File> getFiles(Path folder, BiPredicate<File, Directories.FileType> filter, Directories.OnTxnErr onTxnErr)
     {
         return new LogAwareFileLister(folder, filter, onTxnErr).list();
     }

@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.File;
 import java.util.*;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 
 import com.google.common.base.Throwables;
@@ -32,6 +33,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.UUIDGen;
@@ -61,21 +63,22 @@ public class Upgrader
         this.controller = new UpgradeController(cfs);
 
         this.strategyManager = cfs.getCompactionStrategyManager();
-        long estimatedTotalKeys = Math.max(cfs.metadata.params.minIndexInterval, SSTableReader.getApproximateKeyCount(Arrays.asList(this.sstable)));
+        long estimatedTotalKeys = Math.max(cfs.metadata().params.minIndexInterval, SSTableReader.getApproximateKeyCount(Arrays.asList(this.sstable)));
         long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(Arrays.asList(this.sstable)) / strategyManager.getMaxSSTableBytes());
         this.estimatedRows = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
     }
 
-    private SSTableWriter createCompactionWriter(long repairedAt)
+    private SSTableWriter createCompactionWriter(long repairedAt, UUID parentRepair)
     {
         MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.getComparator());
         sstableMetadataCollector.sstableLevel(sstable.getSSTableLevel());
-        return SSTableWriter.create(Descriptor.fromFilename(cfs.getSSTablePath(directory)),
+        return SSTableWriter.create(cfs.newSSTableDescriptor(directory),
                                     estimatedRows,
                                     repairedAt,
+                                    parentRepair,
                                     cfs.metadata,
                                     sstableMetadataCollector,
-                                    SerializationHeader.make(cfs.metadata, Sets.newHashSet(sstable)),
+                                    SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)),
                                     cfs.indexManager.listIndexes(),
                                     transaction);
     }
@@ -88,7 +91,8 @@ public class Upgrader
              AbstractCompactionStrategy.ScannerList scanners = strategyManager.getScanners(transaction.originals());
              CompactionIterator iter = new CompactionIterator(transaction.opType(), scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID()))
         {
-            writer.switchWriter(createCompactionWriter(sstable.getSSTableMetadata().repairedAt));
+            StatsMetadata metadata = sstable.getSSTableMetadata();
+            writer.switchWriter(createCompactionWriter(metadata.repairedAt, metadata.pendingRepair));
             while (iter.hasNext())
                 writer.append(iter.next());
 
@@ -113,7 +117,7 @@ public class Upgrader
         }
 
         @Override
-        public Predicate<Long> getPurgeEvaluator(DecoratedKey key)
+        public LongPredicate getPurgeEvaluator(DecoratedKey key)
         {
             return time -> false;
         }

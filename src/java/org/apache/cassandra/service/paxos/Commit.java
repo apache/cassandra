@@ -22,20 +22,17 @@ package org.apache.cassandra.service.paxos;
 
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -55,7 +52,7 @@ public class Commit
         this.update = update;
     }
 
-    public static Commit newPrepare(DecoratedKey key, CFMetaData metadata, UUID ballot)
+    public static Commit newPrepare(DecoratedKey key, TableMetadata metadata, UUID ballot)
     {
         return new Commit(ballot, PartitionUpdate.emptyUpdate(metadata, key));
     }
@@ -66,7 +63,7 @@ public class Commit
         return new Commit(ballot, update);
     }
 
-    public static Commit emptyCommit(DecoratedKey key, CFMetaData metadata)
+    public static Commit emptyCommit(DecoratedKey key, TableMetadata metadata)
     {
         return new Commit(UUIDGen.minTimeUUID(0), PartitionUpdate.emptyUpdate(metadata, key));
     }
@@ -113,32 +110,20 @@ public class Commit
     {
         public void serialize(Commit commit, DataOutputPlus out, int version) throws IOException
         {
-            if (version < MessagingService.VERSION_30)
-                ByteBufferUtil.writeWithShortLength(commit.update.partitionKey().getKey(), out);
-
             UUIDSerializer.serializer.serialize(commit.ballot, out, version);
             PartitionUpdate.serializer.serialize(commit.update, out, version);
         }
 
         public Commit deserialize(DataInputPlus in, int version) throws IOException
         {
-            ByteBuffer key = null;
-            if (version < MessagingService.VERSION_30)
-                key = ByteBufferUtil.readWithShortLength(in);
-
             UUID ballot = UUIDSerializer.serializer.deserialize(in, version);
-            PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, SerializationHelper.Flag.LOCAL, key);
+            PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, SerializationHelper.Flag.LOCAL);
             return new Commit(ballot, update);
         }
 
         public long serializedSize(Commit commit, int version)
         {
-            int size = 0;
-            if (version < MessagingService.VERSION_30)
-                size += ByteBufferUtil.serializedSizeWithShortLength(commit.update.partitionKey().getKey());
-
-            return size
-                 + UUIDSerializer.serializer.serializedSize(commit.ballot, version)
+            return UUIDSerializer.serializer.serializedSize(commit.ballot, version)
                  + PartitionUpdate.serializer.serializedSize(commit.update, version);
         }
     }

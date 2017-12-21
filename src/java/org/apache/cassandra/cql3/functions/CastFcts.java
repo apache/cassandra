@@ -46,6 +46,8 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.transport.ProtocolVersion;
 
+import static org.apache.cassandra.cql3.functions.TimeFcts.*;
+
 import org.apache.commons.lang3.text.WordUtils;
 
 /**
@@ -93,14 +95,14 @@ public final class CastFcts
         functions.add(CastAsTextFunction.create(BooleanType.instance, AsciiType.instance));
         functions.add(CastAsTextFunction.create(BooleanType.instance, UTF8Type.instance));
 
-        functions.add(CassandraFunctionWrapper.create(TimeUUIDType.instance, SimpleDateType.instance, TimeFcts.timeUuidtoDate));
-        functions.add(CassandraFunctionWrapper.create(TimeUUIDType.instance, TimestampType.instance, TimeFcts.timeUuidToTimestamp));
+        functions.add(CassandraFunctionWrapper.create(TimeUUIDType.instance, SimpleDateType.instance, toDate(TimeUUIDType.instance)));
+        functions.add(CassandraFunctionWrapper.create(TimeUUIDType.instance, TimestampType.instance, toTimestamp(TimeUUIDType.instance)));
         functions.add(CastAsTextFunction.create(TimeUUIDType.instance, AsciiType.instance));
         functions.add(CastAsTextFunction.create(TimeUUIDType.instance, UTF8Type.instance));
-        functions.add(CassandraFunctionWrapper.create(TimestampType.instance, SimpleDateType.instance, TimeFcts.timestampToDate));
+        functions.add(CassandraFunctionWrapper.create(TimestampType.instance, SimpleDateType.instance, toDate(TimestampType.instance)));
         functions.add(CastAsTextFunction.create(TimestampType.instance, AsciiType.instance));
         functions.add(CastAsTextFunction.create(TimestampType.instance, UTF8Type.instance));
-        functions.add(CassandraFunctionWrapper.create(SimpleDateType.instance, TimestampType.instance, TimeFcts.dateToTimestamp));
+        functions.add(CassandraFunctionWrapper.create(SimpleDateType.instance, TimestampType.instance, toTimestamp(SimpleDateType.instance)));
         functions.add(CastAsTextFunction.create(SimpleDateType.instance, AsciiType.instance));
         functions.add(CastAsTextFunction.create(SimpleDateType.instance, UTF8Type.instance));
         functions.add(CastAsTextFunction.create(TimeType.instance, AsciiType.instance));

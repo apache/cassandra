@@ -30,20 +30,19 @@ import org.junit.Test;
 
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.metrics.CacheMetrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.schema.CachingParams;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertNull;
-import org.apache.cassandra.utils.Pair;
 
 
 public class KeyCacheCqlTest extends CQLTester
@@ -120,9 +119,9 @@ public class KeyCacheCqlTest extends CQLTester
     }
 
     @Override
-    protected void createIndex(String query)
+    protected String createIndex(String query)
     {
-        createFormattedIndex(formatQuery(KEYSPACE_PER_TEST, query));
+        return createFormattedIndex(formatQuery(KEYSPACE_PER_TEST, query));
     }
 
     @Override
@@ -247,8 +246,8 @@ public class KeyCacheCqlTest extends CQLTester
         String table = createTable("CREATE TABLE %s ("
                                    + commonColumnsDef
                                    + "PRIMARY KEY ((part_key_a, part_key_b),clust_key_a,clust_key_b,clust_key_c))");
-        createIndex("CREATE INDEX some_index ON %s (col_int)");
-        insertData(table, "some_index", true);
+        String indexName = createIndex("CREATE INDEX ON %s (col_int)");
+        insertData(table, indexName, true);
         clearCache();
 
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
@@ -301,11 +300,6 @@ public class KeyCacheCqlTest extends CQLTester
             assertEquals(500, result.size());
         }
 
-        //Test Schema.getColumnFamilyStoreIncludingIndexes, several null check paths
-        //are defensive and unreachable
-        assertNull(Schema.instance.getColumnFamilyStoreIncludingIndexes(Pair.create("foo", "bar")));
-        assertNull(Schema.instance.getColumnFamilyStoreIncludingIndexes(Pair.create(KEYSPACE_PER_TEST, "bar")));
-
         dropTable("DROP TABLE %s");
         Schema.instance.updateVersion();
 
@@ -337,8 +331,8 @@ public class KeyCacheCqlTest extends CQLTester
         String table = createTable("CREATE TABLE %s ("
                                    + commonColumnsDef
                                    + "PRIMARY KEY ((part_key_a, part_key_b),clust_key_a,clust_key_b,clust_key_c))");
-        createIndex("CREATE INDEX some_index ON %s (col_int)");
-        insertData(table, "some_index", true);
+        String indexName = createIndex("CREATE INDEX ON %s (col_int)");
+        insertData(table, indexName, true);
         clearCache();
 
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
@@ -386,8 +380,9 @@ public class KeyCacheCqlTest extends CQLTester
         while(iter.hasNext())
         {
             KeyCacheKey key = iter.next();
-            Assert.assertFalse(key.ksAndCFName.left.equals("KEYSPACE_PER_TEST"));
-            Assert.assertFalse(key.ksAndCFName.right.startsWith(table));
+            TableMetadataRef tableMetadataRef = Schema.instance.getTableMetadataRef(key.tableId);
+            Assert.assertFalse(tableMetadataRef.keyspace.equals("KEYSPACE_PER_TEST"));
+            Assert.assertFalse(tableMetadataRef.name.startsWith(table));
         }
     }
 

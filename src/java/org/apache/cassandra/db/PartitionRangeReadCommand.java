@@ -24,7 +24,7 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.lifecycle.View;
@@ -46,7 +46,6 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.pager.*;
-import org.apache.cassandra.thrift.ThriftResultsMerger;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
@@ -62,22 +61,20 @@ public class PartitionRangeReadCommand extends ReadCommand
     private int oldestUnrepairedTombstone = Integer.MAX_VALUE;
 
     private PartitionRangeReadCommand(boolean isDigest,
-                                      int digestVersion,
-                                      boolean isForThrift,
-                                      CFMetaData metadata,
-                                      int nowInSec,
-                                      ColumnFilter columnFilter,
-                                      RowFilter rowFilter,
-                                      DataLimits limits,
-                                      DataRange dataRange,
-                                      IndexMetadata index)
+                                     int digestVersion,
+                                     TableMetadata metadata,
+                                     int nowInSec,
+                                     ColumnFilter columnFilter,
+                                     RowFilter rowFilter,
+                                     DataLimits limits,
+                                     DataRange dataRange,
+                                     IndexMetadata index)
     {
-        super(Kind.PARTITION_RANGE, isDigest, digestVersion, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, index);
+        super(Kind.PARTITION_RANGE, isDigest, digestVersion, metadata, nowInSec, columnFilter, rowFilter, limits, index);
         this.dataRange = dataRange;
     }
 
-    public static PartitionRangeReadCommand create(boolean isForThrift,
-                                                   CFMetaData metadata,
+    public static PartitionRangeReadCommand create(TableMetadata metadata,
                                                    int nowInSec,
                                                    ColumnFilter columnFilter,
                                                    RowFilter rowFilter,
@@ -86,7 +83,6 @@ public class PartitionRangeReadCommand extends ReadCommand
     {
         return new PartitionRangeReadCommand(false,
                                              0,
-                                             isForThrift,
                                              metadata,
                                              nowInSec,
                                              columnFilter,
@@ -104,9 +100,10 @@ public class PartitionRangeReadCommand extends ReadCommand
      *
      * @return a newly created read command that queries everything in the table.
      */
-    public static PartitionRangeReadCommand allDataRead(CFMetaData metadata, int nowInSec)
+    public static PartitionRangeReadCommand allDataRead(TableMetadata metadata, int nowInSec)
     {
-        return new PartitionRangeReadCommand(false, 0, false,
+        return new PartitionRangeReadCommand(false,
+                                             0,
                                              metadata,
                                              nowInSec,
                                              ColumnFilter.all(metadata),
@@ -155,7 +152,6 @@ public class PartitionRangeReadCommand extends ReadCommand
         // on the ring.
         return new PartitionRangeReadCommand(isDigestQuery(),
                                              digestVersion(),
-                                             isForThrift(),
                                              metadata(),
                                              nowInSec(),
                                              columnFilter(),
@@ -169,7 +165,6 @@ public class PartitionRangeReadCommand extends ReadCommand
     {
         return new PartitionRangeReadCommand(isDigestQuery(),
                                              digestVersion(),
-                                             isForThrift(),
                                              metadata(),
                                              nowInSec(),
                                              columnFilter(),
@@ -183,7 +178,6 @@ public class PartitionRangeReadCommand extends ReadCommand
     {
         return new PartitionRangeReadCommand(true,
                                              digestVersion(),
-                                             isForThrift(),
                                              metadata(),
                                              nowInSec(),
                                              columnFilter(),
@@ -197,7 +191,6 @@ public class PartitionRangeReadCommand extends ReadCommand
     {
         return new PartitionRangeReadCommand(isDigestQuery(),
                                              digestVersion(),
-                                             isForThrift(),
                                              metadata(),
                                              nowInSec(),
                                              columnFilter(),
@@ -207,25 +200,10 @@ public class PartitionRangeReadCommand extends ReadCommand
                                              indexMetadata());
     }
 
-    public PartitionRangeReadCommand withUpdatedDataRange(DataRange newDataRange)
-    {
-        return new PartitionRangeReadCommand(isDigestQuery(),
-                                             digestVersion(),
-                                             isForThrift(),
-                                             metadata(),
-                                             nowInSec(),
-                                             columnFilter(),
-                                             rowFilter(),
-                                             limits(),
-                                             newDataRange,
-                                             indexMetadata());
-    }
-
     public PartitionRangeReadCommand withUpdatedLimitsAndDataRange(DataLimits newLimits, DataRange newDataRange)
     {
         return new PartitionRangeReadCommand(isDigestQuery(),
                                              digestVersion(),
-                                             isForThrift(),
                                              metadata(),
                                              nowInSec(),
                                              columnFilter(),
@@ -245,7 +223,7 @@ public class PartitionRangeReadCommand extends ReadCommand
         if (!dataRange().contains(key))
             return false;
 
-        return rowFilter().partitionKeyRestrictionsAreSatisfiedBy(key, metadata().getKeyValidator());
+        return rowFilter().partitionKeyRestrictionsAreSatisfiedBy(key, metadata().partitionKeyType);
     }
 
     public boolean selectsClustering(DecoratedKey key, Clustering clustering)
@@ -277,7 +255,7 @@ public class PartitionRangeReadCommand extends ReadCommand
     public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
         ColumnFamilyStore.ViewFragment view = cfs.select(View.selectLive(dataRange().keyRange()));
-        Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), dataRange().keyRange().getString(metadata().getKeyValidator()));
+        Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), dataRange().keyRange().getString(metadata().partitionKeyType));
 
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
         final List<UnfilteredPartitionIterator> iterators = new ArrayList<>(Iterables.size(view.memtables) + view.sstables.size());
@@ -287,22 +265,22 @@ public class PartitionRangeReadCommand extends ReadCommand
             for (Memtable memtable : view.memtables)
             {
                 @SuppressWarnings("resource") // We close on exception and on closing the result returned by this method
-                Memtable.MemtableUnfilteredPartitionIterator iter = memtable.makePartitionIterator(columnFilter(), dataRange(), isForThrift());
+                Memtable.MemtableUnfilteredPartitionIterator iter = memtable.makePartitionIterator(columnFilter(), dataRange());
                 oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, iter.getMinLocalDeletionTime());
-                iterators.add(isForThrift() ? ThriftResultsMerger.maybeWrap(iter, metadata(), nowInSec()) : iter);
+                iterators.add(iter);
             }
 
             SSTableReadsListener readCountUpdater = newReadCountUpdater();
             for (SSTableReader sstable : view.sstables)
             {
                 @SuppressWarnings("resource") // We close on exception and on closing the result returned by this method
-                UnfilteredPartitionIterator iter = sstable.getScanner(columnFilter(), dataRange(), isForThrift(), readCountUpdater);
-                iterators.add(isForThrift() ? ThriftResultsMerger.maybeWrap(iter, metadata(), nowInSec()) : iter);
+                UnfilteredPartitionIterator iter = sstable.getScanner(columnFilter(), dataRange(), readCountUpdater);
+                iterators.add(iter);
                 if (!sstable.isRepaired())
                     oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, sstable.getMinLocalDeletionTime());
             }
             // iterators can be empty for offline tools
-            return iterators.isEmpty() ? EmptyIterators.unfilteredPartition(metadata(), isForThrift())
+            return iterators.isEmpty() ? EmptyIterators.unfilteredPartition(metadata())
                                        : checkCacheFilter(UnfilteredPartitionIterators.mergeLazily(iterators, nowInSec()), cfs);
         }
         catch (RuntimeException | Error e)
@@ -357,7 +335,11 @@ public class PartitionRangeReadCommand extends ReadCommand
                 CachedPartition cached = cfs.getRawCachedPartition(dk);
                 ClusteringIndexFilter filter = dataRange().clusteringIndexFilter(dk);
 
-                if (cached != null && cfs.isFilterFullyCoveredBy(filter, limits(), cached, nowInSec()))
+                if (cached != null && cfs.isFilterFullyCoveredBy(filter,
+                                                                 limits(),
+                                                                 cached,
+                                                                 nowInSec(),
+                                                                 iter.metadata().enforceStrictLiveness()))
                 {
                     // We won't use 'iter' so close it now.
                     iter.close();
@@ -371,11 +353,9 @@ public class PartitionRangeReadCommand extends ReadCommand
         return Transformation.apply(iter, new CacheFilter());
     }
 
-    public MessageOut<ReadCommand> createMessage(int version)
+    public MessageOut<ReadCommand> createMessage()
     {
-        return dataRange().isPaging()
-             ? new MessageOut<>(MessagingService.Verb.PAGED_RANGE, this, pagedRangeSerializer)
-             : new MessageOut<>(MessagingService.Verb.RANGE_SLICE, this, rangeSliceSerializer);
+        return new MessageOut<>(MessagingService.Verb.RANGE_SLICE, this, serializer);
     }
 
     protected void appendCQLWhereClause(StringBuilder sb)
@@ -403,7 +383,7 @@ public class PartitionRangeReadCommand extends ReadCommand
      */
     public PartitionIterator postReconciliationProcessing(PartitionIterator result)
     {
-        ColumnFamilyStore cfs = Keyspace.open(metadata().ksName).getColumnFamilyStore(metadata().cfName);
+        ColumnFamilyStore cfs = Keyspace.open(metadata().keyspace).getColumnFamilyStore(metadata().name);
         Index index = getIndex(cfs);
         return index == null ? result : index.postProcessorFor(this).apply(result, this);
     }
@@ -418,9 +398,8 @@ public class PartitionRangeReadCommand extends ReadCommand
     @Override
     public String toString()
     {
-        return String.format("Read(%s.%s columns=%s rowfilter=%s limits=%s %s)",
-                             metadata().ksName,
-                             metadata().cfName,
+        return String.format("Read(%s columns=%s rowfilter=%s limits=%s %s)",
+                             metadata().toString(),
                              columnFilter(),
                              rowFilter(),
                              limits(),
@@ -456,8 +435,7 @@ public class PartitionRangeReadCommand extends ReadCommand
                                        int version,
                                        boolean isDigest,
                                        int digestVersion,
-                                       boolean isForThrift,
-                                       CFMetaData metadata,
+                                       TableMetadata metadata,
                                        int nowInSec,
                                        ColumnFilter columnFilter,
                                        RowFilter rowFilter,
@@ -466,7 +444,7 @@ public class PartitionRangeReadCommand extends ReadCommand
         throws IOException
         {
             DataRange range = DataRange.serializer.deserialize(in, version, metadata);
-            return new PartitionRangeReadCommand(isDigest, digestVersion, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, range, index);
+            return new PartitionRangeReadCommand(isDigest, digestVersion, metadata, nowInSec, columnFilter, rowFilter, limits, range, index);
         }
     }
 }

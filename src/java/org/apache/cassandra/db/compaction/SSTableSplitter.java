@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.*;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 
 import org.apache.cassandra.db.*;
@@ -98,7 +99,7 @@ public class SSTableSplitter
         }
 
         @Override
-        public Predicate<Long> getPurgeEvaluator(DecoratedKey key)
+        public LongPredicate getPurgeEvaluator(DecoratedKey key)
         {
             return time -> false;
         }

@@ -49,7 +49,6 @@ public class OffsetAwareConfigurationLoader extends YamlConfigurationLoader
 
         String sep = File.pathSeparator;
 
-        config.rpc_port += offset;
         config.native_transport_port += offset;
         config.storage_port += offset;
 

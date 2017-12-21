@@ -42,9 +42,10 @@ public class SlidingTimeRate
 
     /**
      * Creates a sliding rate whose time window is of the given size, with the given precision and time unit.
-     * <br/>
+     * <p>
      * The precision defines how accurate the rate computation is, as it will be computed over window size +/-
      * precision.
+     * </p>
      */
     public SlidingTimeRate(TimeSource timeSource, long size, long precision, TimeUnit unit)
     {

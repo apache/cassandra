@@ -25,6 +25,7 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
@@ -54,7 +55,7 @@ public abstract class Cell extends ColumnData
 
     public static final Serializer serializer = new BufferCell.Serializer();
 
-    protected Cell(ColumnDefinition column)
+    protected Cell(ColumnMetadata column)
     {
         super(column);
     }
@@ -130,7 +131,7 @@ public abstract class Cell extends ColumnData
      */
     public abstract CellPath path();
 
-    public abstract Cell withUpdatedColumn(ColumnDefinition newColumn);
+    public abstract Cell withUpdatedColumn(ColumnMetadata newColumn);
 
     public abstract Cell withUpdatedValue(ByteBuffer newValue);
 
@@ -171,7 +172,7 @@ public abstract class Cell extends ColumnData
         private final static int USE_ROW_TIMESTAMP_MASK      = 0x08; // Wether the cell has the same timestamp than the row this is a cell of.
         private final static int USE_ROW_TTL_MASK            = 0x10; // Wether the cell has the same ttl than the row this is a cell of.
 
-        public void serialize(Cell cell, ColumnDefinition column, DataOutputPlus out, LivenessInfo rowLiveness, SerializationHeader header) throws IOException
+        public void serialize(Cell cell, ColumnMetadata column, DataOutputPlus out, LivenessInfo rowLiveness, SerializationHeader header) throws IOException
         {
             assert cell != null;
             boolean hasValue = cell.value().hasRemaining();
@@ -210,7 +211,7 @@ public abstract class Cell extends ColumnData
                 header.getType(column).writeValue(cell.value(), out);
         }
 
-        public Cell deserialize(DataInputPlus in, LivenessInfo rowLiveness, ColumnDefinition column, SerializationHeader header, SerializationHelper helper) throws IOException
+        public Cell deserialize(DataInputPlus in, LivenessInfo rowLiveness, ColumnMetadata column, SerializationHeader header, SerializationHelper helper) throws IOException
         {
             int flags = in.readUnsignedByte();
             boolean hasValue = (flags & HAS_EMPTY_VALUE_MASK) == 0;
@@ -251,7 +252,7 @@ public abstract class Cell extends ColumnData
             return new BufferCell(column, timestamp, ttl, localDeletionTime, value, path);
         }
 
-        public long serializedSize(Cell cell, ColumnDefinition column, LivenessInfo rowLiveness, SerializationHeader header)
+        public long serializedSize(Cell cell, ColumnMetadata column, LivenessInfo rowLiveness, SerializationHeader header)
         {
             long size = 1; // flags
             boolean hasValue = cell.value().hasRemaining();
@@ -278,7 +279,7 @@ public abstract class Cell extends ColumnData
         }
 
         // Returns if the skipped cell was an actual cell (i.e. it had its presence flag).
-        public boolean skip(DataInputPlus in, ColumnDefinition column, SerializationHeader header) throws IOException
+        public boolean skip(DataInputPlus in, ColumnMetadata column, SerializationHeader header) throws IOException
         {
             int flags = in.readUnsignedByte();
             boolean hasValue = (flags & HAS_EMPTY_VALUE_MASK) == 0;

@@ -28,7 +28,6 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -69,12 +68,13 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
     public void switchCompactionLocation(Directories.DataDirectory directory)
     {
         @SuppressWarnings("resource")
-        SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getSSTablePath(getDirectories().getLocationForDisk(directory))),
+        SSTableWriter writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(directory)),
                                                     estimatedTotalKeys,
                                                     minRepairedAt,
+                                                    pendingRepair,
                                                     cfs.metadata,
-                                                    new MetadataCollector(txn.originals(), cfs.metadata.comparator, sstableLevel),
-                                                    SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
+                                                    new MetadataCollector(txn.originals(), cfs.metadata().comparator, sstableLevel),
+                                                    SerializationHeader.make(cfs.metadata(), nonExpiredSSTables),
                                                     cfs.indexManager.listIndexes(),
                                                     txn);
         sstableWriter.switchWriter(writer);

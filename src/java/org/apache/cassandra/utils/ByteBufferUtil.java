@@ -411,6 +411,15 @@ public class ByteBufferUtil
         return bytes;
     }
 
+    public static byte[] readBytesWithLength(DataInput in) throws IOException
+    {
+        int length = in.readInt();
+        if (length < 0)
+            throw new IOException("Corrupt (negative) value length encountered");
+
+        return readBytes(in, length);
+    }
+
     /**
      * Convert a byte buffer to an integer.
      * Does not change the byte buffer position.
@@ -435,6 +444,18 @@ public class ByteBufferUtil
         return bytes.getShort(bytes.position());
     }
 
+    /**
+     * Convert a byte buffer to a short.
+     * Does not change the byte buffer position.
+     *
+     * @param bytes byte buffer to convert to byte
+     * @return byte representation of the byte buffer
+     */
+    public static byte toByte(ByteBuffer bytes)
+    {
+        return bytes.get(bytes.position());
+    }
+
     public static long toLong(ByteBuffer bytes)
     {
         return bytes.getLong(bytes.position());
@@ -448,6 +469,11 @@ public class ByteBufferUtil
     public static double toDouble(ByteBuffer bytes)
     {
         return bytes.getDouble(bytes.position());
+    }
+
+    public static ByteBuffer bytes(byte b)
+    {
+        return ByteBuffer.allocate(1).put(0, b);
     }
 
     public static ByteBuffer bytes(short s)

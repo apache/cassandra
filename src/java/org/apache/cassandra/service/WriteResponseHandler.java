@@ -68,6 +68,10 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
     {
         if (responsesUpdater.decrementAndGet(this) == 0)
             signal();
+        //Must be last after all subclass processing
+        //The two current subclasses both assume logResponseToIdealCLDelegate is called
+        //here.
+        logResponseToIdealCLDelegate(m);
     }
 
     protected int ackCount()

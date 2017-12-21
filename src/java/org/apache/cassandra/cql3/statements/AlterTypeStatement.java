@@ -17,17 +17,16 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 
@@ -86,7 +85,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
 
     public Event.SchemaChange announceMigration(QueryState queryState, boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
-        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(name.getKeyspace());
+        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(name.getKeyspace());
         if (ksm == null)
             throw new InvalidRequestException(String.format("Cannot alter type in unknown keyspace %s", name.getKeyspace()));
 
@@ -100,132 +99,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         // but we also need to find all existing user types and CF using it and change them.
         MigrationManager.announceTypeUpdate(updated, isLocalOnly);
 
-        for (CFMetaData cfm : ksm.tables)
-        {
-            CFMetaData copy = cfm.copy();
-            boolean modified = false;
-            for (ColumnDefinition def : copy.allColumns())
-                modified |= updateDefinition(copy, def, toUpdate.keyspace, toUpdate.name, updated);
-            if (modified)
-                MigrationManager.announceColumnFamilyUpdate(copy, isLocalOnly);
-        }
-
-        for (ViewDefinition view : ksm.views)
-        {
-            ViewDefinition copy = view.copy();
-            boolean modified = false;
-            for (ColumnDefinition def : copy.metadata.allColumns())
-                modified |= updateDefinition(copy.metadata, def, toUpdate.keyspace, toUpdate.name, updated);
-            if (modified)
-                MigrationManager.announceViewUpdate(copy, isLocalOnly);
-        }
-
-        // Other user types potentially using the updated type
-        for (UserType ut : ksm.types)
-        {
-            // Re-updating the type we've just updated would be harmless but useless so we avoid it.
-            // Besides, we use the occasion to drop the old version of the type if it's a type rename
-            if (ut.keyspace.equals(toUpdate.keyspace) && ut.name.equals(toUpdate.name))
-            {
-                if (!ut.keyspace.equals(updated.keyspace) || !ut.name.equals(updated.name))
-                    MigrationManager.announceTypeDrop(ut);
-                continue;
-            }
-            AbstractType<?> upd = updateWith(ut, toUpdate.keyspace, toUpdate.name, updated);
-            if (upd != null)
-                MigrationManager.announceTypeUpdate((UserType) upd, isLocalOnly);
-        }
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TYPE, keyspace(), name.getStringTypeName());
-    }
-
-    private boolean updateDefinition(CFMetaData cfm, ColumnDefinition def, String keyspace, ByteBuffer toReplace, UserType updated)
-    {
-        AbstractType<?> t = updateWith(def.type, keyspace, toReplace, updated);
-        if (t == null)
-            return false;
-
-        // We need to update this validator ...
-        cfm.addOrReplaceColumnDefinition(def.withNewType(t));
-        return true;
-    }
-
-    // Update the provided type were all instance of a given userType is replaced by a new version
-    // Note that this methods reaches inside other UserType, CompositeType and CollectionType.
-    private static AbstractType<?> updateWith(AbstractType<?> type, String keyspace, ByteBuffer toReplace, UserType updated)
-    {
-        if (type instanceof UserType)
-        {
-            UserType ut = (UserType)type;
-
-            // If it's directly the type we've updated, then just use the new one.
-            if (keyspace.equals(ut.keyspace) && toReplace.equals(ut.name))
-                return type.isMultiCell() ? updated : updated.freeze();
-
-            // Otherwise, check for nesting
-            List<AbstractType<?>> updatedTypes = updateTypes(ut.fieldTypes(), keyspace, toReplace, updated);
-            return updatedTypes == null ? null : new UserType(ut.keyspace, ut.name, new ArrayList<>(ut.fieldNames()), updatedTypes, type.isMultiCell());
-        }
-        else if (type instanceof TupleType)
-        {
-            TupleType tt = (TupleType)type;
-            List<AbstractType<?>> updatedTypes = updateTypes(tt.allTypes(), keyspace, toReplace, updated);
-            return updatedTypes == null ? null : new TupleType(updatedTypes);
-        }
-        else if (type instanceof CompositeType)
-        {
-            CompositeType ct = (CompositeType)type;
-            List<AbstractType<?>> updatedTypes = updateTypes(ct.types, keyspace, toReplace, updated);
-            return updatedTypes == null ? null : CompositeType.getInstance(updatedTypes);
-        }
-        else if (type instanceof CollectionType)
-        {
-            if (type instanceof ListType)
-            {
-                AbstractType<?> t = updateWith(((ListType)type).getElementsType(), keyspace, toReplace, updated);
-                if (t == null)
-                    return null;
-                return ListType.getInstance(t, type.isMultiCell());
-            }
-            else if (type instanceof SetType)
-            {
-                AbstractType<?> t = updateWith(((SetType)type).getElementsType(), keyspace, toReplace, updated);
-                if (t == null)
-                    return null;
-                return SetType.getInstance(t, type.isMultiCell());
-            }
-            else
-            {
-                assert type instanceof MapType;
-                MapType mt = (MapType)type;
-                AbstractType<?> k = updateWith(mt.getKeysType(), keyspace, toReplace, updated);
-                AbstractType<?> v = updateWith(mt.getValuesType(), keyspace, toReplace, updated);
-                if (k == null && v == null)
-                    return null;
-                return MapType.getInstance(k == null ? mt.getKeysType() : k, v == null ? mt.getValuesType() : v, type.isMultiCell());
-            }
-        }
-        else
-        {
-            return null;
-        }
-    }
-
-    private static List<AbstractType<?>> updateTypes(List<AbstractType<?>> toUpdate, String keyspace, ByteBuffer toReplace, UserType updated)
-    {
-        // But this can also be nested.
-        List<AbstractType<?>> updatedTypes = null;
-        for (int i = 0; i < toUpdate.size(); i++)
-        {
-            AbstractType<?> t = updateWith(toUpdate.get(i), keyspace, toReplace, updated);
-            if (t == null)
-                continue;
-
-            if (updatedTypes == null)
-                updatedTypes = new ArrayList<>(toUpdate);
-
-            updatedTypes.set(i, t);
-        }
-        return updatedTypes;
     }
 
     protected void checkTypeNotUsedByAggregate(KeyspaceMetadata ksm)

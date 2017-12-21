@@ -17,9 +17,9 @@
 Configuring Cassandra
 ---------------------
 
-For running Cassandra on a single node, the steps above are enough, you don't really need to change any configuration.
-However, when you deploy a cluster of nodes, or use clients that are not on the same host, then there are some
-parameters that must be changed.
+For running Cassandra on a single node, the default configuration file present at ``./conf/cassandra.yaml`` is enough, 
+you shouldn't need to change any configuration. However, when you deploy a cluster of nodes, or use clients that 
+are not on the same host, then there are some parameters that must be changed.
 
 The Cassandra configuration files can be found in the ``conf`` directory of tarballs. For packages, the configuration
 files will be located in ``/etc/cassandra``.

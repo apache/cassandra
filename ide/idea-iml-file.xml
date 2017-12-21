@@ -26,7 +26,6 @@
             <sourceFolder url="file://$MODULE_DIR$/src/java" isTestSource="false" />
             <sourceFolder url="file://$MODULE_DIR$/src/gen-java" isTestSource="false" />
             <sourceFolder url="file://$MODULE_DIR$/src/resources" type="java-resource" />
-            <sourceFolder url="file://$MODULE_DIR$/interface/thrift/gen-java" isTestSource="false" />
             <sourceFolder url="file://$MODULE_DIR$/tools/stress/src" isTestSource="false" />
             <sourceFolder url="file://$MODULE_DIR$/tools/stress/test/unit" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/unit" isTestSource="true" />

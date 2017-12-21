@@ -89,7 +89,7 @@ public abstract class BufferManagingRebufferer implements Rebufferer, Rebufferer
     @Override
     public String toString()
     {
-        return "BufferManagingRebufferer." + getClass().getSimpleName() + ":" + source.toString();
+        return "BufferManagingRebufferer." + getClass().getSimpleName() + ":" + source;
     }
 
     // BufferHolder methods

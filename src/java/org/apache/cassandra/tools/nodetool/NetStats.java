@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.command.Command;
-import io.airlift.command.Option;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 import java.util.Set;
 
@@ -47,7 +47,7 @@ public class NetStats extends NodeToolCmd
             System.out.println("Not sending any streams.");
         for (StreamState status : statuses)
         {
-            System.out.printf("%s %s%n", status.description, status.planId.toString());
+            System.out.printf("%s %s%n", status.streamOperation.getDescription(), status.planId.toString());
             for (SessionInfo info : status.sessions)
             {
                 System.out.printf("    %s", info.peer.toString());

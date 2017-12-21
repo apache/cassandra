@@ -21,7 +21,6 @@ import java.net.InetAddress;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-
 import javax.management.ListenerNotFoundException;
 import javax.management.MBeanNotificationInfo;
 import javax.management.NotificationFilter;
@@ -136,7 +135,7 @@ public class StreamManager implements StreamManagerMBean
         initiatedStreams.put(result.planId, result);
     }
 
-    public void registerReceiving(final StreamResultFuture result)
+    public StreamResultFuture registerReceiving(final StreamResultFuture result)
     {
         result.addEventListener(notifier);
         // Make sure we remove the stream on completion (whether successful or not)
@@ -148,7 +147,8 @@ public class StreamManager implements StreamManagerMBean
             }
         }, MoreExecutors.directExecutor());
 
-        receivingStreams.put(result.planId, result);
+        StreamResultFuture previous = receivingStreams.putIfAbsent(result.planId, result);
+        return previous ==  null ? result : previous;
     }
 
     public StreamResultFuture getReceivingStream(UUID planId)
@@ -174,5 +174,23 @@ public class StreamManager implements StreamManagerMBean
     public MBeanNotificationInfo[] getNotificationInfo()
     {
         return notifier.getNotificationInfo();
+    }
+
+    public StreamSession findSession(InetAddress peer, UUID planId, int sessionIndex)
+    {
+        StreamSession session = findSession(initiatedStreams, peer, planId, sessionIndex);
+        if (session !=  null)
+            return session;
+
+        return findSession(receivingStreams, peer, planId, sessionIndex);
+    }
+
+    private StreamSession findSession(Map<UUID, StreamResultFuture> streams, InetAddress peer, UUID planId, int sessionIndex)
+    {
+        StreamResultFuture streamResultFuture = streams.get(planId);
+        if (streamResultFuture == null)
+            return null;
+
+        return streamResultFuture.getSession(peer, sessionIndex);
     }
 }

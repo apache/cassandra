@@ -22,6 +22,7 @@ import java.util.Map;
 
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.MD5Digest;
@@ -46,9 +47,9 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
         return result;
     }
 
-    public ResultMessage.Prepared prepare(String query, QueryState state, Map<String, ByteBuffer> customPayload)
+    public ResultMessage.Prepared prepare(String query, ClientState clientState, Map<String, ByteBuffer> customPayload)
     {
-        ResultMessage.Prepared prepared = queryProcessor.prepare(query, state, customPayload);
+        ResultMessage.Prepared prepared = queryProcessor.prepare(query, clientState, customPayload);
         prepared.setCustomPayload(customPayload);
         return prepared;
     }
@@ -56,11 +57,6 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
     public ParsedStatement.Prepared getPrepared(MD5Digest id)
     {
         return queryProcessor.getPrepared(id);
-    }
-
-    public ParsedStatement.Prepared getPreparedForThrift(Integer id)
-    {
-        return queryProcessor.getPreparedForThrift(id);
     }
 
     public ResultMessage processPrepared(CQLStatement statement,

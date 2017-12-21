@@ -20,13 +20,13 @@ package org.apache.cassandra.net;
 import java.net.InetAddress;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.slf4j.Logger;
@@ -63,7 +63,10 @@ public class RateBasedBackPressure implements BackPressureStrategy<RateBasedBack
     protected final long windowSize;
 
     private final Cache<Set<RateBasedBackPressureState>, IntervalRateLimiter> rateLimiters =
-            CacheBuilder.newBuilder().expireAfterAccess(1, TimeUnit.HOURS).build();
+            Caffeine.newBuilder()
+                    .expireAfterAccess(1, TimeUnit.HOURS)
+                    .executor(MoreExecutors.directExecutor())
+                    .build();
 
     enum Flow
     {
@@ -217,42 +220,35 @@ public class RateBasedBackPressure implements BackPressureStrategy<RateBasedBack
         // Now find the rate limiter corresponding to the replica group represented by these back-pressure states:
         if (!states.isEmpty())
         {
-            try
-            {
-                // Get the rate limiter:
-                IntervalRateLimiter rateLimiter = rateLimiters.get(states, () -> new IntervalRateLimiter(timeSource));
+            // Get the rate limiter:
+            IntervalRateLimiter rateLimiter = rateLimiters.get(states, key -> new IntervalRateLimiter(timeSource));
 
-                // If the back-pressure was updated and we acquire the interval lock for the rate limiter of this group:
-                if (isUpdated && rateLimiter.tryIntervalLock(windowSize))
+            // If the back-pressure was updated and we acquire the interval lock for the rate limiter of this group:
+            if (isUpdated && rateLimiter.tryIntervalLock(windowSize))
+            {
+                try
                 {
-                    try
-                    {
-                        // Update the rate limiter value based on the configured flow:
-                        if (flow.equals(Flow.FAST))
-                            rateLimiter.limiter = currentMax;
-                        else
-                            rateLimiter.limiter = currentMin;
+                    // Update the rate limiter value based on the configured flow:
+                    if (flow.equals(Flow.FAST))
+                        rateLimiter.limiter = currentMax;
+                    else
+                        rateLimiter.limiter = currentMin;
 
-                        tenSecsNoSpamLogger.info("{} currently applied for remote replicas: {}", rateLimiter.limiter, states);
-                    }
-                    finally
-                    {
-                        rateLimiter.releaseIntervalLock();
-                    }
+                    tenSecsNoSpamLogger.info("{} currently applied for remote replicas: {}", rateLimiter.limiter, states);
                 }
-                // Assigning a single rate limiter per replica group once per window size allows the back-pressure rate
-                // limiting to be stable within the group itself.
+                finally
+                {
+                    rateLimiter.releaseIntervalLock();
+                }
+            }
+            // Assigning a single rate limiter per replica group once per window size allows the back-pressure rate
+            // limiting to be stable within the group itself.
 
-                // Finally apply the rate limit with a max pause time equal to the provided timeout minus the
-                // response time computed from the incoming rate, to reduce the number of client timeouts by taking into
-                // account how long it could take to process responses after back-pressure:
-                long responseTimeInNanos = (long) (TimeUnit.NANOSECONDS.convert(1, TimeUnit.SECONDS) / minIncomingRate);
-                doRateLimit(rateLimiter.limiter, Math.max(0, TimeUnit.NANOSECONDS.convert(timeout, unit) - responseTimeInNanos));
-            }
-            catch (ExecutionException ex)
-            {
-                throw new IllegalStateException(ex);
-            }
+            // Finally apply the rate limit with a max pause time equal to the provided timeout minus the
+            // response time computed from the incoming rate, to reduce the number of client timeouts by taking into
+            // account how long it could take to process responses after back-pressure:
+            long responseTimeInNanos = (long) (TimeUnit.NANOSECONDS.convert(1, TimeUnit.SECONDS) / minIncomingRate);
+            doRateLimit(rateLimiter.limiter, Math.max(0, TimeUnit.NANOSECONDS.convert(timeout, unit) - responseTimeInNanos));
         }
     }
 

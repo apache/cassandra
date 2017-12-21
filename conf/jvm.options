@@ -53,17 +53,8 @@
 # before joining the ring.
 #-Dcassandra.ring_delay_ms=ms
 
-# Set the port for the Thrift RPC service, which is used for client connections. (Default: 9160)
-#-Dcassandra.rpc_port=port
-
 # Set the SSL port for encrypted communication. (Default: 7001)
 #-Dcassandra.ssl_storage_port=port
-
-# Enable or disable the native transport server. See start_native_transport in cassandra.yaml.
-# cassandra.start_native_transport=true|false
-
-# Enable or disable the Thrift RPC server. (Default: true)
-#-Dcassandra.start_rpc=true/false
 
 # Set the port for inter-node communication. (Default: 7000)
 #-Dcassandra.storage_port=port
@@ -85,6 +76,9 @@
 # 10000 rows per page.
 #-Dcassandra.force_default_indexing_page_size=true
 
+# Imposes an upper bound on hint lifetime below the normal min gc_grace_seconds
+#-Dcassandra.maxHintTTL=max_hint_ttl_in_seconds
+
 ########################
 # GENERAL JVM SETTINGS #
 ########################
@@ -92,13 +86,17 @@
 # enable assertions. highly suggested for correct application functionality.
 -ea
 
+# disable assertions for net.openhft.** because it runs out of memory by design
+# if enabled and run for more than just brief testing
+-da:net.openhft...
+
 # enable thread priorities, primarily so we can give periodic tasks
 # a lower priority to avoid interfering with client workload
 -XX:+UseThreadPriorities
 
 # allows lowering thread priority without being root on linux - probably
 # not necessary on Windows but doesn't harm anything.
-# see http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workar
+# see http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workaround.html
 -XX:ThreadPriorityPolicy=42
 
 # Enable heap-dump if there's an OOM

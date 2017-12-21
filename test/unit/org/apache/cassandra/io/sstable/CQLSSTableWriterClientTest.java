@@ -23,7 +23,6 @@ import java.io.IOException;
 
 import com.google.common.io.Files;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 

@@ -20,9 +20,9 @@ package org.apache.cassandra.tools.nodetool;
 import static com.google.common.collect.Iterables.toArray;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.apache.commons.lang3.StringUtils.join;
-import io.airlift.command.Arguments;
-import io.airlift.command.Command;
-import io.airlift.command.Option;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,9 +40,18 @@ public class ClearSnapshot extends NodeToolCmd
     @Option(title = "snapshot_name", name = "-t", description = "Remove the snapshot with a given name")
     private String snapshotName = EMPTY;
 
+    @Option(title = "clear_all_snapshots", name = "--all", description = "Removes all snapshots")
+    private boolean clearAllSnapshots = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
+        if(snapshotName.isEmpty() && !clearAllSnapshots)
+            throw new RuntimeException("Specify snapshot name or --all");
+
+        if(!snapshotName.isEmpty() && clearAllSnapshots)
+            throw new RuntimeException("Specify only one of snapshot name or --all");
+
         StringBuilder sb = new StringBuilder();
 
         sb.append("Requested clearing snapshot(s) for ");
@@ -52,7 +61,9 @@ public class ClearSnapshot extends NodeToolCmd
         else
             sb.append("[").append(join(keyspaces, ", ")).append("]");
 
-        if (!snapshotName.isEmpty())
+        if (snapshotName.isEmpty())
+            sb.append(" with [all snapshots]");
+        else
             sb.append(" with snapshot name [").append(snapshotName).append("]");
 
         System.out.println(sb.toString());

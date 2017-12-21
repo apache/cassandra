@@ -22,8 +22,8 @@ import java.util.*;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.utils.MergeIterator;
@@ -70,7 +70,7 @@ public abstract class Rows
      * only argument.
      * @return a newly created builder.
      */
-    public static Row.SimpleBuilder simpleBuilder(CFMetaData metadata, Object... clusteringValues)
+    public static Row.SimpleBuilder simpleBuilder(TableMetadata metadata, Object... clusteringValues)
     {
         return new SimpleBuilders.RowBuilder(metadata, clusteringValues);
     }
@@ -172,7 +172,7 @@ public abstract class Rows
                     ColumnData input = inputDatas[i];
                     if (mergedData != null || input != null)
                     {
-                        ColumnDefinition column = (mergedData != null ? mergedData : input).column;
+                        ColumnMetadata column = (mergedData != null ? mergedData : input).column;
                         if (column.isSimple())
                         {
                             diffListener.onCell(i, clustering, (Cell) mergedData, (Cell) input);
@@ -297,8 +297,7 @@ public abstract class Rows
             int comparison = nexta == null ? 1 : nextb == null ? -1 : nexta.column.compareTo(nextb.column);
             ColumnData cura = comparison <= 0 ? nexta : null;
             ColumnData curb = comparison >= 0 ? nextb : null;
-            ColumnDefinition column = getColumnDefinition(cura, curb);
-
+            ColumnMetadata column = getColumnMetadata(cura, curb);
             if (column.isSimple())
             {
                 timeDelta = Math.min(timeDelta, Cells.reconcile((Cell) cura, (Cell) curb, deletion, builder, nowInSec));
@@ -367,7 +366,7 @@ public abstract class Rows
             if (comparison <= 0)
             {
                 ColumnData cura = nexta;
-                ColumnDefinition column = cura.column;
+                ColumnMetadata column = cura.column;
                 ColumnData curb = comparison == 0 ? nextb : null;
                 if (column.isSimple())
                 {
@@ -406,10 +405,10 @@ public abstract class Rows
     }
 
     /**
-     * Returns the {@code ColumnDefinition} to use for merging the columns.
-     * If the 2 column definitions are different the latest one will be returned.
+     * Returns the {@code ColumnMetadata} to use for merging the columns.
+     * If the 2 column metadata are different the latest one will be returned.
      */
-    private static ColumnDefinition getColumnDefinition(ColumnData cura, ColumnData curb)
+    private static ColumnMetadata getColumnMetadata(ColumnData cura, ColumnData curb)
     {
         if (cura == null)
             return curb.column;

@@ -19,7 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.ClusteringBoundOrBoundary;
 
 public abstract class AbstractRangeTombstoneMarker<B extends ClusteringBoundOrBoundary> implements RangeTombstoneMarker
@@ -56,7 +56,7 @@ public abstract class AbstractRangeTombstoneMarker<B extends ClusteringBoundOrBo
         return bound.isClose(reversed);
     }
 
-    public void validateData(CFMetaData metadata)
+    public void validateData(TableMetadata metadata)
     {
         ClusteringBoundOrBoundary bound = clustering();
         for (int i = 0; i < bound.size(); i++)
@@ -67,11 +67,11 @@ public abstract class AbstractRangeTombstoneMarker<B extends ClusteringBoundOrBo
         }
     }
 
-    public String toString(CFMetaData metadata, boolean fullDetails)
+    public String toString(TableMetadata metadata, boolean fullDetails)
     {
         return toString(metadata);
     }
-    public String toString(CFMetaData metadata, boolean includeClusteringKeys, boolean fullDetails)
+    public String toString(TableMetadata metadata, boolean includeClusteringKeys, boolean fullDetails)
     {
         return toString(metadata);
     }

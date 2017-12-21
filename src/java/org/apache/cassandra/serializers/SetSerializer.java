@@ -21,25 +21,27 @@ package org.apache.cassandra.serializers;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.cassandra.transport.ProtocolVersion;
+
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SetSerializer<T> extends CollectionSerializer<Set<T>>
 {
     // interning instances
-    private static final Map<TypeSerializer<?>, SetSerializer> instances = new HashMap<TypeSerializer<?>, SetSerializer>();
+    private static final ConcurrentMap<TypeSerializer<?>, SetSerializer> instances = new ConcurrentHashMap<TypeSerializer<?>, SetSerializer>();
 
     public final TypeSerializer<T> elements;
     private final Comparator<ByteBuffer> comparator;
 
-    public static synchronized <T> SetSerializer<T> getInstance(TypeSerializer<T> elements, Comparator<ByteBuffer> elementComparator)
+    public static <T> SetSerializer<T> getInstance(TypeSerializer<T> elements, Comparator<ByteBuffer> elementComparator)
     {
         SetSerializer<T> t = instances.get(elements);
         if (t == null)
-        {
-            t = new SetSerializer<T>(elements, elementComparator);
-            instances.put(elements, t);
-        }
+            t = instances.computeIfAbsent(elements, k -> new SetSerializer<>(k, elementComparator) );
         return t;
     }
 
@@ -136,5 +138,89 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
     public Class<Set<T>> getType()
     {
         return (Class) Set.class;
+    }
+
+    public ByteBuffer getSerializedValue(ByteBuffer collection, ByteBuffer key, AbstractType<?> comparator)
+    {
+        try
+        {
+            ByteBuffer input = collection.duplicate();
+            int n = readCollectionSize(input, ProtocolVersion.V3);
+            for (int i = 0; i < n; i++)
+            {
+                ByteBuffer value = readValue(input, ProtocolVersion.V3);
+                int comparison = comparator.compareForCQL(value, key);
+                if (comparison == 0)
+                    return value;
+                else if (comparison > 0)
+                    // since the set is in sorted order, we know we've gone too far and the element doesn't exist
+                    return null;
+                // else, we're before the element so continue
+            }
+            return null;
+        }
+        catch (BufferUnderflowException e)
+        {
+            throw new MarshalException("Not enough bytes to read a set");
+        }
+    }
+
+    public ByteBuffer getSliceFromSerialized(ByteBuffer collection, ByteBuffer from, ByteBuffer to, AbstractType<?> comparator)
+    {
+        if (from == ByteBufferUtil.UNSET_BYTE_BUFFER && to == ByteBufferUtil.UNSET_BYTE_BUFFER)
+            return collection;
+
+        try
+        {
+            ByteBuffer input = collection.duplicate();
+            int n = readCollectionSize(input, ProtocolVersion.V3);
+            int startPos = input.position();
+            int count = 0;
+            boolean inSlice = from == ByteBufferUtil.UNSET_BYTE_BUFFER;
+
+            for (int i = 0; i < n; i++)
+            {
+                int pos = input.position();
+                ByteBuffer value = readValue(input, ProtocolVersion.V3);
+
+                // If we haven't passed the start already, check if we have now
+                if (!inSlice)
+                {
+                    int comparison = comparator.compareForCQL(from, value);
+                    if (comparison <= 0)
+                    {
+                        // We're now within the slice
+                        inSlice = true;
+                        startPos = pos;
+                    }
+                    else
+                    {
+                        // We're before the slice so we know we don't care about this value
+                        continue;
+                    }
+                }
+
+                // Now check if we're done
+                int comparison = to == ByteBufferUtil.UNSET_BYTE_BUFFER ? -1 : comparator.compareForCQL(value, to);
+                if (comparison > 0)
+                {
+                    // We're done and shouldn't include the value we just read
+                    input.position(pos);
+                    break;
+                }
+
+                // Otherwise, we'll include that value
+                ++count;
+
+                // But if we know if was the last of the slice, we break early
+                if (comparison == 0)
+                    break;
+            }
+            return copyAsNewCollection(collection, count, startPos, input.position(), ProtocolVersion.V3);
+        }
+        catch (BufferUnderflowException e)
+        {
+            throw new MarshalException("Not enough bytes to read a set");
+        }
     }
 }

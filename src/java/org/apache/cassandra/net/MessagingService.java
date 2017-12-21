@@ -1,4 +1,4 @@
-/*
+    /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,43 +17,64 @@
  */
 package org.apache.cassandra.net;
 
-import java.io.*;
+import java.io.IOError;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.net.*;
-import java.nio.channels.AsynchronousCloseException;
-import java.nio.channels.ClosedChannelException;
-import java.nio.channels.ServerSocketChannel;
-import java.util.*;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
-import javax.net.ssl.SSLHandshakeException;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.carrotsearch.hppc.IntObjectMap;
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
+import io.netty.channel.Channel;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
+import org.apache.cassandra.auth.IInternodeAuthenticator;
+import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.concurrent.ExecutorLocals;
+import org.apache.cassandra.concurrent.LocalAwareExecutorService;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.concurrent.LocalAwareExecutorService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.batchlog.Batch;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.CounterMutation;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.db.SnapshotCommand;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.TruncateResponse;
+import org.apache.cassandra.db.Truncation;
+import org.apache.cassandra.db.WriteResponse;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
@@ -68,38 +89,43 @@ import org.apache.cassandra.hints.HintResponse;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.metrics.DroppedMessageMetrics;
 import org.apache.cassandra.metrics.MessagingMetrics;
+import org.apache.cassandra.net.async.OutboundMessagingPool;
+import org.apache.cassandra.net.async.NettyFactory;
+import org.apache.cassandra.net.async.NettyFactory.InboundInitializer;
 import org.apache.cassandra.repair.messages.RepairMessage;
-import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.service.*;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.AbstractWriteResponseHandler;
+import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PrepareResponse;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.BooleanSerializer;
+import org.apache.cassandra.utils.ExpiringMap;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.StatusLogger;
+import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 public final class MessagingService implements MessagingServiceMBean
 {
-    // Required to allow schema migrations while upgrading within the minor 3.0.x/3.x versions to 3.11+.
-    // See CASSANDRA-13004 for details.
-    public final static boolean FORCE_3_0_PROTOCOL_VERSION = Boolean.getBoolean("cassandra.force_3_0_protocol_version");
-
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=MessagingService";
 
     // 8 bits version, so don't waste versions
-    public static final int VERSION_12 = 6;
-    public static final int VERSION_20 = 7;
-    public static final int VERSION_21 = 8;
-    public static final int VERSION_22 = 9;
     public static final int VERSION_30 = 10;
     public static final int VERSION_3014 = 11;
-    public static final int current_version = FORCE_3_0_PROTOCOL_VERSION ? VERSION_30 : VERSION_3014;
+    public static final int VERSION_40 = 12;
+    public static final int current_version = VERSION_40;
 
     public static final String FAILURE_CALLBACK_PARAM = "CAL_BAC";
     public static final byte[] ONE_BYTE = new byte[1];
@@ -110,9 +136,6 @@ public final class MessagingService implements MessagingServiceMBean
      * we preface every message with this number so the recipient can validate the sender is sane
      */
     public static final int PROTOCOL_MAGIC = 0xCA552DFA;
-
-    private boolean allNodesAtLeast22 = true;
-    private boolean allNodesAtLeast30 = true;
 
     public final MessagingMetrics metrics = new MessagingMetrics();
 
@@ -242,23 +265,42 @@ public final class MessagingService implements MessagingServiceMBean
         UNUSED_5,
         ;
 
-        // This is to support a "late" choice of the verb based on the messaging service version.
-        // See CASSANDRA-12249 for more details.
-        public static Verb convertForMessagingServiceVersion(Verb verb, int version)
+        private int id;
+        Verb()
         {
-            if (verb == PAGED_RANGE && version >= VERSION_30)
-                return RANGE_SLICE;
+            id = ordinal();
+        }
 
-            return verb;
+        /**
+         * Unused, but it is an extension point for adding custom verbs
+         * @param id
+         */
+        Verb(int id)
+        {
+            this.id = id;
         }
 
         public long getTimeout()
         {
             return DatabaseDescriptor.getRpcTimeout();
         }
-    }
 
-    public static final Verb[] verbValues = Verb.values();
+        public int getId()
+        {
+            return id;
+        }
+        private static final IntObjectMap<Verb> idToVerbMap = new IntObjectOpenHashMap<>(values().length);
+        static
+        {
+            for (Verb v : values())
+                idToVerbMap.put(v.getId(), v);
+        }
+
+        public static Verb fromId(int id)
+        {
+            return idToVerbMap.get(id);
+        }
+    }
 
     public static final EnumMap<MessagingService.Verb, Stage> verbStages = new EnumMap<MessagingService.Verb, Stage>(MessagingService.Verb.class)
     {{
@@ -310,7 +352,7 @@ public final class MessagingService implements MessagingServiceMBean
     }};
 
     /**
-     * Messages we receive in IncomingTcpConnection have a Verb that tells us what kind of message it is.
+     * Messages we receive from peers have a Verb that tells us what kind of message it is.
      * Most of the time, this is enough to determine how to deserialize the message payload.
      * The exception is the REQUEST_RESPONSE verb, which just means "a reply to something you told me to do."
      * Traditionally, this was fine since each VerbHandler knew what type of payload it expected, and
@@ -318,16 +360,16 @@ public final class MessagingService implements MessagingServiceMBean
      * intermediary byte[] (See CASSANDRA-3716), we need to wire that up to the CallbackInfo object
      * (see below).
      */
-    public final EnumMap<Verb, IVersionedSerializer<?>> verbSerializers = new EnumMap<Verb, IVersionedSerializer<?>>(Verb.class)
+    public static final EnumMap<Verb, IVersionedSerializer<?>> verbSerializers = new EnumMap<Verb, IVersionedSerializer<?>>(Verb.class)
     {{
         put(Verb.REQUEST_RESPONSE, CallbackDeterminedSerializer.instance);
         put(Verb.INTERNAL_RESPONSE, CallbackDeterminedSerializer.instance);
 
         put(Verb.MUTATION, Mutation.serializer);
         put(Verb.READ_REPAIR, Mutation.serializer);
-        put(Verb.READ, ReadCommand.readSerializer);
-        put(Verb.RANGE_SLICE, ReadCommand.rangeSliceSerializer);
-        put(Verb.PAGED_RANGE, ReadCommand.pagedRangeSerializer);
+        put(Verb.READ, ReadCommand.serializer);
+        put(Verb.RANGE_SLICE, ReadCommand.serializer);
+        put(Verb.PAGED_RANGE, ReadCommand.serializer);
         put(Verb.BOOTSTRAP_TOKEN, BootStrapper.StringSerializer.instance);
         put(Verb.REPAIR_MESSAGE, RepairMessage.serializer);
         put(Verb.GOSSIP_DIGEST_ACK, GossipDigestAck.serializer);
@@ -356,8 +398,8 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.HINT, HintResponse.serializer);
         put(Verb.READ_REPAIR, WriteResponse.serializer);
         put(Verb.COUNTER_MUTATION, WriteResponse.serializer);
-        put(Verb.RANGE_SLICE, ReadResponse.rangeSliceSerializer);
-        put(Verb.PAGED_RANGE, ReadResponse.rangeSliceSerializer);
+        put(Verb.RANGE_SLICE, ReadResponse.serializer);
+        put(Verb.PAGED_RANGE, ReadResponse.serializer);
         put(Verb.READ, ReadResponse.serializer);
         put(Verb.TRUNCATE, TruncateResponse.serializer);
         put(Verb.SNAPSHOT, null);
@@ -404,12 +446,13 @@ public final class MessagingService implements MessagingServiceMBean
     /* Lookup table for registering message handlers based on the verb. */
     private final Map<Verb, IVerbHandler> verbHandlers;
 
-    private final ConcurrentMap<InetAddress, OutboundTcpConnectionPool> connectionManagers = new NonBlockingHashMap<>();
+    @VisibleForTesting
+    public final ConcurrentMap<InetAddress, OutboundMessagingPool> channelManagers = new NonBlockingHashMap<>();
+    final List<ServerChannel> serverChannels = Lists.newArrayList();
 
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
     private static final int LOG_DROPPED_INTERVAL_IN_MS = 5000;
 
-    private final List<SocketThread> socketThreads = Lists.newArrayList();
     private final SimpleCondition listenGate;
 
     /**
@@ -519,7 +562,7 @@ public final class MessagingService implements MessagingServiceMBean
                 maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, pair.right.timeout);
 
                 ConnectionMetrics.totalTimeouts.mark();
-                getConnectionPool(expiredCallbackInfo.target).incrementTimeout();
+                markTimeout(expiredCallbackInfo.target);
 
                 if (expiredCallbackInfo.callback.supportsBackPressure())
                 {
@@ -590,8 +633,9 @@ public final class MessagingService implements MessagingServiceMBean
     {
         if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
         {
-            BackPressureState backPressureState = getConnectionPool(host).getBackPressureState();
-            backPressureState.onMessageSent(message);
+            BackPressureState backPressureState = getBackPressureState(host);
+            if (backPressureState != null)
+                backPressureState.onMessageSent(message);
         }
     }
 
@@ -606,7 +650,9 @@ public final class MessagingService implements MessagingServiceMBean
     {
         if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
         {
-            BackPressureState backPressureState = getConnectionPool(host).getBackPressureState();
+            BackPressureState backPressureState = getBackPressureState(host);
+            if (backPressureState == null)
+                return;
             if (!timeout)
                 backPressureState.onResponseReceived();
             else
@@ -627,11 +673,30 @@ public final class MessagingService implements MessagingServiceMBean
     {
         if (DatabaseDescriptor.backPressureEnabled())
         {
-            backPressure.apply(StreamSupport.stream(hosts.spliterator(), false)
-                    .filter(h -> !h.equals(FBUtilities.getBroadcastAddress()))
-                    .map(h -> getConnectionPool(h).getBackPressureState())
-                    .collect(Collectors.toSet()), timeoutInNanos, TimeUnit.NANOSECONDS);
+            Set<BackPressureState> states = new HashSet<BackPressureState>();
+            for (InetAddress host : hosts)
+            {
+                if (host.equals(FBUtilities.getBroadcastAddress()))
+                    continue;
+                OutboundMessagingPool pool = getMessagingConnection(host);
+                if (pool != null)
+                    states.add(pool.getBackPressureState());
+            }
+            backPressure.apply(states, timeoutInNanos, TimeUnit.NANOSECONDS);
         }
+    }
+
+    BackPressureState getBackPressureState(InetAddress host)
+    {
+        OutboundMessagingPool messagingConnection = getMessagingConnection(host);
+        return messagingConnection != null ? messagingConnection.getBackPressureState() : null;
+    }
+
+    void markTimeout(InetAddress addr)
+    {
+        OutboundMessagingPool conn = channelManagers.get(addr);
+        if (conn != null)
+            conn.incrementTimeout();
     }
 
     /**
@@ -659,19 +724,27 @@ public final class MessagingService implements MessagingServiceMBean
     public void convict(InetAddress ep)
     {
         logger.trace("Resetting pool for {}", ep);
-        getConnectionPool(ep).reset();
+        reset(ep);
     }
 
     public void listen()
     {
+        listen(DatabaseDescriptor.getServerEncryptionOptions());
+    }
+
+    public void listen(ServerEncryptionOptions serverEncryptionOptions)
+    {
         callbacks.reset(); // hack to allow tests to stop/restart MS
-        listen(FBUtilities.getLocalAddress());
-        if (DatabaseDescriptor.shouldListenOnBroadcastAddress()
-            && !FBUtilities.getLocalAddress().equals(FBUtilities.getBroadcastAddress()))
-        {
-            listen(FBUtilities.getBroadcastAddress());
-        }
+        listen(FBUtilities.getLocalAddress(), serverEncryptionOptions);
+        if (shouldListenOnBroadcastAddress())
+            listen(FBUtilities.getBroadcastAddress(), serverEncryptionOptions);
         listenGate.signalAll();
+    }
+
+    public static boolean shouldListenOnBroadcastAddress()
+    {
+        return DatabaseDescriptor.shouldListenOnBroadcastAddress()
+               && !FBUtilities.getLocalAddress().equals(FBUtilities.getBroadcastAddress());
     }
 
     /**
@@ -679,82 +752,103 @@ public final class MessagingService implements MessagingServiceMBean
      *
      * @param localEp InetAddress whose port to listen on.
      */
-    private void listen(InetAddress localEp) throws ConfigurationException
+    private void listen(InetAddress localEp, ServerEncryptionOptions serverEncryptionOptions) throws ConfigurationException
     {
-        for (ServerSocket ss : getServerSockets(localEp))
+        IInternodeAuthenticator authenticator = DatabaseDescriptor.getInternodeAuthenticator();
+        int receiveBufferSize = DatabaseDescriptor.getInternodeRecvBufferSize();
+
+        // this is the legacy socket, for letting peer nodes that haven't upgrade yet connect to this node.
+        // should only occur during cluster upgrade. we can remove this block at 5.0!
+        if (serverEncryptionOptions.enabled && serverEncryptionOptions.enable_legacy_ssl_storage_port)
         {
-            SocketThread th = new SocketThread(ss, "ACCEPT-" + localEp);
-            th.start();
-            socketThreads.add(th);
+            // clone the encryption options, and explicitly set the optional field to false
+            // (do not allow non-TLS connections on the legacy ssl port)
+            ServerEncryptionOptions legacyEncOptions = new ServerEncryptionOptions(serverEncryptionOptions);
+            legacyEncOptions.optional = false;
+
+            InetSocketAddress localAddr = new InetSocketAddress(localEp, DatabaseDescriptor.getSSLStoragePort());
+            ChannelGroup channelGroup = new DefaultChannelGroup("LegacyEncryptedInternodeMessagingGroup", NettyFactory.executorForChannelGroups());
+            InboundInitializer initializer = new InboundInitializer(authenticator, legacyEncOptions, channelGroup);
+            Channel encryptedChannel = NettyFactory.instance.createInboundChannel(localAddr, initializer, receiveBufferSize);
+            serverChannels.add(new ServerChannel(encryptedChannel, channelGroup, localAddr, ServerChannel.SecurityLevel.REQUIRED));
         }
+
+        // this is for the socket that can be plain, only ssl, or optional plain/ssl
+        InetSocketAddress localAddr = new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort());
+        ChannelGroup channelGroup = new DefaultChannelGroup("InternodeMessagingGroup", NettyFactory.executorForChannelGroups());
+        InboundInitializer initializer = new InboundInitializer(authenticator, serverEncryptionOptions, channelGroup);
+        Channel channel = NettyFactory.instance.createInboundChannel(localAddr, initializer, receiveBufferSize);
+        ServerChannel.SecurityLevel securityLevel = !serverEncryptionOptions.enabled ? ServerChannel.SecurityLevel.NONE :
+                                                    serverEncryptionOptions.optional ? ServerChannel.SecurityLevel.OPTIONAL :
+                                                    ServerChannel.SecurityLevel.REQUIRED;
+        serverChannels.add(new ServerChannel(channel, channelGroup, localAddr, securityLevel));
     }
 
-    @SuppressWarnings("resource")
-    private List<ServerSocket> getServerSockets(InetAddress localEp) throws ConfigurationException
+    /**
+     * A simple struct to wrap up the the components needed for each listening socket.
+     * <p>
+     * The {@link #securityLevel} is captured independently of the {@link #channel} as there's no real way to inspect a s
+     * erver-side 'channel' to check if it using TLS or not (the channel's configured pipeline will only apply to
+     * connections that get created, so it's not inspectible). {@link #securityLevel} is really only used for testing, anyway.
+     */
+    @VisibleForTesting
+    static class ServerChannel
     {
-        final List<ServerSocket> ss = new ArrayList<ServerSocket>(2);
-        if (DatabaseDescriptor.getServerEncryptionOptions().internode_encryption != ServerEncryptionOptions.InternodeEncryption.none)
+        /**
+         * Declares the type of TLS used with the channel.
+         */
+        enum SecurityLevel { NONE, OPTIONAL, REQUIRED }
+
+        /**
+         * The base {@link Channel} that is doing the spcket listen/accept.
+         */
+        private final Channel channel;
+
+        /**
+         * A group of the open, inbound {@link Channel}s connected to this node. This is mostly interesting so that all of
+         * the inbound connections/channels can be closed when the listening socket itself is being closed.
+         */
+        private final ChannelGroup connectedChannels;
+        private final InetSocketAddress address;
+        private final SecurityLevel securityLevel;
+
+        private ServerChannel(Channel channel, ChannelGroup channelGroup, InetSocketAddress address, SecurityLevel securityLevel)
         {
-            try
-            {
-                ss.add(SSLFactory.getServerSocket(DatabaseDescriptor.getServerEncryptionOptions(), localEp, DatabaseDescriptor.getSSLStoragePort()));
-            }
-            catch (IOException e)
-            {
-                throw new ConfigurationException("Unable to create ssl socket", e);
-            }
-            // setReuseAddress happens in the factory.
-            logger.info("Starting Encrypted Messaging Service on SSL port {}", DatabaseDescriptor.getSSLStoragePort());
+            this.channel = channel;
+            this.connectedChannels = channelGroup;
+            this.address = address;
+            this.securityLevel = securityLevel;
         }
 
-        if (DatabaseDescriptor.getServerEncryptionOptions().internode_encryption != ServerEncryptionOptions.InternodeEncryption.all)
+        void close()
         {
-            ServerSocketChannel serverChannel = null;
-            try
-            {
-                serverChannel = ServerSocketChannel.open();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-            ServerSocket socket = serverChannel.socket();
-            try
-            {
-                socket.setReuseAddress(true);
-            }
-            catch (SocketException e)
-            {
-                FileUtils.closeQuietly(socket);
-                throw new ConfigurationException("Insufficient permissions to setReuseAddress", e);
-            }
-            InetSocketAddress address = new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort());
-            try
-            {
-                socket.bind(address,500);
-            }
-            catch (BindException e)
-            {
-                FileUtils.closeQuietly(socket);
-                if (e.getMessage().contains("in use"))
-                    throw new ConfigurationException(address + " is in use by another process.  Change listen_address:storage_port in cassandra.yaml to values that do not conflict with other services");
-                else if (e.getMessage().contains("Cannot assign requested address"))
-                    throw new ConfigurationException("Unable to bind to address " + address
-                                                     + ". Set listen_address in cassandra.yaml to an interface you can bind to, e.g., your private IP address on EC2");
-                else
-                    throw new RuntimeException(e);
-            }
-            catch (IOException e)
-            {
-                FileUtils.closeQuietly(socket);
-                throw new RuntimeException(e);
-            }
-            String nic = FBUtilities.getNetworkInterface(localEp);
-            logger.info("Starting Messaging Service on {}:{}{}", localEp, DatabaseDescriptor.getStoragePort(),
-                        nic == null? "" : String.format(" (%s)", nic));
-            ss.add(socket);
+            if (channel.isOpen())
+                channel.close().awaitUninterruptibly();
+            connectedChannels.close().awaitUninterruptibly();
         }
-        return ss;
+
+        int size()
+        {
+            return connectedChannels.size();
+        }
+
+        /**
+         * For testing only!
+         */
+        Channel getChannel()
+        {
+            return channel;
+        }
+
+        InetSocketAddress getAddress()
+        {
+            return address;
+        }
+
+        SecurityLevel getSecurityLevel()
+        {
+            return securityLevel;
+        }
     }
 
     public void waitUntilListening()
@@ -774,35 +868,42 @@ public final class MessagingService implements MessagingServiceMBean
         return listenGate.isSignaled();
     }
 
+
     public void destroyConnectionPool(InetAddress to)
     {
-        OutboundTcpConnectionPool cp = connectionManagers.get(to);
-        if (cp == null)
-            return;
-        cp.close();
-        connectionManagers.remove(to);
+        OutboundMessagingPool pool = channelManagers.remove(to);
+        if (pool != null)
+            pool.close(true);
     }
 
-    public OutboundTcpConnectionPool getConnectionPool(InetAddress to)
+    /**
+     * Reconnect to the peer using the given {@code addr}. Outstanding messages in each channel will be sent on the
+     * current channel. Typically this function is used for something like EC2 public IP addresses which need to be used
+     * for communication between EC2 regions.
+     *
+     * @param address IP Address to identify the peer
+     * @param preferredAddress IP Address to use (and prefer) going forward for connecting to the peer
+     */
+    public void reconnectWithNewIp(InetAddress address, InetAddress preferredAddress)
     {
-        OutboundTcpConnectionPool cp = connectionManagers.get(to);
-        if (cp == null)
-        {
-            cp = new OutboundTcpConnectionPool(to, backPressure.newState(to));
-            OutboundTcpConnectionPool existingPool = connectionManagers.putIfAbsent(to, cp);
-            if (existingPool != null)
-                cp = existingPool;
-            else
-                cp.start();
-        }
-        cp.waitForStarted();
-        return cp;
+        SystemKeyspace.updatePreferredIP(address, preferredAddress);
+
+        OutboundMessagingPool messagingPool = channelManagers.get(address);
+        if (messagingPool != null)
+            messagingPool.reconnectWithNewIp(new InetSocketAddress(preferredAddress, portFor(address)));
     }
 
-
-    public OutboundTcpConnection getConnection(InetAddress to, MessageOut msg)
+    private void reset(InetAddress address)
     {
-        return getConnectionPool(to).getConnection(msg);
+        OutboundMessagingPool messagingPool = channelManagers.remove(address);
+        if (messagingPool != null)
+            messagingPool.close(false);
+    }
+
+    public InetAddress getCurrentEndpoint(InetAddress publicAddress)
+    {
+        OutboundMessagingPool messagingPool = getMessagingConnection(publicAddress);
+        return messagingPool != null ? messagingPool.getPreferredRemoteAddr().getAddress() : null;
     }
 
     /**
@@ -952,11 +1053,9 @@ public final class MessagingService implements MessagingServiceMBean
             if (!ms.allowOutgoingMessage(message, id, to))
                 return;
 
-        // get pooled connection (really, connection queue)
-        OutboundTcpConnection connection = getConnection(to, message);
-
-        // write it
-        connection.enqueue(message, id);
+        OutboundMessagingPool outboundMessagingPool = getMessagingConnection(to);
+        if (outboundMessagingPool != null)
+            outboundMessagingPool.sendMessage(message, id);
     }
 
     public <T> AsyncOneResponse<T> sendRR(MessageOut message, InetAddress to)
@@ -981,6 +1080,11 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void shutdown()
     {
+        shutdown(false);
+    }
+
+    public void shutdown(boolean isTest)
+    {
         logger.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
         assert !StageManager.getStage(Stage.MUTATION).isShutdown();
@@ -992,21 +1096,29 @@ public final class MessagingService implements MessagingServiceMBean
         // attempt to humor tests that try to stop and restart MS
         try
         {
-            for (SocketThread th : socketThreads)
-                try
-                {
-                    th.close();
-                }
-                catch (IOException e)
-                {
-                    // see https://issues.apache.org/jira/browse/CASSANDRA-10545
-                    handleIOExceptionOnClose(e);
-                }
+            // first close the recieve channels
+            for (ServerChannel serverChannel : serverChannels)
+                serverChannel.close();
+
+            // now close the send channels
+            for (OutboundMessagingPool pool : channelManagers.values())
+                pool.close(false);
+
+            if (!isTest)
+                NettyFactory.instance.close();
         }
-        catch (IOException e)
+        catch (Exception e)
         {
             throw new IOError(e);
         }
+    }
+
+    /**
+     * For testing only!
+     */
+    void clearServerChannels()
+    {
+        serverChannels.clear();
     }
 
     public void receive(MessageIn message, int id)
@@ -1061,16 +1173,6 @@ public final class MessagingService implements MessagingServiceMBean
         return packed >>> (start + 1) - count & ~(-1 << count);
     }
 
-    public boolean areAllNodesAtLeast22()
-    {
-        return allNodesAtLeast22;
-    }
-
-    public boolean areAllNodesAtLeast30()
-    {
-        return allNodesAtLeast30;
-    }
-
     /**
      * @return the last version associated with address, or @param version if this is the first such version
      */
@@ -1078,47 +1180,14 @@ public final class MessagingService implements MessagingServiceMBean
     {
         logger.trace("Setting version {} for {}", version, endpoint);
 
-        if (version < VERSION_22)
-            allNodesAtLeast22 = false;
-        if (version < VERSION_30)
-            allNodesAtLeast30 = false;
-
         Integer v = versions.put(endpoint, version);
-
-        // if the version was increased to 2.2 or later see if the min version across the cluster has changed
-        if (v != null && (v < VERSION_30 && version >= VERSION_22))
-            refreshAllNodeMinVersions();
-
         return v == null ? version : v;
     }
 
     public void resetVersion(InetAddress endpoint)
     {
         logger.trace("Resetting version for {}", endpoint);
-        Integer removed = versions.remove(endpoint);
-        if (removed != null && Math.min(removed, current_version) <= VERSION_30)
-            refreshAllNodeMinVersions();
-    }
-
-    private void refreshAllNodeMinVersions()
-    {
-        boolean anyNodeLowerThan30 = false;
-        for (Integer version : versions.values())
-        {
-            if (version < MessagingService.VERSION_30)
-            {
-                anyNodeLowerThan30 = true;
-                allNodesAtLeast30 = false;
-            }
-
-            if (version < MessagingService.VERSION_22)
-            {
-                allNodesAtLeast22 = false;
-                return;
-            }
-        }
-        allNodesAtLeast22 = true;
-        allNodesAtLeast30 = !anyNodeLowerThan30;
+        versions.remove(endpoint);
     }
 
     /**
@@ -1203,9 +1272,9 @@ public final class MessagingService implements MessagingServiceMBean
     {
         assert mutation != null : "Mutation should not be null when updating dropped mutations count";
 
-        for (UUID columnFamilyId : mutation.getColumnFamilyIds())
+        for (TableId tableId : mutation.getTableIds())
         {
-            ColumnFamilyStore cfs = Keyspace.open(mutation.getKeyspaceName()).getColumnFamilyStore(columnFamilyId);
+            ColumnFamilyStore cfs = Keyspace.open(mutation.getKeyspaceName()).getColumnFamilyStore(tableId);
             if (cfs != null)
             {
                 cfs.metric.droppedMutations.inc();
@@ -1267,109 +1336,13 @@ public final class MessagingService implements MessagingServiceMBean
         return ret;
     }
 
-    @VisibleForTesting
-    public static class SocketThread extends Thread
-    {
-        private final ServerSocket server;
-        @VisibleForTesting
-        public final Set<Closeable> connections = Sets.newConcurrentHashSet();
-
-        SocketThread(ServerSocket server, String name)
-        {
-            super(name);
-            this.server = server;
-        }
-
-        @SuppressWarnings("resource")
-        public void run()
-        {
-            while (!server.isClosed())
-            {
-                Socket socket = null;
-                try
-                {
-                    socket = server.accept();
-                    if (!authenticate(socket))
-                    {
-                        logger.trace("remote failed to authenticate");
-                        socket.close();
-                        continue;
-                    }
-
-                    socket.setKeepAlive(true);
-                    socket.setSoTimeout(2 * OutboundTcpConnection.WAIT_FOR_VERSION_MAX_TIME);
-                    // determine the connection type to decide whether to buffer
-                    DataInputStream in = new DataInputStream(socket.getInputStream());
-                    MessagingService.validateMagic(in.readInt());
-                    int header = in.readInt();
-                    boolean isStream = MessagingService.getBits(header, 3, 1) == 1;
-                    int version = MessagingService.getBits(header, 15, 8);
-                    logger.trace("Connection version {} from {}", version, socket.getInetAddress());
-                    socket.setSoTimeout(0);
-
-                    Thread thread = isStream
-                                  ? new IncomingStreamingConnection(version, socket, connections)
-                                  : new IncomingTcpConnection(version, MessagingService.getBits(header, 2, 1) == 1, socket, connections);
-                    thread.start();
-                    connections.add((Closeable) thread);
-                }
-                catch (AsynchronousCloseException e)
-                {
-                    // this happens when another thread calls close().
-                    logger.trace("Asynchronous close seen by server thread");
-                    break;
-                }
-                catch (ClosedChannelException e)
-                {
-                    logger.trace("MessagingService server thread already closed");
-                    break;
-                }
-                catch (SSLHandshakeException e)
-                {
-                    logger.error("SSL handshake error for inbound connection from " + socket, e);
-                    FileUtils.closeQuietly(socket);
-                }
-                catch (Throwable t)
-                {
-                    logger.trace("Error reading the socket {}", socket, t);
-                    FileUtils.closeQuietly(socket);
-                }
-            }
-            logger.info("MessagingService has terminated the accept() thread");
-        }
-
-        void close() throws IOException
-        {
-            logger.trace("Closing accept() thread");
-
-            try
-            {
-                server.close();
-            }
-            catch (IOException e)
-            {
-                // see https://issues.apache.org/jira/browse/CASSANDRA-8220
-                // see https://issues.apache.org/jira/browse/CASSANDRA-12513
-                handleIOExceptionOnClose(e);
-            }
-            for (Closeable connection : connections)
-            {
-                connection.close();
-            }
-        }
-
-        private boolean authenticate(Socket socket)
-        {
-            return DatabaseDescriptor.getInternodeAuthenticator().authenticate(socket.getInetAddress(), socket.getPort());
-        }
-    }
 
     private static void handleIOExceptionOnClose(IOException e) throws IOException
     {
         // dirty hack for clean shutdown on OSX w/ Java >= 1.8.0_20
         // see https://bugs.openjdk.java.net/browse/JDK-8050499;
         // also CASSANDRA-12513
-        if ("Mac OS X".equals(System.getProperty("os.name")))
+        if (NativeLibrary.osType == NativeLibrary.OSType.MAC)
         {
             switch (e.getMessage())
             {
@@ -1384,79 +1357,73 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Integer> getLargeMessagePendingTasks()
     {
-        Map<String, Integer> pendingTasks = new HashMap<String, Integer>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessages.getPendingMessages());
+        Map<String, Integer> pendingTasks = new HashMap<String, Integer>(channelManagers.size());
+        for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
+            pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessageChannel.getPendingMessages());
         return pendingTasks;
-    }
-
-    public int getLargeMessagePendingTasks(InetAddress address)
-    {
-        OutboundTcpConnectionPool connection = connectionManagers.get(address);
-        return connection == null ? 0 : connection.largeMessages.getPendingMessages();
     }
 
     public Map<String, Long> getLargeMessageCompletedTasks()
     {
-        Map<String, Long> completedTasks = new HashMap<String, Long>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessages.getCompletedMesssages());
+        Map<String, Long> completedTasks = new HashMap<String, Long>(channelManagers.size());
+        for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
+            completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessageChannel.getCompletedMessages());
         return completedTasks;
     }
 
     public Map<String, Long> getLargeMessageDroppedTasks()
     {
-        Map<String, Long> droppedTasks = new HashMap<String, Long>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessages.getDroppedMessages());
+        Map<String, Long> droppedTasks = new HashMap<String, Long>(channelManagers.size());
+        for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
+            droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessageChannel.getDroppedMessages());
         return droppedTasks;
     }
 
     public Map<String, Integer> getSmallMessagePendingTasks()
     {
-        Map<String, Integer> pendingTasks = new HashMap<String, Integer>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessages.getPendingMessages());
+        Map<String, Integer> pendingTasks = new HashMap<String, Integer>(channelManagers.size());
+        for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
+            pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessageChannel.getPendingMessages());
         return pendingTasks;
     }
 
     public Map<String, Long> getSmallMessageCompletedTasks()
     {
-        Map<String, Long> completedTasks = new HashMap<String, Long>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessages.getCompletedMesssages());
+        Map<String, Long> completedTasks = new HashMap<String, Long>(channelManagers.size());
+        for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
+            completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessageChannel.getCompletedMessages());
         return completedTasks;
     }
 
     public Map<String, Long> getSmallMessageDroppedTasks()
     {
-        Map<String, Long> droppedTasks = new HashMap<String, Long>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessages.getDroppedMessages());
+        Map<String, Long> droppedTasks = new HashMap<String, Long>(channelManagers.size());
+        for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
+            droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessageChannel.getDroppedMessages());
         return droppedTasks;
     }
 
     public Map<String, Integer> getGossipMessagePendingTasks()
     {
-        Map<String, Integer> pendingTasks = new HashMap<String, Integer>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipMessages.getPendingMessages());
+        Map<String, Integer> pendingTasks = new HashMap<String, Integer>(channelManagers.size());
+        for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
+            pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipChannel.getPendingMessages());
         return pendingTasks;
     }
 
     public Map<String, Long> getGossipMessageCompletedTasks()
     {
-        Map<String, Long> completedTasks = new HashMap<String, Long>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipMessages.getCompletedMesssages());
+        Map<String, Long> completedTasks = new HashMap<String, Long>(channelManagers.size());
+        for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
+            completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipChannel.getCompletedMessages());
         return completedTasks;
     }
 
     public Map<String, Long> getGossipMessageDroppedTasks()
     {
-        Map<String, Long> droppedTasks = new HashMap<String, Long>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipMessages.getDroppedMessages());
+        Map<String, Long> droppedTasks = new HashMap<String, Long>(channelManagers.size());
+        for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
+            droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipChannel.getDroppedMessages());
         return droppedTasks;
     }
 
@@ -1476,8 +1443,8 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Long> getTimeoutsPerHost()
     {
-        Map<String, Long> result = new HashMap<String, Long>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry: connectionManagers.entrySet())
+        Map<String, Long> result = new HashMap<String, Long>(channelManagers.size());
+        for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
         {
             String ip = entry.getKey().getHostAddress();
             long recent = entry.getValue().getTimeouts();
@@ -1488,8 +1455,8 @@ public final class MessagingService implements MessagingServiceMBean
 
     public Map<String, Double> getBackPressurePerHost()
     {
-        Map<String, Double> map = new HashMap<>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
+        Map<String, Double> map = new HashMap<>(channelManagers.size());
+        for (Map.Entry<InetAddress, OutboundMessagingPool> entry : channelManagers.entrySet())
             map.put(entry.getKey().getHostAddress(), entry.getValue().getBackPressureState().getBackPressureRateLimit());
 
         return map;
@@ -1526,9 +1493,82 @@ public final class MessagingService implements MessagingServiceMBean
                                                    bounds.left.getPartitioner().getClass().getName()));
     }
 
-    @VisibleForTesting
-    public List<SocketThread> getSocketThreads()
+    private OutboundMessagingPool getMessagingConnection(InetAddress to)
     {
-        return socketThreads;
+        OutboundMessagingPool pool = channelManagers.get(to);
+        if (pool == null)
+        {
+            final boolean secure = isEncryptedConnection(to);
+            final int port = portFor(to, secure);
+            if (!DatabaseDescriptor.getInternodeAuthenticator().authenticate(to, port))
+                return null;
+
+            InetSocketAddress preferredRemote = new InetSocketAddress(SystemKeyspace.getPreferredIP(to), port);
+            InetSocketAddress local = new InetSocketAddress(FBUtilities.getLocalAddress(), 0);
+            ServerEncryptionOptions encryptionOptions = secure ? DatabaseDescriptor.getServerEncryptionOptions() : null;
+            IInternodeAuthenticator authenticator = DatabaseDescriptor.getInternodeAuthenticator();
+
+            pool = new OutboundMessagingPool(preferredRemote, local, encryptionOptions, backPressure.newState(to), authenticator);
+            OutboundMessagingPool existing = channelManagers.putIfAbsent(to, pool);
+            if (existing != null)
+            {
+                pool.close(false);
+                pool = existing;
+            }
+        }
+        return pool;
+    }
+
+    public int portFor(InetAddress addr)
+    {
+        final boolean secure = isEncryptedConnection(addr);
+        return portFor(addr, secure);
+    }
+
+    private int portFor(InetAddress address, boolean secure)
+    {
+        if (!secure)
+            return DatabaseDescriptor.getStoragePort();
+
+        Integer v = versions.get(address);
+        // if we don't know the version of the peer, assume it is 4.0 (or higher) as the only time is would be lower
+        // (as in a 3.x version) is during a cluster upgrade (from 3.x to 4.0). In that case the outbound connection will
+        // unfortunately fail - however the peer should connect to this node (at some point), and once we learn it's version, it'll be
+        // in versions map. thus, when we attempt to reconnect to that node, we'll have the version and we can get the correct port.
+        // we will be able to remove this logic at 5.0.
+        int version = v != null ? v.intValue() : VERSION_40;
+        return version < VERSION_40 ? DatabaseDescriptor.getSSLStoragePort() : DatabaseDescriptor.getStoragePort();
+    }
+
+    @VisibleForTesting
+    boolean isConnected(InetAddress address, MessageOut messageOut)
+    {
+        OutboundMessagingPool pool = channelManagers.get(address);
+        if (pool == null)
+            return false;
+        return pool.getConnection(messageOut).isConnected();
+    }
+
+    public static boolean isEncryptedConnection(InetAddress address)
+    {
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        switch (DatabaseDescriptor.getServerEncryptionOptions().internode_encryption)
+        {
+            case none:
+                return false; // if nothing needs to be encrypted then return immediately.
+            case all:
+                break;
+            case dc:
+                if (snitch.getDatacenter(address).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddress())))
+                    return false;
+                break;
+            case rack:
+                // for rack then check if the DC's are the same.
+                if (snitch.getRack(address).equals(snitch.getRack(FBUtilities.getBroadcastAddress()))
+                    && snitch.getDatacenter(address).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddress())))
+                    return false;
+                break;
+        }
+        return true;
     }
 }

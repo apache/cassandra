@@ -34,7 +34,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
@@ -44,6 +44,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -103,9 +104,20 @@ public class CommitLog implements CommitLogMBean
         this.archiver = archiver;
         metrics = new CommitLogMetrics();
 
-        executor = DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch
-                ? new BatchCommitLogService(this)
-                : new PeriodicCommitLogService(this);
+        switch (DatabaseDescriptor.getCommitLogSync())
+        {
+            case periodic:
+                executor = new PeriodicCommitLogService(this);
+                break;
+            case batch:
+                executor = new BatchCommitLogService(this);
+                break;
+            case group:
+                executor = new GroupCommitLogService(this);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown commitlog service type: " + DatabaseDescriptor.getCommitLogSync());
+        }
 
         segmentManager = DatabaseDescriptor.isCDCEnabled()
                          ? new CommitLogSegmentManagerCDC(this, DatabaseDescriptor.getCommitLogLocation())
@@ -134,7 +146,7 @@ public class CommitLog implements CommitLogMBean
 
         // submit all files for this segment manager for archiving prior to recovery - CASSANDRA-6904
         // The files may have already been archived by normal CommitLog operation. This may cause errors in this
-        // archiving pass, which we should not treat as serious. 
+        // archiving pass, which we should not treat as serious.
         for (File file : new File(segmentManager.storageDirectory).listFiles(unmanagedFilesFilter))
         {
             archiver.maybeArchive(file.getPath(), file.getName());
@@ -205,9 +217,9 @@ public class CommitLog implements CommitLogMBean
     /**
      * Flushes all dirty CFs, waiting for them to free and recycle any segments they were retaining
      */
-    public void forceRecycleAllSegments(Iterable<UUID> droppedCfs)
+    public void forceRecycleAllSegments(Iterable<TableId> droppedTables)
     {
-        segmentManager.forceRecycleAll(droppedCfs);
+        segmentManager.forceRecycleAll(droppedTables);
     }
 
     /**
@@ -215,7 +227,7 @@ public class CommitLog implements CommitLogMBean
      */
     public void forceRecycleAllSegments()
     {
-        segmentManager.forceRecycleAll(Collections.<UUID>emptyList());
+        segmentManager.forceRecycleAll(Collections.emptyList());
     }
 
     /**
@@ -238,9 +250,9 @@ public class CommitLog implements CommitLogMBean
      * Add a Mutation to the commit log. If CDC is enabled, this can fail.
      *
      * @param mutation the Mutation to add to the log
-     * @throws WriteTimeoutException
+     * @throws CDCWriteException
      */
-    public CommitLogPosition add(Mutation mutation) throws WriteTimeoutException
+    public CommitLogPosition add(Mutation mutation) throws CDCWriteException
     {
         assert mutation != null;
 
@@ -295,13 +307,13 @@ public class CommitLog implements CommitLogMBean
      * Modifies the per-CF dirty cursors of any commit log segments for the column family according to the position
      * given. Discards any commit log segments that are no longer used.
      *
-     * @param cfId    the column family ID that was flushed
+     * @param id         the table that was flushed
      * @param lowerBound the lowest covered replay position of the flush
      * @param lowerBound the highest covered replay position of the flush
      */
-    public void discardCompletedSegments(final UUID cfId, final CommitLogPosition lowerBound, final CommitLogPosition upperBound)
+    public void discardCompletedSegments(final TableId id, final CommitLogPosition lowerBound, final CommitLogPosition upperBound)
     {
-        logger.trace("discard completed log segments for {}-{}, table {}", lowerBound, upperBound, cfId);
+        logger.trace("discard completed log segments for {}-{}, table {}", lowerBound, upperBound, id);
 
         // Go thru the active segment files, which are ordered oldest to newest, marking the
         // flushed CF as clean, until we reach the segment file containing the CommitLogPosition passed
@@ -310,7 +322,7 @@ public class CommitLog implements CommitLogMBean
         for (Iterator<CommitLogSegment> iter = segmentManager.getActiveSegments().iterator(); iter.hasNext();)
         {
             CommitLogSegment segment = iter.next();
-            segment.markClean(cfId, lowerBound, upperBound);
+            segment.markClean(id, lowerBound, upperBound);
 
             if (segment.isUnused())
             {
@@ -363,8 +375,9 @@ public class CommitLog implements CommitLogMBean
 
     public List<String> getActiveSegmentNames()
     {
-        List<String> segmentNames = new ArrayList<>();
-        for (CommitLogSegment seg : segmentManager.getActiveSegments())
+        Collection<CommitLogSegment> segments = segmentManager.getActiveSegments();
+        List<String> segmentNames = new ArrayList<>(segments.size());
+        for (CommitLogSegment seg : segments)
             segmentNames.add(seg.getName());
         return segmentNames;
     }
@@ -430,6 +443,7 @@ public class CommitLog implements CommitLogMBean
     }
 
     /**
+     * FOR TESTING PURPOSES
      */
     public void stopUnsafe(boolean deleteSegments)
     {
@@ -447,7 +461,6 @@ public class CommitLog implements CommitLogMBean
         if (DatabaseDescriptor.isCDCEnabled() && deleteSegments)
             for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).listFiles())
                 FileUtils.deleteWithConfirm(f);
-
     }
 
     /**

@@ -18,6 +18,7 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -29,7 +30,10 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -41,7 +45,9 @@ public class FileMessageHeader
 {
     public static FileMessageHeaderSerializer serializer = new FileMessageHeaderSerializer();
 
-    public final UUID cfId;
+    public final TableId tableId;
+    public UUID planId;
+    public int sessionIndex;
     public final int sequenceNumber;
     /** SSTable version */
     public final Version version;
@@ -58,13 +64,18 @@ public class FileMessageHeader
     public final CompressionInfo compressionInfo;
     private final CompressionMetadata compressionMetadata;
     public final long repairedAt;
+    public final UUID pendingRepair;
     public final int sstableLevel;
     public final SerializationHeader.Component header;
+    public final InetAddress sender;
 
     /* cached size value */
     private transient final long size;
 
-    public FileMessageHeader(UUID cfId,
+    private FileMessageHeader(TableId tableId,
+                             InetAddress sender,
+                             UUID planId,
+                             int sessionIndex,
                              int sequenceNumber,
                              Version version,
                              SSTableFormat.Type format,
@@ -72,10 +83,14 @@ public class FileMessageHeader
                              List<Pair<Long, Long>> sections,
                              CompressionInfo compressionInfo,
                              long repairedAt,
+                             UUID pendingRepair,
                              int sstableLevel,
                              SerializationHeader.Component header)
     {
-        this.cfId = cfId;
+        this.tableId = tableId;
+        this.sender = sender;
+        this.planId = planId;
+        this.sessionIndex = sessionIndex;
         this.sequenceNumber = sequenceNumber;
         this.version = version;
         this.format = format;
@@ -84,12 +99,16 @@ public class FileMessageHeader
         this.compressionInfo = compressionInfo;
         this.compressionMetadata = null;
         this.repairedAt = repairedAt;
+        this.pendingRepair = pendingRepair;
         this.sstableLevel = sstableLevel;
         this.header = header;
         this.size = calculateSize();
     }
 
-    public FileMessageHeader(UUID cfId,
+    public FileMessageHeader(TableId tableId,
+                             InetAddress sender,
+                             UUID planId,
+                             int sessionIndex,
                              int sequenceNumber,
                              Version version,
                              SSTableFormat.Type format,
@@ -97,10 +116,14 @@ public class FileMessageHeader
                              List<Pair<Long, Long>> sections,
                              CompressionMetadata compressionMetadata,
                              long repairedAt,
+                             UUID pendingRepair,
                              int sstableLevel,
                              SerializationHeader.Component header)
     {
-        this.cfId = cfId;
+        this.tableId = tableId;
+        this.sender = sender;
+        this.planId = planId;
+        this.sessionIndex = sessionIndex;
         this.sequenceNumber = sequenceNumber;
         this.version = version;
         this.format = format;
@@ -109,6 +132,7 @@ public class FileMessageHeader
         this.compressionInfo = null;
         this.compressionMetadata = compressionMetadata;
         this.repairedAt = repairedAt;
+        this.pendingRepair = pendingRepair;
         this.sstableLevel = sstableLevel;
         this.header = header;
         this.size = calculateSize();
@@ -152,7 +176,7 @@ public class FileMessageHeader
     public String toString()
     {
         final StringBuilder sb = new StringBuilder("Header (");
-        sb.append("cfId: ").append(cfId);
+        sb.append("tableId: ").append(tableId);
         sb.append(", #").append(sequenceNumber);
         sb.append(", version: ").append(version);
         sb.append(", format: ").append(format);
@@ -160,6 +184,7 @@ public class FileMessageHeader
         sb.append(", transfer size: ").append(size());
         sb.append(", compressed?: ").append(isCompressed());
         sb.append(", repairedAt: ").append(repairedAt);
+        sb.append(", pendingRepair: ").append(pendingRepair);
         sb.append(", level: ").append(sstableLevel);
         sb.append(')');
         return sb.toString();
@@ -171,31 +196,34 @@ public class FileMessageHeader
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FileMessageHeader that = (FileMessageHeader) o;
-        return sequenceNumber == that.sequenceNumber && cfId.equals(that.cfId);
+        return sequenceNumber == that.sequenceNumber && tableId.equals(that.tableId);
     }
 
     @Override
     public int hashCode()
     {
-        int result = cfId.hashCode();
+        int result = tableId.hashCode();
         result = 31 * result + sequenceNumber;
         return result;
+    }
+
+    public void addSessionInfo(StreamSession session)
+    {
+        planId = session.planId();
+        sessionIndex = session.sessionIndex();
     }
 
     static class FileMessageHeaderSerializer
     {
         public CompressionInfo serialize(FileMessageHeader header, DataOutputPlus out, int version) throws IOException
         {
-            UUIDSerializer.serializer.serialize(header.cfId, out, version);
+            header.tableId.serialize(out);
+            CompactEndpointSerializationHelper.serialize(header.sender, out);
+            UUIDSerializer.serializer.serialize(header.planId, out, version);
+            out.writeInt(header.sessionIndex);
             out.writeInt(header.sequenceNumber);
             out.writeUTF(header.version.toString());
-
-            //We can't stream to a node that doesn't understand a new sstable format
-            if (version < StreamMessage.VERSION_22 && header.format != SSTableFormat.Type.LEGACY && header.format != SSTableFormat.Type.BIG)
-                throw new UnsupportedOperationException("Can't stream non-legacy sstables to nodes < 2.2");
-
-            if (version >= StreamMessage.VERSION_22)
-                out.writeUTF(header.format.name);
+            out.writeUTF(header.format.name);
 
             out.writeLong(header.estimatedKeys);
             out.writeInt(header.sections.size());
@@ -210,47 +238,50 @@ public class FileMessageHeader
                 compressionInfo = new CompressionInfo(header.compressionMetadata.getChunksForSections(header.sections), header.compressionMetadata.parameters);
             CompressionInfo.serializer.serialize(compressionInfo, out, version);
             out.writeLong(header.repairedAt);
+            out.writeBoolean(header.pendingRepair != null);
+            if (header.pendingRepair != null)
+            {
+                UUIDSerializer.serializer.serialize(header.pendingRepair, out, version);
+            }
             out.writeInt(header.sstableLevel);
 
-            if (version >= StreamMessage.VERSION_30 && header.version.storeRows())
-                SerializationHeader.serializer.serialize(header.version, header.header, out);
+            SerializationHeader.serializer.serialize(header.version, header.header, out);
             return compressionInfo;
         }
 
         public FileMessageHeader deserialize(DataInputPlus in, int version) throws IOException
         {
-            UUID cfId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
+            TableId tableId = TableId.deserialize(in);
+            InetAddress sender = CompactEndpointSerializationHelper.deserialize(in);
+            UUID planId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
+            int sessionIndex = in.readInt();
             int sequenceNumber = in.readInt();
             Version sstableVersion = SSTableFormat.Type.current().info.getVersion(in.readUTF());
-
-            SSTableFormat.Type format = SSTableFormat.Type.LEGACY;
-            if (version >= StreamMessage.VERSION_22)
-                format = SSTableFormat.Type.validate(in.readUTF());
+            SSTableFormat.Type format = SSTableFormat.Type.validate(in.readUTF());
 
             long estimatedKeys = in.readLong();
             int count = in.readInt();
             List<Pair<Long, Long>> sections = new ArrayList<>(count);
             for (int k = 0; k < count; k++)
                 sections.add(Pair.create(in.readLong(), in.readLong()));
-            CompressionInfo compressionInfo = CompressionInfo.serializer.deserialize(in, MessagingService.current_version);
+            CompressionInfo compressionInfo = CompressionInfo.serializer.deserialize(in, version);
             long repairedAt = in.readLong();
+            UUID pendingRepair = in.readBoolean() ? UUIDSerializer.serializer.deserialize(in, version) : null;
             int sstableLevel = in.readInt();
-            SerializationHeader.Component header = version >= StreamMessage.VERSION_30 && sstableVersion.storeRows()
-                                                 ? SerializationHeader.serializer.deserialize(sstableVersion, in)
-                                                 : null;
+            SerializationHeader.Component header =  SerializationHeader.serializer.deserialize(sstableVersion, in);
 
-            return new FileMessageHeader(cfId, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, sstableLevel, header);
+            return new FileMessageHeader(tableId, sender, planId, sessionIndex, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, pendingRepair, sstableLevel, header);
         }
 
         public long serializedSize(FileMessageHeader header, int version)
         {
-            long size = UUIDSerializer.serializer.serializedSize(header.cfId, version);
+            long size = header.tableId.serializedSize();
+            size += CompactEndpointSerializationHelper.serializedSize(header.sender);
+            size += UUIDSerializer.serializer.serializedSize(header.planId, version);
+            size += TypeSizes.sizeof(header.sessionIndex);
             size += TypeSizes.sizeof(header.sequenceNumber);
             size += TypeSizes.sizeof(header.version.toString());
-
-            if (version >= StreamMessage.VERSION_22)
-                size += TypeSizes.sizeof(header.format.name);
-
+            size += TypeSizes.sizeof(header.format.name);
             size += TypeSizes.sizeof(header.estimatedKeys);
 
             size += TypeSizes.sizeof(header.sections.size());
@@ -260,10 +291,12 @@ public class FileMessageHeader
                 size += TypeSizes.sizeof(section.right);
             }
             size += CompressionInfo.serializer.serializedSize(header.compressionInfo, version);
+            size += TypeSizes.sizeof(header.repairedAt);
+            size += TypeSizes.sizeof(header.pendingRepair != null);
+            size += header.pendingRepair != null ? UUIDSerializer.serializer.serializedSize(header.pendingRepair, version) : 0;
             size += TypeSizes.sizeof(header.sstableLevel);
 
-            if (version >= StreamMessage.VERSION_30)
-                size += SerializationHeader.serializer.serializedSize(header.version, header.header);
+            size += SerializationHeader.serializer.serializedSize(header.version, header.header);
 
             return size;
         }

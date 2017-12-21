@@ -24,6 +24,7 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 
@@ -102,7 +103,7 @@ public class DiskBoundaries
     {
         if (positions == null)
         {
-            return getBoundariesFromSSTableDirectory(sstable);
+            return getBoundariesFromSSTableDirectory(sstable.descriptor);
         }
 
         int pos = Collections.binarySearch(positions, sstable.first);
@@ -113,19 +114,14 @@ public class DiskBoundaries
     /**
      * Try to figure out location based on sstable directory
      */
-    private int getBoundariesFromSSTableDirectory(SSTableReader sstable)
+    public int getBoundariesFromSSTableDirectory(Descriptor descriptor)
     {
         for (int i = 0; i < directories.size(); i++)
         {
             Directories.DataDirectory directory = directories.get(i);
-            if (sstable.descriptor.directory.getAbsolutePath().startsWith(directory.location.getAbsolutePath()))
+            if (descriptor.directory.getAbsolutePath().startsWith(directory.location.getAbsolutePath()))
                 return i;
         }
         return 0;
-    }
-
-    public Directories.DataDirectory getCorrectDiskForSSTable(SSTableReader sstable)
-    {
-        return directories.get(getDiskIndex(sstable));
     }
 }

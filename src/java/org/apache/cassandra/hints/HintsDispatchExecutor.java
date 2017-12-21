@@ -24,7 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.RateLimiter;
@@ -50,10 +50,10 @@ final class HintsDispatchExecutor
     private final File hintsDirectory;
     private final ExecutorService executor;
     private final AtomicBoolean isPaused;
-    private final Function<InetAddress, Boolean> isAlive;
+    private final Predicate<InetAddress> isAlive;
     private final Map<UUID, Future> scheduledDispatches;
 
-    HintsDispatchExecutor(File hintsDirectory, int maxThreads, AtomicBoolean isPaused, Function<InetAddress, Boolean> isAlive)
+    HintsDispatchExecutor(File hintsDirectory, int maxThreads, AtomicBoolean isPaused, Predicate<InetAddress> isAlive)
     {
         this.hintsDirectory = hintsDirectory;
         this.isPaused = isPaused;
@@ -205,7 +205,7 @@ final class HintsDispatchExecutor
             // the goal is to bound maximum hints traffic going towards a particular node from the rest of the cluster,
             // not total outgoing hints traffic from this node - this is why the rate limiter is not shared between
             // all the dispatch tasks (as there will be at most one dispatch task for a particular host id at a time).
-            int nodesCount = Math.max(1, StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
+            int nodesCount = Math.max(1, StorageService.instance.getTokenMetadata().getSizeOfAllEndpoints() - 1);
             int throttleInKB = DatabaseDescriptor.getHintedHandoffThrottleInKB() / nodesCount;
             this.rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
         }
@@ -240,7 +240,9 @@ final class HintsDispatchExecutor
                 }
                 catch (FSReadError e)
                 {
-                    logger.error("Failed to dispatch hints file {}: file is corrupted ({})", descriptor.fileName(), e);
+                    logger.error("Failed to dispatch hints file {}: file is corrupted ({})",
+                                 descriptor.fileName(),
+                                 e.getMessage());
                     store.cleanUp(descriptor);
                     store.blacklist(descriptor);
                     throw e;
@@ -269,7 +271,7 @@ final class HintsDispatchExecutor
             File file = new File(hintsDirectory, descriptor.fileName());
             InputPosition offset = store.getDispatchOffset(descriptor);
 
-            BooleanSupplier shouldAbort = () -> !isAlive.apply(address) || isPaused.get();
+            BooleanSupplier shouldAbort = () -> !isAlive.test(address) || isPaused.get();
             try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, address, descriptor.hostId, shouldAbort))
             {
                 if (offset != null)

@@ -18,21 +18,19 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.util.Optional;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReader;
+import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.CompressedStreamReader;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
 
 /**
  * IncomingFileMessage is used to receive the part(or whole) of a SSTable data file.
@@ -42,27 +40,38 @@ public class IncomingFileMessage extends StreamMessage
     public static Serializer<IncomingFileMessage> serializer = new Serializer<IncomingFileMessage>()
     {
         @SuppressWarnings("resource")
-        public IncomingFileMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
+        public IncomingFileMessage deserialize(DataInputPlus input, int version, StreamSession session) throws IOException
         {
-            DataInputPlus input = new DataInputStreamPlus(Channels.newInputStream(in));
             FileMessageHeader header = FileMessageHeader.serializer.deserialize(input, version);
+            session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex);
+            if (session == null)
+                throw new IllegalStateException(String.format("unknown stream session: %s - %d", header.planId, header.sessionIndex));
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(header.tableId);
+            if (cfs == null)
+                throw new StreamReceiveException(session, "CF " + header.tableId + " was dropped during streaming");
+
             StreamReader reader = !header.isCompressed() ? new StreamReader(header, session)
-                    : new CompressedStreamReader(header, session);
+                                                         : new CompressedStreamReader(header, session);
 
             try
             {
-                return new IncomingFileMessage(reader.read(in), header);
+                return new IncomingFileMessage(reader.read(input), header);
             }
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);
-                throw t;
+                throw new StreamReceiveException(session, t);
             }
         }
 
         public void serialize(IncomingFileMessage message, DataOutputStreamPlus out, int version, StreamSession session)
         {
             throw new UnsupportedOperationException("Not allowed to call serialize on an incoming file");
+        }
+
+        public long serializedSize(IncomingFileMessage message, int version)
+        {
+            throw new UnsupportedOperationException("Not allowed to call serializedSize on an incoming file");
         }
     };
 
@@ -79,7 +88,8 @@ public class IncomingFileMessage extends StreamMessage
     @Override
     public String toString()
     {
-        return "File (" + header + ", file: " + sstable.getFilename() + ")";
+        String filename = sstable != null ? sstable.getFilename() : null;
+        return "File (" + header + ", file: " + filename + ")";
     }
 }
 

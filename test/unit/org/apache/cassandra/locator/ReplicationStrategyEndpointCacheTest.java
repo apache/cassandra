@@ -45,8 +45,7 @@ public class ReplicationStrategyEndpointCacheTest
     public static void defineSchema() throws Exception
     {
         SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE,
-                                    KeyspaceParams.simple(5));
+        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(5));
     }
 
     public void setup(Class stratClass, Map<String, String> strategyOptions) throws Exception

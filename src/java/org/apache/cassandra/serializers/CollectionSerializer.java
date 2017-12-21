@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class CollectionSerializer<T> implements TypeSerializer<T>
@@ -71,7 +72,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 
     protected static void writeCollectionSize(ByteBuffer output, int elements, ProtocolVersion version)
     {
-            output.putInt(elements);
+        output.putInt(elements);
     }
 
     public static int readCollectionSize(ByteBuffer input, ProtocolVersion version)
@@ -105,8 +106,61 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         return ByteBufferUtil.readBytes(input, size);
     }
 
+    protected static void skipValue(ByteBuffer input, ProtocolVersion version)
+    {
+        int size = input.getInt();
+        input.position(input.position() + size);
+    }
+
     public static int sizeOfValue(ByteBuffer value, ProtocolVersion version)
     {
         return value == null ? 4 : 4 + value.remaining();
+    }
+
+    /**
+     * Extract an element from a serialized collection.
+     * <p>
+     * Note that this is only supported to sets and maps. For sets, this mostly ends up being
+     * a check for the presence of the provide key: it will return the key if it's present and
+     * {@code null} otherwise.
+     *
+     * @param collection the serialized collection. This cannot be {@code null}.
+     * @param key the key to extract (This cannot be {@code null} nor {@code ByteBufferUtil.UNSET_BYTE_BUFFER}).
+     * @param comparator the type to use to compare the {@code key} value to those
+     * in the collection.
+     * @return the value associated with {@code key} if one exists, {@code null} otherwise
+     */
+    public abstract ByteBuffer getSerializedValue(ByteBuffer collection, ByteBuffer key, AbstractType<?> comparator);
+
+    /**
+     * Returns the slice of a collection directly from its serialized value.
+     *
+     * @param collection the serialized collection. This cannot be {@code null}.
+     * @param from the left bound of the slice to extract. This cannot be {@code null} but if this is
+     * {@code ByteBufferUtil.UNSET_BYTE_BUFFER}, then the returned slice starts at the beginning
+     * of {@code collection}.
+     * @param comparator the type to use to compare the {@code from} and {@code to} values to those
+     * in the collection.
+     * @return a valid serialized collection (possibly empty) corresponding to slice {@code [from, to]}
+     * of {@code collection}.
+     */
+    public abstract ByteBuffer getSliceFromSerialized(ByteBuffer collection, ByteBuffer from, ByteBuffer to, AbstractType<?> comparator);
+
+    /**
+     * Creates a new serialized map composed from the data from {@code input} between {@code startPos}
+     * (inclusive) and {@code endPos} (exclusive), assuming that data holds {@code count} elements.
+     */
+    protected ByteBuffer copyAsNewCollection(ByteBuffer input, int count, int startPos, int endPos, ProtocolVersion version)
+    {
+        int sizeLen = sizeOfCollectionSize(count, version);
+        if (count == 0)
+            return ByteBuffer.allocate(sizeLen);
+
+        int bodyLen = endPos - startPos;
+        ByteBuffer output = ByteBuffer.allocate(sizeLen + bodyLen);
+        writeCollectionSize(output, count, version);
+        output.position(0);
+        ByteBufferUtil.arrayCopy(input, startPos, output, sizeLen, bodyLen);
+        return output;
     }
 }

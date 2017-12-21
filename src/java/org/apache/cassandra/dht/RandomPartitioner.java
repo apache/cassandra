@@ -34,6 +34,7 @@ import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
+import org.apache.cassandra.utils.HashingUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
@@ -57,7 +58,7 @@ public class RandomPartitioner implements IPartitioner
         @Override
         protected MessageDigest initialValue()
         {
-            return FBUtilities.newMessageDigest("MD5");
+            return HashingUtils.newMessageDigest("MD5");
         }
 
         @Override

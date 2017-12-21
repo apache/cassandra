@@ -34,8 +34,8 @@ import org.junit.Test;
 
 import com.datastax.driver.core.utils.MoreFutures;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
@@ -78,7 +78,7 @@ public class HintsServiceTest
     }
 
     @Before
-    public void reinstanciateService() throws ExecutionException, InterruptedException
+    public void reinstanciateService() throws Throwable
     {
         MessagingService.instance().clearMessageSinks();
 
@@ -89,7 +89,9 @@ public class HintsServiceTest
         }
 
         failureDetector.isAlive = true;
+
         HintsService.instance = new HintsService(failureDetector);
+
         HintsService.instance.startDispatch();
     }
 
@@ -202,8 +204,8 @@ public class HintsServiceTest
         {
             long now = System.currentTimeMillis();
             DecoratedKey dkey = dk(String.valueOf(i));
-            CFMetaData cfMetaData = Schema.instance.getCFMetaData(KEYSPACE, TABLE);
-            PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(cfMetaData, dkey).timestamp(now);
+            TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+            PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(metadata, dkey).timestamp(now);
             builder.row("column0").add("val", "value0");
             Hint hint = Hint.create(builder.buildAsMutation(), now);
             HintsService.instance.write(hostId, hint);

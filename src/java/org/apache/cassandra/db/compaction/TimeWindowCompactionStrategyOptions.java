@@ -63,7 +63,7 @@ public final class TimeWindowCompactionStrategyOptions
         String optionValue = options.get(TIMESTAMP_RESOLUTION_KEY);
         timestampResolution = optionValue == null ? DEFAULT_TIMESTAMP_RESOLUTION : TimeUnit.valueOf(optionValue);
         if (timestampResolution != DEFAULT_TIMESTAMP_RESOLUTION)
-            logger.warn("Using a non-default timestamp_resolution {} - are you really doing inserts with USING TIMESTAMP <non_microsecond_timestamp> (or driver equivalent)?", timestampResolution.toString());
+            logger.warn("Using a non-default timestamp_resolution {} - are you really doing inserts with USING TIMESTAMP <non_microsecond_timestamp> (or driver equivalent)?", timestampResolution);
 
         optionValue = options.get(COMPACTION_WINDOW_UNIT_KEY);
         sstableWindowUnit = optionValue == null ? DEFAULT_COMPACTION_WINDOW_UNIT : TimeUnit.valueOf(optionValue);

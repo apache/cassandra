@@ -19,7 +19,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.*;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -54,8 +54,8 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         try
         {
             DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(file);
-            SerializationHelper helper = new SerializationHelper(sstable.metadata, sstable.descriptor.version.correspondingMessagingVersion(), SerializationHelper.Flag.LOCAL);
-            SSTableSimpleIterator iterator = SSTableSimpleIterator.create(sstable.metadata, file, sstable.header, helper, partitionLevelDeletion);
+            SerializationHelper helper = new SerializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), SerializationHelper.Flag.LOCAL);
+            SSTableSimpleIterator iterator = SSTableSimpleIterator.create(sstable.metadata(), file, sstable.header, helper, partitionLevelDeletion);
             return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, file.getPath(), iterator);
         }
         catch (IOException e)
@@ -72,10 +72,10 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             dfile.seek(indexEntry.position);
             ByteBufferUtil.skipShortLength(dfile); // Skip partition key
             DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(dfile);
-            SerializationHelper helper = new SerializationHelper(sstable.metadata, sstable.descriptor.version.correspondingMessagingVersion(), SerializationHelper.Flag.LOCAL);
+            SerializationHelper helper = new SerializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), SerializationHelper.Flag.LOCAL);
             SSTableSimpleIterator iterator = tombstoneOnly
-                    ? SSTableSimpleIterator.createTombstoneOnly(sstable.metadata, dfile, sstable.header, helper, partitionLevelDeletion)
-                    : SSTableSimpleIterator.create(sstable.metadata, dfile, sstable.header, helper, partitionLevelDeletion);
+                    ? SSTableSimpleIterator.createTombstoneOnly(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion)
+                    : SSTableSimpleIterator.create(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion);
             return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, dfile.getPath(), iterator);
         }
         catch (IOException e)
@@ -85,14 +85,14 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
-    public CFMetaData metadata()
+    public TableMetadata metadata()
     {
-        return sstable.metadata;
+        return iterator.metadata;
     }
 
-    public PartitionColumns columns()
+    public RegularAndStaticColumns columns()
     {
-        return metadata().partitionColumns();
+        return metadata().regularAndStaticColumns();
     }
 
     public boolean isReverseOrder()

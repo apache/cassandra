@@ -29,10 +29,10 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
@@ -143,19 +143,19 @@ public class Memtable implements Comparable<Memtable>
         this.cfs = cfs;
         this.commitLogLowerBound = commitLogLowerBound;
         this.allocator = MEMORY_POOL.newAllocator();
-        this.initialComparator = cfs.metadata.comparator;
+        this.initialComparator = cfs.metadata().comparator;
         this.cfs.scheduleFlush();
-        this.columnsCollector = new ColumnsCollector(cfs.metadata.partitionColumns());
+        this.columnsCollector = new ColumnsCollector(cfs.metadata().regularAndStaticColumns());
     }
 
     // ONLY to be used for testing, to create a mock Memtable
     @VisibleForTesting
-    public Memtable(CFMetaData metadata)
+    public Memtable(TableMetadata metadata)
     {
         this.initialComparator = metadata.comparator;
         this.cfs = null;
         this.allocator = null;
-        this.columnsCollector = new ColumnsCollector(metadata.partitionColumns());
+        this.columnsCollector = new ColumnsCollector(metadata.regularAndStaticColumns());
     }
 
     public MemtableAllocator getAllocator()
@@ -247,7 +247,7 @@ public class Memtable implements Comparable<Memtable>
      */
     public boolean isExpired()
     {
-        int period = cfs.metadata.params.memtableFlushPeriodInMs;
+        int period = cfs.metadata().params.memtableFlushPeriodInMs;
         return period > 0 && (System.nanoTime() - creationNano >= TimeUnit.MILLISECONDS.toNanos(period));
     }
 
@@ -339,7 +339,7 @@ public class Memtable implements Comparable<Memtable>
                              100 * allocator.onHeap().ownershipRatio(), 100 * allocator.offHeap().ownershipRatio());
     }
 
-    public MemtableUnfilteredPartitionIterator makePartitionIterator(final ColumnFilter columnFilter, final DataRange dataRange, final boolean isForThrift)
+    public MemtableUnfilteredPartitionIterator makePartitionIterator(final ColumnFilter columnFilter, final DataRange dataRange)
     {
         AbstractBounds<PartitionPosition> keyRange = dataRange.keyRange();
 
@@ -365,7 +365,7 @@ public class Memtable implements Comparable<Memtable>
 
         final Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter = subMap.entrySet().iterator();
 
-        return new MemtableUnfilteredPartitionIterator(cfs, iter, isForThrift, minLocalDeletionTime, columnFilter, dataRange);
+        return new MemtableUnfilteredPartitionIterator(cfs, iter, minLocalDeletionTime, columnFilter, dataRange);
     }
 
     private int findMinLocalDeletionTime(Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iterator)
@@ -440,9 +440,9 @@ public class Memtable implements Comparable<Memtable>
             this.isBatchLogTable = cfs.name.equals(SystemKeyspace.BATCHES) && cfs.keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
 
             if (flushLocation == null)
-                writer = createFlushWriter(txn, cfs.getSSTablePath(getDirectories().getWriteableLocationAsFile(estimatedSize)), columnsCollector.get(), statsCollector.get());
+                writer = createFlushWriter(txn, cfs.newSSTableDescriptor(getDirectories().getWriteableLocationAsFile(estimatedSize)), columnsCollector.get(), statsCollector.get());
             else
-                writer = createFlushWriter(txn, cfs.getSSTablePath(getDirectories().getLocationForDisk(flushLocation)), columnsCollector.get(), statsCollector.get());
+                writer = createFlushWriter(txn, cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(flushLocation)), columnsCollector.get(), statsCollector.get());
 
         }
 
@@ -494,18 +494,19 @@ public class Memtable implements Comparable<Memtable>
         }
 
         public SSTableMultiWriter createFlushWriter(LifecycleTransaction txn,
-                                                  String filename,
-                                                  PartitionColumns columns,
-                                                  EncodingStats stats)
+                                                    Descriptor descriptor,
+                                                    RegularAndStaticColumns columns,
+                                                    EncodingStats stats)
         {
-            MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator)
+            MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata().comparator)
                     .commitLogIntervals(new IntervalSet<>(commitLogLowerBound.get(), commitLogUpperBound.get()));
 
-            return cfs.createSSTableMultiWriter(Descriptor.fromFilename(filename),
+            return cfs.createSSTableMultiWriter(descriptor,
                                                 toFlush.size(),
                                                 ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                ActiveRepairService.NO_PENDING_REPAIR,
                                                 sstableMetadataCollector,
-                                                new SerializationHeader(true, cfs.metadata, columns, stats), txn);
+                                                new SerializationHeader(true, cfs.metadata(), columns, stats), txn);
         }
 
         @Override
@@ -541,24 +542,17 @@ public class Memtable implements Comparable<Memtable>
     {
         private final ColumnFamilyStore cfs;
         private final Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter;
-        private final boolean isForThrift;
         private final int minLocalDeletionTime;
         private final ColumnFilter columnFilter;
         private final DataRange dataRange;
 
-        public MemtableUnfilteredPartitionIterator(ColumnFamilyStore cfs, Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter, boolean isForThrift, int minLocalDeletionTime, ColumnFilter columnFilter, DataRange dataRange)
+        public MemtableUnfilteredPartitionIterator(ColumnFamilyStore cfs, Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter, int minLocalDeletionTime, ColumnFilter columnFilter, DataRange dataRange)
         {
             this.cfs = cfs;
             this.iter = iter;
-            this.isForThrift = isForThrift;
             this.minLocalDeletionTime = minLocalDeletionTime;
             this.columnFilter = columnFilter;
             this.dataRange = dataRange;
-        }
-
-        public boolean isForThrift()
-        {
-            return isForThrift;
         }
 
         public int getMinLocalDeletionTime()
@@ -566,9 +560,9 @@ public class Memtable implements Comparable<Memtable>
             return minLocalDeletionTime;
         }
 
-        public CFMetaData metadata()
+        public TableMetadata metadata()
         {
-            return cfs.metadata;
+            return cfs.metadata();
         }
 
         public boolean hasNext()
@@ -590,25 +584,25 @@ public class Memtable implements Comparable<Memtable>
 
     private static class ColumnsCollector
     {
-        private final HashMap<ColumnDefinition, AtomicBoolean> predefined = new HashMap<>();
-        private final ConcurrentSkipListSet<ColumnDefinition> extra = new ConcurrentSkipListSet<>();
-        ColumnsCollector(PartitionColumns columns)
+        private final HashMap<ColumnMetadata, AtomicBoolean> predefined = new HashMap<>();
+        private final ConcurrentSkipListSet<ColumnMetadata> extra = new ConcurrentSkipListSet<>();
+        ColumnsCollector(RegularAndStaticColumns columns)
         {
-            for (ColumnDefinition def : columns.statics)
+            for (ColumnMetadata def : columns.statics)
                 predefined.put(def, new AtomicBoolean());
-            for (ColumnDefinition def : columns.regulars)
+            for (ColumnMetadata def : columns.regulars)
                 predefined.put(def, new AtomicBoolean());
         }
 
-        public void update(PartitionColumns columns)
+        public void update(RegularAndStaticColumns columns)
         {
-            for (ColumnDefinition s : columns.statics)
+            for (ColumnMetadata s : columns.statics)
                 update(s);
-            for (ColumnDefinition r : columns.regulars)
+            for (ColumnMetadata r : columns.regulars)
                 update(r);
         }
 
-        private void update(ColumnDefinition definition)
+        private void update(ColumnMetadata definition)
         {
             AtomicBoolean present = predefined.get(definition);
             if (present != null)
@@ -622,10 +616,10 @@ public class Memtable implements Comparable<Memtable>
             }
         }
 
-        public PartitionColumns get()
+        public RegularAndStaticColumns get()
         {
-            PartitionColumns.Builder builder = PartitionColumns.builder();
-            for (Map.Entry<ColumnDefinition, AtomicBoolean> e : predefined.entrySet())
+            RegularAndStaticColumns.Builder builder = RegularAndStaticColumns.builder();
+            for (Map.Entry<ColumnMetadata, AtomicBoolean> e : predefined.entrySet())
                 if (e.getValue().get())
                     builder.add(e.getKey());
             return builder.addAll(extra).build();

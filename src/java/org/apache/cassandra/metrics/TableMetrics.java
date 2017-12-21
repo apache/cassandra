@@ -22,13 +22,15 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 
 import com.codahale.metrics.*;
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
@@ -38,6 +40,7 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TopKSampler;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -138,6 +141,14 @@ public class TableMetrics
     public final Counter rowCacheHit;
     /** Number of row cache misses */
     public final Counter rowCacheMiss;
+    /**
+     * Number of tombstone read failures
+     */
+    public final Counter tombstoneFailures;
+    /**
+     * Number of tombstone read warnings
+     */
+    public final Counter tombstoneWarnings;
     /** CAS Prepare metrics */
     public final LatencyMetrics casPrepare;
     /** CAS Propose metrics */
@@ -146,6 +157,30 @@ public class TableMetrics
     public final LatencyMetrics casCommit;
     /** percent of the data that is repaired */
     public final Gauge<Double> percentRepaired;
+    /** Reports the size of sstables in repaired, unrepaired, and any ongoing repair buckets */
+    public final Gauge<Long> bytesRepaired;
+    public final Gauge<Long> bytesUnrepaired;
+    public final Gauge<Long> bytesPendingRepair;
+    /** Number of started repairs as coordinator on this table */
+    public final Counter repairsStarted;
+    /** Number of completed repairs as coordinator on this table */
+    public final Counter repairsCompleted;
+    /** time spent anticompacting data before participating in a consistent repair */
+    public final TableTimer anticompactionTime;
+    /** time spent creating merkle trees */
+    public final TableTimer validationTime;
+    /** time spent syncing data in a repair */
+    public final TableTimer syncTime;
+    /** approximate number of bytes read while creating merkle trees */
+    public final TableHistogram bytesValidated;
+    /** number of partitions read creating merkle trees */
+    public final TableHistogram partitionsValidated;
+    /** number of bytes read while doing anticompaction */
+    public final Counter bytesAnticompacted;
+    /** number of bytes where the whole sstable was contained in a repairing range so that we only mutated the repair status */
+    public final Counter bytesMutatedAnticompaction;
+    /** ratio of how much we anticompact vs how much we could mutate the repair status*/
+    public final Gauge<Double> mutatedAnticompactionGauge;
 
     public final Timer coordinatorReadLatency;
     public final Timer coordinatorScanLatency;
@@ -162,42 +197,81 @@ public class TableMetrics
     private static final MetricNameFactory globalAliasFactory = new AllTableMetricNameFactory("ColumnFamily");
 
     public final Counter speculativeRetries;
+    public final Counter speculativeFailedRetries;
+    public final Counter speculativeInsufficientReplicas;
+    public final Gauge<Long> speculativeSampleLatencyNanos;
 
     public final static LatencyMetrics globalReadLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Read");
     public final static LatencyMetrics globalWriteLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Write");
     public final static LatencyMetrics globalRangeLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Range");
 
-    public final static Gauge<Double> globalPercentRepaired = Metrics.register(globalFactory.createMetricName("PercentRepaired"),
-            new Gauge<Double>()
+    private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
-        public Double getValue()
+        long total = 0;
+        long filtered = 0;
+        for (String keyspace : Schema.instance.getNonSystemKeyspaces())
         {
-            double repaired = 0;
-            double total = 0;
-            for (String keyspace : Schema.instance.getNonSystemKeyspaces())
-            {
-                Keyspace k = Schema.instance.getKeyspaceInstance(keyspace);
-                if (SchemaConstants.DISTRIBUTED_KEYSPACE_NAME.equals(k.getName()))
-                    continue;
-                if (k.getReplicationStrategy().getReplicationFactor() < 2)
-                    continue;
 
-                for (ColumnFamilyStore cf : k.getColumnFamilyStores())
+            Keyspace k = Schema.instance.getKeyspaceInstance(keyspace);
+            if (SchemaConstants.DISTRIBUTED_KEYSPACE_NAME.equals(k.getName()))
+                continue;
+            if (k.getReplicationStrategy().getReplicationFactor() < 2)
+                continue;
+
+            for (ColumnFamilyStore cf : k.getColumnFamilyStores())
+            {
+                if (!SecondaryIndexManager.isIndexColumnFamily(cf.name))
                 {
-                    if (!SecondaryIndexManager.isIndexColumnFamily(cf.name))
+                    for (SSTableReader sstable : cf.getSSTables(SSTableSet.CANONICAL))
                     {
-                        for (SSTableReader sstable : cf.getSSTables(SSTableSet.CANONICAL))
+                        if (predicate.test(sstable))
                         {
-                            if (sstable.isRepaired())
-                            {
-                                repaired += sstable.uncompressedLength();
-                            }
-                            total += sstable.uncompressedLength();
+                            filtered += sstable.uncompressedLength();
                         }
+                        total += sstable.uncompressedLength();
                     }
                 }
             }
+        }
+        return Pair.create(filtered, total);
+    }
+
+    public static final Gauge<Double> globalPercentRepaired = Metrics.register(globalFactory.createMetricName("PercentRepaired"),
+                                                                               new Gauge<Double>()
+    {
+        public Double getValue()
+        {
+            Pair<Long, Long> result = totalNonSystemTablesSize(SSTableReader::isRepaired);
+            double repaired = result.left;
+            double total = result.right;
             return total > 0 ? (repaired / total) * 100 : 100.0;
+        }
+    });
+
+    public static final Gauge<Long> globalBytesRepaired = Metrics.register(globalFactory.createMetricName("BytesRepaired"),
+                                                                           new Gauge<Long>()
+    {
+        public Long getValue()
+        {
+            return totalNonSystemTablesSize(SSTableReader::isRepaired).left;
+        }
+    });
+
+    public static final Gauge<Long> globalBytesUnrepaired = Metrics.register(globalFactory.createMetricName("BytesUnrepaired"),
+                                                                             new Gauge<Long>()
+    {
+        public Long getValue()
+        {
+            return totalNonSystemTablesSize(s -> !s.isRepaired() && !s.isPendingRepair()).left;
+        }
+    });
+
+    public static final Gauge<Long> globalBytesPendingRepair = Metrics.register(globalFactory.createMetricName("BytesPendingRepair"),
+                                                                                new Gauge<Long>()
+    {
+        public Long getValue()
+        {
+            return totalNonSystemTablesSize(SSTableReader::isPendingRepair).left;
         }
     });
 
@@ -405,11 +479,52 @@ public class TableMetrics
                 return total > 0 ? (repaired / total) * 100 : 100.0;
             }
         });
+
+        bytesRepaired = createTableGauge("BytesRepaired", new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                long size = 0;
+                for (SSTableReader sstable: Iterables.filter(cfs.getSSTables(SSTableSet.CANONICAL), SSTableReader::isRepaired))
+                {
+                    size += sstable.uncompressedLength();
+                }
+                return size;
+            }
+        });
+
+        bytesUnrepaired = createTableGauge("BytesUnrepaired", new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                long size = 0;
+                for (SSTableReader sstable: Iterables.filter(cfs.getSSTables(SSTableSet.CANONICAL), s -> !s.isRepaired() && !s.isPendingRepair()))
+                {
+                    size += sstable.uncompressedLength();
+                }
+                return size;
+            }
+        });
+
+        bytesPendingRepair = createTableGauge("BytesPendingRepair", new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                long size = 0;
+                for (SSTableReader sstable: Iterables.filter(cfs.getSSTables(SSTableSet.CANONICAL), SSTableReader::isPendingRepair))
+                {
+                    size += sstable.uncompressedLength();
+                }
+                return size;
+            }
+        });
+
         readLatency = new LatencyMetrics(factory, "Read", cfs.keyspace.metric.readLatency, globalReadLatency);
         writeLatency = new LatencyMetrics(factory, "Write", cfs.keyspace.metric.writeLatency, globalWriteLatency);
         rangeLatency = new LatencyMetrics(factory, "Range", cfs.keyspace.metric.rangeLatency, globalRangeLatency);
         pendingFlushes = createTableCounter("PendingFlushes");
         bytesFlushed = createTableCounter("BytesFlushed");
+
         compactionBytesWritten = createTableCounter("CompactionBytesWritten");
         pendingCompactions = createTableGauge("PendingCompactions", new Gauge<Integer>()
         {
@@ -636,6 +751,15 @@ public class TableMetrics
             }
         });
         speculativeRetries = createTableCounter("SpeculativeRetries");
+        speculativeFailedRetries = createTableCounter("SpeculativeFailedRetries");
+        speculativeInsufficientReplicas = createTableCounter("SpeculativeInsufficientReplicas");
+        speculativeSampleLatencyNanos = createTableGauge("SpeculativeSampleLatencyNanos", new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                return cfs.sampleLatencyNanos;
+            }
+        });
         keyCacheHitRate = Metrics.register(factory.createMetricName("KeyCacheHitRate"),
                                            aliasFactory.createMetricName("KeyCacheHitRate"),
                                            new RatioGauge()
@@ -671,7 +795,7 @@ public class TableMetrics
 
         // We do not want to capture view mutation specific metrics for a view
         // They only makes sense to capture on the base table
-        if (cfs.metadata.isView())
+        if (cfs.metadata().isView())
         {
             viewLockAcquireTime = null;
             viewReadTime = null;
@@ -692,11 +816,35 @@ public class TableMetrics
         rowCacheHitOutOfRange = createTableCounter("RowCacheHitOutOfRange");
         rowCacheHit = createTableCounter("RowCacheHit");
         rowCacheMiss = createTableCounter("RowCacheMiss");
+
+        tombstoneFailures = createTableCounter("TombstoneFailures");
+        tombstoneWarnings = createTableCounter("TombstoneWarnings");
+
         droppedMutations = createTableCounter("DroppedMutations");
 
         casPrepare = new LatencyMetrics(factory, "CasPrepare", cfs.keyspace.metric.casPrepare);
         casPropose = new LatencyMetrics(factory, "CasPropose", cfs.keyspace.metric.casPropose);
         casCommit = new LatencyMetrics(factory, "CasCommit", cfs.keyspace.metric.casCommit);
+
+        repairsStarted = createTableCounter("RepairJobsStarted");
+        repairsCompleted = createTableCounter("RepairJobsCompleted");
+
+        anticompactionTime = createTableTimer("AnticompactionTime", cfs.keyspace.metric.anticompactionTime);
+        validationTime = createTableTimer("ValidationTime", cfs.keyspace.metric.validationTime);
+        syncTime = createTableTimer("SyncTime", cfs.keyspace.metric.repairSyncTime);
+
+        bytesValidated = createTableHistogram("BytesValidated", cfs.keyspace.metric.bytesValidated, false);
+        partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
+        bytesAnticompacted = createTableCounter("BytesAnticompacted");
+        bytesMutatedAnticompaction = createTableCounter("BytesMutatedAnticompaction");
+        mutatedAnticompactionGauge = createTableGauge("MutatedAnticompactionGauge", () ->
+        {
+            double bytesMutated = bytesMutatedAnticompaction.getCount();
+            double bytesAnticomp = bytesAnticompacted.getCount();
+            if (bytesAnticomp + bytesMutated > 0)
+                return bytesMutated / (bytesAnticomp + bytesMutated);
+            return 0.0;
+        });
 
         readRepairRequests = Metrics.meter(factory.createMetricName("ReadRepairRequests"));
         shortReadProtectionRequests = Metrics.meter(factory.createMetricName("ShortReadProtectionRequests"));
@@ -914,6 +1062,30 @@ public class TableMetrics
             for(Timer timer : all)
             {
                 timer.update(i, unit);
+            }
+        }
+
+        public Context time()
+        {
+            return new Context(all);
+        }
+
+        public static class Context implements AutoCloseable
+        {
+            private final long start;
+            private final Timer [] all;
+
+            private Context(Timer [] all)
+            {
+                this.all = all;
+                start = System.nanoTime();
+            }
+
+            public void close()
+            {
+                long duration = System.nanoTime() - start;
+                for (Timer t : all)
+                    t.update(duration, TimeUnit.NANOSECONDS);
             }
         }
     }

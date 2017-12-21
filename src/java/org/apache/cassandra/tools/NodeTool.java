@@ -28,7 +28,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 import com.google.common.collect.*;
 
-import io.airlift.command.*;
+import io.airlift.airline.*;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.nodetool.*;
@@ -76,8 +76,10 @@ public class NodeTool
                 EnableGossip.class,
                 DisableGossip.class,
                 EnableHandoff.class,
-                EnableThrift.class,
+                EnableFullQueryLog.class,
+                DisableFullQueryLog.class,
                 GcStats.class,
+                GetBatchlogReplayTrottle.class,
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
                 GetTimeout.class,
@@ -86,6 +88,7 @@ public class NodeTool
                 GetInterDCStreamThroughput.class,
                 GetEndpoints.class,
                 GetSSTables.class,
+                GetMaxHintWindow.class,
                 GossipInfo.class,
                 InvalidateKeyCache.class,
                 InvalidateRowCache.class,
@@ -99,26 +102,32 @@ public class NodeTool
                 Refresh.class,
                 RemoveNode.class,
                 Assassinate.class,
+                ResetFullQueryLog.class,
                 Repair.class,
+                RepairAdmin.class,
                 ReplayBatchlog.class,
                 SetCacheCapacity.class,
                 SetHintedHandoffThrottleInKB.class,
+                SetBatchlogReplayThrottle.class,
                 SetCompactionThreshold.class,
                 SetCompactionThroughput.class,
                 GetConcurrentCompactors.class,
                 SetConcurrentCompactors.class,
+                GetConcurrentViewBuilders.class,
+                SetConcurrentViewBuilders.class,
                 SetTimeout.class,
                 SetStreamThroughput.class,
                 SetInterDCStreamThroughput.class,
                 SetTraceProbability.class,
+                SetMaxHintWindow.class,
                 Snapshot.class,
                 ListSnapshots.class,
                 Status.class,
                 StatusBinary.class,
                 StatusGossip.class,
-                StatusThrift.class,
                 StatusBackup.class,
                 StatusHandoff.class,
+                StatusAutoCompaction.class,
                 Stop.class,
                 StopDaemon.class,
                 Version.class,
@@ -131,7 +140,6 @@ public class NodeTool
                 ReloadLocalSchema.class,
                 ReloadTriggers.class,
                 SetCacheKeysToSave.class,
-                DisableThrift.class,
                 DisableHandoff.class,
                 Drain.class,
                 TruncateHints.class,
@@ -144,7 +152,8 @@ public class NodeTool
                 FailureDetectorInfo.class,
                 RefreshSizeEstimates.class,
                 RelocateSSTables.class,
-                ViewBuildStatus.class
+                ViewBuildStatus.class,
+                HandoffWindow.class
         );
 
         Cli.CliBuilder<Runnable> builder = Cli.builder("nodetool");

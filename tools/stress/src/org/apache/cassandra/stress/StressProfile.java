@@ -35,16 +35,16 @@ import com.google.common.base.Function;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import com.datastax.driver.core.*;
+import com.datastax.driver.core.TableMetadata;
 import com.datastax.driver.core.exceptions.AlreadyExistsException;
 import org.antlr.runtime.RecognitionException;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.generate.values.*;
 import org.apache.cassandra.stress.operations.userdefined.TokenRangeQuery;
@@ -55,10 +55,6 @@ import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.*;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
-import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.ThriftConversion;
-import org.apache.thrift.TException;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.error.YAMLException;
@@ -70,6 +66,7 @@ public class StressProfile implements Serializable
     private List<String> extraSchemaDefinitions;
     public final String seedStr = "seed for stress";
 
+    public String specName;
     public String keyspaceName;
     public String tableName;
     private Map<String, GeneratorConfig> columnConfigs;
@@ -88,12 +85,10 @@ public class StressProfile implements Serializable
     transient volatile RatioDistributionFactory selectchance;
     transient volatile RatioDistributionFactory rowPopulation;
     transient volatile PreparedStatement insertStatement;
-    transient volatile Integer thriftInsertId;
     transient volatile List<ValidatingSchemaQuery.Factory> validationFactories;
 
     transient volatile Map<String, SchemaQuery.ArgSelect> argSelects;
     transient volatile Map<String, PreparedStatement> queryStatements;
-    transient volatile Map<String, Integer> thriftQueryIds;
 
     private static final Pattern lowercaseAlphanumeric = Pattern.compile("[a-z0-9_]+");
 
@@ -150,6 +145,8 @@ public class StressProfile implements Serializable
         queries = yaml.queries;
         tokenRangeQueries = yaml.token_range_queries;
         insert = yaml.insert;
+        specName = yaml.specname;
+        if (specName == null){specName = keyspaceName + "." + tableName;}
 
         extraSchemaDefinitions = yaml.extra_definitions;
 
@@ -222,7 +219,7 @@ public class StressProfile implements Serializable
     {
         if (!schemaCreated)
         {
-            JavaDriverClient client = settings.getJavaDriverClient(false);
+            JavaDriverClient client = settings.getJavaDriverClient();
 
             if (keyspaceCql != null)
             {
@@ -289,7 +286,7 @@ public class StressProfile implements Serializable
     {
         if (tableMetaData == null)
         {
-            JavaDriverClient client = settings.getJavaDriverClient();
+            JavaDriverClient client = settings.getJavaDriverClient(keyspaceName);
 
             synchronized (client)
             {
@@ -306,7 +303,7 @@ public class StressProfile implements Serializable
                     throw new RuntimeException("Unable to find table " + keyspaceName + "." + tableName);
 
                 //Fill in missing column configs
-                for (ColumnMetadata col : metadata.getColumns())
+                for (com.datastax.driver.core.ColumnMetadata col : metadata.getColumns())
                 {
                     if (columnConfigs.containsKey(col.getName()))
                         continue;
@@ -323,7 +320,7 @@ public class StressProfile implements Serializable
     {
         maybeLoadSchemaInfo(settings); // ensure table metadata is available
 
-        JavaDriverClient client = settings.getJavaDriverClient();
+        JavaDriverClient client = settings.getJavaDriverClient(keyspaceName);
         synchronized (client)
         {
             if (tokenRanges != null)
@@ -367,42 +364,24 @@ public class StressProfile implements Serializable
             {
                 if (queryStatements == null)
                 {
-                    try
+                    JavaDriverClient jclient = settings.getJavaDriverClient(keyspaceName);
+
+                    Map<String, PreparedStatement> stmts = new HashMap<>();
+                    Map<String, SchemaQuery.ArgSelect> args = new HashMap<>();
+                    for (Map.Entry<String, StressYaml.QueryDef> e : queries.entrySet())
                     {
-                        JavaDriverClient jclient = settings.getJavaDriverClient();
-                        ThriftClient tclient = null;
-
-                        if (settings.mode.api != ConnectionAPI.JAVA_DRIVER_NATIVE)
-                            tclient = settings.getThriftClient();
-
-                        Map<String, PreparedStatement> stmts = new HashMap<>();
-                        Map<String, Integer> tids = new HashMap<>();
-                        Map<String, SchemaQuery.ArgSelect> args = new HashMap<>();
-                        for (Map.Entry<String, StressYaml.QueryDef> e : queries.entrySet())
-                        {
-                            stmts.put(e.getKey().toLowerCase(), jclient.prepare(e.getValue().cql));
-
-                            if (tclient != null)
-                                tids.put(e.getKey().toLowerCase(), tclient.prepare_cql3_query(e.getValue().cql, Compression.NONE));
-
-                            args.put(e.getKey().toLowerCase(), e.getValue().fields == null
-                                                                     ? SchemaQuery.ArgSelect.MULTIROW
-                                                                     : SchemaQuery.ArgSelect.valueOf(e.getValue().fields.toUpperCase()));
-                        }
-                        thriftQueryIds = tids;
-                        queryStatements = stmts;
-                        argSelects = args;
+                        stmts.put(e.getKey().toLowerCase(), jclient.prepare(e.getValue().cql));
+                        args.put(e.getKey().toLowerCase(), e.getValue().fields == null
+                                                                 ? SchemaQuery.ArgSelect.MULTIROW
+                                                                 : SchemaQuery.ArgSelect.valueOf(e.getValue().fields.toUpperCase()));
                     }
-                    catch (TException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
+                    queryStatements = stmts;
+                    argSelects = args;
                 }
             }
         }
 
-        return new SchemaQuery(timer, settings, generator, seeds, thriftQueryIds.get(name), queryStatements.get(name),
-                               ThriftConversion.fromThrift(settings.command.consistencyLevel), argSelects.get(name));
+        return new SchemaQuery(timer, settings, generator, seeds, queryStatements.get(name), settings.command.consistencyLevel, argSelects.get(name));
     }
 
     public Operation getBulkReadQueries(String name, Timer timer, StressSettings settings, TokenRangeIterator tokenRangeIterator, boolean isWarmup)
@@ -417,31 +396,31 @@ public class StressProfile implements Serializable
 
     public PartitionGenerator getOfflineGenerator()
     {
-        CFMetaData cfMetaData = CFMetaData.compile(tableCql, keyspaceName);
+        org.apache.cassandra.schema.TableMetadata metadata = CreateTableStatement.parse(tableCql, keyspaceName).build();
 
         //Add missing column configs
-        Iterator<ColumnDefinition> it = cfMetaData.allColumnsInSelectOrder();
+        Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
         while (it.hasNext())
         {
-            ColumnDefinition c = it.next();
+            ColumnMetadata c = it.next();
             if (!columnConfigs.containsKey(c.name.toString()))
                 columnConfigs.put(c.name.toString(), new GeneratorConfig(seedStr + c.name.toString(), null, null, null));
         }
 
-        List<Generator> partitionColumns = cfMetaData.partitionKeyColumns().stream()
-                                                     .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
-                                                     .map(c -> c.getGenerator())
-                                                     .collect(Collectors.toList());
+        List<Generator> partitionColumns = metadata.partitionKeyColumns().stream()
+                                                   .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
+                                                   .map(c -> c.getGenerator())
+                                                   .collect(Collectors.toList());
 
-        List<Generator> clusteringColumns = cfMetaData.clusteringColumns().stream()
-                                                             .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
-                                                             .map(c -> c.getGenerator())
-                                                             .collect(Collectors.toList());
+        List<Generator> clusteringColumns = metadata.clusteringColumns().stream()
+                                                    .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
+                                                    .map(c -> c.getGenerator())
+                                                    .collect(Collectors.toList());
 
-        List<Generator> regularColumns = com.google.common.collect.Lists.newArrayList(cfMetaData.partitionColumns().selectOrderIterator()).stream()
-                                                                                                             .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
-                                                                                                             .map(c -> c.getGenerator())
-                                                                                                             .collect(Collectors.toList());
+        List<Generator> regularColumns = com.google.common.collect.Lists.newArrayList(metadata.regularAndStaticColumns().selectOrderIterator()).stream()
+                                                                        .map(c -> new ColumnInfo(c.name.toString(), c.type.asCQL3Type().toString(), "", columnConfigs.get(c.name.toString())))
+                                                                        .map(c -> c.getGenerator())
+                                                                        .collect(Collectors.toList());
 
         return new PartitionGenerator(partitionColumns, clusteringColumns, regularColumns, PartitionGenerator.Order.ARBITRARY);
     }
@@ -458,14 +437,14 @@ public class StressProfile implements Serializable
     {
         assert tableCql != null;
 
-        CFMetaData cfMetaData = CFMetaData.compile(tableCql, keyspaceName);
+        org.apache.cassandra.schema.TableMetadata metadata = CreateTableStatement.parse(tableCql, keyspaceName).build();
 
-        List<ColumnDefinition> allColumns = com.google.common.collect.Lists.newArrayList(cfMetaData.allColumnsInSelectOrder());
+        List<ColumnMetadata> allColumns = com.google.common.collect.Lists.newArrayList(metadata.allColumnsInSelectOrder());
 
         StringBuilder sb = new StringBuilder();
         sb.append("INSERT INTO ").append(quoteIdentifier(keyspaceName)).append(".").append(quoteIdentifier(tableName)).append(" (");
         StringBuilder value = new StringBuilder();
-        for (ColumnDefinition c : allColumns)
+        for (ColumnMetadata c : allColumns)
         {
             sb.append(quoteIdentifier(c.name.toString())).append(", ");
             value.append("?, ");
@@ -492,7 +471,7 @@ public class StressProfile implements Serializable
         String tableCreate = tableCql.replaceFirst("\\s+\"?"+tableName+"\"?\\s+", " \""+keyspaceName+"\".\""+tableName+"\" ");
 
 
-        return new SchemaInsert(timer, settings, generator, seedManager, selectchance.get(), rowPopulation.get(), thriftInsertId, statement, tableCreate);
+        return new SchemaInsert(timer, settings, generator, seedManager, selectchance.get(), rowPopulation.get(), statement, tableCreate);
     }
 
     public SchemaInsert getInsert(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
@@ -505,8 +484,8 @@ public class StressProfile implements Serializable
                 {
                     maybeLoadSchemaInfo(settings);
 
-                    Set<ColumnMetadata> keyColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getPrimaryKey());
-                    Set<ColumnMetadata> allColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getColumns());
+                    Set<com.datastax.driver.core.ColumnMetadata> keyColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getPrimaryKey());
+                    Set<com.datastax.driver.core.ColumnMetadata> allColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getColumns());
                     boolean isKeyOnlyTable = (keyColumns.size() == allColumns.size());
                     //With compact storage
                     if (!isKeyOnlyTable && (keyColumns.size() == (allColumns.size() - 1)))
@@ -514,7 +493,7 @@ public class StressProfile implements Serializable
                         com.google.common.collect.Sets.SetView diff = com.google.common.collect.Sets.difference(allColumns, keyColumns);
                         for (Object obj : diff)
                         {
-                            ColumnMetadata col = (ColumnMetadata)obj;
+                            com.datastax.driver.core.ColumnMetadata col = (com.datastax.driver.core.ColumnMetadata)obj;
                             isKeyOnlyTable = col.getName().isEmpty();
                             break;
                         }
@@ -531,7 +510,7 @@ public class StressProfile implements Serializable
 
                         boolean firstCol = true;
                         boolean firstPred = true;
-                        for (ColumnMetadata c : tableMetaData.getColumns()) {
+                        for (com.datastax.driver.core.ColumnMetadata c : tableMetaData.getColumns()) {
 
                             if (keyColumns.contains(c)) {
                                 if (firstPred)
@@ -564,12 +543,17 @@ public class StressProfile implements Serializable
 
                         //Put PK predicates at the end
                         sb.append(pred);
+                        if (insert.containsKey("condition"))
+                        {
+                            sb.append(" " + insert.get("condition"));
+                            insert.remove("condition");
+                        }
                     }
                     else
                     {
                         sb.append("INSERT INTO ").append(quoteIdentifier(tableName)).append(" (");
                         StringBuilder value = new StringBuilder();
-                        for (ColumnMetadata c : tableMetaData.getPrimaryKey())
+                        for (com.datastax.driver.core.ColumnMetadata c : tableMetaData.getPrimaryKey())
                         {
                             sb.append(quoteIdentifier(c.getName())).append(", ");
                             value.append("?, ");
@@ -612,27 +596,17 @@ public class StressProfile implements Serializable
                         System.err.printf("WARNING: You have defined a schema that permits very large batches (%.0f max rows (>100K)). This may OOM this stress client, or the server.%n",
                                           selectchance.get().max() * partitions.get().maxValue() * generator.maxRowCount);
 
-                    JavaDriverClient client = settings.getJavaDriverClient();
+                    JavaDriverClient client = settings.getJavaDriverClient(keyspaceName);
                     String query = sb.toString();
 
-                    if (settings.mode.api != ConnectionAPI.JAVA_DRIVER_NATIVE)
-                    {
-                        try
-                        {
-                            thriftInsertId = settings.getThriftClient().prepare_cql3_query(query, Compression.NONE);
-                        }
-                        catch (TException e)
-                        {
-                            throw new RuntimeException(e);
-                        }
-                    }
-
                     insertStatement = client.prepare(query);
+                    System.out.println("Insert Statement:");
+                    System.out.println("  " + query);
                 }
             }
         }
 
-        return new SchemaInsert(timer, settings, generator, seedManager, partitions.get(), selectchance.get(), rowPopulation.get(), thriftInsertId, insertStatement, ThriftConversion.fromThrift(settings.command.consistencyLevel), batchType);
+        return new SchemaInsert(timer, settings, generator, seedManager, partitions.get(), selectchance.get(), rowPopulation.get(), insertStatement, settings.command.consistencyLevel, batchType);
     }
 
     public List<ValidatingSchemaQuery> getValidate(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
@@ -651,7 +625,7 @@ public class StressProfile implements Serializable
 
         List<ValidatingSchemaQuery> queries = new ArrayList<>();
         for (ValidatingSchemaQuery.Factory factory : validationFactories)
-            queries.add(factory.create(timer, settings, generator, seedManager, ThriftConversion.fromThrift(settings.command.consistencyLevel)));
+            queries.add(factory.create(timer, settings, generator, seedManager, settings.command.consistencyLevel));
         return queries;
     }
 
@@ -691,17 +665,17 @@ public class StressProfile implements Serializable
 
         private GeneratorFactory()
         {
-            Set<ColumnMetadata> keyColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getPrimaryKey());
+            Set<com.datastax.driver.core.ColumnMetadata> keyColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getPrimaryKey());
 
-            for (ColumnMetadata metadata : tableMetaData.getPartitionKey())
+            for (com.datastax.driver.core.ColumnMetadata metadata : tableMetaData.getPartitionKey())
                 partitionKeys.add(new ColumnInfo(metadata.getName(), metadata.getType().getName().toString(),
                                                  metadata.getType().isCollection() ? metadata.getType().getTypeArguments().get(0).getName().toString() : "",
                                                  columnConfigs.get(metadata.getName())));
-            for (ColumnMetadata metadata : tableMetaData.getClusteringColumns())
+            for (com.datastax.driver.core.ColumnMetadata metadata : tableMetaData.getClusteringColumns())
                 clusteringColumns.add(new ColumnInfo(metadata.getName(), metadata.getType().getName().toString(),
                                                      metadata.getType().isCollection() ? metadata.getType().getTypeArguments().get(0).getName().toString() : "",
                                                      columnConfigs.get(metadata.getName())));
-            for (ColumnMetadata metadata : tableMetaData.getColumns())
+            for (com.datastax.driver.core.ColumnMetadata metadata : tableMetaData.getColumns())
                 if (!keyColumns.contains(metadata))
                     valueColumns.add(new ColumnInfo(metadata.getName(), metadata.getType().getName().toString(),
                                                     metadata.getType().isCollection() ? metadata.getType().getTypeArguments().get(0).getName().toString() : "",
@@ -807,6 +781,7 @@ public class StressProfile implements Serializable
                 throw new IOException("Unable to load yaml file from: "+file);
 
             StressYaml profileYaml = yaml.loadAs(yamlStream, StressYaml.class);
+
 
             StressProfile profile = new StressProfile();
             profile.init(profileYaml);

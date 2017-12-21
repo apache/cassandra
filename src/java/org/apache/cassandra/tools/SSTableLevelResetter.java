@@ -21,7 +21,7 @@ import java.io.PrintStream;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -69,7 +69,7 @@ public class SSTableLevelResetter
             String keyspaceName = args[1];
             String columnfamily = args[2];
             // validate columnfamily
-            if (Schema.instance.getCFMetaData(keyspaceName, columnfamily) == null)
+            if (Schema.instance.getTableMetadataRef(keyspaceName, columnfamily) == null)
             {
                 System.err.println("ColumnFamily not found: " + keyspaceName + "/" + columnfamily);
                 System.exit(1);

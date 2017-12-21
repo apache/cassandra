@@ -62,6 +62,11 @@ public abstract class BatchQueryOptions
         return wrapped.getConsistency();
     }
 
+    public String getKeyspace()
+    {
+        return wrapped.getKeyspace();
+    }
+
     public ConsistencyLevel getSerialConsistency()
     {
         return wrapped.getSerialConsistency();

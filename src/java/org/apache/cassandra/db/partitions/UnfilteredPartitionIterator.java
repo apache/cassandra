@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
 /**
@@ -30,16 +30,5 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
  */
 public interface UnfilteredPartitionIterator extends BasePartitionIterator<UnfilteredRowIterator>
 {
-    /**
-     * Whether that partition iterator is for a thrift queries.
-     * <p>
-     * If this is true, the partition iterator may return some empty UnfilteredRowIterator and those
-     * should be preserved as thrift include partitions that "exists" (have some cells even
-     * if this are actually deleted) but have nothing matching the query.
-     *
-     * @return whether the iterator is for a thrift query.
-     */
-    public boolean isForThrift();
-
-    public CFMetaData metadata();
+    public TableMetadata metadata();
 }

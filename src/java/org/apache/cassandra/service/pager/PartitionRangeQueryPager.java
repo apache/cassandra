@@ -26,9 +26,6 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Pages a PartitionRangeReadCommand.
- *
- * Note: this only work for CQL3 queries for now (because thrift queries expect
- * a different limit on the rows than on the columns, which complicates it).
  */
 public class PartitionRangeQueryPager extends AbstractQueryPager
 {
@@ -41,7 +38,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager
 
         if (state != null)
         {
-            lastReturnedKey = command.metadata().decorateKey(state.partitionKey);
+            lastReturnedKey = command.metadata().partitioner.decorateKey(state.partitionKey);
             lastReturnedRow = state.rowMark;
             restoreState(lastReturnedKey, state.remaining, state.remainingInPartition);
         }

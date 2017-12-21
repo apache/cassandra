@@ -23,4 +23,5 @@ This section describes the command line tools provided with Apache Cassandra.
    :maxdepth: 1
 
    cqlsh
-   nodetool
+   nodetool/nodetool
+   cassandra_stress

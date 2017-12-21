@@ -25,16 +25,15 @@ import java.util.List;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -78,7 +77,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         this.ifNotExists = ifNotExists;
     }
 
-    public Prepared prepare(ClientState clientState)
+    public Prepared prepare()
     {
         argTypes = new ArrayList<>(argRawTypes.size());
         for (CQL3Type.Raw rawType : argRawTypes)
@@ -136,7 +135,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("INITCOND must not be empty for all types except TEXT, ASCII, BLOB");
         }
 
-        return super.prepare(clientState);
+        return super.prepare();
     }
 
     private AbstractType<?> prepareType(String typeName, CQL3Type.Raw rawType)
@@ -161,7 +160,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         if (!functionName.hasKeyspace())
             throw new InvalidRequestException("Functions must be fully qualified with a keyspace name if a keyspace is not set for the session");
 
-        ThriftValidation.validateKeyspaceNotSystem(functionName.keyspace);
+        Schema.validateKeyspaceNotSystem(functionName.keyspace);
 
         stateFunc = new FunctionName(functionName.keyspace, stateFunc.name);
         if (finalFunc != null)
@@ -204,7 +203,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         if (ifNotExists && orReplace)
             throw new InvalidRequestException("Cannot use both 'OR REPLACE' and 'IF NOT EXISTS' directives");
 
-        if (Schema.instance.getKSMetaData(functionName.keyspace) == null)
+        if (Schema.instance.getKeyspaceMetadata(functionName.keyspace) == null)
             throw new InvalidRequestException(String.format("Cannot add aggregate '%s' to non existing keyspace '%s'.", functionName.name, functionName.keyspace));
     }
 

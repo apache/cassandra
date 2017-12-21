@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -54,23 +54,23 @@ public interface Clustering extends ClusteringPrefix
         return new BufferClustering(newValues);
     }
 
-    public default String toString(CFMetaData metadata)
+    public default String toString(TableMetadata metadata)
     {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < size(); i++)
         {
-            ColumnDefinition c = metadata.clusteringColumns().get(i);
+            ColumnMetadata c = metadata.clusteringColumns().get(i);
             sb.append(i == 0 ? "" : ", ").append(c.name).append('=').append(get(i) == null ? "null" : c.type.getString(get(i)));
         }
         return sb.toString();
     }
 
-    public default String toCQLString(CFMetaData metadata)
+    public default String toCQLString(TableMetadata metadata)
     {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < size(); i++)
         {
-            ColumnDefinition c = metadata.clusteringColumns().get(i);
+            ColumnMetadata c = metadata.clusteringColumns().get(i);
             sb.append(i == 0 ? "" : ", ").append(c.type.getString(get(i)));
         }
         return sb.toString();
@@ -100,7 +100,7 @@ public interface Clustering extends ClusteringPrefix
         }
 
         @Override
-        public String toString(CFMetaData metadata)
+        public String toString(TableMetadata metadata)
         {
             return toString();
         }
@@ -110,7 +110,7 @@ public interface Clustering extends ClusteringPrefix
     public static final Clustering EMPTY = new BufferClustering(EMPTY_VALUES_ARRAY)
     {
         @Override
-        public String toString(CFMetaData metadata)
+        public String toString(TableMetadata metadata)
         {
             return "EMPTY";
         }
@@ -140,7 +140,7 @@ public interface Clustering extends ClusteringPrefix
             }
             catch (IOException e)
             {
-                throw new RuntimeException("Writting to an in-memory buffer shouldn't trigger an IOException", e);
+                throw new RuntimeException("Writing to an in-memory buffer shouldn't trigger an IOException", e);
             }
         }
 

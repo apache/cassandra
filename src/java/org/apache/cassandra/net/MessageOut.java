@@ -29,21 +29,78 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
+
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 
+/**
+ * Each message contains a header with several fixed fields, an optional key-value parameters section, and then
+ * the message payload itself. Note: the IP address in the header may be either IPv4 (4 bytes) or IPv6 (16 bytes).
+ * The diagram below shows the IPv4 address for brevity.
+ *
+ * <pre>
+ * {@code
+ *            1 1 1 1 1 2 2 2 2 2 3 3 3 3 3 4 4 4 4 4 5 5 5 5 5 6 6
+ *  0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                       PROTOCOL MAGIC                          |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                         Message ID                            |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                         Timestamp                             |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |  Addr len |           IP Address (IPv4)                       /
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * /           |                 Verb                              /
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * /           |            Parameters size                        /
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * /           |             Parameter data                        /
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * /                                                               |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                        Payload size                           |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                                                               /
+ * /                           Payload                             /
+ * /                                                               |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * }
+ * </pre>
+ *
+ * An individual parameter has a String key and a byte array value. The key is serialized with it's length,
+ * encoded as two bytes, followed by the UTF-8 byte encoding of the string (see {@link java.io.DataOutput#writeUTF(java.lang.String)}).
+ * The body is serialized with it's length, encoded as four bytes, followed by the bytes of the value.
+ *
+ * * @param <T> The type of the message payload.
+ */
 public class MessageOut<T>
 {
+    private static final int SERIALIZED_SIZE_VERSION_UNDEFINED = -1;
+
     public final InetAddress from;
     public final MessagingService.Verb verb;
     public final T payload;
     public final IVersionedSerializer<T> serializer;
     public final Map<String, byte[]> parameters;
-    private long payloadSize = -1;
-    private int payloadSizeVersion = -1;
+
+    /**
+     * Memoization of the serialized size of the just the payload.
+     */
+    private int payloadSerializedSize = -1;
+
+    /**
+     * Memoization of the serialized size of the entire message.
+     */
+    private int serializedSize = -1;
+
+    /**
+     * The internode protocol messaging version that was used to calculate the memoized serailized sizes.
+     */
+    private int serializedSizeVersion = SERIALIZED_SIZE_VERSION_UNDEFINED;
 
     // we do support messages that just consist of a verb
     public MessageOut(MessagingService.Verb verb)
@@ -104,7 +161,7 @@ public class MessageOut<T>
     {
         CompactEndpointSerializationHelper.serialize(from, out);
 
-        out.writeInt(MessagingService.Verb.convertForMessagingServiceVersion(verb, version).ordinal());
+        out.writeInt(verb.getId());
         out.writeInt(parameters.size());
         for (Map.Entry<String, byte[]> entry : parameters.entrySet())
         {
@@ -115,14 +172,12 @@ public class MessageOut<T>
 
         if (payload != null)
         {
-            try(DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
-            {
-                serializer.serialize(payload, dob, version);
+            int payloadSize = payloadSerializedSize >= 0
+                              ? (int)payloadSerializedSize
+                              : (int) serializer.serializedSize(payload, version);
 
-                int size = dob.getLength();
-                out.writeInt(size);
-                out.write(dob.getData(), 0, size);
-            }
+            out.writeInt(payloadSize);
+            serializer.serialize(payload, out, version);
         }
         else
         {
@@ -130,11 +185,11 @@ public class MessageOut<T>
         }
     }
 
-    public int serializedSize(int version)
+    private Pair<Long, Long> calculateSerializedSize(int version)
     {
-        int size = CompactEndpointSerializationHelper.serializedSize(from);
+        long size = CompactEndpointSerializationHelper.serializedSize(from);
 
-        size += TypeSizes.sizeof(verb.ordinal());
+        size += TypeSizes.sizeof(verb.getId());
         size += TypeSizes.sizeof(parameters.size());
         for (Map.Entry<String, byte[]> entry : parameters.entrySet())
         {
@@ -143,38 +198,43 @@ public class MessageOut<T>
             size += entry.getValue().length;
         }
 
-        long longSize = payloadSize(version);
-        assert longSize <= Integer.MAX_VALUE; // larger values are supported in sstables but not messages
-        size += TypeSizes.sizeof((int) longSize);
-        size += longSize;
-        return size;
+        long payloadSize = payload == null ? 0 : serializer.serializedSize(payload, version);
+        assert payloadSize <= Integer.MAX_VALUE; // larger values are supported in sstables but not messages
+        size += TypeSizes.sizeof((int) payloadSize);
+        size += payloadSize;
+        return Pair.create(size, payloadSize);
     }
 
     /**
-     * Calculate the size of the payload of this message for the specified protocol version
-     * and memoize the result for the specified protocol version. Memoization only covers the protocol
-     * version of the first invocation.
+     * Calculate the size of this message for the specified protocol version and memoize the result for the specified
+     * protocol version. Memoization only covers the protocol version of the first invocation.
      *
-     * It is not safe to call payloadSize concurrently from multiple threads unless it has already been invoked
+     * It is not safe to call this function concurrently from multiple threads unless it has already been invoked
      * once from a single thread and there is a happens before relationship between that invocation and other
-     * threads concurrently invoking payloadSize.
+     * threads concurrently invoking this function.
      *
      * For instance it would be safe to invokePayload size to make a decision in the thread that created the message
      * and then hand it off to other threads via a thread-safe queue, volatile write, or synchronized/ReentrantLock.
-     * @param version Protocol version to use when calculating payload size
-     * @return Size of the payload of this message in bytes
+     *
+     * @param version Protocol version to use when calculating size
+     * @return Size of this message in bytes, which will be less than or equal to {@link Integer#MAX_VALUE}
      */
-    public long payloadSize(int version)
+    public int serializedSize(int version)
     {
-        if (payloadSize == -1)
+        if (serializedSize > 0 && serializedSizeVersion == version)
+            return serializedSize;
+
+        Pair<Long, Long> sizes = calculateSerializedSize(version);
+        if (sizes.left > Integer.MAX_VALUE)
+            throw new IllegalStateException("message size exceeds maximum allowed size: size = " + sizes.left);
+
+        if (serializedSizeVersion == SERIALIZED_SIZE_VERSION_UNDEFINED)
         {
-            payloadSize = payload == null ? 0 : serializer.serializedSize(payload, version);
-            payloadSizeVersion = version;
+            serializedSize = sizes.left.intValue();
+            payloadSerializedSize = sizes.right.intValue();
+            serializedSizeVersion = version;
         }
-        else if (payloadSizeVersion != version)
-        {
-            return payload == null ? 0 : serializer.serializedSize(payload, version);
-        }
-        return payloadSize;
+
+        return sizes.left.intValue();
     }
 }

@@ -30,7 +30,7 @@ public enum CliOption
     INSERT("Insert specific options relating to various methods for batching and splitting partition updates", SettingsInsert.helpPrinter()),
     COL("Column details such as size and count distribution, data generator, names, comparator and if super columns should be used", SettingsColumn.helpPrinter()),
     RATE("Thread count, rate limit or automatic mode (default is auto)", SettingsRate.helpPrinter()),
-    MODE("Thrift or CQL with options", SettingsMode.helpPrinter()),
+    MODE("CQL mode options", SettingsMode.helpPrinter()),
     ERRORS("How to handle errors when encountered during stress", SettingsErrors.helpPrinter()),
     SCHEMA("Replication settings, compression, compaction, etc.", SettingsSchema.helpPrinter()),
     NODE("Nodes to connect to", SettingsNode.helpPrinter()),

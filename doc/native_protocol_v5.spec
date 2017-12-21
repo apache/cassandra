@@ -332,7 +332,7 @@ Table of Contents
     <query><query_parameters>
   where <query> is a [long string] representing the query and
   <query_parameters> must be
-    <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
+    <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>][<keyspace>]
   where:
     - <consistency> is the [consistency] level for the operation.
     - <flags> is a [int] whose bits define the options for this query and
@@ -375,6 +375,9 @@ Table of Contents
               since the names for the expected values was returned during preparation,
               a client can always provide values in the right order without any names
               and using this flag, while supported, is almost surely inefficient.
+        0x80: With keyspace. If set, <keyspace> must be present. <keyspace> is a
+              [string] indicating the keyspace that the query should be executed in.
+              It supercedes the keyspace that the connection is bound to, if any.
 
   Note that the consistency is ignored by some queries (USE, CREATE, ALTER,
   TRUNCATE, ...).
@@ -385,8 +388,17 @@ Table of Contents
 
 4.1.5. PREPARE
 
-  Prepare a query for later execution (through EXECUTE). The body consists of
-  the CQL query to prepare as a [long string].
+  Prepare a query for later execution (through EXECUTE). The body of the message must be:
+    <query><flags>[<keyspace>]
+  where:
+    - <query> is a [long string] representing the CQL query.
+    - <flags> is a [int] whose bits define the options for this statement and in particular
+      influence what the remainder of the message contains.
+      A flag is set if the bit corresponding to its `mask` is set. Supported
+      flags are, given their mask:
+        0x01: With keyspace. If set, <keyspace> must be present. <keyspace> is a
+              [string] indicating the keyspace that the query should be executed in.
+              It supercedes the keyspace that the connection is bound to, if any.
 
   The server will respond with a RESULT message with a `prepared` kind (0x0004,
   see Section 4.2.5).
@@ -395,12 +407,15 @@ Table of Contents
 4.1.6. EXECUTE
 
   Executes a prepared query. The body of the message must be:
-    <id><query_parameters>
-  where <id> is the prepared query ID. It's the [short bytes] returned as a
-  response to a PREPARE message. As for <query_parameters>, it has the exact
-  same definition as in QUERY (see Section 4.1.4).
-
-  The response from the server will be a RESULT message.
+  <id><result_metadata_id><query_parameters>
+  where
+  - <id> is the prepared query ID. It's the [short bytes] returned as a
+      response to a PREPARE message. As for <query_parameters>, it has the exact
+      same definition as in QUERY (see Section 4.1.4).
+    - <result_metadata_id> is the ID of the resultset metadata that was sent
+      along with response to PREPARE message. If a RESULT/Rows message reports
+      changed resultset metadata with the Metadata_changed flag, the reported new
+      resultset metadata must be used in subsequent executions.
 
 
 4.1.7. BATCH
@@ -408,7 +423,7 @@ Table of Contents
   Allows executing a list of queries (prepared or not) as a batch (note that
   only DML statements are accepted in a batch). The body of the message must
   be:
-    <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>]
+    <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>][<keyspace>]
   where:
     - <type> is a [byte] indicating the type of batch to use:
         - If <type> == 0, the batch will be "logged". This is equivalent to a
@@ -440,6 +455,9 @@ Table of Contents
               to implement. This will be fixed in a future version of the native
               protocol. See https://issues.apache.org/jira/browse/CASSANDRA-10246 for
               more details].
+        0x80: With keyspace. If set, <keyspace> must be present. <keyspace> is a
+              [string] indicating the keyspace that the query should be executed in.
+              It supercedes the keyspace that the connection is bound to, if any.
     - <n> is a [short] indicating the number of following queries.
     - <query_1>...<query_n> are the queries to execute. A <query_i> must be of the
       form:
@@ -568,7 +586,7 @@ Table of Contents
     <metadata><rows_count><rows_content>
   where:
     - <metadata> is composed of:
-        <flags><columns_count>[<paging_state>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
+        <flags><columns_count>[<paging_state>][<new_metadata_id>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
       where:
         - <flags> is an [int]. The bits of <flags> provides information on the
           formatting of the remaining information. A flag is set if the bit
@@ -589,9 +607,16 @@ Table of Contents
                       no other information (so no <global_table_spec> nor <col_spec_i>).
                       This will only ever be the case if this was requested
                       during the query (see QUERY and RESULT messages).
+            0x0008    Metadata_changed: if set, the No_metadata flag has to be unset
+                      and <new_metadata_id> has to be supplied. This flag is to be
+                      used to avoid a roundtrip in case of metadata changes for queries
+                      that requested metadata to be skipped.
         - <columns_count> is an [int] representing the number of columns selected
           by the query that produced this result. It defines the number of <col_spec_i>
           elements in and the number of elements for each row in <rows_content>.
+        - <new_metadata_id> is [short bytes] representing the new, changed resultset
+           metadata. The new metadata ID must also be used in subsequent executions of
+           the corresponding prepared statement, if any.
         - <global_table_spec> is present if the Global_tables_spec is set in
           <flags>. It is composed of two [string] representing the
           (unique) keyspace name and table name the columns belong to.
@@ -673,9 +698,10 @@ Table of Contents
 4.2.5.4. Prepared
 
   The result to a PREPARE message. The body of a Prepared result is:
-    <id><metadata><result_metadata>
+    <id><result_metadata_id><metadata><result_metadata>
   where:
     - <id> is [short bytes] representing the prepared query ID.
+    - <result_metadata_id> is [short bytes] representing the resultset metadata ID.
     - <metadata> is composed of:
         <flags><columns_count><pk_count>[<pk_index_1>...<pk_index_n>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
       where:
@@ -1213,3 +1239,5 @@ Table of Contents
   * Enlarged flag's bitmaps for QUERY, EXECUTE and BATCH messages from [byte] to [int]
     (Sections 4.1.4, 4.1.6 and 4.1.7).
   * Add the duration data type
+  * Added keyspace field in QUERY, PREPARE, and BATCH messages (Sections 4.1.4, 4.1.5, and 4.1.7).
+  * Added [int] flags field in PREPARE message (Section 4.1.5).

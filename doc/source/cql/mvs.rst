@@ -62,6 +62,11 @@ Creating a materialized view has 3 main parts:
 Attempting to create an already existing materialized view will return an error unless the ``IF NOT EXISTS`` option is
 used. If it is used, the statement will be a no-op if the materialized view already exists.
 
+.. note:: By default, materialized views are built in a single thread. The initial build can be parallelized by
+   increasing the number of threads specified by the property ``concurrent_materialized_view_builders`` in
+   ``cassandra.yaml``. This property can also be manipulated at runtime through both JMX and the
+   ``setconcurrentviewbuilders`` and ``getconcurrentviewbuilders`` nodetool commands.
+
 .. _mv-select:
 
 MV select statement
@@ -164,3 +169,11 @@ Dropping a materialized view users the ``DROP MATERIALIZED VIEW`` statement:
 
 If the materialized view does not exists, the statement will return an error, unless ``IF EXISTS`` is used in which case
 the operation is a no-op.
+
+MV Limitations
+```````````````
+
+.. Note:: Removal of columns not selected in the Materialized View (via ``UPDATE base SET unselected_column = null`` or
+          ``DELETE unselected_column FROM base``) may shadow missed updates to other columns received by hints or repair.
+          For this reason, we advise against doing deletions on base columns not selected in views until this is
+          fixed on CASSANDRA-13826.

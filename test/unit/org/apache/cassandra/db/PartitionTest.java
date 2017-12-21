@@ -19,13 +19,13 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
 
+import com.google.common.hash.Hasher;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -40,6 +40,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HashingUtils;
 
 import static junit.framework.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
@@ -67,7 +68,7 @@ public class PartitionTest
     public void testSingleColumn() throws IOException
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
-        PartitionUpdate update = new RowUpdateBuilder(cfs.metadata, 5, "key1")
+        PartitionUpdate update = new RowUpdateBuilder(cfs.metadata(), 5, "key1")
                                  .clustering("c")
                                  .add("val", "val1")
                                  .buildUpdate();
@@ -80,7 +81,7 @@ public class PartitionTest
         CachedPartition deserialized = CachedPartition.cacheSerializer.deserialize(new DataInputBuffer(bufOut.getData()));
 
         assert deserialized != null;
-        assert deserialized.metadata().cfName.equals(CF_STANDARD1);
+        assert deserialized.metadata().name.equals(CF_STANDARD1);
         assert deserialized.partitionKey().equals(partition.partitionKey());
     }
 
@@ -88,7 +89,7 @@ public class PartitionTest
     public void testManyColumns() throws IOException
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_TENCOL);
-        RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 5, "key1")
+        RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 5, "key1")
                                    .clustering("c")
                                    .add("val", "val1");
 
@@ -108,7 +109,7 @@ public class PartitionTest
         assertTrue(deserialized.columns().regulars.getSimple(1).equals(partition.columns().regulars.getSimple(1)));
         assertTrue(deserialized.columns().regulars.getSimple(5).equals(partition.columns().regulars.getSimple(5)));
 
-        ColumnDefinition cDef = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("val8"));
+        ColumnMetadata cDef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val8"));
         assertTrue(partition.lastRow().getCell(cDef).value().equals(deserialized.lastRow().getCell(cDef).value()));
         assert deserialized.partitionKey().equals(partition.partitionKey());
     }
@@ -119,52 +120,46 @@ public class PartitionTest
         testDigest(MessagingService.current_version);
     }
 
-    @Test
-    public void testLegacyDigest() throws NoSuchAlgorithmException
-    {
-        testDigest(MessagingService.VERSION_22);
-    }
-
     public void testDigest(int version) throws NoSuchAlgorithmException
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_TENCOL);
 
         try
         {
-            RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 5, "key1").clustering("c").add("val", "val1");
+            RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 5, "key1").clustering("c").add("val", "val1");
             for (int i = 0; i < 10; i++)
                 builder.add("val" + i, "val" + i);
             builder.build().applyUnsafe();
 
-            new RowUpdateBuilder(cfs.metadata, 5, "key2").clustering("c").add("val", "val2").build().applyUnsafe();
+            new RowUpdateBuilder(cfs.metadata(), 5, "key2").clustering("c").add("val", "val2").build().applyUnsafe();
 
             ReadCommand cmd1 = Util.cmd(cfs, "key1").build();
             ReadCommand cmd2 = Util.cmd(cfs, "key2").build();
             ImmutableBTreePartition p1 = Util.getOnlyPartitionUnfiltered(cmd1);
             ImmutableBTreePartition p2 = Util.getOnlyPartitionUnfiltered(cmd2);
 
-            MessageDigest digest1 = MessageDigest.getInstance("MD5");
-            MessageDigest digest2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(cmd1, p1.unfilteredIterator(), digest1, version);
-            UnfilteredRowIterators.digest(cmd2, p2.unfilteredIterator(), digest2, version);
-            assertFalse(Arrays.equals(digest1.digest(), digest2.digest()));
+            Hasher hasher1 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+            Hasher hasher2 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+            UnfilteredRowIterators.digest(p1.unfilteredIterator(), hasher1, version);
+            UnfilteredRowIterators.digest(p2.unfilteredIterator(), hasher2, version);
+            Assert.assertFalse(hasher1.hash().equals(hasher2.hash()));
 
             p1 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
             p2 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
-            digest1 = MessageDigest.getInstance("MD5");
-            digest2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(cmd1, p1.unfilteredIterator(), digest1, version);
-            UnfilteredRowIterators.digest(cmd2, p2.unfilteredIterator(), digest2, version);
-            assertTrue(Arrays.equals(digest1.digest(), digest2.digest()));
+            hasher1 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+            hasher2 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+            UnfilteredRowIterators.digest(p1.unfilteredIterator(), hasher1, version);
+            UnfilteredRowIterators.digest(p2.unfilteredIterator(), hasher2, version);
+            Assert.assertEquals(hasher1.hash(), hasher2.hash());
 
             p1 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
-            RowUpdateBuilder.deleteRow(cfs.metadata, 6, "key2", "c").applyUnsafe();
+            RowUpdateBuilder.deleteRow(cfs.metadata(), 6, "key2", "c").applyUnsafe();
             p2 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
-            digest1 = MessageDigest.getInstance("MD5");
-            digest2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(cmd1, p1.unfilteredIterator(), digest1, version);
-            UnfilteredRowIterators.digest(cmd2, p2.unfilteredIterator(), digest2, version);
-            assertFalse(Arrays.equals(digest1.digest(), digest2.digest()));
+            hasher1 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+            hasher2 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+            UnfilteredRowIterators.digest(p1.unfilteredIterator(), hasher1, version);
+            UnfilteredRowIterators.digest(p2.unfilteredIterator(), hasher2, version);
+            Assert.assertFalse(hasher1.hash().equals(hasher2.hash()));
         }
         finally
         {
@@ -179,12 +174,12 @@ public class PartitionTest
         int localDeletionTime = (int) (timestamp / 1000);
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_TENCOL);
-        RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 5, "key1").clustering("c").add("val", "val1");
+        RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 5, "key1").clustering("c").add("val", "val1");
         for (int i = 0; i < 10; i++)
             builder.add("val" + i, "val" + i);
         builder.build().applyUnsafe();
 
-        RowUpdateBuilder.deleteRowAt(cfs.metadata, 10L, localDeletionTime, "key1", "c").applyUnsafe();
+        RowUpdateBuilder.deleteRowAt(cfs.metadata(), 10L, localDeletionTime, "key1", "c").applyUnsafe();
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key1").build());
         EncodingStats stats = partition.stats();
         assertEquals(localDeletionTime, stats.minLocalDeletionTime);

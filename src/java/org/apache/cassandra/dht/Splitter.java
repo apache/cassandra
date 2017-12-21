@@ -18,10 +18,19 @@
 
 package org.apache.cassandra.dht;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
+
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Partition splitter.
@@ -35,9 +44,78 @@ public abstract class Splitter
         this.partitioner = partitioner;
     }
 
+    @VisibleForTesting
     protected abstract Token tokenForValue(BigInteger value);
 
+    @VisibleForTesting
     protected abstract BigInteger valueForToken(Token token);
+
+    @VisibleForTesting
+    protected BigInteger tokensInRange(Range<Token> range)
+    {
+        //full range case
+        if (range.left.equals(range.right))
+            return tokensInRange(new Range(partitioner.getMinimumToken(), partitioner.getMaximumToken()));
+
+        BigInteger totalTokens = BigInteger.ZERO;
+        for (Range<Token> unwrapped : range.unwrap())
+        {
+            totalTokens = totalTokens.add(valueForToken(token(unwrapped.right)).subtract(valueForToken(unwrapped.left))).abs();
+        }
+        return totalTokens;
+    }
+
+    /**
+     * Computes the number of elapsed tokens from the range start until this token
+     * @return the number of tokens from the range start to the token
+     */
+    @VisibleForTesting
+    protected BigInteger elapsedTokens(Token token, Range<Token> range)
+    {
+        // No token elapsed since range does not contain token
+        if (!range.contains(token))
+            return BigInteger.ZERO;
+
+        BigInteger elapsedTokens = BigInteger.ZERO;
+        for (Range<Token> unwrapped : range.unwrap())
+        {
+            if (unwrapped.contains(token))
+            {
+                elapsedTokens = elapsedTokens.add(tokensInRange(new Range<>(unwrapped.left, token)));
+            }
+            else if (token.compareTo(unwrapped.left) < 0)
+            {
+                elapsedTokens = elapsedTokens.add(tokensInRange(unwrapped));
+            }
+        }
+        return elapsedTokens;
+    }
+
+    /**
+     * Computes the normalized position of this token relative to this range
+     * @return A number between 0.0 and 1.0 representing this token's position
+     * in this range or -1.0 if this range doesn't contain this token.
+     */
+    public double positionInRange(Token token, Range<Token> range)
+    {
+        //full range case
+        if (range.left.equals(range.right))
+            return positionInRange(token, new Range(partitioner.getMinimumToken(), partitioner.getMaximumToken()));
+
+        // leftmost token means we are on position 0.0
+        if (token.equals(range.left))
+            return 0.0;
+
+        // rightmost token means we are on position 1.0
+        if (token.equals(range.right))
+            return 1.0;
+
+        // Impossible to find position when token is not contained in range
+        if (!range.contains(token))
+            return -1.0;
+
+        return new BigDecimal(elapsedTokens(token, range)).divide(new BigDecimal(tokensInRange(range)), 3, BigDecimal.ROUND_HALF_EVEN).doubleValue();
+    }
 
     public List<Token> splitOwnedRanges(int parts, List<Range<Token>> localRanges, boolean dontSplitRanges)
     {
@@ -127,4 +205,55 @@ public abstract class Splitter
         return t.equals(partitioner.getMinimumToken()) ? partitioner.getMaximumToken() : t;
     }
 
+    /**
+     * Splits the specified token ranges in at least {@code parts} subranges.
+     * <p>
+     * Each returned subrange will be contained in exactly one of the specified ranges.
+     *
+     * @param ranges a collection of token ranges to be split
+     * @param parts the minimum number of returned ranges
+     * @return at least {@code minParts} token ranges covering {@code ranges}
+     */
+    public Set<Range<Token>> split(Collection<Range<Token>> ranges, int parts)
+    {
+        int numRanges = ranges.size();
+        if (numRanges >= parts)
+        {
+            return Sets.newHashSet(ranges);
+        }
+        else
+        {
+            int partsPerRange = (int) Math.ceil((double) parts / numRanges);
+            return ranges.stream()
+                         .map(range -> split(range, partsPerRange))
+                         .flatMap(Collection::stream)
+                         .collect(toSet());
+        }
+    }
+
+    /**
+     * Splits the specified token range in at least {@code minParts} subranges, unless the range has not enough tokens
+     * in which case the range will be returned without splitting.
+     *
+     * @param range a token range
+     * @param parts the number of subranges
+     * @return {@code parts} even subranges of {@code range}
+     */
+    private Set<Range<Token>> split(Range<Token> range, int parts)
+    {
+        // the range might not have enough tokens to split
+        BigInteger numTokens = tokensInRange(range);
+        if (BigInteger.valueOf(parts).compareTo(numTokens) > 0)
+            return Collections.singleton(range);
+
+        Token left = range.left;
+        Set<Range<Token>> subranges = new HashSet<>(parts);
+        for (double i = 1; i <= parts; i++)
+        {
+            Token right = partitioner.split(range.left, range.right, i / parts);
+            subranges.add(new Range<>(left, right));
+            left = right;
+        }
+        return subranges;
+    }
 }

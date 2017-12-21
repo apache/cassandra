@@ -45,7 +45,7 @@ public interface IPartitioner
     public Token midpoint(Token left, Token right);
 
     /**
-     * Calculate a Token which take approximate 0 <= ratioToLeft <= 1 ownership of the given range.
+     * Calculate a Token which take {@code approximate 0 <= ratioToLeft <= 1} ownership of the given range.
      */
     public Token split(Token left, Token right, double ratioToLeft);
 

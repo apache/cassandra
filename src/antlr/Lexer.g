@@ -176,8 +176,10 @@ K_EXISTS:      E X I S T S;
 
 K_MAP:         M A P;
 K_LIST:        L I S T;
-K_NAN:         N A N;
-K_INFINITY:    I N F I N I T Y;
+K_POSITIVE_NAN: N A N;
+K_NEGATIVE_NAN: '-' N A N;
+K_POSITIVE_INFINITY:    I N F I N I T Y;
+K_NEGATIVE_INFINITY: '-' I N F I N I T Y;
 K_TUPLE:       T U P L E;
 
 K_TRIGGER:     T R I G G E R;
@@ -302,13 +304,18 @@ QMARK
     : '?'
     ;
 
+RANGE
+    : '..'
+    ;
+
 /*
  * Normally a lexer only emits one token at a time, but ours is tricked out
  * to support multiple (see @lexer::members near the top of the grammar).
  */
 FLOAT
-    : INTEGER EXPONENT
-    | INTEGER '.' DIGIT* EXPONENT?
+    : (INTEGER '.' RANGE) => INTEGER '.'
+    | (INTEGER RANGE) => INTEGER {$type = INTEGER;}
+    | INTEGER ('.' DIGIT*)? EXPONENT?
     ;
 
 /*

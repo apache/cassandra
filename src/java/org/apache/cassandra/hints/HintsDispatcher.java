@@ -29,6 +29,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
@@ -177,7 +178,7 @@ final class HintsDispatcher implements AutoCloseable
 
     private Callback sendHint(Hint hint)
     {
-        Callback callback = new Callback();
+        Callback callback = new Callback(hint.creationTime);
         HintMessage message = new HintMessage(hostId, hint);
         MessagingService.instance().sendRRWithFailure(message.createMessageOut(), address, callback);
         return callback;
@@ -189,8 +190,8 @@ final class HintsDispatcher implements AutoCloseable
 
     private Callback sendEncodedHint(ByteBuffer hint)
     {
-        Callback callback = new Callback();
         EncodedHintMessage message = new EncodedHintMessage(hostId, hint, messagingVersion);
+        Callback callback = new Callback(message.getHintCreationTime());
         MessagingService.instance().sendRRWithFailure(message.createMessageOut(), address, callback);
         return callback;
     }
@@ -202,6 +203,12 @@ final class HintsDispatcher implements AutoCloseable
         private final long start = System.nanoTime();
         private final SimpleCondition condition = new SimpleCondition();
         private volatile Outcome outcome;
+        private final long hintCreationTime;
+
+        private Callback(long hintCreationTime)
+        {
+            this.hintCreationTime = hintCreationTime;
+        }
 
         Outcome await()
         {
@@ -229,6 +236,7 @@ final class HintsDispatcher implements AutoCloseable
 
         public void response(MessageIn msg)
         {
+            HintsServiceMetrics.updateDelayMetrics(msg.from, ApproximateTime.currentTimeMillis() - this.hintCreationTime);
             outcome = Outcome.SUCCESS;
             condition.signalAll();
         }

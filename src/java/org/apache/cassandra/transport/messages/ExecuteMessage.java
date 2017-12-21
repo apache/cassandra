@@ -26,7 +26,12 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
+import org.apache.cassandra.cql3.statements.UpdateStatement;
+import org.apache.cassandra.db.fullquerylog.FullQueryLogger;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -42,13 +47,22 @@ public class ExecuteMessage extends Message.Request
     {
         public ExecuteMessage decode(ByteBuf body, ProtocolVersion version)
         {
-            byte[] id = CBUtil.readBytes(body);
-            return new ExecuteMessage(MD5Digest.wrap(id), QueryOptions.codec.decode(body, version));
+            MD5Digest statementId = MD5Digest.wrap(CBUtil.readBytes(body));
+
+            MD5Digest resultMetadataId = null;
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                resultMetadataId = MD5Digest.wrap(CBUtil.readBytes(body));
+
+            return new ExecuteMessage(statementId, resultMetadataId, QueryOptions.codec.decode(body, version));
         }
 
         public void encode(ExecuteMessage msg, ByteBuf dest, ProtocolVersion version)
         {
             CBUtil.writeBytes(msg.statementId.bytes, dest);
+
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                CBUtil.writeBytes(msg.resultMetadataId.bytes, dest);
+
             if (version == ProtocolVersion.V1)
             {
                 CBUtil.writeValueList(msg.options.getValues(), dest);
@@ -64,6 +78,10 @@ public class ExecuteMessage extends Message.Request
         {
             int size = 0;
             size += CBUtil.sizeOfBytes(msg.statementId.bytes);
+
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                size += CBUtil.sizeOfBytes(msg.resultMetadataId.bytes);
+
             if (version == ProtocolVersion.V1)
             {
                 size += CBUtil.sizeOfValueList(msg.options.getValues());
@@ -78,13 +96,15 @@ public class ExecuteMessage extends Message.Request
     };
 
     public final MD5Digest statementId;
+    public final MD5Digest resultMetadataId;
     public final QueryOptions options;
 
-    public ExecuteMessage(MD5Digest statementId, QueryOptions options)
+    public ExecuteMessage(MD5Digest statementId, MD5Digest resultMetadataId, QueryOptions options)
     {
         super(Message.Type.EXECUTE);
         this.statementId = statementId;
         this.options = options;
+        this.resultMetadataId = resultMetadataId;
     }
 
     public Message.Response execute(QueryState state, long queryStartNanoTime)
@@ -143,9 +163,47 @@ public class ExecuteMessage extends Message.Request
             // Some custom QueryHandlers are interested by the bound names. We provide them this information
             // by wrapping the QueryOptions.
             QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.boundNames);
+            boolean fqlEnabled = FullQueryLogger.instance.enabled();
+            long fqlTime = 0;
+            if (fqlEnabled)
+            {
+                fqlTime = System.currentTimeMillis();
+            }
             Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
-            if (options.skipMetadata() && response instanceof ResultMessage.Rows)
-                ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
+            if (fqlEnabled)
+            {
+                FullQueryLogger.instance.logQuery(prepared.rawCQLStatement, options, fqlTime);
+            }
+
+            if (response instanceof ResultMessage.Rows)
+            {
+                ResultMessage.Rows rows = (ResultMessage.Rows) response;
+
+                ResultSet.ResultMetadata resultMetadata = rows.result.metadata;
+
+                if (options.getProtocolVersion().isGreaterOrEqualTo(ProtocolVersion.V5))
+                {
+                    // For LWTs, always send a resultset metadata but avoid setting a metadata changed flag. This way
+                    // Client will always receive fresh metadata, but will avoid caching and reusing it. See CASSANDRA-13992
+                    // for details.
+                    if (!statement.hasConditions())
+                    {
+                        // Starting with V5 we can rely on the result metadata id coming with execute message in order to
+                        // check if there was a change, comparing it with metadata that's about to be returned to client.
+                        if (!resultMetadata.getResultMetadataId().equals(resultMetadataId))
+                            resultMetadata.setMetadataChanged();
+                        else if (options.skipMetadata())
+                            resultMetadata.setSkipMetadata();
+                    }
+                }
+                else
+                {
+                    // Pre-V5 code has to rely on the difference between the metadata in the prepared message cache
+                    // and compare it with the metadata to be returned to client.
+                    if (options.skipMetadata() && prepared.resultMetadataId.equals(resultMetadata.getResultMetadataId()))
+                        resultMetadata.setSkipMetadata();
+                }
+            }
 
             if (tracingId != null)
                 response.setTracingId(tracingId);

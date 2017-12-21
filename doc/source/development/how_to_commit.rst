@@ -31,15 +31,15 @@ On cassandra-3.0:
 On cassandra-3.3:
    #. ``git merge cassandra-3.0 -s ours``
    #. ``git apply -3 12345-3.3.patch`` (likely to have an issue with CHANGES.txt here: fix it ourselves, then git add CHANGES.txt)
-   #. ``git commit —amend``
+   #. ``git commit -amend``
 
 On trunk:
    #. ``git merge cassandra-3.3 -s ours``
    #. ``git apply -3 12345-trunk.patch`` (likely to have an issue with CHANGES.txt here: fix it ourselves, then git add CHANGES.txt)
-   #. ``git commit —amend``
+   #. ``git commit -amend``
 
 On any branch:
-   #. ``git push origin cassandra-3.0 cassandra-3.3 trunk —atomic``
+   #. ``git push origin cassandra-3.0 cassandra-3.3 trunk -atomic``
 
 Same scenario, but a branch-based contribution:
 
@@ -50,23 +50,23 @@ On cassandra-3.3:
    #. ``git merge cassandra-3.0 -s ours``
    #. ``git format-patch -1 <sha-of-3.3-commit>``
    #. ``git apply -3 <sha-of-3.3-commit>.patch`` (likely to have an issue with CHANGES.txt here: fix it ourselves, then git add CHANGES.txt)
-   #. ``git commit —amend``
+   #. ``git commit -amend``
 
 On trunk:
    #. ``git merge cassandra-3.3 -s ours``
    #. ``git format-patch -1 <sha-of-trunk-commit>``
    #. ``git apply -3 <sha-of-trunk-commit>.patch`` (likely to have an issue with CHANGES.txt here: fix it ourselves, then git add CHANGES.txt)
-   #. ``git commit —amend``
+   #. ``git commit -amend``
 
 On any branch:
-   #. ``git push origin cassandra-3.0 cassandra-3.3 trunk —atomic``
+   #. ``git push origin cassandra-3.0 cassandra-3.3 trunk -atomic``
 
 .. tip::
 
    Notes on git flags:
    ``-3`` flag to am and apply will instruct git to perform a 3-way merge for you. If a conflict is detected, you can either resolve it manually or invoke git mergetool - for both am and apply.
 
-   ``—atomic`` flag to git push does the obvious thing: pushes all or nothing. Without the flag, the command is equivalent to running git push once per each branch. This is nifty in case a race condition happens - you won’t push half the branches, blocking other committers’ progress while you are resolving the issue.
+   ``-atomic`` flag to git push does the obvious thing: pushes all or nothing. Without the flag, the command is equivalent to running git push once per each branch. This is nifty in case a race condition happens - you won’t push half the branches, blocking other committers’ progress while you are resolving the issue.
 
 .. tip::
 

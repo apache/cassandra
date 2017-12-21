@@ -27,13 +27,14 @@ import javax.annotation.Nullable;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.UnknownColumnFamilyException;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
@@ -58,7 +59,7 @@ public final class HintMessage
     final Hint hint;
 
     @Nullable // will usually be null, unless a hint deserialization fails due to an unknown table id
-    final UUID unknownTableID;
+    final TableId unknownTableID;
 
     HintMessage(UUID hostId, Hint hint)
     {
@@ -67,7 +68,7 @@ public final class HintMessage
         this.unknownTableID = null;
     }
 
-    HintMessage(UUID hostId, UUID unknownTableID)
+    HintMessage(UUID hostId, TableId unknownTableID)
     {
         this.hostId = hostId;
         this.hint = null;
@@ -122,10 +123,10 @@ public final class HintMessage
             {
                 return new HintMessage(hostId, Hint.serializer.deserialize(countingIn, version));
             }
-            catch (UnknownColumnFamilyException e)
+            catch (UnknownTableException e)
             {
                 in.skipBytes(Ints.checkedCast(hintSize - countingIn.getBytesRead()));
-                return new HintMessage(hostId, e.cfId);
+                return new HintMessage(hostId, e.id);
             }
         }
     }

@@ -75,27 +75,19 @@ public class DescriptorTest
 
     private void testFromFilenameFor(File dir)
     {
-        // normal
-        checkFromFilename(new Descriptor(dir, ksname, cfname, 1, SSTableFormat.Type.BIG), false);
-        // skip component (for streaming lock file)
-        checkFromFilename(new Descriptor(dir, ksname, cfname, 2, SSTableFormat.Type.BIG), true);
+        checkFromFilename(new Descriptor(dir, ksname, cfname, 1, SSTableFormat.Type.BIG));
 
         // secondary index
         String idxName = "myidx";
         File idxDir = new File(dir.getAbsolutePath() + File.separator + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName);
-        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, 4, SSTableFormat.Type.BIG), false);
-
-        // legacy version
-        checkFromFilename(new Descriptor("ja", dir, ksname, cfname, 1, SSTableFormat.Type.LEGACY), false);
-        // legacy secondary index
-        checkFromFilename(new Descriptor("ja", dir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, 3, SSTableFormat.Type.LEGACY), false);
+        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, 4, SSTableFormat.Type.BIG));
     }
 
-    private void checkFromFilename(Descriptor original, boolean skipComponent)
+    private void checkFromFilename(Descriptor original)
     {
-        File file = new File(skipComponent ? original.baseFilename() : original.filenameFor(Component.DATA));
+        File file = new File(original.filenameFor(Component.DATA));
 
-        Pair<Descriptor, String> pair = Descriptor.fromFilename(file.getParentFile(), file.getName(), skipComponent);
+        Pair<Descriptor, Component> pair = Descriptor.fromFilenameWithComponent(file);
         Descriptor desc = pair.left;
 
         assertEquals(original.directory, desc.directory);
@@ -103,15 +95,7 @@ public class DescriptorTest
         assertEquals(original.cfname, desc.cfname);
         assertEquals(original.version, desc.version);
         assertEquals(original.generation, desc.generation);
-
-        if (skipComponent)
-        {
-            assertNull(pair.right);
-        }
-        else
-        {
-            assertEquals(Component.DATA.name(), pair.right);
-        }
+        assertEquals(Component.DATA, pair.right);
     }
 
     @Test
@@ -128,20 +112,10 @@ public class DescriptorTest
     @Test
     public void validateNames()
     {
-        // TODO tmp file name probably is not handled correctly after CASSANDRA-7066
         String[] names = {
-             // old formats
-             "system-schema_keyspaces-jb-1-Data.db",
-             //"system-schema_keyspaces-tmp-jb-1-Data.db",
-             "system-schema_keyspaces-ka-1-big-Data.db",
-             //"system-schema_keyspaces-tmp-ka-1-big-Data.db",
+             "ma-1-big-Data.db",
              // 2ndary index
-             "keyspace1-standard1.idx1-ka-1-big-Data.db",
-             // new formats
-             "la-1-big-Data.db",
-             //"tmp-la-1-big-Data.db",
-             // 2ndary index
-             ".idx1" + File.separator + "la-1-big-Data.db",
+             ".idx1" + File.separator + "ma-1-big-Data.db",
         };
 
         for (String name : names)

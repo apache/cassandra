@@ -19,7 +19,7 @@ package org.apache.cassandra.cql3.functions;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.SchemaConstants;
 
 public final class FunctionName
 {

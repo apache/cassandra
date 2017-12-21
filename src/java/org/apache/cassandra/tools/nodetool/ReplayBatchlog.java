@@ -21,7 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import java.io.IOError;
 import java.io.IOException;
 
-import io.airlift.command.Command;
+import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 

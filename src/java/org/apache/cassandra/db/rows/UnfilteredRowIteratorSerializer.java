@@ -23,11 +23,11 @@ import java.io.IOError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -177,14 +177,14 @@ public class UnfilteredRowIteratorSerializer
         return size;
     }
 
-    public Header deserializeHeader(CFMetaData metadata, ColumnFilter selection, DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
+    public Header deserializeHeader(TableMetadata metadata, ColumnFilter selection, DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
     {
-        DecoratedKey key = metadata.decorateKey(ByteBufferUtil.readWithVIntLength(in));
+        DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithVIntLength(in));
         int flags = in.readUnsignedByte();
         boolean isReversed = (flags & IS_REVERSED) != 0;
         if ((flags & IS_EMPTY) != 0)
         {
-            SerializationHeader sh = new SerializationHeader(false, metadata, PartitionColumns.NONE, EncodingStats.NO_STATS);
+            SerializationHeader sh = new SerializationHeader(false, metadata, RegularAndStaticColumns.NONE, EncodingStats.NO_STATS);
             return new Header(sh, key, isReversed, true, null, null, 0);
         }
 
@@ -204,7 +204,7 @@ public class UnfilteredRowIteratorSerializer
         return new Header(header, key, isReversed, false, partitionDeletion, staticRow, rowEstimate);
     }
 
-    public UnfilteredRowIterator deserialize(DataInputPlus in, int version, CFMetaData metadata, SerializationHelper.Flag flag, Header header) throws IOException
+    public UnfilteredRowIterator deserialize(DataInputPlus in, int version, TableMetadata metadata, SerializationHelper.Flag flag, Header header) throws IOException
     {
         if (header.isEmpty)
             return EmptyIterators.unfilteredRow(metadata, header.key, header.isReversed);
@@ -230,7 +230,7 @@ public class UnfilteredRowIteratorSerializer
         };
     }
 
-    public UnfilteredRowIterator deserialize(DataInputPlus in, int version, CFMetaData metadata, ColumnFilter selection, SerializationHelper.Flag flag) throws IOException
+    public UnfilteredRowIterator deserialize(DataInputPlus in, int version, TableMetadata metadata, ColumnFilter selection, SerializationHelper.Flag flag) throws IOException
     {
         return deserialize(in, version, metadata, flag, deserializeHeader(metadata, selection, in, version, flag));
     }

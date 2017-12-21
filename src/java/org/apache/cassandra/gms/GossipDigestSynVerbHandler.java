@@ -20,6 +20,8 @@ package org.apache.cassandra.gms;
 import java.net.InetAddress;
 import java.util.*;
 
+import com.google.common.collect.Maps;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -121,7 +123,7 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
     private void doSort(List<GossipDigest> gDigestList)
     {
         /* Construct a map of endpoint to GossipDigest. */
-        Map<InetAddress, GossipDigest> epToDigestMap = new HashMap<InetAddress, GossipDigest>();
+        Map<InetAddress, GossipDigest> epToDigestMap = Maps.newHashMapWithExpectedSize(gDigestList.size());
         for (GossipDigest gDigest : gDigestList)
         {
             epToDigestMap.put(gDigest.getEndpoint(), gDigest);

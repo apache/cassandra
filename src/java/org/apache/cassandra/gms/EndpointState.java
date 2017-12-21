@@ -18,11 +18,7 @@
 package org.apache.cassandra.gms;
 
 import java.io.*;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nullable;

@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.ResultSet;
@@ -44,7 +44,8 @@ public class ListUsersStatement extends ListRolesStatement
     @Override
     protected ResultMessage formatResults(List<RoleResource> sortedRoles)
     {
-        ResultSet result = new ResultSet(metadata);
+        ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(metadata);
+        ResultSet result = new ResultSet(resultMetadata);
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
         for (RoleResource role : sortedRoles)
@@ -54,6 +55,7 @@ public class ListUsersStatement extends ListRolesStatement
             result.addColumnValue(UTF8Type.instance.decompose(role.getRoleName()));
             result.addColumnValue(BooleanType.instance.decompose(Roles.hasSuperuserStatus(role)));
         }
+
         return new ResultMessage.Rows(result);
     }
 }

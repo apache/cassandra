@@ -126,16 +126,30 @@ CasPrepare                              Latency        Latency of paxos prepare 
 CasPropose                              Latency        Latency of paxos propose round.
 CasCommit                               Latency        Latency of paxos commit round.
 PercentRepaired                         Gauge<Double>  Percent of table data that is repaired on disk.
+BytesRepaired                           Gauge<Long>    Size of table data repaired on disk
+BytesUnrepaired                         Gauge<Long>    Size of table data unrepaired on disk
+BytesPendingRepair                      Gauge<Long>    Size of table data isolated for an ongoing incremental repair
 SpeculativeRetries                      Counter        Number of times speculative retries were sent for this table.
+SpeculativeFailedRetries                Counter        Number of speculative retries that failed to prevent a timeout
+SpeculativeInsufficientReplicas         Counter        Number of speculative retries that couldn't be attempted due to lack of replicas
+SpeculativeSampleLatencyNanos           Gauge<Long>    Number of nanoseconds to wait before speculation is attempted. Value may be statically configured or updated periodically based on coordinator latency.
 WaitingOnFreeMemtableSpace              Histogram      Histogram of time spent waiting for free memtable space, either on- or off-heap.
 DroppedMutations                        Counter        Number of dropped mutations on this table.
+AnticompactionTime                      Timer          Time spent anticompacting before a consistent repair.
+ValidationTime                          Timer          Time spent doing validation compaction during repair.
+SyncTime                                Timer          Time spent doing streaming during repair.
+BytesValidated                          Histogram      Histogram over the amount of bytes read during validation.
+PartitionsValidated                     Histogram      Histogram over the number of partitions read during validation.
+BytesAnticompacted                      Counter        How many bytes we anticompacted.
+BytesMutatedAnticompaction              Counter        How many bytes we avoided anticompacting because the sstable was fully contained in the repaired range.
+MutatedAnticompactionGauge              Gauge<Double>  Ratio of bytes mutated vs total bytes repaired.
 ======================================= ============== ===========
 
 Keyspace Metrics
 ^^^^^^^^^^^^^^^^
 Each keyspace in Cassandra has metrics responsible for tracking its state and performance.
 
-These metrics are the same as the ``Table Metrics`` above, only they are aggregated at the Keyspace level.
+Most of these metrics are the same as the ``Table Metrics`` above, only they are aggregated at the Keyspace level. The keyspace specific metrics are specified in the table below.
 
 Reported name format:
 
@@ -144,6 +158,16 @@ Reported name format:
 
 **JMX MBean**
     ``org.apache.cassandra.metrics:type=Keyspace scope=<Keyspace> name=<MetricName>``
+
+
+======================================= ============== ===========
+Name                                    Type           Description
+======================================= ============== ===========
+WriteFailedIdeaCL                       Counter        Number of writes that failed to achieve the configured ideal consistency level or 0 if none is configured
+IdealCLWriteLatency                     Latency        Coordinator latency of writes at the configured ideal consistency level. No values are recorded if ideal consistency level is not configured
+RepairTime                              Timer          Total time spent as repair coordinator.
+RepairPrepareTime                       Timer          Total time spent preparing for repair.
+======================================= ============== ===========
 
 ThreadPool Metrics
 ^^^^^^^^^^^^^^^^^^
@@ -161,7 +185,7 @@ Reported name format:
     ``org.apache.cassandra.metrics.ThreadPools.<MetricName>.<Path>.<ThreadPoolName>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=ThreadPools scope=<ThreadPoolName> type=<Type> name=<MetricName>``
+    ``org.apache.cassandra.metrics:type=ThreadPools path=<Path> scope=<ThreadPoolName> name=<MetricName>``
 
 ===================== ============== ===========
 Name                  Type           Description
@@ -172,6 +196,7 @@ CompletedTasks        Counter        Number of tasks completed.
 TotalBlockedTasks     Counter        Number of tasks that were blocked due to queue saturation.
 CurrentlyBlockedTask  Counter        Number of tasks that are currently blocked due to queue saturation but on retry will become unblocked.
 MaxPoolSize           Gauge<Integer> The maximum number of threads in this pool.
+MaxTasksQueued        Gauge<Integer> The maximum number of tasks queued before a task get blocked.
 ===================== ============== ===========
 
 The following thread pools can be monitored.
@@ -202,6 +227,7 @@ PerDiskMemtableFlushWriter_0 internal       Responsible for writing a spec (ther
 Sampler                      internal       Responsible for re-sampling the index summaries of SStables
 SecondaryIndexManagement     internal       Performs updates to secondary indexes
 ValidationExecutor           internal       Performs validation compaction or scrubbing
+ViewBuildExecutor            internal       Performs materialized views initial build
 ============================ ============== ===========
 
 .. |nbsp| unicode:: 0xA0 .. nonbreaking space
@@ -249,6 +275,7 @@ Reported name format:
     UnfinishedCommit      Counter        Number of transactions that were committed on write.
     ConditionNotMet       Counter        Number of transaction preconditions did not match current values.
     ContentionHistogram   Histogram      How many contended writes were encountered
+    MutationSizeHistogram Histogram      Total size in bytes of the requests mutations.
     ===================== ============== =============================================================
 
 
@@ -286,6 +313,7 @@ Reported name format:
     Failures              Counter        Number of write failures encountered.
     |nbsp|                Latency        Write latency.
     Unavailables          Counter        Number of unavailable exceptions encountered.
+    MutationSizeHistogram Histogram      Total size in bytes of the requests mutations.
     ===================== ============== =============================================================
 
 
@@ -378,10 +406,10 @@ Dropped writes are stored and retried by ``Hinted Handoff``
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.DroppedMessages.<MetricName>.<Type>``
+    ``org.apache.cassandra.metrics.DroppedMessage.<MetricName>.<Type>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=DroppedMetrics scope=<Type> name=<MetricName>``
+    ``org.apache.cassandra.metrics:type=DroppedMessage scope=<Type> name=<MetricName>``
 
 ========================== ============== ===========
 Name                       Type           Description
@@ -522,6 +550,31 @@ Hints_created-<PeerIP>       Counter        Number of hints on disk for this pee
 Hints_not_stored-<PeerIP>    Counter        Number of hints not stored for this peer, due to being down past the configured hint window.
 =========================== ============== ===========
 
+HintsService Metrics
+^^^^^^^^^^^^^^^^^^^^^
+
+Metrics specific to the Hints delivery service.  There are also some metrics related to hints tracked in ``Storage Metrics``
+
+These metrics include the peer endpoint **in the metric name**
+
+Reported name format:
+
+**Metric Name**
+    ``org.apache.cassandra.metrics.HintsService.<MetricName>``
+
+**JMX MBean**
+    ``org.apache.cassandra.metrics:type=HintsService name=<MetricName>``
+
+=========================== ============== ===========
+Name                        Type           Description
+=========================== ============== ===========
+HintsSucceeded               Meter          A meter of the hints successfully delivered
+HintsFailed                  Meter          A meter of the hints that failed deliver
+HintsTimedOut                Meter          A meter of the hints that timed out
+Hints_delays                 Histogram      Histogram of hint delivery delays (in milliseconds)
+Hints_delays-<PeerIP>        Histogram      Histogram of hint delivery delays (in milliseconds) per peer
+=========================== ============== ===========
+
 SSTable Index Metrics
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -582,8 +635,30 @@ Reported name format:
 Name                        Type           Description
 =========================== ============== ===========
 connectedNativeClients      Counter        Number of clients connected to this nodes native protocol server
-connectedThriftClients      Counter        Number of clients connected to this nodes thrift protocol server
 =========================== ============== ===========
+
+
+Batch Metrics
+^^^^^^^^^^^^^
+
+Metrics specifc to batch statements.
+
+Reported name format:
+
+**Metric Name**
+    ``org.apache.cassandra.metrics.Batch.<MetricName>``
+
+**JMX MBean**
+    ``org.apache.cassandra.metrics:type=Batch name=<MetricName>``
+
+=========================== ============== ===========
+Name                        Type           Description
+=========================== ============== ===========
+PartitionsPerCounterBatch   Histogram      Distribution of the number of partitions processed per counter batch
+PartitionsPerLoggedBatch    Histogram      Distribution of the number of partitions processed per logged batch
+PartitionsPerUnloggedBatch  Histogram      Distribution of the number of partitions processed per unlogged batch
+=========================== ============== ===========
+
 
 JVM Metrics
 ^^^^^^^^^^^

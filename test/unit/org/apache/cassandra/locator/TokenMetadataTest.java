@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.UUID;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Multimap;
@@ -287,5 +288,43 @@ public class TokenMetadataTest
         assertTrue(racks.get(DATA_CENTER).containsKey(RACK2));
         assertTrue(racks.get(DATA_CENTER).get(RACK1).contains(first));
         assertTrue(racks.get(DATA_CENTER).get(RACK2).contains(second));
+    }
+
+    @Test
+    public void testEndpointSizes() throws UnknownHostException
+    {
+        final InetAddress first = InetAddress.getByName("127.0.0.1");
+        final InetAddress second = InetAddress.getByName("127.0.0.6");
+
+        tmd.updateNormalToken(token(ONE), first);
+        tmd.updateNormalToken(token(SIX), second);
+
+        TokenMetadata tokenMetadata = tmd.cloneOnlyTokenMap();
+        assertNotNull(tokenMetadata);
+
+        tokenMetadata.updateHostId(UUID.randomUUID(), first);
+        tokenMetadata.updateHostId(UUID.randomUUID(), second);
+
+        assertEquals(2, tokenMetadata.getSizeOfAllEndpoints());
+        assertEquals(0, tokenMetadata.getSizeOfLeavingEndpoints());
+        assertEquals(0, tokenMetadata.getSizeOfMovingEndpoints());
+
+        tokenMetadata.addLeavingEndpoint(first);
+        assertEquals(1, tokenMetadata.getSizeOfLeavingEndpoints());
+
+        tokenMetadata.removeEndpoint(first);
+        assertEquals(0, tokenMetadata.getSizeOfLeavingEndpoints());
+        assertEquals(1, tokenMetadata.getSizeOfAllEndpoints());
+
+        tokenMetadata.addMovingEndpoint(token(SIX), second);
+        assertEquals(1, tokenMetadata.getSizeOfMovingEndpoints());
+
+        tokenMetadata.removeFromMoving(second);
+        assertEquals(0, tokenMetadata.getSizeOfMovingEndpoints());
+
+        tokenMetadata.removeEndpoint(second);
+        assertEquals(0, tokenMetadata.getSizeOfAllEndpoints());
+        assertEquals(0, tokenMetadata.getSizeOfLeavingEndpoints());
+        assertEquals(0, tokenMetadata.getSizeOfMovingEndpoints());
     }
 }

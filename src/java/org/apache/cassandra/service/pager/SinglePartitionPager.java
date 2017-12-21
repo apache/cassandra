@@ -89,8 +89,9 @@ public class SinglePartitionPager extends AbstractQueryPager
     protected ReadCommand nextPageReadCommand(int pageSize)
     {
         Clustering clustering = lastReturned == null ? null : lastReturned.clustering(command.metadata());
-        DataLimits limits = (lastReturned == null || command.isForThrift()) ? limits().forPaging(pageSize)
-                                                                            : limits().forPaging(pageSize, key(), remainingInPartition());
+        DataLimits limits = lastReturned == null
+                          ? limits().forPaging(pageSize)
+                          : limits().forPaging(pageSize, key(), remainingInPartition());
 
         return command.forPaging(clustering, limits);
     }

@@ -30,51 +30,14 @@ import org.apache.cassandra.service.StorageService;
 
 public class SelectLimitTest extends CQLTester
 {
+    // This method will be ran instead of the CQLTester#setUpClass
     @BeforeClass
-    public static void setUp()
+    public static void setUpClass()
     {
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
         DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-    }
 
-    /**
-     * Test limit across a partition range, requires byte ordered partitioner,
-     * migrated from cql_tests.py:TestCQL.limit_range_test()
-     */
-    @Test
-    public void testPartitionRange() throws Throwable
-    {
-        createTable("CREATE TABLE %s (userid int, url text, time bigint, PRIMARY KEY (userid, url)) WITH COMPACT STORAGE");
-
-        for (int i = 0; i < 100; i++)
-            for (String tld : new String[] { "com", "org", "net" })
-                execute("INSERT INTO %s (userid, url, time) VALUES (?, ?, ?)", i, String.format("http://foo.%s", tld), 42L);
-
-        assertRows(execute("SELECT * FROM %s WHERE token(userid) >= token(2) LIMIT 1"),
-                   row(2, "http://foo.com", 42L));
-
-        assertRows(execute("SELECT * FROM %s WHERE token(userid) > token(2) LIMIT 1"),
-                   row(3, "http://foo.com", 42L));
-    }
-
-    /**
-     * Test limit across a column range,
-     * migrated from cql_tests.py:TestCQL.limit_multiget_test()
-     */
-    @Test
-    public void testColumnRange() throws Throwable
-    {
-        createTable("CREATE TABLE %s (userid int, url text, time bigint, PRIMARY KEY (userid, url)) WITH COMPACT STORAGE");
-
-        for (int i = 0; i < 100; i++)
-            for (String tld : new String[] { "com", "org", "net" })
-                execute("INSERT INTO %s (userid, url, time) VALUES (?, ?, ?)", i, String.format("http://foo.%s", tld), 42L);
-
-        // Check that we do limit the output to 1 *and* that we respect query
-        // order of keys (even though 48 is after 2)
-        assertRows(execute("SELECT * FROM %s WHERE userid IN (48, 2) LIMIT 1"),
-                   row(2, "http://foo.com", 42L));
-
+        prepareServer();
     }
 
     /**
@@ -95,103 +58,11 @@ public class SelectLimitTest extends CQLTester
     }
 
     @Test
-    public void testLimitInStaticTable() throws Throwable
-    {
-        createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY (k) ) WITH COMPACT STORAGE ");
-
-        for (int i = 0; i < 10; i++)
-            execute("INSERT INTO %s(k, v) VALUES (?, ?)", i, i);
-
-        assertRows(execute("SELECT * FROM %s LIMIT 5"),
-                   row(0, 0),
-                   row(1, 1),
-                   row(2, 2),
-                   row(3, 3),
-                   row(4, 4));
-
-        assertRows(execute("SELECT v FROM %s LIMIT 5"),
-                   row(0),
-                   row(1),
-                   row(2),
-                   row(3),
-                   row(4));
-
-        assertRows(execute("SELECT k FROM %s LIMIT 5"),
-                   row(0),
-                   row(1),
-                   row(2),
-                   row(3),
-                   row(4));
-
-        assertRows(execute("SELECT DISTINCT k FROM %s LIMIT 5"),
-                   row(0),
-                   row(1),
-                   row(2),
-                   row(3),
-                   row(4));
-    }
-
-    /**
-     * Check for #7052 bug,
-     * migrated from cql_tests.py:TestCQL.limit_compact_table()
-     */
-    @Test
-    public void testLimitInCompactTable() throws Throwable
-    {
-        createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY (k, v) ) WITH COMPACT STORAGE ");
-
-        for (int i = 0; i < 4; i++)
-            for (int j = 0; j < 4; j++)
-                execute("INSERT INTO %s(k, v) VALUES (?, ?)", i, j);
-
-        assertRows(execute("SELECT v FROM %s WHERE k=0 AND v > 0 AND v <= 4 LIMIT 2"),
-                   row(1),
-                   row(2));
-        assertRows(execute("SELECT v FROM %s WHERE k=0 AND v > -1 AND v <= 4 LIMIT 2"),
-                   row(0),
-                   row(1));
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2) AND v > 0 AND v <= 4 LIMIT 2"),
-                   row(0, 1),
-                   row(0, 2));
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2) AND v > -1 AND v <= 4 LIMIT 2"),
-                   row(0, 0),
-                   row(0, 1));
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2) AND v > 0 AND v <= 4 LIMIT 6"),
-                   row(0, 1),
-                   row(0, 2),
-                   row(0, 3),
-                   row(1, 1),
-                   row(1, 2),
-                   row(1, 3));
-        assertRows(execute("SELECT * FROM %s WHERE v > 1 AND v <= 3 LIMIT 6 ALLOW FILTERING"),
-                   row(0, 2),
-                   row(0, 3),
-                   row(1, 2),
-                   row(1, 3),
-                   row(2, 2),
-                   row(2, 3));
-    }
-
-    @Test
     public void testPerPartitionLimit() throws Throwable
-    {
-        perPartitionLimitTest(false);
-    }
-
-    @Test
-    public void testPerPartitionLimitWithCompactStorage() throws Throwable
-    {
-        perPartitionLimitTest(true);
-    }
-
-    private void perPartitionLimitTest(boolean withCompactStorage) throws Throwable
     {
         String query = "CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))";
 
-        if (withCompactStorage)
-            createTable(query + " WITH COMPACT STORAGE");
-        else
-            createTable(query);
+        createTable(query);
 
         for (int i = 0; i < 5; i++)
         {

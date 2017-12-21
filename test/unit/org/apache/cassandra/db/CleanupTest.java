@@ -37,8 +37,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -150,7 +150,7 @@ public class CleanupTest
         fillCF(cfs, "birthdate", LOOPS);
         assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
 
-        ColumnDefinition cdef = cfs.metadata.getColumnDefinition(COLUMN);
+        ColumnMetadata cdef = cfs.metadata().getColumn(COLUMN);
         String indexName = "birthdate_key_index";
         long start = System.nanoTime();
         while (!cfs.getBuiltIndexes().contains(indexName) && System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10))
@@ -204,6 +204,7 @@ public class CleanupTest
 
         assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
     }
+
     @Test
     public void testCleanupWithNoTokenRange() throws Exception
     {
@@ -359,7 +360,7 @@ public class CleanupTest
         {
             String key = String.valueOf(i);
             // create a row and update the birthdate value, test that the index query fetches the new version
-            new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), ByteBufferUtil.bytes(key))
+            new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), ByteBufferUtil.bytes(key))
                     .clustering(COLUMN)
                     .add(colName, VALUE)
                     .build()

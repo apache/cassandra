@@ -33,8 +33,8 @@ import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Clustering;
@@ -50,23 +50,24 @@ public class RowsTest
 {
     private static final String KEYSPACE = "rows_test";
     private static final String KCVM_TABLE = "kcvm";
-    private static final CFMetaData kcvm;
-    private static final ColumnDefinition v;
-    private static final ColumnDefinition m;
+    private static final TableMetadata kcvm;
+    private static final ColumnMetadata v;
+    private static final ColumnMetadata m;
     private static final Clustering c1;
 
     static
     {
         DatabaseDescriptor.daemonInitialization();
-        kcvm = CFMetaData.Builder.create(KEYSPACE, KCVM_TABLE)
-                                 .addPartitionKey("k", IntegerType.instance)
-                                 .addClusteringColumn("c", IntegerType.instance)
-                                 .addRegularColumn("v", IntegerType.instance)
-                                 .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true))
-                                 .build();
+        kcvm =
+            TableMetadata.builder(KEYSPACE, KCVM_TABLE)
+                         .addPartitionKeyColumn("k", IntegerType.instance)
+                         .addClusteringColumn("c", IntegerType.instance)
+                         .addRegularColumn("v", IntegerType.instance)
+                         .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true))
+                         .build();
 
-        v = kcvm.getColumnDefinition(new ColumnIdentifier("v", false));
-        m = kcvm.getColumnDefinition(new ColumnIdentifier("m", false));
+        v = kcvm.getColumn(new ColumnIdentifier("v", false));
+        m = kcvm.getColumn(new ColumnIdentifier("m", false));
         c1 = kcvm.comparator.make(BigInteger.valueOf(1));
     }
 
@@ -158,8 +159,8 @@ public class RowsTest
             updates++;
         }
 
-        Map<ColumnDefinition, List<MergedPair<DeletionTime>>> complexDeletions = new HashMap<>();
-        public void onComplexDeletion(int i, Clustering clustering, ColumnDefinition column, DeletionTime merged, DeletionTime original)
+        Map<ColumnMetadata, List<MergedPair<DeletionTime>>> complexDeletions = new HashMap<>();
+        public void onComplexDeletion(int i, Clustering clustering, ColumnMetadata column, DeletionTime merged, DeletionTime original)
         {
             updateClustering(clustering);
             if (!complexDeletions.containsKey(column)) complexDeletions.put(column, new LinkedList<>());
@@ -550,14 +551,14 @@ public class RowsTest
     }
 
     // Creates a dummy cell for a (regular) column for the provided name and without a cellPath.
-    private static Cell liveCell(ColumnDefinition name)
+    private static Cell liveCell(ColumnMetadata name)
     {
         return liveCell(name, -1);
     }
 
     // Creates a dummy cell for a (regular) column for the provided name.
     // If path >= 0, the cell will have a CellPath containing path as an Int32Type.
-    private static Cell liveCell(ColumnDefinition name, int path)
+    private static Cell liveCell(ColumnMetadata name, int path)
     {
         CellPath cp = path < 0 ? null : CellPath.create(ByteBufferUtil.bytes(path));
         return new BufferCell(name, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, ByteBuffer.allocate(1), cp);
@@ -593,20 +594,21 @@ public class RowsTest
         // Creates a table with
         //   - 3 Simple columns: a, c and e
         //   - 2 Complex columns: b and d
-        CFMetaData metadata = CFMetaData.Builder.create("dummy_ks", "dummy_tbl")
-                                        .addPartitionKey("k", BytesType.instance)
-                                        .addRegularColumn("a", BytesType.instance)
-                                        .addRegularColumn("b", MapType.getInstance(Int32Type.instance, BytesType.instance, true))
-                                        .addRegularColumn("c", BytesType.instance)
-                                        .addRegularColumn("d", MapType.getInstance(Int32Type.instance, BytesType.instance, true))
-                                        .addRegularColumn("e", BytesType.instance)
-                                        .build();
+        TableMetadata metadata =
+            TableMetadata.builder("dummy_ks", "dummy_tbl")
+                         .addPartitionKeyColumn("k", BytesType.instance)
+                         .addRegularColumn("a", BytesType.instance)
+                         .addRegularColumn("b", MapType.getInstance(Int32Type.instance, BytesType.instance, true))
+                         .addRegularColumn("c", BytesType.instance)
+                         .addRegularColumn("d", MapType.getInstance(Int32Type.instance, BytesType.instance, true))
+                         .addRegularColumn("e", BytesType.instance)
+                         .build();
 
-        ColumnDefinition a = metadata.getColumnDefinition(new ColumnIdentifier("a", false));
-        ColumnDefinition b = metadata.getColumnDefinition(new ColumnIdentifier("b", false));
-        ColumnDefinition c = metadata.getColumnDefinition(new ColumnIdentifier("c", false));
-        ColumnDefinition d = metadata.getColumnDefinition(new ColumnIdentifier("d", false));
-        ColumnDefinition e = metadata.getColumnDefinition(new ColumnIdentifier("e", false));
+        ColumnMetadata a = metadata.getColumn(new ColumnIdentifier("a", false));
+        ColumnMetadata b = metadata.getColumn(new ColumnIdentifier("b", false));
+        ColumnMetadata c = metadata.getColumn(new ColumnIdentifier("c", false));
+        ColumnMetadata d = metadata.getColumn(new ColumnIdentifier("d", false));
+        ColumnMetadata e = metadata.getColumn(new ColumnIdentifier("e", false));
 
         Row row;
 

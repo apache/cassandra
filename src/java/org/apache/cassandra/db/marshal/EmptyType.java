@@ -85,7 +85,7 @@ public class EmptyType extends AbstractType<Void>
     }
 
     @Override
-    protected int valueLengthIfFixed()
+    public int valueLengthIfFixed()
     {
         return 0;
     }

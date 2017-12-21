@@ -27,7 +27,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
 
-import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.TestTimeSource;

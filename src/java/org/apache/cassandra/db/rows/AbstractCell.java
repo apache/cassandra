@@ -18,17 +18,18 @@
 package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.Objects;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import com.google.common.hash.Hasher;
+
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HashingUtils;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
@@ -39,7 +40,7 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  */
 public abstract class AbstractCell extends Cell
 {
-    protected AbstractCell(ColumnDefinition column)
+    protected AbstractCell(ColumnMetadata column)
     {
         super(column);
     }
@@ -119,22 +120,22 @@ public abstract class AbstractCell extends Cell
                + (path == null ? 0 : path.dataSize());
     }
 
-    public void digest(MessageDigest digest)
+    public void digest(Hasher hasher)
     {
         if (isCounterCell())
         {
-            CounterContext.instance().updateDigest(digest, value());
+            CounterContext.instance().updateDigest(hasher, value());
         }
         else
         {
-            digest.update(value().duplicate());
+            HashingUtils.updateBytes(hasher, value().duplicate());
         }
 
-        FBUtilities.updateWithLong(digest, timestamp());
-        FBUtilities.updateWithInt(digest, ttl());
-        FBUtilities.updateWithBoolean(digest, isCounterCell());
+        HashingUtils.updateWithLong(hasher, timestamp());
+        HashingUtils.updateWithInt(hasher, ttl());
+        HashingUtils.updateWithBoolean(hasher, isCounterCell());
         if (path() != null)
-            path().digest(digest);
+            path().digest(hasher);
     }
 
     public void validate()
@@ -147,7 +148,7 @@ public abstract class AbstractCell extends Cell
             throw new MarshalException("Shoud not have a TTL without an associated local deletion time");
 
         // non-frozen UDTs require both the cell path & value to validate,
-        // so that logic is pushed down into ColumnDefinition. Tombstone
+        // so that logic is pushed down into ColumnMetadata. Tombstone
         // validation is done there too as it also involves the cell path
         // for complex columns
         column().validateCell(this);

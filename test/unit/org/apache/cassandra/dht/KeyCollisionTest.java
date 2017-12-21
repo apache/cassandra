@@ -27,7 +27,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -95,7 +95,7 @@ public class KeyCollisionTest
 
     private void insert(String key)
     {
-        RowUpdateBuilder builder = new RowUpdateBuilder(Schema.instance.getCFMetaData(KEYSPACE1, CF), FBUtilities.timestampMicros(), key);
+        RowUpdateBuilder builder = new RowUpdateBuilder(Schema.instance.getTableMetadata(KEYSPACE1, CF), FBUtilities.timestampMicros(), key);
         builder.clustering("c").add("val", "asdf").build().applyUnsafe();
     }
 

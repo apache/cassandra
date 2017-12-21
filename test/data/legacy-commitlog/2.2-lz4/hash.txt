@@ -1,5 +1,0 @@
-#CommitLog upgrade test, version 2.2.0-SNAPSHOT
-#Wed Jul 29 19:21:31 EEST 2015
-cells=6052
-hash=1274136076
-cfid=dc32ce20-360d-11e5-826c-afadad37221d

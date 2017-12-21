@@ -38,39 +38,45 @@ public class SeedManager
     final Distribution sample;
     final long sampleOffset;
     final int sampleSize;
+    final long sampleMultiplier;
     final boolean updateSampleImmediately;
 
     public SeedManager(StressSettings settings)
     {
+        Distribution tSample = settings.insert.revisit.get();
+        this.sampleOffset = Math.min(tSample.minValue(), tSample.maxValue());
+        long sampleSize = 1 + Math.max(tSample.minValue(), tSample.maxValue()) - sampleOffset;
+        if (sampleOffset < 0 || sampleSize > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("sample range is invalid");
+
+        // need to get a big numerical range even if a small number of discrete values
+        // one plus so we still get variation at the low order numbers as well as high
+        this.sampleMultiplier = 1 + Math.round(Math.pow(10D, 22 - Math.log10(sampleSize)));
+
         Generator writes, reads;
         if (settings.generate.sequence != null)
         {
             long[] seq = settings.generate.sequence;
             if (settings.generate.readlookback != null)
             {
-                LookbackableWriteGenerator series = new LookbackableWriteGenerator(seq[0], seq[1], settings.generate.wrap, settings.generate.readlookback.get());
+                LookbackableWriteGenerator series = new LookbackableWriteGenerator(seq[0], seq[1], settings.generate.wrap, settings.generate.readlookback.get(), sampleMultiplier);
                 writes = series;
                 reads = series.reads;
             }
             else
             {
-                writes = reads = new SeriesGenerator(seq[0], seq[1], settings.generate.wrap);
+                writes = reads = new SeriesGenerator(seq[0], seq[1], settings.generate.wrap, sampleMultiplier);
             }
         }
         else
         {
-            writes = reads = new RandomGenerator(settings.generate.distribution.get());
+            writes = reads = new RandomGenerator(settings.generate.distribution.get(), sampleMultiplier);
         }
         this.visits = settings.insert.visits.get();
         this.writes = writes;
         this.reads = reads;
-        Distribution sample = settings.insert.revisit.get();
-        this.sampleOffset = Math.min(sample.minValue(), sample.maxValue());
-        long sampleSize = 1 + Math.max(sample.minValue(), sample.maxValue()) - sampleOffset;
-        if (sampleOffset < 0 || sampleSize > Integer.MAX_VALUE)
-            throw new IllegalArgumentException("sample range is invalid");
         this.sampleFrom = new LockedDynamicList<>((int) sampleSize);
-        this.sample = DistributionInverted.invert(sample);
+        this.sample = DistributionInverted.invert(tSample);
         this.sampleSize = (int) sampleSize;
         this.updateSampleImmediately = visits.average() > 1;
     }
@@ -82,7 +88,7 @@ public class SeedManager
             Seed seed = reads.next(-1);
             if (seed == null)
                 return null;
-            Seed managing = this.managing.get(seed);
+            Seed managing = this.managing.get(seed.seed);
             return managing == null ? seed : managing;
         }
 
@@ -132,15 +138,18 @@ public class SeedManager
     {
 
         final Distribution distribution;
+        final long multiplier;
 
-        public RandomGenerator(Distribution distribution)
+        public RandomGenerator(Distribution distribution, long multiplier)
         {
+
             this.distribution = distribution;
+            this.multiplier = multiplier;
         }
 
         public Seed next(int visits)
         {
-            return new Seed(distribution.next(), visits);
+            return new Seed(distribution.next() * multiplier, visits);
         }
     }
 
@@ -150,15 +159,18 @@ public class SeedManager
         final long start;
         final long totalCount;
         final boolean wrap;
+        final long multiplier;
         final AtomicLong next = new AtomicLong();
 
-        public SeriesGenerator(long start, long end, boolean wrap)
+        public SeriesGenerator(long start, long end, boolean wrap, long multiplier)
         {
             this.wrap = wrap;
             if (start > end)
                 throw new IllegalStateException();
             this.start = start;
             this.totalCount = 1 + end - start;
+            this.multiplier = multiplier;
+
         }
 
         public Seed next(int visits)
@@ -166,7 +178,7 @@ public class SeedManager
             long next = this.next.getAndIncrement();
             if (!wrap && next >= totalCount)
                 return null;
-            return new Seed(start + (next % totalCount), visits);
+            return new Seed((start + (next % totalCount))*multiplier, visits);
         }
     }
 
@@ -177,9 +189,9 @@ public class SeedManager
         final ConcurrentSkipListMap<Seed, Seed> afterMin = new ConcurrentSkipListMap<>();
         final LookbackReadGenerator reads;
 
-        public LookbackableWriteGenerator(long start, long end, boolean wrap, Distribution readLookback)
+        public LookbackableWriteGenerator(long start, long end, boolean wrap, Distribution readLookback, long multiplier)
         {
-            super(start, end, wrap);
+            super(start, end, wrap, multiplier);
             this.writeCount.set(0);
             reads = new LookbackReadGenerator(readLookback);
         }
@@ -189,12 +201,12 @@ public class SeedManager
             long next = this.next.getAndIncrement();
             if (!wrap && next >= totalCount)
                 return null;
-            return new Seed(start + (next % totalCount), visits);
+            return new Seed((start + (next % totalCount)) * multiplier, visits);
         }
 
         void finishWrite(Seed seed)
         {
-            if (seed.seed <= writeCount.get())
+            if (seed.seed/multiplier <= writeCount.get())
                 return;
             afterMin.put(seed, seed);
             while (true)

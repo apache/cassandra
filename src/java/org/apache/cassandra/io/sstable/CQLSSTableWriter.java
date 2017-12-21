@@ -31,10 +31,7 @@ import java.util.stream.Collectors;
 
 import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.TypeCodec;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -58,7 +55,11 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.Views;
@@ -254,7 +255,7 @@ public class CQLSSTableWriter implements Closeable
         long now = System.currentTimeMillis() * 1000;
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
-        UpdateParameters params = new UpdateParameters(insert.cfm,
+        UpdateParameters params = new UpdateParameters(insert.metadata,
                                                        insert.updatedColumns(),
                                                        options,
                                                        insert.getTimestamp(now, options),
@@ -315,7 +316,7 @@ public class CQLSSTableWriter implements Closeable
      */
     public com.datastax.driver.core.UserType getUDType(String dataType)
     {
-        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(insert.keyspace());
+        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(insert.keyspace());
         UserType userType = ksm.types.getNullable(ByteBufferUtil.bytes(dataType));
         return (com.datastax.driver.core.UserType) UDHelper.driverType(userType);
     }
@@ -513,16 +514,16 @@ public class CQLSSTableWriter implements Closeable
 
             synchronized (CQLSSTableWriter.class)
             {
-                if (Schema.instance.getKSMetaData(SchemaConstants.SCHEMA_KEYSPACE_NAME) == null)
+                if (Schema.instance.getKeyspaceMetadata(SchemaConstants.SCHEMA_KEYSPACE_NAME) == null)
                     Schema.instance.load(SchemaKeyspace.metadata());
-                if (Schema.instance.getKSMetaData(SchemaConstants.SYSTEM_KEYSPACE_NAME) == null)
+                if (Schema.instance.getKeyspaceMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME) == null)
                     Schema.instance.load(SystemKeyspace.metadata());
 
-                String keyspace = schemaStatement.keyspace();
+                String keyspaceName = schemaStatement.keyspace();
 
-                if (Schema.instance.getKSMetaData(keyspace) == null)
+                if (Schema.instance.getKeyspaceMetadata(keyspaceName) == null)
                 {
-                    Schema.instance.load(KeyspaceMetadata.create(keyspace,
+                    Schema.instance.load(KeyspaceMetadata.create(keyspaceName,
                                                                  KeyspaceParams.simple(1),
                                                                  Tables.none(),
                                                                  Views.none(),
@@ -531,22 +532,22 @@ public class CQLSSTableWriter implements Closeable
                 }
 
 
-                KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
-                CFMetaData cfMetaData = ksm.tables.getNullable(schemaStatement.columnFamily());
-                if (cfMetaData == null)
-                {
-                    Types types = createTypes(keyspace);
-                    cfMetaData = createTable(types);
+                KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
 
-                    Schema.instance.load(cfMetaData);
-                    Schema.instance.setKeyspaceMetadata(ksm.withSwapped(ksm.tables.with(cfMetaData)).withSwapped(types));
+                TableMetadata tableMetadata = ksm.tables.getNullable(schemaStatement.columnFamily());
+                if (tableMetadata == null)
+                {
+                    Types types = createTypes(keyspaceName);
+                    tableMetadata = createTable(types);
+                    Schema.instance.load(ksm.withSwapped(ksm.tables.with(tableMetadata)).withSwapped(types));
                 }
 
                 Pair<UpdateStatement, List<ColumnSpecification>> preparedInsert = prepareInsert();
 
+                TableMetadataRef ref = TableMetadataRef.forOfflineTools(tableMetadata);
                 AbstractSSTableSimpleWriter writer = sorted
-                                                     ? new SSTableSimpleWriter(directory, cfMetaData, preparedInsert.left.updatedColumns())
-                                                     : new SSTableSimpleUnsortedWriter(directory, cfMetaData, preparedInsert.left.updatedColumns(), bufferSizeInMB);
+                                                     ? new SSTableSimpleWriter(directory, ref, preparedInsert.left.updatedColumns())
+                                                     : new SSTableSimpleUnsortedWriter(directory, ref, preparedInsert.left.updatedColumns(), bufferSizeInMB);
 
                 if (formatType != null)
                     writer.setSSTableFormatType(formatType);
@@ -568,17 +569,16 @@ public class CQLSSTableWriter implements Closeable
          *
          * @param types types this table should be created with
          */
-        private CFMetaData createTable(Types types)
+        private TableMetadata createTable(Types types)
         {
             CreateTableStatement statement = (CreateTableStatement) schemaStatement.prepare(types).statement;
             statement.validate(ClientState.forInternalCalls());
 
-            CFMetaData cfMetaData = statement.getCFMetaData();
-
+            TableMetadata.Builder builder = statement.builder();
             if (partitioner != null)
-                return cfMetaData.copy(partitioner);
-            else
-                return cfMetaData;
+                builder.partitioner(partitioner);
+
+            return builder.build();
         }
 
         /**
@@ -588,7 +588,7 @@ public class CQLSSTableWriter implements Closeable
          */
         private Pair<UpdateStatement, List<ColumnSpecification>> prepareInsert()
         {
-            ParsedStatement.Prepared cqlStatement = insertStatement.prepare(ClientState.forInternalCalls());
+            ParsedStatement.Prepared cqlStatement = insertStatement.prepare();
             UpdateStatement insert = (UpdateStatement) cqlStatement.statement;
             insert.validate(ClientState.forInternalCalls());
 

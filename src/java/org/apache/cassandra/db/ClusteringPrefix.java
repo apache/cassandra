@@ -19,15 +19,18 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.*;
+
+import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -215,11 +218,11 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
     public ByteBuffer get(int i);
 
     /**
-     * Adds the data of this clustering prefix to the provided digest.
+     * Adds the data of this clustering prefix to the provided Hasher instance.
      *
-     * @param digest the digest to which to add this prefix.
+     * @param hasher the Hasher instance to which to add this prefix.
      */
-    public void digest(MessageDigest digest);
+    public void digest(Hasher hasher);
 
     /**
      * The size of the data hold by this prefix.
@@ -235,8 +238,24 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
      * @param metadata the metadata for the table the clustering prefix is of.
      * @return a human-readable string representation fo this prefix.
      */
-    public String toString(CFMetaData metadata);
+    public String toString(TableMetadata metadata);
 
+    /*
+     * TODO: we should stop using Clustering for partition keys. Maybe we can add
+     * a few methods to DecoratedKey so we don't have to (note that while using a Clustering
+     * allows to use buildBound(), it's actually used for partition keys only when every restriction
+     * is an equal, so we could easily create a specific method for keys for that.
+     */
+    default ByteBuffer serializeAsPartitionKey()
+    {
+        if (size() == 1)
+            return get(0);
+
+        ByteBuffer[] values = new ByteBuffer[size()];
+        for (int i = 0; i < size(); i++)
+            values[i] = get(i);
+        return CompositeType.build(values);
+    }
     /**
      * The values of this prefix as an array.
      * <p>

@@ -21,6 +21,8 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.cassandra.cql3.Term;
 import org.slf4j.Logger;
@@ -59,21 +61,18 @@ public class DynamicCompositeType extends AbstractCompositeType
     private final Map<Byte, AbstractType<?>> aliases;
 
     // interning instances
-    private static final Map<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new HashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType>();
+    private static final ConcurrentMap<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new ConcurrentHashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType>();
 
     public static synchronized DynamicCompositeType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
         return getInstance(parser.getAliasParameters());
     }
 
-    public static synchronized DynamicCompositeType getInstance(Map<Byte, AbstractType<?>> aliases)
+    public static DynamicCompositeType getInstance(Map<Byte, AbstractType<?>> aliases)
     {
         DynamicCompositeType dct = instances.get(aliases);
         if (dct == null)
-        {
-            dct = new DynamicCompositeType(aliases);
-            instances.put(aliases, dct);
-        }
+            dct = instances.computeIfAbsent(aliases, k ->  new DynamicCompositeType(k));
         return dct;
     }
 
@@ -124,7 +123,7 @@ public class DynamicCompositeType extends AbstractCompositeType
          * If both types are ReversedType(Type), we need to compare on the wrapped type (which may differ between the two types) to avoid
          * incompatible comparisons being made.
          */
-        if ((comp1 instanceof ReversedType) && (comp2 instanceof ReversedType)) 
+        if ((comp1 instanceof ReversedType) && (comp2 instanceof ReversedType))
         {
             comp1 = ((ReversedType<?>) comp1).baseType;
             comp2 = ((ReversedType<?>) comp2).baseType;
@@ -200,19 +199,17 @@ public class DynamicCompositeType extends AbstractCompositeType
                 valueStr = ByteBufferUtil.string(value);
                 comparator = TypeParser.parse(valueStr);
             }
-            catch (CharacterCodingException ce) 
+            catch (CharacterCodingException ce)
             {
-                // ByteBufferUtil.string failed. 
+                // ByteBufferUtil.string failed.
                 // Log it here and we'll further throw an exception below since comparator == null
-                logger.error("Failed with [{}] when decoding the byte buffer in ByteBufferUtil.string()", 
-                   ce.toString());
+                logger.error("Failed when decoding the byte buffer in ByteBufferUtil.string()", ce);
             }
             catch (Exception e)
             {
-                // parse failed. 
+                // parse failed.
                 // Log it here and we'll further throw an exception below since comparator == null
-                logger.error("Failed to parse value string \"{}\" with exception: [{}]", 
-                   valueStr, e.toString());
+                logger.error("Failed to parse value string \"{}\" with exception:", valueStr, e);
             }
         }
         else

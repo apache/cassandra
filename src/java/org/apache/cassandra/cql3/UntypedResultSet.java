@@ -22,17 +22,16 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.AbstractIterator;
-
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.pager.QueryPager;
+import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
 
 /** a utility for doing internal cql-based queries */
@@ -221,19 +220,19 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                 data.put(names.get(i).name.toString(), columns.get(i));
         }
 
-        public static Row fromInternalRow(CFMetaData metadata, DecoratedKey key, org.apache.cassandra.db.rows.Row row)
+        public static Row fromInternalRow(TableMetadata metadata, DecoratedKey key, org.apache.cassandra.db.rows.Row row)
         {
             Map<String, ByteBuffer> data = new HashMap<>();
 
             ByteBuffer[] keyComponents = SelectStatement.getComponents(metadata, key);
-            for (ColumnDefinition def : metadata.partitionKeyColumns())
+            for (ColumnMetadata def : metadata.partitionKeyColumns())
                 data.put(def.name.toString(), keyComponents[def.position()]);
 
             Clustering clustering = row.clustering();
-            for (ColumnDefinition def : metadata.clusteringColumns())
+            for (ColumnMetadata def : metadata.clusteringColumns())
                 data.put(def.name.toString(), clustering.get(def.position()));
 
-            for (ColumnDefinition def : metadata.partitionColumns())
+            for (ColumnMetadata def : metadata.regularAndStaticColumns())
             {
                 if (def.isSimple())
                 {

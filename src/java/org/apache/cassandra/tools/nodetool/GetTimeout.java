@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.command.Arguments;
-import io.airlift.command.Command;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +31,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "gettimeout", description = "Print the timeout of the given type in ms")
 public class GetTimeout extends NodeToolCmd
 {
-    public static final String TIMEOUT_TYPES = "read, range, write, counterwrite, cascontention, truncate, streamingsocket, misc (general rpc_timeout_in_ms)";
+    public static final String TIMEOUT_TYPES = "read, range, write, counterwrite, cascontention, truncate, misc (general rpc_timeout_in_ms)";
 
     @Arguments(usage = "<timeout_type>", description = "The timeout type, one of (" + TIMEOUT_TYPES + ")")
     private List<String> args = new ArrayList<>();

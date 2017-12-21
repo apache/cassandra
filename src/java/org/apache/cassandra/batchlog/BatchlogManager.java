@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -51,6 +51,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.FBUtilities;
@@ -75,6 +76,8 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     // Single-thread executor service for scheduling and serializing log replay.
     private final ScheduledExecutorService batchlogTasks;
+
+    private final RateLimiter rateLimiter = RateLimiter.create(Double.MAX_VALUE);
 
     public BatchlogManager()
     {
@@ -188,14 +191,13 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         // rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
         // max rate is scaled by the number of nodes in the cluster (same as for HHOM - see CASSANDRA-5272).
-        int endpointsCount = StorageService.instance.getTokenMetadata().getAllEndpoints().size();
+        int endpointsCount = StorageService.instance.getTokenMetadata().getSizeOfAllEndpoints();
         if (endpointsCount <= 0)
         {
             logger.trace("Replay cancelled as there are no peers in the ring.");
             return;
         }
-        int throttleInKB = DatabaseDescriptor.getBatchlogReplayThrottleInKB() / endpointsCount;
-        RateLimiter rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
+        setRate(DatabaseDescriptor.getBatchlogReplayThrottleInKB());
 
         UUID limitUuid = UUIDGen.maxTimeUUID(System.currentTimeMillis() - getBatchlogTimeout());
         ColumnFamilyStore store = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES);
@@ -210,6 +212,27 @@ public class BatchlogManager implements BatchlogManagerMBean
         processBatchlogEntries(batches, pageSize, rateLimiter);
         lastReplayedUuid = limitUuid;
         logger.trace("Finished replayFailedBatches");
+    }
+
+    /**
+     * Sets the rate for the current rate limiter. When {@code throttleInKB} is 0, this sets the rate to
+     * {@link Double#MAX_VALUE} bytes per second.
+     *
+     * @param throttleInKB throughput to set in KB per second
+     */
+    public void setRate(final int throttleInKB)
+    {
+        int endpointsCount = StorageService.instance.getTokenMetadata().getSizeOfAllEndpoints();
+        if (endpointsCount > 0)
+        {
+            int endpointThrottleInKB = throttleInKB / endpointsCount;
+            double throughput = endpointThrottleInKB == 0 ? Double.MAX_VALUE : endpointThrottleInKB * 1024.0;
+            if (rateLimiter.getRate() != throughput)
+            {
+                logger.debug("Updating batchlog replay throttle to {} KB/s, {} KB/s per endpoint", throttleInKB, endpointThrottleInKB);
+                rateLimiter.setRate(throughput);
+            }
+        }
     }
 
     // read less rows (batches) per page if they are very large
@@ -250,7 +273,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
             catch (IOException e)
             {
-                logger.warn("Skipped batch replay of {} due to {}", id, e);
+                logger.warn("Skipped batch replay of {} due to {}", id, e.getMessage());
                 remove(id);
             }
 
@@ -365,9 +388,9 @@ public class BatchlogManager implements BatchlogManagerMBean
         // truncated.
         private void addMutation(Mutation mutation)
         {
-            for (UUID cfId : mutation.getColumnFamilyIds())
-                if (writtenAt <= SystemKeyspace.getTruncatedAt(cfId))
-                    mutation = mutation.without(cfId);
+            for (TableId tableId : mutation.getTableIds())
+                if (writtenAt <= SystemKeyspace.getTruncatedAt(tableId))
+                    mutation = mutation.without(tableId);
 
             if (!mutation.isEmpty())
                 mutations.add(mutation);

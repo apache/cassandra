@@ -21,8 +21,10 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import com.google.common.collect.Sets;
+
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.filter.*;
@@ -64,28 +66,28 @@ public abstract class AbstractReadCommandBuilder
     public AbstractReadCommandBuilder fromIncl(Object... values)
     {
         assert lowerClusteringBound == null && clusterings == null;
-        this.lowerClusteringBound = ClusteringBound.create(cfs.metadata.comparator, true, true, values);
+        this.lowerClusteringBound = ClusteringBound.create(cfs.metadata().comparator, true, true, values);
         return this;
     }
 
     public AbstractReadCommandBuilder fromExcl(Object... values)
     {
         assert lowerClusteringBound == null && clusterings == null;
-        this.lowerClusteringBound = ClusteringBound.create(cfs.metadata.comparator, true, false, values);
+        this.lowerClusteringBound = ClusteringBound.create(cfs.metadata().comparator, true, false, values);
         return this;
     }
 
     public AbstractReadCommandBuilder toIncl(Object... values)
     {
         assert upperClusteringBound == null && clusterings == null;
-        this.upperClusteringBound = ClusteringBound.create(cfs.metadata.comparator, false, true, values);
+        this.upperClusteringBound = ClusteringBound.create(cfs.metadata().comparator, false, true, values);
         return this;
     }
 
     public AbstractReadCommandBuilder toExcl(Object... values)
     {
         assert upperClusteringBound == null && clusterings == null;
-        this.upperClusteringBound = ClusteringBound.create(cfs.metadata.comparator, false, false, values);
+        this.upperClusteringBound = ClusteringBound.create(cfs.metadata().comparator, false, false, values);
         return this;
     }
 
@@ -94,9 +96,9 @@ public abstract class AbstractReadCommandBuilder
         assert lowerClusteringBound == null && upperClusteringBound == null;
 
         if (this.clusterings == null)
-            this.clusterings = new TreeSet<>(cfs.metadata.comparator);
+            this.clusterings = new TreeSet<>(cfs.metadata().comparator);
 
-        this.clusterings.add(cfs.metadata.comparator.make(values));
+        this.clusterings.add(cfs.metadata().comparator.make(values));
         return this;
     }
 
@@ -121,7 +123,7 @@ public abstract class AbstractReadCommandBuilder
     public AbstractReadCommandBuilder columns(String... columns)
     {
         if (this.columns == null)
-            this.columns = new HashSet<>();
+            this.columns = Sets.newHashSetWithExpectedSize(columns.length);
 
         for (String column : columns)
             this.columns.add(ColumnIdentifier.getInterned(column, true));
@@ -163,7 +165,7 @@ public abstract class AbstractReadCommandBuilder
 
     public AbstractReadCommandBuilder filterOn(String column, Operator op, Object value)
     {
-        ColumnDefinition def = cfs.metadata.getColumnDefinition(ColumnIdentifier.getInterned(column, true));
+        ColumnMetadata def = cfs.metadata().getColumn(ColumnIdentifier.getInterned(column, true));
         assert def != null;
 
         AbstractType<?> type = def.type;
@@ -179,11 +181,11 @@ public abstract class AbstractReadCommandBuilder
     protected ColumnFilter makeColumnFilter()
     {
         if (columns == null || columns.isEmpty())
-            return ColumnFilter.all(cfs.metadata);
+            return ColumnFilter.all(cfs.metadata());
 
         ColumnFilter.Builder filter = ColumnFilter.selectionBuilder();
         for (ColumnIdentifier column : columns)
-            filter.add(cfs.metadata.getColumnDefinition(column));
+            filter.add(cfs.metadata().getColumn(column));
         return filter.build();
     }
 
@@ -193,8 +195,8 @@ public abstract class AbstractReadCommandBuilder
         // SelectStatement.makeClusteringIndexFilter uses a names filter with no clusterings for static
         // compact tables, here we reproduce this behavior (CASSANDRA-11223). Note that this code is only
         // called by tests.
-        if (cfs.metadata.isStaticCompactTable())
-            return new ClusteringIndexNamesFilter(new TreeSet<>(cfs.metadata.comparator), reversed);
+        if (cfs.metadata().isStaticCompactTable())
+            return new ClusteringIndexNamesFilter(new TreeSet<>(cfs.metadata().comparator), reversed);
 
         if (clusterings != null)
         {
@@ -204,7 +206,7 @@ public abstract class AbstractReadCommandBuilder
         {
             Slice slice = Slice.make(lowerClusteringBound == null ? ClusteringBound.BOTTOM : lowerClusteringBound,
                                      upperClusteringBound == null ? ClusteringBound.TOP : upperClusteringBound);
-            return new ClusteringIndexSliceFilter(Slices.with(cfs.metadata.comparator, slice), reversed);
+            return new ClusteringIndexSliceFilter(Slices.with(cfs.metadata().comparator, slice), reversed);
         }
     }
 
@@ -231,7 +233,7 @@ public abstract class AbstractReadCommandBuilder
         @Override
         public ReadCommand build()
         {
-            return SinglePartitionReadCommand.create(cfs.metadata, nowInSeconds, makeColumnFilter(), filter, makeLimits(), partitionKey, makeFilter());
+            return SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter, makeLimits(), partitionKey, makeFilter());
         }
     }
 
@@ -262,7 +264,7 @@ public abstract class AbstractReadCommandBuilder
         @Override
         public ReadCommand build()
         {
-            return SinglePartitionReadCommand.create(cfs.metadata, nowInSeconds, makeColumnFilter(), filter, makeLimits(), partitionKey, makeFilter());
+            return SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter, makeLimits(), partitionKey, makeFilter());
         }
     }
 
@@ -282,7 +284,7 @@ public abstract class AbstractReadCommandBuilder
         {
             assert startKey == null;
             this.startInclusive = true;
-            this.startKey = makeKey(cfs.metadata, values);
+            this.startKey = makeKey(cfs.metadata(), values);
             return this;
         }
 
@@ -290,7 +292,7 @@ public abstract class AbstractReadCommandBuilder
         {
             assert startKey == null;
             this.startInclusive = false;
-            this.startKey = makeKey(cfs.metadata, values);
+            this.startKey = makeKey(cfs.metadata(), values);
             return this;
         }
 
@@ -298,7 +300,7 @@ public abstract class AbstractReadCommandBuilder
         {
             assert endKey == null;
             this.endInclusive = true;
-            this.endKey = makeKey(cfs.metadata, values);
+            this.endKey = makeKey(cfs.metadata(), values);
             return this;
         }
 
@@ -306,7 +308,7 @@ public abstract class AbstractReadCommandBuilder
         {
             assert endKey == null;
             this.endInclusive = false;
-            this.endKey = makeKey(cfs.metadata, values);
+            this.endKey = makeKey(cfs.metadata(), values);
             return this;
         }
 
@@ -336,16 +338,16 @@ public abstract class AbstractReadCommandBuilder
             else
                 bounds = new ExcludingBounds<>(start, end);
 
-            return PartitionRangeReadCommand.create(false, cfs.metadata, nowInSeconds, makeColumnFilter(), filter, makeLimits(), new DataRange(bounds, makeFilter()));
+            return PartitionRangeReadCommand.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter, makeLimits(), new DataRange(bounds, makeFilter()));
         }
 
-        static DecoratedKey makeKey(CFMetaData metadata, Object... partitionKey)
+        static DecoratedKey makeKey(TableMetadata metadata, Object... partitionKey)
         {
             if (partitionKey.length == 1 && partitionKey[0] instanceof DecoratedKey)
                 return (DecoratedKey)partitionKey[0];
 
-            ByteBuffer key = CFMetaData.serializePartitionKey(metadata.getKeyValidatorAsClusteringComparator().make(partitionKey));
-            return metadata.decorateKey(key);
+            ByteBuffer key = metadata.partitionKeyAsClusteringComparator().make(partitionKey).serializeAsPartitionKey();
+            return metadata.partitioner.decorateKey(key);
         }
     }
 }

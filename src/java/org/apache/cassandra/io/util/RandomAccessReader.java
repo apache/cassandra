@@ -169,7 +169,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     @Override
     public String toString()
     {
-        return getClass().getSimpleName() + ':' + rebufferer.toString();
+        return getClass().getSimpleName() + ':' + rebufferer;
     }
 
     /**

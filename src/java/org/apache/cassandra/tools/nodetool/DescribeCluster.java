@@ -18,7 +18,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static java.lang.String.format;
-import io.airlift.command.Command;
+import io.airlift.airline.Command;
 
 import java.util.List;
 import java.util.Map;

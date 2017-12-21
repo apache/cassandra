@@ -21,10 +21,10 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.UUID;
 
 import org.junit.Test;
 
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class SessionInfoTest
@@ -35,17 +35,17 @@ public class SessionInfoTest
     @Test
     public void testTotals()
     {
-        UUID cfId = UUID.randomUUID();
+        TableId tableId = TableId.generate();
         InetAddress local = FBUtilities.getLocalAddress();
 
         Collection<StreamSummary> summaries = new ArrayList<>();
         for (int i = 0; i < 10; i++)
         {
-            StreamSummary summary = new StreamSummary(cfId, i, (i + 1) * 10);
+            StreamSummary summary = new StreamSummary(tableId, i, (i + 1) * 10);
             summaries.add(summary);
         }
 
-        StreamSummary sending = new StreamSummary(cfId, 10, 100);
+        StreamSummary sending = new StreamSummary(tableId, 10, 100);
         SessionInfo info = new SessionInfo(local, 0, local, summaries, Collections.singleton(sending), StreamSession.State.PREPARING);
 
         assert info.getTotalFilesToReceive() == 45;

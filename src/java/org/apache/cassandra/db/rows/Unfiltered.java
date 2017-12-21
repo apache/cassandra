@@ -17,11 +17,9 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.util.Set;
+import com.google.common.hash.Hasher;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.Clusterable;
 
 /**
@@ -41,21 +39,11 @@ public interface Unfiltered extends Clusterable
     public Kind kind();
 
     /**
-     * Digest the atom using the provided {@code MessageDigest}.
+     * Digest the atom using the provided {@link Hasher}.
      *
-     * @param digest the {@code MessageDigest} to use.
+     * @param hasher the {@see Hasher} to use.
      */
-    public void digest(MessageDigest digest);
-
-    /**
-     * Digest the atom using the provided {@code MessageDigest}.
-     * This method only exists in 3.11.
-     * Same like {@link #digest(MessageDigest)}, but excludes the given columns from digest calculation.
-     */
-    public default void digest(MessageDigest digest, Set<ByteBuffer> columnsToExclude)
-    {
-        throw new UnsupportedOperationException("no no no - don't use this one - use digest(MessageDigest) instead");
-    }
+    public void digest(Hasher hasher);
 
     /**
      * Validate the data of this atom.
@@ -65,13 +53,13 @@ public interface Unfiltered extends Clusterable
      * invalid (some value is invalid for its column type, or some field
      * is nonsensical).
      */
-    public void validateData(CFMetaData metadata);
+    public void validateData(TableMetadata metadata);
 
     public boolean isEmpty();
 
-    public String toString(CFMetaData metadata);
-    public String toString(CFMetaData metadata, boolean fullDetails);
-    public String toString(CFMetaData metadata, boolean includeClusterKeys, boolean fullDetails);
+    public String toString(TableMetadata metadata);
+    public String toString(TableMetadata metadata, boolean fullDetails);
+    public String toString(TableMetadata metadata, boolean includeClusterKeys, boolean fullDetails);
 
     default boolean isRow()
     {

@@ -17,13 +17,10 @@
  */
 package org.apache.cassandra.utils;
 
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
-
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.RandomAccessFile;
@@ -32,19 +29,17 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel.MapMode;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.BlockingQueue;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
 import java.util.Locale;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 
+/**
+ * Groups strategies to coalesce messages.
+ */
 public class CoalescingStrategies
 {
-    static protected final Logger logger = LoggerFactory.getLogger(CoalescingStrategies.class);
-
     /*
      * Log debug information at info level about what the average is and when coalescing is enabled/disabled
      */
@@ -53,6 +48,8 @@ public class CoalescingStrategies
 
     private static final String DEBUG_COALESCING_PATH_PROPERTY = Config.PROPERTY_PREFIX + "coalescing_debug_path";
     private static final String DEBUG_COALESCING_PATH = System.getProperty(DEBUG_COALESCING_PATH_PROPERTY, "/tmp/coleascing_debug");
+
+    public enum Strategy { MOVINGAVERAGE, FIXED, TIMEHORIZON, DISABLED }
 
     static
     {
@@ -68,98 +65,83 @@ public class CoalescingStrategies
         }
     }
 
-    @VisibleForTesting
-    interface Clock
-    {
-        long nanoTime();
-    }
-
-    @VisibleForTesting
-    static Clock CLOCK = new Clock()
-    {
-        public long nanoTime()
-        {
-            return System.nanoTime();
-        }
-    };
-
     public static interface Coalescable
     {
         long timestampNanos();
     }
 
     @VisibleForTesting
-    static void parkLoop(long nanos)
+    static long determineCoalescingTime(long averageGap, long maxCoalesceWindow)
     {
-        long now = System.nanoTime();
-        final long timer = now + nanos;
-        // We shouldn't loop if it's within a few % of the target sleep time if on a second iteration.
-        // See CASSANDRA-8692.
-        final long limit = timer - nanos / 16;
-        do
-        {
-            LockSupport.parkNanos(timer - now);
-            now = System.nanoTime();
-        }
-        while (now < limit);
-    }
+        // Don't bother waiting at all if we're unlikely to get any new message within our max window
+        if (averageGap > maxCoalesceWindow)
+            return -1;
 
-    private static boolean maybeSleep(int messages, long averageGap, long maxCoalesceWindow, Parker parker)
-    {
-        // Do not sleep if there are still items in the backlog (CASSANDRA-13090).
-        if (messages >= DatabaseDescriptor.getOtcCoalescingEnoughCoalescedMessages())
-            return false;
-
-        // only sleep if we can expect to double the number of messages we're sending in the time interval
-        long sleep = messages * averageGap;
-        if (sleep <= 0 || sleep > maxCoalesceWindow)
-            return false;
+        // avoid the degenerate case of zero (very unlikely, but let's be safe)
+        if (averageGap <= 0)
+            return maxCoalesceWindow;
 
         // assume we receive as many messages as we expect; apply the same logic to the future batch:
         // expect twice as many messages to consider sleeping for "another" interval; this basically translates
-        // to doubling our sleep period until we exceed our max sleep window
+        // to doubling our sleep period until we exceed our max sleep window.
+        long sleep = averageGap;
         while (sleep * 2 < maxCoalesceWindow)
             sleep *= 2;
-        parker.park(sleep);
-        return true;
+        return sleep;
     }
 
-    public static abstract class CoalescingStrategy
+    /**
+     * A coalescing strategy, that decides when to coalesce messages.
+     * <p>
+     * The general principle is that, when asked, the strategy returns the time delay we want to wait for more messages
+     * to arrive before sending so message can be coalesced. For that, the strategy must be fed new messages through
+     * the {@link #newArrival(Coalescable)} method (the only assumption we make on messages is that they have an associated
+     * timestamp). The strategy can then be queried for the time to wait for coalescing through
+     * {@link #currentCoalescingTimeNanos()}.
+     * <p>
+     * Note that it is expected that a call {@link #currentCoalescingTimeNanos()} will come just after a call to
+     * {@link #newArrival(Coalescable))}, as the intent of the value returned by the former method is "Given a new message, how much
+     * time should I wait for more messages to arrive and be coalesced with that message". But both calls are separated
+     * as one may not want to call {@link #currentCoalescingTimeNanos()} after every call to {@link #newArrival(Coalescable)}
+     * and we thus save processing. How arrivals influence the coalescing time is however entirely up to the strategy and some
+     * strategy may ignore arrivals completely and return a constant coalescing time.
+     */
+    public interface CoalescingStrategy
     {
-        protected final Parker parker;
+        /**
+         * Inform the strategy of a new message to consider.
+         *
+         * @param message the message to consider.
+         */
+        void newArrival(Coalescable message);
+
+        /**
+         * The current time to wait for the purpose of coalescing messages.
+         *
+         * @return the coalescing time. A negative value can be returned if no coalescing should be done (which can be a
+         * transient thing).
+         */
+        long currentCoalescingTimeNanos();
+    }
+
+    public static abstract class AbstractCoalescingStrategy implements CoalescingStrategy
+    {
         protected final Logger logger;
         protected volatile boolean shouldLogAverage = false;
         protected final ByteBuffer logBuffer;
         private RandomAccessFile ras;
         private final String displayName;
 
-        protected CoalescingStrategy(Parker parker, Logger logger, String displayName)
+        protected AbstractCoalescingStrategy(Logger logger, String displayName)
         {
-            this.parker = parker;
             this.logger = logger;
             this.displayName = displayName;
-            if (DEBUG_COALESCING)
-            {
-                NamedThreadFactory.createThread(() ->
-                {
-                    while (true)
-                    {
-                        try
-                        {
-                            Thread.sleep(5000);
-                        }
-                        catch (InterruptedException e)
-                        {
-                            throw new AssertionError();
-                        }
-                        shouldLogAverage = true;
-                    }
-                }, displayName + " debug thread").start();
-            }
+
             RandomAccessFile rasTemp = null;
             ByteBuffer logBufferTemp = null;
             if (DEBUG_COALESCING)
             {
+                ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(() -> shouldLogAverage = true, 5, 5, TimeUnit.SECONDS);
                 try
                 {
                     File outFile = File.createTempFile("coalescing_" + this.displayName + "_", ".log", new File(DEBUG_COALESCING_PATH));
@@ -214,44 +196,10 @@ public class CoalescingStrategies
                 }
             }
         }
-
-        /**
-         * Drain from the input blocking queue to the output list up to maxItems elements.
-         *
-         * The coalescing strategy may choose to park the current thread if it thinks it will
-         * be able to produce an output list with more elements.
-         *
-         * @param input Blocking queue to retrieve elements from
-         * @param out Output list to place retrieved elements in. Must be empty.
-         * @param maxItems Maximum number of elements to place in the output list
-         */
-        public <C extends Coalescable> void coalesce(BlockingQueue<C> input, List<C> out, int maxItems) throws InterruptedException
-        {
-            Preconditions.checkArgument(out.isEmpty(), "out list should be empty");
-            coalesceInternal(input, out, maxItems);
-        }
-
-        protected abstract <C extends Coalescable> void coalesceInternal(BlockingQueue<C> input, List<C> out, int maxItems) throws InterruptedException;
-
     }
 
     @VisibleForTesting
-    interface Parker
-    {
-        void park(long nanos);
-    }
-
-    private static final Parker PARKER = new Parker()
-    {
-        @Override
-        public void park(long nanos)
-        {
-            parkLoop(nanos);
-        }
-    };
-
-    @VisibleForTesting
-    static class TimeHorizonMovingAverageCoalescingStrategy extends CoalescingStrategy
+    static class TimeHorizonMovingAverageCoalescingStrategy extends AbstractCoalescingStrategy
     {
         // for now we'll just use 64ms per bucket; this can be made configurable, but results in ~1s for 16 samples
         private static final int INDEX_SHIFT = 26;
@@ -261,7 +209,7 @@ public class CoalescingStrategies
         private static final long MEASURED_INTERVAL = BUCKET_INTERVAL * (BUCKET_COUNT - 1);
 
         // the minimum timestamp we will now accept updates for; only moves forwards, never backwards
-        private long epoch = CLOCK.nanoTime();
+        private long epoch;
         // the buckets, each following on from epoch; the measurements run from ix(epoch) to ix(epoch - 1)
         // ix(epoch-1) is a partial result, that is never actually part of the calculation, and most updates
         // are expected to hit this bucket
@@ -269,31 +217,12 @@ public class CoalescingStrategies
         private long sum = 0;
         private final long maxCoalesceWindow;
 
-        public TimeHorizonMovingAverageCoalescingStrategy(int maxCoalesceWindow, Parker parker, Logger logger, String displayName)
+        public TimeHorizonMovingAverageCoalescingStrategy(int maxCoalesceWindow, Logger logger, String displayName, long initialEpoch)
         {
-            super(parker, logger, displayName);
+            super(logger, displayName);
             this.maxCoalesceWindow = TimeUnit.MICROSECONDS.toNanos(maxCoalesceWindow);
             sum = 0;
-        }
-
-        private void logSample(long nanos)
-        {
-            debugTimestamp(nanos);
-            long epoch = this.epoch;
-            long delta = nanos - epoch;
-            if (delta < 0)
-                // have to simply ignore, but would be a bit crazy to get such reordering
-                return;
-
-            if (delta > INTERVAL)
-                epoch = rollepoch(delta, epoch, nanos);
-
-            int ix = ix(nanos);
-            samples[ix]++;
-
-            // if we've updated an old bucket, we need to update the sum to match
-            if (ix != ix(epoch - 1))
-                sum++;
+            epoch = initialEpoch;
         }
 
         private long averageGap()
@@ -304,7 +233,7 @@ public class CoalescingStrategies
         }
 
         // this sample extends past the end of the range we cover, so rollover
-        private long rollepoch(long delta, long epoch, long nanos)
+        private long rollEpoch(long delta, long epoch, long nanos)
         {
             if (delta > 2 * INTERVAL)
             {
@@ -341,30 +270,32 @@ public class CoalescingStrategies
             return (int) ((nanos >>> INDEX_SHIFT) & 15);
         }
 
-        @Override
-        protected <C extends Coalescable> void coalesceInternal(BlockingQueue<C> input, List<C> out,  int maxItems) throws InterruptedException
+        public void newArrival(Coalescable message)
         {
-            if (input.drainTo(out, maxItems) == 0)
-            {
-                out.add(input.take());
-                input.drainTo(out, maxItems - out.size());
-            }
+            final long timestamp = message.timestampNanos();
+            debugTimestamp(timestamp);
+            long epoch = this.epoch;
+            long delta = timestamp - epoch;
+            if (delta < 0)
+                // have to simply ignore, but would be a bit unlucky to get such reordering
+                return;
 
-            for (Coalescable qm : out)
-                logSample(qm.timestampNanos());
+            if (delta > INTERVAL)
+                epoch = rollEpoch(delta, epoch, timestamp);
 
+            int ix = ix(timestamp);
+            samples[ix]++;
+
+            // if we've updated an old bucket, we need to update the sum to match
+            if (ix != ix(epoch - 1))
+                sum++;
+        }
+
+        public long currentCoalescingTimeNanos()
+        {
             long averageGap = averageGap();
             debugGap(averageGap);
-
-            int count = out.size();
-            if (maybeSleep(count, averageGap, maxCoalesceWindow, parker))
-            {
-                input.drainTo(out, maxItems - out.size());
-                int prevCount = count;
-                count = out.size();
-                for (int  i = prevCount; i < count; i++)
-                    logSample(out.get(i).timestampNanos());
-            }
+            return determineCoalescingTime(averageGap, maxCoalesceWindow);
         }
 
         @Override
@@ -374,25 +305,27 @@ public class CoalescingStrategies
         }
     }
 
-    /*
+    /**
      * Start coalescing by sleeping if the moving average is < the requested window.
      * The actual time spent waiting to coalesce will be the min( window, moving average * 2)
      * The actual amount of time spent waiting can be greater then the window. For instance
      * observed time spent coalescing was 400 microseconds with the window set to 200 in one benchmark.
      */
     @VisibleForTesting
-    static class MovingAverageCoalescingStrategy extends CoalescingStrategy
+    static class MovingAverageCoalescingStrategy extends AbstractCoalescingStrategy
     {
-        private final int samples[] = new int[16];
+        static final int SAMPLE_SIZE = 16;
+        private final int samples[] = new int[SAMPLE_SIZE];
+        private final long maxCoalesceWindow;
+
         private long lastSample = 0;
         private int index = 0;
         private long sum = 0;
+        private long currentGap;
 
-        private final long maxCoalesceWindow;
-
-        public MovingAverageCoalescingStrategy(int maxCoalesceWindow, Parker parker, Logger logger, String displayName)
+        public MovingAverageCoalescingStrategy(int maxCoalesceWindow, Logger logger, String displayName)
         {
-            super(parker, logger, displayName);
+            super(logger, displayName);
             this.maxCoalesceWindow = TimeUnit.MICROSECONDS.toNanos(maxCoalesceWindow);
             for (int ii = 0; ii < samples.length; ii++)
                 samples[ii] = Integer.MAX_VALUE;
@@ -406,42 +339,29 @@ public class CoalescingStrategies
             samples[index] = value;
             index++;
             index = index & ((1 << 4) - 1);
-            return sum / 16;
+            return sum / SAMPLE_SIZE;
         }
 
-        private long notifyOfSample(long sample)
+        public void newArrival(Coalescable message)
         {
-            debugTimestamp(sample);
-            if (sample > lastSample)
+            final long timestamp = message.timestampNanos();
+            debugTimestamp(timestamp);
+            if (timestamp > lastSample)
             {
-                final int delta = (int)(Math.min(Integer.MAX_VALUE, sample - lastSample));
-                lastSample = sample;
-                return logSample(delta);
+                final int delta = (int)(Math.min(Integer.MAX_VALUE, timestamp - lastSample));
+                lastSample = timestamp;
+                currentGap = logSample(delta);
             }
             else
             {
-                return logSample(1);
+                currentGap = logSample(1);
             }
         }
 
-        @Override
-        protected <C extends Coalescable> void coalesceInternal(BlockingQueue<C> input, List<C> out,  int maxItems) throws InterruptedException
+        public long currentCoalescingTimeNanos()
         {
-            if (input.drainTo(out, maxItems) == 0)
-            {
-                out.add(input.take());
-                input.drainTo(out, maxItems - out.size());
-            }
-
-            long average = notifyOfSample(out.get(0).timestampNanos());
-            debugGap(average);
-
-            if (maybeSleep(out.size(), average, maxCoalesceWindow, parker)) {
-                input.drainTo(out, maxItems - out.size());
-            }
-
-            for (int ii = 1; ii < out.size(); ii++)
-                notifyOfSample(out.get(ii).timestampNanos());
+            debugGap(currentGap);
+            return determineCoalescingTime(currentGap, maxCoalesceWindow);
         }
 
         @Override
@@ -451,35 +371,28 @@ public class CoalescingStrategies
         }
     }
 
-    /*
+    /**
      * A fixed strategy as a backup in case MovingAverage or TimeHorizongMovingAverage fails in some scenario
      */
     @VisibleForTesting
-    static class FixedCoalescingStrategy extends CoalescingStrategy
+    static class FixedCoalescingStrategy extends AbstractCoalescingStrategy
     {
         private final long coalesceWindow;
 
-        public FixedCoalescingStrategy(int coalesceWindowMicros, Parker parker, Logger logger, String displayName)
+        public FixedCoalescingStrategy(int coalesceWindowMicros, Logger logger, String displayName)
         {
-            super(parker, logger, displayName);
+            super(logger, displayName);
             coalesceWindow = TimeUnit.MICROSECONDS.toNanos(coalesceWindowMicros);
         }
 
-        @Override
-        protected <C extends Coalescable> void coalesceInternal(BlockingQueue<C> input, List<C> out,  int maxItems) throws InterruptedException
+        public void newArrival(Coalescable message)
         {
-            int enough = DatabaseDescriptor.getOtcCoalescingEnoughCoalescedMessages();
+            debugTimestamp(message.timestampNanos());
+        }
 
-            if (input.drainTo(out, maxItems) == 0)
-            {
-                out.add(input.take());
-                input.drainTo(out, maxItems - out.size());
-                if (out.size() < enough) {
-                    parker.park(coalesceWindow);
-                    input.drainTo(out, maxItems - out.size());
-                }
-            }
-            debugTimestamps(out);
+        public long currentCoalescingTimeNanos()
+        {
+            return coalesceWindow;
         }
 
         @Override
@@ -489,84 +402,43 @@ public class CoalescingStrategies
         }
     }
 
-    /*
-     * A coalesscing strategy that just returns all currently available elements
-     */
-    @VisibleForTesting
-    static class DisabledCoalescingStrategy extends CoalescingStrategy
+    public static Optional<CoalescingStrategy> newCoalescingStrategy(String strategy, int coalesceWindow, Logger logger, String displayName)
     {
-
-        public DisabledCoalescingStrategy(int coalesceWindowMicros, Parker parker, Logger logger, String displayName)
-        {
-            super(parker, logger, displayName);
-        }
-
-        @Override
-        protected <C extends Coalescable> void coalesceInternal(BlockingQueue<C> input, List<C> out,  int maxItems) throws InterruptedException
-        {
-            if (input.drainTo(out, maxItems) == 0)
-            {
-                out.add(input.take());
-                input.drainTo(out, maxItems - 1);
-            }
-            debugTimestamps(out);
-        }
-
-        @Override
-        public String toString()
-        {
-            return "Disabled";
-        }
-    }
-
-    @VisibleForTesting
-    static CoalescingStrategy newCoalescingStrategy(String strategy,
-                                                    int coalesceWindow,
-                                                    Parker parker,
-                                                    Logger logger,
-                                                    String displayName)
-    {
-        String classname = null;
         String strategyCleaned = strategy.trim().toUpperCase(Locale.ENGLISH);
-        switch(strategyCleaned)
-        {
-        case "MOVINGAVERAGE":
-            classname = MovingAverageCoalescingStrategy.class.getName();
-            break;
-        case "FIXED":
-            classname = FixedCoalescingStrategy.class.getName();
-            break;
-        case "TIMEHORIZON":
-            classname = TimeHorizonMovingAverageCoalescingStrategy.class.getName();
-            break;
-        case "DISABLED":
-            classname = DisabledCoalescingStrategy.class.getName();
-            break;
-        default:
-            classname = strategy;
-        }
 
         try
         {
-            Class<?> clazz = Class.forName(classname);
-
-            if (!CoalescingStrategy.class.isAssignableFrom(clazz))
+            switch (Enum.valueOf(Strategy.class, strategyCleaned))
             {
-                throw new RuntimeException(classname + " is not an instance of CoalescingStrategy");
+                case MOVINGAVERAGE:
+                    return Optional.of(new MovingAverageCoalescingStrategy(coalesceWindow, logger, displayName));
+                case FIXED:
+                    return Optional.of(new FixedCoalescingStrategy(coalesceWindow, logger, displayName));
+                case TIMEHORIZON:
+                    long initialEpoch = System.nanoTime();
+                    return Optional.of(new TimeHorizonMovingAverageCoalescingStrategy(coalesceWindow, logger, displayName, initialEpoch));
+                case DISABLED:
+                    return Optional.empty();
+                default:
+                    throw new IllegalArgumentException("supported coalese strategy");
             }
-
-            Constructor<?> constructor = clazz.getConstructor(int.class, Parker.class, Logger.class, String.class);
-
-            return (CoalescingStrategy)constructor.newInstance(coalesceWindow, parker, logger, displayName);
         }
-        catch (Exception e)
+        catch (IllegalArgumentException iae)
         {
-            throw new RuntimeException(e);
-        }
-    }
+            try
+            {
+                Class<?> clazz = Class.forName(strategy);
 
-    public static CoalescingStrategy newCoalescingStrategy(String strategy, int coalesceWindow, Logger logger, String displayName)
-    {
-        return newCoalescingStrategy(strategy, coalesceWindow, PARKER, logger, displayName);
+                if (!CoalescingStrategy.class.isAssignableFrom(clazz))
+                    throw new RuntimeException(strategy + " is not an instance of CoalescingStrategy");
+
+                Constructor<?> constructor = clazz.getConstructor(int.class, Logger.class, String.class);
+                return Optional.of((CoalescingStrategy)constructor.newInstance(coalesceWindow, logger, displayName));
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
     }
 }

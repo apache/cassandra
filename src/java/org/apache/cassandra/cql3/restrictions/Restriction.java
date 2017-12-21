@@ -19,7 +19,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.List;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -39,19 +39,19 @@ public interface Restriction
      * Returns the definition of the first column.
      * @return the definition of the first column.
      */
-    public ColumnDefinition getFirstColumn();
+    public ColumnMetadata getFirstColumn();
 
     /**
      * Returns the definition of the last column.
      * @return the definition of the last column.
      */
-    public ColumnDefinition getLastColumn();
+    public ColumnMetadata getLastColumn();
 
     /**
      * Returns the column definitions in position order.
      * @return the column definitions in position order.
      */
-    public List<ColumnDefinition> getColumnDefs();
+    public List<ColumnMetadata> getColumnDefs();
 
     /**
      * Adds all functions (native and user-defined) used by any component of the restriction

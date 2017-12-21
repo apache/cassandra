@@ -21,6 +21,7 @@ import java.lang.management.ManagementFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,17 +77,18 @@ public class Mx4jTool
 
     private static String getAddress()
     {
-        return System.getProperty("mx4jaddress", FBUtilities.getBroadcastAddress().getHostAddress());
+        String sAddress = System.getProperty("mx4jaddress");
+        if (StringUtils.isEmpty(sAddress))
+            sAddress = FBUtilities.getBroadcastAddress().getHostAddress();
+        return sAddress;
     }
 
     private static int getPort()
     {
         int port = 8081;
         String sPort = System.getProperty("mx4jport");
-        if (sPort != null && !sPort.equals(""))
-        {
+        if (StringUtils.isNotEmpty(sPort))
             port = Integer.parseInt(sPort);
-        }
         return port;
     }
 }

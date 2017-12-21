@@ -19,8 +19,8 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
-
 
 /**
  * The result of the computation of an MD5 digest.
@@ -32,6 +32,32 @@ import java.util.Arrays;
  */
 public class MD5Digest
 {
+    /**
+     * In the interest not breaking things, we're consciously keeping this single remaining instance
+     * of MessageDigest around for usage by GuidGenerator (which is only ever used by RandomPartitioner)
+     * and some client native transport methods, where we're tied to the usage of MD5 in the protocol.
+     * As RandomPartitioner will always be MD5 and cannot be changed, we can switch over all our
+     * other digest usage to Guava's Hasher to make switching the hashing function used during message
+     * digests etc possible, but not regress on performance or bugs in RandomPartitioner's usage of
+     * MD5 and MessageDigest.
+     */
+    private static final ThreadLocal<MessageDigest> localMD5Digest = new ThreadLocal<MessageDigest>()
+    {
+        @Override
+        protected MessageDigest initialValue()
+        {
+            return HashingUtils.newMessageDigest("MD5");
+        }
+
+        @Override
+        public MessageDigest get()
+        {
+            MessageDigest digest = super.get();
+            digest.reset();
+            return digest;
+        }
+    };
+
     public final byte[] bytes;
     private final int hashCode;
 
@@ -48,7 +74,7 @@ public class MD5Digest
 
     public static MD5Digest compute(byte[] toHash)
     {
-        return new MD5Digest(FBUtilities.threadLocalMD5Digest().digest(toHash));
+        return new MD5Digest(localMD5Digest.get().digest(toHash));
     }
 
     public static MD5Digest compute(String toHash)
@@ -81,5 +107,10 @@ public class MD5Digest
     public String toString()
     {
         return Hex.bytesToHex(bytes);
+    }
+
+    public static MessageDigest threadLocalMD5Digest()
+    {
+        return localMD5Digest.get();
     }
 }

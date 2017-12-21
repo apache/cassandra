@@ -60,6 +60,8 @@ public class CompressedSequentialWriter extends SequentialWriter
     private final ByteBuffer crcCheckBuffer = ByteBuffer.allocate(4);
     private final Optional<File> digestFile;
 
+    private final int maxCompressedLength;
+
     /**
      * Create CompressedSequentialWriter without digest file.
      *
@@ -89,6 +91,8 @@ public class CompressedSequentialWriter extends SequentialWriter
 
         // buffer for compression should be the same size as buffer itself
         compressed = compressor.preferredBufferType().allocate(compressor.initialCompressedBufferLength(buffer.capacity()));
+
+        maxCompressedLength = parameters.maxCompressedLength();
 
         /* Index File (-CompressionInfo.db component) and it's header */
         metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsPath);
@@ -146,6 +150,12 @@ public class CompressedSequentialWriter extends SequentialWriter
 
         int compressedLength = compressed.position();
         uncompressedSize += buffer.position();
+        ByteBuffer toWrite = compressed;
+        if (compressedLength >= maxCompressedLength)
+        {
+            toWrite = buffer;
+            compressedLength = buffer.position();
+        }
         compressedSize += compressedLength;
 
         try
@@ -155,18 +165,20 @@ public class CompressedSequentialWriter extends SequentialWriter
             chunkCount++;
 
             // write out the compressed data
-            compressed.flip();
-            channel.write(compressed);
+            toWrite.flip();
+            channel.write(toWrite);
 
             // write corresponding checksum
-            compressed.rewind();
-            crcMetadata.appendDirect(compressed, true);
+            toWrite.rewind();
+            crcMetadata.appendDirect(toWrite, true);
             lastFlushOffset += compressedLength + 4;
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, getPath());
         }
+        if (toWrite == buffer)
+            buffer.position(compressedLength);
 
         // next chunk should be written right after current + length of the checksum (int)
         chunkOffset += compressedLength + 4;
@@ -228,7 +240,10 @@ public class CompressedSequentialWriter extends SequentialWriter
                 // Repopulate buffer from compressed data
                 buffer.clear();
                 compressed.flip();
-                compressor.uncompress(compressed, buffer);
+                if (chunkSize < maxCompressedLength)
+                    compressor.uncompress(compressed, buffer);
+                else
+                    buffer.put(compressed);
             }
             catch (IOException e)
             {

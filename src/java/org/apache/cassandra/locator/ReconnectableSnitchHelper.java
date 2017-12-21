@@ -21,8 +21,12 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.net.MessagingService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +53,7 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
     {
         try
         {
-            reconnect(publicAddress, InetAddress.getByName(localAddressValue.value));
+            reconnect(publicAddress, InetAddress.getByName(localAddressValue.value), snitch, localDc);
         }
         catch (UnknownHostException e)
         {
@@ -57,12 +61,19 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
         }
     }
 
-    private void reconnect(InetAddress publicAddress, InetAddress localAddress)
+    @VisibleForTesting
+    static void reconnect(InetAddress publicAddress, InetAddress localAddress, IEndpointSnitch snitch, String localDc)
     {
-        if (snitch.getDatacenter(publicAddress).equals(localDc)
-                && !MessagingService.instance().getConnectionPool(publicAddress).endPoint().equals(localAddress))
+        if (!DatabaseDescriptor.getInternodeAuthenticator().authenticate(publicAddress, MessagingService.instance().portFor(publicAddress)))
         {
-            MessagingService.instance().getConnectionPool(publicAddress).reset(localAddress);
+            logger.debug("InternodeAuthenticator said don't reconnect to {} on {}", publicAddress, localAddress);
+            return;
+        }
+
+        if (snitch.getDatacenter(publicAddress).equals(localDc)
+                && !MessagingService.instance().getCurrentEndpoint(publicAddress).equals(localAddress))
+        {
+            MessagingService.instance().reconnectWithNewIp(publicAddress, localAddress);
             logger.debug("Initiated reconnect to an Internal IP {} for the {}", localAddress, publicAddress);
         }
     }

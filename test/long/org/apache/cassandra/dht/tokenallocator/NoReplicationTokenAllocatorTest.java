@@ -20,7 +20,6 @@ package org.apache.cassandra.dht.tokenallocator;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.NavigableMap;
 import java.util.PriorityQueue;
 import java.util.Random;

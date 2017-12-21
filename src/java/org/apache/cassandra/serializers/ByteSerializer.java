@@ -28,12 +28,12 @@ public class ByteSerializer implements TypeSerializer<Byte>
 
     public Byte deserialize(ByteBuffer bytes)
     {
-        return bytes == null || bytes.remaining() == 0 ? null : bytes.get(bytes.position());
+        return bytes == null || bytes.remaining() == 0 ? null : ByteBufferUtil.toByte(bytes);
     }
 
     public ByteBuffer serialize(Byte value)
     {
-        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBuffer.allocate(1).put(0, value);
+        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

@@ -27,7 +27,9 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.filter.DataLimits.Counter;
@@ -114,10 +116,7 @@ public class DataResolver extends ResponseResolver
         FilteredPartitions filtered =
             FilteredPartitions.filter(merged, new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness()));
         PartitionIterator counted = Transformation.apply(filtered, mergedResultCounter);
-
-        return command.isForThrift()
-             ? counted
-             : Transformation.apply(counted, new EmptyPartitionsDiscarder());
+        return Transformation.apply(counted, new EmptyPartitionsDiscarder());
     }
 
     private UnfilteredPartitionIterator mergeWithShortReadProtection(List<UnfilteredPartitionIterator> results,
@@ -153,7 +152,7 @@ public class DataResolver extends ResponseResolver
             return new MergeListener(partitionKey, columns(versions), isReversed(versions));
         }
 
-        private PartitionColumns columns(List<UnfilteredRowIterator> versions)
+        private RegularAndStaticColumns columns(List<UnfilteredRowIterator> versions)
         {
             Columns statics = Columns.NONE;
             Columns regulars = Columns.NONE;
@@ -162,11 +161,11 @@ public class DataResolver extends ResponseResolver
                 if (iter == null)
                     continue;
 
-                PartitionColumns cols = iter.columns();
+                RegularAndStaticColumns cols = iter.columns();
                 statics = statics.mergeTo(cols.statics);
                 regulars = regulars.mergeTo(cols.regulars);
             }
-            return new PartitionColumns(statics, regulars);
+            return new RegularAndStaticColumns(statics, regulars);
         }
 
         private boolean isReversed(List<UnfilteredRowIterator> versions)
@@ -206,7 +205,7 @@ public class DataResolver extends ResponseResolver
         private class MergeListener implements UnfilteredRowIterators.MergeListener
         {
             private final DecoratedKey partitionKey;
-            private final PartitionColumns columns;
+            private final RegularAndStaticColumns columns;
             private final boolean isReversed;
             private final PartitionUpdate[] repairs = new PartitionUpdate[sources.length];
 
@@ -222,7 +221,7 @@ public class DataResolver extends ResponseResolver
             // For each source, record if there is an open range to send as repair, and from where.
             private final ClusteringBound[] markerToRepair = new ClusteringBound[sources.length];
 
-            private MergeListener(DecoratedKey partitionKey, PartitionColumns columns, boolean isReversed)
+            private MergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed)
             {
                 this.partitionKey = partitionKey;
                 this.columns = columns;
@@ -242,7 +241,7 @@ public class DataResolver extends ResponseResolver
                             currentRow(i, clustering).addRowDeletion(merged);
                     }
 
-                    public void onComplexDeletion(int i, Clustering clustering, ColumnDefinition column, DeletionTime merged, DeletionTime original)
+                    public void onComplexDeletion(int i, Clustering clustering, ColumnMetadata column, DeletionTime merged, DeletionTime original)
                     {
                         if (merged != null && !merged.equals(original))
                             currentRow(i, clustering).addComplexDeletion(column, merged);
@@ -262,7 +261,7 @@ public class DataResolver extends ResponseResolver
                         // semantic (making sure we can always distinguish between a row that doesn't exist from one that do exist but has
                         /// no value for the column requested by the user) and so it won't be unexpected by the user that those columns are
                         // not repaired.
-                        ColumnDefinition column = cell.column();
+                        ColumnMetadata column = cell.column();
                         ColumnFilter filter = command.columnFilter();
                         return column.isComplex() ? filter.fetchedCellIsQueried(column, cell.path()) : filter.fetchedColumnIsQueried(column);
                     }
@@ -343,9 +342,9 @@ public class DataResolver extends ResponseResolver
                 {
                     // The following can be pretty verbose, but it's really only triggered if a bug happen, so we'd
                     // rather get more info to debug than not.
-                    CFMetaData table = command.metadata();
-                    String details = String.format("Error merging RTs on %s.%s: merged=%s, versions=%s, sources={%s}, responses:%n %s",
-                                                   table.ksName, table.cfName,
+                    TableMetadata table = command.metadata();
+                    String details = String.format("Error merging RTs on %s: merged=%s, versions=%s, sources={%s}, responses:%n %s",
+                                                   table,
                                                    merged == null ? "null" : merged.toString(table),
                                                    '[' + Joiner.on(", ").join(Iterables.transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString(table))) + ']',
                                                    Arrays.toString(sources),
@@ -486,26 +485,24 @@ public class DataResolver extends ResponseResolver
                     // use a separate verb here to avoid writing hints on timeouts
                     MessageOut<Mutation> message = mutation.createMessage(MessagingService.Verb.READ_REPAIR);
                     repairResults.add(MessagingService.instance().sendRR(message, destination));
-                    ColumnFamilyStore.metricsFor(command.metadata().cfId).readRepairRequests.mark();
+                    ColumnFamilyStore.metricsFor(command.metadata().id).readRepairRequests.mark();
                 }
                 else if (DROP_OVERSIZED_READ_REPAIR_MUTATIONS)
                 {
-                    logger.debug("Encountered an oversized ({}/{}) read repair mutation for table {}.{}, key {}, node {}",
+                    logger.debug("Encountered an oversized ({}/{}) read repair mutation for table {}, key {}, node {}",
                                  mutationSize,
                                  maxMutationSize,
-                                 command.metadata().ksName,
-                                 command.metadata().cfName,
-                                 command.metadata().getKeyValidator().getString(partitionKey.getKey()),
+                                 command.metadata(),
+                                 command.metadata().partitionKeyType.getString(partitionKey.getKey()),
                                  destination);
                 }
                 else
                 {
-                    logger.warn("Encountered an oversized ({}/{}) read repair mutation for table {}.{}, key {}, node {}",
+                    logger.warn("Encountered an oversized ({}/{}) read repair mutation for table {}, key {}, node {}",
                                 mutationSize,
                                 maxMutationSize,
-                                command.metadata().ksName,
-                                command.metadata().cfName,
-                                command.metadata().getKeyValidator().getString(partitionKey.getKey()),
+                                command.metadata(),
+                                command.metadata().partitionKeyType.getString(partitionKey.getKey()),
                                 destination);
 
                     int blockFor = consistency.blockFor(keyspace);
@@ -645,7 +642,7 @@ public class DataResolver extends ResponseResolver
                         ? command.limits().count() - counted(mergedResultCounter)
                         : command.limits().perPartitionCount();
 
-            ColumnFamilyStore.metricsFor(command.metadata().cfId).shortReadProtectionRequests.mark();
+            ColumnFamilyStore.metricsFor(command.metadata().id).shortReadProtectionRequests.mark();
             Tracing.trace("Requesting {} extra rows from {} for short read protection", toQuery, source);
 
             PartitionRangeReadCommand cmd = makeFetchAdditionalPartitionReadCommand(toQuery);
@@ -677,7 +674,7 @@ public class DataResolver extends ResponseResolver
 
         private class ShortReadRowsProtection extends Transformation implements MoreRows<UnfilteredRowIterator>
         {
-            private final CFMetaData metadata;
+            private final TableMetadata metadata;
             private final DecoratedKey partitionKey;
 
             private Clustering lastClustering; // clustering of the last observed row
@@ -686,7 +683,7 @@ public class DataResolver extends ResponseResolver
             private int lastFetched = 0; // # rows returned by last attempt to get more (or by the original read command)
             private int lastQueried = 0; // # extra rows requested from the replica last time
 
-            private ShortReadRowsProtection(CFMetaData metadata, DecoratedKey partitionKey)
+            private ShortReadRowsProtection(TableMetadata metadata, DecoratedKey partitionKey)
             {
                 this.metadata = metadata;
                 this.partitionKey = partitionKey;
@@ -790,7 +787,7 @@ public class DataResolver extends ResponseResolver
                  */
                 lastQueried = Math.min(command.limits().count(), command.limits().perPartitionCount());
 
-                ColumnFamilyStore.metricsFor(metadata.cfId).shortReadProtectionRequests.mark();
+                ColumnFamilyStore.metricsFor(metadata.id).shortReadProtectionRequests.mark();
                 Tracing.trace("Requesting {} extra rows from {} for short read protection", lastQueried, source);
 
                 SinglePartitionReadCommand cmd = makeFetchAdditionalRowsReadCommand(lastQueried);
@@ -811,8 +808,7 @@ public class DataResolver extends ResponseResolver
                 if (null != lastClustering)
                     filter = filter.forPaging(metadata.comparator, lastClustering, false);
 
-                return SinglePartitionReadCommand.create(command.isForThrift(),
-                                                         command.metadata(),
+                return SinglePartitionReadCommand.create(command.metadata(),
                                                          command.nowInSec(),
                                                          command.columnFilter(),
                                                          command.rowFilter(),
@@ -831,7 +827,7 @@ public class DataResolver extends ResponseResolver
             if (StorageProxy.canDoLocalRequest(source))
                 StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
             else
-                MessagingService.instance().sendRRWithFailure(cmd.createMessage(MessagingService.current_version), source, handler);
+                MessagingService.instance().sendRRWithFailure(cmd.createMessage(), source, handler);
 
             // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.
             handler.awaitResults();

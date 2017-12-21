@@ -23,6 +23,8 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.*;
+import com.google.common.annotations.VisibleForTesting;
+
 import javax.management.*;
 
 /**
@@ -273,11 +275,14 @@ public class CassandraMetricsRegistry extends MetricRegistry
         double get999thPercentile();
 
         long[] values();
+
+        long[] getRecentValues();
     }
 
     private static class JmxHistogram extends AbstractBean implements JmxHistogramMBean
     {
         private final Histogram metric;
+        private long[] last = null;
 
         private JmxHistogram(Histogram metric, ObjectName objectName)
         {
@@ -355,6 +360,15 @@ public class CassandraMetricsRegistry extends MetricRegistry
         public long[] values()
         {
             return metric.getSnapshot().getValues();
+        }
+
+        @Override
+        public long[] getRecentValues()
+        {
+            long[] now = metric.getSnapshot().getValues();
+            long[] delta = delta(now, last);
+            last = now;
+            return delta;
         }
     }
 
@@ -476,6 +490,8 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
         long[] values();
 
+        long[] getRecentValues();
+
         String getDurationUnit();
     }
 
@@ -484,6 +500,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         private final Timer metric;
         private final double durationFactor;
         private final String durationUnit;
+        private long[] last = null;
 
         private JmxTimer(Timer metric,
                          ObjectName objectName,
@@ -563,10 +580,41 @@ public class CassandraMetricsRegistry extends MetricRegistry
         }
 
         @Override
+        public long[] getRecentValues()
+        {
+            long[] now = metric.getSnapshot().getValues();
+            long[] delta = delta(now, last);
+            last = now;
+            return delta;
+        }
+
+        @Override
         public String getDurationUnit()
         {
             return durationUnit;
         }
+    }
+
+    /**
+     * Used to determine the changes in a histogram since the last time checked.
+     *
+     * @param now The current histogram
+     * @param last The previous value of the histogram
+     * @return the difference between <i>now</> and <i>last</i>
+     */
+    @VisibleForTesting
+    static long[] delta(long[] now, long[] last)
+    {
+        long[] delta = new long[now.length];
+        if (last == null)
+        {
+            last = new long[now.length];
+        }
+        for(int i = 0; i< now.length; i++)
+        {
+            delta[i] = now[i] - (i < last.length? last[i] : 0);
+        }
+        return delta;
     }
 
     /**

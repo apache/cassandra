@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.*;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
@@ -40,6 +41,7 @@ import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.Version;
 import io.netty.util.concurrent.EventExecutor;
@@ -49,6 +51,8 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaChangeListener;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.transport.messages.EventMessage;
@@ -100,7 +104,7 @@ public class Server implements CassandraDaemon.Server
             eventExecutorGroup = builder.eventExecutorGroup;
         EventNotifier notifier = new EventNotifier(this);
         StorageService.instance.register(notifier);
-        MigrationManager.instance.register(notifier);
+        Schema.instance.registerListener(notifier);
     }
 
     public void stop()
@@ -133,7 +137,7 @@ public class Server implements CassandraDaemon.Server
 
         if (this.useSSL)
         {
-            final EncryptionOptions.ClientEncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
+            final EncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
 
             if (clientEnc.optional)
             {
@@ -341,31 +345,18 @@ public class Server implements CassandraDaemon.Server
 
     protected abstract static class AbstractSecureIntializer extends Initializer
     {
-        private final SSLContext sslContext;
         private final EncryptionOptions encryptionOptions;
 
         protected AbstractSecureIntializer(Server server, EncryptionOptions encryptionOptions)
         {
             super(server);
             this.encryptionOptions = encryptionOptions;
-            try
-            {
-                this.sslContext = SSLFactory.createSSLContext(encryptionOptions, encryptionOptions.require_client_auth);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException("Failed to setup secure pipeline", e);
-            }
         }
 
-        protected final SslHandler createSslHandler()
+        protected final SslHandler createSslHandler(ByteBufAllocator allocator) throws IOException
         {
-            SSLEngine sslEngine = sslContext.createSSLEngine();
-            sslEngine.setUseClientMode(false);
-            String[] suites = SSLFactory.filterCipherSuites(sslEngine.getSupportedCipherSuites(), encryptionOptions.cipher_suites);
-            sslEngine.setEnabledCipherSuites(suites);
-            sslEngine.setNeedClientAuth(encryptionOptions.require_client_auth);
-            return new SslHandler(sslEngine);
+            SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, encryptionOptions.require_client_auth, true);
+            return sslContext.newHandler(allocator);
         }
     }
 
@@ -394,7 +385,7 @@ public class Server implements CassandraDaemon.Server
                     {
                         // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use
                         // encryption.
-                        SslHandler sslHandler = createSslHandler();
+                        SslHandler sslHandler = createSslHandler(channel.alloc());
                         channelHandlerContext.pipeline().replace(this, "ssl", sslHandler);
                     }
                     else
@@ -417,7 +408,7 @@ public class Server implements CassandraDaemon.Server
 
         protected void initChannel(Channel channel) throws Exception
         {
-            SslHandler sslHandler = createSslHandler();
+            SslHandler sslHandler = createSslHandler(channel.alloc());
             super.initChannel(channel);
             channel.pipeline().addFirst("ssl", sslHandler);
         }
@@ -457,7 +448,7 @@ public class Server implements CassandraDaemon.Server
         }
     }
 
-    private static class EventNotifier extends MigrationListener implements IEndpointLifecycleSubscriber
+    private static class EventNotifier extends SchemaChangeListener implements IEndpointLifecycleSubscriber
     {
         private final Server server;
 
@@ -593,12 +584,12 @@ public class Server implements CassandraDaemon.Server
             send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, ksName));
         }
 
-        public void onCreateColumnFamily(String ksName, String cfName)
+        public void onCreateTable(String ksName, String cfName)
         {
             send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TABLE, ksName, cfName));
         }
 
-        public void onCreateUserType(String ksName, String typeName)
+        public void onCreateType(String ksName, String typeName)
         {
             send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TYPE, ksName, typeName));
         }
@@ -615,28 +606,28 @@ public class Server implements CassandraDaemon.Server
                                         ksName, aggregateName, AbstractType.asCQLTypeStringList(argTypes)));
         }
 
-        public void onUpdateKeyspace(String ksName)
+        public void onAlterKeyspace(String ksName)
         {
             send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, ksName));
         }
 
-        public void onUpdateColumnFamily(String ksName, String cfName, boolean affectsStatements)
+        public void onAlterTable(String ksName, String cfName, boolean affectsStatements)
         {
             send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, ksName, cfName));
         }
 
-        public void onUpdateUserType(String ksName, String typeName)
+        public void onAlterType(String ksName, String typeName)
         {
             send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TYPE, ksName, typeName));
         }
 
-        public void onUpdateFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
+        public void onAlterFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
         {
             send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.FUNCTION,
                                         ksName, functionName, AbstractType.asCQLTypeStringList(argTypes)));
         }
 
-        public void onUpdateAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
+        public void onAlterAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
         {
             send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.AGGREGATE,
                                         ksName, aggregateName, AbstractType.asCQLTypeStringList(argTypes)));
@@ -647,12 +638,12 @@ public class Server implements CassandraDaemon.Server
             send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, ksName));
         }
 
-        public void onDropColumnFamily(String ksName, String cfName)
+        public void onDropTable(String ksName, String cfName)
         {
             send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TABLE, ksName, cfName));
         }
 
-        public void onDropUserType(String ksName, String typeName)
+        public void onDropType(String ksName, String typeName)
         {
             send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TYPE, ksName, typeName));
         }

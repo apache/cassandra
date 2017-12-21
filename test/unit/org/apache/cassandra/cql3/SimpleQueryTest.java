@@ -22,31 +22,6 @@ import org.junit.Test;
 public class SimpleQueryTest extends CQLTester
 {
     @Test
-    public void testStaticCompactTables() throws Throwable
-    {
-        createTable("CREATE TABLE %s (k text PRIMARY KEY, v1 int, v2 text) WITH COMPACT STORAGE");
-
-        execute("INSERT INTO %s (k, v1, v2) values (?, ?, ?)", "first", 1, "value1");
-        execute("INSERT INTO %s (k, v1, v2) values (?, ?, ?)", "second", 2, "value2");
-        execute("INSERT INTO %s (k, v1, v2) values (?, ?, ?)", "third", 3, "value3");
-
-        assertRows(execute("SELECT * FROM %s WHERE k = ?", "first"),
-            row("first", 1, "value1")
-        );
-
-        assertRows(execute("SELECT v2 FROM %s WHERE k = ?", "second"),
-            row("value2")
-        );
-
-        // Murmur3 order
-        assertRows(execute("SELECT * FROM %s"),
-            row("third",  3, "value3"),
-            row("second", 2, "value2"),
-            row("first",  1, "value1")
-        );
-    }
-
-    @Test
     public void testDynamicCompactTables() throws Throwable
     {
         createTable("CREATE TABLE %s (k text, t int, v text, PRIMARY KEY (k, t));");
@@ -499,26 +474,6 @@ public class SimpleQueryTest extends CQLTester
             row((Object)null)
         );
         assertEmpty(execute("SELECT DISTINCT s FROM %s WHERE k=?", 2));
-    }
-
-    @Test
-    public void testCompactStorageUpdateWithNull() throws Throwable
-    {
-        createTable("CREATE TABLE %s (partitionKey int," +
-                "clustering_1 int," +
-                "value int," +
-                " PRIMARY KEY (partitionKey, clustering_1)) WITH COMPACT STORAGE");
-
-        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 0, 0)");
-        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 1, 1)");
-
-        flush();
-
-        execute("UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 = ?", null, 0, 0);
-
-        assertRows(execute("SELECT * FROM %s WHERE partitionKey = ? AND (clustering_1) IN ((?), (?))", 0, 0, 1),
-            row(0, 1, 1)
-        );
     }
 
     @Test

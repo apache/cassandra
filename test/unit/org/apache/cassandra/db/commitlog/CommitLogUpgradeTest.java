@@ -24,7 +24,6 @@ package org.apache.cassandra.db.commitlog;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.Properties;
-import java.util.UUID;
 
 import junit.framework.Assert;
 
@@ -36,9 +35,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -46,10 +47,10 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.security.EncryptionContextGenerator;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
-import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayException;
 
 /**
  * Note: if you are looking to create new test cases for this test, check out
@@ -76,12 +77,15 @@ public class CommitLogUpgradeTest
     private KillerForTests killerForTests;
     private boolean shouldBeKilled = false;
 
-    static CFMetaData metadata = CFMetaData.Builder.createDense(KEYSPACE, TABLE, false, false)
-                                                   .addPartitionKey("key", AsciiType.instance)
-                                                   .addClusteringColumn("col", AsciiType.instance)
-                                                   .addRegularColumn("val", BytesType.instance)
-                                                   .build()
-                                                   .compression(SchemaLoader.getCompressionParameters());
+    static TableMetadata metadata =
+        TableMetadata.builder(KEYSPACE, TABLE)
+                     .isCompound(false)
+                     .isDense(true)
+                     .addPartitionKeyColumn("key", AsciiType.instance)
+                     .addClusteringColumn("col", AsciiType.instance)
+                     .addRegularColumn("val", BytesType.instance)
+                     .compression(SchemaLoader.getCompressionParameters())
+                     .build();
 
     @Before
     public void prepareToBeKilled()
@@ -98,83 +102,6 @@ public class CommitLogUpgradeTest
     }
 
     @Test
-    public void test20() throws Exception
-    {
-        testRestore(DATA_DIR + "2.0");
-    }
-
-    @Test
-    public void test21() throws Exception
-    {
-        testRestore(DATA_DIR + "2.1");
-    }
-
-    @Test
-    public void test22() throws Exception
-    {
-        testRestore(DATA_DIR + "2.2");
-    }
-
-    @Test
-    public void test22_LZ4() throws Exception
-    {
-        testRestore(DATA_DIR + "2.2-lz4");
-    }
-
-    @Test
-    public void test22_Snappy() throws Exception
-    {
-        testRestore(DATA_DIR + "2.2-snappy");
-    }
-
-    public void test22_truncated() throws Exception
-    {
-        testRestore(DATA_DIR + "2.2-lz4-truncated");
-    }
-
-    @Test(expected = CommitLogReplayException.class)
-    public void test22_bitrot() throws Exception
-    {
-        shouldBeKilled = true;
-        testRestore(DATA_DIR + "2.2-lz4-bitrot");
-    }
-
-    @Test
-    public void test22_bitrot_ignored() throws Exception
-    {
-        try
-        {
-            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
-            testRestore(DATA_DIR + "2.2-lz4-bitrot");
-        }
-        finally
-        {
-            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
-        }
-    }
-
-    @Test(expected = CommitLogReplayException.class)
-    public void test22_bitrot2() throws Exception
-    {
-        shouldBeKilled = true;
-        testRestore(DATA_DIR + "2.2-lz4-bitrot2");
-    }
-
-    @Test
-    public void test22_bitrot2_ignored() throws Exception
-    {
-        try
-        {
-            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
-            testRestore(DATA_DIR + "2.2-lz4-bitrot2");
-        }
-        finally
-        {
-            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
-        }
-    }
-
-    @Test
     public void test34_encrypted() throws Exception
     {
         testRestore(DATA_DIR + "3.4-encrypted");
@@ -184,9 +111,7 @@ public class CommitLogUpgradeTest
     public static void initialize()
     {
         SchemaLoader.loadSchema();
-        SchemaLoader.createKeyspace(KEYSPACE,
-                                    KeyspaceParams.simple(1),
-                                    metadata);
+        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), metadata);
         DatabaseDescriptor.setEncryptionContext(EncryptionContextGenerator.createContext(true));
     }
 
@@ -200,13 +125,9 @@ public class CommitLogUpgradeTest
         String cfidString = prop.getProperty(CFID_PROPERTY);
         if (cfidString != null)
         {
-            UUID cfid = UUID.fromString(cfidString);
-            if (Schema.instance.getCF(cfid) == null)
-            {
-                CFMetaData cfm = Schema.instance.getCFMetaData(KEYSPACE, TABLE);
-                Schema.instance.unload(cfm);
-                Schema.instance.load(cfm.copy(cfid));
-            }
+            TableId tableId = TableId.fromString(cfidString);
+            if (Schema.instance.getTableMetadata(tableId) == null)
+                Schema.instance.load(KeyspaceMetadata.create(KEYSPACE, KeyspaceParams.simple(1), Tables.of(metadata.unbuild().id(tableId).build())));
         }
 
         Hasher hasher = new Hasher();
