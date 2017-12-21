@@ -1,4 +1,5 @@
 4.0
+ * Fix sstablemetadata date string for minLocalDeletionTime (CASSANDRA-14132)
  * Make it possible to change neverPurgeTombstones during runtime (CASSANDRA-14214)
  * Remove GossipDigestSynVerbHandler#doSort() (CASSANDRA-14174)
  * Add nodetool clientlist (CASSANDRA-13665)
