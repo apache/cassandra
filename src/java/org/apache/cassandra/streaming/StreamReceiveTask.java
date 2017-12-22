@@ -210,6 +210,7 @@ public class StreamReceiveTask extends StreamTask
                     {
                         task.finishTransaction();
 
+                        logger.debug("[Stream #{}] Received {} sstables from {} ({})", task.session.planId(), readers.size(), task.session.peer, readers);
                         // add sstables and build secondary indexes
                         cfs.addSSTables(readers);
                         cfs.indexManager.buildAllIndexesBlocking(readers);
