@@ -124,4 +124,9 @@ public class DiskBoundaries
         }
         return 0;
     }
+
+    public Directories.DataDirectory getCorrectDiskForSSTable(SSTableReader sstable)
+    {
+        return directories.get(getDiskIndex(sstable));
+    }
 }

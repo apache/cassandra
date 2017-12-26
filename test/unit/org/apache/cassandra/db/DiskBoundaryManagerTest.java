@@ -35,6 +35,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -51,17 +53,17 @@ public class DiskBoundaryManagerTest extends CQLTester
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.updateNormalTokens(BootStrapper.getRandomTokens(metadata, 10), FBUtilities.getBroadcastAddress());
         createTable("create table %s (id int primary key, x text)");
-        dbm = getCurrentColumnFamilyStore().diskBoundaryManager;
-        dirs = new Directories(getCurrentColumnFamilyStore().metadata.get(), Lists.newArrayList(new Directories.DataDirectory(new File("/tmp/1")),
-                                                                                                new Directories.DataDirectory(new File("/tmp/2")),
-                                                                                                new Directories.DataDirectory(new File("/tmp/3"))));
+        dirs = new Directories(getCurrentColumnFamilyStore().metadata(), Lists.newArrayList(new Directories.DataDirectory(new File("/tmp/1")),
+                                                                                          new Directories.DataDirectory(new File("/tmp/2")),
+                                                                                          new Directories.DataDirectory(new File("/tmp/3"))));
         mock = new MockCFS(getCurrentColumnFamilyStore(), dirs);
+        dbm = mock.diskBoundaryManager;
     }
 
     @Test
     public void getBoundariesTest()
     {
-        DiskBoundaries dbv = mock.getDiskBoundaries();
+        DiskBoundaries dbv = dbm.getDiskBoundaries(mock);
         Assert.assertEquals(3, dbv.positions.size());
         assertEquals(dbv.directories, dirs.getWriteableLocations());
     }
@@ -69,11 +71,11 @@ public class DiskBoundaryManagerTest extends CQLTester
     @Test
     public void blackListTest()
     {
-        DiskBoundaries dbv = mock.getDiskBoundaries();
+        DiskBoundaries dbv = dbm.getDiskBoundaries(mock);
         Assert.assertEquals(3, dbv.positions.size());
         assertEquals(dbv.directories, dirs.getWriteableLocations());
         BlacklistedDirectories.maybeMarkUnwritable(new File("/tmp/3"));
-        dbv = mock.getDiskBoundaries();
+        dbv = dbm.getDiskBoundaries(mock);
         Assert.assertEquals(2, dbv.positions.size());
         Assert.assertEquals(Lists.newArrayList(new Directories.DataDirectory(new File("/tmp/1")),
                                         new Directories.DataDirectory(new File("/tmp/2"))),
@@ -83,22 +85,23 @@ public class DiskBoundaryManagerTest extends CQLTester
     @Test
     public void updateTokensTest() throws UnknownHostException
     {
-        DiskBoundaries dbv1 = mock.getDiskBoundaries();
+        DiskBoundaries dbv1 = dbm.getDiskBoundaries(mock);
         StorageService.instance.getTokenMetadata().updateNormalTokens(BootStrapper.getRandomTokens(StorageService.instance.getTokenMetadata(), 10), InetAddress.getByName("127.0.0.10"));
-        DiskBoundaries dbv2 = mock.getDiskBoundaries();
+        DiskBoundaries dbv2 = dbm.getDiskBoundaries(mock);
         assertFalse(dbv1.equals(dbv2));
     }
 
     @Test
     public void alterKeyspaceTest() throws Throwable
     {
+        //do not use mock to since it will not be invalidated after alter keyspace
+        DiskBoundaryManager dbm = getCurrentColumnFamilyStore().diskBoundaryManager;
         DiskBoundaries dbv1 = dbm.getDiskBoundaries(mock);
         execute("alter keyspace "+keyspace()+" with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 }");
         DiskBoundaries dbv2 = dbm.getDiskBoundaries(mock);
-        // == on purpose - we just want to make sure that there is a new instance cached
-        assertFalse(dbv1 == dbv2);
+        assertNotSame(dbv1, dbv2);
         DiskBoundaries dbv3 = dbm.getDiskBoundaries(mock);
-        assertTrue(dbv2 == dbv3);
+        assertSame(dbv2, dbv3);
 
     }
 

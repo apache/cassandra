@@ -175,6 +175,8 @@
 
 
 3.11.2
+ * Avoid invalidating disk boundaries unnecessarily (CASSANDRA-14083)
+ * Avoid exposing compaction strategy index externally (CASSANDRA-14082)
  * Fix imbalanced disks when replacing node with same address with JBOD (CASSANDRA-14084)
  * Reload compaction strategies when disk boundaries are invalidated (CASSANDRA-13948)
  * Remove OpenJDK log warning (CASSANDRA-13916)

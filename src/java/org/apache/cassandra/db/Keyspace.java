@@ -46,6 +46,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
@@ -88,6 +89,7 @@ public class Keyspace
 
     private volatile AbstractReplicationStrategy replicationStrategy;
     public final ViewManager viewManager;
+    private volatile ReplicationParams replicationParams;
 
     public static final Function<String,Keyspace> keyspaceTransformer = new Function<String, Keyspace>()
     {
@@ -355,8 +357,12 @@ public class Keyspace
                                                                                     StorageService.instance.getTokenMetadata(),
                                                                                     DatabaseDescriptor.getEndpointSnitch(),
                                                                                     ksm.params.replication.options);
-        logger.debug("New replication strategy instance - invalidating disk boundary cache");
-        columnFamilyStores.values().forEach(ColumnFamilyStore::invalidateDiskBoundaries);
+        if (!ksm.params.replication.equals(replicationParams))
+        {
+            logger.debug("New replication settings for keyspace {} - invalidating disk boundary caches", ksm.name);
+            columnFamilyStores.values().forEach(ColumnFamilyStore::invalidateDiskBoundaries);
+        }
+        replicationParams = ksm.params.replication;
     }
 
     // best invoked on the compaction mananger.
