@@ -1,4 +1,5 @@
 3.11.2
+ * Add Unittest for schema migration fix (CASSANDRA-14140)
  * Print correct snitch info from nodetool describecluster (CASSANDRA-13528)
  * Close socket on error during connect on OutboundTcpConnection (CASSANDRA-9630)
  * Enable CDC unittest (CASSANDRA-14141)

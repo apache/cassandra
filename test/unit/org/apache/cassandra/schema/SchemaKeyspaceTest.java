@@ -21,10 +21,12 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -34,6 +36,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -46,14 +49,19 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.thrift.ThriftConversion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SchemaKeyspaceTest
@@ -205,5 +213,99 @@ public class SchemaKeyspaceTest
 
         assertEquals(cfm.params, params);
         assertEquals(new HashSet<>(cfm.allColumns()), columns);
+    }
+
+    private static boolean hasCDC(Mutation m)
+    {
+        for (PartitionUpdate p : m.getPartitionUpdates())
+        {
+            for (ColumnDefinition cd : p.columns())
+            {
+                if (cd.name.toString().equals("cdc"))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasSchemaTables(Mutation m)
+    {
+        for (PartitionUpdate p : m.getPartitionUpdates())
+        {
+            if (p.metadata().cfName.equals(SchemaKeyspace.TABLES))
+                return true;
+        }
+        return false;
+    }
+
+    @Test
+    public void testConvertSchemaToMutationsWithoutCDC() throws IOException
+    {
+        boolean oldCDCOption = DatabaseDescriptor.isCDCEnabled();
+        try
+        {
+            DatabaseDescriptor.setCDCEnabled(false);
+            Collection<Mutation> mutations = SchemaKeyspace.convertSchemaToMutations();
+            boolean foundTables = false;
+            for (Mutation m : mutations)
+            {
+                if (hasSchemaTables(m))
+                {
+                    foundTables = true;
+                    assertFalse(hasCDC(m));
+                    try (DataOutputBuffer output = new DataOutputBuffer())
+                    {
+                        Mutation.serializer.serialize(m, output, MessagingService.current_version);
+                        try (DataInputBuffer input = new DataInputBuffer(output.getData()))
+                        {
+                            Mutation out = Mutation.serializer.deserialize(input, MessagingService.current_version);
+                            assertFalse(hasCDC(out));
+                        }
+                    }
+                }
+            }
+            assertTrue(foundTables);
+        }
+        finally
+        {
+            DatabaseDescriptor.setCDCEnabled(oldCDCOption);
+        }
+    }
+
+    @Test
+    public void testConvertSchemaToMutationsWithCDC()
+    {
+        boolean oldCDCOption = DatabaseDescriptor.isCDCEnabled();
+        try
+        {
+            DatabaseDescriptor.setCDCEnabled(true);
+            Collection<Mutation> mutations = SchemaKeyspace.convertSchemaToMutations();
+            boolean foundTables = false;
+            for (Mutation m : mutations)
+            {
+                if (hasSchemaTables(m))
+                {
+                    foundTables = true;
+                    assertTrue(hasCDC(m));
+                }
+            }
+            assertTrue(foundTables);
+        }
+        finally
+        {
+            DatabaseDescriptor.setCDCEnabled(oldCDCOption);
+        }
+    }
+
+    @Test
+    public void testSchemaDigest()
+    {
+        Set<ByteBuffer> abc = Collections.singleton(ByteBufferUtil.bytes("abc"));
+        Pair<UUID, UUID> versions = SchemaKeyspace.calculateSchemaDigest(abc);
+        assertTrue(versions.left.equals(versions.right));
+
+        Set<ByteBuffer> cdc = Collections.singleton(ByteBufferUtil.bytes("cdc"));
+        versions = SchemaKeyspace.calculateSchemaDigest(cdc);
+        assertFalse(versions.left.equals(versions.right));
     }
 }

@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -109,7 +110,7 @@ public final class SchemaKeyspace
      * for digest calculations, otherwise the nodes will never agree on the schema during a rolling upgrade, see CASSANDRA-13559.
      */
     public static final ImmutableList<String> ALL_FOR_DIGEST =
-        ImmutableList.of(KEYSPACES, TABLES, COLUMNS, DROPPED_COLUMNS, TRIGGERS, VIEWS, TYPES, FUNCTIONS, AGGREGATES, INDEXES);
+        ImmutableList.of(KEYSPACES, TABLES, COLUMNS, TRIGGERS, VIEWS, TYPES, FUNCTIONS, AGGREGATES, INDEXES);
 
     private static final CFMetaData Keyspaces =
         compile(KEYSPACES,
@@ -317,6 +318,14 @@ public final class SchemaKeyspace
      */
     public static Pair<UUID, UUID> calculateSchemaDigest()
     {
+        Set<ByteBuffer> cdc = Collections.singleton(ByteBufferUtil.bytes("cdc"));
+
+        return calculateSchemaDigest(cdc);
+    }
+
+    @VisibleForTesting
+    static Pair<UUID, UUID> calculateSchemaDigest(Set<ByteBuffer> columnsToExclude)
+    {
         MessageDigest digest;
         MessageDigest digest30;
         try
@@ -328,15 +337,9 @@ public final class SchemaKeyspace
         {
             throw new RuntimeException(e);
         }
-        Set<ByteBuffer> cdc = Collections.singleton(ByteBufferUtil.bytes("cdc"));
 
         for (String table : ALL_FOR_DIGEST)
         {
-            // Due to CASSANDRA-11050 we want to exclude DROPPED_COLUMNS for schema digest computation. We can and
-            // should remove that in the next major release (so C* 4.0).
-            if (table.equals(DROPPED_COLUMNS))
-                continue;
-
             ReadCommand cmd = getReadCommandForTableSchema(table);
             try (ReadExecutionController executionController = cmd.executionController();
                  PartitionIterator schema = cmd.executeInternal(executionController))
@@ -347,7 +350,7 @@ public final class SchemaKeyspace
                     {
                         if (!isSystemKeyspaceSchemaPartition(partition.partitionKey()))
                         {
-                            RowIterators.digest(partition, digest, digest30, cdc);
+                            RowIterators.digest(partition, digest, digest30, columnsToExclude);
                         }
                     }
                 }

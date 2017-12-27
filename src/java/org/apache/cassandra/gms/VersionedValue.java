@@ -24,6 +24,7 @@ import java.util.UUID;
 
 import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -250,7 +251,13 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue releaseVersion()
         {
-            return new VersionedValue(FBUtilities.getReleaseVersionString());
+            return releaseVersion(FBUtilities.getReleaseVersionString());
+        }
+
+        @VisibleForTesting
+        public VersionedValue releaseVersion(String version)
+        {
+            return new VersionedValue(version);
         }
 
         public VersionedValue networkVersion()
