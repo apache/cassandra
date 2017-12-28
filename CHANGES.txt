@@ -172,6 +172,7 @@
  * Anticompaction can cause noisy log messages (CASSANDRA-13684)
  * Switch to client init for sstabledump (CASSANDRA-13683)
  * CQLSH: Don't pause when capturing data (CASSANDRA-13743)
+ * nodetool clearsnapshot requires --all to clear all snapshots (CASSANDRA-13391)
 
 
 3.11.2
