@@ -276,6 +276,10 @@ Function SetCassandraEnvironment
     $env:CASSANDRA_PARAMS="-Dcassandra -Dlogback.configurationFile=logback.xml"
 
     $logdir = "$env:CASSANDRA_HOME\logs"
+    If(!(test-path $logdir))
+    {
+        New-Item -ItemType Directory -Force -Path $logdir
+    }
     $storagedir = "$env:CASSANDRA_HOME\data"
     $env:CASSANDRA_PARAMS = $env:CASSANDRA_PARAMS + " -Dcassandra.logdir=""$logdir"" -Dcassandra.storagedir=""$storagedir"""
 
