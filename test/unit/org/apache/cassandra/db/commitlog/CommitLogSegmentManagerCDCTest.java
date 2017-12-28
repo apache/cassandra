@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.Random;
 
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -43,9 +42,10 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     private static Random random = new Random();
 
     @BeforeClass
-    public static void checkConfig()
+    public static void setUpClass()
     {
-        Assume.assumeTrue(DatabaseDescriptor.isCDCEnabled());
+        DatabaseDescriptor.setCDCEnabled(true);
+        CQLTester.setUpClass();
     }
 
     @Before
