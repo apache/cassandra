@@ -105,6 +105,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      **/
     private volatile CompactionParams schemaCompactionParams;
     private boolean shouldDefragment;
+    private boolean supportsEarlyOpen;
     private int fanout;
 
     public CompactionStrategyManager(ColumnFamilyStore cfs)
@@ -216,6 +217,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             repaired.forEach(AbstractCompactionStrategy::startup);
             unrepaired.forEach(AbstractCompactionStrategy::startup);
             shouldDefragment = repaired.get(0).shouldDefragment();
+            supportsEarlyOpen = repaired.get(0).supportsEarlyOpen();
             fanout = (repaired.get(0) instanceof LeveledCompactionStrategy) ? ((LeveledCompactionStrategy) repaired.get(0)).getLevelFanoutSize() : LeveledCompactionStrategy.DEFAULT_LEVEL_FANOUT_SIZE;
         }
         finally
@@ -1037,35 +1039,52 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public boolean isRepaired(AbstractCompactionStrategy strategy)
     {
-        return repaired.contains(strategy);
+        readLock.lock();
+        try
+        {
+            return repaired.contains(strategy);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     public List<String> getStrategyFolders(AbstractCompactionStrategy strategy)
     {
-        List<Directories.DataDirectory> locations = currentBoundaries.directories;
-        if (partitionSSTablesByTokenRange)
+        readLock.lock();
+        try
         {
-            int unrepairedIndex = unrepaired.indexOf(strategy);
-            if (unrepairedIndex > 0)
+            List<Directories.DataDirectory> locations = currentBoundaries.directories;
+            if (partitionSSTablesByTokenRange)
             {
-                return Collections.singletonList(locations.get(unrepairedIndex).location.getAbsolutePath());
+                int unrepairedIndex = unrepaired.indexOf(strategy);
+                if (unrepairedIndex > 0)
+                {
+                    return Collections.singletonList(locations.get(unrepairedIndex).location.getAbsolutePath());
+                }
+                int repairedIndex = repaired.indexOf(strategy);
+                if (repairedIndex > 0)
+                {
+                    return Collections.singletonList(locations.get(repairedIndex).location.getAbsolutePath());
+                }
             }
-            int repairedIndex = repaired.indexOf(strategy);
-            if (repairedIndex > 0)
+            List<String> folders = new ArrayList<>(locations.size());
+            for (Directories.DataDirectory location : locations)
             {
-                return Collections.singletonList(locations.get(repairedIndex).location.getAbsolutePath());
+                folders.add(location.location.getAbsolutePath());
             }
+            return folders;
         }
-        List<String> folders = new ArrayList<>(locations.size());
-        for (Directories.DataDirectory location : locations)
+        finally
         {
-            folders.add(location.location.getAbsolutePath());
+            readLock.unlock();
         }
-        return folders;
+
     }
 
     public boolean supportsEarlyOpen()
     {
-        return repaired.get(0).supportsEarlyOpen();
+        return supportsEarlyOpen;
     }
 }

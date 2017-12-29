@@ -1,4 +1,5 @@
 3.11.2
+ * Acquire read lock before accessing CompactionStrategyManager fields (CASSANDRA-14139)
  * Split CommitLogStressTest to avoid timeout (CASSANDRA-14143)
  * Avoid invalidating disk boundaries unnecessarily (CASSANDRA-14083)
  * Avoid exposing compaction strategy index externally (CASSANDRA-14082)
