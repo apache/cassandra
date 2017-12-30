@@ -95,7 +95,7 @@ public class MigrationManager
         if (Schema.instance.isEmpty() || runtimeMXBean.getUptime() < MIGRATION_DELAY_IN_MS)
         {
             // If we think we may be bootstrapping or have recently started, submit MigrationTask immediately
-            logger.debug("Immediately submitting migration task for {} due to {}, " +
+            logger.debug("Immediately submitting migration task for {}, " +
                          "schema versions: local={}, remote={}",
                          endpoint,
                          Schema.schemaVersionToString(Schema.instance.getVersion()),
