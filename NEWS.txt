@@ -101,6 +101,8 @@ Upgrading
 	  Batch mode remains a valid commit log mode, however.
 	- There is a new commit log mode, group, which is similar to batch mode
 	  but blocks for up to a configurable number of milliseconds between disk flushes.
+	- nodetool clearsnapshot now required the --all flag to remove all snapshots.
+	  Previous behavior would delete all snapshots by default.
 
 Materialized Views
 -------------------
