@@ -55,6 +55,7 @@ import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemory;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.concurrent.Transactional;
 import org.apache.cassandra.utils.concurrent.Ref;
 
@@ -413,7 +414,7 @@ public class CompressionMetadata
                     out.writeLong(offsets.getLong(i * 8L));
 
                 out.flush();
-                fos.getFD().sync();
+                SyncUtil.sync(fos);
             }
             catch (IOException e)
             {
