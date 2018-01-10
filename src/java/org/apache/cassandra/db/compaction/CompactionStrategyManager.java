@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.index.Index;
@@ -107,8 +108,8 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     private volatile CompactionParams schemaCompactionParams;
     private boolean shouldDefragment;
+    private boolean supportsEarlyOpen;
     private int fanout;
-
 
     public CompactionStrategyManager(ColumnFamilyStore cfs)
     {
@@ -257,6 +258,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             unrepaired.forEach(AbstractCompactionStrategy::startup);
             pendingRepairs.forEach(PendingRepairManager::startup);
             shouldDefragment = repaired.get(0).shouldDefragment();
+            supportsEarlyOpen = repaired.get(0).supportsEarlyOpen();
             fanout = (repaired.get(0) instanceof LeveledCompactionStrategy) ? ((LeveledCompactionStrategy) repaired.get(0)).getLevelFanoutSize() : LeveledCompactionStrategy.DEFAULT_LEVEL_FANOUT_SIZE;
         }
         finally
@@ -338,34 +340,74 @@ public class CompactionStrategyManager implements INotificationConsumer
     @VisibleForTesting
     List<AbstractCompactionStrategy> getRepaired()
     {
-        return repaired;
+        readLock.lock();
+        try
+        {
+            return Lists.newArrayList(repaired);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     @VisibleForTesting
     List<AbstractCompactionStrategy> getUnrepaired()
     {
-        return unrepaired;
+        readLock.lock();
+        try
+        {
+            return Lists.newArrayList(unrepaired);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     @VisibleForTesting
     List<AbstractCompactionStrategy> getForPendingRepair(UUID sessionID)
     {
-        List<AbstractCompactionStrategy> strategies = new ArrayList<>(pendingRepairs.size());
-        pendingRepairs.forEach(p -> strategies.add(p.get(sessionID)));
-        return strategies;
+        readLock.lock();
+        try
+        {
+            List<AbstractCompactionStrategy> strategies = new ArrayList<>(pendingRepairs.size());
+            pendingRepairs.forEach(p -> strategies.add(p.get(sessionID)));
+            return strategies;
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     @VisibleForTesting
     Set<UUID> pendingRepairs()
     {
-        Set<UUID> ids = new HashSet<>();
-        pendingRepairs.forEach(p -> ids.addAll(p.getSessions()));
-        return ids;
+        readLock.lock();
+        try
+        {
+            Set<UUID> ids = new HashSet<>();
+            pendingRepairs.forEach(p -> ids.addAll(p.getSessions()));
+            return ids;
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     public boolean hasDataForPendingRepair(UUID sessionID)
     {
-        return Iterables.any(pendingRepairs, prm -> prm.hasDataForSession(sessionID));
+        readLock.lock();
+        try
+        {
+            return Iterables.any(pendingRepairs, prm -> prm.hasDataForSession(sessionID));
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     public void shutdown()
@@ -1161,45 +1203,62 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public List<String> getStrategyFolders(AbstractCompactionStrategy strategy)
     {
-        Directories.DataDirectory[] locations = cfs.getDirectories().getWriteableLocations();
-        if (partitionSSTablesByTokenRange)
+        readLock.lock();
+        try
         {
-            int unrepairedIndex = unrepaired.indexOf(strategy);
-            if (unrepairedIndex > 0)
+            Directories.DataDirectory[] locations = cfs.getDirectories().getWriteableLocations();
+            if (partitionSSTablesByTokenRange)
             {
-                return Collections.singletonList(locations[unrepairedIndex].location.getAbsolutePath());
-            }
-            int repairedIndex = repaired.indexOf(strategy);
-            if (repairedIndex > 0)
-            {
-                return Collections.singletonList(locations[repairedIndex].location.getAbsolutePath());
-            }
-            for (int i = 0; i < pendingRepairs.size(); i++)
-            {
-                PendingRepairManager pending = pendingRepairs.get(i);
-                if (pending.hasStrategy(strategy))
+                int unrepairedIndex = unrepaired.indexOf(strategy);
+                if (unrepairedIndex > 0)
                 {
-                    return Collections.singletonList(locations[i].location.getAbsolutePath());
+                    return Collections.singletonList(locations[unrepairedIndex].location.getAbsolutePath());
+                }
+                int repairedIndex = repaired.indexOf(strategy);
+                if (repairedIndex > 0)
+                {
+                    return Collections.singletonList(locations[repairedIndex].location.getAbsolutePath());
+                }
+                for (int i = 0; i < pendingRepairs.size(); i++)
+                {
+                    PendingRepairManager pending = pendingRepairs.get(i);
+                    if (pending.hasStrategy(strategy))
+                    {
+                        return Collections.singletonList(locations[i].location.getAbsolutePath());
+                    }
                 }
             }
+            List<String> folders = new ArrayList<>(locations.length);
+            for (Directories.DataDirectory location : locations)
+            {
+                folders.add(location.location.getAbsolutePath());
+            }
+            return folders;
         }
-        List<String> folders = new ArrayList<>(locations.length);
-        for (Directories.DataDirectory location : locations)
+        finally
         {
-            folders.add(location.location.getAbsolutePath());
+            readLock.unlock();
         }
-        return folders;
     }
 
     public boolean supportsEarlyOpen()
     {
-        return repaired.get(0).supportsEarlyOpen();
+        return supportsEarlyOpen;
     }
 
     @VisibleForTesting
     List<PendingRepairManager> getPendingRepairManagers()
     {
-        return pendingRepairs;
+        maybeReloadDiskBoundaries();
+        readLock.lock();
+        try
+        {
+            return pendingRepairs;
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     /**
