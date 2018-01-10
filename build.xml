@@ -173,7 +173,7 @@
       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
         bottom="Copyright &amp;copy; ${YEAR} The Apache Software Foundation"
-        useexternalfile="yes"
+        useexternalfile="yes" encoding="UTF-8"
         maxmemory="256m">
         <filesets/>
       </javadoc>
