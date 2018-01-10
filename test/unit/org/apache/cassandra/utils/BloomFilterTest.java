@@ -193,7 +193,7 @@ public class BloomFilterTest
     {
         ByteBuffer test = ByteBuffer.wrap(new byte[] {0, 1});
 
-        File file = FileUtils.createTempFile("bloomFilterTest-", ".dat");
+        File file = FileUtils.createDeletableTempFile("bloomFilterTest-", ".dat");
         BloomFilter filter = (BloomFilter) FilterFactory.getFilter(((long) Integer.MAX_VALUE / 8) + 1, 0.01d, true);
         filter.add(FilterTestHelper.wrap(test));
         DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(file));

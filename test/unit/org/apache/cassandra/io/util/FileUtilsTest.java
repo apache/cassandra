@@ -47,7 +47,7 @@ public class FileUtilsTest
     @Test
     public void testTruncate() throws IOException
     {
-        File file = FileUtils.createTempFile("testTruncate", "1");
+        File file = FileUtils.createDeletableTempFile("testTruncate", "1");
         final String expected = "The quick brown fox jumps over the lazy dog";
 
         Files.write(file.toPath(), expected.getBytes());

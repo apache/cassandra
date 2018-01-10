@@ -118,6 +118,13 @@ public final class FileUtils
         return createTempFile(prefix, suffix, new File(System.getProperty("java.io.tmpdir")));
     }
 
+    public static File createDeletableTempFile(String prefix, String suffix)
+    {
+        File f = createTempFile(prefix, suffix, new File(System.getProperty("java.io.tmpdir")));
+        f.deleteOnExit();
+        return f;
+    }
+
     public static Throwable deleteWithConfirm(String filePath, boolean expect, Throwable accumulate)
     {
         return deleteWithConfirm(new File(filePath), expect, accumulate);

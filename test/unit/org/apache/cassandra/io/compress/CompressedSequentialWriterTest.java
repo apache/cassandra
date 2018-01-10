@@ -177,7 +177,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     public void resetAndTruncateTest()
     {
         File tempFile = new File(Files.createTempDir(), "reset.txt");
-        File offsetsFile = FileUtils.createTempFile("compressedsequentialwriter.offset", "test");
+        File offsetsFile = FileUtils.createDeletableTempFile("compressedsequentialwriter.offset", "test");
         final int bufferSize = 48;
         final int writeSize = 64;
         byte[] toWrite = new byte[writeSize];
