@@ -46,23 +46,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         DatabaseDescriptor.daemonInitialization();
     }
 
-    private static void testBloomFilterWrite(boolean offheap) throws IOException
+    private static void testBloomFilterWrite1000() throws IOException
     {
-        IPartitioner partitioner = Util.testPartitioner();
-        try (IFilter bf = FilterFactory.getFilter(1000000, 0.0001, offheap))
-        {
-            for (int i = 0; i < 100; i++)
-                bf.add(partitioner.decorateKey(partitioner.getTokenFactory().toByteArray(partitioner.getRandomToken())));
-            try (DataOutputStreamPlus out = getOutput("3.0", "utils.BloomFilter.bin"))
-            {
-                FilterFactory.serialize(bf, out);
-            }
-        }
-    }
-
-    private static void testBloomFilterWrite1000(boolean offheap) throws IOException
-    {
-        try (IFilter bf = FilterFactory.getFilter(1000000, 0.0001, offheap))
+        try (IFilter bf = FilterFactory.getFilter(1000000, 0.0001))
         {
             for (int i = 0; i < 1000; i++)
                 bf.add(Util.dk(Int32Type.instance.decompose(i)));
@@ -77,10 +63,10 @@ public class SerializationsTest extends AbstractSerializationsTester
     public void testBloomFilterRead1000() throws IOException
     {
         if (EXECUTE_WRITES)
-            testBloomFilterWrite1000(true);
+            testBloomFilterWrite1000();
 
         try (DataInputStream in = getInput("3.0", "utils.BloomFilter1000.bin");
-             IFilter filter = FilterFactory.deserialize(in, true))
+             IFilter filter = FilterFactory.deserialize(in))
         {
             boolean present;
             for (int i = 0 ; i < 1000 ; i++)
@@ -107,7 +93,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         Murmur3Partitioner partitioner = new Murmur3Partitioner();
 
         try (DataInputStream in = new DataInputStream(new FileInputStream(new File(file)));
-             IFilter filter = FilterFactory.deserialize(in, true))
+             IFilter filter = FilterFactory.deserialize(in))
         {
             for (int i = 1; i <= 10; i++)
             {

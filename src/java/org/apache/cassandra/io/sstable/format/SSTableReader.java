@@ -741,7 +741,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(Paths.get(descriptor.filenameFor(Component.FILTER))))))
         {
-            bf = FilterFactory.deserialize(stream, true);
+            bf = FilterFactory.deserialize(stream);
         }
     }
 
@@ -827,7 +827,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     : estimateRowsFromIndex(primaryIndex); // statistics is supposed to be optional
 
             if (recreateBloomFilter)
-                bf = FilterFactory.getFilter(estimatedKeys, metadata().params.bloomFilterFpChance, true);
+                bf = FilterFactory.getFilter(estimatedKeys, metadata().params.bloomFilterFpChance);
 
             try (IndexSummaryBuilder summaryBuilder = summaryLoaded ? null : new IndexSummaryBuilder(estimatedKeys, metadata().params.minIndexInterval, samplingLevel))
             {

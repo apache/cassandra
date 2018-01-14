@@ -35,8 +35,8 @@ public class OffHeapBitSet implements IBitSet
 
     public OffHeapBitSet(long numBits)
     {
-        // OpenBitSet.bits2words calculation is there for backward compatibility.
-        long wordCount = OpenBitSet.bits2words(numBits);
+        /** returns the number of 64 bit words it would take to hold numBits */
+        long wordCount = (((numBits - 1) >>> 6) + 1);
         if (wordCount > Integer.MAX_VALUE)
             throw new UnsupportedOperationException("Bloom filter size is > 16GB, reduce the bloom_filter_fp_chance");
         try
