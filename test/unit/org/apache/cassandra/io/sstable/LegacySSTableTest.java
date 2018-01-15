@@ -94,7 +94,7 @@ public class LegacySSTableTest
     {
         String scp = System.getProperty(LEGACY_SSTABLE_PROP);
         Assert.assertNotNull("System property " + LEGACY_SSTABLE_ROOT + " not set", scp);
-        
+
         LEGACY_SSTABLE_ROOT = new File(scp).getAbsoluteFile();
         Assert.assertTrue("System property " + LEGACY_SSTABLE_ROOT + " does not specify a directory", LEGACY_SSTABLE_ROOT.isDirectory());
 
@@ -270,7 +270,6 @@ public class LegacySSTableTest
                 logger.debug("for pk={} ck={}", pk, ck);
 
                 String pkValue = Integer.toString(pk);
-                UntypedResultSet rs;
                 if (ck == 0)
                 {
                     readSimpleTable(legacyVersion, pkValue);

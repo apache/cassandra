@@ -1,4 +1,5 @@
 4.0
+ * BloomFilter serialization format should not change byte ordering (CASSANDRA-9067)
  * Remove unused on-heap BloomFilter implementation (CASSANDRA-14152)
  * Delete temp test files on exit (CASSANDRA-14153)
  * Make PartitionUpdate and Mutation immutable (CASSANDRA-13867)

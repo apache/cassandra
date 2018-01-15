@@ -75,6 +75,7 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.SelfRefCounted;
+import org.apache.cassandra.utils.BloomFilterSerializer;
 
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
 
@@ -728,7 +729,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             // bf is enabled and fp chance matches the currently configured value.
             load(false, true);
-            loadBloomFilter();
+            loadBloomFilter(descriptor.version.hasOldBfFormat());
         }
     }
 
@@ -736,12 +737,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * Load bloom filter from Filter.db file.
      *
      * @throws IOException
+     * @param oldBfFormat
      */
-    private void loadBloomFilter() throws IOException
+    private void loadBloomFilter(boolean oldBfFormat) throws IOException
     {
         try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(Paths.get(descriptor.filenameFor(Component.FILTER))))))
         {
-            bf = FilterFactory.deserialize(stream);
+            bf = BloomFilterSerializer.deserialize(stream, oldBfFormat);
         }
     }
 

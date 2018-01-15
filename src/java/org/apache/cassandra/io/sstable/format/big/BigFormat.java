@@ -120,7 +120,7 @@ public class BigFormat implements SSTableFormat
         // mb (3.0.7, 3.7): commit log lower bound included
         // mc (3.0.8, 3.9): commit log intervals included
 
-        // na (4.0.0): uncompressed chunks, pending repair session, checksummed sstable metadata file
+        // na (4.0.0): uncompressed chunks, pending repair session, checksummed sstable metadata file, new Bloomfilter format
         //
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
@@ -131,6 +131,11 @@ public class BigFormat implements SSTableFormat
         public final boolean hasMaxCompressedLength;
         private final boolean hasPendingRepair;
         private final boolean hasMetadataChecksum;
+        /**
+         * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
+         * have no 'static' bits caused by using the same upper bits for both bloom filter and token distribution.
+         */
+        private final boolean hasOldBfFormat;
 
         BigVersion(String version)
         {
@@ -144,6 +149,7 @@ public class BigFormat implements SSTableFormat
             hasMaxCompressedLength = version.compareTo("na") >= 0;
             hasPendingRepair = version.compareTo("na") >= 0;
             hasMetadataChecksum = version.compareTo("na") >= 0;
+            hasOldBfFormat = version.compareTo("na") < 0;
         }
 
         @Override
@@ -196,6 +202,12 @@ public class BigFormat implements SSTableFormat
         public boolean hasMaxCompressedLength()
         {
             return hasMaxCompressedLength;
+        }
+
+        @Override
+        public boolean hasOldBfFormat()
+        {
+            return hasOldBfFormat;
         }
     }
 }

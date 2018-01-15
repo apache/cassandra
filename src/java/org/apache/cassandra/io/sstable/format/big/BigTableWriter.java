@@ -484,7 +484,7 @@ public class BigTableWriter extends SSTableWriter
                      DataOutputStreamPlus stream = new BufferedDataOutputStreamPlus(fos))
                 {
                     // bloom filter
-                    FilterFactory.serialize(bf, stream);
+                    BloomFilterSerializer.serialize((BloomFilter) bf, stream);
                     stream.flush();
                     SyncUtil.sync(fos);
                 }
