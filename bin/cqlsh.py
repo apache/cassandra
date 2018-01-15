@@ -127,6 +127,7 @@ def find_zip(libprefix):
         if zips:
             return max(zips)   # probably the highest version, if multiple
 
+
 cql_zip = find_zip(CQL_LIB_PREFIX)
 if cql_zip:
     ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
@@ -373,6 +374,8 @@ def show_warning_without_quoting_line(message, category, filename, lineno, file=
         file.write(warnings.formatwarning(message, category, filename, lineno, line=''))
     except IOError:
         pass
+
+
 warnings.showwarning = show_warning_without_quoting_line
 warnings.filterwarnings('always', category=cql3handling.UnexpectedTableStructure)
 
@@ -2366,12 +2369,12 @@ def main(options, hostname, port):
             if options.timezone:
                 try:
                     timezone = pytz.timezone(options.timezone)
-                except:
+                except Exception:
                     sys.stderr.write("Warning: could not recognize timezone '%s' specified in cqlshrc\n\n" % (options.timezone))
             if 'TZ' in os.environ:
                 try:
                     timezone = pytz.timezone(os.environ['TZ'])
-                except:
+                except Exception:
                     sys.stderr.write("Warning: could not recognize timezone '%s' from environment value TZ\n\n" % (os.environ['TZ']))
         except ImportError:
             sys.stderr.write("Warning: Timezone defined and 'pytz' module for timezone conversion not installed. Timestamps will be displayed in UTC timezone.\n\n")
@@ -2427,6 +2430,7 @@ def main(options, hostname, port):
     batch_mode = options.file or options.execute
     if batch_mode and shell.statement_error:
         sys.exit(2)
+
 
 # always call this regardless of module name: when a sub-process is spawned
 # on Windows then the module name is not __main__, see CASSANDRA-9304
