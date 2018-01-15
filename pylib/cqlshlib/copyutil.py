@@ -168,7 +168,7 @@ class SendingChannels(object):
         for ch in self.channels:
             try:
                 ch.close()
-            except:
+            except Exception:
                 pass
 
 
@@ -222,7 +222,7 @@ class ReceivingChannels(object):
         for ch in self.channels:
             try:
                 ch.close()
-            except:
+            except Exception:
                 pass
 
 
@@ -2147,8 +2147,8 @@ class ImportConversion(object):
             pk_values = []
             for i in partition_key_indexes:
                 val = serialize(i, row[i])
-                l = len(val)
-                pk_values.append(struct.pack(">H%dsB" % l, l, val, 0))
+                length = len(val)
+                pk_values.append(struct.pack(">H%dsB" % length, length, val, 0))
             return b"".join(pk_values)
 
         if len(partition_key_indexes) == 1:
