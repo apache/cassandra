@@ -1187,7 +1187,6 @@
     <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
-      <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
@@ -1205,7 +1204,6 @@
       <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}" poffset="@{testlist.offset}" exclude="**/*.java" timeout="${test.timeout}">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
-        <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
@@ -1225,7 +1223,6 @@
                        exclude="**/*.java" timeout="${test.timeout}" testtag="compression">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
-        <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
         <jvmarg value="-Dcassandra.test.compression=true"/>
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
@@ -1245,7 +1242,6 @@
                        exclude="**/*.java" timeout="${test.timeout}" testtag="cdc">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
-        <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.config=file:///${cdc_yaml}"/>
@@ -1275,7 +1271,6 @@
       <test name="${test.name}" methods="${test.methods}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
-      <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
