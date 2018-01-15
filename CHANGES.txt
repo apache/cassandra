@@ -3,6 +3,8 @@
  * Fix race that prevents submitting compaction for a table when executor is full (CASSANDRA-13801)
  * Rely on the JVM to handle OutOfMemoryErrors (CASSANDRA-13006)
  * Grab refs during scrub/index redistribution/cleanup (CASSANDRA-13873)
+Merged from 2.1:
+ * More PEP8 compliance for cqlsh (CASSANDRA-14021)
 
 2.2.11
  * Safely handle empty buffers when outputting to JSON (CASSANDRA-13868)
