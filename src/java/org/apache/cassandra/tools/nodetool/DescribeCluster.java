@@ -23,6 +23,7 @@ import io.airlift.command.Command;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -35,7 +36,15 @@ public class DescribeCluster extends NodeToolCmd
         // display cluster name, snitch and partitioner
         System.out.println("Cluster Information:");
         System.out.println("\tName: " + probe.getClusterName());
-        System.out.println("\tSnitch: " + probe.getEndpointSnitchInfoProxy().getSnitchName());
+        String snitch = probe.getEndpointSnitchInfoProxy().getSnitchName();
+        boolean dynamicSnitchEnabled = false;
+        if (snitch.equals(DynamicEndpointSnitch.class.getName()))
+        {
+            snitch = probe.getDynamicEndpointSnitchInfoProxy().getSubsnitchClassName();
+            dynamicSnitchEnabled = true;
+        }
+        System.out.println("\tSnitch: " + snitch);
+        System.out.println("\tDynamicEndPointSnitch: " + (dynamicSnitchEnabled ? "enabled" : "disabled"));
         System.out.println("\tPartitioner: " + probe.getPartitioner());
 
         // display schema version for each node

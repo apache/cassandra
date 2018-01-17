@@ -1,4 +1,5 @@
 3.11.2
+ * Print correct snitch info from nodetool describecluster (CASSANDRA-13528)
  * Close socket on error during connect on OutboundTcpConnection (CASSANDRA-9630)
  * Enable CDC unittest (CASSANDRA-14141)
  * Acquire read lock before accessing CompactionStrategyManager fields (CASSANDRA-14139)
