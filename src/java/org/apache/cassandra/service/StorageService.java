@@ -1628,6 +1628,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return FBUtilities.getBroadcastNativeAddressAndPort().toString(withPort);
         else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT) != null)
+        {
             try
             {
                 InetAddressAndPort address = InetAddressAndPort.getByName(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value);
@@ -1637,6 +1638,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 throw new RuntimeException(e);
             }
+        }
         else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) == null)
             return endpoint.address.getHostAddress() + ":" + DatabaseDescriptor.getNativeTransportPort();
         else

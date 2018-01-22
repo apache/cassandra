@@ -20,8 +20,6 @@ package org.apache.cassandra.net;
 import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -118,9 +116,8 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.StatusLogger;
 import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
-import org.apache.mina.transport.socket.DatagramAcceptor;
 
-    public final class MessagingService implements MessagingServiceMBean
+public final class MessagingService implements MessagingServiceMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=MessagingService";
 
