@@ -129,6 +129,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         }
     }
 
+    @Override
     public ByteBuffer getSerializedValue(ByteBuffer collection, ByteBuffer key, AbstractType<?> comparator)
     {
         try
@@ -155,7 +156,12 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         }
     }
 
-    public ByteBuffer getSliceFromSerialized(ByteBuffer collection, ByteBuffer from, ByteBuffer to, AbstractType<?> comparator)
+    @Override
+    public ByteBuffer getSliceFromSerialized(ByteBuffer collection,
+                                             ByteBuffer from,
+                                             ByteBuffer to,
+                                             AbstractType<?> comparator,
+                                             boolean frozen)
     {
         if (from == ByteBufferUtil.UNSET_BYTE_BUFFER && to == ByteBufferUtil.UNSET_BYTE_BUFFER)
             return collection;
@@ -208,6 +214,10 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
                 if (comparison == 0)
                     break;
             }
+
+            if (count == 0 && !frozen)
+                return null;
+
             return copyAsNewCollection(collection, count, startPos, input.position(), ProtocolVersion.V3);
         }
         catch (BufferUnderflowException e)
