@@ -81,16 +81,19 @@ import static org.apache.cassandra.tracing.Tracing.isTracing;
 public class MessageOut<T>
 {
     private static final int SERIALIZED_SIZE_VERSION_UNDEFINED = -1;
+    //Parameters are stored in an object array as tuples of size two
     public static final int PARAMETER_TUPLE_SIZE = 2;
+    //Offset in a parameter tuple containing the type of the parameter
     public static final int PARAMETER_TUPLE_TYPE_OFFSET = 0;
+    //Offset in a parameter tuple containing the actual parameter represented as a POJO
     public static final int PARAMETER_TUPLE_PARAMETER_OFFSET = 1;
 
     public final InetAddressAndPort from;
     public final MessagingService.Verb verb;
     public final T payload;
     public final IVersionedSerializer<T> serializer;
-    //A list of pairs, first object is the ParameterType enum,
-    //the second object is the object to serialize
+    //A list of tuples, first object is the ParameterType enum value,
+    //the second object is the POJO to serialize
     public final List<Object> parameters;
 
     /**
@@ -141,7 +144,7 @@ public class MessageOut<T>
 
     public <VT> MessageOut<T> withParameter(ParameterType type, VT value)
     {
-        List<Object> newParameters = new ArrayList<>(parameters.size() + 3);
+        List<Object> newParameters = new ArrayList<>(parameters.size() + 2);
         newParameters.addAll(parameters);
         newParameters.add(type);
         newParameters.add(value);
