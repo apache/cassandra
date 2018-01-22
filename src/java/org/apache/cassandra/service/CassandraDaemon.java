@@ -232,7 +232,7 @@ public class CassandraDaemon
             }
         });
 
-        LegacySystemKeyspaceMigrator.migrate();
+        SystemKeyspaceMigrator40.migrate();
 
         // Populate token metadata before flushing, for token-aware sstable partitioning (#6696)
         StorageService.instance.populateTokenMetadata();

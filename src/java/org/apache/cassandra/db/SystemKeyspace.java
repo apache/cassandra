@@ -35,6 +35,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
+import com.google.common.util.concurrent.ListenableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -524,11 +525,10 @@ public final class SystemKeyspace
     {
         String buildReq = "DELETE FROM %S.%s WHERE keyspace_name = ? AND view_name = ? IF EXISTS";
         executeInternal(String.format(buildReq, SchemaConstants.SYSTEM_KEYSPACE_NAME, VIEWS_BUILDS_IN_PROGRESS), keyspaceName, viewName);
-        forceBlockingFlush(VIEWS_BUILDS_IN_PROGRESS);
 
         String builtReq = "DELETE FROM %s.\"%s\" WHERE keyspace_name = ? AND view_name = ? IF EXISTS";
         executeInternal(String.format(builtReq, SchemaConstants.SYSTEM_KEYSPACE_NAME, BUILT_VIEWS), keyspaceName, viewName);
-        forceBlockingFlush(BUILT_VIEWS);
+        forceBlockingFlush(VIEWS_BUILDS_IN_PROGRESS, BUILT_VIEWS);
     }
 
     public static void beginViewBuild(String ksname, String viewName, int generationNumber)
@@ -690,10 +690,9 @@ public final class SystemKeyspace
 
         String req = "INSERT INTO system.%s (peer, preferred_ip) VALUES (?, ?)";
         executeInternal(String.format(req, LEGACY_PEERS), ep.address, preferred_ip.address);
-        forceBlockingFlush(LEGACY_PEERS);
         req = "INSERT INTO system.%s (peer, peer_port, preferred_ip, preferred_port) VALUES (?, ?, ?, ?)";
         executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, preferred_ip.address, preferred_ip.port);
-        forceBlockingFlush(PEERS_V2);
+        forceBlockingFlush(LEGACY_PEERS, PEERS_V2);
     }
 
     public static synchronized void updatePeerInfo(InetAddressAndPort ep, String columnName, Object value)
@@ -766,10 +765,9 @@ public final class SystemKeyspace
     {
         String req = "DELETE FROM system.%s WHERE peer = ?";
         executeInternal(String.format(req, LEGACY_PEERS), ep.address);
-        forceBlockingFlush(LEGACY_PEERS);
         req = String.format("DELETE FROM system.%s WHERE peer = ? AND peer_port = ?", PEERS_V2);
         executeInternal(req, ep.address, ep.port);
-        forceBlockingFlush(PEERS_V2);
+        forceBlockingFlush(LEGACY_PEERS, PEERS_V2);
     }
 
     /**
@@ -788,10 +786,18 @@ public final class SystemKeyspace
         forceBlockingFlush(LOCAL);
     }
 
-    public static void forceBlockingFlush(String cfname)
+    public static void forceBlockingFlush(String ...cfnames)
     {
         if (!DatabaseDescriptor.isUnsafeSystem())
-            FBUtilities.waitOnFuture(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(cfname).forceFlush());
+        {
+            List<ListenableFuture<CommitLogPosition>> futures = new ArrayList<>();
+
+            for (String cfname : cfnames)
+            {
+                futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(cfname).forceFlush());
+            }
+            FBUtilities.waitOnFutures(futures);
+        }
     }
 
     /**
