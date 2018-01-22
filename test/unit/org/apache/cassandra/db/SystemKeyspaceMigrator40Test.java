@@ -38,7 +38,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static org.junit.Assert.assertEquals;
 
-public class LegacySystemKeyspaceMigratorTest extends CQLTester
+public class SystemKeyspaceMigrator40Test extends CQLTester
 {
     @Test
     public void testMigratePeers() throws Throwable
@@ -54,7 +54,7 @@ public class LegacySystemKeyspaceMigratorTest extends CQLTester
                                       + "schema_version, "
                                       + "tokens) "
                                       + " values ( ?, ?, ? , ? , ?, ?, ?, ?, ?)",
-                                      LegacySystemKeyspaceMigrator.legacyPeersName);
+                                      SystemKeyspaceMigrator40.legacyPeersName);
         UUID hostId = UUIDGen.getTimeUUID();
         UUID schemaVersion = UUIDGen.getTimeUUID();
         execute(insert,
@@ -66,10 +66,10 @@ public class LegacySystemKeyspaceMigratorTest extends CQLTester
                 InetAddress.getByName("127.0.0.3"),
                 schemaVersion,
                 ImmutableSet.of("foobar"));
-        LegacySystemKeyspaceMigrator.migrate();
+        SystemKeyspaceMigrator40.migrate();
 
         int rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", LegacySystemKeyspaceMigrator.peersName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.peersName)))
         {
             rowCount++;
             assertEquals(InetAddress.getByName("127.0.0.1"), row.getInetAddress("peer"));
@@ -88,15 +88,15 @@ public class LegacySystemKeyspaceMigratorTest extends CQLTester
         assertEquals(1, rowCount);
 
         //Test nulls/missing don't prevent the row from propagating
-        execute(String.format("TRUNCATE %s", LegacySystemKeyspaceMigrator.legacyPeersName));
-        execute(String.format("TRUNCATE %s", LegacySystemKeyspaceMigrator.peersName));
+        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.legacyPeersName));
+        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.peersName));
 
-        execute(String.format("INSERT INTO %s (peer) VALUES (?)", LegacySystemKeyspaceMigrator.legacyPeersName),
+        execute(String.format("INSERT INTO %s (peer) VALUES (?)", SystemKeyspaceMigrator40.legacyPeersName),
                               InetAddress.getByName("127.0.0.1"));
-        LegacySystemKeyspaceMigrator.migrate();
+        SystemKeyspaceMigrator40.migrate();
 
         rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", LegacySystemKeyspaceMigrator.peersName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.peersName)))
         {
             rowCount++;
         }
@@ -110,15 +110,15 @@ public class LegacySystemKeyspaceMigratorTest extends CQLTester
                                       + "peer, "
                                       + "hints_dropped) "
                                       + " values ( ?, ? )",
-                                      LegacySystemKeyspaceMigrator.legacyPeerEventsName);
+                                      SystemKeyspaceMigrator40.legacyPeerEventsName);
         UUID uuid = UUIDGen.getTimeUUID();
         execute(insert,
                 InetAddress.getByName("127.0.0.1"),
                 ImmutableMap.of(uuid, 42));
-        LegacySystemKeyspaceMigrator.migrate();
+        SystemKeyspaceMigrator40.migrate();
 
         int rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", LegacySystemKeyspaceMigrator.peerEventsName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.peerEventsName)))
         {
             rowCount++;
             assertEquals(InetAddress.getByName("127.0.0.1"), row.getInetAddress("peer"));
@@ -128,15 +128,15 @@ public class LegacySystemKeyspaceMigratorTest extends CQLTester
         assertEquals(1, rowCount);
 
         //Test nulls/missing don't prevent the row from propagating
-        execute(String.format("TRUNCATE %s", LegacySystemKeyspaceMigrator.legacyPeerEventsName));
-        execute(String.format("TRUNCATE %s", LegacySystemKeyspaceMigrator.peerEventsName));
+        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.legacyPeerEventsName));
+        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.peerEventsName));
 
-        execute(String.format("INSERT INTO %s (peer) VALUES (?)", LegacySystemKeyspaceMigrator.legacyPeerEventsName),
+        execute(String.format("INSERT INTO %s (peer) VALUES (?)", SystemKeyspaceMigrator40.legacyPeerEventsName),
                 InetAddress.getByName("127.0.0.1"));
-        LegacySystemKeyspaceMigrator.migrate();
+        SystemKeyspaceMigrator40.migrate();
 
         rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", LegacySystemKeyspaceMigrator.peerEventsName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.peerEventsName)))
         {
             rowCount++;
         }
@@ -152,16 +152,16 @@ public class LegacySystemKeyspaceMigratorTest extends CQLTester
                                       + "keyspace_name, "
                                       + "ranges) "
                                       + " values ( ?, ?, ?, ? )",
-                                      LegacySystemKeyspaceMigrator.legacyTransferredRangesName);
+                                      SystemKeyspaceMigrator40.legacyTransferredRangesName);
         execute(insert,
                 "foo",
                 InetAddress.getByName("127.0.0.1"),
                 "bar",
                 ImmutableSet.of(ByteBuffer.wrap(new byte[] { 42 })));
-        LegacySystemKeyspaceMigrator.migrate();
+        SystemKeyspaceMigrator40.migrate();
 
         int rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", LegacySystemKeyspaceMigrator.transferredRangesName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.transferredRangesName)))
         {
             rowCount++;
             assertEquals("foo", row.getString("operation"));
@@ -173,17 +173,17 @@ public class LegacySystemKeyspaceMigratorTest extends CQLTester
         assertEquals(1, rowCount);
 
         //Test nulls/missing don't prevent the row from propagating
-        execute(String.format("TRUNCATE %s", LegacySystemKeyspaceMigrator.legacyTransferredRangesName));
-        execute(String.format("TRUNCATE %s", LegacySystemKeyspaceMigrator.transferredRangesName));
+        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.legacyTransferredRangesName));
+        execute(String.format("TRUNCATE %s", SystemKeyspaceMigrator40.transferredRangesName));
 
-        execute(String.format("INSERT INTO %s (operation, peer, keyspace_name) VALUES (?, ?, ?)", LegacySystemKeyspaceMigrator.legacyTransferredRangesName),
+        execute(String.format("INSERT INTO %s (operation, peer, keyspace_name) VALUES (?, ?, ?)", SystemKeyspaceMigrator40.legacyTransferredRangesName),
                 "foo",
                 InetAddress.getByName("127.0.0.1"),
                 "bar");
-        LegacySystemKeyspaceMigrator.migrate();
+        SystemKeyspaceMigrator40.migrate();
 
         rowCount = 0;
-        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", LegacySystemKeyspaceMigrator.transferredRangesName)))
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s", SystemKeyspaceMigrator40.transferredRangesName)))
         {
             rowCount++;
         }

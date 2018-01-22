@@ -37,7 +37,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
  * Can't just add the additional columns because they are primary key columns and C* doesn't support changing
  * key columns even if it's just clustering columns.
  */
-public class LegacySystemKeyspaceMigrator
+public class SystemKeyspaceMigrator40
 {
     static final String legacyPeersName = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_PEERS);
     static final String peersName = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.PEERS_V2);
@@ -46,15 +46,15 @@ public class LegacySystemKeyspaceMigrator
     static final String legacyTransferredRangesName = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_TRANSFERRED_RANGES);
     static final String transferredRangesName = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.TRANSFERRED_RANGES_V2);
 
-    private static final Logger logger = LoggerFactory.getLogger(LegacySystemKeyspaceMigrator.class);
+    private static final Logger logger = LoggerFactory.getLogger(SystemKeyspaceMigrator40.class);
 
-    private LegacySystemKeyspaceMigrator() {}
+    private SystemKeyspaceMigrator40() {}
 
     public static void migrate()
     {
         migratePeers();
         migratePeerEvents();
-        migrateLegacyTransferredRanges();
+        migrateTransferredRanges();
     }
 
     private static void migratePeers()
@@ -88,6 +88,7 @@ public class LegacySystemKeyspaceMigrator
 
         UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, 1000);
         int transferred = 0;
+        logger.info("Migrating rows from legacy {} to {}", legacyPeersName, peersName);
         for (UntypedResultSet.Row row : rows)
         {
             logger.debug("Transferring row {}", transferred);
@@ -116,7 +117,7 @@ public class LegacySystemKeyspaceMigrator
         if (!newPeerEvents.isEmpty())
             return;
 
-        logger.info("{} table was empty, migrating legacy {}", peerEventsName, legacyPeerEventsName);
+        logger.info("{} table was empty, migrating legacy {} to {}", peerEventsName, legacyPeerEventsName, peerEventsName);
 
         String query = String.format("SELECT * FROM %s",
                                      legacyPeerEventsName);
@@ -142,14 +143,14 @@ public class LegacySystemKeyspaceMigrator
         logger.info("Migrated {} rows from legacy {} to {}", transferred, legacyPeerEventsName, peerEventsName);
     }
 
-    static void migrateLegacyTransferredRanges()
+    static void migrateTransferredRanges()
     {
         ColumnFamilyStore newTransferredRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.TRANSFERRED_RANGES_V2);
 
         if (!newTransferredRanges.isEmpty())
             return;
 
-        logger.info("{} table was empty, migrating legacy {}", transferredRangesName, legacyTransferredRangesName);
+        logger.info("{} table was empty, migrating legacy {} to {}", transferredRangesName, legacyTransferredRangesName, transferredRangesName);
 
         String query = String.format("SELECT * FROM %s",
                                      legacyTransferredRangesName);
