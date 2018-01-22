@@ -86,14 +86,14 @@ public class CompactEndpointSerializationHelper implements IVersionedSerializer<
     {
         if (version >= MessagingService.VERSION_40)
         {
-            byte[] buf = endpoint.address.getAddress();
+            byte[] buf = endpoint.addressBytes;
             out.writeByte(buf.length + 2);
             out.write(buf);
             out.writeShort(endpoint.port);
         }
         else
         {
-            byte[] buf = endpoint.address.getAddress();
+            byte[] buf = endpoint.addressBytes;
             out.writeByte(buf.length);
             out.write(buf);
         }
@@ -120,7 +120,7 @@ public class CompactEndpointSerializationHelper implements IVersionedSerializer<
                 in.readFully(bytes);
 
                 int port = in.readShort() & 0xFFFF;
-                return InetAddressAndPort.getByAddressOverrideDefaults(InetAddress.getByAddress(bytes), port);
+                return InetAddressAndPort.getByAddressOverrideDefaults(InetAddress.getByAddress(bytes), bytes, port);
             }
             default:
                 throw new AssertionError("Unexpected size " + size);
@@ -146,17 +146,4 @@ public class CompactEndpointSerializationHelper implements IVersionedSerializer<
             return 1 + 16;
         }
     }
-
-    public static InetAddressAndPort fromBytes(ByteBuffer buffer, int version)
-    {
-        try (DataInputBuffer input = new DataInputBuffer(buffer, false))
-        {
-            return instance.deserialize(input, version);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
 }

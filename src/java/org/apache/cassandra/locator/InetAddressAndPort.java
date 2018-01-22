@@ -54,13 +54,14 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     public final byte[] addressBytes;
     public final int port;
 
-    private InetAddressAndPort(InetAddress address, int port)
+    private InetAddressAndPort(InetAddress address, byte[] addressBytes, int port)
     {
         Preconditions.checkNotNull(address);
+        Preconditions.checkNotNull(addressBytes);
         validatePortRange(port);
         this.address = address;
         this.port = port;
-        this.addressBytes = address.getAddress();
+        this.addressBytes = addressBytes;
     }
 
     private static void validatePortRange(int port)
@@ -157,7 +158,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
 
     public static InetAddressAndPort getByAddress(byte[] address) throws UnknownHostException
     {
-        return getByAddressOverrideDefaults(InetAddress.getByAddress(address), null);
+        return getByAddressOverrideDefaults(InetAddress.getByAddress(address), address, null);
     }
 
     public static InetAddressAndPort getByAddress(InetAddress address)
@@ -172,7 +173,17 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
             port = defaultPort;
         }
 
-        return new InetAddressAndPort(address, port);
+        return new InetAddressAndPort(address, address.getAddress(), port);
+    }
+
+    public static InetAddressAndPort getByAddressOverrideDefaults(InetAddress address, byte[] addressBytes, Integer port)
+    {
+        if (port == null)
+        {
+            port = defaultPort;
+        }
+
+        return new InetAddressAndPort(address, addressBytes, port);
     }
 
     public static InetAddressAndPort getLoopbackAddress()
