@@ -111,9 +111,16 @@ public class MessageIn<T>
             {
                 String key = in.readUTF();
                 ParameterType type = ParameterType.byName.get(key);
-                byte[] value = new byte[in.readInt()];
-                in.readFully(value);
-                builder.put(type, type.serializer.deserialize(new DataInputBuffer(value), version));
+                if (type != null)
+                {
+                    byte[] value = new byte[in.readInt()];
+                    in.readFully(value);
+                    builder.put(type, type.serializer.deserialize(new DataInputBuffer(value), version));
+                }
+                else
+                {
+                    in.skipBytes(in.readInt());
+                }
             }
             return builder.build();
         }
