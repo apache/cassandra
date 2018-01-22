@@ -1,4 +1,5 @@
 4.0
+ * Nodetool tablehistograms to print statics for all the tables (CASSANDRA-14185)
  * Migrate dtests to use pytest and python3 (CASSANDRA-14134)
  * Allow storage port to be configurable per node (CASSANDRA-7544)
  * Make sub-range selection for non-frozen collections return null instead of empty (CASSANDRA-14182)
