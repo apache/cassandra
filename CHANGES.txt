@@ -27,6 +27,7 @@ Merged from 2.2:
  * Rely on the JVM to handle OutOfMemoryErrors (CASSANDRA-13006)
 Merged from 2.1:
  * More PEP8 compliance for cqlsh (CASSANDRA-14021)
+ * RPM package spec: fix permissions for installed jars and config files (CASSANDRA-14181)
 
 
 3.0.15
