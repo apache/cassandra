@@ -530,7 +530,7 @@ public class PreparedStatementsTest extends CQLTester
     @Test
     public void testPrepareWithBatchLWT() throws Throwable
     {
-//        testPrepareWithBatchLWT(ProtocolVersion.V4);
+        testPrepareWithBatchLWT(ProtocolVersion.V4);
         testPrepareWithBatchLWT(ProtocolVersion.V5);
     }
 
