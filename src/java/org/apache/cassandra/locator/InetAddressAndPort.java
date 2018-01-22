@@ -19,16 +19,13 @@
 package org.apache.cassandra.locator;
 
 import java.io.Serializable;
-import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
-import java.util.regex.Pattern;
 
 import com.google.common.base.Preconditions;
 import com.google.common.net.HostAndPort;
 
-import org.apache.cassandra.config.Config;
+import org.apache.cassandra.utils.FastByteOperations;
 
 /**
  * A class to replace the usage of InetAddress to identify hosts in the cluster.
@@ -54,6 +51,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     static volatile int defaultPort = 7000;
 
     public final InetAddress address;
+    public final byte[] addressBytes;
     public final int port;
 
     private InetAddressAndPort(InetAddress address, int port)
@@ -62,6 +60,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         validatePortRange(port);
         this.address = address;
         this.port = port;
+        this.addressBytes = address.getAddress();
     }
 
     private static void validatePortRange(int port)
@@ -95,7 +94,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     @Override
     public int compareTo(InetAddressAndPort o)
     {
-        int retval = ByteBuffer.wrap(address.getAddress()).compareTo(ByteBuffer.wrap(o.address.getAddress()));
+        int retval = FastByteOperations.compareUnsigned(addressBytes, 0, addressBytes.length, o.addressBytes, 0, o.addressBytes.length);
         if (retval != 0)
         {
             return retval;
