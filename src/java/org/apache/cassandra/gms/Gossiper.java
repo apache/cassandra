@@ -335,10 +335,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (versionedValue == null)
         {
             versionedValue = epState.getApplicationState(ApplicationState.STATUS);
-        }
-        if (versionedValue == null)
-        {
-            return false;
+            if (versionedValue == null)
+            {
+                return false;
+            }
         }
 
         String value = versionedValue.value;
@@ -641,8 +641,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         // do not pass go, do not collect 200 dollars, just gtfo
-        epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
-        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
+        long expireTime = computeExpireTime();
+        epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.left(tokens, expireTime));
+        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, expireTime));
         handleMajorStateChange(endpoint, epState);
         Uninterruptibles.sleepUninterruptibly(intervalInMillis * 4, TimeUnit.MILLISECONDS);
         logger.warn("Finished assassinating {}", endpoint);
@@ -1140,11 +1141,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (versionedValue == null)
         {
             versionedValue = epState.getApplicationState(ApplicationState.STATUS);
-        }
-
-        if (versionedValue == null)
-        {
-            return "";
+            if (versionedValue == null)
+            {
+                return "";
+            }
         }
 
         String value = versionedValue.value;
