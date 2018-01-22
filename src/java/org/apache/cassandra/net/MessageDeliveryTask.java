@@ -102,7 +102,7 @@ public class MessageDeliveryTask implements Runnable
 
             if (t instanceof TombstoneOverwhelmingException)
             {
-                response = response.withParameter(ParameterType.FAILURE_REASON.FAILURE_REASON, Shorts.checkedCast(RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code));
+                response = response.withParameter(ParameterType.FAILURE_REASON, Shorts.checkedCast(RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code));
             }
 
             MessagingService.instance().sendReply(response, id, message.from);
