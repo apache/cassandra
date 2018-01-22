@@ -20,6 +20,8 @@ package org.apache.cassandra.net;
 
 import java.util.Collection;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
@@ -34,6 +36,7 @@ public class ForwardToContainer
     public ForwardToContainer(Collection<InetAddressAndPort> targets,
                               int[] messageIds)
     {
+        Preconditions.checkArgument(targets.size() == messageIds.length);
         this.targets = targets;
         this.messageIds = messageIds;
     }
