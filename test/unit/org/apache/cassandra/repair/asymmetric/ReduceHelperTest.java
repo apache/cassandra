@@ -268,7 +268,7 @@ public class ReduceHelperTest
 
         HostDifferences n1 = reduced.get(B);
         assertEquals(0, n1.get(B).size());
-        if (n1.get(A) != null)
+        if (!n1.get(A).isEmpty())
         {
             assertTrue(n1.get(C).equals(list(range(0, 50))));
             assertTrue(n1.get(A).equals(list(range(50, 100))));
@@ -279,7 +279,7 @@ public class ReduceHelperTest
         }
         HostDifferences n2 = reduced.get(C);
         assertEquals(0, n2.get(C).size());
-        if (n2.get(A) != null)
+        if (!n2.get(A).isEmpty())
         {
             assertTrue(n2.get(A).equals(list(range(0,50))));
             assertTrue(n2.get(B).equals(list(range(50, 100))));
