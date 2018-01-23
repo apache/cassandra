@@ -120,7 +120,6 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((id)))")
                 .partitioner(new LocalPartitioner(TimeUUIDType.instance))
                 .compaction(CompactionParams.scts(singletonMap("min_threshold", "2")))
-                .gcGraceSeconds(0)
                 .build();
 
     private static final TableMetadata Paxos =
@@ -254,7 +253,6 @@ public final class SystemKeyspace
                 + "mean_partition_size bigint,"
                 + "partitions_count bigint,"
                 + "PRIMARY KEY ((keyspace_name), table_name, range_start, range_end))")
-                .gcGraceSeconds(0)
                 .build();
 
     private static final TableMetadata AvailableRanges =
