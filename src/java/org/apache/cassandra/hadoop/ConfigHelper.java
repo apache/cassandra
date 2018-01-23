@@ -58,6 +58,7 @@ public class ConfigHelper
     private static final String OUTPUT_COMPRESSION_CLASS = "cassandra.output.compression.class";
     private static final String OUTPUT_COMPRESSION_CHUNK_LENGTH = "cassandra.output.compression.length";
     private static final String OUTPUT_LOCAL_DC_ONLY = "cassandra.output.local.dc.only";
+    private static final String DEFAULT_CASSANDRA_NATIVE_PORT = "7000";
 
     private static final Logger logger = LoggerFactory.getLogger(ConfigHelper.class);
 
@@ -357,7 +358,7 @@ public class ConfigHelper
 
     public static Integer getOutputInitialPort(Configuration conf)
     {
-        return Integer.valueOf(conf.get(OUTPUT_INITIAL_PORT, "7000"));
+        return Integer.valueOf(conf.get(OUTPUT_INITIAL_PORT, DEFAULT_CASSANDRA_NATIVE_PORT));
     }
 
     public static void setOutputInitialAddress(Configuration conf, String address)
