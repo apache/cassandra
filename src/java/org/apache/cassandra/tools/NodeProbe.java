@@ -711,6 +711,16 @@ public class NodeProbe implements AutoCloseable
         gossProxy.assassinateEndpoint(address);
     }
 
+    public List<String> reloadSeeds()
+    {
+        return gossProxy.reloadSeeds();
+    }
+
+    public List<String> getSeeds()
+    {
+        return gossProxy.getSeeds();
+    }
+
     /**
      * Set the compaction threshold
      *

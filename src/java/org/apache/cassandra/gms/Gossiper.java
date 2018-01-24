@@ -35,6 +35,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
@@ -89,7 +90,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public final static int intervalInMillis = 1000;
     public final static int QUARANTINE_DELAY = StorageService.RING_DELAY * 2;
     private static final Logger logger = LoggerFactory.getLogger(Gossiper.class);
-    public static final Gossiper instance = new Gossiper();
+    public static final Gossiper instance = new Gossiper(true);
 
     // Timestamp to prevent processing any in-flight messages for we've not send any SYN yet, see CASSANDRA-12653.
     volatile long firstSynSendAt = 0L;
@@ -199,7 +200,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
-    private Gossiper()
+    Gossiper(boolean registerJmx)
     {
         // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
         fatClientTimeout = (QUARANTINE_DELAY / 2);
@@ -207,14 +208,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         FailureDetector.instance.registerFailureDetectionEventListener(this);
 
         // Register this instance with JMX
-        try
+        if (registerJmx)
         {
-            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
+            try
+            {
+                MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+                mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -1466,6 +1470,67 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 continue;
             seeds.add(seed);
         }
+    }
+
+    /**
+     * JMX interface for triggering an update of the seed node list.
+     */
+    public List<String> reloadSeeds()
+    {
+        logger.trace("Triggering reload of seed node list");
+
+        // Get the new set in the same that buildSeedsList does
+        Set<InetAddressAndPort> tmp = new HashSet<>();
+        try
+        {
+            for (InetAddressAndPort seed : DatabaseDescriptor.getSeeds())
+            {
+                if (seed.equals(FBUtilities.getBroadcastAddressAndPort()))
+                    continue;
+                tmp.add(seed);
+            }
+        }
+        // If using the SimpleSeedProvider invalid yaml added to the config since startup could
+        // cause this to throw. Additionally, third party seed providers may throw exceptions.
+        // Handle the error and return a null to indicate that there was a problem.
+        catch (Throwable e)
+        {
+            JVMStabilityInspector.inspectThrowable(e);
+            logger.warn("Error while getting seed node list: {}", e.getLocalizedMessage());
+            return null;
+        }
+
+        if (tmp.size() == 0)
+        {
+            logger.trace("New seed node list is empty. Not updating seed list.");
+            return getSeeds();
+        }
+
+        if (tmp.equals(seeds))
+        {
+            logger.trace("New seed node list matches the existing list.");
+            return getSeeds();
+        }
+
+        // Add the new entries
+        seeds.addAll(tmp);
+        // Remove the old entries
+        seeds.retainAll(tmp);
+        logger.trace("New seed node list after reload {}", seeds);
+        return getSeeds();
+    }
+
+    /**
+     * JMX endpoint for getting the list of seeds from the node
+     */
+    public List<String> getSeeds()
+    {
+        List<String> seedList = new ArrayList<String>();
+        for (InetAddressAndPort seed : seeds)
+        {
+            seedList.add(seed.toString());
+        }
+        return seedList;
     }
 
     // initialize local HB state if needed, i.e., if gossiper has never been started before.
