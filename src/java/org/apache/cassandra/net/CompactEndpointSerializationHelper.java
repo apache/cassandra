@@ -38,8 +38,10 @@ public class CompactEndpointSerializationHelper implements IVersionedSerializer<
     public static final IVersionedSerializer<InetAddressAndPort> instance = new CompactEndpointSerializationHelper();
 
     /**
-     * Streaming uses it's own version numbering so we need to map those versions to the versions used my regular messaging.
+     * Streaming uses it's own version numbering so we need to map those versions to the versions used by regular messaging.
      * There are only two variants of the serialization currently so a simple mapping around pre vs post 4.0 is fine.
+     * We don't support cross version streaming yet so it's sort of unlikely we would need this at all, but it at least
+     * makes it clear what is going on for future modifications.
      */
     public static final IVersionedSerializer<InetAddressAndPort> streamingInstance = new IVersionedSerializer<InetAddressAndPort>()
     {
