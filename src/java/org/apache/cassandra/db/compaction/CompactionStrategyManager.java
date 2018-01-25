@@ -745,7 +745,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            getCompactionStrategyFor(deleted).removeSSTable(deleted);
+            compactionStrategyFor(deleted).removeSSTable(deleted);
         }
         finally
         {
