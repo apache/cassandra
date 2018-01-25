@@ -38,47 +38,24 @@ public class CompactEndpointSerializationHelper implements IVersionedSerializer<
     public static final IVersionedSerializer<InetAddressAndPort> instance = new CompactEndpointSerializationHelper();
 
     /**
-     * Streaming uses it's own version numbering so we need to map those versions to the versions used by regular messaging.
-     * There are only two variants of the serialization currently so a simple mapping around pre vs post 4.0 is fine.
-     * We don't support cross version streaming yet so it's sort of unlikely we would need this at all, but it at least
-     * makes it clear what is going on for future modifications.
-     */
+     * Streaming uses its own version numbering so we need to ignore it and always use currrent version.
+     * There is no cross version streaming so it will always use the latest address serialization.
+     **/
     public static final IVersionedSerializer<InetAddressAndPort> streamingInstance = new IVersionedSerializer<InetAddressAndPort>()
     {
         public void serialize(InetAddressAndPort inetAddressAndPort, DataOutputPlus out, int version) throws IOException
         {
-            if (version < StreamMessage.VERSION_40)
-            {
-                instance.serialize(inetAddressAndPort, out, MessagingService.VERSION_30);
-            }
-            else
-            {
-                instance.serialize(inetAddressAndPort, out, MessagingService.VERSION_40);
-            }
+            instance.serialize(inetAddressAndPort, out, MessagingService.current_version);
         }
 
         public InetAddressAndPort deserialize(DataInputPlus in, int version) throws IOException
         {
-            if (version < StreamMessage.VERSION_40)
-            {
-                return instance.deserialize(in, MessagingService.VERSION_30);
-            }
-            else
-            {
-                return instance.deserialize(in, MessagingService.VERSION_40);
-            }
+            return instance.deserialize(in, MessagingService.current_version);
         }
 
         public long serializedSize(InetAddressAndPort inetAddressAndPort, int version)
         {
-            if (version < StreamMessage.VERSION_40)
-            {
-                return instance.serializedSize(inetAddressAndPort, MessagingService.VERSION_30);
-            }
-            else
-            {
-                return instance.serializedSize(inetAddressAndPort, MessagingService.VERSION_40);
-            }
+            return instance.serializedSize(inetAddressAndPort, MessagingService.current_version);
         }
     };
 
