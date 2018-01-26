@@ -24,16 +24,17 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.rmi.*;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMIServerSocketFactory;
-import java.rmi.server.UnicastRemoteObject;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.management.remote.*;
 import javax.management.remote.rmi.RMIConnectorServer;
+import javax.management.remote.rmi.RMIJRMPServerImpl;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 import javax.rmi.ssl.SslRMIServerSocketFactory;
 import javax.security.auth.Subject;
@@ -43,22 +44,18 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.jmx.remote.internal.RMIExporter;
 import com.sun.jmx.remote.security.JMXPluggableAuthenticator;
 import org.apache.cassandra.auth.jmx.AuthenticationProxy;
-import sun.rmi.registry.RegistryImpl;
-import sun.rmi.server.UnicastServerRef2;
 
 public class JMXServerUtils
 {
     private static final Logger logger = LoggerFactory.getLogger(JMXServerUtils.class);
 
-    private static java.rmi.registry.Registry registry;
-
     /**
      * Creates a server programmatically. This allows us to set parameters which normally are
      * inaccessable.
      */
+    @SuppressWarnings("resource")
     public static JMXConnectorServer createJMXServer(int port, boolean local)
     throws IOException
     {
@@ -74,6 +71,10 @@ public class JMXServerUtils
         // Configure the RMI client & server socket factories, including SSL config.
         env.putAll(configureJmxSocketFactories(serverAddress, local));
 
+        // configure the RMI registry to use the socket factories we just created
+        Registry registry = LocateRegistry.createRegistry(port,
+                                                          (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
+                                                          (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
 
         // Configure authn, using a JMXAuthenticator which either wraps a set log LoginModules configured
         // via a JAAS configuration entry, or one which delegates to the standard file based authenticator.
@@ -86,46 +87,42 @@ public class JMXServerUtils
         // If neither method is specified, no access control is applied
         MBeanServerForwarder authzProxy = configureJmxAuthorization(env);
 
-        // Make sure we use our custom exporter so a full GC doesn't get scheduled every
-        // sun.rmi.dgc.server.gcInterval millis (default is 3600000ms/1 hour)
-        env.put(RMIExporter.EXPORTER_ATTRIBUTE, new Exporter());
+        // Mark the JMX server as a permanently exported object. This allows the JVM to exit with the
+        // server running and also exempts it from the distributed GC scheduler which otherwise would
+        // potentially attempt a full GC every `sun.rmi.dgc.server.gcInterval` millis (default is 3600000ms)
+        // For more background see:
+        //   - CASSANDRA-2967
+        //   - https://www.jclarity.com/2015/01/27/rmi-system-gc-unplugged/
+        //   - https://bugs.openjdk.java.net/browse/JDK-6760712
+        env.put("jmx.remote.x.daemon", "true");
 
-
+        // Set the port used to create subsequent connections to exported objects over RMI. This simplifies
+        // configuration in firewalled environments, but it can't be used in conjuction with SSL sockets.
+        // See: CASSANDRA-7087
         int rmiPort = Integer.getInteger("com.sun.management.jmxremote.rmi.port", 0);
-        JMXConnectorServer jmxServer =
-            JMXConnectorServerFactory.newJMXConnectorServer(new JMXServiceURL("rmi", null, rmiPort),
-                                                            env,
-                                                            ManagementFactory.getPlatformMBeanServer());
+
+        // We create the underlying RMIJRMPServerImpl so that we can manually bind it to the registry,
+        // rather then specifying a binding address in the JMXServiceURL and letting it be done automatically
+        // when the server is started. The reason for this is that if the registry is configured with SSL
+        // sockets, the JMXConnectorServer acts as its client during the binding which means it needs to
+        // have a truststore configured which contains the registry's certificate. Manually binding removes
+        // this problem.
+        // See CASSANDRA-12109.
+        RMIJRMPServerImpl server = new RMIJRMPServerImpl(rmiPort,
+                                                         (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
+                                                         (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
+                                                         env);
+        JMXServiceURL serviceURL = new JMXServiceURL("rmi", null, rmiPort);
+        RMIConnectorServer jmxServer = new RMIConnectorServer(serviceURL, env, server, ManagementFactory.getPlatformMBeanServer());
 
         // If a custom authz proxy was created, attach it to the server now.
         if (authzProxy != null)
             jmxServer.setMBeanServerForwarder(authzProxy);
-
         jmxServer.start();
 
-        // use a custom Registry to avoid having to interact with it internally using the remoting interface
-        configureRMIRegistry(port, env);
-
+        registry.rebind("jmxrmi", server);
         logJmxServiceUrl(serverAddress, port);
         return jmxServer;
-    }
-
-    private static void configureRMIRegistry(int port, Map<String, Object> env) throws RemoteException
-    {
-        Exporter exporter = (Exporter)env.get(RMIExporter.EXPORTER_ATTRIBUTE);
-        // If ssl is enabled, make sure it's also in place for the RMI registry
-        // by using the SSL socket factories already created and stashed in env
-        if (Boolean.getBoolean("com.sun.management.jmxremote.ssl"))
-        {
-            registry = new Registry(port,
-                                   (RMIClientSocketFactory)env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
-                                   (RMIServerSocketFactory)env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
-                                   exporter.connectorServer);
-        }
-        else
-        {
-            registry = new Registry(port, exporter.connectorServer);
-        }
     }
 
     private static Map<String, Object> configureJmxAuthentication()
@@ -273,117 +270,6 @@ public class JMXServerUtils
         {
             JMXPluggableAuthenticator authenticator = new JMXPluggableAuthenticator(env);
             return authenticator.authenticate(credentials);
-        }
-    }
-
-    /**
-     * In the RMI subsystem, the ObjectTable instance holds references to remote
-     * objects for distributed garbage collection purposes. When objects are
-     * added to the ObjectTable (exported), a flag is passed to * indicate the
-     * "permanence" of that object. Exporting as permanent has two effects; the
-     * object is not eligible for distributed garbage collection, and its
-     * existence will not prevent the JVM from exiting after termination of all
-     * non-daemon threads terminate. Neither of these is bad for our case, as we
-     * attach the server exactly once (i.e. at startup, not subsequently using
-     * the Attach API) and don't disconnect it before shutdown. The primary
-     * benefit we gain is that it doesn't trigger the scheduled full GC that
-     * is otherwise incurred by programatically configuring the management server.
-     *
-     * To that end, we use this private implementation of RMIExporter to register
-     * our JMXConnectorServer as a permanent object by adding it to the map of
-     * environment variables under the key RMIExporter.EXPORTER_ATTRIBUTE
-     * (com.sun.jmx.remote.rmi.exporter) prior to calling server.start()
-     *
-     * See also:
-     *  * CASSANDRA-2967 for background
-     *  * https://www.jclarity.com/2015/01/27/rmi-system-gc-unplugged/ for more detail
-     *  * https://bugs.openjdk.java.net/browse/JDK-6760712 for info on setting the exporter
-     *  * sun.management.remote.ConnectorBootstrap to trace how the inbuilt management agent
-     *    sets up the JMXConnectorServer
-     */
-    private static class Exporter implements RMIExporter
-    {
-        // the first object to be exported by this instance is *always* the JMXConnectorServer
-        // instance created by createJMXServer. Keep a handle to it, as it needs to be supplied
-        // to our custom Registry too.
-        private Remote connectorServer;
-
-        public Remote exportObject(Remote obj, int port, RMIClientSocketFactory csf, RMIServerSocketFactory ssf)
-        throws RemoteException
-        {
-            Remote remote = new UnicastServerRef2(port, csf, ssf).exportObject(obj, null, true);
-            // Keep a reference to the first object exported, the JMXConnectorServer
-            if (connectorServer == null)
-                connectorServer = remote;
-
-            return remote;
-        }
-
-        public boolean unexportObject(Remote obj, boolean force) throws NoSuchObjectException
-        {
-            return UnicastRemoteObject.unexportObject(obj, force);
-        }
-    }
-
-    /**
-     * Using this class avoids the necessity to interact with the registry via its
-     * remoting interface. This is necessary because when SSL is enabled for the registry,
-     * that remote interaction is treated just the same as one from an external client.
-     * That is problematic when binding the JMXConnectorServer to the Registry as it requires
-     * the client, which in this case is our own internal code, to connect like any other SSL
-     * client, meaning we need a truststore containing our own certificate.
-     * This bypasses the binding API completely, which emulates the behaviour of
-     * ConnectorBootstrap when the subsystem is initialized by the JVM Agent directly.
-     *
-     * See CASSANDRA-12109.
-     */
-    private static class Registry extends RegistryImpl
-    {
-        private final static String KEY = "jmxrmi";
-        private final Remote connectorServer;
-
-        private Registry(int port, Remote connectorServer) throws RemoteException
-        {
-            super(port);
-            this.connectorServer = connectorServer;
-        }
-
-        private Registry(int port,
-                         RMIClientSocketFactory csf,
-                         RMIServerSocketFactory ssf,
-                         Remote connectorServer) throws RemoteException
-        {
-            super(port, csf, ssf);
-            this.connectorServer = connectorServer;
-        }
-
-        public Remote lookup(String name) throws RemoteException, NotBoundException
-        {
-            if (name.equals(KEY))
-                return connectorServer;
-
-            throw new NotBoundException(String.format("Only the JMX Connector Server named %s " +
-                                                      "is bound in this registry", KEY));
-        }
-
-        public void bind(String name, Remote obj) throws RemoteException, AlreadyBoundException
-        {
-            throw new UnsupportedOperationException("Unsupported");
-        }
-
-        public void unbind(String name) throws RemoteException, NotBoundException
-        {
-            throw new UnsupportedOperationException("Unsupported");
-        }
-
-        public void rebind(String name, Remote obj) throws RemoteException
-        {
-            throw new UnsupportedOperationException("Unsupported");
-        }
-
-        public String[] list() throws RemoteException
-        {
-            return new String[] {KEY};
         }
     }
 }
