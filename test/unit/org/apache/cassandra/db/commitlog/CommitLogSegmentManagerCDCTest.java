@@ -188,6 +188,8 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     {
         createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
         CommitLogSegment initialSegment = CommitLog.instance.segmentManager.allocatingFrom();
+        Integer originalCDCSize = DatabaseDescriptor.getCDCSpaceInMB();
+
         DatabaseDescriptor.setCDCSpaceInMB(8);
         try
         {
@@ -201,6 +203,10 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         catch (CDCWriteException ce)
         {
             // pass. Expected since we'll have a file or two linked on restart of CommitLog due to replay
+        }
+        finally
+        {
+            DatabaseDescriptor.setCDCSpaceInMB(originalCDCSize);
         }
 
         CommitLog.instance.forceRecycleAllSegments();
@@ -275,6 +281,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     {
         // Assert.assertEquals(0, new File(DatabaseDescriptor.getCDCLogLocation()).listFiles().length);
         String table_name = createTable("CREATE TABLE %s (idx int, data text, primary key(idx)) WITH cdc=true;");
+        Integer originalCDCSize = DatabaseDescriptor.getCDCSpaceInMB();
 
         DatabaseDescriptor.setCDCSpaceInMB(8);
         TableMetadata ccfm = Keyspace.open(keyspace()).getColumnFamilyStore(table_name).metadata();
@@ -291,6 +298,10 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         catch (CDCWriteException e)
         {
             // pass
+        }
+        finally
+        {
+            DatabaseDescriptor.setCDCSpaceInMB(originalCDCSize);
         }
 
         CommitLog.instance.sync(true);
