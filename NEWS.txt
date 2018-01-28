@@ -1,3 +1,4 @@
+//TODO update news.txt. Also validate that no existing public apis are using the new address string format or mbean interfaces were changed
 GENERAL UPGRADING ADVICE FOR ANY VERSION
 ========================================
 
