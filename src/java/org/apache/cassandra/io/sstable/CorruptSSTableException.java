@@ -23,13 +23,13 @@ public class CorruptSSTableException extends RuntimeException
 {
     public final File path;
 
-    public CorruptSSTableException(Exception cause, File path)
+    public CorruptSSTableException(Throwable cause, File path)
     {
         super("Corrupted: " + path, cause);
         this.path = path;
     }
 
-    public CorruptSSTableException(Exception cause, String path)
+    public CorruptSSTableException(Throwable cause, String path)
     {
         this(cause, new File(path));
     }
