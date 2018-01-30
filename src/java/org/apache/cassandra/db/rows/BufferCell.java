@@ -41,7 +41,6 @@ public class BufferCell extends AbstractCell
     {
         super(column);
         assert !column.isPrimaryKeyColumn();
-        assert ttl >= 0 : ttl;
         assert column.isComplex() == (path != null);
         this.timestamp = timestamp;
         this.ttl = ttl;
