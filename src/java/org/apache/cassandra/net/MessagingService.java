@@ -1723,7 +1723,7 @@ public final class MessagingService implements MessagingServiceMBean
         logger.info("choosing to block until {}% of peers are marked alive; max time to wait = {} seconds", targetAlivePercent, aliveTimeoutSecs);
 
         // first, send out a ping message to open up the non-gossip connections
-        AtomicInteger countdown = sendPingMessages(peers);
+        AtomicInteger connectedCount = sendPingMessages(peers);
 
         long startNanos = System.nanoTime();
         long expirationNanos = startNanos + TimeUnit.SECONDS.toNanos(aliveTimeoutSecs);
@@ -1738,7 +1738,7 @@ public final class MessagingService implements MessagingServiceMBean
             }
 
             float currentAlivePercent = ((float) currentAlive / (float) totalSize) * 100;
-            float currentConnectedPercent = ((float) countdown.get() / (float) totalSize) * 100;
+            float currentConnectedPercent = ((float) connectedCount.get() / (float) totalSize) * 100;
             if (currentAlivePercent >= targetAlivePercent && currentConnectedPercent >= targetAlivePercent)
             {
                 logger.info("after {} milliseconds, found {}% ({} / {}) of peers as marked alive, " +
@@ -1746,7 +1746,7 @@ public final class MessagingService implements MessagingServiceMBean
                             "both of which are above the desired threshold of {}%",
                             TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos),
                             currentAlivePercent, currentAlive, totalSize,
-                            currentConnectedPercent, countdown.get(), totalSize,
+                            currentConnectedPercent, connectedCount.get(), totalSize,
                             targetAlivePercent);
                 return;
             }
@@ -1760,7 +1760,7 @@ public final class MessagingService implements MessagingServiceMBean
                             "one or both of which is below the desired threshold of {}%",
                             TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos),
                             currentAlivePercent, currentAlive, totalSize,
-                            currentConnectedPercent, countdown.get(), totalSize,
+                            currentConnectedPercent, connectedCount.get(), totalSize,
                             targetAlivePercent);
                 return;
             }
@@ -1770,7 +1770,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     private AtomicInteger sendPingMessages(Set<Map.Entry<InetAddressAndPort, EndpointState>> peers)
     {
-        AtomicInteger countdown = new AtomicInteger(0);
+        AtomicInteger receivedCount = new AtomicInteger(0);
         IAsyncCallback echoHandler = new IAsyncCallback()
         {
             @Override
@@ -1782,7 +1782,7 @@ public final class MessagingService implements MessagingServiceMBean
             @Override
             public void response(MessageIn msg)
             {
-                countdown.incrementAndGet();
+                receivedCount.incrementAndGet();
             }
         };
 
@@ -1790,6 +1790,6 @@ public final class MessagingService implements MessagingServiceMBean
         for (Map.Entry<InetAddressAndPort, EndpointState> peer : peers)
             MessagingService.instance().sendRR(msg, peer.getKey(), echoHandler);
 
-        return countdown;
+        return receivedCount;
     }
 }
