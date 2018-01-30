@@ -738,7 +738,7 @@ public class BTreeRow extends AbstractRow
             this.clustering = null;
             this.primaryKeyLivenessInfo = LivenessInfo.EMPTY;
             this.deletion = Deletion.LIVE;
-            this.cells_ = null;
+            this.cells_.reuse();
             this.hasComplex = false;
         }
 
