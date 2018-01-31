@@ -1,4 +1,5 @@
 3.0.17
+ * Don't regenerate bloomfilter and summaries on startup (CASSANDRA-11163)
  * Fix NPE when performing comparison against a null frozen in LWT (CASSANDRA-14087)
  * Log when SSTables are deleted (CASSANDRA-14302)
  * Fix batch commitlog sync regression (CASSANDRA-14292)
