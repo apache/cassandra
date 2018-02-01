@@ -28,6 +28,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -35,6 +36,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public class Scrubber implements Closeable
 {
@@ -43,6 +45,7 @@ public class Scrubber implements Closeable
     private final File destination;
     private final boolean skipCorrupted;
     public final boolean validateColumns;
+    private final boolean reinsertOverflowedTTLRows;
 
     private final CompactionController controller;
     private final boolean isCommutative;
@@ -67,6 +70,7 @@ public class Scrubber implements Closeable
     long nextRowPositionFromIndex;
 
     private final OutputHandler outputHandler;
+    private NegativeLocalDeletionInfoMetrics negativeLocalDeletionInfoMetrics = new NegativeLocalDeletionInfoMetrics();
 
     private static final Comparator<Row> rowComparator = new Comparator<Row>()
     {
@@ -79,10 +83,17 @@ public class Scrubber implements Closeable
 
     public Scrubber(ColumnFamilyStore cfs, SSTableReader sstable, boolean skipCorrupted, boolean isOffline, boolean checkData) throws IOException
     {
-        this(cfs, sstable, skipCorrupted, new OutputHandler.LogOutput(), isOffline, checkData);
+        this(cfs, sstable, skipCorrupted, isOffline, checkData, false);
     }
 
-    public Scrubber(ColumnFamilyStore cfs, SSTableReader sstable, boolean skipCorrupted, OutputHandler outputHandler, boolean isOffline, boolean checkData) throws IOException
+    public Scrubber(ColumnFamilyStore cfs, SSTableReader sstable, boolean skipCorrupted, boolean isOffline, boolean checkData,
+                    boolean reinsertOverflowedTTLRows) throws IOException
+    {
+        this(cfs, sstable, skipCorrupted, new OutputHandler.LogOutput(), isOffline, checkData, reinsertOverflowedTTLRows);
+    }
+
+    public Scrubber(ColumnFamilyStore cfs, SSTableReader sstable, boolean skipCorrupted, OutputHandler outputHandler, boolean isOffline, boolean checkData,
+                    boolean reinsertOverflowedTTLRows) throws IOException
     {
         this.cfs = cfs;
         this.sstable = sstable;
@@ -90,6 +101,7 @@ public class Scrubber implements Closeable
         this.skipCorrupted = skipCorrupted;
         this.isOffline = isOffline;
         this.validateColumns = checkData;
+        this.reinsertOverflowedTTLRows = reinsertOverflowedTTLRows;
 
         List<SSTableReader> toScrub = Collections.singletonList(sstable);
 
@@ -131,6 +143,9 @@ public class Scrubber implements Closeable
 
         this.currentRowPositionFromIndex = 0;
         this.nextRowPositionFromIndex = 0;
+
+        if (reinsertOverflowedTTLRows)
+            outputHandler.output("Starting scrub with reinsert overflowed TTL option");
     }
 
     public void scrub()
@@ -311,6 +326,8 @@ public class Scrubber implements Closeable
         else
         {
             outputHandler.output("Scrub of " + sstable + " complete: " + goodRows + " rows in new sstable and " + emptyRows + " empty (tombstoned) rows dropped");
+            if (negativeLocalDeletionInfoMetrics.fixedRows > 0)
+                outputHandler.output("Fixed " + negativeLocalDeletionInfoMetrics.fixedRows + " rows with overflowed local deletion time.");
             if (badRows > 0)
                 outputHandler.warn("Unable to recover " + badRows + " rows that were skipped.  You can attempt manual recovery from the pre-scrub snapshot.  You can also run nodetool repair to transfer the data from a healthy replica, if any");
         }
@@ -322,7 +339,7 @@ public class Scrubber implements Closeable
         // OrderCheckerIterator will check, at iteration time, that the cells are in the proper order. If it detects
         // that one cell is out of order, it will stop returning them. The remaining cells will be sorted and added
         // to the outOfOrderRows that will be later written to a new SSTable.
-        OrderCheckerIterator atoms = new OrderCheckerIterator(new SSTableIdentityIterator(sstable, dataFile, key, dataSize, validateColumns),
+        OrderCheckerIterator atoms = new OrderCheckerIterator(getIterator(key, dataSize),
                                                               cfs.metadata.comparator.onDiskAtomComparator());
         if (prevKey != null && prevKey.compareTo(key) > 0)
         {
@@ -340,6 +357,18 @@ public class Scrubber implements Closeable
             saveOutOfOrderRow(key, atoms);
 
         return true;
+    }
+
+    /**
+     * Only wrap with {@link FixNegativeLocalDeletionTimeIterator} if {@link #reinsertOverflowedTTLRows} option
+     * is specified
+     */
+    private OnDiskAtomIterator getIterator(DecoratedKey key, long dataSize)
+    {
+        SSTableIdentityIterator sstableIdentityIterator = new SSTableIdentityIterator(sstable, dataFile, key, dataSize, validateColumns);
+        return reinsertOverflowedTTLRows ? new FixNegativeLocalDeletionTimeIterator(sstableIdentityIterator,
+                                                                                    outputHandler,
+                                                                                    negativeLocalDeletionInfoMetrics) : sstableIdentityIterator;
     }
 
     private void updateIndexKey()
@@ -516,6 +545,11 @@ public class Scrubber implements Closeable
         }
     }
 
+    public class NegativeLocalDeletionInfoMetrics
+    {
+        public volatile int fixedRows = 0;
+    }
+
     /**
      * In some case like CASSANDRA-12127 the cells might have been stored in the wrong order. This decorator check the
      * cells order and collect the out of order cells to correct the problem.
@@ -599,6 +633,63 @@ public class Scrubber implements Closeable
             while (iterator.hasNext())
                 cf.addAtom(iterator.next());
             return cf;
+        }
+    }
+
+    /**
+     * This iterator converts negative {@link BufferExpiringCell#getLocalDeletionTime()} into {@link BufferExpiringCell#MAX_DELETION_TIME}
+     *
+     * This is to recover entries with overflowed localExpirationTime due to CASSANDRA-14092
+     */
+    private static final class FixNegativeLocalDeletionTimeIterator extends AbstractIterator<OnDiskAtom> implements OnDiskAtomIterator
+    {
+        /**
+         * The decorated iterator.
+         */
+        private final OnDiskAtomIterator iterator;
+
+        private final OutputHandler outputHandler;
+        private final NegativeLocalDeletionInfoMetrics negativeLocalExpirationTimeMetrics;
+
+        public FixNegativeLocalDeletionTimeIterator(OnDiskAtomIterator iterator, OutputHandler outputHandler,
+                                                    NegativeLocalDeletionInfoMetrics negativeLocalDeletionInfoMetrics)
+        {
+            this.iterator = iterator;
+            this.outputHandler = outputHandler;
+            this.negativeLocalExpirationTimeMetrics = negativeLocalDeletionInfoMetrics;
+        }
+
+        public ColumnFamily getColumnFamily()
+        {
+            return iterator.getColumnFamily();
+        }
+
+        public DecoratedKey getKey()
+        {
+            return iterator.getKey();
+        }
+
+        public void close() throws IOException
+        {
+            iterator.close();
+        }
+
+        @Override
+        protected OnDiskAtom computeNext()
+        {
+            if (!iterator.hasNext())
+                return endOfData();
+
+            OnDiskAtom next = iterator.next();
+
+            if (next instanceof ExpiringCell && next.getLocalDeletionTime() < 0)
+            {
+                outputHandler.debug(String.format("Found cell with negative local expiration time: %s", ((ExpiringCell) next).getString(getColumnFamily().getComparator()), getColumnFamily()));
+                negativeLocalExpirationTimeMetrics.fixedRows++;
+                next = ((Cell) next).localCopy(getColumnFamily().metadata(), HeapAllocator.instance).withUpdatedTimestampAndLocalDeletionTime(next.timestamp() + 1, BufferExpiringCell.MAX_DELETION_TIME);
+            }
+
+            return next;
         }
     }
 }

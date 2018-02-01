@@ -60,6 +60,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
     @VisibleForTesting
     public DeletionTime(long markedForDeleteAt, int localDeletionTime)
     {
+        assert localDeletionTime >= 0 : localDeletionTime;
         this.markedForDeleteAt = markedForDeleteAt;
         this.localDeletionTime = localDeletionTime;
     }

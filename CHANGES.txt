@@ -1,4 +1,5 @@
 2.1.20
+ * Protect against overflow of local expiration time (CASSANDRA-14092)
  * More PEP8 compliance for cqlsh (CASSANDRA-14021)
  * RPM package spec: fix permissions for installed jars and config files (CASSANDRA-14181)
 

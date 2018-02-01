@@ -31,19 +31,23 @@ import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 public class BufferExpiringCell extends BufferCell implements ExpiringCell
 {
+    public static final int MAX_DELETION_TIME = Integer.MAX_VALUE - 1;
+
     private final int localExpirationTime;
     private final int timeToLive;
 
     public BufferExpiringCell(CellName name, ByteBuffer value, long timestamp, int timeToLive)
     {
-        this(name, value, timestamp, timeToLive, (int) (System.currentTimeMillis() / 1000) + timeToLive);
+        super(name, value, timestamp);
+        assert timeToLive > 0 : timeToLive;
+        this.timeToLive = timeToLive;
+        this.localExpirationTime = computeLocalExpirationTime(timeToLive);
     }
 
     public BufferExpiringCell(CellName name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime)
     {
         super(name, value, timestamp);
         assert timeToLive > 0 : timeToLive;
-        assert localExpirationTime > 0 : localExpirationTime;
         this.timeToLive = timeToLive;
         this.localExpirationTime = localExpirationTime;
     }
@@ -63,6 +67,12 @@ public class BufferExpiringCell extends BufferCell implements ExpiringCell
     public Cell withUpdatedTimestamp(long newTimestamp)
     {
         return new BufferExpiringCell(name(), value(), newTimestamp, timeToLive, localExpirationTime);
+    }
+
+    @Override
+    public Cell withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    {
+        return new BufferExpiringCell(name(), value(), newTimestamp, timeToLive, newLocalDeletionTime);
     }
 
     @Override
@@ -176,12 +186,30 @@ public class BufferExpiringCell extends BufferCell implements ExpiringCell
     /** @return Either a DeletedCell, or an ExpiringCell. */
     public static Cell create(CellName name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime, int expireBefore, ColumnSerializer.Flag flag)
     {
-        if (localExpirationTime >= expireBefore || flag == ColumnSerializer.Flag.PRESERVE_SIZE)
+        // CASSANDRA-14092 may have written rows with negative localExpirationTime, so we don't turn them into tombstones yet
+        // to be able to recover them with scrub.
+        if (localExpirationTime < 0 || localExpirationTime >= expireBefore || flag == ColumnSerializer.Flag.PRESERVE_SIZE)
             return new BufferExpiringCell(name, value, timestamp, timeToLive, localExpirationTime);
         // The column is now expired, we can safely return a simple tombstone. Note that
         // as long as the expiring column and the tombstone put together live longer than GC grace seconds,
         // we'll fulfil our responsibility to repair.  See discussion at
         // http://cassandra-user-incubator-apache-org.3065146.n2.nabble.com/repair-compaction-and-tombstone-rows-td7583481.html
         return new BufferDeletedCell(name, localExpirationTime - timeToLive, timestamp);
+    }
+
+    /**
+     * This method computes the {@link #localExpirationTime}, maybe capping to the maximum representable value
+     * which is {@link #MAX_DELETION_TIME}.
+     *
+     * Please note that the {@link org.apache.cassandra.cql3.Attributes.ExpirationDateOverflowPolicy} is applied
+     * during {@link org.apache.cassandra.cql3.Attributes#maybeApplyExpirationDateOverflowPolicy(CFMetaData, int, boolean)},
+     * so if the request was not denied it means it's expiration date should be capped.
+     *
+     * See CASSANDRA-14092
+     */
+    private int computeLocalExpirationTime(int timeToLive)
+    {
+        int localExpirationTime =  (int) (System.currentTimeMillis() / 1000) + timeToLive;
+        return localExpirationTime >= 0? localExpirationTime : MAX_DELETION_TIME;
     }
 }

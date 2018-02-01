@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.ExpiringCell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -191,6 +192,12 @@ public class CFPropDefs {
                         KW_DEFAULT_TIME_TO_LIVE,
                         0,
                         CFMetaData.DEFAULT_DEFAULT_TIME_TO_LIVE));
+
+            if (defaultTimeToLive > ExpiringCell.MAX_TTL)
+                throw new InvalidRequestException(String.format("%s must be less than or equal to %d (got %s)",
+                                                                KW_DEFAULT_TIME_TO_LIVE,
+                                                                ExpiringCell.MAX_TTL,
+                                                                defaultTimeToLive));
         }
 
         CFMetaData.validateCompactionOptions(compactionStrategyClass, compactionStrategyOptions);

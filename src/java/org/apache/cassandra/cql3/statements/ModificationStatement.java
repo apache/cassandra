@@ -124,7 +124,7 @@ public abstract class ModificationStatement implements CQLStatement
 
     public int getTimeToLive(QueryOptions options) throws InvalidRequestException
     {
-        return attrs.getTimeToLive(options);
+        return attrs.getTimeToLive(options, cfm);
     }
 
     public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException

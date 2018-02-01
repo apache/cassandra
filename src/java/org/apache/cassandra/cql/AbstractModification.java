@@ -20,11 +20,14 @@ package org.apache.cassandra.cql;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.thrift.ThriftClientState;
+import org.w3c.dom.Attr;
 
 public abstract class AbstractModification
 {
@@ -89,6 +92,7 @@ public abstract class AbstractModification
 
     public int getTimeToLive()
     {
+        Attributes.maybeApplyExpirationDateOverflowPolicy(keyspace, columnFamily, timeToLive);
         return timeToLive;
     }
 

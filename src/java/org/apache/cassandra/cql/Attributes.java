@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.cql;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
  * Class to contain attributes for statements
@@ -71,6 +74,22 @@ public class Attributes
     public String toString()
     {
         return String.format("Attributes(consistency=%s, timestamp=%s, timeToLive=%s)", cLevel, timestamp, timeToLive);
+    }
+
+    public static void maybeApplyExpirationDateOverflowPolicy(String keyspace, String columnFamily, Integer timeToLive)
+    {
+        CFMetaData metadata = Schema.instance.getCFMetaData(keyspace, columnFamily);
+        if (metadata != null)
+        {
+            try
+            {
+                org.apache.cassandra.cql3.Attributes.maybeApplyExpirationDateOverflowPolicy(metadata, timeToLive, false);
+            }
+            catch (InvalidRequestException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
 }

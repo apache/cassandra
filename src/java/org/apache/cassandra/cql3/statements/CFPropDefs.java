@@ -22,6 +22,7 @@ import java.util.*;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.CFMetaData.SpeculativeRetry;
+import org.apache.cassandra.db.ExpiringCell;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -127,6 +128,12 @@ public class CFPropDefs extends PropertyDefinitions
         }
 
         validateMinimumInt(KW_DEFAULT_TIME_TO_LIVE, 0, CFMetaData.DEFAULT_DEFAULT_TIME_TO_LIVE);
+        Integer defaultTimeToLive = getInt(KW_DEFAULT_TIME_TO_LIVE, 0);
+        if (defaultTimeToLive > ExpiringCell.MAX_TTL)
+            throw new ConfigurationException(String.format("%s must be less than or equal to %d (got %s)",
+                                                           KW_DEFAULT_TIME_TO_LIVE,
+                                                           ExpiringCell.MAX_TTL,
+                                                           defaultTimeToLive));
 
         Integer minIndexInterval = getInt(KW_MIN_INDEX_INTERVAL, null);
         Integer maxIndexInterval = getInt(KW_MAX_INDEX_INTERVAL, null);

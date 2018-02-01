@@ -69,6 +69,12 @@ public class BufferCell extends AbstractCell
     }
 
     @Override
+    public Cell withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CellName name() {
         return name;
     }
