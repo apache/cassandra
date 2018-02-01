@@ -1,3 +1,36 @@
+MAXIMUM TTL EXPIRATION DATE NOTICE
+-----------------------------------
+
+The maximum expiration timestamp that can be represented by the storage engine is 2038-01-19T03:14:06+00:00,
+which means that inserts with TTL that expire after this date are not currently supported.
+
+Prior to 3.0.16 in the 3.0.X series and 3.11.2 in the 3.11 series, there was no protection against INSERTS
+with TTL expiring after the maximum supported date, causing the expiration time field to overflow and the
+records to expire immediately. Expired records due to overflow may have been removed permanently after a
+compaction. The 2.1.X and 2.2.X series are not subject to data loss due to this issue if assertions are enabled,
+since an AssertionError is thrown during INSERT when the expiration time field overflows on these versions.
+
+In practice this issue will affect only users that use very large TTLs, close to the maximum allowed value of
+630720000 seconds (20 years), starting from 2018-01-19T03:14:06+00:00. As time progresses, the maximum supported
+TTL will be gradually reduced as the the maximum expiration date approaches. For instance, a user on an affected
+version on 2028-01-19T03:14:06 with a TTL of 10 years will be affected by this bug, so we urge users of very
+large TTLs to upgrade to a version where this issue is addressed as soon as possible.
+
+Potentially affected users should inspect their SSTables and search for negative min local deletion times to
+detect this issue. SSTables in this state must be backed up immediately, as they are subject to data loss
+during auto-compactions, and may be recovered by running the sstablescrub tool from versions 3.0.16+ and/or 3.11.2+.
+
+The Cassandra project plans to fix this limitation in newer versions, but while the fix is not available, operators
+can decide which policy to apply when dealing with inserts with TTL exceeding the maximum supported expiration date:
+  - REJECT: this is the default policy and will reject any requests with expiration date timestamp after 2038-01-19T03:14:06+00:00.
+  - CAP: any insert with TTL expiring after 2038-01-19T03:14:06+00:00 will expire on 2038-01-19T03:14:06+00:00 and the client will receive a warning.
+  - CAP_NOWARN: same as previous, except that the client warning will not be emitted.
+
+These policies may be specified via the -Dcassandra.expiration_date_overflow_policy=POLICY startup option which can be set in the 
+jvm.options file.
+
+See CASSANDRA-14092 for more details about this issue.
+
 GENERAL UPGRADING ADVICE FOR ANY VERSION
 ========================================
 
@@ -18,6 +51,7 @@ using the provided 'sstableupgrade' tool.
 
 Upgrading
 ---------
+   - See MAXIMUM TTL EXPIRATION DATE NOTICE above.
     - Cassandra is now relying on the JVM options to properly shutdown on OutOfMemoryError. By default it will
       rely on the OnOutOfMemoryError option as the ExitOnOutOfMemoryError and CrashOnOutOfMemoryError options
       are not supported by the older 1.7 and 1.8 JVMs. A warning will be logged at startup if none of those JVM
