@@ -80,7 +80,9 @@ final class ScriptBasedUDFunction extends UDFunction
     "com.google.common.reflect",
     // following required by UDF
     "com.datastax.driver.core",
-    "com.datastax.driver.core.utils"
+    "com.datastax.driver.core.utils",
+    //Driver Metadata class requires hashmap from this
+    "com.datastax.shaded.netty.util.collection"
     };
 
     // use a JVM standard ExecutorService as DebuggableThreadPoolExecutor references internal

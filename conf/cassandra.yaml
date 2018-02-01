@@ -945,13 +945,6 @@ dynamic_snitch_badness_threshold: 0.1
 # the keystore and truststore.  For instructions on generating these files, see:
 # http://download.oracle.com/javase/8/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore
 #
-# If you are taking advantage of StartTLS outbound connections will have the issue that they can't know
-# what encrypted port to connect to in a foolproof way. outgoing_encrypted_port_source deals with this confusion
-# by allowing you to specify how you want a node to pick an outgoing port for intra-cluster connections.
-# Valid values are "gossip" and "yaml". Gossip will always connect to the storage port for a node that is
-# published via a gossip which is always going to be the plain storage port. "yaml" will always select
-# the port configured as ssl_storage_port on THIS node. If you want to use SSL and have different storage
-# ports across the cluster you must select "gossip" and use StartTLS on storage_port.
 server_encryption_options:
     # set to true for allowing secure incoming connections
     enabled: false

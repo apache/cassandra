@@ -62,8 +62,7 @@ public class ProtocolVersionTest
         Assert.assertNotNull(ProtocolVersion.CURRENT);
 
         Assert.assertFalse(ProtocolVersion.V4.isBeta());
-        Assert.assertFalse(ProtocolVersion.V5.isBeta());
-        Assert.assertTrue(ProtocolVersion.V6.isBeta());
+        Assert.assertTrue(ProtocolVersion.V5.isBeta());
     }
 
     @Test

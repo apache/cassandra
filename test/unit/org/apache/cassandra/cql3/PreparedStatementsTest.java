@@ -223,6 +223,7 @@ public class PreparedStatementsTest extends CQLTester
                                  .withClusterName("Test Cluster")
                                  .withPort(nativePort)
                                  .withoutJMXReporting()
+                                 .allowBetaProtocolVersion()
                                  .build())
         {
             try (Session newSession = newCluster.connect())
