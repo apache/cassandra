@@ -185,6 +185,7 @@
 
 
 3.11.2
+ * Add DEFAULT, UNSET, MBEAN and MBEANS to `ReservedKeywords` (CASSANDRA-14205)
  * Print correct snitch info from nodetool describecluster (CASSANDRA-13528)
  * Enable CDC unittest (CASSANDRA-14141)
  * Acquire read lock before accessing CompactionStrategyManager fields (CASSANDRA-14139)
