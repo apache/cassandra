@@ -631,11 +631,13 @@ Reported name format:
 **JMX MBean**
     ``org.apache.cassandra.metrics:type=Client name=<MetricName>``
 
-=========================== ============== ===========
-Name                        Type           Description
-=========================== ============== ===========
-connectedNativeClients      Counter        Number of clients connected to this nodes native protocol server
-=========================== ============== ===========
+============================== =============================== ===========
+Name                           Type                            Description
+============================== =============================== ===========
+connectedNativeClients         Gauge<Integer>                  Number of clients connected to this nodes native protocol server
+connections                    Gauge<List<Map<String, String>> List of all connections and their state information
+connectedNativeClientsByUser   Gauge<Map<String, Int>          Number of connnective native clients by username
+============================== =============================== ===========
 
 
 Batch Metrics

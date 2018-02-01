@@ -18,12 +18,19 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,14 +116,39 @@ public class NativeTransportService
         }
 
         // register metrics
-        ClientMetrics.instance.addCounter("connectedNativeClients", () ->
+        ClientMetrics.instance.addGauge("connectedNativeClients", () ->
         {
             int ret = 0;
             for (Server server : servers)
                 ret += server.getConnectedClients();
             return ret;
         });
+        ClientMetrics.instance.addGauge("connectedNativeClientsByUser", () ->
+        {
+            Map<String, Integer> result = new HashMap<>();
+            for (Server server : servers)
+            {
+                for (Entry<String, Integer> e : server.getConnectedClientsByUser().entrySet())
+                {
+                    String user = e.getKey();
+                    result.put(user, result.getOrDefault(user, 0) + e.getValue());
+                }
+            }
+            return result;
+        });
 
+        ClientMetrics.instance.addGauge("connections", () ->
+        {
+            List<Map<String, String>> result = new ArrayList<>();
+            for (Server server : servers)
+            {
+                for (Map<String, String> e : server.getConnectionStates())
+                {
+                    result.add(e);
+                }
+            }
+            return result;
+        });
         AuthMetrics.init();
 
         initialized = true;

@@ -36,9 +36,9 @@ public class ClientMetrics
     {
     }
 
-    public void addCounter(String name, final Callable<Integer> provider)
+    public <T> void addGauge(String name, final Callable<T> provider)
     {
-        Metrics.register(factory.createMetricName(name), (Gauge<Integer>) () -> {
+        Metrics.register(factory.createMetricName(name), (Gauge<T>) () -> {
             try
             {
                 return provider.call();

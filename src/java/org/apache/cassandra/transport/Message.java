@@ -514,6 +514,7 @@ public abstract class Message
                 QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion(), request.getStreamId());
 
                 logger.trace("Received: {}, v={}", request, connection.getVersion());
+                connection.requests.inc();
                 response = request.execute(qstate, queryStartNanoTime);
                 response.setStreamId(request.getStreamId());
                 response.setWarnings(ClientWarn.instance.getWarnings());

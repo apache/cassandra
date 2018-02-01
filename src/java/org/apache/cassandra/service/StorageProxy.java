@@ -74,6 +74,7 @@ import org.apache.cassandra.service.paxos.ProposeCallback;
 import org.apache.cassandra.service.paxos.ProposeVerbHandler;
 import org.apache.cassandra.net.MessagingService.Verb;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.AbstractIterator;

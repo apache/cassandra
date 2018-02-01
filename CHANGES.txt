@@ -1,4 +1,5 @@
 4.0
+ * Add nodetool clientlist (CASSANDRA-13665)
  * Revert ProtocolVersion changes from CASSANDRA-7544 (CASSANDRA-14211)
  * Non-disruptive seed node list reload (CASSANDRA-14190)
  * Nodetool tablehistograms to print statics for all the tables (CASSANDRA-14185)

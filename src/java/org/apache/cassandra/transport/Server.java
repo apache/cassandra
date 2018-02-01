@@ -30,6 +30,8 @@ import javax.net.ssl.SSLEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.collect.ImmutableMap;
+
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -173,6 +175,33 @@ public class Server implements CassandraDaemon.Server
         return connectionTracker.getConnectedClients();
     }
 
+    public Map<String, Integer> getConnectedClientsByUser()
+    {
+        return connectionTracker.getConnectedClientsByUser();
+    }
+
+    public List<Map<String, String>> getConnectionStates()
+    {
+        List<Map<String, String>> result = new ArrayList<>();
+        for(Channel c : connectionTracker.allChannels)
+        {
+            Connection connection = c.attr(Connection.attributeKey).get();
+            if (connection instanceof ServerConnection)
+            {
+                ServerConnection conn = (ServerConnection) connection;
+                result.add(new ImmutableMap.Builder<String, String>()
+                        .put("user", conn.getClientState().getUser().getName())
+                        .put("keyspace", conn.getClientState().getRawKeyspace() == null ? "" : conn.getClientState().getRawKeyspace())
+                        .put("address", conn.getClientState().getRemoteAddress().toString())
+                        .put("version", String.valueOf(conn.getVersion().asInt()))
+                        .put("requests", String.valueOf(conn.requests.getCount()))
+                        .put("ssl", conn.channel().pipeline().get(SslHandler.class) == null ? "false" : "true")
+                        .build());
+            }
+        }
+        return result;
+    }
+
     private void close()
     {
         // Close opened connections
@@ -284,6 +313,22 @@ public class Server implements CassandraDaemon.Server
                - When server is stopped: the size is 0
             */
             return allChannels.size() != 0 ? allChannels.size() - 1 : 0;
+        }
+
+        public Map<String, Integer> getConnectedClientsByUser()
+        {
+            Map<String, Integer> result = new HashMap<>();
+            for(Channel c : allChannels)
+            {
+                Connection connection = c.attr(Connection.attributeKey).get();
+                if (connection instanceof ServerConnection)
+                {
+                    ServerConnection conn = (ServerConnection) connection;
+                    String name = conn.getClientState().getUser().getName();
+                    result.put(name, result.getOrDefault(name, 0) + 1);
+                }
+            }
+            return result;
         }
     }
 
