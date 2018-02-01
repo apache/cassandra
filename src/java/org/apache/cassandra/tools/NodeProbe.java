@@ -1493,6 +1493,32 @@ public class NodeProbe implements AutoCloseable
 
     /**
      * Retrieve Proxy metrics
+     * @param connectedNativeClients, connectedNativeClientsByUser
+     */
+    public Object getClientMetric(String metricName)
+    {
+        try
+        {
+            switch(metricName)
+            {
+                case "connections":
+                case "connectedNativeClients":
+                case "connectedNativeClientsByUser":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                            new ObjectName("org.apache.cassandra.metrics:type=Client,name=" + metricName),
+                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                default:
+                    throw new RuntimeException("Unknown compaction metric.");
+            }
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Retrieve Proxy metrics
      * @param metricName Exceptions, Load, TotalHints or TotalHintsInProgress.
      */
     public long getStorageMetric(String metricName)

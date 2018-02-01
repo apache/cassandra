@@ -59,6 +59,7 @@ public class NodeTool
                 TableHistograms.class,
                 Cleanup.class,
                 ClearSnapshot.class,
+                ClientStats.class,
                 Compact.class,
                 Scrub.class,
                 Verify.class,
