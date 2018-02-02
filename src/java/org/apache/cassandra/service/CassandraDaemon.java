@@ -631,11 +631,6 @@ public class CassandraDaemon
             nativeTransportService.stop();
     }
 
-    public NativeTransportService getNativeTransportService()
-    {
-        return nativeTransportService;
-    }
-
     public boolean isNativeTransportRunning()
     {
         return nativeTransportService != null ? nativeTransportService.isRunning() : false;

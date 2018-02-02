@@ -193,8 +193,8 @@ public class Server implements CassandraDaemon.Server
                         .put("user", conn.getClientState().getUser().getName())
                         .put("keyspace", conn.getClientState().getRawKeyspace() == null ? "" : conn.getClientState().getRawKeyspace())
                         .put("address", conn.getClientState().getRemoteAddress().toString())
-                        .put("version", ""+conn.getVersion().asInt())
-                        .put("requests", ""+conn.requests.getCount())
+                        .put("version", String.valueOf(conn.getVersion().asInt()))
+                        .put("requests", String.valueOf(conn.requests.getCount()))
                         .put("ssl", conn.channel().pipeline().get(SslHandler.class) == null ? "false" : "true")
                         .build());
             }
