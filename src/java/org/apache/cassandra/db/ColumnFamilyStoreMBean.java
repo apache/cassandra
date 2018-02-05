@@ -195,4 +195,8 @@ public interface ColumnFamilyStoreMBean
        Enable/Disable compaction space check
      */
     public void compactionDiskSpaceCheck(boolean enable);
+
+    public void setNeverPurgeTombstones(boolean value);
+
+    public boolean getNeverPurgeTombstones();
 }
