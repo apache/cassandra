@@ -34,9 +34,34 @@ public class Verify extends NodeToolCmd
     private List<String> args = new ArrayList<>();
 
     @Option(title = "extended_verify",
-        name = {"-e", "--extended-verify"},
-        description = "Verify each cell data, beyond simply checking sstable checksums")
+            name = {"-e", "--extended-verify"},
+            description = "Verify each cell data, beyond simply checking sstable checksums")
     private boolean extendedVerify = false;
+
+    @Option(title = "check_version",
+            name = {"-c", "--check-version"},
+            description = "Also check that all sstables are the latest version")
+    private boolean checkVersion = false;
+
+    @Option(title = "dfp",
+            name = {"-d", "--dfp"},
+            description = "Invoke the disk failure policy if a corrupt sstable is found")
+    private boolean diskFailurePolicy = false;
+
+    @Option(title = "repair_status_change",
+            name = {"-r", "--rsc"},
+            description = "Mutate the repair status on corrupt sstables")
+    private boolean mutateRepairStatus = false;
+
+    @Option(title = "check_owns_tokens",
+            name = {"-t", "--check-tokens"},
+            description = "Verify that all tokens in sstables are owned by this node")
+    private boolean checkOwnsTokens = false;
+
+    @Option(title = "quick",
+    name = {"-q", "--quick"},
+    description = "Do a quick check - avoid reading all data to verify checksums")
+    private boolean quick = false;
 
     @Override
     public void execute(NodeProbe probe)
@@ -44,11 +69,17 @@ public class Verify extends NodeToolCmd
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
 
+        if (checkOwnsTokens && !extendedVerify)
+        {
+            System.out.println("Token verification requires --extended-verify");
+            System.exit(1);
+        }
+
         for (String keyspace : keyspaces)
         {
             try
             {
-                probe.verify(System.out, extendedVerify, keyspace, tableNames);
+                probe.verify(System.out, extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspace, tableNames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during verifying", e);
