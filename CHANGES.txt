@@ -1,4 +1,5 @@
 3.0.16
+ * Use the correct digest file and reload sstable metadata in nodetool verify (CASSANDRA-14217)
  * Handle failure when mutating repaired status in Verifier (CASSANDRA-13933)
  * Close socket on error during connect on OutboundTcpConnection (CASSANDRA-9630)
  * Set encoding for javadoc generation (CASSANDRA-14154)
