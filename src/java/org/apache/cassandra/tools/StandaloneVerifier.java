@@ -43,6 +43,9 @@ public class StandaloneVerifier
     private static final String EXTENDED_OPTION = "extended";
     private static final String DEBUG_OPTION  = "debug";
     private static final String HELP_OPTION  = "help";
+    private static final String CHECK_VERSION = "check_version";
+    private static final String MUTATE_REPAIR_STATUS = "mutate_repair_status";
+    private static final String QUICK = "quick";
 
     public static void main(String args[])
     {
@@ -68,8 +71,6 @@ public class StandaloneVerifier
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
             Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
 
-            boolean extended = options.extended;
-
             List<SSTableReader> sstables = new ArrayList<>();
 
             // Verify sstables
@@ -92,15 +93,20 @@ public class StandaloneVerifier
                         e.printStackTrace(System.err);
                 }
             }
-
+            Verifier.Options verifyOptions = Verifier.options().invokeDiskFailurePolicy(false)
+                                                               .extendedVerification(options.extended)
+                                                               .checkVersion(options.checkVersion)
+                                                               .mutateRepairStatus(options.mutateRepairStatus)
+                                                               .checkOwnsTokens(false) // don't know the ranges when running offline
+                                                               .build();
             for (SSTableReader sstable : sstables)
             {
                 try
                 {
 
-                    try (Verifier verifier = new Verifier(cfs, sstable, handler, true))
+                    try (Verifier verifier = new Verifier(cfs, sstable, handler, true, verifyOptions))
                     {
-                        verifier.verify(extended);
+                        verifier.verify();
                     }
                     catch (CorruptSSTableException cs)
                     {
@@ -136,6 +142,9 @@ public class StandaloneVerifier
         public boolean debug;
         public boolean verbose;
         public boolean extended;
+        public boolean checkVersion;
+        public boolean mutateRepairStatus;
+        public boolean quick;
 
         private Options(String keyspaceName, String cfName)
         {
@@ -174,6 +183,9 @@ public class StandaloneVerifier
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.extended = cmd.hasOption(EXTENDED_OPTION);
+                opts.checkVersion = cmd.hasOption(CHECK_VERSION);
+                opts.mutateRepairStatus = cmd.hasOption(MUTATE_REPAIR_STATUS);
+                opts.quick = cmd.hasOption(QUICK);
 
                 return opts;
             }
@@ -198,6 +210,9 @@ public class StandaloneVerifier
             options.addOption("e",  EXTENDED_OPTION,       "extended verification");
             options.addOption("v",  VERBOSE_OPTION,        "verbose output");
             options.addOption("h",  HELP_OPTION,           "display this help message");
+            options.addOption("c",  CHECK_VERSION,         "make sure sstables are the latest version");
+            options.addOption("r",  MUTATE_REPAIR_STATUS,  "don't mutate repair status");
+            options.addOption("q",  QUICK,                 "do a quick check, don't read all data");
             return options;
         }
 

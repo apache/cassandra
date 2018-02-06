@@ -22,8 +22,11 @@ import com.google.common.base.Throwables;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -33,17 +36,25 @@ import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.DataIntegrityMetadata.FileDigestValidator;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.BloomFilterSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.UUIDGen;
 
+import java.io.BufferedInputStream;
 import java.io.Closeable;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.LongPredicate;
 import java.util.function.Predicate;
@@ -60,18 +71,20 @@ public class Verifier implements Closeable
     private final RandomAccessReader indexFile;
     private final VerifyInfo verifyInfo;
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
+    private final Options options;
+    private final boolean isOffline;
 
     private int goodRows;
 
     private final OutputHandler outputHandler;
     private FileDigestValidator validator;
 
-    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, boolean isOffline)
+    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, boolean isOffline, Options options)
     {
-        this(cfs, sstable, new OutputHandler.LogOutput(), isOffline);
+        this(cfs, sstable, new OutputHandler.LogOutput(), isOffline, options);
     }
 
-    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, OutputHandler outputHandler, boolean isOffline)
+    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, OutputHandler outputHandler, boolean isOffline, Options options)
     {
         this.cfs = cfs;
         this.sstable = sstable;
@@ -85,13 +98,24 @@ public class Verifier implements Closeable
                         : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
         this.indexFile = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)));
         this.verifyInfo = new VerifyInfo(dataFile, sstable);
+        this.options = options;
+        this.isOffline = isOffline;
     }
 
-    public void verify(boolean extended)
+    public void verify()
     {
+        boolean extended = options.extendedVerification;
         long rowStart = 0;
 
         outputHandler.output(String.format("Verifying %s (%s)", sstable, FBUtilities.prettyPrintMemory(dataFile.length())));
+        if (options.checkVersion && !sstable.descriptor.version.isLatestVersion())
+        {
+            String msg = String.format("%s is not the latest version, run upgradesstables", sstable);
+            outputHandler.output(msg);
+            // don't use markAndThrow here because we don't want a CorruptSSTableException for this.
+            throw new RuntimeException(msg);
+        }
+
         outputHandler.output(String.format("Deserializing sstable metadata for %s ", sstable));
         try
         {
@@ -108,6 +132,41 @@ public class Verifier implements Closeable
         }
         outputHandler.output(String.format("Checking computed hash of %s ", sstable));
 
+        try
+        {
+            deserializeIndex(sstable);
+        }
+        catch (Throwable t)
+        {
+            outputHandler.debug(t.getMessage());
+            markAndThrow();
+        }
+
+        try
+        {
+            deserializeIndexSummary(sstable);
+
+        }
+        catch (Throwable t)
+        {
+            outputHandler.output("Index summary is corrupt - if it is removed it will get rebuilt on startup "+sstable.descriptor.filenameFor(Component.SUMMARY));
+            outputHandler.debug(t.getMessage());
+            markAndThrow(false);
+        }
+
+        try
+        {
+            deserializeBloomFilter(sstable);
+
+        }
+        catch (Throwable t)
+        {
+            outputHandler.debug(t.getMessage());
+            markAndThrow();
+        }
+
+        if (options.quick)
+            return;
 
         // Verify will use the Digest files, which works for both compressed and uncompressed sstables
         try
@@ -150,6 +209,8 @@ public class Verifier implements Closeable
                     markAndThrow();
             }
 
+            List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(StorageService.instance.getLocalAndPendingRanges(cfs.metadata().keyspace));
+            int rangeIndex = -1;
             DecoratedKey prevKey = null;
 
             while (!dataFile.isEOF())
@@ -170,6 +231,16 @@ public class Verifier implements Closeable
                 {
                     throwIfFatal(th);
                     // check for null key below
+                }
+
+                if (options.checkOwnsTokens && ownedRanges.size() > 0)
+                {
+                    while (rangeIndex == -1 || !ownedRanges.get(rangeIndex).contains(key.getToken()))
+                    {
+                        rangeIndex++;
+                        if (rangeIndex > ownedRanges.size() - 1)
+                            throw new RuntimeException(String.format("Key %s in sstable %s not owned by local ranges %s", key, sstable, ownedRanges));
+                    }
                 }
 
                 ByteBuffer currentIndexKey = nextIndexKey;
@@ -236,6 +307,44 @@ public class Verifier implements Closeable
         outputHandler.output("Verify of " + sstable + " succeeded. All " + goodRows + " rows read successfully");
     }
 
+    private void deserializeIndex(SSTableReader sstable) throws IOException
+    {
+        try (RandomAccessReader primaryIndex = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX))))
+        {
+            long indexSize = primaryIndex.length();
+
+            while ((primaryIndex.getFilePointer()) != indexSize)
+            {
+                ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
+                RowIndexEntry.Serializer.skip(primaryIndex, sstable.descriptor.version);
+            }
+        }
+    }
+
+    private void deserializeIndexSummary(SSTableReader sstable) throws IOException
+    {
+        File file = new File(sstable.descriptor.filenameFor(Component.SUMMARY));
+        TableMetadata metadata = cfs.metadata();
+        try (DataInputStream iStream = new DataInputStream(Files.newInputStream(file.toPath())))
+        {
+            try (IndexSummary indexSummary = IndexSummary.serializer.deserialize(iStream,
+                                                               cfs.getPartitioner(),
+                                                               metadata.params.minIndexInterval,
+                                                               metadata.params.maxIndexInterval))
+            {
+                ByteBufferUtil.readWithLength(iStream);
+                ByteBufferUtil.readWithLength(iStream);
+            }
+        }
+    }
+
+    private void deserializeBloomFilter(SSTableReader sstable) throws IOException
+    {
+        try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(Paths.get(sstable.descriptor.filenameFor(Component.FILTER)))));
+             IFilter bf = BloomFilterSerializer.deserialize(stream, sstable.descriptor.version.hasOldBfFormat()))
+        {}
+    }
+
     public void close()
     {
         FileUtils.closeQuietly(dataFile);
@@ -255,7 +364,7 @@ public class Verifier implements Closeable
 
     private void markAndThrow(boolean mutateRepaired)
     {
-        if (mutateRepaired) // if we are able to mutate repaired flag, an incremental repair should be enough
+        if (mutateRepaired && options.mutateRepairStatus) // if we are able to mutate repaired flag, an incremental repair should be enough
         {
             try
             {
@@ -268,7 +377,11 @@ public class Verifier implements Closeable
                 outputHandler.output("Error mutating repairedAt for SSTable " +  sstable.getFilename() + ", as part of markAndThrow");
             }
         }
-        throw new CorruptSSTableException(new Exception(String.format("Invalid SSTable %s, please force %srepair", sstable.getFilename(), mutateRepaired ? "" : "a full ")), sstable.getFilename());
+        Exception e = new Exception(String.format("Invalid SSTable %s, please force %srepair", sstable.getFilename(), (mutateRepaired && options.mutateRepairStatus) ? "" : "a full "));
+        if (options.invokeDiskFailurePolicy)
+            throw new CorruptSSTableException(e, sstable.getFilename());
+        else
+            throw new RuntimeException(e);
     }
 
     public CompactionInfo.Holder getVerifyInfo()
@@ -317,6 +430,96 @@ public class Verifier implements Closeable
         public LongPredicate getPurgeEvaluator(DecoratedKey key)
         {
             return time -> false;
+        }
+    }
+
+    public static Options.Builder options()
+    {
+        return new Options.Builder();
+    }
+
+    public static class Options
+    {
+        public final boolean invokeDiskFailurePolicy;
+        public final boolean extendedVerification;
+        public final boolean checkVersion;
+        public final boolean mutateRepairStatus;
+        public final boolean checkOwnsTokens;
+        public final boolean quick;
+
+        private Options(boolean invokeDiskFailurePolicy, boolean extendedVerification, boolean checkVersion, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick)
+        {
+            this.invokeDiskFailurePolicy = invokeDiskFailurePolicy;
+            this.extendedVerification = extendedVerification;
+            this.checkVersion = checkVersion;
+            this.mutateRepairStatus = mutateRepairStatus;
+            this.checkOwnsTokens = checkOwnsTokens;
+            this.quick = quick;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Options{" +
+                   "invokeDiskFailurePolicy=" + invokeDiskFailurePolicy +
+                   ", extendedVerification=" + extendedVerification +
+                   ", checkVersion=" + checkVersion +
+                   ", mutateRepairStatus=" + mutateRepairStatus +
+                   ", checkOwnsTokens=" + checkOwnsTokens +
+                   ", quick=" + quick +
+                   '}';
+        }
+
+        public static class Builder
+        {
+            private boolean invokeDiskFailurePolicy = false; // invoking disk failure policy can stop the node if we find a corrupt stable
+            private boolean extendedVerification = false;
+            private boolean checkVersion = false;
+            private boolean mutateRepairStatus = false; // mutating repair status can be dangerous
+            private boolean checkOwnsTokens = false;
+            private boolean quick = false;
+
+            public Builder invokeDiskFailurePolicy(boolean param)
+            {
+                this.invokeDiskFailurePolicy = param;
+                return this;
+            }
+
+            public Builder extendedVerification(boolean param)
+            {
+                this.extendedVerification = param;
+                return this;
+            }
+
+            public Builder checkVersion(boolean param)
+            {
+                this.checkVersion = param;
+                return this;
+            }
+
+            public Builder mutateRepairStatus(boolean param)
+            {
+                this.mutateRepairStatus = param;
+                return this;
+            }
+
+            public Builder checkOwnsTokens(boolean param)
+            {
+                this.checkOwnsTokens = param;
+                return this;
+            }
+
+            public Builder quick(boolean param)
+            {
+                this.quick = param;
+                return this;
+            }
+
+            public Options build()
+            {
+                return new Options(invokeDiskFailurePolicy, extendedVerification, checkVersion, mutateRepairStatus, checkOwnsTokens, quick);
+            }
+
         }
     }
 }
