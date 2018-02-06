@@ -180,7 +180,7 @@ public class MessageIn<T>
      */
     public boolean isCrossNode()
     {
-        return !from.equals(DatabaseDescriptor.getBroadcastAddress());
+        return !from.address.equals(DatabaseDescriptor.getBroadcastAddress());
     }
 
     public Stage getMessageType()
