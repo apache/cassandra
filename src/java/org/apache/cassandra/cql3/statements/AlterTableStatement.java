@@ -221,9 +221,9 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
 
                     if (!Iterables.isEmpty(views))
-                        throw new InvalidRequestException(String.format("Cannot drop column %s on base table with materialized views.",
+                    throw new InvalidRequestException(String.format("Cannot drop column %s on base table %s with materialized views.",
                                                                         columnName.toString(),
-                                                                        keyspace()));
+                                                                        columnFamily()));
                 }
                 break;
             case OPTS:
