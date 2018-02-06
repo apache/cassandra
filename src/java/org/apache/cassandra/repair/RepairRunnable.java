@@ -745,7 +745,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
                     for (UntypedResultSet.Row r : result)
                     {
-                        if (source.equals(r.getInetAddress("source")))
+                        if (source.address.equals(r.getInetAddress("source")))
                             continue;
                         if ((uuid = r.getUUID("event_id")).timestamp() > (tcur - 1000) * 10000)
                             seen[si].add(uuid);
