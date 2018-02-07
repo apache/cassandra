@@ -255,7 +255,16 @@ public class Verifier implements Closeable
     private void markAndThrow(boolean mutateRepaired) throws IOException
     {
         if (mutateRepaired) // if we are able to mutate repaired flag, an incremental repair should be enough
-            sstable.descriptor.getMetadataSerializer().mutateRepairedAt(sstable.descriptor, ActiveRepairService.UNREPAIRED_SSTABLE);
+        {
+            try
+            {
+                sstable.descriptor.getMetadataSerializer().mutateRepairedAt(sstable.descriptor, ActiveRepairService.UNREPAIRED_SSTABLE);
+            }
+            catch(IOException ioe)
+            {
+                outputHandler.output("Error mutating repairedAt for SSTable " +  sstable.getFilename() + ", as part of markAndThrow");
+            }
+        }
         throw new CorruptSSTableException(new Exception(String.format("Invalid SSTable %s, please force %srepair", sstable.getFilename(), mutateRepaired ? "" : "a full ")), sstable.getFilename());
     }
 
