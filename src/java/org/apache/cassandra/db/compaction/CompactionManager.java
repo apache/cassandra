@@ -410,7 +410,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
 
             @Override
-            public void execute(LifecycleTransaction input) throws IOException
+            public void execute(LifecycleTransaction input)
             {
                 verifyOne(cfs, input.onlyOne(), extendedVerify);
             }
@@ -985,7 +985,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    private void verifyOne(ColumnFamilyStore cfs, SSTableReader sstable, boolean extendedVerify) throws IOException
+    private void verifyOne(ColumnFamilyStore cfs, SSTableReader sstable, boolean extendedVerify)
     {
         CompactionInfo.Holder verifyInfo = null;
 
