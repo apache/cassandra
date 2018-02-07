@@ -18,16 +18,12 @@
 */
 package org.apache.cassandra.security;
 
+import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
-import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.TrustManagerFactory;
 
-import com.google.common.base.Predicates;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -161,5 +157,37 @@ public class SSLFactoryTest
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
         SSLFactory.buildKeyManagerFactory(options);
         Assert.assertTrue(SSLFactory.checkedExpiry);
+    }
+
+    @Test
+    public void testSslContextReload_HappyPath() throws IOException, InterruptedException
+    {
+        try
+        {
+            EncryptionOptions options = addKeystoreOptions(encryptionOptions);
+            options.enabled = true;
+
+            SSLFactory.initHotReloading((ServerEncryptionOptions) options, options, true);
+
+            SslContext oldCtx = SSLFactory.getSslContext(options, true, true, OpenSsl.isAvailable());
+            File keystoreFile = new File(options.keystore);
+
+            SSLFactory.checkCertFilesForHotReloading();
+            Thread.sleep(5000);
+            keystoreFile.setLastModified(System.currentTimeMillis());
+
+            SSLFactory.checkCertFilesForHotReloading();
+            SslContext newCtx = SSLFactory.getSslContext(options, true, true, OpenSsl.isAvailable());
+
+            Assert.assertNotSame(oldCtx, newCtx);
+        }
+        catch (Exception e)
+        {
+            throw e;
+        }
+        finally
+        {
+            DatabaseDescriptor.loadConfig();
+        }
     }
 }

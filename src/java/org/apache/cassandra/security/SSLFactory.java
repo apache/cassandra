@@ -18,16 +18,20 @@
 package org.apache.cassandra.security;
 
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -37,6 +41,7 @@ import javax.net.ssl.TrustManagerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicates;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -49,7 +54,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
 import io.netty.handler.ssl.SupportedCipherSuiteFilter;
-import io.netty.util.ReferenceCountUtil;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.EncryptionOptions;
 
 /**
@@ -76,6 +81,67 @@ public final class SSLFactory
      * A cached reference of the {@link SslContext} for peer-to-peer, internode messaging connections.
      */
     private static final AtomicReference<SslContext> serverSslContext = new AtomicReference<>();
+
+    /**
+     * List of files that trigger hot reloading of SSL certificates
+     */
+    private static volatile List<HotReloadableFile> hotReloadableFiles = ImmutableList.of();
+
+    /**
+     * Default initial delay for hot reloading
+     */
+    public static final int DEFAULT_HOT_RELOAD_INITIAL_DELAY_SEC = 600;
+
+    /**
+     * Default periodic check delay for hot reloading
+     */
+    public static final int DEFAULT_HOT_RELOAD_PERIOD_SEC = 600;
+
+    /**
+     * State variable to maintain initialization invariant
+     */
+    private static boolean isHotReloadingInitialized = false;
+
+    /**
+     * Helper class for hot reloading SSL Contexts
+     */
+    private static class HotReloadableFile
+    {
+        enum Type
+        {
+            SERVER,
+            CLIENT
+        }
+
+        private final File file;
+        private volatile long lastModTime;
+        private final Type certType;
+
+        HotReloadableFile(String path, Type type)
+        {
+            file = new File(path);
+            lastModTime = file.lastModified();
+            certType = type;
+        }
+
+        boolean shouldReload()
+        {
+            long curModTime = file.lastModified();
+            boolean result = curModTime != lastModTime;
+            lastModTime = curModTime;
+            return result;
+        }
+
+        public boolean isServer()
+        {
+            return certType == Type.SERVER;
+        }
+
+        public boolean isClient()
+        {
+            return certType == Type.CLIENT;
+        }
+    }
 
     /**
      * Create a JSSE {@link SSLContext}.
@@ -176,10 +242,14 @@ public final class SSLFactory
     @VisibleForTesting
     static SslContext getSslContext(EncryptionOptions options, boolean buildTruststore, boolean forServer, boolean useOpenSsl) throws IOException
     {
-        if (forServer && serverSslContext.get() != null)
-            return serverSslContext.get();
-        if (!forServer && clientSslContext.get() != null)
-            return clientSslContext.get();
+
+        SslContext sslContext;
+
+        if (forServer && (sslContext = serverSslContext.get()) != null)
+            return sslContext;
+
+        if (!forServer && (sslContext = clientSslContext.get()) != null)
+            return sslContext;
 
         /*
             There is a case where the netty/openssl combo might not support using KeyManagerFactory. specifically,
@@ -219,7 +289,73 @@ public final class SSLFactory
         if (ref.compareAndSet(null, ctx))
             return ctx;
 
-        ReferenceCountUtil.release(ctx);
         return ref.get();
+    }
+
+    /**
+     * Performs a lightweight check whether the certificate files have been refreshed.
+     *
+     * @throws IllegalStateException if {@link #initHotReloading(EncryptionOptions.ServerEncryptionOptions, EncryptionOptions, boolean)}
+     * is not called first
+     */
+    public static void checkCertFilesForHotReloading()
+    {
+        if (!isHotReloadingInitialized)
+            throw new IllegalStateException("Hot reloading functionality has not been initialized.");
+
+        logger.trace("Checking whether certificates have been updated");
+
+        if (hotReloadableFiles.stream().anyMatch(f -> f.isServer() && f.shouldReload()))
+        {
+            logger.info("Server ssl certificates have been updated. Reseting the context for new peer connections.");
+            serverSslContext.set(null);
+        }
+
+        if (hotReloadableFiles.stream().anyMatch(f -> f.isClient() && f.shouldReload()))
+        {
+            logger.info("Client ssl certificates have been updated. Reseting the context for new client connections.");
+            clientSslContext.set(null);
+        }
+    }
+
+    /**
+     * Determines whether to hot reload certificates and schedules a periodic task for it.
+     *
+     * @param serverEncryptionOptions
+     * @param clientEncryptionOptions
+     */
+    public static synchronized void initHotReloading(EncryptionOptions.ServerEncryptionOptions serverEncryptionOptions,
+                                                     EncryptionOptions clientEncryptionOptions,
+                                                     boolean force)
+    {
+        if (isHotReloadingInitialized && !force)
+            return;
+
+        logger.debug("Initializing hot reloading SSLContext");
+
+        List<HotReloadableFile> fileList = new ArrayList<>();
+
+        if (serverEncryptionOptions.enabled)
+        {
+            fileList.add(new HotReloadableFile(serverEncryptionOptions.keystore, HotReloadableFile.Type.SERVER));
+            fileList.add(new HotReloadableFile(serverEncryptionOptions.truststore, HotReloadableFile.Type.SERVER));
+        }
+
+        if (clientEncryptionOptions.enabled)
+        {
+            fileList.add(new HotReloadableFile(clientEncryptionOptions.keystore, HotReloadableFile.Type.CLIENT));
+            fileList.add(new HotReloadableFile(clientEncryptionOptions.truststore, HotReloadableFile.Type.CLIENT));
+        }
+
+        hotReloadableFiles = ImmutableList.copyOf(fileList);
+
+        if (!isHotReloadingInitialized)
+        {
+            ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(SSLFactory::checkCertFilesForHotReloading,
+                                                                     DEFAULT_HOT_RELOAD_INITIAL_DELAY_SEC,
+                                                                     DEFAULT_HOT_RELOAD_PERIOD_SEC, TimeUnit.SECONDS);
+        }
+
+        isHotReloadingInitialized = true;
     }
 }

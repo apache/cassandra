@@ -56,6 +56,16 @@ for more details.
 For information on generating the keystore and truststore files used in SSL communications, see the
 `java documentation on creating keystores <http://download.oracle.com/javase/6/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore>`__
 
+SSL Certificate Hot Reloading
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Beginning with Cassandra 4, Cassandra supports hot reloading of SSL Certificates. If SSL/TLS support is enabled in Cassandra,
+the node periodically polls the Trust and Key Stores specified in cassandra.yaml. When the files are updated, Cassandra will
+reload them and use them for subsequent connections. Please note that the Trust & Key Store passwords are part of the yaml so
+the updated files should also use the same passwords. The default polling interval is 10 minutes.
+
+Certificate Hot reloading may also be triggered using the ``nodetool reloadssl`` command. Use this if you want to Cassandra to
+immediately notice the changed certificates.
+
 Inter-node Encryption
 ~~~~~~~~~~~~~~~~~~~~~
 
