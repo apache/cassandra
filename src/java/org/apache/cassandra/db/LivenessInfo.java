@@ -229,9 +229,9 @@ public class LivenessInfo
         return new LivenessInfo(newTimestamp);
     }
 
-    public LivenessInfo withUpdatedLocalDeletionTime(int newLocalDeletionTime)
+    public LivenessInfo withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
     {
-        return LivenessInfo.create(timestamp, ttl(), newLocalDeletionTime);
+        return LivenessInfo.create(newTimestamp, ttl(), newLocalDeletionTime);
     }
 
     @Override

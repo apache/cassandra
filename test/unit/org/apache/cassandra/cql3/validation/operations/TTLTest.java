@@ -167,8 +167,9 @@ public class TTLTest extends CQLTester
     @Test
     public void testRecoverOverflowedExpirationWithScrub() throws Throwable
     {
-        baseTestRecoverOverflowedExpiration(false);
-        baseTestRecoverOverflowedExpiration(true);
+        baseTestRecoverOverflowedExpiration(false, false);
+        baseTestRecoverOverflowedExpiration(true, false);
+        baseTestRecoverOverflowedExpiration(true, true);
     }
 
     public void testCapExpirationDateOverflowPolicy(ExpirationDateOverflowHandling.ExpirationDateOverflowPolicy policy) throws Throwable
@@ -238,16 +239,16 @@ public class TTLTest extends CQLTester
         }
     }
 
-    public void baseTestRecoverOverflowedExpiration(boolean runScrub) throws Throwable
+    public void baseTestRecoverOverflowedExpiration(boolean runScrub, boolean reinsertOverflowedTTL) throws Throwable
     {
         // simple column, clustering
-        testRecoverOverflowedExpirationWithScrub(true, true, runScrub);
+        testRecoverOverflowedExpirationWithScrub(true, true, runScrub, reinsertOverflowedTTL);
         // simple column, noclustering
-        testRecoverOverflowedExpirationWithScrub(true, false, runScrub);
+        testRecoverOverflowedExpirationWithScrub(true, false, runScrub, reinsertOverflowedTTL);
         // complex column, clustering
-        testRecoverOverflowedExpirationWithScrub(false, true, runScrub);
+        testRecoverOverflowedExpirationWithScrub(false, true, runScrub, reinsertOverflowedTTL);
         // complex column, noclustering
-        testRecoverOverflowedExpirationWithScrub(false, false, runScrub);
+        testRecoverOverflowedExpirationWithScrub(false, false, runScrub, reinsertOverflowedTTL);
     }
 
     private void createTable(boolean simple, boolean clustering)
@@ -311,8 +312,13 @@ public class TTLTest extends CQLTester
         return AbstractCell.MAX_DELETION_TIME - nowInSecs;
     }
 
-    public void testRecoverOverflowedExpirationWithScrub(boolean simple, boolean clustering, boolean runScrub) throws Throwable
+    public void testRecoverOverflowedExpirationWithScrub(boolean simple, boolean clustering, boolean runScrub, boolean reinsertOverflowedTTL) throws Throwable
     {
+        if (reinsertOverflowedTTL)
+        {
+            assert runScrub;
+        }
+
         createTable(simple, clustering);
 
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -326,7 +332,11 @@ public class TTLTest extends CQLTester
 
         if (runScrub)
         {
-            cfs.scrub(true, false, true, 1);
+            cfs.scrub(true, false, true, reinsertOverflowedTTL, 1);
+        }
+
+        if (reinsertOverflowedTTL)
+        {
             if (simple)
                 assertRows(execute("SELECT * from %s"), row(1, 1, 1), row(2, 2, null));
             else
