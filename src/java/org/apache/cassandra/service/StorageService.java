@@ -171,7 +171,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return getPrimaryRangeForEndpointWithinDC(keyspace, FBUtilities.getBroadcastAddressAndPort());
     }
 
-    private final Set<InetAddressAndPort> replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddressAndPort>());
+    private final Set<InetAddressAndPort> replicatingNodes = Sets.newConcurrentHashSet();
     private CassandraDaemon daemon;
 
     private InetAddressAndPort removingNode;
@@ -530,7 +530,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     value = entry.getValue().getApplicationState(ApplicationState.STATUS);
                 }
 
-                String[] pieces = splitValue(entry.getValue().getApplicationState(ApplicationState.STATUS));
+                String[] pieces = splitValue(value);
                 assert (pieces.length > 0);
                 String state = pieces[0];
                 if (state.equals(VersionedValue.STATUS_BOOTSTRAPPING) || state.equals(VersionedValue.STATUS_LEAVING) || state.equals(VersionedValue.STATUS_MOVING))
