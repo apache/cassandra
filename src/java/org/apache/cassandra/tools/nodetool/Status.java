@@ -116,7 +116,7 @@ public class Status extends NodeToolCmd
 
                 for (InetAddressAndPort endpoint : hostToTokens.keySet())
                 {
-                    Float owns = ownerships.get(endpoint);
+                    Float owns = ownerships.get(endpoint.toString());
                     List<HostStatWithPort> tokens = hostToTokens.get(endpoint);
                     printNodeWithPort(endpoint.toString(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
                 }

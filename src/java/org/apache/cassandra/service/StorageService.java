@@ -4766,8 +4766,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             InetAddressAndPort endpoint = tokenMetadata.getEndpoint(entry.getKey());
             Float tokenOwnership = entry.getValue();
-            if (nodeMap.containsKey(endpoint))
-                nodeMap.put(endpoint.address, nodeMap.get(endpoint) + tokenOwnership);
+            if (nodeMap.containsKey(endpoint.address))
+                nodeMap.put(endpoint.address, nodeMap.get(endpoint.address) + tokenOwnership);
             else
                 nodeMap.put(endpoint.address, tokenOwnership);
         }
@@ -4784,8 +4784,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             InetAddressAndPort endpoint = tokenMetadata.getEndpoint(entry.getKey());
             Float tokenOwnership = entry.getValue();
-            if (nodeMap.containsKey(endpoint))
-                nodeMap.put(endpoint.toString(), nodeMap.get(endpoint) + tokenOwnership);
+            if (nodeMap.containsKey(endpoint.toString()))
+                nodeMap.put(endpoint.toString(), nodeMap.get(endpoint.toString()) + tokenOwnership);
             else
                 nodeMap.put(endpoint.toString(), tokenOwnership);
         }
