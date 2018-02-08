@@ -425,7 +425,7 @@ public class ViewComplexTest extends CQLTester
     {
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
-        createTable("CREATE TABLE %s (k int, c int, a int, b int, l list<int>, s set<int>, m map<int,int>, PRIMARY KEY (k, c))");
+        String baseTableName = createTable("CREATE TABLE %s (k int, c int, a int, b int, l list<int>, s set<int>, m map<int,int>, PRIMARY KEY (k, c))");
         createView("mv",
                    "CREATE MATERIALIZED VIEW %s AS SELECT a, b FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (c, k)");
         Keyspace ks = Keyspace.open(keyspace());
@@ -461,7 +461,7 @@ public class ViewComplexTest extends CQLTester
         assertRowsIgnoringOrder(execute("SELECT k,c,a,b from %s"), row(1, 1, null, null));
         assertRowsIgnoringOrder(execute("SELECT * from mv"), row(1, 1, null, null));
 
-        assertInvalidMessage("Cannot drop column m on base table with materialized views", "ALTER TABLE %s DROP m");
+        assertInvalidMessage("Cannot drop column m on base table " + baseTableName + " with materialized views", "ALTER TABLE %s DROP m");
         // executeNet(protocolVersion, "ALTER TABLE %s DROP m");
         // ks.getColumnFamilyStore("mv").forceMajorCompaction();
         // assertRowsIgnoringOrder(execute("SELECT k,c,a,b from %s WHERE k = 1 AND c = 1"));
