@@ -569,7 +569,7 @@ Table of Contents
           (unique) keyspace name and table name the columns belong to.
         - <col_spec_i> specifies the columns returned in the query. There are
           <column_count> such column specifications that are composed of:
-            (<ksname><tablename>)?<name><type>
+            (<ksname><tablename>)?<column_name><type>
           The initial <ksname> and <tablename> are two [string] and are only present
           if the Global_tables_spec flag is not set. The <column_name> is a
           [string] and <type> is an [option] that corresponds to the description
@@ -593,6 +593,7 @@ Table of Contents
             0x0007    Double
             0x0008    Float
             0x0009    Int
+            0x000A    Text
             0x000B    Timestamp
             0x000C    Uuid
             0x000D    Varchar
