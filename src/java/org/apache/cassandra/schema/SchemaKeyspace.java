@@ -83,8 +83,7 @@ public final class SchemaKeyspace
      * The tables to which we added the cdc column. This is used in {@link #makeUpdateForSchema} below to make sure we skip that
      * column is cdc is disabled as the columns breaks pre-cdc to post-cdc upgrades (typically, 3.0 -> 3.X).
      */
-    private static final Set<String> TABLES_WITH_CDC_ADDED = ImmutableSet.of(SchemaKeyspaceTables.TABLES, SchemaKeyspaceTables.VIEWS);
-
+    private static final Set<String> TABLES_WITH_CDC_ADDED = ImmutableSet.of(TABLES, VIEWS, KEYSPACES);
     private static final TableMetadata Keyspaces =
         parse(KEYSPACES,
               "keyspace definitions",
@@ -92,6 +91,7 @@ public final class SchemaKeyspace
               + "keyspace_name text,"
               + "durable_writes boolean,"
               + "replication frozen<map<text, text>>,"
+              + "cdc_handler frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name)))");
 
     private static final TableMetadata Tables =
@@ -426,7 +426,7 @@ public final class SchemaKeyspace
         ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(partition.metadata(), false);
         for (ColumnMetadata column : filter.fetchedColumns())
         {
-            if (!column.name.toString().equals("cdc"))
+            if (!column.name.toString().equals("cdc") && !column.name.toString().equals("cdc_handler"))
                 builder.add(column);
         }
 
@@ -456,7 +456,8 @@ public final class SchemaKeyspace
         builder.update(Keyspaces)
                .row()
                .add(KeyspaceParams.Option.DURABLE_WRITES.toString(), params.durableWrites)
-               .add(KeyspaceParams.Option.REPLICATION.toString(), params.replication.asMap());
+               .add(KeyspaceParams.Option.REPLICATION.toString(), params.replication.asMap())
+               .add(KeyspaceParams.Option.CDC_HANDLER.toString(), params.cdcParams.asMap());
 
         return builder;
     }
@@ -875,7 +876,8 @@ public final class SchemaKeyspace
         UntypedResultSet.Row row = query(query, keyspaceName).one();
         boolean durableWrites = row.getBoolean(KeyspaceParams.Option.DURABLE_WRITES.toString());
         Map<String, String> replication = row.getFrozenTextMap(KeyspaceParams.Option.REPLICATION.toString());
-        return KeyspaceParams.create(durableWrites, replication);
+        Map<String, String> cdcHandler = row.getFrozenTextMap(KeyspaceParams.Option.CDC_HANDLER.toString());
+        return KeyspaceParams.create(durableWrites, replication, cdcHandler);
     }
 
     private static Types fetchTypes(String keyspaceName)

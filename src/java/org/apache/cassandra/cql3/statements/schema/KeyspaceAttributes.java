@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.CDCParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -55,6 +56,11 @@ public final class KeyspaceAttributes extends PropertyDefinitions
         return getAllReplicationOptions().get(ReplicationParams.CLASS);
     }
 
+    public String getCDCHandlerClass()
+    {
+        return getAllCDCHandlerOptions().get(CDCParams.Option.CLASS.toString());
+    }
+
     private Map<String, String> getAllReplicationOptions()
     {
         Map<String, String> replication = getMap(Option.REPLICATION.toString());
@@ -63,10 +69,25 @@ public final class KeyspaceAttributes extends PropertyDefinitions
              : replication;
     }
 
+    public Map<String, String> getCDCHandlerOptions()
+    {
+        Map<String, String> cdcHandlerOptions = new HashMap<>(getAllCDCHandlerOptions());
+        cdcHandlerOptions.remove(CDCParams.Option.CLASS.toString());
+        return cdcHandlerOptions;
+    }
+
+    public Map<String, String> getAllCDCHandlerOptions()
+    {
+        Map<String, String> cdcHandler = getMap(Option.CDC_HANDLER.toString());
+        return cdcHandler == null
+               ? Collections.emptyMap()
+               : cdcHandler;
+    }
+
     KeyspaceParams asNewKeyspaceParams()
     {
         boolean durableWrites = getBoolean(Option.DURABLE_WRITES.toString(), KeyspaceParams.DEFAULT_DURABLE_WRITES);
-        return KeyspaceParams.create(durableWrites, getAllReplicationOptions());
+        return KeyspaceParams.create(durableWrites, getAllReplicationOptions(), getAllCDCHandlerOptions());
     }
 
     KeyspaceParams asAlteredKeyspaceParams(KeyspaceParams previous)
@@ -76,7 +97,10 @@ public final class KeyspaceAttributes extends PropertyDefinitions
         ReplicationParams replication = getReplicationStrategyClass() == null
                                       ? previous.replication
                                       : ReplicationParams.fromMapWithDefaults(getAllReplicationOptions(), previousOptions);
-        return new KeyspaceParams(durableWrites, replication);
+        CDCParams cdcParams = getCDCHandlerClass() == null
+                              ? previous.cdcParams
+                              : CDCParams.fromMap(getAllCDCHandlerOptions());
+        return new KeyspaceParams(durableWrites, replication, cdcParams);
     }
 
     public boolean hasOption(Option option)

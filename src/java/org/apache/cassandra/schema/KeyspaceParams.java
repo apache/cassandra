@@ -43,7 +43,8 @@ public final class KeyspaceParams
     public enum Option
     {
         DURABLE_WRITES,
-        REPLICATION;
+        REPLICATION,
+        CDC_HANDLER;
 
         @Override
         public String toString()
@@ -54,16 +55,28 @@ public final class KeyspaceParams
 
     public final boolean durableWrites;
     public final ReplicationParams replication;
+    public final CDCParams cdcParams;
 
-    public KeyspaceParams(boolean durableWrites, ReplicationParams replication)
+    public KeyspaceParams(boolean durableWrites, ReplicationParams replication, CDCParams cdcParams)
     {
         this.durableWrites = durableWrites;
         this.replication = replication;
+        this.cdcParams = cdcParams;
+    }
+
+    public KeyspaceParams(boolean durableWrites, ReplicationParams replication)
+    {
+        this(durableWrites, replication, CDCParams.DEFAULT);
     }
 
     public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication)
     {
-        return new KeyspaceParams(durableWrites, ReplicationParams.fromMap(replication));
+        return create(durableWrites, replication, null);
+    }
+
+    public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication, Map<String, String> cdcParams)
+    {
+        return new KeyspaceParams(durableWrites, ReplicationParams.fromMap(replication), CDCParams.fromMap(cdcParams));
     }
 
     public static KeyspaceParams local()
@@ -107,7 +120,7 @@ public final class KeyspaceParams
 
         KeyspaceParams p = (KeyspaceParams) o;
 
-        return durableWrites == p.durableWrites && replication.equals(p.replication);
+        return durableWrites == p.durableWrites && replication.equals(p.replication) && cdcParams.equals(p.cdcParams);
     }
 
     @Override
@@ -122,6 +135,7 @@ public final class KeyspaceParams
         return MoreObjects.toStringHelper(this)
                           .add(Option.DURABLE_WRITES.toString(), durableWrites)
                           .add(Option.REPLICATION.toString(), replication)
+                          .add(Option.CDC_HANDLER.toString(), cdcParams)
                           .toString();
     }
 }

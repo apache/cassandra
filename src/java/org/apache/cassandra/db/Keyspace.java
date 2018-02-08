@@ -39,6 +39,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cdc.ICDCHandler;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
@@ -46,6 +47,7 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraKeyspaceRepairManager;
 import org.apache.cassandra.db.view.ViewManager;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -55,6 +57,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
+import org.apache.cassandra.schema.CDCParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
@@ -116,6 +119,8 @@ public class Keyspace
     private volatile ReplicationParams replicationParams;
     private final KeyspaceRepairManager repairManager;
     private final SchemaProvider schema;
+
+    private volatile ICDCHandler cdcHandler;
 
     private static volatile boolean initialized = false;
 
@@ -201,6 +206,7 @@ public class Keyspace
     {
         this.metadata = metadata;
         createReplicationStrategy(metadata);
+        createCDCHandler();
     }
 
     public KeyspaceMetadata getMetadata()
@@ -354,6 +360,7 @@ public class Keyspace
         if (metadata.isVirtual())
             throw new IllegalStateException("Cannot initialize Keyspace with virtual metadata " + keyspaceName);
         createReplicationStrategy(metadata);
+        createCDCHandler();
 
         this.metric = new KeyspaceMetrics(this);
         this.viewManager = new ViewManager(this);
@@ -373,6 +380,7 @@ public class Keyspace
         this.schema = Schema.instance;
         this.metadata = metadata;
         createReplicationStrategy(metadata);
+        createCDCHandler();
         this.metric = new KeyspaceMetrics(this);
         this.viewManager = new ViewManager(this);
         this.repairManager = new CassandraKeyspaceRepairManager(this);
@@ -399,6 +407,35 @@ public class Keyspace
             columnFamilyStores.values().forEach(ColumnFamilyStore::invalidateLocalRanges);
         }
         replicationParams = ksm.params.replication;
+    }
+
+    private void createCDCHandler()
+    {
+        CDCParams params = metadata.params.cdcParams;
+        if (!DatabaseDescriptor.isCDCEnabled() ||
+            params.isNoOpsHandler())
+        {
+            return;
+        }
+
+        try
+        {
+            cdcHandler = params.klass().newInstance();
+        }
+        catch (InstantiationException | IllegalAccessException e)
+        {
+            logger.error("Cannot create cdc handler", e);
+        }
+
+        try
+        {
+            cdcHandler.initialize(params.options());
+        }
+        catch (ConfigurationException e)
+        {
+            logger.error("Initialize cdc handler failed", e);
+            cdcHandler = null;
+        }
     }
 
     // best invoked on the compaction manager.
@@ -694,6 +731,11 @@ public class Keyspace
     public AbstractReplicationStrategy getReplicationStrategy()
     {
         return replicationStrategy;
+    }
+
+    public ICDCHandler getCDCHandler()
+    {
+        return cdcHandler;
     }
 
     public List<Future<?>> flush(ColumnFamilyStore.FlushReason reason)

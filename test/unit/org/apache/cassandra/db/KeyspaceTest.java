@@ -24,6 +24,9 @@ import java.util.*;
 import org.apache.cassandra.schema.Schema;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
@@ -40,6 +43,7 @@ import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.lang.String.format;
 import static org.junit.Assert.*;
 
 public class KeyspaceTest extends CQLTester
@@ -87,6 +91,74 @@ public class KeyspaceTest extends CQLTester
             if (round == 0)
                 Util.flush(cfs);
         }
+    }
+
+    @Test
+    public void testCreateCDCKeyspace() throws Throwable
+    {
+        String handlerClass = TestCDCHandler.class.getName();
+        String keyspace = "test_create_cdc_keyspace1";
+        schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", keyspace));
+        assertRows(execute(format("select cdc_handler from %s.%s where keyspace_name = ?",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.KEYSPACES),
+                           keyspace),
+                   row(ImmutableMap.of()));
+
+        schemaChange(String.format("ALTER KEYSPACE %s WITH cdc_handler = {'class': '%s'}", keyspace, handlerClass));
+        assertRows(execute(format("select cdc_handler from %s.%s where keyspace_name = ?",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.KEYSPACES),
+                           keyspace),
+                   row(ImmutableMap.of("class", handlerClass)));
+
+        keyspace = "test_create_cdc_keyspace2";
+
+        schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'} and cdc_handler = {'class': '%s'}", keyspace, handlerClass));
+        assertRows(execute(format("select cdc_handler from %s.%s where keyspace_name = ?",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.KEYSPACES),
+                           keyspace),
+                   row(ImmutableMap.of("class", handlerClass)));
+
+        schemaChange(String.format("ALTER KEYSPACE %s WITH cdc_handler = {'class': ''}", keyspace));
+        assertRows(execute(format("select cdc_handler from %s.%s where keyspace_name = ?",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.KEYSPACES),
+                           keyspace),
+                   row(ImmutableMap.of()));
+
+        keyspace = "test_create_cdc_keyspace3";
+        schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'} and cdc_handler = {'class': '%s', 'option1': 'test1', 'option2': 'test2'}", keyspace, handlerClass));
+        assertRows(execute(format("select cdc_handler from %s.%s where keyspace_name = ?",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.KEYSPACES),
+                           keyspace),
+                   row(ImmutableMap.of("class", handlerClass,
+                                       "option1", "test1",
+                                       "option2", "test2")));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testCreateInvalidCDCKeyspace() throws Throwable
+    {
+        String keyspace = "test_create_invalid_cdc_keyspace";
+        schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'} AND cdc_handler = {'class': 'invalid'}", keyspace));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testAlterInvalidCDCKeyspace() throws Throwable
+    {
+        String keyspace = "test_alter_invalid_cdc_keyspace";
+        schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", keyspace));
+
+        assertRows(execute(format("select cdc_handler from %s.%s where keyspace_name = ?",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.KEYSPACES),
+                           keyspace),
+                   row(ImmutableMap.of()));
+
+        schemaChange(String.format("ALTER KEYSPACE %s WITH cdc_handler = {'class': 'invalid'}", keyspace));
     }
 
     @Test

@@ -35,7 +35,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.schema.CDCParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
 import org.apache.cassandra.schema.Keyspaces;
@@ -79,6 +81,9 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
         if (keyspace.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
+
+        if (keyspace.params.cdcParams.isUnknownHandler())
+            throw new ConfigurationException("Unknown handler " + keyspace.params.cdcParams.options().get(CDCParams.Option.CLASS.toString()));
 
         keyspace.params.validate(keyspaceName, state);
         return schema.withAddedOrUpdated(keyspace);

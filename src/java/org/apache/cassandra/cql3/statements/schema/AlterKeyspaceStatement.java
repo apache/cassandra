@@ -37,8 +37,10 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.ReplicationFactor;
+import org.apache.cassandra.schema.CDCParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -80,6 +82,13 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
         newKeyspace.params.validate(keyspaceName, state);
+
+        if (attrs.getCDCHandlerClass() != null)
+        {
+            KeyspaceParams params = attrs.asAlteredKeyspaceParams(keyspace.params);
+            if (params.cdcParams.isUnknownHandler())
+                throw new ConfigurationException("Unknown handler " + params.cdcParams.options().get(CDCParams.Option.CLASS.toString()));
+        }
 
         validateNoRangeMovements();
         validateTransientReplication(keyspace.createReplicationStrategy(), newKeyspace.createReplicationStrategy());

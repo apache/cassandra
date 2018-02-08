@@ -38,6 +38,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -52,12 +53,15 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
+import static junit.framework.TestCase.assertFalse;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -247,5 +251,103 @@ public class SchemaKeyspaceTest
         String query = String.format("DELETE FROM %s.%s WHERE keyspace_name=? and table_name=?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.COLUMNS);
         executeOnceInternal(query, testKS, testTable);
         SchemaKeyspace.fetchNonSystemKeyspaces();
+    }
+
+    private static boolean hasCDCColumn(Mutation m)
+    {
+        for (PartitionUpdate p : m.getPartitionUpdates())
+        {
+            for (ColumnMetadata cd : p.columns())
+            {
+                if (cd.name.toString().equals("cdc"))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasCDCHandlerColumn(Mutation m)
+    {
+        for (PartitionUpdate p : m.getPartitionUpdates())
+        {
+            for (ColumnMetadata cd : p.columns())
+            {
+                if (cd.name.toString().equals("cdc_handler"))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasSchemaTables(Mutation m)
+    {
+        for (PartitionUpdate p : m.getPartitionUpdates())
+        {
+            if (p.metadata().name.equals(SchemaKeyspaceTables.TABLES))
+                return true;
+        }
+        return false;
+    }
+
+    @Test
+    public void testConvertSchemaToMutationsWithoutCDC() throws IOException
+    {
+        boolean oldCDCOption = DatabaseDescriptor.isCDCEnabled();
+        try
+        {
+            DatabaseDescriptor.setCDCEnabled(false);
+            Collection<Mutation> mutations = SchemaKeyspace.convertSchemaToMutations();
+            boolean foundTables = false;
+            for (Mutation m : mutations)
+            {
+                if (hasSchemaTables(m))
+                {
+                    foundTables = true;
+                    assertFalse(hasCDCColumn(m));
+                    assertFalse(hasCDCHandlerColumn(m));
+                    try (DataOutputBuffer output = new DataOutputBuffer())
+                    {
+                        Mutation.serializer.serialize(m, output, MessagingService.current_version);
+                        try (DataInputBuffer input = new DataInputBuffer(output.getData()))
+                        {
+                            Mutation out = Mutation.serializer.deserialize(input, MessagingService.current_version);
+                            assertFalse(hasCDCColumn(out));
+                            assertFalse(hasCDCHandlerColumn(out));
+                        }
+                    }
+                }
+            }
+            assertTrue(foundTables);
+        }
+        finally
+        {
+            DatabaseDescriptor.setCDCEnabled(oldCDCOption);
+        }
+    }
+
+    @Test
+    public void testConvertSchemaToMutationsWithCDC()
+    {
+        boolean oldCDCOption = DatabaseDescriptor.isCDCEnabled();
+        try
+        {
+            DatabaseDescriptor.setCDCEnabled(true);
+            Collection<Mutation> mutations = SchemaKeyspace.convertSchemaToMutations();
+            boolean foundTables = false;
+            for (Mutation m : mutations)
+            {
+                if (hasSchemaTables(m))
+                {
+                    foundTables = true;
+                    assertTrue(hasCDCColumn(m));
+                    assertTrue(hasCDCHandlerColumn(m));
+                }
+            }
+            assertTrue(foundTables);
+        }
+        finally
+        {
+            DatabaseDescriptor.setCDCEnabled(oldCDCOption);
+        }
     }
 }
