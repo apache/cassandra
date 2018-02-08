@@ -125,7 +125,7 @@ public class TableMetrics
     public final Gauge<Double> keyCacheHitRate;
     /** Tombstones scanned in queries on this CF */
     public final TableHistogram tombstoneScannedHistogram;
-    /** Live cells scanned in queries on this CF */
+    /** Live rows scanned in queries on this CF */
     public final TableHistogram liveScannedHistogram;
     /** Column update time delta on this CF */
     public final TableHistogram colUpdateTimeDeltaHistogram;
