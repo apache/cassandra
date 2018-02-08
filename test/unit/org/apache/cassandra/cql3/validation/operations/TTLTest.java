@@ -291,14 +291,15 @@ public class TTLTest extends CQLTester
     private void checkTTLIsCapped(String field) throws Throwable
     {
 
-        // Since the max TTL is dynamic, we compute it before and after the query to avoid flakiness
-        int minTTL = computeMaxTTL();
+        // TTL is computed dynamically from row expiration time, so if it is
+        // equal or higher to the minimum max TTL we compute before the query
+        // we are fine.
+        int minMaxTTL = computeMaxTTL();
         UntypedResultSet execute = execute("SELECT ttl(" + field + ") FROM %s WHERE k = 1");
-        int maxTTL = computeMaxTTL();
         for (UntypedResultSet.Row row : execute)
         {
             int ttl = row.getInt("ttl(" + field + ")");
-            assertTrue(minTTL >= ttl &&  ttl <= maxTTL);
+            assertTrue(ttl >= minMaxTTL);
         }
     }
 
