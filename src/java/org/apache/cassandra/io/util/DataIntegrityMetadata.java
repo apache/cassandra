@@ -100,7 +100,7 @@ public class DataIntegrityMetadata
         {
             this.descriptor = descriptor;
             checksum = descriptor.version.uncompressedChecksumType().newInstance();
-            digestReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.digestFor(descriptor.version.uncompressedChecksumType()))));
+            digestReader = RandomAccessReader.open(new File(descriptor.filenameFor(descriptor.digestComponent)));
             dataReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.DATA)));
             try
             {

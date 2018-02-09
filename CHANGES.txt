@@ -20,8 +20,8 @@
  * Update jackson JSON jars (CASSANDRA-13949)
  * Avoid locks when checking LCS fanout and if we should defrag (CASSANDRA-13930)
  * Correctly count range tombstones in traces and tombstone thresholds (CASSANDRA-8527)
-
 Merged from 3.0:
+ * Use the correct digest file and reload sstable metadata in nodetool verify (CASSANDRA-14217)
  * Handle failure when mutating repaired status in Verifier (CASSANDRA-13933)
  * Set encoding for javadoc generation (CASSANDRA-14154)
  * Fix index target computation for dense composite tables with dropped compact storage (CASSANDRA-14104)
