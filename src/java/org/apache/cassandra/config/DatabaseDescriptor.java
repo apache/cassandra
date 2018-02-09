@@ -1725,6 +1725,12 @@ public class DatabaseDescriptor
         broadcastAddress = broadcastAdd;
     }
 
+    /**
+     * This is the address used to bind for the native protocol to communicate with clients. Most usages in the code
+     * refer to it as native address although some places still call it RPC address. It's not thrift RPC anymore
+     * so native is more appropriate. The address alone is not enough to uniquely identify this instance because
+     * multiple instances might use the same interface with different ports.
+     */
     public static InetAddress getRpcAddress()
     {
         return rpcAddress;
@@ -1736,7 +1742,12 @@ public class DatabaseDescriptor
     }
 
     /**
-     * May be null, please use {@link FBUtilities#getBroadcastRpcAddress()} instead.
+     * This is the address used to reach this instance for the native protocol to communicate with clients. Most usages in the code
+     * refer to it as native address although some places still call it RPC address. It's not thrift RPC anymore
+     * so native is more appropriate. The address alone is not enough to uniquely identify this instance because
+     * multiple instances might use the same interface with different ports.
+     *
+     * May be null, please use {@link FBUtilities#getBroadcastNativeAddressAndPort()} instead.
      */
     public static InetAddress getBroadcastRpcAddress()
     {
@@ -1763,6 +1774,10 @@ public class DatabaseDescriptor
         return conf.start_native_transport;
     }
 
+    /**
+     *  This is the port used with RPC address for the native protocol to communicate with clients. Now that thrift RPC
+     *  is no longer in use there is no RPC port.
+     */
     public static int getNativeTransportPort()
     {
         return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "native_transport_port", Integer.toString(conf.native_transport_port)));

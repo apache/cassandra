@@ -18,18 +18,30 @@
 package org.apache.cassandra.utils;
 
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import com.google.common.primitives.Ints;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * The goods are here: www.ietf.org/rfc/rfc4122.txt.
@@ -361,7 +373,7 @@ public class UUIDGen
         * instanciation and the UUID generator is used in Stress for instance,
         * where we don't want to require the yaml.
         */
-        Collection<InetAddress> localAddresses = FBUtilities.getAllLocalAddresses();
+        Collection<InetAddressAndPort> localAddresses = getAllLocalAddresses();
         if (localAddresses.isEmpty())
             throw new RuntimeException("Cannot generate the node component of the UUID because cannot retrieve any IP addresses.");
 
@@ -377,12 +389,15 @@ public class UUIDGen
         return node | 0x0000010000000000L;
     }
 
-    private static byte[] hash(Collection<InetAddress> data)
+    private static byte[] hash(Collection<InetAddressAndPort> data)
     {
         // Identify the host.
         Hasher hasher = Hashing.md5().newHasher();
-        for(InetAddress addr : data)
-            hasher.putBytes(addr.getAddress());
+        for(InetAddressAndPort addr : data)
+        {
+            hasher.putBytes(addr.addressBytes);
+            hasher.putInt(addr.port);
+        }
 
         // Identify the process on the load: we use both the PID and class loader hash.
         long pid = NativeLibrary.getProcessID();
@@ -396,6 +411,41 @@ public class UUIDGen
 
         return hasher.hash().asBytes();
     }
+
+    /**
+     * Helper function used exclusively by UUIDGen to create
+     **/
+    public static Collection<InetAddressAndPort> getAllLocalAddresses()
+    {
+        Set<InetAddressAndPort> localAddresses = new HashSet<>();
+        try
+        {
+            Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
+            if (nets != null)
+            {
+                while (nets.hasMoreElements())
+                {
+                    Function<InetAddress, InetAddressAndPort> converter =
+                    address -> InetAddressAndPort.getByAddressOverrideDefaults(address, 0);
+                    List<InetAddressAndPort> addresses =
+                    Collections.list(nets.nextElement().getInetAddresses()).stream().map(converter).collect(Collectors.toList());
+                    localAddresses.addAll(addresses);
+                }
+            }
+        }
+        catch (SocketException e)
+        {
+            throw new AssertionError(e);
+        }
+        if (DatabaseDescriptor.isDaemonInitialized())
+        {
+            localAddresses.add(FBUtilities.getBroadcastAddressAndPort());
+            localAddresses.add(FBUtilities.getBroadcastNativeAddressAndPort());
+            localAddresses.add(FBUtilities.getLocalAddressAndPort());
+        }
+        return localAddresses;
+    }
+
 }
 
 // for the curious, here is how I generated START_EPOCH

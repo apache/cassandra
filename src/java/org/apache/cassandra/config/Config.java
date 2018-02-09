@@ -128,6 +128,13 @@ public class Config
     public boolean listen_on_broadcast_address = false;
     public String internode_authenticator;
 
+    /*
+     * RPC address and interface refer to the address/interface used for the native protocol used to communicate with
+     * clients. It's still called RPC in some places even though Thrift RPC is gone. If you see references to native
+     * address or native port it's derived from the RPC address configuration.
+     *
+     * native_transport_port is the port that is paired with RPC address to bind on.
+     */
     public String rpc_address;
     public String rpc_interface;
     public boolean rpc_interface_prefer_ipv6 = false;

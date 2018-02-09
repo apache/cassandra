@@ -96,7 +96,8 @@ public class FBUtilities
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
 
     /**
-     * Please use getJustBroadcastAddress instead. You need this only when you have to listen/connect.
+     * Please use getJustBroadcastAddress instead. You need this only when you have to listen/connect. It's also missing
+     * the port you should be using. 99% of code doesn't want this.
      */
     public static InetAddress getJustLocalAddress()
     {
@@ -114,6 +115,10 @@ public class FBUtilities
         return localInetAddress;
     }
 
+    /**
+     * The address and port to listen on for intra-cluster storage traffic (not client). Use this to get the correct
+     * stuff to listen on for intra-cluster communication.
+     */
     public static InetAddressAndPort getLocalAddressAndPort()
     {
         if (localInetAddressAndPort == null)
@@ -123,6 +128,10 @@ public class FBUtilities
         return localInetAddressAndPort;
     }
 
+    /**
+     * Retrieve just the broadcast address but not the port. This is almost always the wrong thing to be using because
+     * it's ambiguous since you need the address and port to identify a node. You want getBroadcastAddressAndPort
+     */
     public static InetAddress getJustBroadcastAddress()
     {
         if (broadcastInetAddress == null)
@@ -132,6 +141,11 @@ public class FBUtilities
         return broadcastInetAddress;
     }
 
+    /**
+     * Get the broadcast address and port for intra-cluster storage traffic. This the address to advertise that uniquely
+     * identifies the node and is reachable from everywhere. This is the one you want unless you are trying to connect
+     * to the local address specifically.
+     */
     public static InetAddressAndPort getBroadcastAddressAndPort()
     {
         if (broadcastInetAddressAndPort == null)
@@ -150,6 +164,10 @@ public class FBUtilities
         broadcastInetAddressAndPort = InetAddressAndPort.getByAddress(broadcastInetAddress);
     }
 
+    /**
+     * This returns the address that is bound to for the native protocol for communicating with clients. This is ambiguous
+     * because it doesn't include the port and it's almost always the wrong thing to be using you want getBroadcastNativeAddressAndPort
+     */
     public static InetAddress getJustBroadcastNativeAddress()
     {
         if (broadcastNativeAddress == null)
@@ -159,31 +177,16 @@ public class FBUtilities
         return broadcastNativeAddress;
     }
 
+    /**
+     * This returns the address that is bound to for the native protocol for communicating with clients. This is almost
+     * always what you need to identify a node and how to connect to it as a client.
+     */
     public static InetAddressAndPort getBroadcastNativeAddressAndPort()
     {
         if (broadcastNativeAddressAndPort == null)
             broadcastNativeAddressAndPort = InetAddressAndPort.getByAddressOverrideDefaults(getJustBroadcastNativeAddress(),
                                                                                              DatabaseDescriptor.getNativeTransportPort());
         return broadcastNativeAddressAndPort;
-    }
-
-    public static Collection<InetAddress> getAllLocalAddresses()
-    {
-        Set<InetAddress> localAddresses = new HashSet<InetAddress>();
-        try
-        {
-            Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
-            if (nets != null)
-            {
-                while (nets.hasMoreElements())
-                    localAddresses.addAll(Collections.list(nets.nextElement().getInetAddresses()));
-            }
-        }
-        catch (SocketException e)
-        {
-            throw new AssertionError(e);
-        }
-        return localAddresses;
     }
 
     public static String getNetworkInterface(InetAddress localAddress)
