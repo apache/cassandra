@@ -1,0 +1,81 @@
+CASSANDRA-14092: MAXIMUM TTL EXPIRATION DATE
+---------------------------------------------
+
+The maximum expiration timestamp that can be represented by the storage engine is
+2038-01-19T03:14:06+00:00, which means that INSERTS using TTL that would expire
+after this date are not currently supported.
+
+# Expiration Date Overflow Policy
+
+We plan to lift this limitation in newer versions, but while the fix is not available,
+operators can decide which policy to apply when dealing with inserts with TTL exceeding
+the maximum supported expiration date:
+  -     REJECT: this is the default policy and will reject any requests with expiration
+                date timestamp after 2038-01-19T03:14:06+00:00.
+  -        CAP: any insert with TTL expiring after 2038-01-19T03:14:06+00:00 will expire on
+                2038-01-19T03:14:06+00:00 and the client will receive a warning.
+  - CAP_NOWARN: same as previous, except that the client warning will not be emitted.
+
+These policies may be specified via the -Dcassandra.expiration_date_overflow_policy=POLICY
+startup option in the jvm.options configuration file.
+
+# Potential data loss on earlier versions
+
+Prior to 3.0.16 (3.0.X) and 3.11.2 (3.11.x), there was no protection against
+INSERTS with TTL expiring after the maximum supported date, causing the expiration
+time field to overflow and the records to expire immediately. Expired records due
+to overflow will not be queryable and will be permanently removed after a compaction.
+
+2.1.X, 2.2.X and earlier series are not subject to this bug when assertions are enabled
+since an AssertionError is thrown during INSERT when the expiration time field overflows
+on these versions. When assertions are disabled then it is possible to INSERT entries
+with overflowed local expiration time and even the earlier versions are subject to data
+loss due to this bug.
+
+This issue only affected INSERTs with very large TTLs, close to the maximum allowed value
+of 630720000 seconds (20 years), starting from 2018-01-19T03:14:06+00:00. As time progresses,
+the maximum supported TTL will be gradually reduced as the maximum expiration date approaches.
+For instance, a user on an affected version on 2028-01-19T03:14:06 with a TTL of 10 years
+will be affected by this bug, so we urge users of very large TTLs to upgrade to a version
+where this issue is addressed as soon as possible.
+
+# Data Recovery
+
+SSTables from Cassandra versions prior to 2.1.20/2.2.12/3.0.16/3.11.2 containing entries
+with overflowed expiration time that were backed up or did not go through compaction can
+be recovered by reinserting overflowed entries with a valid expiration time and a higher
+timestamp, since tombstones may have been generated with the original timestamp.
+
+To find out if an SSTable has an entry with overflowed expiration, inspect it with the
+'sstablemetadata' tool and look for a negative "Minimum local deletion time" field. SSTables
+in this condition should be backed up immediately, as they are subject to data loss during
+compaction.
+
+A "--reinsert-overflowed-ttl" option was added to scrub to rewrite SSTables containing
+rows with overflowed expiration time with the maximum expiration date of
+2038-01-19T03:14:06+00:00 and the original timestamp + 1 (ms). Two methods are offered
+for recovery of SSTables via scrub:
+
+- Offline scrub:
+   - Clone the data directory tree to another location, keeping only the folders and the
+     contents of the system tables.
+   - Clone the configuration directory to another location, setting the data_file_directories
+     property to the cloned data directory in the cloned cassandra.yaml.
+   - Copy the affected SSTables to the cloned data location of the affected table.
+   - Set the environment variable CASSANDRA_CONF=<cloned configuration directory>.
+   - Execute "sstablescrub --reinsert-overflowed-ttl <keyspace> <table>".
+         WARNING: not specifying --reinsert-overflowed-ttl is equivalent to a single-sstable
+         compaction, so the data with overflowed will be removed - make sure to back up
+         your SSTables before running scrub.
+   - Once the scrub is completed, copy the resulting SSTables to the original data directory.
+   - Execute "nodetool refresh" in a live node to load the recovered SSTables.
+
+- Online scrub:
+   - Disable compaction on the node with "nodetool disableautocompaction" - this step is crucial
+     as otherwise, the data may be removed permanently during compaction.
+   - Copy the SSTables containing entries with overflowed expiration time to the data directory.
+   - run "nodetool refresh" to load the SSTables.
+   - run "nodetool scrub --reinsert-overflowed-ttl <keyspace> <table>".
+   - Re-enable compactions after verifying that scrub recovered the missing entries.
+
+See https://issues.apache.org/jira/browse/CASSANDRA-14092 for more details about this issue.
