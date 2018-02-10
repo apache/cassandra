@@ -38,6 +38,8 @@ public interface Cell extends OnDiskAtom
 
     public Cell withUpdatedTimestamp(long newTimestamp);
 
+    public Cell withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime);
+
     @Override
     public CellName name();
 

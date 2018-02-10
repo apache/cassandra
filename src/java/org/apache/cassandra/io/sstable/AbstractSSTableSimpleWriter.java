@@ -28,9 +28,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -161,7 +163,20 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
      */
     public void addExpiringColumn(ByteBuffer name, ByteBuffer value, long timestamp, int ttl, long expirationTimestampMS) throws IOException
     {
-        addColumn(new BufferExpiringCell(metadata.comparator.cellFromByteBuffer(name), value, timestamp, ttl, (int)(expirationTimestampMS / 1000)));
+        int localExpirationTime = (int) (expirationTimestampMS / 1000);
+        try
+        {
+            // This will throw exception if policy is REJECT and now() + ttl is higher than MAX_DELETION_TIME
+            Attributes.maybeApplyExpirationDateOverflowPolicy(metadata, ttl, false);
+            // If exception was not thrown, this means the policy was CAP, so we check for overflow and cap if that's the case
+            if (localExpirationTime < 0)
+                localExpirationTime = BufferExpiringCell.MAX_DELETION_TIME;
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e);
+        }
+        addColumn(new BufferExpiringCell(metadata.comparator.cellFromByteBuffer(name), value, timestamp, ttl, localExpirationTime));
     }
 
     /**

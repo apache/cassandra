@@ -26,6 +26,7 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.StandaloneScrubber;
 
 @Command(name = "scrub", description = "Scrub (rebuild sstables for) one or more tables")
 public class Scrub extends NodeToolCmd
@@ -53,6 +54,11 @@ public class Scrub extends NodeToolCmd
             description = "Number of sstables to scrub simultanously, set to 0 to use all available compaction threads")
     private int jobs = 2;
 
+    @Option(title = "reinsert_overflowed_ttl",
+    name = {"r", "--reinsert-overflowed-ttl"},
+    description = StandaloneScrubber.REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION)
+    private boolean reinsertOverflowedTTL = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -63,7 +69,7 @@ public class Scrub extends NodeToolCmd
         {
             try
             {
-                probe.scrub(System.out, disableSnapshot, skipCorrupted, !noValidation, jobs, keyspace, cfnames);
+                probe.scrub(System.out, disableSnapshot, skipCorrupted, !noValidation, reinsertOverflowedTTL, jobs, keyspace, cfnames);
             } catch (IllegalArgumentException e)
             {
                 throw e;

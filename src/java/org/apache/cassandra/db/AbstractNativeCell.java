@@ -579,6 +579,12 @@ public abstract class AbstractNativeCell extends AbstractCell implements CellNam
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public Cell withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     protected long internalSize()
     {
         return MemoryUtil.getInt(peer);

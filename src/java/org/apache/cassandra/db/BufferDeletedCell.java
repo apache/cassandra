@@ -54,6 +54,12 @@ public class BufferDeletedCell extends BufferCell implements DeletedCell
     }
 
     @Override
+    public Cell withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public boolean isLive()
     {
         return false;
