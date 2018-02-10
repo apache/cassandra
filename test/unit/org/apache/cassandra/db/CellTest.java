@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -153,9 +153,9 @@ public class CellTest
 
         // Invalid ttl
         assertInvalid(BufferCell.expiring(c, 0, -4, 4, bbs(4)));
-        // Invalid local deletion times
-        assertInvalid(BufferCell.expiring(c, 0, 4, -5, bbs(4)));
-        assertInvalid(BufferCell.expiring(c, 0, 4, Cell.NO_DELETION_TIME, bbs(4)));
+        // Cells with overflowed localExpirationTime are valid after CASSANDRA-14092
+        assertValid(BufferCell.expiring(c, 0, 4, -5, bbs(4)));
+        assertValid(BufferCell.expiring(c, 0, 4, Cell.NO_DELETION_TIME, bbs(4)));
 
         c = fakeColumn("c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
         // Valid cell path
@@ -189,9 +189,9 @@ public class CellTest
 
         // Invalid ttl
         assertInvalid(BufferCell.expiring(c, 0, -4, 4, bb(1), CellPath.create(bbs(0))));
-        // Invalid local deletion times
-        assertInvalid(BufferCell.expiring(c, 0, 4, -5, bb(1), CellPath.create(bbs(0))));
-        assertInvalid(BufferCell.expiring(c, 0, 4, Cell.NO_DELETION_TIME, bb(1), CellPath.create(bbs(0))));
+        // Cells with overflowed localExpirationTime are valid after CASSANDRA-14092
+        assertValid(BufferCell.expiring(c, 0, 4, -5, bb(1), CellPath.create(bbs(0))));
+        assertValid((BufferCell.expiring(c, 0, 4, Cell.NO_DELETION_TIME, bb(1), CellPath.create(bbs(0)))));
 
         // Invalid cell path (int values should be 0 or 2 bytes)
         assertInvalid(BufferCell.live(c, 0, bb(1), CellPath.create(ByteBufferUtil.bytes((long)4))));
@@ -228,9 +228,9 @@ public class CellTest
 
         // Invalid ttl
         assertInvalid(BufferCell.expiring(c, 0, -4, 4, val));
-        // Invalid local deletion times
-        assertInvalid(BufferCell.expiring(c, 0, 4, -5, val));
-        assertInvalid(BufferCell.expiring(c, 0, 4, Cell.NO_DELETION_TIME, val));
+        // Cells with overflowed localExpirationTime are valid after CASSANDRA-14092
+        assertValid(BufferCell.expiring(c, 0, 4, -5, val));
+        assertValid(BufferCell.expiring(c, 0, 4, Cell.NO_DELETION_TIME, val));
     }
 
     @Test

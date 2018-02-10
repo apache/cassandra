@@ -1,3 +1,23 @@
+PLEASE READ: MAXIMUM TTL EXPIRATION DATE NOTICE (CASSANDRA-14092)
+------------------------------------------------------------------
+(General upgrading instructions are available in the next section)
+
+The maximum expiration timestamp that can be represented by the storage engine is
+2038-01-19T03:14:06+00:00, which means that inserts with TTL thatl expire after
+this date are not currently supported. By default, INSERTS with TTL exceeding the
+maximum supported date are rejected, but it's possible to choose a different
+ expiration overflow policy. See CASSANDRA-14092.txt for more details.
+
+Prior to 3.0.16 (3.0.X) and 3.11.2 (3.11.x) there was no protection against INSERTS
+with TTL expiring after the maximum supported date, causing the expiration time
+field to overflow and the records to expire immediately. Clusters in the 2.X and
+lower series are not subject to this when assertions are enabled. Backed up SSTables
+can be potentially recovered and recovery instructions can be found on the
+CASSANDRA-14092.txt file.
+
+If you use or plan to use very large TTLS (10 to 20 years), read CASSANDRA-14092.txt
+for more information.
+
 GENERAL UPGRADING ADVICE FOR ANY VERSION
 ========================================
 
@@ -133,6 +153,7 @@ Materialized Views
 
 Upgrading
 ---------
+   - See MAXIMUM TTL EXPIRATION DATE NOTICE above.
     - Cassandra is now relying on the JVM options to properly shutdown on OutOfMemoryError. By default it will
       rely on the OnOutOfMemoryError option as the ExitOnOutOfMemoryError and CrashOnOutOfMemoryError options
       are not supported by the older 1.7 and 1.8 JVMs. A warning will be logged at startup if none of those JVM

@@ -38,6 +38,7 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public class Scrubber implements Closeable
 {
@@ -46,6 +47,7 @@ public class Scrubber implements Closeable
     private final LifecycleTransaction transaction;
     private final File destination;
     private final boolean skipCorrupted;
+    private final boolean reinsertOverflowedTTLRows;
 
     private final boolean isCommutative;
     private final boolean isIndex;
@@ -66,6 +68,8 @@ public class Scrubber implements Closeable
     long currentRowPositionFromIndex;
     long nextRowPositionFromIndex;
 
+    private NegativeLocalDeletionInfoMetrics negativeLocalDeletionInfoMetrics = new NegativeLocalDeletionInfoMetrics();
+
     private final OutputHandler outputHandler;
 
     private static final Comparator<Partition> partitionComparator = new Comparator<Partition>()
@@ -79,7 +83,13 @@ public class Scrubber implements Closeable
 
     public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData)
     {
-        this(cfs, transaction, skipCorrupted, new OutputHandler.LogOutput(), checkData);
+        this(cfs, transaction, skipCorrupted, checkData, false);
+    }
+
+    public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData,
+                    boolean reinsertOverflowedTTLRows)
+    {
+        this(cfs, transaction, skipCorrupted, new OutputHandler.LogOutput(), checkData, reinsertOverflowedTTLRows);
     }
 
     @SuppressWarnings("resource")
@@ -87,13 +97,15 @@ public class Scrubber implements Closeable
                     LifecycleTransaction transaction,
                     boolean skipCorrupted,
                     OutputHandler outputHandler,
-                    boolean checkData)
+                    boolean checkData,
+                    boolean reinsertOverflowedTTLRows)
     {
         this.cfs = cfs;
         this.transaction = transaction;
         this.sstable = transaction.onlyOne();
         this.outputHandler = outputHandler;
         this.skipCorrupted = skipCorrupted;
+        this.reinsertOverflowedTTLRows = reinsertOverflowedTTLRows;
         this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(cfs.metadata(),
                                                                                                         sstable.descriptor.version,
                                                                                                         sstable.header);
@@ -131,6 +143,9 @@ public class Scrubber implements Closeable
 
         this.currentRowPositionFromIndex = 0;
         this.nextRowPositionFromIndex = 0;
+
+        if (reinsertOverflowedTTLRows)
+            outputHandler.output("Starting scrub with reinsert overflowed TTL option");
     }
 
     private UnfilteredRowIterator withValidation(UnfilteredRowIterator iter, String filename)
@@ -289,16 +304,18 @@ public class Scrubber implements Closeable
 
         if (completed)
         {
+            outputHandler.output("Scrub of " + sstable + " complete: " + goodRows + " rows in new sstable and " + emptyRows + " empty (tombstoned) rows dropped");
+            if (negativeLocalDeletionInfoMetrics.fixedRows > 0)
+                outputHandler.output("Fixed " + negativeLocalDeletionInfoMetrics.fixedRows + " rows with overflowed local deletion time.");
+            if (badRows > 0)
+                outputHandler.warn("Unable to recover " + badRows + " rows that were skipped.  You can attempt manual recovery from the pre-scrub snapshot.  You can also run nodetool repair to transfer the data from a healthy replica, if any");
+        }
+        else
+        {
             if (badRows > 0)
                 outputHandler.warn("No valid rows found while scrubbing " + sstable + "; it is marked for deletion now. If you want to attempt manual recovery, you can find a copy in the pre-scrub snapshot");
             else
                 outputHandler.output("Scrub of " + sstable + " complete; looks like all " + emptyRows + " rows were tombstoned");
-        }
-        else
-        {
-            outputHandler.output("Scrub of " + sstable + " complete: " + goodRows + " rows in new sstable and " + emptyRows + " empty (tombstoned) rows dropped");
-            if (badRows > 0)
-                outputHandler.warn("Unable to recover " + badRows + " rows that were skipped.  You can attempt manual recovery from the pre-scrub snapshot.  You can also run nodetool repair to transfer the data from a healthy replica, if any");
         }
     }
 
@@ -308,7 +325,7 @@ public class Scrubber implements Closeable
         // OrderCheckerIterator will check, at iteration time, that the rows are in the proper order. If it detects
         // that one row is out of order, it will stop returning them. The remaining rows will be sorted and added
         // to the outOfOrder set that will be later written to a new SSTable.
-        OrderCheckerIterator sstableIterator = new OrderCheckerIterator(new RowMergingSSTableIterator(SSTableIdentityIterator.create(sstable, dataFile, key)),
+        OrderCheckerIterator sstableIterator = new OrderCheckerIterator(getIterator(key),
                                                                         cfs.metadata().comparator);
 
         try (UnfilteredRowIterator iterator = withValidation(sstableIterator, dataFile.getPath()))
@@ -332,6 +349,18 @@ public class Scrubber implements Closeable
         }
 
         return true;
+    }
+
+    /**
+     * Only wrap with {@link FixNegativeLocalDeletionTimeIterator} if {@link #reinsertOverflowedTTLRows} option
+     * is specified
+     */
+    private UnfilteredRowIterator getIterator(DecoratedKey key)
+    {
+        RowMergingSSTableIterator rowMergingIterator = new RowMergingSSTableIterator(SSTableIdentityIterator.create(sstable, dataFile, key));
+        return reinsertOverflowedTTLRows ? new FixNegativeLocalDeletionTimeIterator(rowMergingIterator,
+                                                                                    outputHandler,
+                                                                                    negativeLocalDeletionInfoMetrics) : rowMergingIterator;
     }
 
     private void updateIndexKey()
@@ -473,6 +502,11 @@ public class Scrubber implements Closeable
             this.badRows = scrubber.badRows;
             this.emptyRows = scrubber.emptyRows;
         }
+    }
+
+    public class NegativeLocalDeletionInfoMetrics
+    {
+        public volatile int fixedRows = 0;
     }
 
     /**
@@ -621,6 +655,152 @@ public class Scrubber implements Closeable
             previous = next;
             return next;
         }
+    }
 
+    /**
+     * This iterator converts negative {@link AbstractCell#localDeletionTime()} into {@link AbstractCell#MAX_DELETION_TIME}
+     *
+     * This is to recover entries with overflowed localExpirationTime due to CASSANDRA-14092
+     */
+    private static final class FixNegativeLocalDeletionTimeIterator extends AbstractIterator<Unfiltered> implements UnfilteredRowIterator
+    {
+        /**
+         * The decorated iterator.
+         */
+        private final UnfilteredRowIterator iterator;
+
+        private final OutputHandler outputHandler;
+        private final NegativeLocalDeletionInfoMetrics negativeLocalExpirationTimeMetrics;
+
+        public FixNegativeLocalDeletionTimeIterator(UnfilteredRowIterator iterator, OutputHandler outputHandler,
+                                                    NegativeLocalDeletionInfoMetrics negativeLocalDeletionInfoMetrics)
+        {
+            this.iterator = iterator;
+            this.outputHandler = outputHandler;
+            this.negativeLocalExpirationTimeMetrics = negativeLocalDeletionInfoMetrics;
+        }
+
+        public TableMetadata metadata()
+        {
+            return iterator.metadata();
+        }
+
+        public boolean isReverseOrder()
+        {
+            return iterator.isReverseOrder();
+        }
+
+        public RegularAndStaticColumns columns()
+        {
+            return iterator.columns();
+        }
+
+        public DecoratedKey partitionKey()
+        {
+            return iterator.partitionKey();
+        }
+
+        public Row staticRow()
+        {
+            return iterator.staticRow();
+        }
+
+        @Override
+        public boolean isEmpty()
+        {
+            return iterator.isEmpty();
+        }
+
+        public void close()
+        {
+            iterator.close();
+        }
+
+        public DeletionTime partitionLevelDeletion()
+        {
+            return iterator.partitionLevelDeletion();
+        }
+
+        public EncodingStats stats()
+        {
+            return iterator.stats();
+        }
+
+        protected Unfiltered computeNext()
+        {
+            if (!iterator.hasNext())
+                return endOfData();
+
+            Unfiltered next = iterator.next();
+            if (!next.isRow())
+                return next;
+
+            if (hasNegativeLocalExpirationTime((Row) next))
+            {
+                outputHandler.debug(String.format("Found row with negative local expiration time: %s", next.toString(metadata(), false)));
+                negativeLocalExpirationTimeMetrics.fixedRows++;
+                return fixNegativeLocalExpirationTime((Row) next);
+            }
+
+            return next;
+        }
+
+        private boolean hasNegativeLocalExpirationTime(Row next)
+        {
+            Row row = next;
+            if (row.primaryKeyLivenessInfo().isExpiring() && row.primaryKeyLivenessInfo().localExpirationTime() < 0)
+            {
+                return true;
+            }
+
+            for (ColumnData cd : row)
+            {
+                if (cd.column().isSimple())
+                {
+                    Cell cell = (Cell)cd;
+                    if (cell.isExpiring() && cell.localDeletionTime() < 0)
+                        return true;
+                }
+                else
+                {
+                    ComplexColumnData complexData = (ComplexColumnData)cd;
+                    for (Cell cell : complexData)
+                    {
+                        if (cell.isExpiring() && cell.localDeletionTime() < 0)
+                            return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private Unfiltered fixNegativeLocalExpirationTime(Row row)
+        {
+            Row.Builder builder = HeapAllocator.instance.cloningBTreeRowBuilder();
+            builder.newRow(row.clustering());
+            builder.addPrimaryKeyLivenessInfo(row.primaryKeyLivenessInfo().isExpiring() && row.primaryKeyLivenessInfo().localExpirationTime() < 0 ?
+                                              row.primaryKeyLivenessInfo().withUpdatedTimestampAndLocalDeletionTime(row.primaryKeyLivenessInfo().timestamp() + 1, AbstractCell.MAX_DELETION_TIME)
+                                              :row.primaryKeyLivenessInfo());
+            builder.addRowDeletion(row.deletion());
+            for (ColumnData cd : row)
+            {
+                if (cd.column().isSimple())
+                {
+                    Cell cell = (Cell)cd;
+                    builder.addCell(cell.isExpiring() && cell.localDeletionTime() < 0 ? cell.withUpdatedTimestampAndLocalDeletionTime(cell.timestamp() + 1, AbstractCell.MAX_DELETION_TIME) : cell);
+                }
+                else
+                {
+                    ComplexColumnData complexData = (ComplexColumnData)cd;
+                    builder.addComplexDeletion(complexData.column(), complexData.complexDeletion());
+                    for (Cell cell : complexData)
+                    {
+                        builder.addCell(cell.isExpiring() && cell.localDeletionTime() < 0 ? cell.withUpdatedTimestampAndLocalDeletionTime(cell.timestamp() + 1, AbstractCell.MAX_DELETION_TIME) : cell);
+                    }
+                }
+            }
+            return builder.build();
+        }
     }
 }

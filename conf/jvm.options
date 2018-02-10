@@ -181,6 +181,17 @@
 # 100 MB per physical CPU core.
 #-Xmn800M
 
+###################################
+# EXPIRATION DATE OVERFLOW POLICY #
+###################################
+
+# Defines how to handle INSERT requests with TTL exceeding the maximum supported expiration date:
+# * REJECT: this is the default policy and will reject any requests with expiration date timestamp after 2038-01-19T03:14:06+00:00.
+# * CAP: any insert with TTL expiring after 2038-01-19T03:14:06+00:00 will expire on 2038-01-19T03:14:06+00:00 and the client will receive a warning.
+# * CAP_NOWARN: same as previous, except that the client warning will not be emitted.
+#
+#-Dcassandra.expiration_date_overflow_policy=REJECT
+
 #################
 #  GC SETTINGS  #
 #################

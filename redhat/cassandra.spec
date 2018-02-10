@@ -117,7 +117,7 @@ exit 0
 
 %files
 %defattr(0644,root,root,0755)
-%doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt
+%doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt
 %attr(755,root,root) %{_bindir}/cassandra-stress
 %attr(755,root,root) %{_bindir}/cqlsh
 %attr(755,root,root) %{_bindir}/cqlsh.py

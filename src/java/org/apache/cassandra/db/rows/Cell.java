@@ -42,6 +42,7 @@ public abstract class Cell extends ColumnData
 {
     public static final int NO_TTL = 0;
     public static final int NO_DELETION_TIME = Integer.MAX_VALUE;
+    public static final int MAX_DELETION_TIME = Integer.MAX_VALUE - 1;
 
     public final static Comparator<Cell> comparator = (c1, c2) ->
     {
@@ -134,6 +135,8 @@ public abstract class Cell extends ColumnData
     public abstract Cell withUpdatedColumn(ColumnMetadata newColumn);
 
     public abstract Cell withUpdatedValue(ByteBuffer newValue);
+
+    public abstract Cell withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime);
 
     public abstract Cell copy(AbstractAllocator allocator);
 

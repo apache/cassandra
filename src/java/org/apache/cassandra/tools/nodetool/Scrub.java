@@ -48,6 +48,11 @@ public class Scrub extends NodeToolCmd
                    description = "Do not validate columns using column validator")
     private boolean noValidation = false;
 
+    @Option(title = "reinsert_overflowed_ttl",
+    name = {"r", "--reinsert-overflowed-ttl"},
+    description = "Reinsert found rows with overflowed TTL affected by CASSANDRA-14092")
+    private boolean reinsertOverflowedTTL = false;
+
     @Option(title = "jobs",
             name = {"-j", "--jobs"},
             description = "Number of sstables to scrub simultanously, set to 0 to use all available compaction threads")
@@ -63,7 +68,7 @@ public class Scrub extends NodeToolCmd
         {
             try
             {
-                probe.scrub(System.out, disableSnapshot, skipCorrupted, !noValidation, jobs, keyspace, tableNames);
+                probe.scrub(System.out, disableSnapshot, skipCorrupted, !noValidation, reinsertOverflowedTTL, jobs, keyspace, tableNames);
             }
             catch (IllegalArgumentException e)
             {
