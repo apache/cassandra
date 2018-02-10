@@ -74,7 +74,7 @@ public class BufferCell extends AbstractCell
     public static BufferCell expiring(ColumnDefinition column, long timestamp, int ttl, int nowInSec, ByteBuffer value, CellPath path)
     {
         assert ttl != NO_TTL;
-        return new BufferCell(column, timestamp, ttl, nowInSec + ttl, value, path);
+        return new BufferCell(column, timestamp, ttl, ExpirationDateOverflowHandling.computeLocalExpirationTime(nowInSec, ttl), value, path);
     }
 
     public static BufferCell tombstone(ColumnDefinition column, long timestamp, int nowInSec)
@@ -140,6 +140,11 @@ public class BufferCell extends AbstractCell
     public Cell withUpdatedValue(ByteBuffer newValue)
     {
         return new BufferCell(column, timestamp, ttl, localDeletionTime, newValue, path);
+    }
+
+    public Cell withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    {
+        return new BufferCell(column, newTimestamp, ttl, newLocalDeletionTime, value, path);
     }
 
     public Cell copy(AbstractAllocator allocator)

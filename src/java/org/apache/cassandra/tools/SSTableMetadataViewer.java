@@ -90,6 +90,7 @@ public class SSTableMetadataViewer
                 {
                     out.printf("Minimum timestamp: %s%n", stats.minTimestamp);
                     out.printf("Maximum timestamp: %s%n", stats.maxTimestamp);
+                    out.printf("SSTable min local deletion time: %s%n", stats.minLocalDeletionTime);
                     out.printf("SSTable max local deletion time: %s%n", stats.maxLocalDeletionTime);
                     out.printf("Compression ratio: %s%n", stats.compressionRatio);
                     out.printf("Estimated droppable tombstones: %s%n", stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000) - gcgs));

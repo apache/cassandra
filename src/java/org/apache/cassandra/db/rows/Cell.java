@@ -21,7 +21,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
+import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -40,6 +46,7 @@ public abstract class Cell extends ColumnData
 {
     public static final int NO_TTL = 0;
     public static final int NO_DELETION_TIME = Integer.MAX_VALUE;
+    public static final int MAX_DELETION_TIME = Integer.MAX_VALUE - 1;
 
     public final static Comparator<Cell> comparator = (c1, c2) ->
     {
@@ -132,6 +139,8 @@ public abstract class Cell extends ColumnData
     public abstract Cell withUpdatedColumn(ColumnDefinition newColumn);
 
     public abstract Cell withUpdatedValue(ByteBuffer newValue);
+
+    public abstract Cell withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime);
 
     public abstract Cell copy(AbstractAllocator allocator);
 

@@ -18,12 +18,11 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.List;
 
-import com.google.common.collect.Iterables;
-
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.ExpirationDateOverflowHandling;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -100,10 +99,13 @@ public class Attributes
         return LongType.instance.compose(tval);
     }
 
-    public int getTimeToLive(QueryOptions options) throws InvalidRequestException
+    public int getTimeToLive(QueryOptions options, CFMetaData metadata) throws InvalidRequestException
     {
         if (timeToLive == null)
-            return 0;
+        {
+            ExpirationDateOverflowHandling.maybeApplyExpirationDateOverflowPolicy(metadata, metadata.params.defaultTimeToLive, true);
+            return metadata.params.defaultTimeToLive;
+        }
 
         ByteBuffer tval = timeToLive.bindAndGet(options);
         if (tval == null)
@@ -127,6 +129,8 @@ public class Attributes
 
         if (ttl > MAX_TTL)
             throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", ttl, MAX_TTL));
+
+        ExpirationDateOverflowHandling.maybeApplyExpirationDateOverflowPolicy(metadata, ttl, false);
 
         return ttl;
     }
