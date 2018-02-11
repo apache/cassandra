@@ -26,6 +26,7 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.StandaloneScrubber;
 
 @Command(name = "scrub", description = "Scrub (rebuild sstables for) one or more tables")
 public class Scrub extends NodeToolCmd
@@ -50,7 +51,7 @@ public class Scrub extends NodeToolCmd
 
     @Option(title = "reinsert_overflowed_ttl",
     name = {"r", "--reinsert-overflowed-ttl"},
-    description = "Reinsert found rows with overflowed TTL affected by CASSANDRA-14092")
+    description = StandaloneScrubber.REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION)
     private boolean reinsertOverflowedTTL = false;
 
     @Option(title = "jobs",

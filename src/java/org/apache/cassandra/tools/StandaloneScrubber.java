@@ -43,6 +43,12 @@ import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
 public class StandaloneScrubber
 {
+    public static final String REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION = "Rewrites rows with overflowed expiration date affected by CASSANDRA-14092 with " +
+                                                                            "the maximum supported expiration date of 2038-01-19T03:14:06+00:00. " +
+                                                                            "The rows are rewritten with the original timestamp incremented by one millisecond " +
+                                                                            "to override/supersede any potential tombstone that may have been generated " +
+                                                                            "during compaction of the affected rows.";
+
     private static final String TOOL_NAME = "sstablescrub";
     private static final String VERBOSE_OPTION  = "verbose";
     private static final String DEBUG_OPTION  = "debug";
@@ -269,7 +275,7 @@ public class StandaloneScrubber
             options.addOption("m",  MANIFEST_CHECK_OPTION, "only check and repair the leveled manifest, without actually scrubbing the sstables");
             options.addOption("s",  SKIP_CORRUPTED_OPTION, "skip corrupt rows in counter tables");
             options.addOption("n",  NO_VALIDATE_OPTION,    "do not validate columns using column validator");
-            options.addOption("r",  REINSERT_OVERFLOWED_TTL_OPTION,    "Reinsert found rows with overflowed TTL affected by CASSANDRA-14092");
+            options.addOption("r", REINSERT_OVERFLOWED_TTL_OPTION, REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION);
             return options;
         }
 
