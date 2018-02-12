@@ -11,6 +11,10 @@ default_env_vars: &default_env_vars
     PYTHONUNBUFFERED: true
     CASS_DRIVER_NO_EXTENSIONS: true
     CASS_DRIVER_NO_CYTHON: true
+    # Default values can be overridden in circle CI project settings -> environment variables
+    DTEST_GITHUB_USER: apache
+    DTEST_GITHUB_REPO: cassandra-dtest
+    DTEST_GITHUB_BRANCH: master
 # For environments with xlarge instances, use more memory
 high_capacity_env_vars: &high_capacity_env_vars
     <<: *default_env_vars
@@ -198,7 +202,7 @@ jobs:
           name: Clone Cassandra dtest Repository (via git)
           command: |
             export LANG=en_US.UTF-8
-            git clone --single-branch --branch master --depth 1 git://github.com/apache/cassandra-dtest.git ~/cassandra-dtest
+            git clone --single-branch --branch master --depth 1 --branch ${DTEST_GITHUB_BRANCH} git://github.com/${DTEST_GITHUB_USER}/${DTEST_GITHUB_REPO}.git ~/cassandra-dtest
       - run:
           name: Configure virtualenv and python Dependencies
           command: |
@@ -276,7 +280,7 @@ jobs:
           name: Clone Cassandra dtest Repository (via git)
           command: |
             export LANG=en_US.UTF-8
-            git clone --single-branch --branch master --depth 1 git://github.com/apache/cassandra-dtest.git ~/cassandra-dtest
+            git clone --single-branch --branch master --depth 1 --branch ${DTEST_GITHUB_BRANCH} git://github.com/${DTEST_GITHUB_USER}/${DTEST_GITHUB_REPO}.git ~/cassandra-dtest
       - run:
           name: Configure virtualenv and python Dependencies
           command: |
