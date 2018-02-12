@@ -152,6 +152,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public static final Ordering<SSTableReader> sstableOrdering = Ordering.from(sstableComparator);
 
+    public static final Comparator<SSTableReader> sizeComparator = (o1, o2) -> Longs.compare(o1.onDiskLength(), o2.onDiskLength());
+
     /**
      * maxDataAge is a timestamp in local server time (e.g. System.currentTimeMilli) which represents an upper bound
      * to the newest piece of data stored in the sstable. In other words, this sstable does not contain items created

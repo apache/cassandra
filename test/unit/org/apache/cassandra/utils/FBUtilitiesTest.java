@@ -23,6 +23,15 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.primitives.Ints;
 import org.junit.Test;
@@ -127,4 +136,34 @@ public class FBUtilitiesTest
 
         FBUtilities.reset();
     }
+
+    @Test
+    public void testWaitFirstFuture() throws ExecutionException, InterruptedException
+    {
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        FBUtilities.reset();
+        List<Future<?>> futures = new ArrayList<>();
+        for (int i = 4; i >= 1; i--)
+        {
+            final int sleep = i * 10;
+            futures.add(executor.submit(() -> { TimeUnit.MILLISECONDS.sleep(sleep); return sleep; }));
+        }
+        Future<?> fut = FBUtilities.waitOnFirstFuture(futures, 3);
+        int futSleep = (Integer) fut.get();
+        assertEquals(futSleep, 10);
+        futures.remove(fut);
+        fut = FBUtilities.waitOnFirstFuture(futures, 3);
+        futSleep = (Integer) fut.get();
+        assertEquals(futSleep, 20);
+        futures.remove(fut);
+        fut = FBUtilities.waitOnFirstFuture(futures, 3);
+        futSleep = (Integer) fut.get();
+        assertEquals(futSleep, 30);
+        futures.remove(fut);
+        fut = FBUtilities.waitOnFirstFuture(futures, 3);
+        futSleep = (Integer) fut.get();
+        assertEquals(futSleep, 40);
+    }
+
 }
