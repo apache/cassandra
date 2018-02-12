@@ -21,6 +21,7 @@
  * Avoid locks when checking LCS fanout and if we should defrag (CASSANDRA-13930)
  * Correctly count range tombstones in traces and tombstone thresholds (CASSANDRA-8527)
 Merged from 3.0:
+ * Add MinGW uname check to start scripts (CASSANDRA-12840)
  * Use the correct digest file and reload sstable metadata in nodetool verify (CASSANDRA-14217)
  * Handle failure when mutating repaired status in Verifier (CASSANDRA-13933)
  * Set encoding for javadoc generation (CASSANDRA-14154)
