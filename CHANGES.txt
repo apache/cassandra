@@ -209,6 +209,7 @@
  * Update jackson JSON jars (CASSANDRA-13949)
  * Avoid locks when checking LCS fanout and if we should defrag (CASSANDRA-13930)
 Merged from 3.0:
+ * Fix unit test failures in ViewComplexTest (CASSANDRA-14219)
  * Add MinGW uname check to start scripts (CASSANDRA-12840)
  * Use the correct digest file and reload sstable metadata in nodetool verify (CASSANDRA-14217)
  * Handle failure when mutating repaired status in Verifier (CASSANDRA-13933)
