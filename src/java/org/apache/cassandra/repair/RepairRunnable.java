@@ -46,6 +46,7 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.JMXConfigurableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -704,7 +705,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                 if (state == null)
                     throw new Exception("no tracestate");
 
-                String format = "select event_id, source, activity from %s.%s where session_id = ? and event_id > ? and event_id < ?;";
+                String format = "select event_id, source, source_port, activity from %s.%s where session_id = ? and event_id > ? and event_id < ?;";
                 String query = String.format(format, SchemaConstants.TRACE_KEYSPACE_NAME, TraceKeyspace.EVENTS);
                 SelectStatement statement = (SelectStatement) QueryProcessor.parseStatement(query).prepare().statement;
 
@@ -745,7 +746,11 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
                     for (UntypedResultSet.Row r : result)
                     {
-                        if (source.address.equals(r.getInetAddress("source")))
+                        int port = DatabaseDescriptor.getStoragePort();
+                        if (r.has("source_port"))
+                            port = r.getInt("source_port");
+                        InetAddressAndPort eventNode = InetAddressAndPort.getByAddressOverrideDefaults(r.getInetAddress("source"), port);
+                        if (source.equals(eventNode))
                             continue;
                         if ((uuid = r.getUUID("event_id")).timestamp() > (tcur - 1000) * 10000)
                             seen[si].add(uuid);

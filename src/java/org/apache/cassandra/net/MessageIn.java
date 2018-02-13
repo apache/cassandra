@@ -32,6 +32,8 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService.Verb;
+import org.apache.cassandra.utils.FBUtilities;
+
 /**
  * The receiving node's view of a {@link MessageOut}. See documentation on {@link MessageOut} for details on the
  * serialization format.
@@ -180,7 +182,7 @@ public class MessageIn<T>
      */
     public boolean isCrossNode()
     {
-        return !from.address.equals(DatabaseDescriptor.getBroadcastAddress());
+        return !from.equals(FBUtilities.getBroadcastAddressAndPort());
     }
 
     public Stage getMessageType()
