@@ -1,4 +1,5 @@
 3.11.3
+ * Fix New SASI view creation during Index Redistribution (CASSANDRA-14055)
  * Remove string formatting lines from BufferPool hot path (CASSANDRA-14416)
  * Update metrics to 3.1.5 (CASSANDRA-12924)
  * Detect OpenJDK jvm type and architecture (CASSANDRA-12793)

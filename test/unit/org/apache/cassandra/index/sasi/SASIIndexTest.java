@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sasi;
 
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.Writer;
 import java.nio.ByteBuffer;
 import java.nio.file.FileSystems;
@@ -60,6 +61,7 @@ import org.apache.cassandra.index.sasi.exceptions.TimeQuotaExceededException;
 import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.QueryController;
 import org.apache.cassandra.index.sasi.plan.QueryPlan;
+import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -895,6 +897,77 @@ public class SASIIndexTest
 
         rows = getIndexed(store, 10, buildExpression(age, Operator.EQ, Int32Type.instance.decompose(40)));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{ "key9" }, rows.toArray(new String[rows.size()])));
+    }
+
+    @Test
+    public void testIndexRedistribution() throws IOException
+    {
+        Map<String, Pair<String, Integer>> part1 = new HashMap<String, Pair<String, Integer>>()
+        {{
+            put("key01", Pair.create("a", 33));
+            put("key02", Pair.create("a", 41));
+        }};
+
+        Map<String, Pair<String, Integer>> part2 = new HashMap<String, Pair<String, Integer>>()
+        {{
+            put("key03", Pair.create("a", 22));
+            put("key04", Pair.create("a", 45));
+        }};
+
+        Map<String, Pair<String, Integer>> part3 = new HashMap<String, Pair<String, Integer>>()
+        {{
+            put("key05", Pair.create("a", 32));
+            put("key06", Pair.create("a", 38));
+        }};
+
+        Map<String, Pair<String, Integer>> part4 = new HashMap<String, Pair<String, Integer>>()
+        {{
+            put("key07", Pair.create("a", 36));
+            put("key08", Pair.create("a", 36));
+        }};
+
+        Map<String, Pair<String, Integer>> part5 = new HashMap<String, Pair<String, Integer>>()
+        {{
+            put("key09", Pair.create("a", 21));
+            put("key10", Pair.create("a", 35));
+        }};
+
+        ColumnFamilyStore store = loadData(part1, 1000, true);
+        loadData(part2, true);
+        loadData(part3, true);
+
+        final ByteBuffer firstName = UTF8Type.instance.decompose("first_name");
+
+        Set<String> rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
+        Assert.assertEquals(rows.toString(), 6, rows.size());
+
+        loadData(part4, true);
+        rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
+        Assert.assertEquals(rows.toString(), 8, rows.size());
+
+        loadData(part5, true);
+
+        int minIndexInterval = store.metadata.params.minIndexInterval;
+        try
+        {
+            redistributeSummaries(10, store, firstName, minIndexInterval * 2);
+            redistributeSummaries(10, store, firstName, minIndexInterval * 4);
+            redistributeSummaries(10, store, firstName, minIndexInterval * 8);
+            redistributeSummaries(10, store, firstName, minIndexInterval * 16);
+        } finally
+        {
+            store.metadata.minIndexInterval(minIndexInterval);
+        }
+    }
+
+    private void redistributeSummaries(int expected, ColumnFamilyStore store, ByteBuffer firstName, int minIndexInterval) throws IOException
+    {
+        store.metadata.minIndexInterval(minIndexInterval);
+        IndexSummaryManager.instance.redistributeSummaries();
+        store.forceBlockingFlush();
+
+        Set<String> rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
+        Assert.assertEquals(rows.toString(), expected, rows.size());
     }
 
     @Test
