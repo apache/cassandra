@@ -88,6 +88,8 @@ public final class ThreadAwareSecurityManager extends SecurityManager
         // To work around this, a custom ReconfigureOnChangeFilter is installed, that simply
         // prevents this configuration file check and possible reload of the configration,
         // while executing sandboxed UDF code.
+        //
+        // NOTE: this is obsolte with logback versions (at least since 1.2.3)
         Logger l = LoggerFactory.getLogger(ThreadAwareSecurityManager.class);
         ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) l;
         LoggerContext ctx = logbackLogger.getLoggerContext();
@@ -110,6 +112,9 @@ public final class ThreadAwareSecurityManager extends SecurityManager
     /**
      * The purpose of this class is to prevent logback from checking for config file change,
      * if the current thread is executing a sandboxed thread to avoid {@link AccessControlException}s.
+     *
+     * This is obsolete with logback versions that replaced {@link ReconfigureOnChangeFilter}
+     * with {@link ch.qos.logback.classic.joran.ReconfigureOnChangeTask} (at least logback since 1.2.3).
      */
     private static class SMAwareReconfigureOnChangeFilter extends ReconfigureOnChangeFilter
     {
