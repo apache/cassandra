@@ -52,9 +52,9 @@ public class TableStatsPrinter
                 // print each keyspace's information
                 out.println("Keyspace : " + keyspace.name);
                 out.println("\tRead Count: " + keyspace.readCount);
-                out.println("\tRead Latency: " + keyspace.readLatency() + " ms.");
+                out.println("\tRead Latency: " + keyspace.readLatency() + " ms");
                 out.println("\tWrite Count: " + keyspace.writeCount);
-                out.println("\tWrite Latency: " + keyspace.writeLatency() + " ms.");
+                out.println("\tWrite Latency: " + keyspace.writeLatency() + " ms");
                 out.println("\tPending Flushes: " + keyspace.pendingFlushes);
 
                 // print each table's information
