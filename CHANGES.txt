@@ -1,4 +1,5 @@
 4.0
+ * CVE-2017-5929 Security vulnerability and redefine default log rotation policy (CASSANDRA-14183)
  * Use JVM default SSL validation algorithm instead of custom default (CASSANDRA-13259)
  * Better document in code InetAddressAndPort usage post 7544, incorporate port into UUIDGen node (CASSANDRA-14226)
  * Fix sstablemetadata date string for minLocalDeletionTime (CASSANDRA-14132)

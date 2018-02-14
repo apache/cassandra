@@ -218,10 +218,10 @@ public class DatabaseDescriptorRefTest
             method.invoke(null);
 
             if ("clientInitialization".equals(methodName) &&
-                threadCount + 1 == threads.getThreadCount())
+                threadCount + 2 == threads.getThreadCount())
             {
-                // ignore the "AsyncAppender-Worker-ASYNC" thread
-                threadCount++;
+                // ignore the "AsyncAppender-Worker-ASYNC" and "logback-1" threads
+                threadCount = threadCount + 2;
             }
 
             if (threadCount != threads.getThreadCount())
