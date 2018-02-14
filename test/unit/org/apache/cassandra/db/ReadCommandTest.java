@@ -66,6 +66,8 @@ public class ReadCommandTest
     private static final String CF1 = "Standard1";
     private static final String CF2 = "Standard2";
     private static final String CF3 = "Standard3";
+    private static final String CF4 = "Standard4";
+    private static final String CF5 = "Standard5";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -92,8 +94,36 @@ public class ReadCommandTest
                          .addRegularColumn("e", AsciiType.instance)
                          .addRegularColumn("f", AsciiType.instance);
 
+        TableMetadata.Builder metadata4 =
+        TableMetadata.builder(KEYSPACE, CF4)
+                     .addPartitionKeyColumn("key", BytesType.instance)
+                     .addClusteringColumn("col", AsciiType.instance)
+                     .addRegularColumn("a", AsciiType.instance)
+                     .addRegularColumn("b", AsciiType.instance)
+                     .addRegularColumn("c", AsciiType.instance)
+                     .addRegularColumn("d", AsciiType.instance)
+                     .addRegularColumn("e", AsciiType.instance)
+                     .addRegularColumn("f", AsciiType.instance);
+
+        TableMetadata.Builder metadata5 =
+        TableMetadata.builder(KEYSPACE, CF5)
+                     .addPartitionKeyColumn("key", BytesType.instance)
+                     .addClusteringColumn("col", AsciiType.instance)
+                     .addRegularColumn("a", AsciiType.instance)
+                     .addRegularColumn("b", AsciiType.instance)
+                     .addRegularColumn("c", AsciiType.instance)
+                     .addRegularColumn("d", AsciiType.instance)
+                     .addRegularColumn("e", AsciiType.instance)
+                     .addRegularColumn("f", AsciiType.instance);
+
         SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), metadata1, metadata2, metadata3);
+        SchemaLoader.createKeyspace(KEYSPACE,
+                                    KeyspaceParams.simple(1),
+                                    metadata1,
+                                    metadata2,
+                                    metadata3,
+                                    metadata4,
+                                    metadata5);
     }
 
     @Test
@@ -348,10 +378,7 @@ public class ReadCommandTest
     @Test
     public void testCountDeletedRows() throws Exception
     {
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF3);
-        // cfs = Mockito.spy(cfs);
-        // TableMetrics metricsMock = Mockito.mock(TableMetrics.class);
-        // Mockito.doReturn(metricsMock).when(cfs).metric;
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF4);
 
         String[][][] groups = new String[][][] {
                 new String[][] {
@@ -440,7 +467,7 @@ public class ReadCommandTest
     @Test
     public void testCountWithNoDeletedRow() throws Exception
     {
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF3);
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF5);
 
         String[][][] groups = new String[][][] {
                 new String[][] {

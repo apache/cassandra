@@ -193,6 +193,7 @@
 
 
 3.11.2
+ * Fix ReadCommandTest (CASSANDRA-14234)
  * Remove trailing period from latency reports at keyspace level (CASSANDRA-14233)
  * Remove dependencies on JVM internal classes from JMXServerUtils (CASSANDRA-14173) 
  * Add DEFAULT, UNSET, MBEAN and MBEANS to `ReservedKeywords` (CASSANDRA-14205)
