@@ -1,3 +1,6 @@
+2.1.21
+ * CVE-2017-5929 Security vulnerability in Logback warning in NEWS.txt (CASSANDRA-14183)
+
 2.1.20
  * Protect against overflow of local expiration time (CASSANDRA-14092)
  * More PEP8 compliance for cqlsh (CASSANDRA-14021)
