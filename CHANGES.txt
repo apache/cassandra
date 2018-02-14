@@ -1,4 +1,5 @@
 3.11.2
+ * Remove trailing period from latency reports at keyspace level (CASSANDRA-14233)
  * Backport CASSANDRA-13080: Use new token allocation for non bootstrap case as well (CASSANDRA-14212)
  * Remove dependencies on JVM internal classes from JMXServerUtils (CASSANDRA-14173) 
  * Add DEFAULT, UNSET, MBEAN and MBEANS to `ReservedKeywords` (CASSANDRA-14205)
