@@ -1,3 +1,7 @@
+2.2.13
+Merged from 2.1:
+ * CVE-2017-5929 Security vulnerability in Logback warning in NEWS.txt (CASSANDRA-14183)
+
 2.2.12
  * Fix the inspectJvmOptions startup check (CASSANDRA-14112)
  * Fix race that prevents submitting compaction for a table when executor is full (CASSANDRA-13801)
