@@ -18,6 +18,15 @@ CASSANDRA-14092.txt file.
 If you use or plan to use very large TTLS (10 to 20 years), read CASSANDRA-14092.txt
 for more information.
 
+PLEASE READ: CVE-2017-5929 LOGBACK BEFORE 1.2.0 SERIALIZATION VULNERABILITY
+------------------------------------------------------------------
+QOS.ch Logback before 1.2.0 has a serialization vulnerability affecting the
+SocketServer and ServerSocketReceiver components.
+
+Logback has not been upgraded to avoid breaking deployments and customizations
+based on older versions. If you are using vulnerable components you will need
+to upgrade to a newer version of Logback or stop using the vulnerable components.
+
 GENERAL UPGRADING ADVICE FOR ANY VERSION
 ========================================
 

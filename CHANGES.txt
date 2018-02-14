@@ -1,3 +1,7 @@
+3.0.17
+Merged from 2.1:
+ * CVE-2017-5929 Security vulnerability in Logback warning in NEWS.txt (CASSANDRA-14183)
+
 3.0.16
  * Fix unit test failures in ViewComplexTest (CASSANDRA-14219)
  * Add MinGW uname check to start scripts (CASSANDRA-12940)
