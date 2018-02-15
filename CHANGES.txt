@@ -193,6 +193,9 @@
  * nodetool clearsnapshot requires --all to clear all snapshots (CASSANDRA-13391)
  * Correctly count range tombstones in traces and tombstone thresholds (CASSANDRA-8527)
 
+3.11.3
+ * Fix wildcard GROUP BY queries (CASSANDRA-14209)
+
 
 3.11.2
  * Fix ReadCommandTest (CASSANDRA-14234)

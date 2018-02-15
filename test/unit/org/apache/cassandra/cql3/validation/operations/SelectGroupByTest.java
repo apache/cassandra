@@ -77,6 +77,22 @@ public class SelectGroupByTest extends CQLTester
                    row(2, 4, 3, 6),
                    row(4, 8, 2, 12));
 
+        // Range queries with wildcard
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b, c"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 2, 2, 6, 12),
+                   row(1, 4, 2, 6, 12),
+                   row(2, 2, 3, 3, 6),
+                   row(2, 4, 3, 6, 12),
+                   row(4, 8, 2, 12, 24));
+
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 4, 2, 6, 12),
+                   row(2, 2, 3, 3, 6),
+                   row(2, 4, 3, 6, 12),
+                   row(4, 8, 2, 12, 24));
+
         // Range query with LIMIT
         assertRows(execute("SELECT a, b, e, count(b), max(e) FROM %s GROUP BY a, b LIMIT 2"),
                    row(1, 2, 6, 2L, 12),
@@ -114,6 +130,17 @@ public class SelectGroupByTest extends CQLTester
                    row(1, 4, 2, 6),
                    row(2, 2, 3, 3));
 
+        // Range queries with wildcard and with LIMIT
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b, c LIMIT 3"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 2, 2, 6, 12),
+                   row(1, 4, 2, 6, 12));
+
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b LIMIT 3"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 4, 2, 6, 12),
+                   row(2, 2, 3, 3, 6));
+
         // Range queries without aggregates and with PER PARTITION LIMIT
         assertRows(execute("SELECT a, b, c, d FROM %s GROUP BY a, b, c PER PARTITION LIMIT 2"),
                    row(1, 2, 1, 3),
@@ -127,11 +154,30 @@ public class SelectGroupByTest extends CQLTester
                    row(2, 2, 3, 3),
                    row(4, 8, 2, 12));
 
+        // Range queries with wildcard and with PER PARTITION LIMIT
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b, c PER PARTITION LIMIT 2"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 2, 2, 6, 12),
+                   row(2, 2, 3, 3, 6),
+                   row(2, 4, 3, 6, 12),
+                   row(4, 8, 2, 12, 24));
+
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b PER PARTITION LIMIT 1"),
+                   row(1, 2, 1, 3, 6),
+                   row(2, 2, 3, 3, 6),
+                   row(4, 8, 2, 12, 24));
+
         // Range queries without aggregates, with PER PARTITION LIMIT and LIMIT
         assertRows(execute("SELECT a, b, c, d FROM %s GROUP BY a, b, c PER PARTITION LIMIT 2 LIMIT 3"),
                    row(1, 2, 1, 3),
                    row(1, 2, 2, 6),
                    row(2, 2, 3, 3));
+
+        // Range queries with wildcard, with PER PARTITION LIMIT and LIMIT
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b, c PER PARTITION LIMIT 2 LIMIT 3"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 2, 2, 6, 12),
+                   row(2, 2, 3, 3, 6));
 
         // Range query with DISTINCT
         assertRows(execute("SELECT DISTINCT a, count(a)FROM %s GROUP BY a"),
@@ -197,6 +243,16 @@ public class SelectGroupByTest extends CQLTester
                    row(1, 2, 2, 6),
                    row(1, 4, 2, 6));
 
+        // Single partition queries with wildcard
+        assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a, b, c"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 2, 2, 6, 12),
+                   row(1, 4, 2, 6, 12));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a, b"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 4, 2, 6, 12));
+
         // Single partition queries with DISTINCT
         assertRows(execute("SELECT DISTINCT a, count(a)FROM %s WHERE a = 1 GROUP BY a"),
                    row(1, 1L));
@@ -242,6 +298,14 @@ public class SelectGroupByTest extends CQLTester
                    row(1, 2, 1, 3),
                    row(1, 2, 2, 6));
 
+        // Single partition queries with wildcard and with LIMIT
+        assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a, b, c LIMIT 2"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 2, 2, 6, 12));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a, b LIMIT 1"),
+                   row(1, 2, 1, 3, 6));
+
         // Single partition queries without aggregates and with PER PARTITION LIMIT
         assertRows(execute("SELECT a, b, c, d FROM %s WHERE a = 1 GROUP BY a, b PER PARTITION LIMIT 2"),
                    row(1, 2, 1, 3),
@@ -253,6 +317,14 @@ public class SelectGroupByTest extends CQLTester
         assertRows(execute("SELECT a, b, c, d FROM %s WHERE a = 1 GROUP BY a, b, c PER PARTITION LIMIT 2"),
                    row(1, 2, 1, 3),
                    row(1, 2, 2, 6));
+
+        // Single partition queries with wildcard and with PER PARTITION LIMIT
+        assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a, b, c PER PARTITION LIMIT 2"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 2, 2, 6, 12));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a, b PER PARTITION LIMIT 1"),
+                   row(1, 2, 1, 3, 6));
 
         // Single partition queries with ORDER BY
         assertRows(execute("SELECT a, b, e, count(b), max(e) FROM %s WHERE a = 1 GROUP BY a, b, c ORDER BY b DESC, c DESC"),
@@ -299,6 +371,22 @@ public class SelectGroupByTest extends CQLTester
                    row(2, 4, 3, 6),
                    row(4, 8, 2, 12));
 
+        // Multi-partitions with wildcard
+        assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b, c"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 2, 2, 6, 12),
+                   row(1, 4, 2, 6, 12),
+                   row(2, 2, 3, 3, 6),
+                   row(2, 4, 3, 6, 12),
+                   row(4, 8, 2, 12, 24));
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 4, 2, 6, 12),
+                   row(2, 2, 3, 3, 6),
+                   row(2, 4, 3, 6, 12),
+                   row(4, 8, 2, 12, 24));
+
         // Multi-partitions query with DISTINCT
         assertRows(execute("SELECT DISTINCT a, count(a)FROM %s WHERE a IN (1, 2, 4) GROUP BY a"),
                    row(1, 1L),
@@ -326,6 +414,19 @@ public class SelectGroupByTest extends CQLTester
                    row(2, 4, 12, 1L, 12),
                    row(4, 8, 24, 1L, 24));
 
+        // Multi-partitions with wildcard and PER PARTITION LIMIT
+        assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b, c PER PARTITION LIMIT 2"),
+                   row(1, 2, 1, 3, 6),
+                   row(1, 2, 2, 6, 12),
+                   row(2, 2, 3, 3, 6),
+                   row(2, 4, 3, 6, 12),
+                   row(4, 8, 2, 12, 24));
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b PER PARTITION LIMIT 1"),
+                   row(1, 2, 1, 3, 6),
+                   row(2, 2, 3, 3, 6),
+                   row(4, 8, 2, 12, 24));
+
         // Multi-partitions queries with ORDER BY
         assertRows(execute("SELECT a, b, c, count(b), max(e) FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b ORDER BY b DESC, c DESC"),
                    row(4, 8, 2, 1L, 24),
@@ -347,6 +448,12 @@ public class SelectGroupByTest extends CQLTester
                    row(4, 8, 2, 12),
                    row(2, 4, 3, 6),
                    row(1, 4, 2, 12));
+
+        // Multi-partitions with wildcard, ORDER BY and LIMIT
+        assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b, c ORDER BY b DESC, c DESC LIMIT 3"),
+                   row(4, 8, 2, 12, 24),
+                   row(2, 4, 3, 6, 12),
+                   row(1, 4, 2, 12, 24));
 
         // Invalid queries
         assertInvalidMessage("Group by is currently only supported on the columns of the PRIMARY KEY, got e",
@@ -526,6 +633,12 @@ public class SelectGroupByTest extends CQLTester
                    row(2, null, 2),
                    row(4, null, 3));
 
+        // Range query with wildcard
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b"),
+                   row(1, null, null, 1, null),
+                   row(2, null, null, 2, null),
+                   row(4, null, null, 3, null ));
+
         // Range query with LIMIT
         assertRows(execute("SELECT a, b, s, count(b), count(s) FROM %s GROUP BY a, b LIMIT 2"),
                    row(1, null, 1, 0L, 1L),
@@ -559,6 +672,10 @@ public class SelectGroupByTest extends CQLTester
         assertRows(execute("SELECT a, b, s FROM %s WHERE a = 1 GROUP BY a, b"),
                    row(1, null, 1));
 
+        // Single partition query with wildcard
+        assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a, b"),
+                   row(1, null, null, 1, null));
+
         // Single partition query with LIMIT
         assertRows(execute("SELECT a, b, s, count(b), count(s) FROM %s WHERE a = 1 GROUP BY a, b LIMIT 2"),
                    row(1, null, 1, 0L, 1L));
@@ -587,6 +704,12 @@ public class SelectGroupByTest extends CQLTester
                    row(1, null, 1),
                    row(2, null, 2),
                    row(4, null, 3));
+
+        // Multi-partitions query with wildcard
+        assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 3, 4) GROUP BY a, b"),
+                   row(1, null, null, 1, null),
+                   row(2, null, null, 2, null),
+                   row(4, null, null, 3, null ));
 
         // Multi-partitions query with LIMIT
         assertRows(execute("SELECT a, b, s, count(b), count(s) FROM %s WHERE a IN (1, 2, 3, 4) GROUP BY a, b LIMIT 2"),
@@ -664,6 +787,21 @@ public class SelectGroupByTest extends CQLTester
                    row(4, 8, null),
                    row(3, null, 3));
 
+        // Range queries with wildcard
+        assertRows(execute("SELECT * FROM %s GROUP BY a"),
+                   row(1, 2, 1, 1, 3),
+                   row(2, 2, 3, 2, 3),
+                   row(4, 8, 2, null, 12),
+                   row(3, null, null, 3, null));
+
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b"),
+                   row(1, 2, 1, 1, 3),
+                   row(1, 4, 2, 1, 12),
+                   row(2, 2, 3, 2, 3),
+                   row(2, 4, 3, 2, 6),
+                   row(4, 8, 2, null, 12),
+                   row(3, null, null, 3, null));
+
         // Range query with LIMIT
         assertRows(execute("SELECT a, b, s, count(b), count(s) FROM %s GROUP BY a LIMIT 2"),
                    row(1, 2, 1, 4L, 4L),
@@ -695,6 +833,19 @@ public class SelectGroupByTest extends CQLTester
                    row(4, 8, null),
                    row(3, null, 3));
 
+        // Range queries with wildcard and with LIMIT
+        assertRows(execute("SELECT * FROM %s GROUP BY a LIMIT 2"),
+                   row(1, 2, 1, 1, 3),
+                   row(2, 2, 3, 2, 3));
+
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b LIMIT 10"),
+                   row(1, 2, 1, 1, 3),
+                   row(1, 4, 2, 1, 12),
+                   row(2, 2, 3, 2, 3),
+                   row(2, 4, 3, 2, 6),
+                   row(4, 8, 2, null, 12),
+                   row(3, null, null, 3, null));
+
         // Range queries without aggregates and with PER PARTITION LIMIT
         assertRows(execute("SELECT a, b, s FROM %s GROUP BY a, b PER PARTITION LIMIT 1"),
                    row(1, 2, 1),
@@ -702,10 +853,22 @@ public class SelectGroupByTest extends CQLTester
                    row(4, 8, null),
                    row(3, null, 3));
 
+        // Range queries with wildcard and with PER PARTITION LIMIT
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b PER PARTITION LIMIT 1"),
+                   row(1, 2, 1, 1, 3),
+                   row(2, 2, 3, 2, 3),
+                   row(4, 8, 2, null, 12),
+                   row(3, null, null, 3, null));
+
         // Range queries without aggregates, with PER PARTITION LIMIT and with LIMIT
         assertRows(execute("SELECT a, b, s FROM %s GROUP BY a, b PER PARTITION LIMIT 1 LIMIT 2"),
                    row(1, 2, 1),
                    row(2, 2, 2));
+
+        // Range queries with wildcard, PER PARTITION LIMIT and LIMIT
+        assertRows(execute("SELECT * FROM %s GROUP BY a, b PER PARTITION LIMIT 1 LIMIT 2"),
+                   row(1, 2, 1, 1, 3),
+                   row(2, 2, 3, 2, 3));
 
         // Range query with DISTINCT
         assertRows(execute("SELECT DISTINCT a, s, count(a), count(s) FROM %s GROUP BY a"),
@@ -739,6 +902,13 @@ public class SelectGroupByTest extends CQLTester
 
         assertRows(execute("SELECT a, b, s FROM %s WHERE a = 4 GROUP BY a, b"),
                    row(4, 8, null));
+
+        // Single partition queries with wildcard
+        assertRows(execute("SELECT * FROM %s WHERE a = 1 GROUP BY a"),
+                   row(1, 2, 1, 1, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = 4 GROUP BY a, b"),
+                   row(4, 8, 2, null, 12));
 
         // Single partition query with LIMIT
         assertRows(execute("SELECT a, b, s, count(b), count(s) FROM %s WHERE a = 2 GROUP BY a, b LIMIT 1"),
@@ -809,6 +979,21 @@ public class SelectGroupByTest extends CQLTester
                    row(2, 4, 2),
                    row(3, null, 3),
                    row(4, 8, null));
+
+        // Multi-partitions queries with wildcard
+        assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 3, 4) GROUP BY a"),
+                   row(1, 2, 1, 1, 3),
+                   row(2, 2, 3, 2, 3),
+                   row(3, null, null, 3, null),
+                   row(4, 8, 2, null, 12));
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2, 3, 4) GROUP BY a, b"),
+                   row(1, 2, 1, 1, 3),
+                   row(1, 4, 2, 1, 12),
+                   row(2, 2, 3, 2, 3),
+                   row(2, 4, 3, 2, 6),
+                   row(3, null, null, 3, null),
+                   row(4, 8, 2, null, 12));
 
         // Multi-partitions query with LIMIT
         assertRows(execute("SELECT a, b, s, count(b), count(s) FROM %s WHERE a IN (1, 2, 3, 4) GROUP BY a LIMIT 2"),
@@ -942,6 +1127,22 @@ public class SelectGroupByTest extends CQLTester
                           row(2, 4, 3, 6),
                           row(4, 8, 2, 12));
 
+            // Range queries with wildcard
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b, c", pageSize),
+                          row(1, 2, 1, 3, 6),
+                          row(1, 2, 2, 6, 12),
+                          row(1, 4, 2, 6, 12),
+                          row(2, 2, 3, 3, 6),
+                          row(2, 4, 3, 6, 12),
+                          row(4, 8, 2, 12, 24));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b", pageSize),
+                          row(1, 2, 1, 3, 6),
+                          row(1, 4, 2, 6, 12),
+                          row(2, 2, 3, 3, 6),
+                          row(2, 4, 3, 6, 12),
+                          row(4, 8, 2, 12, 24));
+
             // Range query with LIMIT
             assertRowsNet(executeNetWithPaging("SELECT a, b, e, count(b), max(e) FROM %s GROUP BY a, b LIMIT 2",
                                                pageSize),
@@ -995,6 +1196,36 @@ public class SelectGroupByTest extends CQLTester
                           row(1, 2, 2, 6),
                           row(2, 2, 3, 3));
 
+            // Range queries with wildcard and with LIMIT
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b, c LIMIT 3", pageSize),
+                          row(1, 2, 1, 3, 6),
+                          row(1, 2, 2, 6, 12),
+                          row(1, 4, 2, 6, 12));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b LIMIT 3", pageSize),
+                          row(1, 2, 1, 3, 6),
+                          row(1, 4, 2, 6, 12),
+                          row(2, 2, 3, 3, 6));
+
+            // Range queries with wildcard and with PER PARTITION LIMIT
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b, c PER PARTITION LIMIT 2", pageSize),
+                          row(1, 2, 1, 3, 6),
+                          row(1, 2, 2, 6, 12),
+                          row(2, 2, 3, 3, 6),
+                          row(2, 4, 3, 6, 12),
+                          row(4, 8, 2, 12, 24));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b PER PARTITION LIMIT 1", pageSize),
+                          row(1, 2, 1, 3, 6),
+                          row(2, 2, 3, 3, 6),
+                          row(4, 8, 2, 12, 24));
+
+            // Range queries with wildcard, with PER PARTITION LIMIT and LIMIT
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b, c PER PARTITION LIMIT 2 LIMIT 3", pageSize),
+                          row(1, 2, 1, 3, 6),
+                          row(1, 2, 2, 6, 12),
+                          row(2, 2, 3, 3, 6));
+
             // Range query with DISTINCT
             assertRowsNet(executeNetWithPaging("SELECT DISTINCT a, count(a)FROM %s GROUP BY a", pageSize),
                           row(1, 1L),
@@ -1045,6 +1276,16 @@ public class SelectGroupByTest extends CQLTester
                           row(1, 2, 2, 6),
                           row(1, 4, 2, 6));
 
+            // Single partition queries with wildcard
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a, b, c", pageSize),
+                       row(1, 2, 1, 3, 6),
+                       row(1, 2, 2, 6, 12),
+                       row(1, 4, 2, 6, 12));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a, b", pageSize),
+                       row(1, 2, 1, 3, 6),
+                       row(1, 4, 2, 6, 12));
+
             // Single partition query with DISTINCT
             assertRowsNet(executeNetWithPaging("SELECT DISTINCT a, count(a)FROM %s WHERE a = 1 GROUP BY a",
                                                pageSize),
@@ -1094,6 +1335,22 @@ public class SelectGroupByTest extends CQLTester
                                                pageSize),
                           row(1, 2, 1, 3),
                           row(1, 2, 2, 6));
+
+            // Single partition queries with wildcard and with LIMIT
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a, b, c LIMIT 2", pageSize),
+                       row(1, 2, 1, 3, 6),
+                       row(1, 2, 2, 6, 12));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a, b LIMIT 1", pageSize),
+                       row(1, 2, 1, 3, 6));
+
+            // Single partition queries with wildcard and with PER PARTITION LIMIT
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a, b, c PER PARTITION LIMIT 2", pageSize),
+                       row(1, 2, 1, 3, 6),
+                       row(1, 2, 2, 6, 12));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a, b PER PARTITION LIMIT 1", pageSize),
+                       row(1, 2, 1, 3, 6));
 
             // Single partition queries with ORDER BY
             assertRowsNet(executeNetWithPaging("SELECT a, b, e, count(b), max(e) FROM %s WHERE a = 1 GROUP BY a, b, c ORDER BY b DESC, c DESC",
@@ -1178,6 +1435,22 @@ public class SelectGroupByTest extends CQLTester
                           row(2, 2, 3, 3),
                           row(2, 4, 3, 6),
                           row(4, 8, 2, 12));
+
+            // Multi-partitions with wildcard
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b, c", pageSize),
+                       row(1, 2, 1, 3, 6),
+                       row(1, 2, 2, 6, 12),
+                       row(1, 4, 2, 6, 12),
+                       row(2, 2, 3, 3, 6),
+                       row(2, 4, 3, 6, 12),
+                       row(4, 8, 2, 12, 24));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a IN (1, 2, 4) GROUP BY a, b", pageSize),
+                       row(1, 2, 1, 3, 6),
+                       row(1, 4, 2, 6, 12),
+                       row(2, 2, 3, 3, 6),
+                       row(2, 4, 3, 6, 12),
+                       row(4, 8, 2, 12, 24));
 
             // Multi-partitions queries with DISTINCT
             assertRowsNet(executeNetWithPaging("SELECT DISTINCT a, count(a)FROM %s WHERE a IN (1, 2, 4) GROUP BY a",
@@ -1309,6 +1582,12 @@ public class SelectGroupByTest extends CQLTester
                           row(2, null, 2),
                           row(4, null, 3));
 
+            // Range query with wildcard
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b", pageSize),
+                       row(1, null, null, 1, null),
+                       row(2, null, null, 2, null),
+                       row(4, null, null, 3, null ));
+
             // Range query with LIMIT
             assertRowsNet(executeNetWithPaging("SELECT a, b, s, count(b), count(s) FROM %s GROUP BY a, b LIMIT 2",
                                                pageSize),
@@ -1361,6 +1640,10 @@ public class SelectGroupByTest extends CQLTester
             // Single partition query without aggregates
             assertRowsNet(executeNetWithPaging("SELECT a, b, s FROM %s WHERE a = 1 GROUP BY a, b", pageSize),
                           row(1, null, 1));
+
+            // Single partition query with wildcard
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a, b", pageSize),
+                       row(1, null, null, 1, null));
 
             // Single partition queries with LIMIT
             assertRowsNet(executeNetWithPaging("SELECT a, b, s, count(b), count(s) FROM %s WHERE a = 1 GROUP BY a, b LIMIT 2",
@@ -1513,6 +1796,21 @@ public class SelectGroupByTest extends CQLTester
                           row(4, 8, null),
                           row(3, null, 3));
 
+            // Range queries with wildcard
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a", pageSize),
+                       row(1, 2, 1, 1, 3),
+                       row(2, 2, 3, 2, 3),
+                       row(4, 8, 2, null, 12),
+                       row(3, null, null, 3, null));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b", pageSize),
+                       row(1, 2, 1, 1, 3),
+                       row(1, 4, 2, 1, 12),
+                       row(2, 2, 3, 2, 3),
+                       row(2, 4, 3, 2, 6),
+                       row(4, 8, 2, null, 12),
+                       row(3, null, null, 3, null));
+
             // Range query with LIMIT
             assertRowsNet(executeNetWithPaging("SELECT a, b, s, count(b), count(s) FROM %s GROUP BY a LIMIT 2",
                                                pageSize),
@@ -1535,6 +1833,19 @@ public class SelectGroupByTest extends CQLTester
                           row(4, 8, null),
                           row(3, null, 3));
 
+            // Range queries with wildcard and with LIMIT
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a LIMIT 2", pageSize),
+                       row(1, 2, 1, 1, 3),
+                       row(2, 2, 3, 2, 3));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b LIMIT 10", pageSize),
+                       row(1, 2, 1, 1, 3),
+                       row(1, 4, 2, 1, 12),
+                       row(2, 2, 3, 2, 3),
+                       row(2, 4, 3, 2, 6),
+                       row(4, 8, 2, null, 12),
+                       row(3, null, null, 3, null));
+
             // Range queries with PER PARTITION LIMIT
             assertRowsNet(executeNetWithPaging("SELECT a, b, s, count(b), count(s) FROM %s GROUP BY a, b PER PARTITION LIMIT 2", pageSize),
                           row(1, 2, 1, 2L, 2L),
@@ -1550,6 +1861,13 @@ public class SelectGroupByTest extends CQLTester
                           row(4, 8, null, 1L, 0L),
                           row(3, null, 3, 0L, 1L));
 
+            // Range queries with wildcard and PER PARTITION LIMIT
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b PER PARTITION LIMIT 1", pageSize),
+                       row(1, 2, 1, 1, 3),
+                       row(2, 2, 3, 2, 3),
+                       row(4, 8, 2, null, 12),
+                       row(3, null, null, 3, null));
+
             // Range queries with PER PARTITION LIMIT and LIMIT
             assertRowsNet(executeNetWithPaging("SELECT a, b, s, count(b), count(s) FROM %s GROUP BY a, b PER PARTITION LIMIT 2 LIMIT 3", pageSize),
                           row(1, 2, 1, 2L, 2L),
@@ -1560,6 +1878,11 @@ public class SelectGroupByTest extends CQLTester
                           row(1, 2, 1, 2L, 2L),
                           row(2, 2, 2, 1L, 1L),
                           row(4, 8, null, 1L, 0L));
+
+            // Range queries with wildcard, PER PARTITION LIMIT and LIMIT
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s GROUP BY a, b PER PARTITION LIMIT 1 LIMIT 2", pageSize),
+                       row(1, 2, 1, 1, 3),
+                       row(2, 2, 3, 2, 3));
 
             // Range query without aggregates and with PER PARTITION LIMIT
             assertRowsNet(executeNetWithPaging("SELECT a, b, s FROM %s GROUP BY a, b PER PARTITION LIMIT 1", pageSize),
@@ -1614,6 +1937,13 @@ public class SelectGroupByTest extends CQLTester
 
             assertRowsNet(executeNetWithPaging("SELECT a, b, s FROM %s WHERE a = 4 GROUP BY a, b", pageSize),
                           row(4, 8, null));
+
+            // Single partition queries with wildcard
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 1 GROUP BY a", pageSize),
+                       row(1, 2, 1, 1, 3));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a = 4 GROUP BY a, b", pageSize),
+                       row(4, 8, 2, null, 12));
 
             // Single partition queries with LIMIT
             assertRowsNet(executeNetWithPaging("SELECT a, b, s, count(b), count(s) FROM %s WHERE a = 2 GROUP BY a, b LIMIT 1",
@@ -1705,6 +2035,21 @@ public class SelectGroupByTest extends CQLTester
                           row(2, 4, 2),
                           row(3, null, 3),
                           row(4, 8, null));
+
+            // Multi-partitions queries with wildcard
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a IN (1, 2, 3, 4) GROUP BY a", pageSize),
+                       row(1, 2, 1, 1, 3),
+                       row(2, 2, 3, 2, 3),
+                       row(3, null, null, 3, null),
+                       row(4, 8, 2, null, 12));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE a IN (1, 2, 3, 4) GROUP BY a, b", pageSize),
+                       row(1, 2, 1, 1, 3),
+                       row(1, 4, 2, 1, 12),
+                       row(2, 2, 3, 2, 3),
+                       row(2, 4, 3, 2, 6),
+                       row(3, null, null, 3, null),
+                       row(4, 8, 2, null, 12));
 
             // Multi-partitions queries with LIMIT
             assertRowsNet(executeNetWithPaging("SELECT a, b, s, count(b), count(s) FROM %s WHERE a IN (1, 2, 3, 4) GROUP BY a LIMIT 2",
