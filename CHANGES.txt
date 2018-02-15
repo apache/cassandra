@@ -1,4 +1,5 @@
 3.11.3
+ * Fix wildcard GROUP BY queries (CASSANDRA-14209)
 Merged from 2.1
  * CVE-2017-5929 Security vulnerability in Logback warning in NEWS.txt (CASSANDRA-14183)
 
