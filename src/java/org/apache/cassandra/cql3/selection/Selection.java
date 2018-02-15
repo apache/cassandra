@@ -147,6 +147,18 @@ public abstract class Selection
         return new SimpleSelection(cfm, all, true);
     }
 
+    public static Selection wildcardWithGroupBy(CFMetaData cfm, VariableSpecifications boundNames)
+    {
+        List<RawSelector> rawSelectors = new ArrayList<>(cfm.allColumns().size());
+        Iterator<ColumnDefinition> iter = cfm.allColumnsInSelectOrder();
+        while (iter.hasNext())
+        {
+            ColumnDefinition.Raw raw = ColumnDefinition.Raw.forColumn(iter.next());
+            rawSelectors.add(new RawSelector(raw, null));
+        }
+        return fromSelectors(cfm, rawSelectors, boundNames, true);
+    }
+
     public static Selection forColumns(CFMetaData cfm, List<ColumnDefinition> columns)
     {
         return new SimpleSelection(cfm, columns, false);

@@ -958,9 +958,7 @@ public class SelectStatement implements CQLStatement
             CFMetaData cfm = ThriftValidation.validateColumnFamilyWithCompactMode(keyspace(), columnFamily(), clientState.isNoCompactMode());
             VariableSpecifications boundNames = getBoundVariables();
 
-            Selection selection = selectClause.isEmpty()
-                                  ? Selection.wildcard(cfm)
-                                  : Selection.fromSelectors(cfm, selectClause, boundNames, !parameters.groups.isEmpty());
+            Selection selection = prepareSelection(cfm, boundNames);
 
             StatementRestrictions restrictions = prepareRestrictions(cfm, boundNames, selection, forView);
 
@@ -1005,6 +1003,23 @@ public class SelectStatement implements CQLStatement
                                                        prepareLimit(boundNames, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
 
             return new ParsedStatement.Prepared(stmt, boundNames, boundNames.getPartitionKeyBindIndexes(cfm));
+        }
+
+        /**
+         * Prepares the selection to use for the statement.
+         *
+         * @param cfm the table metadata
+         * @param boundNames the bound names
+         * @return the selection to use for the statement
+         */
+        private Selection prepareSelection(CFMetaData cfm, VariableSpecifications boundNames)
+        {
+            boolean hasGroupBy = !parameters.groups.isEmpty();
+
+            if (selectClause.isEmpty())
+                return hasGroupBy ? Selection.wildcardWithGroupBy(cfm, boundNames) : Selection.wildcard(cfm);
+
+            return Selection.fromSelectors(cfm, selectClause, boundNames, hasGroupBy);
         }
 
         /**
