@@ -24,6 +24,7 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
@@ -104,6 +105,19 @@ public abstract class Selection
         List<ColumnMetadata> all = new ArrayList<>(table.columns().size());
         Iterators.addAll(all, table.allColumnsInSelectOrder());
         return new SimpleSelection(table, all, Collections.emptySet(), true, isJson);
+    }
+
+    public static Selection wildcardWithGroupBy(TableMetadata table,
+                                                VariableSpecifications boundNames,
+                                                boolean isJson)
+    {
+        return fromSelectors(table,
+                             Lists.newArrayList(table.allColumnsInSelectOrder()),
+                             boundNames,
+                             Collections.emptySet(),
+                             Collections.emptySet(),
+                             true,
+                             isJson);
     }
 
     public static Selection forColumns(TableMetadata table, List<ColumnMetadata> columns)

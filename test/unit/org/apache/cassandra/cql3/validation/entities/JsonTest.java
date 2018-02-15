@@ -943,6 +943,31 @@ public class JsonTest extends CQLTester
     }
 
     @Test
+    public void testJsonWithGroupBy() throws Throwable
+    {
+        // tests SELECT JSON statements
+        createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
+        execute("INSERT INTO %s (k, c, v) VALUES (0, 0, 0)");
+        execute("INSERT INTO %s (k, c, v) VALUES (0, 1, 1)");
+        execute("INSERT INTO %s (k, c, v) VALUES (1, 0, 1)");
+
+        assertRows(execute("SELECT JSON * FROM %s GROUP BY k"),
+                   row("{\"k\": 0, \"c\": 0, \"v\": 0}"),
+                   row("{\"k\": 1, \"c\": 0, \"v\": 1}")
+        );
+
+        assertRows(execute("SELECT JSON k, c, v FROM %s GROUP BY k"),
+                   row("{\"k\": 0, \"c\": 0, \"v\": 0}"),
+                   row("{\"k\": 1, \"c\": 0, \"v\": 1}")
+        );
+
+        assertRows(execute("SELECT JSON count(*) FROM %s GROUP BY k"),
+                row("{\"count\": 2}"),
+                row("{\"count\": 1}")
+        );
+    }
+
+    @Test
     public void testSelectJsonSyntax() throws Throwable
     {
         // tests SELECT JSON statements
