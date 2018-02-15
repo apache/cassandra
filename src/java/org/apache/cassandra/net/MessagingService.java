@@ -35,14 +35,12 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
@@ -60,7 +58,6 @@ import org.apache.cassandra.concurrent.LocalAwareExecutorService;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -82,13 +79,11 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.EchoMessage;
-import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAck2;
 import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.hints.HintMessage;
 import org.apache.cassandra.hints.HintResponse;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -260,8 +255,9 @@ public final class MessagingService implements MessagingServiceMBean
             }
         },
         PING(),
-        PONG(),
-        // remember to add new verbs at the end, since we serialize by ordinal
+
+        // add new verbs after the existing verbs, but *before* the UNUSED verbs, since we serialize by ordinal.
+        // UNUSED verbs serve as padding for backwards compatability where a previous version needs to validate a verb from the future.
         UNUSED_1,
         UNUSED_2,
         UNUSED_3,
@@ -269,7 +265,7 @@ public final class MessagingService implements MessagingServiceMBean
         UNUSED_5,
         ;
 
-        private int id;
+        private final int id;
         Verb()
         {
             id = ordinal();
@@ -297,7 +293,11 @@ public final class MessagingService implements MessagingServiceMBean
         static
         {
             for (Verb v : values())
+            {
+                if (idToVerbMap.containsKey(v.getId()))
+                    throw new IllegalArgumentException("cannot have two verbs that map to the same id: " + v + " and " + v.getId());
                 idToVerbMap.put(v.getId(), v);
+            }
         }
 
         public static Verb fromId(int id)
@@ -355,7 +355,6 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.UNUSED_3, Stage.INTERNAL_RESPONSE);
 
         put(Verb.PING, Stage.READ);
-        put(Verb.PONG, Stage.READ);
     }};
 
     /**
@@ -396,7 +395,6 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.BATCH_REMOVE, UUIDSerializer.serializer);
 
         put(Verb.PING, PingMessage.serializer);
-        put(Verb.PONG, PongMessage.serializer);
     }};
 
     /**
@@ -1682,114 +1680,5 @@ public final class MessagingService implements MessagingServiceMBean
     public void reloadSslCertificates()
     {
         SSLFactory.checkCertFilesForHotReloading();
-    }
-
-    public void blockForPeers()
-    {
-        // TODO make these yaml props?
-        int alivePercent = Integer.getInteger(Config.PROPERTY_PREFIX + "blockForPeers.percent", 70);
-        if (alivePercent < 0)
-            alivePercent = 0;
-        else if (alivePercent > 100)
-            alivePercent = 100;
-
-        int aliveTimeoutSecs = Integer.getInteger(Config.PROPERTY_PREFIX + "blockForPeers.timeout_in_secs", 10);
-        if (aliveTimeoutSecs < 0)
-            aliveTimeoutSecs = 1;
-        else if (aliveTimeoutSecs > 100)
-            aliveTimeoutSecs = 100;
-
-        if (alivePercent > 0)
-            blockForPeers(alivePercent, aliveTimeoutSecs);
-    }
-
-    private void blockForPeers(int targetAlivePercent, int aliveTimeoutSecs)
-    {
-        // grab a snapshot of the current cluster from Gossiper. this is completely prone to race conditions, but it's
-        // good enough for the purposes of blocking until some certain percentage of nodes are considered 'alive'/connected.
-        Set<Map.Entry<InetAddressAndPort, EndpointState>> peers = new HashSet<>(Gossiper.instance.getEndpointStates());
-
-        // remove current node from the set
-        peers = peers.stream()
-                     .filter(entry -> !entry.getKey().equals(FBUtilities.getBroadcastAddressAndPort()))
-                     .collect(Collectors.toSet());
-
-        final int totalSize = peers.size();
-
-        // don't block if there's no other nodes in the cluster (or we don't know about them)
-        if (totalSize <= 1)
-            return;
-
-        logger.info("choosing to block until {}% of peers are marked alive; max time to wait = {} seconds", targetAlivePercent, aliveTimeoutSecs);
-
-        // first, send out a ping message to open up the non-gossip connections
-        AtomicInteger connectedCount = sendPingMessages(peers);
-
-        long startNanos = System.nanoTime();
-        long expirationNanos = startNanos + TimeUnit.SECONDS.toNanos(aliveTimeoutSecs);
-        int completedRounds = 0;
-        while (true)
-        {
-            int currentAlive = 0;
-            for (Map.Entry<InetAddressAndPort, EndpointState> entry : peers)
-            {
-                if (entry.getValue().isAlive())
-                    currentAlive++;
-            }
-
-            float currentAlivePercent = ((float) currentAlive / (float) totalSize) * 100;
-            float currentConnectedPercent = ((float) connectedCount.get() / (float) totalSize) * 100;
-            if (currentAlivePercent >= targetAlivePercent && currentConnectedPercent >= targetAlivePercent)
-            {
-                logger.info("after {} milliseconds, found {}% ({} / {}) of peers as marked alive, " +
-                            "and {}% ({} / {}) of peers as connected, " +
-                            "both of which are above the desired threshold of {}%",
-                            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos),
-                            currentAlivePercent, currentAlive, totalSize,
-                            currentConnectedPercent, connectedCount.get(), totalSize,
-                            targetAlivePercent);
-                return;
-            }
-
-            completedRounds++;
-            // perform at least two rounds of checking, else this is kinda useless (and the operator set the aliveTimeoutSecs too low)
-            if (completedRounds > 2 && expirationNanos < System.nanoTime())
-            {
-                logger.info("after {} milliseconds, found {}% ({} / {}) of peers as marked alive, " +
-                            "and {}% ({} / {}) of peers as connected, " +
-                            "one or both of which is below the desired threshold of {}%",
-                            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos),
-                            currentAlivePercent, currentAlive, totalSize,
-                            currentConnectedPercent, connectedCount.get(), totalSize,
-                            targetAlivePercent);
-                return;
-            }
-            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-        }
-    }
-
-    private AtomicInteger sendPingMessages(Set<Map.Entry<InetAddressAndPort, EndpointState>> peers)
-    {
-        AtomicInteger receivedCount = new AtomicInteger(0);
-        IAsyncCallback echoHandler = new IAsyncCallback()
-        {
-            @Override
-            public boolean isLatencyForSnitch()
-            {
-                return false;
-            }
-
-            @Override
-            public void response(MessageIn msg)
-            {
-                receivedCount.incrementAndGet();
-            }
-        };
-
-        MessageOut<PingMessage> msg = new MessageOut<>(MessagingService.Verb.PING, PingMessage.instance, PingMessage.serializer);
-        for (Map.Entry<InetAddressAndPort, EndpointState> peer : peers)
-            MessagingService.instance().sendRR(msg, peer.getKey(), echoHandler);
-
-        return receivedCount;
     }
 }

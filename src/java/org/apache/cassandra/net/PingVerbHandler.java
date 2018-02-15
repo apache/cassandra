@@ -23,7 +23,9 @@ public class PingVerbHandler implements IVerbHandler<PingMessage>
     @Override
     public void doVerb(MessageIn<PingMessage> message, int id)
     {
-        MessageOut<PongMessage> msg = new MessageOut<>(MessagingService.Verb.PONG, PongMessage.instance, PongMessage.serializer);
+        MessageOut<PongMessage> msg = new MessageOut<>(MessagingService.Verb.REQUEST_RESPONSE, PongMessage.instance,
+                                                       PongMessage.serializer,
+                                                       message.payload.connectionType);
         MessagingService.instance().sendReply(msg, id, message.from);
     }
 }

@@ -2522,4 +2522,14 @@ public class DatabaseDescriptor
     {
         return  conf.full_query_log_dir;
     }
+
+    public static int getBlockForPeersPercentage()
+    {
+        return conf.block_for_peers_percentage;
+    }
+
+    public static int getBlockForPeersTimeoutInSeconds()
+    {
+        return conf.block_for_peers_timeout_in_secs;
+    }
 }
