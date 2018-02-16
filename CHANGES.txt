@@ -1,4 +1,5 @@
 2.2.13
+ * Backport circleci yaml (CASSANDRA-14240)
 Merged from 2.1:
  * CVE-2017-5929 Security vulnerability in Logback warning in NEWS.txt (CASSANDRA-14183)
 
