@@ -38,6 +38,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - `nodetool refresh` has been deprecated in favour of `nodetool import` - see CASSANDRA-6719
+     for details
    - An experimental option to compare all merkle trees together has been added - for example, in
      a 3 node cluster with 2 replicas identical and 1 out-of-date, with this option enabled, the
      out-of-date replica will only stream a single copy from up-to-date replica. Enable it by adding
