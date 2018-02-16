@@ -92,6 +92,7 @@ public class NodeTool
                 GetSSTables.class,
                 GetMaxHintWindow.class,
                 GossipInfo.class,
+                Import.class,
                 InvalidateKeyCache.class,
                 InvalidateRowCache.class,
                 InvalidateCounterCache.class,

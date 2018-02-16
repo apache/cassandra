@@ -632,7 +632,7 @@ public class VerifyTest
         }
     }
 
-    protected void writeChecksum(long checksum, String filePath)
+    public static void writeChecksum(long checksum, String filePath)
     {
         File outFile = new File(filePath);
         BufferedWriter out = null;
