@@ -194,6 +194,7 @@
  * Correctly count range tombstones in traces and tombstone thresholds (CASSANDRA-8527)
 
 3.11.3
+ * RateBasedBackPressure unnecessarily invokes a lock on the Guava RateLimiter  (CASSANDRA-14163)
  * Fix wildcard GROUP BY queries (CASSANDRA-14209)
 
 

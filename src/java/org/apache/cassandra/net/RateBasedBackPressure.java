@@ -164,12 +164,13 @@ public class RateBasedBackPressure implements BackPressureStrategy<RateBasedBack
                         double actualRatio = incomingRate / outgoingRate;
 
                         // If the ratio is above the high mark, try growing by the back-pressure factor:
+                        double limiterRate = limiter.getRate();
                         if (actualRatio >= highRatio)
                         {
                             // Only if the outgoing rate is able to keep up with the rate increase:
-                            if (limiter.getRate() <= outgoingRate)
+                            if (limiterRate <= outgoingRate)
                             {
-                                double newRate = limiter.getRate() + ((limiter.getRate() * factor) / 100);
+                                double newRate = limiterRate + ((limiterRate * factor) / 100);
                                 if (newRate > 0 && newRate != Double.POSITIVE_INFINITY)
                                 {
                                     limiter.setRate(newRate);
@@ -181,14 +182,16 @@ public class RateBasedBackPressure implements BackPressureStrategy<RateBasedBack
                         {
                             // Only if the new rate is actually less than the actual rate:
                             double newRate = incomingRate - ((incomingRate * factor) / 100);
-                            if (newRate > 0 && newRate < limiter.getRate())
+                            if (newRate > 0 && newRate < limiterRate)
                             {
                                 limiter.setRate(newRate);
                             }
                         }
-
-                        logger.trace("Back-pressure state for {}: incoming rate {}, outgoing rate {}, ratio {}, rate limiting {}",
-                                     backPressure.getHost(), incomingRate, outgoingRate, actualRatio, limiter.getRate());
+                        if (logger.isTraceEnabled())
+                        {
+                            logger.trace("Back-pressure state for {}: incoming rate {}, outgoing rate {}, ratio {}, rate limiting {}",
+                                         backPressure.getHost(), incomingRate, outgoingRate, actualRatio, limiter.getRate());
+                        }
                     }
                     // Otherwise reset the rate limiter:
                     else
