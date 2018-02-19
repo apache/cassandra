@@ -22,6 +22,7 @@ import java.util.*;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Throwables;
 
@@ -127,32 +128,18 @@ class Helpers
 
     static Throwable prepareForObsoletion(Iterable<SSTableReader> readers, LogTransaction txnLogs, List<LogTransaction.Obsoletion> obsoletions, Throwable accumulate)
     {
+        Map<SSTable, LogRecord> logRecords = txnLogs.makeRemoveRecords(readers);
         for (SSTableReader reader : readers)
         {
             try
             {
-                obsoletions.add(new LogTransaction.Obsoletion(reader, txnLogs.obsoleted(reader)));
+                obsoletions.add(new LogTransaction.Obsoletion(reader, txnLogs.obsoleted(reader, logRecords.get(reader))));
             }
             catch (Throwable t)
             {
                 accumulate = Throwables.merge(accumulate, t);
             }
         }
-        return accumulate;
-    }
-
-    static Throwable prepareForBulkObsoletion(Iterable<SSTableReader> readers, LogTransaction txnLogs, List<LogTransaction.Obsoletion> obsoletions, Throwable accumulate)
-    {
-        try
-        {
-            for (Map.Entry<SSTableReader, LogTransaction.SSTableTidier> entry : txnLogs.bulkObsoletion(readers).entrySet())
-                obsoletions.add(new LogTransaction.Obsoletion(entry.getKey(), entry.getValue()));
-        }
-        catch (Throwable t)
-        {
-            accumulate = Throwables.merge(accumulate, t);
-        }
-
         return accumulate;
     }
 
