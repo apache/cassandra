@@ -196,6 +196,8 @@
 3.11.3
  * RateBasedBackPressure unnecessarily invokes a lock on the Guava RateLimiter  (CASSANDRA-14163)
  * Fix wildcard GROUP BY queries (CASSANDRA-14209)
+Merged from 3.0:
+ * Pre-create deletion log records to finish compactions quicker (CASSANDRA-12763)
 
 
 3.11.2
