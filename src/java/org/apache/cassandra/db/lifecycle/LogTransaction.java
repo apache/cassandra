@@ -145,19 +145,28 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     }
 
     /**
+     * helper method for tests, creates the remove records per sstable
+     */
+    @VisibleForTesting
+    SSTableTidier obsoleted(SSTableReader sstable)
+    {
+        return obsoleted(sstable, LogRecord.make(Type.REMOVE, sstable));
+    }
+
+    /**
      * Schedule a reader for deletion as soon as it is fully unreferenced.
      */
-    SSTableTidier obsoleted(SSTableReader reader)
+    SSTableTidier obsoleted(SSTableReader reader, LogRecord logRecord)
     {
-        if (txnFile.contains(Type.ADD, reader))
+        if (txnFile.contains(Type.ADD, reader, logRecord))
         {
-            if (txnFile.contains(Type.REMOVE, reader))
+            if (txnFile.contains(Type.REMOVE, reader, logRecord))
                 throw new IllegalArgumentException();
 
             return new SSTableTidier(reader, true, this);
         }
 
-        txnFile.add(Type.REMOVE, reader);
+        txnFile.add(logRecord);
 
         if (tracker != null)
             tracker.notifyDeleting(reader);
@@ -165,21 +174,11 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         return new SSTableTidier(reader, false, this);
     }
 
-    Map<SSTableReader, SSTableTidier> bulkObsoletion(Iterable<SSTableReader> sstables)
+    Map<SSTable, LogRecord> makeRemoveRecords(Iterable<SSTableReader> sstables)
     {
-        if (!txnFile.isEmpty())
-            throw new IllegalStateException("Bad state when doing bulk obsoletions");
-
-        txnFile.addAll(Type.REMOVE, sstables);
-        Map<SSTableReader, SSTableTidier> tidiers = new HashMap<>();
-        for (SSTableReader sstable : sstables)
-        {
-            if (tracker != null)
-                tracker.notifyDeleting(sstable);
-            tidiers.put(sstable, new SSTableTidier(sstable, false, this));
-        }
-        return tidiers;
+        return txnFile.makeRecords(Type.REMOVE, sstables);
     }
+
 
     OperationType type()
     {
