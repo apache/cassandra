@@ -192,6 +192,7 @@
  * CQLSH: Don't pause when capturing data (CASSANDRA-13743)
  * nodetool clearsnapshot requires --all to clear all snapshots (CASSANDRA-13391)
  * Correctly count range tombstones in traces and tombstone thresholds (CASSANDRA-8527)
+ * cqlshrc.sample uses incorrect option for time formatting (CASSANDRA-14243)
 
 3.11.3
  * RateBasedBackPressure unnecessarily invokes a lock on the Guava RateLimiter  (CASSANDRA-14163)
