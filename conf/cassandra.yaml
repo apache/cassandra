@@ -98,6 +98,20 @@ auto_hints_cleanup_enabled: false
 #     parameters:
 #         -
 
+# Enable / disable persistent hint windows.
+#
+# If set to false, a hint will be stored only in case a respective node
+# that hint is for is down less than or equal to max_hint_window_in_ms.
+#
+# If set to true, a hint will be stored in case there is not any
+# hint which was stored earlier than max_hint_window_in_ms. This is for cases
+# when a node keeps to restart and hints are not delivered yet, we would be saving
+# hints for that node indefinitely.
+#
+# Defaults to true.
+#
+# hint_window_persistent_enabled: true
+
 # Maximum throttle in KBs per second, total. This will be
 # reduced proportionally to the number of nodes in the cluster.
 batchlog_replay_throttle_in_kb: 1024

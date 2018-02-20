@@ -247,6 +247,14 @@ final class HintsStore
         corruptedFiles.add(descriptor);
     }
 
+    /**
+     * @return a copy of the first {@link HintsDescriptor} in the queue for dispatch or {@code null} if queue is empty.
+     */
+    HintsDescriptor getFirstDescriptor()
+    {
+        return dispatchDequeue.peekFirst();
+    }
+
     /*
      * Methods dealing with HintsWriter.
      *

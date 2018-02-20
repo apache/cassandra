@@ -26,11 +26,13 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.CRC32;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
@@ -58,6 +60,7 @@ final class HintsBuffer
 
     private final ConcurrentMap<UUID, Queue<Integer>> offsets;
     private final OpOrder appendOrder;
+    private final ConcurrentMap<UUID, Long> earliestHintByHost; // Stores time of the earliest hint in the buffer for each host
 
     private HintsBuffer(ByteBuffer slab)
     {
@@ -66,6 +69,7 @@ final class HintsBuffer
         position = new AtomicLong();
         offsets = new ConcurrentHashMap<>();
         appendOrder = new OpOrder();
+        earliestHintByHost = new ConcurrentHashMap<>();
     }
 
     static HintsBuffer create(int slabSize)
@@ -139,6 +143,21 @@ final class HintsBuffer
                 return (ByteBuffer) flyweight.clear().position(offset).limit(offset + totalSize);
             }
         };
+    }
+
+    /**
+     * Retrieve the time of the earliest hint in the buffer for a specific node
+     * @param hostId UUID of the node
+     * @return timestamp for the earliest hint in the buffer, or {@link System#currentTimeMillis()}
+     */
+    long getEarliestHintTime(UUID hostId)
+    {
+        return earliestHintByHost.getOrDefault(hostId, Clock.Global.currentTimeMillis());
+    }
+
+    void clearEarliestHintForHostId(UUID hostId)
+    {
+        earliestHintByHost.remove(hostId);
     }
 
     @SuppressWarnings("resource")
@@ -222,8 +241,15 @@ final class HintsBuffer
         void write(Iterable<UUID> hostIds, Hint hint)
         {
             write(hint);
+            long ts = Clock.Global.currentTimeMillis();
             for (UUID hostId : hostIds)
+            {
+                // We only need the time of the first hint in the buffer
+                if (DatabaseDescriptor.hintWindowPersistentEnabled())
+                    earliestHintByHost.putIfAbsent(hostId, ts);
+
                 put(hostId, offset);
+            }
         }
 
         public void close()

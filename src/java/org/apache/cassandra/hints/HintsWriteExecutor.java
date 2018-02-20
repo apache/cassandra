@@ -194,7 +194,7 @@ final class HintsWriteExecutor
         {
             HintsBuffer buffer = bufferPool.currentBuffer();
             buffer.waitForModifications();
-            stores.forEach(store -> flush(buffer.consumingHintsIterator(store.hostId), store));
+            stores.forEach(store -> flush(buffer.consumingHintsIterator(store.hostId), store, buffer));
         }
     }
 
@@ -216,10 +216,10 @@ final class HintsWriteExecutor
 
     private void flush(HintsBuffer buffer)
     {
-        buffer.hostIds().forEach(hostId -> flush(buffer.consumingHintsIterator(hostId), catalog.get(hostId)));
+        buffer.hostIds().forEach(hostId -> flush(buffer.consumingHintsIterator(hostId), catalog.get(hostId), buffer));
     }
 
-    private void flush(Iterator<ByteBuffer> iterator, HintsStore store)
+    private void flush(Iterator<ByteBuffer> iterator, HintsStore store, HintsBuffer buffer)
     {
         while (true)
         {
@@ -231,7 +231,27 @@ final class HintsWriteExecutor
 
             // exceeded the size limit for an individual file, but still have more to write
             // close the current writer and continue flushing to a new one in the next iteration
-            store.closeWriter();
+            try
+            {
+                store.closeWriter();
+            }
+            finally
+            {
+                /*
+                We remove the earliest hint for a respective hostId of the store from the buffer,
+                we are removing it specifically after we closed the store above in try block
+                so hints are persisted on disk before.
+
+                There is a periodic flushing of a buffer driven by hints_flush_period_in_ms and clearing
+                this entry upon every flush would remove the information what is the earliest hint in the buffer
+                for a respective node prematurely.
+
+                Since this flushing method is called for every host id a buffer holds, we will eventually
+                remove all hostIds of the earliest hints of the buffer, and it will be added again as soon as there
+                is a new hint for that node to be delivered.
+                */
+                buffer.clearEarliestHintForHostId(store.hostId);
+            }
         }
     }
 
