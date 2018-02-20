@@ -337,11 +337,12 @@ public abstract class CommitLogSegment
         {
             flush(startMarker, sectionEnd);
             lastSyncedOffset = lastMarkerOffset = nextMarker;
-        }
 
-        if (close)
-            internalClose();
-        syncComplete.signalAll();
+            if (close)
+                internalClose();
+
+            syncComplete.signalAll();
+        }
     }
 
     protected static void writeSyncMarker(long id, ByteBuffer buffer, int offset, int filePos, int nextMarker)
