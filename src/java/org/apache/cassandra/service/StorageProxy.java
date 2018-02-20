@@ -497,7 +497,7 @@ public class StorageProxy implements StorageProxyMBean
         return false;
     }
 
-    private static void commitPaxos(Commit proposal, ConsistencyLevel consistencyLevel, boolean shouldHint) throws WriteTimeoutException
+    private static void commitPaxos(Commit proposal, ConsistencyLevel consistencyLevel, boolean allowHints) throws WriteTimeoutException
     {
         boolean shouldBlock = consistencyLevel != ConsistencyLevel.ANY;
         Keyspace keyspace = Keyspace.open(proposal.update.metadata().ksName);
@@ -523,14 +523,14 @@ public class StorageProxy implements StorageProxyMBean
                     if (canDoLocalRequest(destination))
                         commitPaxosLocal(message, responseHandler);
                     else
-                        MessagingService.instance().sendRR(message, destination, responseHandler, shouldHint);
+                        MessagingService.instance().sendRR(message, destination, responseHandler, allowHints && shouldHint(destination));
                 }
                 else
                 {
                     MessagingService.instance().sendOneWay(message, destination);
                 }
             }
-            else if (shouldHint)
+            else if (allowHints && shouldHint(destination))
             {
                 submitHint(proposal.makeMutation(), destination, null);
             }
