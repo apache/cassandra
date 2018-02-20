@@ -222,13 +222,28 @@ public class LogReplicaSet implements AutoCloseable
      */
     void append(LogRecord record)
     {
-        Throwable err = Throwables.perform(null, replicas().stream().map(r -> () -> r.append(record)));
+        Throwable err = null;
+        int failed = 0;
+        for (LogReplica replica : replicas())
+        {
+            try
+            {
+                replica.append(record);
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed to add record to a replica: {}", t.getMessage());
+                err = Throwables.merge(err, t);
+                failed++;
+            }
+        }
+
         if (err != null)
         {
-            if (!record.isFinal() || err.getSuppressed().length == replicas().size() -1)
+            if (!record.isFinal() || failed == replicas().size())
                 Throwables.maybeFail(err);
 
-            logger.error("Failed to add record '{}' to some replicas '{}'", record, this);
+            logger.error("Failed to add record '{}' to some replicas '{}'", record, this, err);
         }
     }
 
