@@ -54,6 +54,16 @@ New features
       (track_warnings.local_read_size.warn_threshold_kb and track_warnings.local_read_size.abort_threshold_kb),
       and RowIndexEntry estimated memory size (track_warnings.row_index_size.warn_threshold_kb and
       track_warnings.row_index_size.abort_threshold_kb) are supported; more checks will be added over time.
+    - Prior to this version, the hint system was storing a window of hints as defined by
+      configuration property max_hint_window_in_ms, however this window is not persistent across restarts.
+      For example, if a node is restarted, it will be still eligible for a hint to be sent to it because it
+      was down less than max_hint_window_in_ms. Hence if that node continues restarting without hint delivery completing,
+      hints will be sent to that node indefinitely which would occupy more and more disk space.
+      This behaviour was changed in CASSANDRA-14309. From now on, by default, if a node is not down longer than
+      max_hint_window_in_ms, there is an additional check to see if there is a hint to be delivered which is older
+      than max_window_in_ms. If there is, a hint is not persisted. If there is not, it is.
+      This behaviour might be reverted as it was in previous version by property hint_window_persistent_enabled by
+      setting it to false. This property is by default set to true.
 
 Upgrading
 ---------

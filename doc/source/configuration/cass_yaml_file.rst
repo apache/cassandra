@@ -150,6 +150,21 @@ are supported.
     #     parameters:
     #         -
 
+``hint_window_persistent_enabled``
+-------------------------
+
+*This option is commented out by default.*
+
+If set to false, a hint will be stored only in case a respective node
+that hint is for is down less than or equal to max_hint_window_in_ms.
+
+If set to true, a hint will be stored in case there is not any
+hint which was stored earlier than max_hint_window_in_ms. This is for cases
+when a node keeps restarting and hints are not delivered yet, we would be saving
+hints for that node indefinitely.
+
+*Default Value:* true
+
 ``batchlog_replay_throttle_in_kb``
 ----------------------------------
 Maximum throttle in KBs per second, total. This will be
