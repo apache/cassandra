@@ -18,6 +18,7 @@
 package org.apache.cassandra.hints;
 
 import java.io.Closeable;
+import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 
@@ -63,6 +64,22 @@ final class HintsBufferPool implements Closeable
         {
             allocation.write(hostIds, hint);
         }
+    }
+
+    /**
+     * Get the earliest hint for a specific node from all buffers
+     * @param hostId UUID of the node
+     * @return timestamp for the earliest hint
+     */
+    long getEarliestHintForHost(UUID hostId)
+    {
+        long min = currentBuffer().getEarliestHintTime(hostId);
+        Iterator<HintsBuffer> it = reserveBuffers.iterator();
+
+        while (it.hasNext())
+            min = Math.min(min, it.next().getEarliestHintTime(hostId));
+
+        return min;
     }
 
     private HintsBuffer.Allocation allocate(int hintSize)
