@@ -92,7 +92,7 @@ public class DynamicEndpointSnitchTest
         assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3, host4)));
 
         setScores(dsnitch, 20, hosts, 10, 10, 10);
-        order = Arrays.asList(host1, host2, host3, host4);
+        order = Arrays.asList(host4, host1, host2, host3);
         assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3, host4)));
     }
 }
