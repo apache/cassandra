@@ -1,4 +1,5 @@
 4.0
+ * Use zero as default score in DynamicEndpointSnitch (CASSANDRA-14252)
  * Handle static and partition deletion properly on ThrottledUnfilteredIterator (CASSANDRA-14315)
  * NodeTool clientstats should show SSL Cipher (CASSANDRA-14322)
  * Add ability to specify driver name and version (CASSANDRA-14275)
