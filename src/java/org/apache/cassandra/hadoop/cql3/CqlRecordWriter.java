@@ -477,7 +477,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         StringBuilder keyWhereClause = new StringBuilder();
 
         for (ColumnMetadata partitionKey : partitionKeyColumns)
-            keyWhereClause.append(String.format("%s = ?", keyWhereClause.isEmpty() ? quote(partitionKey.getName()) : (" AND " + quote(partitionKey.getName()))));
+            keyWhereClause.append(String.format("%s = ?", keyWhereClause.length() == 0  ? quote(partitionKey.getName()) : (" AND " + quote(partitionKey.getName()))));
         for (ColumnMetadata clusterColumn : clusterColumns)
             keyWhereClause.append(" AND ").append(quote(clusterColumn.getName())).append(" = ?");
 
