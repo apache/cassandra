@@ -76,7 +76,7 @@ public enum Stage
         StringBuilder name = new StringBuilder();
         for (String word : toString().split("_"))
         {
-            name.append(word.substring(0, 1)).append(word.substring(1).toLowerCase()));
+            name.append(word.substring(0, 1)).append(word.substring(1).toLowerCase());
         }
         return name.toString() + "Stage";
     }
