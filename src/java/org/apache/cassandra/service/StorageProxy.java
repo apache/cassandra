@@ -759,8 +759,11 @@ public class StorageProxy implements StorageProxyMBean
                         continue;
                     }
 
-                    // When local node is the paired endpoint just apply the mutation locally.
-                    if (pairedEndpoint.get().equals(FBUtilities.getBroadcastAddress()) && StorageService.instance.isJoined())
+                    // When local node is the endpoint we can just apply the mutation locally,
+                    // unless there are pending endpoints, in which case we want to do an ordinary
+                    // write so the view mutation is sent to the pending endpoint
+                    if (pairedEndpoint.get().equals(FBUtilities.getBroadcastAddress()) && StorageService.instance.isJoined()
+                        && pendingEndpoints.isEmpty())
                         try
                         {
                             mutation.apply(writeCommitLog);
