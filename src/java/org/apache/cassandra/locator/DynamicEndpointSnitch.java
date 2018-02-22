@@ -234,7 +234,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         {
             Double score = scores.get(inet);
             if (score == null)
-                continue;
+                score = 0.0;
             subsnitchOrderedScores.add(score);
         }
 
