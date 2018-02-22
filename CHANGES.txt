@@ -1,4 +1,5 @@
 3.11.3
+ * Use zero as default score in DynamicEndpointSnitch (CASSANDRA-14252)
  * SASI tokenizer for simple delimiter based entries (CASSANDRA-14247)
  * Fix Loss of digits when doing CAST from varint/bigint to decimal (CASSANDRA-14170)
  * RateBasedBackPressure unnecessarily invokes a lock on the Guava RateLimiter (CASSANDRA-14163)
