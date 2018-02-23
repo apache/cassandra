@@ -89,7 +89,6 @@ public class ColumnsTest
 
     private void assertSubset(Columns superset, Columns subset)
     {
-        Assert.assertTrue(superset.containsAll(superset));
         Assert.assertTrue(superset.containsAll(subset));
         Assert.assertFalse(subset.containsAll(superset));
     }

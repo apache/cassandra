@@ -44,7 +44,7 @@ public class OffsetAwareConfigurationLoader extends YamlConfigurationLoader
         if (offsetStr == null)
             throw new RuntimeException("offset property is not set: "+OFFSET_PROPERTY);
 
-        offset = Integer.valueOf(offsetStr);
+        offset = Integer.parseInt(offsetStr);
 
         assert offset >= 0;
     }

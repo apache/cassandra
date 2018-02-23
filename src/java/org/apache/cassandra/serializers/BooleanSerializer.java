@@ -31,7 +31,7 @@ public class BooleanSerializer implements TypeSerializer<Boolean>
     public Boolean deserialize(ByteBuffer bytes)
     {
         if (bytes == null || bytes.remaining() == 0)
-            return null;
+            return false;
 
         byte value = bytes.get(bytes.position());
         return value != 0;

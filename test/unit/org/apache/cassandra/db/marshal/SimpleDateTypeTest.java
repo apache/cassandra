@@ -26,7 +26,7 @@ import org.apache.cassandra.serializers.SimpleDateSerializer;
 
 public class SimpleDateTypeTest
 {
-    @Test public void TestComparison()
+    @Test public void testComparison()
     {
         ByteBuffer d1 = SimpleDateType.instance.fromString("1970-01-05");
         ByteBuffer d2 = SimpleDateSerializer.instance.serialize(makeUnsigned(4));

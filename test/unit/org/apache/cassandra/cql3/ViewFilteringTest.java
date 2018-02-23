@@ -51,7 +51,7 @@ public class ViewFilteringTest extends CQLTester
     }
 
     @AfterClass
-    public static void TearDown()
+    public static void tearDown()
     {
         System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "false");
     }

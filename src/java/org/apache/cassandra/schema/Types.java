@@ -325,7 +325,14 @@ public final class Types implements Iterable<UserType>
             @Override
             public boolean equals(Object other)
             {
-                return name.equals(((RawUDT) other).name);
+                if (this == other)
+                    return true;
+                if (other == null)
+                    return false;
+                if (!(other instanceof RawUDT))
+                    return false;
+                RawUDT otherUDT = (RawUDT)other;
+                return name.equals(otherUDT.name);
             }
         }
     }
