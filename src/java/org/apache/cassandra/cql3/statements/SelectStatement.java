@@ -25,6 +25,8 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.audit.IAuditLogContext;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -285,6 +287,12 @@ public class SelectStatement implements CQLStatement
         {
             return processResults(data, options, selectors, nowInSec, userLimit);
         }
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.SELECT, keyspace(), table.name);
     }
 
     // Simple wrapper class to avoid some code duplication

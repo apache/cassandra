@@ -40,6 +40,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.Stage;
@@ -55,7 +56,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
-import org.apache.cassandra.db.fullquerylog.FullQueryLogger;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.ViewUtils;
@@ -78,7 +78,6 @@ import org.apache.cassandra.service.paxos.ProposeCallback;
 import org.apache.cassandra.service.paxos.ProposeVerbHandler;
 import org.apache.cassandra.net.MessagingService.Verb;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -2807,19 +2806,19 @@ public class StorageProxy implements StorageProxyMBean
     {
         path = path != null ? path : DatabaseDescriptor.getFullQueryLogPath();
         Preconditions.checkNotNull(path, "cassandra.yaml did not set full_query_log_dir and not set as parameter");
-        FullQueryLogger.instance.configure(Paths.get(path), rollCycle, blocking, maxQueueWeight, maxLogSize);
+        AuditLogManager.getInstance().configureFQL(Paths.get(path), rollCycle, blocking, maxQueueWeight, maxLogSize);
     }
 
     @Override
     public void resetFullQueryLogger()
     {
-        FullQueryLogger.instance.reset(DatabaseDescriptor.getFullQueryLogPath());
+        AuditLogManager.getInstance().resetFQL(DatabaseDescriptor.getFullQueryLogPath());
     }
 
     @Override
     public void stopFullQueryLogger()
     {
-        FullQueryLogger.instance.stop();
+        AuditLogManager.getInstance().disableFQL();
     }
 
     public int getOtcBacklogExpirationInterval() {

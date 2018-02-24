@@ -114,7 +114,7 @@ public class BinLogTest
         AtomicInteger releaseCount = new AtomicInteger();
         binLog.put(new BinLog.ReleaseableWriteMarshallable()
         {
-            protected void release()
+            public void release()
             {
                 releaseCount.incrementAndGet();
             }
@@ -139,7 +139,7 @@ public class BinLogTest
 
             }
 
-            protected void release()
+            public void release()
             {
                 releaseCount.incrementAndGet();
             }
@@ -174,7 +174,7 @@ public class BinLogTest
         Semaphore released = new Semaphore(0);
         binLog.sampleQueue.put(new BinLog.ReleaseableWriteMarshallable()
         {
-            protected void release()
+            public void release()
             {
                 released.release();
             }
@@ -220,7 +220,7 @@ public class BinLogTest
         {
             binLog.put(new BinLog.ReleaseableWriteMarshallable()
             {
-                protected void release()
+                public void release()
                 {
                 }
 
@@ -296,7 +296,7 @@ public class BinLogTest
         {
             assertTrue(binLog.offer(new BinLog.ReleaseableWriteMarshallable()
             {
-                protected void release()
+                public void release()
                 {
                 }
 
@@ -412,7 +412,7 @@ public class BinLogTest
     {
         return new BinLog.ReleaseableWriteMarshallable()
         {
-            protected void release()
+            public void release()
             {
                 //Do nothing
             }

@@ -543,6 +543,13 @@ public abstract class CQLTester
         return tables.get(tables.size() - 1);
     }
 
+    protected String currentKeyspace()
+    {
+        if (keyspaces.isEmpty())
+            return null;
+        return keyspaces.get(keyspaces.size() - 1);
+    }
+
     protected ByteBuffer unset()
     {
         return ByteBufferUtil.UNSET_BYTE_BUFFER;

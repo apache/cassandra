@@ -16,13 +16,12 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db.fullquerylog;
+package org.apache.cassandra.audit;
 
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -36,7 +35,6 @@ import org.slf4j.LoggerFactory;
 import io.netty.buffer.ByteBuf;
 import net.openhft.chronicle.bytes.BytesStore;
 import net.openhft.chronicle.queue.RollCycles;
-import net.openhft.chronicle.wire.ValueOut;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.io.FSError;
@@ -50,13 +48,10 @@ import org.apache.cassandra.utils.binlog.BinLog;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
 import org.github.jamm.MemoryLayoutSpecification;
 
-/**
- * A logger that logs entire query contents after the query finishes (or times out).
- */
-public class FullQueryLogger
+abstract class BinLogAuditLogger implements IAuditLogger
 {
-    private static final int EMPTY_BYTEBUFFER_SIZE = Ints.checkedCast(ObjectSizes.sizeOnHeapExcludingData(ByteBuffer.allocate(0)));
-    private static final int EMPTY_LIST_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(new ArrayList(0)));
+    static final int EMPTY_BYTEBUFFER_SIZE = Ints.checkedCast(ObjectSizes.sizeOnHeapExcludingData(ByteBuffer.allocate(0)));
+    static final int EMPTY_LIST_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(new ArrayList(0)));
     private static final int EMPTY_BYTEBUF_SIZE;
     private static final int OBJECT_HEADER_SIZE = MemoryLayoutSpecification.SPEC.getObjectHeaderSize();
     static
@@ -74,20 +69,27 @@ public class FullQueryLogger
         EMPTY_BYTEBUF_SIZE = tempSize;
     }
 
-    private static final Logger logger = LoggerFactory.getLogger(FullQueryLogger.class);
+    protected static final Logger logger = LoggerFactory.getLogger(BinLogAuditLogger.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
     private static final NoSpamLogger.NoSpamLogStatement droppedSamplesStatement = noSpamLogger.getStatement("Dropped {} binary log samples", 1, TimeUnit.MINUTES);
 
-    public static final FullQueryLogger instance = new FullQueryLogger();
-
     volatile BinLog binLog;
-    private volatile boolean blocking;
-    private Path path;
+    protected volatile boolean blocking;
+    protected Path path;
 
     private final AtomicLong droppedSamplesSinceLastLog = new AtomicLong();
 
-    private FullQueryLogger()
+    /**
+     * Configure the global instance of the FullQueryLogger. Clean the provided directory before starting
+     * @param path Dedicated path where the FQL can store it's files.
+     * @param rollCycle How often to roll FQL log segments so they can potentially be reclaimed
+     * @param blocking Whether the FQL should block if the FQL falls behind or should drop log records
+     * @param maxQueueWeight Maximum weight of in memory queue for records waiting to be written to the file before blocking or dropping
+     * @param maxLogSize Maximum size of the rolled files to retain on disk before deleting the oldest file
+     */
+    public synchronized void configure(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize)
     {
+        this.configure(path, rollCycle, blocking, maxQueueWeight, maxLogSize, true);
     }
 
     /**
@@ -97,8 +99,9 @@ public class FullQueryLogger
      * @param blocking Whether the FQL should block if the FQL falls behind or should drop log records
      * @param maxQueueWeight Maximum weight of in memory queue for records waiting to be written to the file before blocking or dropping
      * @param maxLogSize Maximum size of the rolled files to retain on disk before deleting the oldest file
+     * @param cleanDirectory Indicates to clean the directory before starting FullQueryLogger or not
      */
-    public synchronized void configure(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize)
+    public synchronized void configure(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, boolean cleanDirectory)
     {
         Preconditions.checkNotNull(path, "path was null");
         File pathAsFile = path.toFile();
@@ -112,18 +115,23 @@ public class FullQueryLogger
         Preconditions.checkArgument(maxQueueWeight > 0, "maxQueueWeight must be > 0");
         Preconditions.checkArgument(maxLogSize > 0, "maxLogSize must be > 0");
         logger.info("Attempting to configure full query logger path: {} Roll cycle: {} Blocking: {} Max queue weight: {} Max log size:{}", path, rollCycle, blocking, maxQueueWeight, maxLogSize);
+
         if (binLog != null)
         {
             logger.warn("Full query logger already configured. Ignoring requested configuration.");
             throw new IllegalStateException("Already configured");
         }
 
-        if (path.toFile().exists())
+        if (cleanDirectory)
         {
-            Throwable error = cleanDirectory(path.toFile(), null);
-            if (error != null)
+            logger.info("Cleaning directory: {} as requested",path);
+            if (path.toFile().exists())
             {
-                throw new RuntimeException(error);
+                Throwable error = cleanDirectory(path.toFile(), null);
+                if (error != null)
+                {
+                    throw new RuntimeException(error);
+                }
             }
         }
 
@@ -131,6 +139,11 @@ public class FullQueryLogger
         this.blocking = blocking;
         binLog = new BinLog(path, RollCycles.valueOf(rollCycle), maxQueueWeight, maxLogSize);
         binLog.start();
+    }
+
+    public Path path()
+    {
+        return path;
     }
 
     /**
@@ -226,49 +239,8 @@ public class FullQueryLogger
         return binLog != null;
     }
 
-    /**
-     * This is potentially lossy, but it's not super critical as we will always generally know
-     * when this is happening and roughly how bad it is.
-     */
-    private void logDroppedSample()
+    void logRecord(BinLog.ReleaseableWriteMarshallable record, BinLog binLog)
     {
-        droppedSamplesSinceLastLog.incrementAndGet();
-        if (droppedSamplesStatement.warn(new Object[] {droppedSamplesSinceLastLog.get()}))
-        {
-            droppedSamplesSinceLastLog.set(0);
-        }
-    }
-
-    /**
-     * Log an invocation of a batch of queries
-     * @param type The type of the batch
-     * @param queries CQL text of the queries
-     * @param values Values to bind to as parameters for the queries
-     * @param queryOptions Options associated with the query invocation
-     * @param batchTimeMillis Approximate time in milliseconds since the epoch since the batch was invoked
-     */
-    public void logBatch(String type, List<String> queries,  List<List<ByteBuffer>> values, QueryOptions queryOptions, long batchTimeMillis)
-    {
-        Preconditions.checkNotNull(type, "type was null");
-        Preconditions.checkNotNull(queries, "queries was null");
-        Preconditions.checkNotNull(values, "value was null");
-        Preconditions.checkNotNull(queryOptions, "queryOptions was null");
-        Preconditions.checkArgument(batchTimeMillis > 0, "batchTimeMillis must be > 0");
-
-        //Don't construct the wrapper if the log is disabled
-        BinLog binLog = this.binLog;
-        if (binLog == null)
-        {
-            return;
-        }
-
-        WeighableMarshallableBatch wrappedBatch = new WeighableMarshallableBatch(type, queries, values, queryOptions, batchTimeMillis);
-        logRecord(wrappedBatch, binLog);
-    }
-
-    void logRecord(AbstractWeighableMarshallable record, BinLog binLog)
-    {
-
         boolean putInQueue = false;
         try
         {
@@ -306,35 +278,25 @@ public class FullQueryLogger
     }
 
     /**
-     * Log a single CQL query
-     * @param query CQL query text
-     * @param queryOptions Options associated with the query invocation
-     * @param queryTimeMillis Approximate time in milliseconds since the epoch since the batch was invoked
+     * This is potentially lossy, but it's not super critical as we will always generally know
+     * when this is happening and roughly how bad it is.
      */
-    public void logQuery(String query, QueryOptions queryOptions, long queryTimeMillis)
+    private void logDroppedSample()
     {
-        Preconditions.checkNotNull(query, "query was null");
-        Preconditions.checkNotNull(queryOptions, "queryOptions was null");
-        Preconditions.checkArgument(queryTimeMillis > 0, "queryTimeMillis must be > 0");
-
-        //Don't construct the wrapper if the log is disabled
-        BinLog binLog = this.binLog;
-        if (binLog == null)
+        droppedSamplesSinceLastLog.incrementAndGet();
+        if (droppedSamplesStatement.warn(new Object[] {droppedSamplesSinceLastLog.get()}))
         {
-            return;
+            droppedSamplesSinceLastLog.set(0);
         }
-
-        WeighableMarshallableQuery wrappedQuery = new WeighableMarshallableQuery(query, queryOptions, queryTimeMillis);
-        logRecord(wrappedQuery, binLog);
     }
 
-    private static abstract class AbstractWeighableMarshallable extends BinLog.ReleaseableWriteMarshallable implements WeightedQueue.Weighable
+    protected static abstract class AbstractWeighableMarshallable extends BinLog.ReleaseableWriteMarshallable implements WeightedQueue.Weighable
     {
         private final ByteBuf queryOptionsBuffer;
         private final long timeMillis;
         private final int protocolVersion;
 
-        private AbstractWeighableMarshallable(QueryOptions queryOptions, long timeMillis)
+        AbstractWeighableMarshallable(QueryOptions queryOptions, long timeMillis)
         {
             this.timeMillis = timeMillis;
             ProtocolVersion version = queryOptions.getProtocolVersion();
@@ -390,112 +352,7 @@ public class FullQueryLogger
         }
     }
 
-    static class WeighableMarshallableBatch extends AbstractWeighableMarshallable
-    {
-        private final int weight;
-        private final String batchType;
-        private final List<String> queries;
-        private final List<List<ByteBuffer>> values;
-
-        public WeighableMarshallableBatch(String batchType, List<String> queries, List<List<ByteBuffer>> values, QueryOptions queryOptions, long batchTimeMillis)
-        {
-           super(queryOptions, batchTimeMillis);
-           this.queries = queries;
-           this.values = values;
-           this.batchType = batchType;
-           boolean success = false;
-           try
-           {
-
-               //weight, batch type, queries, values
-               int weightTemp = 8 + EMPTY_LIST_SIZE + EMPTY_LIST_SIZE;
-               for (int ii = 0; ii < queries.size(); ii++)
-               {
-                   weightTemp += ObjectSizes.sizeOf(queries.get(ii));
-               }
-
-               weightTemp += EMPTY_LIST_SIZE * values.size();
-               for (int ii = 0; ii < values.size(); ii++)
-               {
-                   List<ByteBuffer> sublist = values.get(ii);
-                   weightTemp += EMPTY_BYTEBUFFER_SIZE * sublist.size();
-                   for (int zz = 0; zz < sublist.size(); zz++)
-                   {
-                       weightTemp += sublist.get(zz).capacity();
-                   }
-               }
-               weightTemp += super.weight();
-               weightTemp += ObjectSizes.sizeOf(batchType);
-               weight = weightTemp;
-               success = true;
-           }
-           finally
-           {
-               if (!success)
-               {
-                   release();
-               }
-           }
-        }
-
-        @Override
-        public void writeMarshallable(WireOut wire)
-        {
-            wire.write("type").text("batch");
-            super.writeMarshallable(wire);
-            wire.write("batch-type").text(batchType);
-            ValueOut valueOut = wire.write("queries");
-            valueOut.int32(queries.size());
-            for (String query : queries)
-            {
-                valueOut.text(query);
-            }
-            valueOut = wire.write("values");
-            valueOut.int32(values.size());
-            for (List<ByteBuffer> subValues : values)
-            {
-                valueOut.int32(subValues.size());
-                for (ByteBuffer value : subValues)
-                {
-                    valueOut.bytes(BytesStore.wrap(value));
-                }
-            }
-        }
-
-        @Override
-        public int weight()
-        {
-            return weight;
-        }
-
-    }
-
-    static class WeighableMarshallableQuery extends AbstractWeighableMarshallable
-    {
-        private final String query;
-
-        public WeighableMarshallableQuery(String query, QueryOptions queryOptions, long queryTimeMillis)
-        {
-            super(queryOptions, queryTimeMillis);
-            this.query = query;
-        }
-
-        @Override
-        public void writeMarshallable(WireOut wire)
-        {
-            wire.write("type").text("single");
-            super.writeMarshallable(wire);
-            wire.write("query").text(query);
-        }
-
-        @Override
-        public int weight()
-        {
-            return Ints.checkedCast(ObjectSizes.sizeOf(query)) + super.weight();
-        }
-    }
-
-    static Throwable cleanDirectory(File directory, Throwable accumulate)
+    private static Throwable cleanDirectory(File directory, Throwable accumulate)
     {
         if (!directory.exists())
         {

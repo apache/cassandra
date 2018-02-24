@@ -71,42 +71,52 @@ public class Dump implements Runnable
             sb.setLength(0);
             String type = wireIn.read("type").text();
             sb.append("Type: ").append(type).append(System.lineSeparator());
-            int protocolVersion = wireIn.read("protocol-version").int32();
-            sb.append("Protocol version: ").append(protocolVersion).append(System.lineSeparator());
-            QueryOptions options = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read("query-options").bytesStore().toTemporaryDirectByteBuffer()), ProtocolVersion.decode(protocolVersion));
-            sb.append("Query time: ").append(wireIn.read("query-time").int64()).append(System.lineSeparator());
-            if (type.equals("single"))
+            assert type != null;
+            if (type.equals("AuditLog"))
             {
-                sb.append("Query: ").append(wireIn.read("query").text()).append(System.lineSeparator());
-                List<ByteBuffer> values = options.getValues() != null ? options.getValues() : Collections.EMPTY_LIST;
-                sb.append("Values: ").append(System.lineSeparator());
-                valuesToStringBuilder(values, sb);
+                sb.append("LogMessage: ").append(wireIn.read("message").text()).append(System.lineSeparator());
+
             }
             else
             {
-                sb.append("Batch type: ").append(wireIn.read("batch-type").text()).append(System.lineSeparator());
-                ValueIn in = wireIn.read("queries");
-                int numQueries = in.int32();
-                List<String> queries = new ArrayList<>();
-                for (int ii = 0; ii < numQueries; ii++)
+                int protocolVersion = wireIn.read("protocol-version").int32();
+                sb.append("Protocol version: ").append(protocolVersion).append(System.lineSeparator());
+                QueryOptions options = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read("query-options").bytesStore().toTemporaryDirectByteBuffer()), ProtocolVersion.decode(protocolVersion));
+                sb.append("Query time: ").append(wireIn.read("query-time").int64()).append(System.lineSeparator());
+
+                if (type.equals("single"))
                 {
-                    queries.add(in.text());
-                }
-                in = wireIn.read("values");
-                int numValues = in.int32();
-                List<List<ByteBuffer>> values = new ArrayList<>();
-                for (int ii = 0; ii < numValues; ii++)
-                {
-                    List<ByteBuffer> subValues = new ArrayList<>();
-                    values.add(subValues);
-                    int numSubValues = in.int32();
-                    for (int zz = 0; zz < numSubValues; zz++)
-                    {
-                        subValues.add(ByteBuffer.wrap(in.bytes()));
-                    }
-                    sb.append("Query: ").append(queries.get(ii)).append(System.lineSeparator());
+                    sb.append("Query: ").append(wireIn.read("query").text()).append(System.lineSeparator());
+                    List<ByteBuffer> values = options.getValues() != null ? options.getValues() : Collections.EMPTY_LIST;
                     sb.append("Values: ").append(System.lineSeparator());
-                    valuesToStringBuilder(subValues, sb);
+                    valuesToStringBuilder(values, sb);
+                }
+                else
+                {
+                    sb.append("Batch type: ").append(wireIn.read("batch-type").text()).append(System.lineSeparator());
+                    ValueIn in = wireIn.read("queries");
+                    int numQueries = in.int32();
+                    List<String> queries = new ArrayList<>();
+                    for (int ii = 0; ii < numQueries; ii++)
+                    {
+                        queries.add(in.text());
+                    }
+                    in = wireIn.read("values");
+                    int numValues = in.int32();
+                    List<List<ByteBuffer>> values = new ArrayList<>();
+                    for (int ii = 0; ii < numValues; ii++)
+                    {
+                        List<ByteBuffer> subValues = new ArrayList<>();
+                        values.add(subValues);
+                        int numSubValues = in.int32();
+                        for (int zz = 0; zz < numSubValues; zz++)
+                        {
+                            subValues.add(ByteBuffer.wrap(in.bytes()));
+                        }
+                        sb.append("Query: ").append(queries.get(ii)).append(System.lineSeparator());
+                        sb.append("Values: ").append(System.lineSeparator());
+                        valuesToStringBuilder(subValues, sb);
+                    }
                 }
             }
             sb.append(System.lineSeparator());
