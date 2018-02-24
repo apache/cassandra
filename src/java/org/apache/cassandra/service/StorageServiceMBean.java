@@ -29,6 +29,8 @@ import javax.annotation.Nullable;
 import javax.management.NotificationEmitter;
 import javax.management.openmbean.TabularData;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
+
 public interface StorageServiceMBean extends NotificationEmitter
 {
     /**
@@ -676,4 +678,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Clears the history of clients that have connected in the past **/
     void clearConnectionHistory();
+    public void disableAuditLog();
+    public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories, String includedUsers, String excludedUsers) throws ConfigurationException;
+    public boolean isAuditLogEnabled();
 }

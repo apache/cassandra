@@ -32,6 +32,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 
 /**
@@ -379,6 +380,8 @@ public class Config
     public int block_for_peers_timeout_in_secs = 10;
     public volatile boolean automatic_sstable_upgrade = false;
     public volatile int max_concurrent_automatic_sstable_upgrades = 1;
+
+    public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
 
 
     /**

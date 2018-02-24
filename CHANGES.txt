@@ -1,4 +1,5 @@
 4.0
+ * Audit logging for database activity (CASSANDRA-12151)
  * Clean up build artifacts in docs container (CASSANDRA-14432)
  * Minor network authz improvements (Cassandra-14413)
  * Automatic sstable upgrades (CASSANDRA-14197)

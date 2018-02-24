@@ -40,6 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
+import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.INetworkAuthorizer;
@@ -525,6 +526,29 @@ public class FBUtilities
             className = "org.apache.cassandra.auth." + className;
         }
         return FBUtilities.construct(className, "network authorizer");
+    }
+    
+    public static IAuditLogger newAuditLogger(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.audit." + className;
+        return FBUtilities.construct(className, "Audit logger");
+    }
+
+    public static boolean isAuditLoggerClassExists(String className)
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.audit." + className;
+
+        try
+        {
+            FBUtilities.classForName(className, "Audit logger");
+        }
+        catch (ConfigurationException e)
+        {
+            return false;
+        }
+        return true;
     }
 
     /**

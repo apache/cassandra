@@ -20,6 +20,8 @@ package org.apache.cassandra.transport.messages;
 import java.nio.ByteBuffer;
 
 import io.netty.buffer.ByteBuf;
+import org.apache.cassandra.audit.AuditLogEntry;
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.exceptions.AuthenticationException;
@@ -79,6 +81,14 @@ public class AuthResponse extends Message.Request
                 AuthenticatedUser user = negotiator.getAuthenticatedUser();
                 queryState.getClientState().login(user);
                 AuthMetrics.instance.markSuccess();
+                if (auditLogEnabled)
+                {
+                    AuditLogEntry auditEntry = new AuditLogEntry.Builder(queryState.getClientState())
+                                               .setOperation("LOGIN SUCCESSFUL")
+                                               .setType(AuditLogEntryType.LOGIN_SUCCESS)
+                                               .build();
+                    auditLogManager.log(auditEntry);
+                }
                 // authentication is complete, send a ready message to the client
                 return new AuthSuccess(challenge);
             }
@@ -90,6 +100,14 @@ public class AuthResponse extends Message.Request
         catch (AuthenticationException e)
         {
             AuthMetrics.instance.markFailure();
+            if (auditLogEnabled)
+            {
+                AuditLogEntry auditEntry = new AuditLogEntry.Builder(queryState.getClientState())
+                                           .setOperation("LOGIN FAILURE")
+                                           .setType(AuditLogEntryType.LOGIN_ERROR)
+                                           .build();
+                auditLogManager.log(auditEntry, e);
+            }
             return ErrorMessage.fromException(e);
         }
     }

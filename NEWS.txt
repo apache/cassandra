@@ -79,6 +79,8 @@ New features
      in cassandra.yaml, and the docs for create and alter role statements. CASSANDRA-13985
    - Roles altered from login=true to login=false will prevent existing connections from executing any
      statements after the cache has been refreshed. CASSANDRA-13985
+   - Support for audit logging of database activity. If enabled, logs every incoming
+     CQL command request, Authentication (successful as well as unsuccessful login) to a node.
 
 Upgrading
 ---------
