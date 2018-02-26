@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.net.async;
 
-import java.net.InetSocketAddress;
 import java.util.Optional;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -101,14 +100,21 @@ public class OutboundMessagingPool
     @VisibleForTesting
     public OutboundMessagingConnection getConnection(MessageOut msg)
     {
-        // optimize for the common path (the small message channel)
-        if (Stage.GOSSIP != msg.getStage())
+        if (msg.connectionType == null)
         {
-            return msg.serializedSize(smallMessageChannel.getTargetVersion()) < LARGE_MESSAGE_THRESHOLD
-            ? smallMessageChannel
-            : largeMessageChannel;
+            // optimize for the common path (the small message channel)
+            if (Stage.GOSSIP != msg.getStage())
+            {
+                return msg.serializedSize(smallMessageChannel.getTargetVersion()) < LARGE_MESSAGE_THRESHOLD
+                       ? smallMessageChannel
+                       : largeMessageChannel;
+            }
+            return gossipChannel;
         }
-        return gossipChannel;
+        else
+        {
+            return getConnection(msg.connectionType);
+        }
     }
 
     /**
@@ -138,20 +144,17 @@ public class OutboundMessagingPool
         smallMessageChannel.close(softClose);
     }
 
-    /**
-     * For testing purposes only.
-     */
     @VisibleForTesting
-    OutboundMessagingConnection getConnection(ConnectionType connectionType)
+    final OutboundMessagingConnection getConnection(ConnectionType connectionType)
     {
         switch (connectionType)
         {
-            case GOSSIP:
-                return gossipChannel;
-            case LARGE_MESSAGE:
-                return largeMessageChannel;
             case SMALL_MESSAGE:
                 return smallMessageChannel;
+            case LARGE_MESSAGE:
+                return largeMessageChannel;
+            case GOSSIP:
+                return gossipChannel;
             default:
                 throw new IllegalArgumentException("unsupported connection type: " + connectionType);
         }

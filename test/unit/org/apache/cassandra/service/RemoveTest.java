@@ -161,7 +161,7 @@ public class RemoveTest
 
         for (InetAddressAndPort host : hosts)
         {
-            MessageOut msg = new MessageOut(host, MessagingService.Verb.REPLICATION_FINISHED, null, null, Collections.<Object>emptyList());
+            MessageOut msg = new MessageOut(host, MessagingService.Verb.REPLICATION_FINISHED, null, null, Collections.<Object>emptyList(), null);
             MessagingService.instance().sendRR(msg, FBUtilities.getBroadcastAddressAndPort());
         }
 

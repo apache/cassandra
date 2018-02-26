@@ -26,8 +26,11 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.cassandra.net.async.OutboundConnectionIdentifier.ConnectionType;
 
 public class EchoVerbHandler implements IVerbHandler<EchoMessage>
 {
@@ -35,7 +38,8 @@ public class EchoVerbHandler implements IVerbHandler<EchoMessage>
 
     public void doVerb(MessageIn<EchoMessage> message, int id)
     {
-        MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.REQUEST_RESPONSE, EchoMessage.instance, EchoMessage.serializer);
+        MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.REQUEST_RESPONSE, EchoMessage.instance,
+                                                                          EchoMessage.serializer, ConnectionType.GOSSIP);
         logger.trace("Sending a EchoMessage reply {}", message.from);
         MessagingService.instance().sendReply(echoMessage, id, message.from);
     }

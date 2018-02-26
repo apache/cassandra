@@ -31,6 +31,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.async.OutboundConnectionIdentifier.ConnectionType;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -97,6 +98,11 @@ public class MessageOut<T>
     public final List<Object> parameters;
 
     /**
+     * Allows sender to explicitly state which connection type the message should be sent on.
+     */
+    public final ConnectionType connectionType;
+
+    /**
      * Memoization of the serialized size of the just the payload.
      */
     private int payloadSerializedSize = -1;
@@ -122,24 +128,33 @@ public class MessageOut<T>
         this(verb,
              payload,
              serializer,
-             isTracing()
-                 ? Tracing.instance.getTraceHeaders()
-                 : ImmutableList.of());
+             isTracing() ? Tracing.instance.getTraceHeaders() : ImmutableList.of(),
+             null);
     }
 
-    private MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, List<Object> parameters)
+    public MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, ConnectionType connectionType)
     {
-        this(FBUtilities.getBroadcastAddressAndPort(), verb, payload, serializer, parameters);
+        this(verb,
+             payload,
+             serializer,
+             isTracing() ? Tracing.instance.getTraceHeaders() : ImmutableList.of(),
+             connectionType);
+    }
+
+    private MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, List<Object> parameters, ConnectionType connectionType)
+    {
+        this(FBUtilities.getBroadcastAddressAndPort(), verb, payload, serializer, parameters, connectionType);
     }
 
     @VisibleForTesting
-    public MessageOut(InetAddressAndPort from, MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, List<Object> parameters)
+    public MessageOut(InetAddressAndPort from, MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, List<Object> parameters, ConnectionType connectionType)
     {
         this.from = from;
         this.verb = verb;
         this.payload = payload;
         this.serializer = serializer;
         this.parameters = parameters;
+        this.connectionType = connectionType;
     }
 
     public <VT> MessageOut<T> withParameter(ParameterType type, VT value)
@@ -148,7 +163,7 @@ public class MessageOut<T>
         newParameters.addAll(parameters);
         newParameters.add(type);
         newParameters.add(value);
-        return new MessageOut<T>(verb, payload, serializer, newParameters);
+        return new MessageOut<T>(verb, payload, serializer, newParameters, connectionType);
     }
 
     public Stage getStage()
