@@ -95,7 +95,7 @@ public class StartupClusterConnectivityChecker
         while (checkStatus(peers, connectedCount, startNanos, expirationNanos < System.nanoTime(), completedRounds) == State.CONTINUE)
         {
             completedRounds++;
-            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MICROSECONDS);
         }
     }
 
