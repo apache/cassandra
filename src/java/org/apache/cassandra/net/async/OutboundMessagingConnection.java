@@ -479,7 +479,7 @@ public class OutboundMessagingConnection
         {
             case SUCCESS:
                 assert result.channelWriter != null;
-                logger.debug("successfully connected to {}, conmpress = {}, coalescing = {}", connectionId,
+                logger.debug("successfully connected to {}, compress = {}, coalescing = {}", connectionId,
                              shouldCompressConnection(connectionId.local(), connectionId.remote()),
                              coalescingStrategy.isPresent() ? coalescingStrategy.get() : CoalescingStrategies.Strategy.DISABLED);
                 if (state.get() == State.CLOSED)

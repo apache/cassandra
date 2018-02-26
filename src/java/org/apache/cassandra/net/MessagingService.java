@@ -35,7 +35,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -255,7 +254,10 @@ public final class MessagingService implements MessagingServiceMBean
                 return DatabaseDescriptor.getRangeRpcTimeout();
             }
         },
-        // remember to add new verbs at the end, since we serialize by ordinal
+        PING(),
+
+        // add new verbs after the existing verbs, but *before* the UNUSED verbs, since we serialize by ordinal.
+        // UNUSED verbs serve as padding for backwards compatability where a previous version needs to validate a verb from the future.
         UNUSED_1,
         UNUSED_2,
         UNUSED_3,
@@ -263,7 +265,7 @@ public final class MessagingService implements MessagingServiceMBean
         UNUSED_5,
         ;
 
-        private int id;
+        private final int id;
         Verb()
         {
             id = ordinal();
@@ -291,7 +293,11 @@ public final class MessagingService implements MessagingServiceMBean
         static
         {
             for (Verb v : values())
+            {
+                if (idToVerbMap.containsKey(v.getId()))
+                    throw new IllegalArgumentException("cannot have two verbs that map to the same id: " + v + " and " + v.getId());
                 idToVerbMap.put(v.getId(), v);
+            }
         }
 
         public static Verb fromId(int id)
@@ -347,6 +353,8 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.UNUSED_1, Stage.INTERNAL_RESPONSE);
         put(Verb.UNUSED_2, Stage.INTERNAL_RESPONSE);
         put(Verb.UNUSED_3, Stage.INTERNAL_RESPONSE);
+
+        put(Verb.PING, Stage.READ);
     }};
 
     /**
@@ -385,6 +393,8 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.HINT, HintMessage.serializer);
         put(Verb.BATCH_STORE, Batch.serializer);
         put(Verb.BATCH_REMOVE, UUIDSerializer.serializer);
+
+        put(Verb.PING, PingMessage.serializer);
     }};
 
     /**
