@@ -40,6 +40,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -204,6 +205,23 @@ public class LegacySSTableTest
                                                              "FROM legacy_tables.legacy_ka_indexed_static " +
                                                              "WHERE p=1 ");
         Assert.assertEquals(5000, rs.size());
+    }
+
+    @Test
+    public void verifyOldSSTables() throws Exception
+    {
+        for (String legacyVersion : legacyVersions)
+        {
+            loadLegacyTables(legacyVersion);
+            ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
+            for (SSTableReader sstable : cfs.getLiveSSTables())
+            {
+                try (Verifier verifier = new Verifier(cfs, sstable, false))
+                {
+                    verifier.verify(true);
+                }
+            }
+        }
     }
 
     private void streamLegacyTables(String legacyVersion) throws Exception
