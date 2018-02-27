@@ -48,7 +48,7 @@ public class TpStatsPrinter
             Map<String, Object> convertData = data.convert2Map();
 
             TableBuilder tb = new TableBuilder();
-            tb.add("Pool Name", "Active", "Pending", "Completed", "Blocked", "AllTimeBlocked", "CPU[ms/sec]", "Allocations[mb/s]");
+            tb.add("Pool Name", "Active", "Pending", "Completed", "Blocked", "AllTimeBlocked", "CPU[ms/s]", "Allocations[mb/s]");
 
             Map<Object, Object> threadPools = convertData.get("ThreadPools") instanceof Map<?, ?> ? (Map) convertData.get("ThreadPools") : Collections.emptyMap();
             for (Map.Entry<Object, Object> entry : threadPools.entrySet())
