@@ -513,7 +513,12 @@ public abstract class Message
 
                 QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion(), request.getStreamId());
 
-                logger.trace("Received: {}, v={}", request, connection.getVersion());
+                if (request.type == Type.STARTUP)
+                {
+                    logger.info(((StartupMessage) request).options.get("CLIENT_STRING_OPTION"));
+                }
+
+                logger.info("Received: {}, v={}", request, connection.getVersion());
                 connection.requests.inc();
                 response = request.execute(qstate, queryStartNanoTime);
                 response.setStreamId(request.getStreamId());
