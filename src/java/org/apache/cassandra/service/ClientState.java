@@ -41,6 +41,7 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -55,6 +56,11 @@ public class ClientState
 
     private static final Set<IResource> READABLE_SYSTEM_RESOURCES = new HashSet<>();
     private static final Set<IResource> PROTECTED_AUTH_RESOURCES = new HashSet<>();
+
+    public void setDriverString(String driverString)
+    {
+        this.driverString = driverString;
+    }
 
     static
     {
@@ -106,6 +112,9 @@ public class ClientState
     // The remote address of the client - null for internal clients.
     private final InetSocketAddress remoteAddress;
 
+    // Driver String for the client
+    private volatile String driverString;
+
     // The biggest timestamp that was returned by getTimestamp/assigned to a query. This is global to ensure that the
     // timestamp assigned are strictly monotonic on a node, which is likely what user expect intuitively (more likely,
     // most new user will intuitively expect timestamp to be strictly monotonic cluster-wise, but while that last part
@@ -119,11 +128,22 @@ public class ClientState
     {
         this.isInternal = true;
         this.remoteAddress = null;
+        this.driverString = null;
     }
 
     protected ClientState(InetSocketAddress remoteAddress)
     {
         this.isInternal = false;
+        this.driverString = null;
+        this.remoteAddress = remoteAddress;
+        if (!DatabaseDescriptor.getAuthenticator().requireAuthentication())
+            this.user = AuthenticatedUser.ANONYMOUS_USER;
+    }
+
+    protected ClientState(InetSocketAddress remoteAddress, String driverString)
+    {
+        this.isInternal = false;
+        this.driverString = driverString;
         this.remoteAddress = remoteAddress;
         if (!DatabaseDescriptor.getAuthenticator().requireAuthentication())
             this.user = AuthenticatedUser.ANONYMOUS_USER;
@@ -135,6 +155,7 @@ public class ClientState
         this.remoteAddress = source.remoteAddress;
         this.user = source.user;
         this.keyspace = source.keyspace;
+        this.driverString = source.driverString;
     }
 
     /**
@@ -151,6 +172,11 @@ public class ClientState
     public static ClientState forExternalCalls(SocketAddress remoteAddress)
     {
         return new ClientState((InetSocketAddress)remoteAddress);
+    }
+
+    public static ClientState forExternalCalls(SocketAddress remoteAddress, String driverString)
+    {
+        return new ClientState((InetSocketAddress)remoteAddress, driverString);
     }
 
     /**
@@ -241,6 +267,11 @@ public class ClientState
             if (tstamp == minTimestampToUse || lastTimestampMicros.compareAndSet(last, tstamp))
                 return tstamp;
         }
+    }
+
+    public String getDriverString()
+    {
+        return driverString;
     }
 
     public static QueryHandler getCQLQueryHandler()

@@ -196,6 +196,7 @@ public class Server implements CassandraDaemon.Server
                         .put("version", String.valueOf(conn.getVersion().asInt()))
                         .put("requests", String.valueOf(conn.requests.getCount()))
                         .put("ssl", conn.channel().pipeline().get(SslHandler.class) == null ? "false" : "true")
+                        .put("driverString", conn.getClientState().getDriverString())
                         .build());
             }
         }
