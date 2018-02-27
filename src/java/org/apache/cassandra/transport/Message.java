@@ -515,11 +515,10 @@ public abstract class Message
 
                 if (request.type == Type.STARTUP)
                 {
-                    logger.info(((StartupMessage) request).options.get("CLIENT_STRING_OPTION"));
                     connection.getClientState().setDriverString(((StartupMessage) request).options.get("CLIENT_STRING_OPTION"));
                 }
 
-                logger.info("Received: {}, v={}", request, connection.getVersion());
+                logger.trace("Received: {}, v={}", request, connection.getVersion());
                 connection.requests.inc();
                 response = request.execute(qstate, queryStartNanoTime);
                 response.setStreamId(request.getStreamId());
