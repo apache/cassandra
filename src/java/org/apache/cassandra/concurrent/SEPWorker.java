@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
@@ -25,12 +26,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.util.concurrent.FastThreadLocalThread;
+import org.apache.cassandra.metrics.ThreadMetricState;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(SEPWorker.class);
-    private static final boolean SET_THREAD_NAME = Boolean.parseBoolean(System.getProperty("cassandra.set_sep_thread_name", "true"));
+    private static final boolean TRACK_SEP = Boolean.parseBoolean(System.getProperty("cassandra.track_sep_threads", "true"));
 
     final Long workerId;
     final Thread thread;
@@ -42,6 +44,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     // strategy can only work when there are multiple threads spinning (as more sleep time must elapse than real time)
     long prevStopCheck = 0;
     long soleSpinnerSpinTime = 0;
+    ThreadMetricState state;
 
     SEPWorker(Long workerId, Work initialState, SharedExecutorPool pool)
     {
@@ -51,6 +54,18 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         thread.setDaemon(true);
         set(initialState);
         thread.start();
+        ScheduledFuture f = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(() ->
+        {
+            if (state != null) {
+                try
+                {
+                    state.update();
+                } catch (NullPointerException e) {
+                    // state can become null after check, ok to just ignore that race and do nothing - metrics would
+                    // be updated from the update at end of assignment
+                }
+            }
+        }, 30, 30, TimeUnit.SECONDS);
     }
 
     public void run()
@@ -90,8 +105,11 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 assigned = get().assigned;
                 if (assigned == null)
                     continue;
-                if (SET_THREAD_NAME)
+                if (TRACK_SEP)
+                {
                     Thread.currentThread().setName(assigned.name + "-" + workerId);
+                    state = new ThreadMetricState(Thread.currentThread().getId(), assigned.metrics.cpu, assigned.metrics.alloc);
+                }
                 task = assigned.tasks.poll();
 
                 // if we do have tasks assigned, nobody will change our state so we can simply set it to WORKING
@@ -119,6 +137,12 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 assigned.returnWorkPermit();
                 if (shutdown && assigned.getActiveCount() == 0)
                     assigned.shutdown.signalAll();
+
+                if (TRACK_SEP)
+                {
+                    state.update();
+                    state = null;
+                }
                 assigned = null;
 
                 // try to immediately reassign ourselves some work; if we fail, start spinning

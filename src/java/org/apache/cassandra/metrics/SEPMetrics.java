@@ -19,6 +19,7 @@ package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
 
 import org.apache.cassandra.concurrent.SEPExecutor;
 
@@ -44,6 +45,11 @@ public class SEPMetrics
     /** Maximum number of tasks queued before a task get blocked */
     public final Gauge<Integer> maxTasksQueued;
 
+    /** Approximate amount of cpu time (ns/s) spent on threads in this stage */
+    public final Meter cpu;
+    /** Approximate amount of allocations in bytes by threads in this stage */
+    public final Meter alloc;
+
     private MetricNameFactory factory;
 
     /**
@@ -56,6 +62,8 @@ public class SEPMetrics
     public SEPMetrics(final SEPExecutor executor, String path, String poolName)
     {
         this.factory = new ThreadPoolMetricNameFactory("ThreadPools", path, poolName);
+        cpu = Metrics.meter(factory.createMetricName("CPU"));
+        alloc = Metrics.meter(factory.createMetricName("Allocations"));
         activeTasks = Metrics.register(factory.createMetricName("ActiveTasks"), new Gauge<Integer>()
         {
             public Integer getValue()

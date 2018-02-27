@@ -18,23 +18,33 @@
 package org.apache.cassandra.metrics;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.JmxReporter;
+import java.util.concurrent.TimeUnit;
 
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
+
+import com.codahale.metrics.Meter;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-
 
 /**
  * Metrics for {@link ThreadPoolExecutor}.
@@ -57,7 +67,17 @@ public class ThreadPoolMetrics
     /** Maximum number of threads before it will start queuing tasks */
     public final Gauge<Integer> maxPoolSize;
 
+    private ConcurrentMap<Long, ThreadMetricState> lastStatsByThreadId = new ConcurrentHashMap<>();
+
+    /** Approximate amount of cpu time (ns/s) spent on threads in this executor */
+    public final Meter cpu;
+    /** Approximate amount of allocations in bytes by threads in this executor */
+    public final Meter alloc;
+
     private MetricNameFactory factory;
+    private final JMXEnabledThreadPoolExecutor executor;
+
+    private static final ThreadMXBean bean = ManagementFactory.getThreadMXBean();
 
     /**
      * Create metrics for given ThreadPoolExecutor.
@@ -66,9 +86,13 @@ public class ThreadPoolMetrics
      * @param path Type of thread pool
      * @param poolName Name of thread pool to identify metrics
      */
-    public ThreadPoolMetrics(final ThreadPoolExecutor executor, String path, String poolName)
+    public ThreadPoolMetrics(final JMXEnabledThreadPoolExecutor executor, String path, String poolName)
     {
         this.factory = new ThreadPoolMetricNameFactory("ThreadPools", path, poolName);
+        this.executor = executor;
+
+        cpu = Metrics.meter(factory.createMetricName("CPU"));
+        alloc = Metrics.meter(factory.createMetricName("Allocations"));
 
         activeTasks = Metrics.register(factory.createMetricName("ActiveTasks"), new Gauge<Integer>()
         {
@@ -100,6 +124,7 @@ public class ThreadPoolMetrics
                 return executor.getMaximumPoolSize();
             }
         });
+        ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(this::updateCpuAlloc, 30, 30, TimeUnit.SECONDS);
     }
 
     public void release()
@@ -126,6 +151,11 @@ public class ThreadPoolMetrics
 
             switch (metricName)
             {
+                case "CPU":
+                case "Allocations":
+                    double rate = JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxMeterMBean.class).getOneMinuteRate();
+                    rate = rate / 1_000_000; // bytes to mb, and ns to ms
+                    return Integer.toString((int) rate);
                 case "ActiveTasks":
                 case "PendingTasks":
                 case "CompletedTasks":
@@ -141,6 +171,29 @@ public class ThreadPoolMetrics
         {
             throw new RuntimeException("Error reading: " + name, e);
         }
+    }
+
+    public synchronized void updateCpuAlloc()
+    {
+        for (long tid : ImmutableList.copyOf(executor.threadIds))
+        {
+            updateThreadStats(tid);
+        }
+    }
+
+    public synchronized void updateThreadStats(long threadId)
+    {
+        ThreadMetricState state = lastStatsByThreadId.computeIfAbsent(threadId, t-> new ThreadMetricState(threadId, cpu, alloc));
+
+        ThreadInfo info = bean.getThreadInfo(threadId, 0);
+        if (info == null)
+        {
+            executor.threadIds.remove(threadId);
+            lastStatsByThreadId.remove(threadId);
+            return;
+        }
+
+        state.update();
     }
 
     public static Multimap<String, String> getJmxThreadPools(MBeanServerConnection mbeanServerConn)

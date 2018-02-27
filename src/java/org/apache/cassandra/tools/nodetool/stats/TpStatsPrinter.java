@@ -22,6 +22,8 @@ import java.io.PrintStream;
 import java.util.Collections;
 import java.util.Map;
 
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+
 public class TpStatsPrinter
 {
     public static StatsPrinter from(String format)
@@ -45,20 +47,23 @@ public class TpStatsPrinter
         {
             Map<String, Object> convertData = data.convert2Map();
 
-            out.printf("%-30s%10s%10s%15s%10s%18s%n", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
+            TableBuilder tb = new TableBuilder();
+            tb.add("Pool Name", "Active", "Pending", "Completed", "Blocked", "AllTimeBlocked", "CPU[ms/sec]", "Allocations[mb/s]");
 
-            Map<Object, Object> threadPools = convertData.get("ThreadPools") instanceof Map<?, ?> ? (Map)convertData.get("ThreadPools") : Collections.emptyMap();
+            Map<Object, Object> threadPools = convertData.get("ThreadPools") instanceof Map<?, ?> ? (Map) convertData.get("ThreadPools") : Collections.emptyMap();
             for (Map.Entry<Object, Object> entry : threadPools.entrySet())
             {
                 Map values = entry.getValue() instanceof Map<?, ?> ? (Map)entry.getValue() : Collections.emptyMap();
-                out.printf("%-30s%10s%10s%15s%10s%18s%n",
-                           entry.getKey(),
-                           values.get("ActiveTasks"),
-                           values.get("PendingTasks"),
-                           values.get("CompletedTasks"),
-                           values.get("CurrentlyBlockedTasks"),
-                           values.get("TotalBlockedTasks"));
+                tb.add(entry.getKey(),
+                        values.get("ActiveTasks"),
+                        values.get("PendingTasks"),
+                        values.get("CompletedTasks"),
+                        values.get("CurrentlyBlockedTasks"),
+                        values.get("TotalBlockedTasks"),
+                        values.get("CPU"),
+                        values.get("Allocations"));
             }
+            tb.printTo(out);
 
             out.printf("%n%-20s%10s%18s%18s%18s%18s%n", "Message type", "Dropped", "", "Latency waiting in queue (micros)", "", "");
             out.printf("%-20s%10s%18s%18s%18s%18s%n", "", "", "50%", "95%", "99%", "Max");

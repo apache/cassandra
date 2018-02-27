@@ -18,11 +18,14 @@
 package org.apache.cassandra.concurrent;
 
 import java.lang.management.ManagementFactory;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.TimeUnit;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -38,6 +41,7 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
 {
     private final String mbeanName;
     public final ThreadPoolMetrics metrics;
+    public final List<Long> threadIds;
 
     public JMXEnabledThreadPoolExecutor(String threadPoolName)
     {
@@ -77,7 +81,13 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
                                         NamedThreadFactory threadFactory,
                                         String jmxPath)
     {
-        super(corePoolSize, maxPoolSize, keepAliveTime, unit, workQueue, threadFactory);
+        super(corePoolSize, maxPoolSize, keepAliveTime, unit, workQueue);
+        threadIds = Collections.synchronizedList(new ArrayList<>(corePoolSize));
+        super.setThreadFactory(r-> {
+            Thread t = threadFactory.newThread(r);
+            threadIds.add(t.getId());
+            return t;
+        });
         super.prestartAllCoreThreads();
         metrics = new ThreadPoolMetrics(this, jmxPath, threadFactory.id);
 
@@ -125,6 +135,12 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
 
         // release metrics
         metrics.release();
+    }
+
+    @Override
+    public void terminated()
+    {
+        metrics.updateThreadStats(Thread.currentThread().getId());
     }
 
     @Override

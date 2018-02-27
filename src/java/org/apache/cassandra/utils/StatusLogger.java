@@ -19,11 +19,12 @@ package org.apache.cassandra.utils;
 
 import java.lang.management.ManagementFactory;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.management.*;
 
 import org.apache.cassandra.cache.*;
-
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 
 import org.slf4j.Logger;
@@ -67,17 +68,19 @@ public class StatusLogger
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
 
         // everything from o.a.c.concurrent
-        logger.info(String.format("%-25s%10s%10s%15s%10s%18s", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All Time Blocked"));
+        logger.info(String.format("%-25s%10s%10s%15s%10s%18s%10s%12s", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All Time Blocked", "CPU", "Allocations"));
 
         for (Map.Entry<String, String> tpool : ThreadPoolMetrics.getJmxThreadPools(server).entries())
         {
-            logger.info(String.format("%-25s%10s%10s%15s%10s%18s%n",
+            logger.info(String.format("%-25s%10s%10s%15s%10s%18s%10s%12s",
                                       tpool.getValue(),
                                       ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "ActiveTasks"),
                                       ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "PendingTasks"),
                                       ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "CompletedTasks"),
                                       ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "CurrentlyBlockedTasks"),
-                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "TotalBlockedTasks")));
+                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "TotalBlockedTasks"),
+                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "CPU"), // ms/second
+                                      ThreadPoolMetrics.getJmxMetric(server, tpool.getKey(), tpool.getValue(), "Allocations"))); // mb/sec
         }
 
         // one offs
