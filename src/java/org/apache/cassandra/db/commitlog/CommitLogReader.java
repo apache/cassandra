@@ -157,10 +157,27 @@ public class CommitLogReader
     }
 
     /**
+     * Reads mutations from passed in file, up to mutationLimit count
+     */
+    public void readCommitLogSegment(CommitLogReadHandler handler, File file, CommitLogPosition minPosition, int mutationLimit, boolean tolerateTruncation) throws IOException
+    {
+        readCommitLogSegment(handler, file, minPosition, CommitLogPosition.NONE, mutationLimit, tolerateTruncation);
+    }
+
+    /**
+     * Reads mutations from passed in file from minPosition up to maxPosition
+     */
+    public void readCommitLogSegment(CommitLogReadHandler handler, File file, CommitLogPosition minPosition, CommitLogPosition maxPosition, boolean tolerateTruncation) throws IOException
+    {
+        readCommitLogSegment(handler, file, minPosition, maxPosition, ALL_MUTATIONS, tolerateTruncation);
+    }
+
+    /**
      * Reads mutations from file, handing them off to handler
      * @param handler Handler that will take action based on deserialized Mutations
      * @param file CommitLogSegment file to read
      * @param minPosition Optional minimum CommitLogPosition - all segments with id larger or matching w/greater position will be read
+     * @param maxPosition Optional maximum CommitLogPosition - read segments up to this position
      * @param mutationLimit Optional limit on # of mutations to replay. Local ALL_MUTATIONS serves as marker to play all.
      * @param tolerateTruncation Whether or not we should allow truncation of this file or throw if EOF found
      *
@@ -169,6 +186,7 @@ public class CommitLogReader
     public void readCommitLogSegment(CommitLogReadHandler handler,
                                      File file,
                                      CommitLogPosition minPosition,
+                                     CommitLogPosition maxPosition,
                                      int mutationLimit,
                                      boolean tolerateTruncation) throws IOException
     {
@@ -242,7 +260,7 @@ public class CommitLogReader
                     statusTracker.errorContext = String.format("Next section at %d in %s", syncSegment.fileStartPosition, desc.fileName());
 
                     readSection(handler, syncSegment.input, minPosition, syncSegment.endPosition, statusTracker, desc);
-                    if (!statusTracker.shouldContinue())
+                    if (!statusTracker.shouldContinue() || (desc.id == maxPosition.segmentId && syncSegment.endPosition >= maxPosition.position))
                         break;
                 }
             }

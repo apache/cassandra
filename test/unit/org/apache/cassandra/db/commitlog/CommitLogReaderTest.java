@@ -225,10 +225,85 @@ public class CommitLogReaderTest extends CQLTester
         CommitLogReader reader = new CommitLogReader();
         // use real CLR handler to test actual behavior
         CommitLogReadHandler clrHandler =
-                new CommitLogReplayer(new CommitLog(null), null, null, null);
+        new CommitLogReplayer(new CommitLog(null), null, null, null);
 
         // commit.failure.policy=ignore, so we don't expect any errors
         reader.readCommitLogSegment(clrHandler, corruptedSegmentFile, CommitLogPosition.NONE, CommitLogReader.ALL_MUTATIONS, false);
+    }
+
+    @Test
+    public void testReadMaxPos() throws Throwable
+    {
+        // startCount <= endCount <= totalCount
+        int totalCount = 50;
+        int startCount = 11;
+        int endCount = 43;
+
+        CommitLogPosition[] positions = populatePosData(totalCount);
+        CommitLogPosition minPos = positions[startCount];
+        CommitLogPosition maxPos = positions[endCount];
+
+        ArrayList<File> toCheck = getCommitLogs();
+
+        CommitLogReader reader = new CommitLogReader();
+        // we need to exclude non-cfm mutations because we are checking if maxPos takes effect
+        TestCLRHandler testHandler = new TestCLRHandler(currentTableMetadata());
+
+        for (File f: toCheck)
+            reader.readCommitLogSegment(testHandler, f, minPos, maxPos, false);
+
+        // if the end position of a sync segment equals to minPos, then this sync segment will be read
+        int expectedCount = endCount - startCount + 1;
+        Assert.assertEquals("Expected " + expectedCount + " seen mutations, got: " + testHandler.seenMutations.size(),
+                            expectedCount, testHandler.seenMutationCount());
+
+        confirmReadOrder(testHandler, startCount);
+    }
+
+    @Test
+    public void testReadCountMaxPos() throws Throwable
+    {
+        // startCount <= endCount <= totalCount
+        int totalCount = 50;
+        int startCount = 10;
+        int endCount = 30;
+        int count;
+        int expectedCount;
+
+        CommitLogPosition[] positions = populatePosData(totalCount);
+        CommitLogPosition minPos = positions[startCount];
+        CommitLogPosition maxPos = positions[endCount];
+
+        ArrayList<File> toCheck = getCommitLogs();
+
+        CommitLogReader reader;
+        TestCLRHandler testHandler;
+
+        // when count < (endCount - startCount + 1), we expect the former number of mutations read
+        count = 10;
+        expectedCount = count;
+        reader = new CommitLogReader();
+        // we need to include non-cfm mutations because we are checking if count takes effect
+        testHandler = new TestCLRHandler();
+
+        for (File f: toCheck)
+            reader.readCommitLogSegment(testHandler, f, minPos, maxPos, count, false);
+
+        Assert.assertEquals("Expected " + expectedCount + " seen mutations, got: " + testHandler.seenMutations.size(),
+                            expectedCount, testHandler.seenMutationCount());
+
+        // when count > (endCount - startCount + 1), we expect the latter number of mutations read
+        count = 40;
+        expectedCount = endCount - startCount + 1;
+        reader = new CommitLogReader();
+        // we need to exclude non-cfm mutations because we are checking if maxPos takes effect
+        testHandler = new TestCLRHandler(currentTableMetadata());
+        for (File f: toCheck)
+            reader.readCommitLogSegment(testHandler, f, minPos, maxPos, count, false);
+        Assert.assertEquals("Expected " + expectedCount + " seen mutations, got: " + testHandler.seenMutations.size(),
+                            expectedCount, testHandler.seenMutationCount());
+
+        confirmReadOrder(testHandler, startCount);
     }
 
     /**
@@ -370,5 +445,28 @@ public class CommitLogReaderTest extends CQLTester
     private static void clearCorruptedCommitLogFile()
     {
         new File(DatabaseDescriptor.getCommitLogLocation(), CORRUPTED_COMMIT_LOG_FILE_NAME).deleteIfExists();
+    }
+
+    /**
+     * Returns an array of end positions for a given count. positions[i] means the end position in the commitlog after i-th insert.
+     */
+    CommitLogPosition[] populatePosData(int count) throws Throwable
+    {
+        createTable("CREATE TABLE %s (idx INT, data TEXT, PRIMARY KEY(idx));");
+
+        CommitLogPosition[] positions = new CommitLogPosition[count + 1];
+
+        CommitLogPosition currentPos = CommitLog.instance.getCurrentPosition();
+
+        // get the end position of the last segments
+        positions[0] = new CommitLogPosition(currentPos.segmentId, currentPos.position - CommitLogSegment.SYNC_MARKER_SIZE);
+
+        for (int i = 0; i < count; i++) {
+            execute("INSERT INTO %s (idx, data) VALUES (?, ?)", i, Integer.toString(i));
+            positions[i + 1] = CommitLog.instance.getCurrentPosition();
+        }
+
+        Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        return positions;
     }
 }
