@@ -1,4 +1,5 @@
 4.0
+ * Add ability to specify driver name and version (CASSANDRA-14275)
  * Abstract streaming for pluggable storage (CASSANDRA-14115)
  * Forced incremental repairs should promote sstables if they can (CASSANDRA-14294)
  * Use Murmur3 for validation compactions (CASSANDRA-14002)
