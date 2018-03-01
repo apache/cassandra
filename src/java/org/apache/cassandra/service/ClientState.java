@@ -106,6 +106,10 @@ public class ClientState
     // The remote address of the client - null for internal clients.
     private final InetSocketAddress remoteAddress;
 
+    // Driver String for the client
+    private volatile String driverName;
+    private volatile String driverVersion;
+
     // The biggest timestamp that was returned by getTimestamp/assigned to a query. This is global to ensure that the
     // timestamp assigned are strictly monotonic on a node, which is likely what user expect intuitively (more likely,
     // most new user will intuitively expect timestamp to be strictly monotonic cluster-wise, but while that last part
@@ -119,14 +123,25 @@ public class ClientState
     {
         this.isInternal = true;
         this.remoteAddress = null;
+        this.driverName = null;
+        this.driverVersion = null;
     }
 
     protected ClientState(InetSocketAddress remoteAddress)
     {
         this.isInternal = false;
+        this.driverName = null;
         this.remoteAddress = remoteAddress;
         if (!DatabaseDescriptor.getAuthenticator().requireAuthentication())
             this.user = AuthenticatedUser.ANONYMOUS_USER;
+    }
+
+    protected ClientState(InetSocketAddress remoteAddress, String driverName, String driverVersion)
+    {
+        this(remoteAddress);
+
+        this.driverName = driverName;
+        this.driverVersion = driverVersion;
     }
 
     protected ClientState(ClientState source)
@@ -135,6 +150,8 @@ public class ClientState
         this.remoteAddress = source.remoteAddress;
         this.user = source.user;
         this.keyspace = source.keyspace;
+        this.driverName = source.driverName;
+        this.driverVersion = source.driverVersion;
     }
 
     /**
@@ -151,6 +168,11 @@ public class ClientState
     public static ClientState forExternalCalls(SocketAddress remoteAddress)
     {
         return new ClientState((InetSocketAddress)remoteAddress);
+    }
+
+    public static ClientState forExternalCalls(SocketAddress remoteAddress, String driverName, String driverVersion)
+    {
+        return new ClientState((InetSocketAddress)remoteAddress, driverName, driverVersion);
     }
 
     /**
@@ -241,6 +263,22 @@ public class ClientState
             if (tstamp == minTimestampToUse || lastTimestampMicros.compareAndSet(last, tstamp))
                 return tstamp;
         }
+    }
+
+    public String getDriverName()
+    {
+        return driverName;
+    }
+
+    public String getDriverVersion()
+    {
+        return driverVersion;
+    }
+
+    public void setDriverInfo(String driverName, String driverVersion)
+    {
+        this.driverName = driverName;
+        this.driverVersion = driverVersion;
     }
 
     public static QueryHandler getCQLQueryHandler()

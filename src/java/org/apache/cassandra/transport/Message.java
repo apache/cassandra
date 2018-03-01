@@ -513,6 +513,13 @@ public abstract class Message
 
                 QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion(), request.getStreamId());
 
+                if (request.type == Type.STARTUP)
+                {
+                    StartupMessage startupMessage = (StartupMessage) request;
+                    connection.getClientState().setDriverInfo(startupMessage.options.getOrDefault("DRIVER_NAME", ""),
+                                                              startupMessage.options.getOrDefault("DRIVER_VERSION", ""));
+                }
+
                 logger.trace("Received: {}, v={}", request, connection.getVersion());
                 connection.requests.inc();
                 response = request.execute(qstate, queryStartNanoTime);
