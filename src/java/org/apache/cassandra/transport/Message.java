@@ -516,8 +516,8 @@ public abstract class Message
                 if (request.type == Type.STARTUP)
                 {
                     StartupMessage startupMessage = (StartupMessage) request;
-                    connection.getClientState().setDriverInfo(startupMessage.options.getOrDefault("DRIVER_NAME_OPTION", ""),
-                                                              startupMessage.options.getOrDefault("DRIVER_VERSION_OPTION", ""));
+                    connection.getClientState().setDriverInfo(startupMessage.options.getOrDefault("DRIVER_NAME", ""),
+                                                              startupMessage.options.getOrDefault("DRIVER_VERSION", ""));
                 }
 
                 logger.trace("Received: {}, v={}", request, connection.getVersion());
