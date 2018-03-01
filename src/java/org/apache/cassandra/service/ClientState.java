@@ -41,7 +41,6 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -56,11 +55,6 @@ public class ClientState
 
     private static final Set<IResource> READABLE_SYSTEM_RESOURCES = new HashSet<>();
     private static final Set<IResource> PROTECTED_AUTH_RESOURCES = new HashSet<>();
-
-    public void setDriverString(String driverString)
-    {
-        this.driverString = driverString;
-    }
 
     static
     {
@@ -113,7 +107,8 @@ public class ClientState
     private final InetSocketAddress remoteAddress;
 
     // Driver String for the client
-    private volatile String driverString;
+    private volatile String driverName;
+    private volatile String driverVersion;
 
     // The biggest timestamp that was returned by getTimestamp/assigned to a query. This is global to ensure that the
     // timestamp assigned are strictly monotonic on a node, which is likely what user expect intuitively (more likely,
@@ -128,25 +123,25 @@ public class ClientState
     {
         this.isInternal = true;
         this.remoteAddress = null;
-        this.driverString = null;
+        this.driverName = null;
+        this.driverVersion = null;
     }
 
     protected ClientState(InetSocketAddress remoteAddress)
     {
         this.isInternal = false;
-        this.driverString = null;
+        this.driverName = null;
         this.remoteAddress = remoteAddress;
         if (!DatabaseDescriptor.getAuthenticator().requireAuthentication())
             this.user = AuthenticatedUser.ANONYMOUS_USER;
     }
 
-    protected ClientState(InetSocketAddress remoteAddress, String driverString)
+    protected ClientState(InetSocketAddress remoteAddress, String driverName, String driverVersion)
     {
-        this.isInternal = false;
-        this.driverString = driverString;
-        this.remoteAddress = remoteAddress;
-        if (!DatabaseDescriptor.getAuthenticator().requireAuthentication())
-            this.user = AuthenticatedUser.ANONYMOUS_USER;
+        this(remoteAddress);
+
+        this.driverName = driverName;
+        this.driverVersion = driverVersion;
     }
 
     protected ClientState(ClientState source)
@@ -155,7 +150,8 @@ public class ClientState
         this.remoteAddress = source.remoteAddress;
         this.user = source.user;
         this.keyspace = source.keyspace;
-        this.driverString = source.driverString;
+        this.driverName = source.driverName;
+        this.driverVersion = source.driverVersion;
     }
 
     /**
@@ -174,9 +170,9 @@ public class ClientState
         return new ClientState((InetSocketAddress)remoteAddress);
     }
 
-    public static ClientState forExternalCalls(SocketAddress remoteAddress, String driverString)
+    public static ClientState forExternalCalls(SocketAddress remoteAddress, String driverName, String driverVersion)
     {
-        return new ClientState((InetSocketAddress)remoteAddress, driverString);
+        return new ClientState((InetSocketAddress)remoteAddress, driverName, driverVersion);
     }
 
     /**
@@ -269,9 +265,20 @@ public class ClientState
         }
     }
 
-    public String getDriverString()
+    public String getDriverName()
     {
-        return driverString;
+        return driverName;
+    }
+
+    public String getDriverVersion()
+    {
+        return driverVersion;
+    }
+
+    public void setDriverInfo(String driverName, String driverVersion)
+    {
+        this.driverName = driverName;
+        this.driverVersion = driverVersion;
     }
 
     public static QueryHandler getCQLQueryHandler()
