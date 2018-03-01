@@ -24,8 +24,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLongArray;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.atomic.LongAdder;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -85,8 +84,8 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
     private final long[] bucketOffsets;
 
     // decayingBuckets and buckets are one element longer than bucketOffsets -- the last element is values greater than the last offset
-    private final AtomicLongArray decayingBuckets;
-    private final AtomicLongArray buckets;
+    private final LongAdder[] decayingBuckets;
+    private final LongAdder[] buckets;
 
     public static final long HALF_TIME_IN_S = 60L;
     public static final double MEAN_LIFETIME_IN_S = HALF_TIME_IN_S / Math.log(2.0);
@@ -94,8 +93,6 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     private final AtomicBoolean rescaling = new AtomicBoolean(false);
     private volatile long decayLandmark;
-
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     // Wrapper around System.nanoTime() to simplify unit testing.
     private final Clock clock;
@@ -150,8 +147,15 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         {
             bucketOffsets = EstimatedHistogram.newOffsets(bucketCount, considerZeroes);
         }
-        decayingBuckets = new AtomicLongArray(bucketOffsets.length + 1);
-        buckets = new AtomicLongArray(bucketOffsets.length + 1);
+        decayingBuckets = new LongAdder[bucketOffsets.length + 1];
+        buckets = new LongAdder[bucketOffsets.length + 1];
+
+        for(int i = 0; i < buckets.length; i++) 
+        {
+            decayingBuckets[i] = new LongAdder();
+            buckets[i] = new LongAdder();
+        }
+
         this.clock = clock;
         decayLandmark = clock.getTime();
     }
@@ -174,18 +178,8 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         }
         // else exact match; we're good
 
-        lockForRegularUsage();
-
-        try
-        {
-            decayingBuckets.getAndAdd(index, Math.round(forwardDecayWeight(now)));
-        }
-        finally
-        {
-            unlockForRegularUsage();
-        }
-
-        buckets.getAndIncrement(index);
+        decayingBuckets[index].add(Math.round(forwardDecayWeight(now)));
+        buckets[index].increment();
     }
 
     private double forwardDecayWeight(long now)
@@ -202,7 +196,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      */
     public int size()
     {
-        return decayingBuckets.length();
+        return decayingBuckets.length;
     }
 
     /**
@@ -215,17 +209,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
     public Snapshot getSnapshot()
     {
         rescaleIfNeeded();
-
-        lockForRegularUsage();
-
-        try
-        {
-            return new EstimatedHistogramReservoirSnapshot(this);
-        }
-        finally
-        {
-            unlockForRegularUsage();
-        }
+        return new EstimatedHistogramReservoirSnapshot(this);
     }
 
     /**
@@ -234,7 +218,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
     @VisibleForTesting
     boolean isOverflowed()
     {
-        return decayingBuckets.get(decayingBuckets.length() - 1) > 0;
+        return decayingBuckets[decayingBuckets.length - 1].sum() > 0;
     }
 
     private void rescaleIfNeeded()
@@ -254,6 +238,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
                 }
                 finally
                 {
+                    decayLandmark = now;
                     rescaling.set(false);
                 }
             }
@@ -262,27 +247,14 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     private void rescale(long now)
     {
-        // Check again to make sure that another thread didn't complete rescale already
-        if (needRescale(now))
+        final double rescaleFactor = forwardDecayWeight(now);
+
+        final int bucketCount = decayingBuckets.length;
+        for (int i = 0; i < bucketCount; i++)
         {
-            lockForRescale();
-
-            try
-            {
-                final double rescaleFactor = forwardDecayWeight(now);
-                decayLandmark = now;
-
-                final int bucketCount = decayingBuckets.length();
-                for (int i = 0; i < bucketCount; i++)
-                {
-                    long newValue = Math.round((decayingBuckets.get(i) / rescaleFactor));
-                    decayingBuckets.set(i, newValue);
-                }
-            }
-            finally
-            {
-                unlockForRescale();
-            }
+            long storedValue = decayingBuckets[i].sumThenReset();
+            storedValue = Math.round(storedValue / rescaleFactor);
+            decayingBuckets[i].add(storedValue);
         }
     }
 
@@ -294,41 +266,44 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
     @VisibleForTesting
     public void clear()
     {
-        lockForRescale();
-
-        try
+        final int bucketCount = decayingBuckets.length;
+        for (int i = 0; i < bucketCount; i++)
         {
-            final int bucketCount = decayingBuckets.length();
-            for (int i = 0; i < bucketCount; i++)
+            decayingBuckets[i].reset();
+            buckets[i].reset();
+        }
+    }
+
+    /**
+     * Replaces current internal values with the given one from a Snapshot. This method is NOT thread safe, values
+     * added at the same time to this reservoir using methods such as update may lose their data
+     */
+    public void rebase(EstimatedHistogramReservoirSnapshot snapshot)
+    {
+        // Check bucket count
+        if (decayingBuckets.length != snapshot.decayingBuckets.length)
+        {
+            throw new IllegalStateException("Unable to merge two DecayingEstimatedHistogramReservoirs with different bucket sizes");
+        }
+
+        // Check bucketOffsets
+        for (int i = 0; i < bucketOffsets.length; i++)
+        {
+            if (bucketOffsets[i] != snapshot.bucketOffsets[i])
             {
-                decayingBuckets.set(i, 0L);
-                buckets.set(i, 0L);
+                throw new IllegalStateException("Merge is only supported with equal bucketOffsets");
             }
         }
-        finally
+
+        this.decayLandmark = snapshot.snapshotLandmark;
+        for (int i = 0; i < decayingBuckets.length; i++)
         {
-            unlockForRescale();
+            decayingBuckets[i].reset();
+            buckets[i].reset();
+
+            decayingBuckets[i].add(snapshot.decayingBuckets[i]);
+            buckets[i].add(snapshot.values[i]);
         }
-    }
-
-    private void lockForRegularUsage()
-    {
-        this.lock.readLock().lock();
-    }
-
-    private void unlockForRegularUsage()
-    {
-        this.lock.readLock().unlock();
-    }
-
-    private void lockForRescale()
-    {
-        this.lock.writeLock().lock();
-    }
-
-    private void unlockForRescale()
-    {
-        this.lock.writeLock().unlock();
     }
 
     /**
@@ -341,19 +316,32 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
      * The decaying buckets will be used for quantile calculations and mean values, but the non decaying buckets will be
      * exposed for calls to {@link Snapshot#getValues()}.
      */
-    private class EstimatedHistogramReservoirSnapshot extends Snapshot
+    class EstimatedHistogramReservoirSnapshot extends Snapshot
     {
         private final long[] decayingBuckets;
+        private final long[] values;
+        private long count;
+        private long snapshotLandmark;
+        private long[] bucketOffsets;
+        private DecayingEstimatedHistogramReservoir reservoir;
 
         public EstimatedHistogramReservoirSnapshot(DecayingEstimatedHistogramReservoir reservoir)
         {
-            final int length = reservoir.decayingBuckets.length();
+            final int length = reservoir.decayingBuckets.length;
             final double rescaleFactor = forwardDecayWeight(clock.getTime());
 
             this.decayingBuckets = new long[length];
+            this.values = new long[length];
+            this.count = count();
+            this.snapshotLandmark = decayLandmark;
+            this.bucketOffsets = reservoir.bucketOffsets; // No need to copy, these are immutable
 
             for (int i = 0; i < length; i++)
-                this.decayingBuckets[i] = Math.round(reservoir.decayingBuckets.get(i) / rescaleFactor);
+            {
+                this.decayingBuckets[i] = Math.round(reservoir.decayingBuckets[i].sum() / rescaleFactor);
+                this.values[i] = buckets[i].sum();
+            }
+            this.reservoir = reservoir;
         }
 
         /**
@@ -396,13 +384,6 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
          */
         public long[] getValues()
         {
-            final int length = buckets.length();
-
-            long[] values = new long[length];
-
-            for (int i = 0; i < length; i++)
-                values[i] = buckets.get(i);
-
             return values;
         }
 
@@ -416,6 +397,12 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         public int size()
         {
             return decayingBuckets.length;
+        }
+
+        @VisibleForTesting
+        public long getSnapshotLandmark()
+        {
+            return snapshotLandmark;
         }
 
         /**
@@ -546,6 +533,69 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
                     out.printf("%d%n", decayingBuckets[i]);
                 }
             }
+        }
+
+        /**
+         * Adds another DecayingEstimatedHistogramReservoir's Snapshot to this one. Both reservoirs must have same bucket definitions. This will rescale both snapshots if needed.
+         *
+         * @param other EstimatedHistogramReservoirSnapshot with identical bucket definition (offsets and length)
+         */
+        public void add(Snapshot other)
+        {
+            if (!(other instanceof EstimatedHistogramReservoirSnapshot))
+            {
+                throw new IllegalStateException("Unable to add other types of Snapshot than another DecayingEstimatedHistogramReservoir");
+            }
+
+            EstimatedHistogramReservoirSnapshot snapshot = (EstimatedHistogramReservoirSnapshot) other;
+
+            if (decayingBuckets.length != snapshot.decayingBuckets.length)
+            {
+                throw new IllegalStateException("Unable to merge two DecayingEstimatedHistogramReservoirs with different bucket sizes");
+            }
+
+            // Check bucketOffsets
+            for (int i = 0; i < bucketOffsets.length; i++)
+            {
+                if (bucketOffsets[i] != snapshot.bucketOffsets[i])
+                {
+                    throw new IllegalStateException("Merge is only supported with equal bucketOffsets");
+                }
+            }
+
+            // We need to rescale the reservoirs to the same landmark
+            if (snapshot.snapshotLandmark < snapshotLandmark)
+            {
+                rescaleArray(snapshot.decayingBuckets, (snapshotLandmark - snapshot.snapshotLandmark));
+            }
+            else if (snapshot.snapshotLandmark > snapshotLandmark)
+            {
+                rescaleArray(decayingBuckets, (snapshot.snapshotLandmark - snapshotLandmark));
+                this.snapshotLandmark = snapshot.snapshotLandmark;
+            }
+
+            // Now merge the buckets
+            for (int i = 0; i < snapshot.decayingBuckets.length; i++)
+            {
+                decayingBuckets[i] += snapshot.decayingBuckets[i];
+                values[i] += snapshot.values[i];
+            }
+
+            this.count += snapshot.count;
+        }
+
+        private void rescaleArray(long[] decayingBuckets, long landMarkDifference)
+        {
+            final double rescaleFactor = Math.exp((landMarkDifference / 1000.0) / MEAN_LIFETIME_IN_S);
+            for (int i = 0; i < decayingBuckets.length; i++)
+            {
+                decayingBuckets[i] = Math.round(decayingBuckets[i] / rescaleFactor);
+            }
+        }
+
+        public void rebaseReservoir() 
+        {
+            this.reservoir.rebase(this);
         }
     }
 }
