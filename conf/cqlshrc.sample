@@ -30,7 +30,7 @@
 ; color = on
 
 ;; Used for displaying timestamps (and reading them with COPY)
-; datetimeformat = %Y-%m-%d %H:%M:%S%z
+; time_format = %Y-%m-%d %H:%M:%S%z
 
 ;; Display timezone
 ;timezone = Etc/UTC
