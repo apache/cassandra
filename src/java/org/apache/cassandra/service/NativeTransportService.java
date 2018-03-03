@@ -187,14 +187,14 @@ public class NativeTransportService
     }
 
     /**
-     * @return intend to use epoll bassed event looping
+     * @return intend to use epoll based event looping
      */
     public static boolean useEpoll()
     {
         final boolean enableEpoll = Boolean.parseBoolean(System.getProperty("cassandra.native.epoll.enabled", "true"));
 
         if (enableEpoll && !Epoll.isAvailable() && NativeLibrary.osType == NativeLibrary.OSType.LINUX)
-            logger.warn("epoll not availble {}", Epoll.unavailabilityCause());
+            logger.warn("epoll not available {}", Epoll.unavailabilityCause());
 
         return enableEpoll && Epoll.isAvailable();
     }
