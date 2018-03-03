@@ -25,7 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
 
-import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -35,7 +34,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 
 public class ExpirationDateOverflowHandling
 {
-    private static final Logger logger = LoggerFactory.getLogger(Attributes.class);
+    private static final Logger logger = LoggerFactory.getLogger(ExpirationDateOverflowHandling.class);
 
     private static final int EXPIRATION_OVERFLOW_WARNING_INTERVAL_MINUTES = Integer.getInteger("cassandra.expiration_overflow_warning_interval_minutes", 5);
 
