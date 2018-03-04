@@ -61,7 +61,7 @@ public class StreamTransferTask extends StreamTask
     public synchronized void addTransferFile(Ref<SSTableReader> ref, long estimatedKeys, List<Pair<Long, Long>> sections)
     {
         assert ref.get() != null && tableId.equals(ref.get().metadata().id);
-        OutgoingStreamMessage message = new OutgoingStreamMessage(ref, session, sequenceNumber.getAndIncrement(), estimatedKeys, sections, session.keepSSTableLevel());
+        OutgoingStreamMessage message = new OutgoingStreamMessage(session.getStreamOperation(), ref, session, sequenceNumber.getAndIncrement(), estimatedKeys, sections);
         message = StreamHook.instance.reportOutgoingFile(session, ref.get(), message);
         files.put(message.header.sequenceNumber, message);
                 totalSize += message.header.size();

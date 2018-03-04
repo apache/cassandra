@@ -124,7 +124,7 @@ public class StreamingInboundHandlerTest
     @Test
     public void StreamDeserializingTask_deriveSession_StreamInitMessage() throws InterruptedException, IOException
     {
-        StreamInitMessage msg = new StreamInitMessage(REMOTE_ADDR, 0, UUID.randomUUID(), StreamOperation.REPAIR, true, UUID.randomUUID(), PreviewKind.ALL);
+        StreamInitMessage msg = new StreamInitMessage(REMOTE_ADDR, 0, UUID.randomUUID(), StreamOperation.REPAIR, UUID.randomUUID(), PreviewKind.ALL);
         StreamingInboundHandler.StreamDeserializingTask task = handler.new StreamDeserializingTask(sid -> createSession(sid), null, channel);
         StreamSession session = task.deriveSession(msg);
         Assert.assertNotNull(session);
@@ -132,7 +132,7 @@ public class StreamingInboundHandlerTest
 
     private StreamSession createSession(SessionIdentifier sid)
     {
-        return new StreamSession(sid.from, sid.from, (connectionId, protocolVersion) -> null, sid.sessionIndex, true, UUID.randomUUID(), PreviewKind.ALL);
+        return new StreamSession(StreamOperation.BOOTSTRAP, sid.from, sid.from, (connectionId, protocolVersion) -> null, sid.sessionIndex, UUID.randomUUID(), PreviewKind.ALL);
     }
 
     @Test (expected = IllegalStateException.class)
@@ -157,7 +157,7 @@ public class StreamingInboundHandlerTest
     public void StreamDeserializingTask_deriveSession_IFM_HasSession() throws InterruptedException, IOException
     {
         UUID planId = UUID.randomUUID();
-        StreamResultFuture future = StreamResultFuture.initReceivingSide(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, channel, true, UUID.randomUUID(), PreviewKind.ALL);
+        StreamResultFuture future = StreamResultFuture.initReceivingSide(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, channel, UUID.randomUUID(), PreviewKind.ALL);
         StreamManager.instance.register(future);
         StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, planId, 0, 0,
                                                              BigFormat.latestVersion, SSTableFormat.Type.BIG, 0, new ArrayList<>(), null, 0, UUID.randomUUID(), 0 , null);

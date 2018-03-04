@@ -46,18 +46,18 @@ public class StreamCoordinator
     private final boolean connectSequentially;
 
     private Map<InetAddressAndPort, HostStreamingData> peerSessions = new HashMap<>();
+    private final StreamOperation streamOperation;
     private final int connectionsPerHost;
     private StreamConnectionFactory factory;
-    private final boolean keepSSTableLevel;
     private Iterator<StreamSession> sessionsToConnect = null;
     private final UUID pendingRepair;
     private final PreviewKind previewKind;
 
-    public StreamCoordinator(int connectionsPerHost, boolean keepSSTableLevel, StreamConnectionFactory factory,
+    public StreamCoordinator(StreamOperation streamOperation, int connectionsPerHost, StreamConnectionFactory factory,
                              boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
+        this.streamOperation = streamOperation;
         this.connectionsPerHost = connectionsPerHost;
-        this.keepSSTableLevel = keepSSTableLevel;
         this.factory = factory;
         this.connectSequentially = connectSequentially;
         this.pendingRepair = pendingRepair;
@@ -302,7 +302,7 @@ public class StreamCoordinator
             // create
             if (streamSessions.size() < connectionsPerHost)
             {
-                StreamSession session = new StreamSession(peer, connecting, factory, streamSessions.size(), keepSSTableLevel, pendingRepair, previewKind);
+                StreamSession session = new StreamSession(streamOperation, peer, connecting, factory, streamSessions.size(), pendingRepair, previewKind);
                 streamSessions.put(++lastReturned, session);
                 return session;
             }
@@ -334,7 +334,7 @@ public class StreamCoordinator
             StreamSession session = streamSessions.get(id);
             if (session == null)
             {
-                session = new StreamSession(peer, connecting, factory, id, keepSSTableLevel, pendingRepair, previewKind);
+                session = new StreamSession(streamOperation, peer, connecting, factory, id, pendingRepair, previewKind);
                 streamSessions.put(id, session);
             }
             return session;

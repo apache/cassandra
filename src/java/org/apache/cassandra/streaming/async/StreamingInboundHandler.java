@@ -229,7 +229,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             {
                 assert session == null : "initiator of stream session received a StreamInitMessage";
                 StreamInitMessage init = (StreamInitMessage) message;
-                StreamResultFuture.initReceivingSide(init.sessionIndex, init.planId, init.streamOperation, init.from, channel, init.keepSSTableLevel, init.pendingRepair, init.previewKind);
+                StreamResultFuture.initReceivingSide(init.sessionIndex, init.planId, init.streamOperation, init.from, channel, init.pendingRepair, init.previewKind);
                 streamSession = sessionProvider.apply(new SessionIdentifier(init.from, init.planId, init.sessionIndex));
             }
             else if (message instanceof IncomingStreamMessage)

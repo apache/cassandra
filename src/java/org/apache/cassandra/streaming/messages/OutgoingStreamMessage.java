@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamWriter;
 import org.apache.cassandra.streaming.compress.CompressedStreamWriter;
@@ -71,13 +72,14 @@ public class OutgoingStreamMessage extends StreamMessage
     private boolean completed = false;
     private boolean transferring = false;
 
-    public OutgoingStreamMessage(Ref<SSTableReader> ref, StreamSession session, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, boolean keepSSTableLevel)
+    public OutgoingStreamMessage(StreamOperation streamOperation, Ref<SSTableReader> ref, StreamSession session, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections)
     {
         super(Type.STREAM);
         this.ref = ref;
 
         SSTableReader sstable = ref.get();
         filename = sstable.getFilename();
+        boolean keepSSTableLevel = streamOperation == StreamOperation.BOOTSTRAP || streamOperation == StreamOperation.REBUILD;
         this.header = new StreamMessageHeader(sstable.metadata().id,
                                               FBUtilities.getBroadcastAddressAndPort(),
                                               session.planId(),
@@ -90,7 +92,7 @@ public class OutgoingStreamMessage extends StreamMessage
                                               sstable.compression ? sstable.getCompressionMetadata() : null,
                                               sstable.getRepairedAt(),
                                               sstable.getPendingRepair(),
-                                              keepSSTableLevel ? sstable.getSSTableLevel() : 0, // TODO: use StreamOperation to determin
+                                              keepSSTableLevel ? sstable.getSSTableLevel() : 0,
                                               sstable.header.toComponent());
     }
 

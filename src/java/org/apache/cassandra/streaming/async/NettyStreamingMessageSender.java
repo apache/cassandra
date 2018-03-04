@@ -141,7 +141,6 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                                                           session.sessionIndex(),
                                                           session.planId(),
                                                           session.streamOperation(),
-                                                          session.keepSSTableLevel(),
                                                           session.getPendingRepair(),
                                                           session.getPreviewKind());
         sendMessage(message);

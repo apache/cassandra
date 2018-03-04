@@ -138,6 +138,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
 
+    private final StreamOperation streamOperation;
     /**
      * Streaming endpoint.
      *
@@ -168,7 +169,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private final ConcurrentMap<ChannelId, Channel> incomingChannels = new ConcurrentHashMap<>();
 
     private final AtomicBoolean isAborted = new AtomicBoolean(false);
-    private final boolean keepSSTableLevel;
     private final UUID pendingRepair;
     private final PreviewKind previewKind;
 
@@ -187,11 +187,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     /**
      * Create new streaming session with the peer.
-     *  @param peer Address of streaming peer
+     * @param streamOperation
+     * @param peer Address of streaming peer
      * @param connecting Actual connecting address
      */
-    public StreamSession(InetAddressAndPort peer, InetAddressAndPort connecting, StreamConnectionFactory factory, int index, boolean keepSSTableLevel, UUID pendingRepair, PreviewKind previewKind)
+    public StreamSession(StreamOperation streamOperation, InetAddressAndPort peer, InetAddressAndPort connecting, StreamConnectionFactory factory, int index, UUID pendingRepair, PreviewKind previewKind)
     {
+        this.streamOperation = streamOperation;
         this.peer = peer;
         this.connecting = connecting;
         this.index = index;
@@ -200,7 +202,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                                                                               InetAddressAndPort.getByAddressOverrideDefaults(connecting.address, MessagingService.instance().portFor(connecting)));
         this.messageSender = new NettyStreamingMessageSender(this, id, factory, StreamMessage.CURRENT_VERSION, previewKind.isPreview());
         this.metrics = StreamingMetrics.get(connecting);
-        this.keepSSTableLevel = keepSSTableLevel;
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
     }
@@ -220,9 +221,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         return streamResult == null ? null : streamResult.streamOperation;
     }
 
-    public boolean keepSSTableLevel()
+    public StreamOperation getStreamOperation()
     {
-        return keepSSTableLevel;
+        return streamOperation;
     }
 
     public UUID getPendingRepair()
