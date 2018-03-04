@@ -31,7 +31,7 @@ import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamReader;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.streaming.messages.FileMessageHeader;
+import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -47,7 +47,7 @@ public class CompressedStreamReader extends StreamReader
 
     protected final CompressionInfo compressionInfo;
 
-    public CompressedStreamReader(FileMessageHeader header, StreamSession session)
+    public CompressedStreamReader(StreamMessageHeader header, StreamSession session)
     {
         super(header, session);
         this.compressionInfo = header.compressionInfo;

@@ -97,7 +97,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
  *   (a) The streaming phase is started at each node by calling {@link StreamSession#startStreamingFiles(boolean)}.
  *       This will send, sequentially on each outbound streaming connection (see {@link NettyStreamingMessageSender}),
  *       an {@link OutgoingStreamMessage} for each file in each of the {@link StreamTransferTask}.
- *       Each {@link OutgoingStreamMessage} consists of a {@link FileMessageHeader} that contains metadata about the file
+ *       Each {@link OutgoingStreamMessage} consists of a {@link StreamMessageHeader} that contains metadata about the file
  *       being streamed, followed by the file content itself. Once all the files for a {@link StreamTransferTask} are sent,
  *       the task is marked complete {@link StreamTransferTask#complete(int)}.
  *   (b) On the receiving side, a SSTable will be written for the incoming file, and once the file is fully received,
@@ -679,11 +679,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
     /**
-     * Call back after sending FileMessageHeader.
+     * Call back after sending StreamMessageHeader.
      *
      * @param header sent header
      */
-    public void fileSent(FileMessageHeader header)
+    public void fileSent(StreamMessageHeader header)
     {
         long headerSize = header.size();
         StreamingMetrics.totalOutgoingBytes.inc(headerSize);

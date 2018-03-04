@@ -42,7 +42,7 @@ public class IncomingStreamMessage extends StreamMessage
         @SuppressWarnings("resource")
         public IncomingStreamMessage deserialize(DataInputPlus input, int version, StreamSession session) throws IOException
         {
-            FileMessageHeader header = FileMessageHeader.serializer.deserialize(input, version);
+            StreamMessageHeader header = StreamMessageHeader.serializer.deserialize(input, version);
             session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex);
             if (session == null)
                 throw new IllegalStateException(String.format("unknown stream session: %s - %d", header.planId, header.sessionIndex));
@@ -75,10 +75,10 @@ public class IncomingStreamMessage extends StreamMessage
         }
     };
 
-    public FileMessageHeader header;
+    public StreamMessageHeader header;
     public SSTableMultiWriter sstable;
 
-    public IncomingStreamMessage(SSTableMultiWriter sstable, FileMessageHeader header)
+    public IncomingStreamMessage(SSTableMultiWriter sstable, StreamMessageHeader header)
     {
         super(Type.STREAM);
         this.header = header;

@@ -42,7 +42,7 @@ import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.streaming.messages.FileMessageHeader;
+import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
@@ -236,7 +236,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             {
                 // TODO: it'd be great to check if the session actually exists before slurping in the entire sstable,
                 // but that's a refactoring for another day
-                FileMessageHeader header = ((IncomingStreamMessage) message).header;
+                StreamMessageHeader header = ((IncomingStreamMessage) message).header;
                 streamSession = sessionProvider.apply(new SessionIdentifier(header.sender, header.planId, header.sessionIndex));
             }
 

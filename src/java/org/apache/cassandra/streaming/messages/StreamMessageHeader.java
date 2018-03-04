@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.UUIDSerializer;
 /**
  * StreamingFileHeader is appended before sending actual data to describe what it's sending.
  */
-public class FileMessageHeader
+public class StreamMessageHeader
 {
     public static FileMessageHeaderSerializer serializer = new FileMessageHeaderSerializer();
 
@@ -72,20 +72,20 @@ public class FileMessageHeader
     /* cached size value */
     private transient final long size;
 
-    private FileMessageHeader(TableId tableId,
-                             InetAddressAndPort sender,
-                             UUID planId,
-                             int sessionIndex,
-                             int sequenceNumber,
-                             Version version,
-                             SSTableFormat.Type format,
-                             long estimatedKeys,
-                             List<Pair<Long, Long>> sections,
-                             CompressionInfo compressionInfo,
-                             long repairedAt,
-                             UUID pendingRepair,
-                             int sstableLevel,
-                             SerializationHeader.Component header)
+    private StreamMessageHeader(TableId tableId,
+                                InetAddressAndPort sender,
+                                UUID planId,
+                                int sessionIndex,
+                                int sequenceNumber,
+                                Version version,
+                                SSTableFormat.Type format,
+                                long estimatedKeys,
+                                List<Pair<Long, Long>> sections,
+                                CompressionInfo compressionInfo,
+                                long repairedAt,
+                                UUID pendingRepair,
+                                int sstableLevel,
+                                SerializationHeader.Component header)
     {
         this.tableId = tableId;
         this.sender = sender;
@@ -105,20 +105,20 @@ public class FileMessageHeader
         this.size = calculateSize();
     }
 
-    public FileMessageHeader(TableId tableId,
-                             InetAddressAndPort sender,
-                             UUID planId,
-                             int sessionIndex,
-                             int sequenceNumber,
-                             Version version,
-                             SSTableFormat.Type format,
-                             long estimatedKeys,
-                             List<Pair<Long, Long>> sections,
-                             CompressionMetadata compressionMetadata,
-                             long repairedAt,
-                             UUID pendingRepair,
-                             int sstableLevel,
-                             SerializationHeader.Component header)
+    public StreamMessageHeader(TableId tableId,
+                               InetAddressAndPort sender,
+                               UUID planId,
+                               int sessionIndex,
+                               int sequenceNumber,
+                               Version version,
+                               SSTableFormat.Type format,
+                               long estimatedKeys,
+                               List<Pair<Long, Long>> sections,
+                               CompressionMetadata compressionMetadata,
+                               long repairedAt,
+                               UUID pendingRepair,
+                               int sstableLevel,
+                               SerializationHeader.Component header)
     {
         this.tableId = tableId;
         this.sender = sender;
@@ -195,7 +195,7 @@ public class FileMessageHeader
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        FileMessageHeader that = (FileMessageHeader) o;
+        StreamMessageHeader that = (StreamMessageHeader) o;
         return sequenceNumber == that.sequenceNumber && tableId.equals(that.tableId);
     }
 
@@ -215,7 +215,7 @@ public class FileMessageHeader
 
     static class FileMessageHeaderSerializer
     {
-        public CompressionInfo serialize(FileMessageHeader header, DataOutputPlus out, int version) throws IOException
+        public CompressionInfo serialize(StreamMessageHeader header, DataOutputPlus out, int version) throws IOException
         {
             header.tableId.serialize(out);
             CompactEndpointSerializationHelper.streamingInstance.serialize(header.sender, out, version);
@@ -249,7 +249,7 @@ public class FileMessageHeader
             return compressionInfo;
         }
 
-        public FileMessageHeader deserialize(DataInputPlus in, int version) throws IOException
+        public StreamMessageHeader deserialize(DataInputPlus in, int version) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
             InetAddressAndPort sender = CompactEndpointSerializationHelper.streamingInstance.deserialize(in, version);
@@ -270,10 +270,10 @@ public class FileMessageHeader
             int sstableLevel = in.readInt();
             SerializationHeader.Component header =  SerializationHeader.serializer.deserialize(sstableVersion, in);
 
-            return new FileMessageHeader(tableId, sender, planId, sessionIndex, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, pendingRepair, sstableLevel, header);
+            return new StreamMessageHeader(tableId, sender, planId, sessionIndex, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, pendingRepair, sstableLevel, header);
         }
 
-        public long serializedSize(FileMessageHeader header, int version)
+        public long serializedSize(StreamMessageHeader header, int version)
         {
             long size = header.tableId.serializedSize();
             size += CompactEndpointSerializationHelper.streamingInstance.serializedSize(header.sender, version);

@@ -45,7 +45,7 @@ import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.async.StreamingInboundHandler.SessionIdentifier;
 import org.apache.cassandra.streaming.messages.CompleteMessage;
-import org.apache.cassandra.streaming.messages.FileMessageHeader;
+import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
@@ -146,8 +146,8 @@ public class StreamingInboundHandlerTest
     @Test (expected = IllegalStateException.class)
     public void StreamDeserializingTask_deriveSession_IFM_NoSession() throws InterruptedException, IOException
     {
-        FileMessageHeader header = new FileMessageHeader(TableId.generate(), REMOTE_ADDR, UUID.randomUUID(), 0, 0,
-                                                         BigFormat.latestVersion, SSTableFormat.Type.BIG, 0, new ArrayList<>(), null, 0, UUID.randomUUID(), 0 , null);
+        StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, UUID.randomUUID(), 0, 0,
+                                                             BigFormat.latestVersion, SSTableFormat.Type.BIG, 0, new ArrayList<>(), null, 0, UUID.randomUUID(), 0 , null);
         IncomingStreamMessage msg = new IncomingStreamMessage(null, header);
         StreamingInboundHandler.StreamDeserializingTask task = handler.new StreamDeserializingTask(sid -> StreamManager.instance.findSession(sid.from, sid.planId, sid.sessionIndex), null, channel);
         task.deriveSession(msg);
@@ -159,8 +159,8 @@ public class StreamingInboundHandlerTest
         UUID planId = UUID.randomUUID();
         StreamResultFuture future = StreamResultFuture.initReceivingSide(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, channel, true, UUID.randomUUID(), PreviewKind.ALL);
         StreamManager.instance.register(future);
-        FileMessageHeader header = new FileMessageHeader(TableId.generate(), REMOTE_ADDR, planId, 0, 0,
-                                                         BigFormat.latestVersion, SSTableFormat.Type.BIG, 0, new ArrayList<>(), null, 0, UUID.randomUUID(), 0 , null);
+        StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, planId, 0, 0,
+                                                             BigFormat.latestVersion, SSTableFormat.Type.BIG, 0, new ArrayList<>(), null, 0, UUID.randomUUID(), 0 , null);
         IncomingStreamMessage msg = new IncomingStreamMessage(null, header);
         StreamingInboundHandler.StreamDeserializingTask task = handler.new StreamDeserializingTask(sid -> StreamManager.instance.findSession(sid.from, sid.planId, sid.sessionIndex), null, channel);
         StreamSession session = task.deriveSession(msg);

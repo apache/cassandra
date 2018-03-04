@@ -21,7 +21,6 @@ import java.io.*;
 import java.util.Collection;
 import java.util.UUID;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.UnmodifiableIterator;
 
@@ -40,7 +39,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.streaming.compress.StreamCompressionInputStream;
-import org.apache.cassandra.streaming.messages.FileMessageHeader;
+import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -64,7 +63,7 @@ public class StreamReader
     protected final SerializationHeader.Component header;
     protected final int fileSeqNum;
 
-    public StreamReader(FileMessageHeader header, StreamSession session)
+    public StreamReader(StreamMessageHeader header, StreamSession session)
     {
         if (session.getPendingRepair() != null)
         {

@@ -65,7 +65,7 @@ public class OutgoingStreamMessage extends StreamMessage
         }
     };
 
-    public final FileMessageHeader header;
+    public final StreamMessageHeader header;
     private final Ref<SSTableReader> ref;
     private final String filename;
     private boolean completed = false;
@@ -78,20 +78,20 @@ public class OutgoingStreamMessage extends StreamMessage
 
         SSTableReader sstable = ref.get();
         filename = sstable.getFilename();
-        this.header = new FileMessageHeader(sstable.metadata().id,
-                                            FBUtilities.getBroadcastAddressAndPort(),
-                                            session.planId(),
-                                            session.sessionIndex(),
-                                            sequenceNumber,
-                                            sstable.descriptor.version,
-                                            sstable.descriptor.formatType,
-                                            estimatedKeys,
-                                            sections,
-                                            sstable.compression ? sstable.getCompressionMetadata() : null,
-                                            sstable.getRepairedAt(),
-                                            sstable.getPendingRepair(),
-                                            keepSSTableLevel ? sstable.getSSTableLevel() : 0,
-                                            sstable.header.toComponent());
+        this.header = new StreamMessageHeader(sstable.metadata().id,
+                                              FBUtilities.getBroadcastAddressAndPort(),
+                                              session.planId(),
+                                              session.sessionIndex(),
+                                              sequenceNumber,
+                                              sstable.descriptor.version,
+                                              sstable.descriptor.formatType,
+                                              estimatedKeys,
+                                              sections,
+                                              sstable.compression ? sstable.getCompressionMetadata() : null,
+                                              sstable.getRepairedAt(),
+                                              sstable.getPendingRepair(),
+                                              keepSSTableLevel ? sstable.getSSTableLevel() : 0, // TODO: use StreamOperation to determin
+                                              sstable.header.toComponent());
     }
 
     public synchronized void serialize(DataOutputStreamPlus out, int version, StreamSession session) throws IOException
@@ -101,7 +101,7 @@ public class OutgoingStreamMessage extends StreamMessage
             return;
         }
 
-        CompressionInfo compressionInfo = FileMessageHeader.serializer.serialize(header, out, version);
+        CompressionInfo compressionInfo = StreamMessageHeader.serializer.serialize(header, out, version);
         out.flush();
         final SSTableReader reader = ref.get();
         StreamWriter writer = compressionInfo == null ?
