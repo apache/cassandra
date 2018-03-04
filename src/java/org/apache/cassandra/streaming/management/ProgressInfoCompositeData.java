@@ -42,7 +42,7 @@ public class ProgressInfoCompositeData
                                                             "Session peer",
                                                             "Session peer storage port",
                                                             "Index of session",
-                                                            "Name of the file",
+                                                            "Name of the stream",
                                                             "Direction('IN' or 'OUT')",
                                                             "Current bytes transferred",
                                                             "Total bytes to transfer"};

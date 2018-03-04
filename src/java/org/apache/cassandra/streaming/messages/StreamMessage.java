@@ -67,7 +67,7 @@ public abstract class StreamMessage
     public enum Type
     {
         PREPARE_SYN(1, 5, PrepareSynMessage.serializer),
-        FILE(2, 0, IncomingFileMessage.serializer, OutgoingFileMessage.serializer),
+        STREAM(2, 0, IncomingStreamMessage.serializer, OutgoingStreamMessage.serializer),
         RECEIVED(3, 4, ReceivedMessage.serializer),
         COMPLETE(5, 1, CompleteMessage.serializer),
         SESSION_FAILED(6, 5, SessionFailedMessage.serializer),

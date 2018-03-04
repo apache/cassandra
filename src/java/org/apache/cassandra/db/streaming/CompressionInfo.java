@@ -15,9 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.streaming.compress;
+package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -25,6 +26,7 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * Container that carries compression parameters and chunks to decompress data from stream.
@@ -41,6 +43,19 @@ public class CompressionInfo
         assert chunks != null && parameters != null;
         this.chunks = chunks;
         this.parameters = parameters;
+    }
+
+    static CompressionInfo fromCompressionMetadata(CompressionMetadata metadata, List<Pair<Long, Long>> sections)
+    {
+        if (metadata == null)
+        {
+            return null;
+        }
+        else
+        {
+            return new CompressionInfo(metadata.getChunksForSections(sections), metadata.parameters);
+        }
+
     }
 
     static class CompressionInfoSerializer implements IVersionedSerializer<CompressionInfo>

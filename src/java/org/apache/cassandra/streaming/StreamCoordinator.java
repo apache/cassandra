@@ -46,18 +46,18 @@ public class StreamCoordinator
     private final boolean connectSequentially;
 
     private Map<InetAddressAndPort, HostStreamingData> peerSessions = new HashMap<>();
+    private final StreamOperation streamOperation;
     private final int connectionsPerHost;
     private StreamConnectionFactory factory;
-    private final boolean keepSSTableLevel;
     private Iterator<StreamSession> sessionsToConnect = null;
     private final UUID pendingRepair;
     private final PreviewKind previewKind;
 
-    public StreamCoordinator(int connectionsPerHost, boolean keepSSTableLevel, StreamConnectionFactory factory,
+    public StreamCoordinator(StreamOperation streamOperation, int connectionsPerHost, StreamConnectionFactory factory,
                              boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
+        this.streamOperation = streamOperation;
         this.connectionsPerHost = connectionsPerHost;
-        this.keepSSTableLevel = keepSSTableLevel;
         this.factory = factory;
         this.connectSequentially = connectSequentially;
         this.pendingRepair = pendingRepair;
@@ -191,51 +191,47 @@ public class StreamCoordinator
         return result;
     }
 
-    public synchronized void transferFiles(InetAddressAndPort to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
+    public synchronized void transferStreams(InetAddressAndPort to, Collection<OutgoingStream> streams)
     {
         HostStreamingData sessionList = getOrCreateHostData(to);
 
         if (connectionsPerHost > 1)
         {
-            List<List<StreamSession.SSTableStreamingSections>> buckets = sliceSSTableDetails(sstableDetails);
+            List<Collection<OutgoingStream>> buckets = bucketStreams(streams);
 
-            for (List<StreamSession.SSTableStreamingSections> subList : buckets)
+            for (Collection<OutgoingStream> bucket : buckets)
             {
                 StreamSession session = sessionList.getOrCreateNextSession(to, to);
-                session.addTransferFiles(subList);
+                session.addTransferStreams(bucket);
             }
         }
         else
         {
             StreamSession session = sessionList.getOrCreateNextSession(to, to);
-            session.addTransferFiles(sstableDetails);
+            session.addTransferStreams(streams);
         }
     }
 
-    private List<List<StreamSession.SSTableStreamingSections>> sliceSSTableDetails(Collection<StreamSession.SSTableStreamingSections> sstableDetails)
+    private List<Collection<OutgoingStream>> bucketStreams(Collection<OutgoingStream> streams)
     {
         // There's no point in divvying things up into more buckets than we have sstableDetails
-        int targetSlices = Math.min(sstableDetails.size(), connectionsPerHost);
-        int step = Math.round((float) sstableDetails.size() / (float) targetSlices);
+        int targetSlices = Math.min(streams.size(), connectionsPerHost);
+        int step = Math.round((float) streams.size() / (float) targetSlices);
         int index = 0;
 
-        List<List<StreamSession.SSTableStreamingSections>> result = new ArrayList<>();
-        List<StreamSession.SSTableStreamingSections> slice = null;
-        Iterator<StreamSession.SSTableStreamingSections> iter = sstableDetails.iterator();
-        while (iter.hasNext())
-        {
-            StreamSession.SSTableStreamingSections streamSession = iter.next();
+        List<Collection<OutgoingStream>> result = new ArrayList<>();
+        List<OutgoingStream> slice = null;
 
+        for (OutgoingStream stream: streams)
+        {
             if (index % step == 0)
             {
                 slice = new ArrayList<>();
                 result.add(slice);
             }
-            slice.add(streamSession);
+            slice.add(stream);
             ++index;
-            iter.remove();
         }
-
         return result;
     }
 
@@ -302,7 +298,7 @@ public class StreamCoordinator
             // create
             if (streamSessions.size() < connectionsPerHost)
             {
-                StreamSession session = new StreamSession(peer, connecting, factory, streamSessions.size(), keepSSTableLevel, pendingRepair, previewKind);
+                StreamSession session = new StreamSession(streamOperation, peer, connecting, factory, streamSessions.size(), pendingRepair, previewKind);
                 streamSessions.put(++lastReturned, session);
                 return session;
             }
@@ -334,7 +330,7 @@ public class StreamCoordinator
             StreamSession session = streamSessions.get(id);
             if (session == null)
             {
-                session = new StreamSession(peer, connecting, factory, id, keepSSTableLevel, pendingRepair, previewKind);
+                session = new StreamSession(streamOperation, peer, connecting, factory, id, pendingRepair, previewKind);
                 streamSessions.put(id, session);
             }
             return session;

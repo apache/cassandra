@@ -52,7 +52,6 @@ public class AsymmetricLocalSyncTask extends AsymmetricSyncTask implements Strea
         InetAddressAndPort preferred = SystemKeyspace.getPreferredIP(fetchFrom);
         StreamPlan plan = new StreamPlan(StreamOperation.REPAIR,
                                          1, false,
-                                         false,
                                          pendingRepair,
                                          previewKind)
                           .listeners(this)
