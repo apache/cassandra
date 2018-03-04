@@ -1070,6 +1070,7 @@
           <zipfileset src="${build.test.dir}/deps.jar" excludes="META-INF/*.SF" />
           <fileset dir="${build.classes.main}"/>
           <fileset dir="${test.classes}"/>
+          <fileset dir="${test.conf}" />
       </jar>
   </target>
 
