@@ -20,7 +20,6 @@ package org.apache.cassandra.streaming.async;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.UUID;
 
@@ -47,7 +46,7 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.async.StreamingInboundHandler.SessionIdentifier;
 import org.apache.cassandra.streaming.messages.CompleteMessage;
 import org.apache.cassandra.streaming.messages.FileMessageHeader;
-import org.apache.cassandra.streaming.messages.IncomingFileMessage;
+import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 
@@ -149,7 +148,7 @@ public class StreamingInboundHandlerTest
     {
         FileMessageHeader header = new FileMessageHeader(TableId.generate(), REMOTE_ADDR, UUID.randomUUID(), 0, 0,
                                                          BigFormat.latestVersion, SSTableFormat.Type.BIG, 0, new ArrayList<>(), null, 0, UUID.randomUUID(), 0 , null);
-        IncomingFileMessage msg = new IncomingFileMessage(null, header);
+        IncomingStreamMessage msg = new IncomingStreamMessage(null, header);
         StreamingInboundHandler.StreamDeserializingTask task = handler.new StreamDeserializingTask(sid -> StreamManager.instance.findSession(sid.from, sid.planId, sid.sessionIndex), null, channel);
         task.deriveSession(msg);
     }
@@ -162,7 +161,7 @@ public class StreamingInboundHandlerTest
         StreamManager.instance.register(future);
         FileMessageHeader header = new FileMessageHeader(TableId.generate(), REMOTE_ADDR, planId, 0, 0,
                                                          BigFormat.latestVersion, SSTableFormat.Type.BIG, 0, new ArrayList<>(), null, 0, UUID.randomUUID(), 0 , null);
-        IncomingFileMessage msg = new IncomingFileMessage(null, header);
+        IncomingStreamMessage msg = new IncomingStreamMessage(null, header);
         StreamingInboundHandler.StreamDeserializingTask task = handler.new StreamDeserializingTask(sid -> StreamManager.instance.findSession(sid.from, sid.planId, sid.sessionIndex), null, channel);
         StreamSession session = task.deriveSession(msg);
         Assert.assertNotNull(session);

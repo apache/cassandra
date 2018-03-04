@@ -33,14 +33,14 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 
 
 /**
- * IncomingFileMessage is used to receive the part(or whole) of a SSTable data file.
+ * IncomingStreamMessage is used to receive the part(or whole) of a SSTable data file.
  */
-public class IncomingFileMessage extends StreamMessage
+public class IncomingStreamMessage extends StreamMessage
 {
-    public static Serializer<IncomingFileMessage> serializer = new Serializer<IncomingFileMessage>()
+    public static Serializer<IncomingStreamMessage> serializer = new Serializer<IncomingStreamMessage>()
     {
         @SuppressWarnings("resource")
-        public IncomingFileMessage deserialize(DataInputPlus input, int version, StreamSession session) throws IOException
+        public IncomingStreamMessage deserialize(DataInputPlus input, int version, StreamSession session) throws IOException
         {
             FileMessageHeader header = FileMessageHeader.serializer.deserialize(input, version);
             session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex);
@@ -55,7 +55,7 @@ public class IncomingFileMessage extends StreamMessage
 
             try
             {
-                return new IncomingFileMessage(reader.read(input), header);
+                return new IncomingStreamMessage(reader.read(input), header);
             }
             catch (Throwable t)
             {
@@ -64,12 +64,12 @@ public class IncomingFileMessage extends StreamMessage
             }
         }
 
-        public void serialize(IncomingFileMessage message, DataOutputStreamPlus out, int version, StreamSession session)
+        public void serialize(IncomingStreamMessage message, DataOutputStreamPlus out, int version, StreamSession session)
         {
             throw new UnsupportedOperationException("Not allowed to call serialize on an incoming file");
         }
 
-        public long serializedSize(IncomingFileMessage message, int version)
+        public long serializedSize(IncomingStreamMessage message, int version)
         {
             throw new UnsupportedOperationException("Not allowed to call serializedSize on an incoming file");
         }
@@ -78,9 +78,9 @@ public class IncomingFileMessage extends StreamMessage
     public FileMessageHeader header;
     public SSTableMultiWriter sstable;
 
-    public IncomingFileMessage(SSTableMultiWriter sstable, FileMessageHeader header)
+    public IncomingStreamMessage(SSTableMultiWriter sstable, FileMessageHeader header)
     {
-        super(Type.FILE);
+        super(Type.STREAM);
         this.header = header;
         this.sstable = sstable;
     }

@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.*;
 import java.util.concurrent.*;
@@ -98,8 +96,8 @@ import org.apache.cassandra.utils.concurrent.Refs;
  *
  *   (a) The streaming phase is started at each node by calling {@link StreamSession#startStreamingFiles(boolean)}.
  *       This will send, sequentially on each outbound streaming connection (see {@link NettyStreamingMessageSender}),
- *       an {@link OutgoingFileMessage} for each file in each of the {@link StreamTransferTask}.
- *       Each {@link OutgoingFileMessage} consists of a {@link FileMessageHeader} that contains metadata about the file
+ *       an {@link OutgoingStreamMessage} for each file in each of the {@link StreamTransferTask}.
+ *       Each {@link OutgoingStreamMessage} consists of a {@link FileMessageHeader} that contains metadata about the file
  *       being streamed, followed by the file content itself. Once all the files for a {@link StreamTransferTask} are sent,
  *       the task is marked complete {@link StreamTransferTask#complete(int)}.
  *   (b) On the receiving side, a SSTable will be written for the incoming file, and once the file is fully received,
@@ -127,7 +125,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
  * F: PrepareSynAckMessage
  * I: PrepareAckMessage
  * (stream - this can happen in both directions)
- * I: OutgoingFileMessage
+ * I: OutgoingStreamMessage
  * F: ReceivedMessage
  * (completion)
  * I/F: CompleteMessage
@@ -554,8 +552,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             case PREPARE_ACK:
                 prepareAck((PrepareAckMessage) message);
                 break;
-            case FILE:
-                receive((IncomingFileMessage) message);
+            case STREAM:
+                receive((IncomingStreamMessage) message);
                 break;
             case RECEIVED:
                 ReceivedMessage received = (ReceivedMessage) message;
@@ -703,7 +701,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      *
      * @param message received file
      */
-    public void receive(IncomingFileMessage message)
+    public void receive(IncomingStreamMessage message)
     {
         if (isPreview())
         {
@@ -872,10 +870,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         for (StreamTransferTask task : transfers.values())
         {
-            Collection<OutgoingFileMessage> messages = task.getFileMessages();
+            Collection<OutgoingStreamMessage> messages = task.getFileMessages();
             if (!messages.isEmpty())
             {
-                for (OutgoingFileMessage ofm : messages)
+                for (OutgoingStreamMessage ofm : messages)
                 {
                     // pass the session planId/index to the OFM (which is only set at init(), after the transfers have already been created)
                     ofm.header.addSessionInfo(this);

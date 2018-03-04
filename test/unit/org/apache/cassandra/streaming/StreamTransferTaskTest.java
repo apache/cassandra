@@ -43,7 +43,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.streaming.messages.OutgoingFileMessage;
+import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Ref;
 
@@ -151,10 +151,10 @@ public class StreamTransferTaskTest
         session.transfers.put(TableId.generate(), task);
 
         //make a copy of outgoing file messages, since task is cleared when it's aborted
-        Collection<OutgoingFileMessage> files = new LinkedList<>(task.files.values());
+        Collection<OutgoingStreamMessage> files = new LinkedList<>(task.files.values());
 
         //simulate start transfer
-        for (OutgoingFileMessage file : files)
+        for (OutgoingStreamMessage file : files)
         {
             file.startTransfer();
         }
@@ -169,7 +169,7 @@ public class StreamTransferTaskTest
         }
 
         //simulate finish transfer
-        for (OutgoingFileMessage file : files)
+        for (OutgoingStreamMessage file : files)
         {
             file.finishTransfer();
         }

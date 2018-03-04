@@ -34,18 +34,18 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
- * OutgoingFileMessage is used to transfer the part(or whole) of a SSTable data file.
+ * OutgoingStreamMessage is used to transfer the part(or whole) of a SSTable data file.
  */
-public class OutgoingFileMessage extends StreamMessage
+public class OutgoingStreamMessage extends StreamMessage
 {
-    public static Serializer<OutgoingFileMessage> serializer = new Serializer<OutgoingFileMessage>()
+    public static Serializer<OutgoingStreamMessage> serializer = new Serializer<OutgoingStreamMessage>()
     {
-        public OutgoingFileMessage deserialize(DataInputPlus in, int version, StreamSession session)
+        public OutgoingStreamMessage deserialize(DataInputPlus in, int version, StreamSession session)
         {
             throw new UnsupportedOperationException("Not allowed to call deserialize on an outgoing file");
         }
 
-        public void serialize(OutgoingFileMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
+        public void serialize(OutgoingStreamMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
         {
             message.startTransfer();
             try
@@ -59,7 +59,7 @@ public class OutgoingFileMessage extends StreamMessage
             }
         }
 
-        public long serializedSize(OutgoingFileMessage message, int version)
+        public long serializedSize(OutgoingStreamMessage message, int version)
         {
             return 0;
         }
@@ -71,9 +71,9 @@ public class OutgoingFileMessage extends StreamMessage
     private boolean completed = false;
     private boolean transferring = false;
 
-    public OutgoingFileMessage(Ref<SSTableReader> ref, StreamSession session, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, boolean keepSSTableLevel)
+    public OutgoingStreamMessage(Ref<SSTableReader> ref, StreamSession session, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, boolean keepSSTableLevel)
     {
-        super(Type.FILE);
+        super(Type.STREAM);
         this.ref = ref;
 
         SSTableReader sstable = ref.get();
