@@ -20,7 +20,6 @@ package org.apache.cassandra.streaming.async;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -43,8 +42,8 @@ import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.streaming.messages.FileMessageHeader;
-import org.apache.cassandra.streaming.messages.IncomingFileMessage;
+import org.apache.cassandra.streaming.messages.StreamMessageHeader;
+import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
@@ -53,8 +52,8 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import static org.apache.cassandra.streaming.async.NettyStreamingMessageSender.createLogTag;
 
 /**
- * Handles the inbound side of streaming messages and sstable data. From the incoming data, we derserialize the message
- * and potentially reify partitions and rows and write those out to new sstable files. Because deserialization is a blocking affair,
+ * Handles the inbound side of streaming messages and stream data. From the incoming data, we derserialize the message
+ * including the actual stream data itself. Because the reading and deserialization of streams is a blocking affair,
  * we can't block the netty event loop. Thus we have a background thread perform all the blocking deserialization.
  */
 public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
@@ -128,7 +127,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
         if (cause instanceof IOException)
             logger.trace("connection problem while streaming", cause);
         else
-            logger.warn("exception occurred while in processing streaming file", cause);
+            logger.warn("exception occurred while in processing streaming data", cause);
         close();
     }
 
@@ -224,20 +223,20 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
         StreamSession deriveSession(StreamMessage message) throws IOException
         {
             StreamSession streamSession = null;
-            // StreamInitMessage starts a new channel, and IncomingFileMessage potentially, as well.
-            // IncomingFileMessage needs a session to be established a priori, though
+            // StreamInitMessage starts a new channel, and IncomingStreamMessage potentially, as well.
+            // IncomingStreamMessage needs a session to be established a priori, though
             if (message instanceof StreamInitMessage)
             {
                 assert session == null : "initiator of stream session received a StreamInitMessage";
                 StreamInitMessage init = (StreamInitMessage) message;
-                StreamResultFuture.initReceivingSide(init.sessionIndex, init.planId, init.streamOperation, init.from, channel, init.keepSSTableLevel, init.pendingRepair, init.previewKind);
+                StreamResultFuture.initReceivingSide(init.sessionIndex, init.planId, init.streamOperation, init.from, channel, init.pendingRepair, init.previewKind);
                 streamSession = sessionProvider.apply(new SessionIdentifier(init.from, init.planId, init.sessionIndex));
             }
-            else if (message instanceof IncomingFileMessage)
+            else if (message instanceof IncomingStreamMessage)
             {
-                // TODO: it'd be great to check if the session actually exists before slurping in the entire sstable,
+                // TODO: it'd be great to check if the session actually exists before slurping in the entire stream,
                 // but that's a refactoring for another day
-                FileMessageHeader header = ((IncomingFileMessage) message).header;
+                StreamMessageHeader header = ((IncomingStreamMessage) message).header;
                 streamSession = sessionProvider.apply(new SessionIdentifier(header.sender, header.planId, header.sessionIndex));
             }
 

@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.streaming;
+package org.apache.cassandra.db.streaming;
 
 import java.io.*;
 import java.util.Collection;
@@ -28,6 +28,7 @@ import com.google.common.collect.UnmodifiableIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -39,19 +40,22 @@ import org.apache.cassandra.io.sstable.format.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.streaming.ProgressInfo;
+import org.apache.cassandra.streaming.StreamReceiver;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.StreamCompressionInputStream;
-import org.apache.cassandra.streaming.messages.FileMessageHeader;
+import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
- * StreamReader reads from stream and writes to SSTable.
+ * CassandraStreamReader reads from stream and writes to SSTable.
  */
-public class StreamReader
+public class CassandraStreamReader
 {
-    private static final Logger logger = LoggerFactory.getLogger(StreamReader.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraStreamReader.class);
     protected final TableId tableId;
     protected final long estimatedKeys;
     protected final Collection<Pair<Long, Long>> sections;
@@ -64,7 +68,7 @@ public class StreamReader
     protected final SerializationHeader.Component header;
     protected final int fileSeqNum;
 
-    public StreamReader(FileMessageHeader header, StreamSession session)
+    public CassandraStreamReader(StreamMessageHeader header, CassandraStreamHeader streamHeader, StreamSession session)
     {
         if (session.getPendingRepair() != null)
         {
@@ -74,14 +78,14 @@ public class StreamReader
         }
         this.session = session;
         this.tableId = header.tableId;
-        this.estimatedKeys = header.estimatedKeys;
-        this.sections = header.sections;
-        this.inputVersion = header.version;
+        this.estimatedKeys = streamHeader.estimatedKeys;
+        this.sections = streamHeader.sections;
+        this.inputVersion = streamHeader.version;
         this.repairedAt = header.repairedAt;
         this.pendingRepair = header.pendingRepair;
-        this.format = header.format;
-        this.sstableLevel = header.sstableLevel;
-        this.header = header.header;
+        this.format = streamHeader.format;
+        this.sstableLevel = streamHeader.sstableLevel;
+        this.header = streamHeader.header;
         this.fileSeqNum = header.sequenceNumber;
     }
 
@@ -147,8 +151,11 @@ public class StreamReader
         if (localDir == null)
             throw new IOException(String.format("Insufficient disk space to store %s", FBUtilities.prettyPrintMemory(totalSize)));
 
-        RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, format, sstableLevel, totalSize, session.getTransaction(tableId), getHeader(cfs.metadata()));
-        StreamHook.instance.reportIncomingFile(cfs, writer, session, fileSeqNum);
+        StreamReceiver streamReceiver = session.getAggregator(tableId);
+        Preconditions.checkState(streamReceiver instanceof CassandraStreamReceiver);
+        LifecycleTransaction txn = CassandraStreamReceiver.fromReceiver(session.getAggregator(tableId)).getTransaction();
+
+        RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, format, sstableLevel, totalSize, txn, getHeader(cfs.metadata()));
         return writer;
     }
 

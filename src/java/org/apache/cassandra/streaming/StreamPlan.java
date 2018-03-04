@@ -48,19 +48,19 @@ public class StreamPlan
      */
     public StreamPlan(StreamOperation streamOperation)
     {
-        this(streamOperation, 1, false, false, NO_PENDING_REPAIR, PreviewKind.NONE);
+        this(streamOperation, 1, false, NO_PENDING_REPAIR, PreviewKind.NONE);
     }
 
-    public StreamPlan(StreamOperation streamOperation, boolean keepSSTableLevels, boolean connectSequentially)
+    public StreamPlan(StreamOperation streamOperation, boolean connectSequentially)
     {
-        this(streamOperation, 1, keepSSTableLevels, connectSequentially, NO_PENDING_REPAIR, PreviewKind.NONE);
+        this(streamOperation, 1, connectSequentially, NO_PENDING_REPAIR, PreviewKind.NONE);
     }
 
-    public StreamPlan(StreamOperation streamOperation, int connectionsPerHost, boolean keepSSTableLevels,
+    public StreamPlan(StreamOperation streamOperation, int connectionsPerHost,
                       boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
         this.streamOperation = streamOperation;
-        this.coordinator = new StreamCoordinator(connectionsPerHost, keepSSTableLevels, new DefaultConnectionFactory(),
+        this.coordinator = new StreamCoordinator(streamOperation, connectionsPerHost, new DefaultConnectionFactory(),
                                                  connectSequentially, pendingRepair, previewKind);
     }
 
@@ -137,18 +137,16 @@ public class StreamPlan
     }
 
     /**
-     * Add transfer task to send given SSTable files.
+     * Add transfer task to send given streams
      *
      * @param to endpoint address of receiver
-     * @param sstableDetails sstables with file positions and estimated key count.
-     *                       this collection will be modified to remove those files that are successfully handed off
+     * @param streams streams to send
      * @return this object for chaining
      */
-    public StreamPlan transferFiles(InetAddressAndPort to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
+    public StreamPlan transferStreams(InetAddressAndPort to, Collection<OutgoingStream> streams)
     {
-        coordinator.transferFiles(to, sstableDetails);
+        coordinator.transferStreams(to, streams);
         return this;
-
     }
 
     public StreamPlan listeners(StreamEventHandler handler, StreamEventHandler... handlers)

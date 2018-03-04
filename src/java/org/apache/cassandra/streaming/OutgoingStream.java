@@ -18,48 +18,35 @@
 
 package org.apache.cassandra.streaming;
 
-
+import java.io.IOException;
 import java.util.UUID;
 
-public enum PreviewKind
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.schema.TableId;
+
+/**
+ * Some subset of data to be streamed. Implementations handle writing out their data via the write method.
+ * On the receiving end, {@link IncomingStream} streams the data in.
+ *
+ * All the data contained in a given stream needs to have the same repairedAt timestamp (or 0) and pendingRepair
+ * id (or null).
+ */
+public interface OutgoingStream
 {
-    NONE(0),
-    ALL(1),
-    UNREPAIRED(2),
-    REPAIRED(3);
+    /**
+     * Write the streams data into the socket
+     */
+    void write(StreamSession session, DataOutputStreamPlus output, int version) throws IOException;
 
-    private final int serializationVal;
+    /**
+     * Release any resources held by the stream
+     */
+    void finish();
 
-    PreviewKind(int serializationVal)
-    {
-        assert ordinal() == serializationVal;
-        this.serializationVal = serializationVal;
-    }
+    long getRepairedAt();
+    UUID getPendingRepair();
 
-    public int getSerializationVal()
-    {
-        return serializationVal;
-    }
-
-    public static PreviewKind deserialize(int serializationVal)
-    {
-        return values()[serializationVal];
-    }
-
-
-    public boolean isPreview()
-    {
-        return this != NONE;
-    }
-
-    public String logPrefix()
-    {
-        return isPreview() ? "preview repair" : "repair";
-    }
-
-    public String logPrefix(UUID sessionId)
-    {
-        return '[' + logPrefix() + " #" + sessionId.toString() + ']';
-    }
-
+    String getName();
+    long getSize();
+    TableId getTableId();
 }

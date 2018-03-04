@@ -18,12 +18,12 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
+import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -52,7 +52,7 @@ public class SSTableLoader implements StreamEventHandler
     private final Set<InetAddressAndPort> failedHosts = new HashSet<>();
 
     private final List<SSTableReader> sstables = new ArrayList<>();
-    private final Multimap<InetAddressAndPort, StreamSession.SSTableStreamingSections> streamingDetails = HashMultimap.create();
+    private final Multimap<InetAddressAndPort, OutgoingStream> streamingDetails = HashMultimap.create();
 
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler)
     {
@@ -131,8 +131,8 @@ public class SSTableLoader implements StreamEventHandler
                                                   List<Pair<Long, Long>> sstableSections = sstable.getPositionsForRanges(tokenRanges);
                                                   long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
                                                   Ref<SSTableReader> ref = sstable.ref();
-                                                  StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(ref, sstableSections, estimatedKeys);
-                                                  streamingDetails.put(endpoint, details);
+                                                  OutgoingStream stream = new CassandraOutgoingFile(StreamOperation.BULK_LOAD, ref, sstableSections, estimatedKeys);
+                                                  streamingDetails.put(endpoint, stream);
                                               }
 
                                               // to conserve heap space when bulk loading
@@ -160,7 +160,7 @@ public class SSTableLoader implements StreamEventHandler
         client.init(keyspace);
         outputHandler.output("Established connection to initial hosts");
 
-        StreamPlan plan = new StreamPlan(StreamOperation.BULK_LOAD, connectionsPerHost, false, false, null, PreviewKind.NONE).connectionFactory(client.getConnectionFactory());
+        StreamPlan plan = new StreamPlan(StreamOperation.BULK_LOAD, connectionsPerHost, false, null, PreviewKind.NONE).connectionFactory(client.getConnectionFactory());
 
         Map<InetAddressAndPort, Collection<Range<Token>>> endpointToRanges = client.getEndpointToRangesMap();
         openSSTables(endpointToRanges);
@@ -178,15 +178,15 @@ public class SSTableLoader implements StreamEventHandler
             if (toIgnore.contains(remote))
                 continue;
 
-            List<StreamSession.SSTableStreamingSections> endpointDetails = new LinkedList<>();
+            List<OutgoingStream> streams = new LinkedList<>();
 
             // references are acquired when constructing the SSTableStreamingSections above
-            for (StreamSession.SSTableStreamingSections details : streamingDetails.get(remote))
+            for (OutgoingStream stream : streamingDetails.get(remote))
             {
-                endpointDetails.add(details);
+                streams.add(stream);
             }
 
-            plan.transferFiles(remote, endpointDetails);
+            plan.transferStreams(remote, streams);
         }
         plan.listeners(this, listeners);
         return plan.execute();

@@ -18,48 +18,28 @@
 
 package org.apache.cassandra.streaming;
 
+import java.io.IOException;
 
-import java.util.UUID;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.schema.TableId;
 
-public enum PreviewKind
+/**
+ * The counterpart of {@link OutgoingStream} on the receiving side.
+ *
+ * Data streamed in can (and should) be persisted, but must not be included in the table's
+ * live data set until added by {@link StreamReceiver}. If the stream fails, the stream receiver will
+ * delete the streamed data, but implementations still need to handle the case where it's process dies
+ * during streaming, and it has data left around on startup, in which case it should be deleted.
+ */
+public interface IncomingStream
 {
-    NONE(0),
-    ALL(1),
-    UNREPAIRED(2),
-    REPAIRED(3);
 
-    private final int serializationVal;
+    /**
+     * Read in the stream data.
+     */
+    void read(DataInputPlus inputPlus, int version) throws IOException;
 
-    PreviewKind(int serializationVal)
-    {
-        assert ordinal() == serializationVal;
-        this.serializationVal = serializationVal;
-    }
-
-    public int getSerializationVal()
-    {
-        return serializationVal;
-    }
-
-    public static PreviewKind deserialize(int serializationVal)
-    {
-        return values()[serializationVal];
-    }
-
-
-    public boolean isPreview()
-    {
-        return this != NONE;
-    }
-
-    public String logPrefix()
-    {
-        return isPreview() ? "preview repair" : "repair";
-    }
-
-    public String logPrefix(UUID sessionId)
-    {
-        return '[' + logPrefix() + " #" + sessionId.toString() + ']';
-    }
-
+    String getName();
+    long getSize();
+    TableId getTableId();
 }
