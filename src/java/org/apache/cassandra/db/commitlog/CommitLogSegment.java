@@ -370,11 +370,12 @@ public abstract class CommitLogSegment
             if (cdcState == CDCState.CONTAINS)
                 writeCDCIndexFile(descriptor, sectionEnd, close);
             lastSyncedOffset = lastMarkerOffset = nextMarker;
-        }
 
-        if (close)
-            internalClose();
-        syncComplete.signalAll();
+            if (close)
+                internalClose();
+
+            syncComplete.signalAll();
+        }
     }
 
     /**
