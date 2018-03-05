@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.streaming;
+package org.apache.cassandra.db.streaming;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,26 +32,29 @@ import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.DataIntegrityMetadata.ChecksumValidator;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.streaming.ProgressInfo;
+import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.ByteBufCompressionDataOutputStreamPlus;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
- * StreamWriter writes given section of the SSTable to given channel.
+ * CassandraStreamWriter writes given section of the SSTable to given channel.
  */
-public class StreamWriter
+public class CassandraStreamWriter
 {
     private static final int DEFAULT_CHUNK_SIZE = 64 * 1024;
 
-    private static final Logger logger = LoggerFactory.getLogger(StreamWriter.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraStreamWriter.class);
 
     protected final SSTableReader sstable;
     protected final Collection<Pair<Long, Long>> sections;
     protected final StreamRateLimiter limiter;
     protected final StreamSession session;
 
-    public StreamWriter(SSTableReader sstable, Collection<Pair<Long, Long>> sections, StreamSession session)
+    public CassandraStreamWriter(SSTableReader sstable, Collection<Pair<Long, Long>> sections, StreamSession session)
     {
         this.session = session;
         this.sstable = sstable;
@@ -62,7 +65,7 @@ public class StreamWriter
     /**
      * Stream file of specified sections to given channel.
      *
-     * StreamWriter uses LZF compression on wire to decrease size to transfer.
+     * CassandraStreamWriter uses LZF compression on wire to decrease size to transfer.
      *
      * @param output where this writes data to
      * @throws IOException on any I/O error

@@ -50,6 +50,7 @@ public class IncomingStreamMessage extends StreamMessage
             if (cfs == null)
                 throw new StreamReceiveException(session, "CF " + header.tableId + " was dropped during streaming");
 
+            // TODO: get reader
             StreamReader reader = !header.isCompressed() ? new StreamReader(header, session)
                                                          : new CompressedStreamReader(header, session);
 

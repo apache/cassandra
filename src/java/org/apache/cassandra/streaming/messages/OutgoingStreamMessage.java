@@ -22,14 +22,14 @@ import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.streaming.OutgoingStreamData;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.streaming.StreamWriter;
-import org.apache.cassandra.streaming.compress.CompressedStreamWriter;
-import org.apache.cassandra.streaming.compress.CompressionInfo;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -67,16 +67,20 @@ public class OutgoingStreamMessage extends StreamMessage
     };
 
     public final StreamMessageHeader header;
+    private final TableId tableId;
+    private final OutgoingStreamData outgoingData;
     private final Ref<SSTableReader> ref;
     private final String filename;
     private boolean completed = false;
     private boolean transferring = false;
 
-    public OutgoingStreamMessage(StreamOperation streamOperation, Ref<SSTableReader> ref, StreamSession session, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections)
+    public OutgoingStreamMessage(StreamOperation streamOperation, TableId tableId, Ref<SSTableReader> ref, StreamSession session, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections)
     {
         super(Type.STREAM);
+        this.tableId = tableId;
         this.ref = ref;
 
+        outgoingData = new CassandraOutgoingFile(ref, estimatedKeys, sections);
         SSTableReader sstable = ref.get();
         filename = sstable.getFilename();
         boolean keepSSTableLevel = streamOperation == StreamOperation.BOOTSTRAP || streamOperation == StreamOperation.REBUILD;
@@ -102,15 +106,7 @@ public class OutgoingStreamMessage extends StreamMessage
         {
             return;
         }
-
-        CompressionInfo compressionInfo = StreamMessageHeader.serializer.serialize(header, out, version);
-        out.flush();
-        final SSTableReader reader = ref.get();
-        StreamWriter writer = compressionInfo == null ?
-                              new StreamWriter(reader, header.sections, session) :
-                              new CompressedStreamWriter(reader, header.sections,
-                                                         compressionInfo, session);
-        writer.write(out);
+        outgoingData.write(session, out, version);
     }
 
     @VisibleForTesting

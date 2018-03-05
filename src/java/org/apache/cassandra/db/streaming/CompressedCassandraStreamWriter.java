@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.streaming.compress;
+package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -35,22 +35,21 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.async.ByteBufDataOutputStreamPlus;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.streaming.StreamWriter;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
- * StreamWriter for compressed SSTable.
+ * CassandraStreamWriter for compressed SSTable.
  */
-public class CompressedStreamWriter extends StreamWriter
+public class CompressedCassandraStreamWriter extends CassandraStreamWriter
 {
     private static final int CHUNK_SIZE = 1 << 16;
 
-    private static final Logger logger = LoggerFactory.getLogger(CompressedStreamWriter.class);
+    private static final Logger logger = LoggerFactory.getLogger(CompressedCassandraStreamWriter.class);
 
     private final CompressionInfo compressionInfo;
 
-    public CompressedStreamWriter(SSTableReader sstable, Collection<Pair<Long, Long>> sections, CompressionInfo compressionInfo, StreamSession session)
+    public CompressedCassandraStreamWriter(SSTableReader sstable, Collection<Pair<Long, Long>> sections, CompressionInfo compressionInfo, StreamSession session)
     {
         super(sstable, sections, session);
         this.compressionInfo = compressionInfo;

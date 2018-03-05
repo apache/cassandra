@@ -48,7 +48,7 @@ public class StreamTransferTask extends StreamTask
     private boolean aborted = false;
 
     @VisibleForTesting
-    protected final Map<Integer, OutgoingStreamMessage> files = new HashMap<>();
+    protected final Map<Integer, OutgoingStreamMessage> streams = new HashMap<>();
     private final Map<Integer, ScheduledFuture> timeoutTasks = new HashMap<>();
 
     private long totalSize;
@@ -61,9 +61,9 @@ public class StreamTransferTask extends StreamTask
     public synchronized void addTransferFile(Ref<SSTableReader> ref, long estimatedKeys, List<Pair<Long, Long>> sections)
     {
         assert ref.get() != null && tableId.equals(ref.get().metadata().id);
-        OutgoingStreamMessage message = new OutgoingStreamMessage(session.getStreamOperation(), ref, session, sequenceNumber.getAndIncrement(), estimatedKeys, sections);
+        OutgoingStreamMessage message = new OutgoingStreamMessage(session.getStreamOperation(), tableId, ref, session, sequenceNumber.getAndIncrement(), estimatedKeys, sections);
         message = StreamHook.instance.reportOutgoingFile(session, ref.get(), message);
-        files.put(message.header.sequenceNumber, message);
+        streams.put(message.header.sequenceNumber, message);
                 totalSize += message.header.size();
     }
 
@@ -81,12 +81,12 @@ public class StreamTransferTask extends StreamTask
             if (timeout != null)
                 timeout.cancel(false);
 
-            OutgoingStreamMessage file = files.remove(sequenceNumber);
+            OutgoingStreamMessage file = streams.remove(sequenceNumber);
             if (file != null)
                 file.complete();
 
-            logger.debug("recevied sequenceNumber {}, remaining files {}", sequenceNumber, files.keySet());
-            signalComplete = files.isEmpty();
+            logger.debug("recevied sequenceNumber {}, remaining files {}", sequenceNumber, streams.keySet());
+            signalComplete = streams.isEmpty();
         }
 
         // all file sent, notify session this task is complete.
@@ -105,7 +105,7 @@ public class StreamTransferTask extends StreamTask
         timeoutTasks.clear();
 
         Throwable fail = null;
-        for (OutgoingStreamMessage file : files.values())
+        for (OutgoingStreamMessage file : streams.values())
         {
             try
             {
@@ -117,14 +117,14 @@ public class StreamTransferTask extends StreamTask
                 else fail.addSuppressed(t);
             }
         }
-        files.clear();
+        streams.clear();
         if (fail != null)
             Throwables.propagate(fail);
     }
 
     public synchronized int getTotalNumberOfFiles()
     {
-        return files.size();
+        return streams.size();
     }
 
     public long getTotalSize()
@@ -136,7 +136,7 @@ public class StreamTransferTask extends StreamTask
     {
         // We may race between queuing all those messages and the completion of the completion of
         // the first ones. So copy the values to avoid a ConcurrentModificationException
-        return new ArrayList<>(files.values());
+        return new ArrayList<>(streams.values());
     }
 
     public synchronized OutgoingStreamMessage createMessageForRetry(int sequenceNumber)
@@ -145,7 +145,7 @@ public class StreamTransferTask extends StreamTask
         ScheduledFuture future = timeoutTasks.remove(sequenceNumber);
         if (future != null)
             future.cancel(false);
-        return files.get(sequenceNumber);
+        return streams.get(sequenceNumber);
     }
 
     /**
@@ -160,7 +160,7 @@ public class StreamTransferTask extends StreamTask
      */
     public synchronized ScheduledFuture scheduleTimeout(final int sequenceNumber, long time, TimeUnit unit)
     {
-        if (!files.containsKey(sequenceNumber))
+        if (!streams.containsKey(sequenceNumber))
             return null;
 
         ScheduledFuture future = timeoutExecutor.schedule(new Runnable()

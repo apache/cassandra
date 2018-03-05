@@ -151,7 +151,7 @@ public class StreamTransferTaskTest
         session.transfers.put(TableId.generate(), task);
 
         //make a copy of outgoing file messages, since task is cleared when it's aborted
-        Collection<OutgoingStreamMessage> files = new LinkedList<>(task.files.values());
+        Collection<OutgoingStreamMessage> files = new LinkedList<>(task.streams.values());
 
         //simulate start transfer
         for (OutgoingStreamMessage file : files)
