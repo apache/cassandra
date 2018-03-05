@@ -61,6 +61,11 @@ public class CassandraStreamHeader
         this.header = header;
     }
 
+    public boolean isCompressed()
+    {
+        return compressionInfo != null;
+    }
+
     @Override
     public String toString()
     {

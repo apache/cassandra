@@ -25,6 +25,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.db.streaming.CassandraStreamReader;
+import org.apache.cassandra.streaming.IncomingStreamData;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
@@ -50,6 +51,7 @@ public class IncomingStreamMessage extends StreamMessage
             if (cfs == null)
                 throw new StreamReceiveException(session, "CF " + header.tableId + " was dropped during streaming");
 
+            IncomingStreamData incomingData = cfs.getStreamManager().createIncomingData(session, header);
             // TODO: get reader
             CassandraStreamReader reader = !header.isCompressed() ? new CassandraStreamReader(header, session)
                                                                   : new CompressedCassandraStreamReader(header, session);

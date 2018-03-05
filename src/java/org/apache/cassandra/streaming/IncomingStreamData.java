@@ -18,9 +18,11 @@
 
 package org.apache.cassandra.streaming;
 
-import org.apache.cassandra.streaming.messages.StreamMessageHeader;
+import java.io.IOException;
 
-public interface TableStreamManager
+import org.apache.cassandra.io.util.DataInputPlus;
+
+public interface IncomingStreamData
 {
-    IncomingStreamData createIncomingData(StreamSession session, StreamMessageHeader header);
+    void read(DataInputPlus inputPlus, int version) throws IOException;
 }

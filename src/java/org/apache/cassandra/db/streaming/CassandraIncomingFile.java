@@ -18,24 +18,33 @@
 
 package org.apache.cassandra.db.streaming;
 
+import java.io.IOException;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.streaming.IncomingStreamData;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 
-public class CassandraStreamManager implements TableStreamManager
+public class CassandraIncomingFile implements IncomingStreamData
 {
     private final ColumnFamilyStore cfs;
+    private final StreamSession session;
+    private final StreamMessageHeader header;
 
-    public CassandraStreamManager(ColumnFamilyStore cfs)
+    public CassandraIncomingFile(ColumnFamilyStore cfs, StreamSession session, StreamMessageHeader header)
     {
         this.cfs = cfs;
+        this.session = session;
+        this.header = header;
     }
 
     @Override
-    public IncomingStreamData createIncomingData(StreamSession session, StreamMessageHeader header)
+    public void read(DataInputPlus in, int version) throws IOException
     {
-        return new CassandraIncomingFile(cfs, session, header);
+        CassandraStreamHeader fileHeader = CassandraStreamHeader.serializer.deserialize(in, version);
+        CassandraStreamReader reader = !fileHeader.isCompressed() ? new CassandraStreamReader(header, session)
+                                                                  : new CompressedCassandraStreamReader(header, session);
+        reader.read(in);
     }
 }
