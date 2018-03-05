@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.streaming.compress;
+package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
 
@@ -24,14 +24,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.streaming.CompressionInfo;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.streaming.ProgressInfo;
-import org.apache.cassandra.streaming.StreamReader;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.compress.CompressedInputStream;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.FBUtilities;
@@ -40,15 +39,15 @@ import org.apache.cassandra.utils.Pair;
 import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
 
 /**
- * StreamReader that reads from streamed compressed SSTable
+ * CassandraStreamReader that reads from streamed compressed SSTable
  */
-public class CompressedStreamReader extends StreamReader
+public class CompressedCassandraStreamReader extends CassandraStreamReader
 {
-    private static final Logger logger = LoggerFactory.getLogger(CompressedStreamReader.class);
+    private static final Logger logger = LoggerFactory.getLogger(CompressedCassandraStreamReader.class);
 
     protected final CompressionInfo compressionInfo;
 
-    public CompressedStreamReader(StreamMessageHeader header, StreamSession session)
+    public CompressedCassandraStreamReader(StreamMessageHeader header, StreamSession session)
     {
         super(header, session);
         this.compressionInfo = header.compressionInfo;

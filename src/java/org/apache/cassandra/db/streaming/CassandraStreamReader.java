@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.streaming;
+package org.apache.cassandra.db.streaming;
 
 import java.io.*;
 import java.util.Collection;
@@ -38,6 +38,9 @@ import org.apache.cassandra.io.sstable.format.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.streaming.ProgressInfo;
+import org.apache.cassandra.streaming.StreamHook;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.StreamCompressionInputStream;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.streaming.messages.StreamMessage;
@@ -46,11 +49,11 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
- * StreamReader reads from stream and writes to SSTable.
+ * CassandraStreamReader reads from stream and writes to SSTable.
  */
-public class StreamReader
+public class CassandraStreamReader
 {
-    private static final Logger logger = LoggerFactory.getLogger(StreamReader.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraStreamReader.class);
     protected final TableId tableId;
     protected final long estimatedKeys;
     protected final Collection<Pair<Long, Long>> sections;
@@ -63,7 +66,7 @@ public class StreamReader
     protected final SerializationHeader.Component header;
     protected final int fileSeqNum;
 
-    public StreamReader(StreamMessageHeader header, StreamSession session)
+    public CassandraStreamReader(StreamMessageHeader header, StreamSession session)
     {
         if (session.getPendingRepair() != null)
         {

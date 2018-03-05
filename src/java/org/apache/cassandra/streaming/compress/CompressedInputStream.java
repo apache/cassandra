@@ -32,12 +32,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.util.concurrent.FastThreadLocalThread;
+import org.apache.cassandra.db.streaming.CompressedCassandraStreamReader;
 import org.apache.cassandra.db.streaming.CompressionInfo;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RebufferingInputStream;
-import org.apache.cassandra.streaming.StreamReader.StreamDeserializer;
+import org.apache.cassandra.db.streaming.CassandraStreamReader.StreamDeserializer;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -61,7 +62,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
     private long bufferOffset = 0;
 
     /**
-     * The current {@link CompressedStreamReader#sections} offset in the stream.
+     * The current {@link CompressedCassandraStreamReader#sections} offset in the stream.
      */
     private long current = 0;
 
@@ -99,7 +100,7 @@ public class CompressedInputStream extends RebufferingInputStream implements Aut
     }
 
     /**
-     * Invoked when crossing into the next stream boundary in {@link CompressedStreamReader#sections}.
+     * Invoked when crossing into the next stream boundary in {@link CompressedCassandraStreamReader#sections}.
      */
     public void position(long position) throws IOException
     {

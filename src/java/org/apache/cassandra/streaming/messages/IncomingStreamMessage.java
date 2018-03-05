@@ -24,11 +24,11 @@ import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
 
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.db.streaming.CassandraStreamReader;
 import org.apache.cassandra.streaming.StreamManager;
-import org.apache.cassandra.streaming.StreamReader;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.streaming.compress.CompressedStreamReader;
+import org.apache.cassandra.db.streaming.CompressedCassandraStreamReader;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 
@@ -51,8 +51,8 @@ public class IncomingStreamMessage extends StreamMessage
                 throw new StreamReceiveException(session, "CF " + header.tableId + " was dropped during streaming");
 
             // TODO: get reader
-            StreamReader reader = !header.isCompressed() ? new StreamReader(header, session)
-                                                         : new CompressedStreamReader(header, session);
+            CassandraStreamReader reader = !header.isCompressed() ? new CassandraStreamReader(header, session)
+                                                                  : new CompressedCassandraStreamReader(header, session);
 
             try
             {
