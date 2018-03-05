@@ -374,7 +374,7 @@ then the rows (which all belong to the same partition) are all stored internally
 ``b`` column (the order they are displayed above). So where the partition key of the table allows to group rows on the
 same replica set, the clustering columns controls how those rows are stored on the replica. That sorting allows the
 retrieval of a range of rows within a partition (for instance, in the example above, ``SELECT * FROM t WHERE a = 0 AND b
-> 1 and b <= 3``) very efficient.
+> 1 and b <= 3``) to be very efficient.
 
 
 .. _create-table-options:
