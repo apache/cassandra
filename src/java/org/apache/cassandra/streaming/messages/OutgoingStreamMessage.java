@@ -69,7 +69,6 @@ public class OutgoingStreamMessage extends StreamMessage
     public final StreamMessageHeader header;
     private final TableId tableId;
     private final OutgoingStreamData outgoingData;
-    private final Ref<SSTableReader> ref;
     private final String filename;
     private boolean completed = false;
     private boolean transferring = false;
@@ -78,7 +77,6 @@ public class OutgoingStreamMessage extends StreamMessage
     {
         super(Type.STREAM);
         this.tableId = tableId;
-        this.ref = ref;
 
         outgoingData = new CassandraOutgoingFile(ref, estimatedKeys, sections);
         SSTableReader sstable = ref.get();
@@ -116,7 +114,7 @@ public class OutgoingStreamMessage extends StreamMessage
         //session was aborted mid-transfer, now it's safe to release
         if (completed)
         {
-            ref.release();
+            outgoingData.finish();
         }
     }
 
@@ -137,7 +135,7 @@ public class OutgoingStreamMessage extends StreamMessage
             //release only if not transferring
             if (!transferring)
             {
-                ref.release();
+                outgoingData.finish();
             }
         }
     }

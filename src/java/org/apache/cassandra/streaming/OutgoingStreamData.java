@@ -27,6 +27,7 @@ import org.apache.cassandra.io.util.DataOutputStreamPlus;
  */
 public interface OutgoingStreamData
 {
-    public void write(StreamSession session, DataOutputStreamPlus output, int version) throws IOException;
+    void write(StreamSession session, DataOutputStreamPlus output, int version) throws IOException;
+    void finish();
     String getName();
 }
