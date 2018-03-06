@@ -22,7 +22,10 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 
-public interface IncomingStreamData
+public interface IncomingStream
 {
     void read(DataInputPlus inputPlus, int version) throws IOException;
+    void finish();
+    String getName();
+    long getSize();
 }

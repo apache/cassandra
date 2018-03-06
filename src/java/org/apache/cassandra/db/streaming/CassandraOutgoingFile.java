@@ -21,30 +21,43 @@ package org.apache.cassandra.db.streaming;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.streaming.OutgoingStreamData;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
 
-public class CassandraOutgoingFile implements OutgoingStreamData
+public class CassandraOutgoingFile implements OutgoingStream
 {
     private final Ref<SSTableReader> ref;
     private final long estimatedKeys;
     private final List<Pair<Long, Long>> sections;
     private final String filename;
+    private final CassandraStreamHeader header;
+    private final boolean keepSSTableLevel;
 
-    public CassandraOutgoingFile(Ref<SSTableReader> ref, long estimatedKeys, List<Pair<Long, Long>> sections)
+    public CassandraOutgoingFile(StreamSession session, Ref<SSTableReader> ref, long estimatedKeys, List<Pair<Long, Long>> sections)
     {
         this.ref = ref;
         this.estimatedKeys = estimatedKeys;
         this.sections = sections;
+        this.filename = ref.get().getFilename();
 
         SSTableReader sstable = ref.get();
-        filename = sstable.getFilename();
+        StreamOperation operation = session.getStreamOperation();
+        keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
+        this.header = new CassandraStreamHeader(sstable.descriptor.version,
+                                                sstable.descriptor.formatType,
+                                                estimatedKeys,
+                                                sections,
+                                                sstable.getCompressionMetadata(),
+                                                keepSSTableLevel ? sstable.getSSTableLevel() : 0,
+                                                sstable.header.toComponent());
     }
 
     @Override
@@ -54,18 +67,33 @@ public class CassandraOutgoingFile implements OutgoingStreamData
     }
 
     @Override
+    public long getSize()
+    {
+        return header.size();
+    }
+
+    @Override
+    public TableId getTableId()
+    {
+        return ref.get().metadata().id;
+    }
+
+    @Override
+    public long getRepairedAt()
+    {
+        return ref.get().getRepairedAt();
+    }
+
+    @Override
+    public UUID getPendingRepair()
+    {
+        return ref.get().getPendingRepair();
+    }
+
+    @Override
     public void write(StreamSession session, DataOutputStreamPlus out, int version) throws IOException
     {
         SSTableReader sstable = ref.get();
-        StreamOperation operation = session.getStreamOperation();
-        boolean keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
-        CassandraStreamHeader header = new CassandraStreamHeader(sstable.descriptor.version,
-                                                                 sstable.descriptor.formatType,
-                                                                 estimatedKeys,
-                                                                 sections,
-                                                                 CompressionInfo.fromCompressionMetadata(sstable.getCompressionMetadata(), sections),
-                                                                 keepSSTableLevel ? sstable.getSSTableLevel() : 0,
-                                                                 sstable.header.toComponent());
         CassandraStreamHeader.serializer.serialize(header, out, version);
         out.flush();
 
@@ -100,10 +128,6 @@ public class CassandraOutgoingFile implements OutgoingStreamData
     @Override
     public String toString()
     {
-        return "CassandraOutgoingFile{" +
-               "ref=" + ref +
-               ", estimatedKeys=" + estimatedKeys +
-               ", sections=" + sections +
-               '}';
+        return "CassandraOutgoingFile{" + ref.get().getFilename() + '}';
     }
 }

@@ -47,10 +47,10 @@ public class CompressedCassandraStreamReader extends CassandraStreamReader
 
     protected final CompressionInfo compressionInfo;
 
-    public CompressedCassandraStreamReader(StreamMessageHeader header, StreamSession session)
+    public CompressedCassandraStreamReader(StreamMessageHeader header, CassandraStreamHeader streamHeader, StreamSession session)
     {
-        super(header, session);
-        this.compressionInfo = header.compressionInfo;
+        super(header, streamHeader, session);
+        this.compressionInfo = streamHeader.compressionInfo;
     }
 
     /**

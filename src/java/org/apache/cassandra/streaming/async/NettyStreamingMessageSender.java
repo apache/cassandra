@@ -358,7 +358,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                         timeOfLastLogging = now;
                         OutgoingStreamMessage ofm = (OutgoingStreamMessage)msg;
                         logger.info("{} waiting to acquire a permit to begin streaming file {}. This message logs every {} minutes",
-                                    createLogTag(session, null), ofm.getFilename(), logInterval);
+                                    createLogTag(session, null), ofm.getName(), logInterval);
                     }
                 }
                 catch (InterruptedException ie)

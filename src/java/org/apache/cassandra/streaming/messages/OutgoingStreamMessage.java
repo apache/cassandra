@@ -27,7 +27,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.streaming.OutgoingStreamData;
+import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.FBUtilities;
@@ -52,7 +52,7 @@ public class OutgoingStreamMessage extends StreamMessage
             try
             {
                 message.serialize(out, version, session);
-                session.fileSent(message.header);
+                session.streamSent(message);
             }
             finally
             {
@@ -68,8 +68,7 @@ public class OutgoingStreamMessage extends StreamMessage
 
     public final StreamMessageHeader header;
     private final TableId tableId;
-    private final OutgoingStreamData outgoingData;
-    private final String filename;
+    public final OutgoingStream stream;
     private boolean completed = false;
     private boolean transferring = false;
 
@@ -78,24 +77,14 @@ public class OutgoingStreamMessage extends StreamMessage
         super(Type.STREAM);
         this.tableId = tableId;
 
-        outgoingData = new CassandraOutgoingFile(ref, estimatedKeys, sections);
-        SSTableReader sstable = ref.get();
-        filename = sstable.getFilename();
-        boolean keepSSTableLevel = streamOperation == StreamOperation.BOOTSTRAP || streamOperation == StreamOperation.REBUILD;
-        this.header = new StreamMessageHeader(sstable.metadata().id,
+        stream = new CassandraOutgoingFile(session, ref, estimatedKeys, sections);
+        this.header = new StreamMessageHeader(tableId,
                                               FBUtilities.getBroadcastAddressAndPort(),
                                               session.planId(),
                                               session.sessionIndex(),
                                               sequenceNumber,
-                                              sstable.descriptor.version,
-                                              sstable.descriptor.formatType,
-                                              estimatedKeys,
-                                              sections,
-                                              sstable.compression ? sstable.getCompressionMetadata() : null,
-                                              sstable.getRepairedAt(),
-                                              sstable.getPendingRepair(),
-                                              keepSSTableLevel ? sstable.getSSTableLevel() : 0,
-                                              sstable.header.toComponent());
+                                              stream.getRepairedAt(),
+                                              stream.getPendingRepair());
     }
 
     public synchronized void serialize(DataOutputStreamPlus out, int version, StreamSession session) throws IOException
@@ -104,7 +93,7 @@ public class OutgoingStreamMessage extends StreamMessage
         {
             return;
         }
-        outgoingData.write(session, out, version);
+        stream.write(session, out, version);
     }
 
     @VisibleForTesting
@@ -114,7 +103,7 @@ public class OutgoingStreamMessage extends StreamMessage
         //session was aborted mid-transfer, now it's safe to release
         if (completed)
         {
-            outgoingData.finish();
+            stream.finish();
         }
     }
 
@@ -122,8 +111,8 @@ public class OutgoingStreamMessage extends StreamMessage
     public synchronized void startTransfer()
     {
         if (completed)
-            throw new RuntimeException(String.format("Transfer of file %s already completed or aborted (perhaps session failed?).",
-                                                     filename));
+            throw new RuntimeException(String.format("Transfer of stream %s already completed or aborted (perhaps session failed?).",
+                                                     stream));
         transferring = true;
     }
 
@@ -135,7 +124,7 @@ public class OutgoingStreamMessage extends StreamMessage
             //release only if not transferring
             if (!transferring)
             {
-                outgoingData.finish();
+                stream.finish();
             }
         }
     }
@@ -143,12 +132,15 @@ public class OutgoingStreamMessage extends StreamMessage
     @Override
     public String toString()
     {
-        return "File (" + header + ", file: " + filename + ")";
+        return "OutgoingStreamMessage{" +
+               "header=" + header +
+               ", stream=" + stream +
+               '}';
     }
 
-    public String getFilename()
+    public String getName()
     {
-        return filename;
+        return stream.getName();
     }
 }
 

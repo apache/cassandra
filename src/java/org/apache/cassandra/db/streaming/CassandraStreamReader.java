@@ -66,7 +66,7 @@ public class CassandraStreamReader
     protected final SerializationHeader.Component header;
     protected final int fileSeqNum;
 
-    public CassandraStreamReader(StreamMessageHeader header, StreamSession session)
+    public CassandraStreamReader(StreamMessageHeader header, CassandraStreamHeader streamHeader, StreamSession session)
     {
         if (session.getPendingRepair() != null)
         {
@@ -76,14 +76,14 @@ public class CassandraStreamReader
         }
         this.session = session;
         this.tableId = header.tableId;
-        this.estimatedKeys = header.estimatedKeys;
-        this.sections = header.sections;
-        this.inputVersion = header.version;
+        this.estimatedKeys = streamHeader.estimatedKeys;
+        this.sections = streamHeader.sections;
+        this.inputVersion = streamHeader.version;
         this.repairedAt = header.repairedAt;
         this.pendingRepair = header.pendingRepair;
-        this.format = header.format;
-        this.sstableLevel = header.sstableLevel;
-        this.header = header.header;
+        this.format = streamHeader.format;
+        this.sstableLevel = streamHeader.sstableLevel;
+        this.header = streamHeader.header;
         this.fileSeqNum = header.sequenceNumber;
     }
 

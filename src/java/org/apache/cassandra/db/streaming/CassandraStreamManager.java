@@ -19,7 +19,7 @@
 package org.apache.cassandra.db.streaming;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.streaming.IncomingStreamData;
+import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
@@ -34,7 +34,7 @@ public class CassandraStreamManager implements TableStreamManager
     }
 
     @Override
-    public IncomingStreamData createIncomingData(StreamSession session, StreamMessageHeader header)
+    public IncomingStream createIncomingData(StreamSession session, StreamMessageHeader header)
     {
         return new CassandraIncomingFile(cfs, session, header);
     }

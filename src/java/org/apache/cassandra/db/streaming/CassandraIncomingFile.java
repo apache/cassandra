@@ -19,18 +19,25 @@
 package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
+import java.util.Objects;
+
+import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.streaming.IncomingStreamData;
+import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 
-public class CassandraIncomingFile implements IncomingStreamData
+public class CassandraIncomingFile implements IncomingStream
 {
     private final ColumnFamilyStore cfs;
     private final StreamSession session;
     private final StreamMessageHeader header;
+
+    private volatile SSTableMultiWriter sstable;
+    private volatile long size = -1;
 
     public CassandraIncomingFile(ColumnFamilyStore cfs, StreamSession session, StreamMessageHeader header)
     {
@@ -40,11 +47,58 @@ public class CassandraIncomingFile implements IncomingStreamData
     }
 
     @Override
-    public void read(DataInputPlus in, int version) throws IOException
+    public synchronized void read(DataInputPlus in, int version) throws IOException
     {
-        CassandraStreamHeader fileHeader = CassandraStreamHeader.serializer.deserialize(in, version);
-        CassandraStreamReader reader = !fileHeader.isCompressed() ? new CassandraStreamReader(header, session)
-                                                                  : new CompressedCassandraStreamReader(header, session);
-        reader.read(in);
+        CassandraStreamHeader streamHeader = CassandraStreamHeader.serializer.deserialize(in, version);
+        CassandraStreamReader reader = !streamHeader.isCompressed()
+                                       ? new CassandraStreamReader(header, streamHeader, session)
+                                       : new CompressedCassandraStreamReader(header, streamHeader, session);
+        size = streamHeader.size();
+        sstable = reader.read(in);
+    }
+
+    @Override
+    public synchronized void finish()
+    {
+        assert false;  // TODO: do something with the sstable
+    }
+
+    @Override
+    public synchronized String getName()
+    {
+        return sstable == null ? "null" : sstable.getFilename();
+    }
+
+    @Override
+    public synchronized long getSize()
+    {
+        Preconditions.checkState(size > 0, "Stream hasn't been read yet");
+        return size;
+    }
+
+    @Override
+    public String toString()
+    {
+        SSTableMultiWriter sst = sstable;
+        return "CassandraIncomingFile{" +
+               "sstable=" + (sst == null ? "null" : sst.getFilename()) +
+               '}';
+    }
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CassandraIncomingFile that = (CassandraIncomingFile) o;
+        return Objects.equals(cfs, that.cfs) &&
+               Objects.equals(session, that.session) &&
+               Objects.equals(header, that.header) &&
+               Objects.equals(sstable, that.sstable);
+    }
+
+    public int hashCode()
+    {
+
+        return Objects.hash(cfs, session, header, sstable);
     }
 }

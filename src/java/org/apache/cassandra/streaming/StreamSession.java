@@ -682,18 +682,18 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     /**
      * Call back after sending StreamMessageHeader.
      *
-     * @param header sent header
+     * @param message sent stream message
      */
-    public void fileSent(StreamMessageHeader header)
+    public void streamSent(OutgoingStreamMessage message)
     {
-        long headerSize = header.size();
+        long headerSize = message.stream.getSize();
         StreamingMetrics.totalOutgoingBytes.inc(headerSize);
         metrics.outgoingBytes.inc(headerSize);
         // schedule timeout for receiving ACK
-        StreamTransferTask task = transfers.get(header.tableId);
+        StreamTransferTask task = transfers.get(message.header.tableId);
         if (task != null)
         {
-            task.scheduleTimeout(header.sequenceNumber, 12, TimeUnit.HOURS);
+            task.scheduleTimeout(message.header.sequenceNumber, 12, TimeUnit.HOURS);
         }
     }
 
@@ -709,7 +709,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             throw new RuntimeException("Cannot receive files for preview session");
         }
 
-        long headerSize = message.header.size();
+        long headerSize = message.incomingStream.getSize();
         StreamingMetrics.totalIncomingBytes.inc(headerSize);
         metrics.incomingBytes.inc(headerSize);
         // send back file received message

@@ -22,5 +22,5 @@ import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 
 public interface TableStreamManager
 {
-    IncomingStreamData createIncomingData(StreamSession session, StreamMessageHeader header);
+    IncomingStream createIncomingData(StreamSession session, StreamMessageHeader header);
 }

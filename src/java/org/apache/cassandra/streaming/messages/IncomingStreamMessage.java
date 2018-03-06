@@ -18,18 +18,16 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
 
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.db.streaming.CassandraStreamReader;
-import org.apache.cassandra.streaming.IncomingStreamData;
+import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.db.streaming.CompressedCassandraStreamReader;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 
@@ -51,14 +49,12 @@ public class IncomingStreamMessage extends StreamMessage
             if (cfs == null)
                 throw new StreamReceiveException(session, "CF " + header.tableId + " was dropped during streaming");
 
-            IncomingStreamData incomingData = cfs.getStreamManager().createIncomingData(session, header);
-            // TODO: get reader
-            CassandraStreamReader reader = !header.isCompressed() ? new CassandraStreamReader(header, session)
-                                                                  : new CompressedCassandraStreamReader(header, session);
+            IncomingStream incomingData = cfs.getStreamManager().createIncomingData(session, header);
+            incomingData.read(input, version);
 
             try
             {
-                return new IncomingStreamMessage(reader.read(input), header);
+                return new IncomingStreamMessage(incomingData, header);
             }
             catch (Throwable t)
             {
@@ -79,20 +75,37 @@ public class IncomingStreamMessage extends StreamMessage
     };
 
     public StreamMessageHeader header;
-    public SSTableMultiWriter sstable;
+    public IncomingStream incomingStream;
 
-    public IncomingStreamMessage(SSTableMultiWriter sstable, StreamMessageHeader header)
+    public IncomingStreamMessage(IncomingStream incomingStream, StreamMessageHeader header)
     {
         super(Type.STREAM);
         this.header = header;
-        this.sstable = sstable;
+        this.incomingStream = incomingStream;
     }
 
     @Override
     public String toString()
     {
-        String filename = sstable != null ? sstable.getFilename() : null;
-        return "File (" + header + ", file: " + filename + ")";
+        return "IncomingStreamMessage{" +
+               "header=" + header +
+               ", incomingStream=" + incomingStream +
+               '}';
+    }
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IncomingStreamMessage that = (IncomingStreamMessage) o;
+        return Objects.equals(header, that.header) &&
+               Objects.equals(incomingStream, that.incomingStream);
+    }
+
+    public int hashCode()
+    {
+
+        return Objects.hash(header, incomingStream);
     }
 }
 

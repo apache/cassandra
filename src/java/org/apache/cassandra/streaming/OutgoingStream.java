@@ -19,15 +19,22 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.schema.TableId;
 
 /**
  * Subset of data to be streamed
  */
-public interface OutgoingStreamData
+public interface OutgoingStream
 {
     void write(StreamSession session, DataOutputStreamPlus output, int version) throws IOException;
     void finish();
+    long getRepairedAt();
+    UUID getPendingRepair();
+
     String getName();
+    long getSize();
+    TableId getTableId();
 }
