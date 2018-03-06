@@ -68,6 +68,7 @@ New features
      See nodetool and fqltool help text for more information.
    - SSTableDump now supports the -l option to output each partition as it's own json object
      See CASSANDRA-13848 for more detail
+   - Metric for coordinator writes per table has been added. See CASSANDRA-14232
 
 Upgrading
 ---------

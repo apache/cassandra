@@ -1,4 +1,5 @@
 4.0
+ * Add coordinator write metric per CF (CASSANDRA-14232)
  * Fix scheduling of speculative retry threshold recalculation (CASSANDRA-14338)
  * Add support for hybrid MIN(), MAX() speculative retry policies (CASSANDRA-14293)
  * Correct and clarify SSLFactory.getSslContext method and call sites (CASSANDRA-14314)
