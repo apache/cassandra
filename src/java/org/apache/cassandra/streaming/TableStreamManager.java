@@ -23,4 +23,5 @@ import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 public interface TableStreamManager
 {
     IncomingStream createIncomingData(StreamSession session, StreamMessageHeader header);
+    StreamAggregator createIncomingAggregator(StreamSession session, int totalStreams);
 }

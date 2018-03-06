@@ -146,8 +146,8 @@ public class StreamingInboundHandlerTest
     @Test (expected = IllegalStateException.class)
     public void StreamDeserializingTask_deriveSession_IFM_NoSession() throws InterruptedException, IOException
     {
-        StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, UUID.randomUUID(), 0, 0,
-                                                             BigFormat.latestVersion, SSTableFormat.Type.BIG, 0, new ArrayList<>(), null, 0, UUID.randomUUID(), 0 , null);
+        StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, UUID.randomUUID(),
+                                                             0, 0, 0, UUID.randomUUID());
         IncomingStreamMessage msg = new IncomingStreamMessage(null, header);
         StreamingInboundHandler.StreamDeserializingTask task = handler.new StreamDeserializingTask(sid -> StreamManager.instance.findSession(sid.from, sid.planId, sid.sessionIndex), null, channel);
         task.deriveSession(msg);
@@ -159,8 +159,8 @@ public class StreamingInboundHandlerTest
         UUID planId = UUID.randomUUID();
         StreamResultFuture future = StreamResultFuture.initReceivingSide(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, channel, UUID.randomUUID(), PreviewKind.ALL);
         StreamManager.instance.register(future);
-        StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, planId, 0, 0,
-                                                             BigFormat.latestVersion, SSTableFormat.Type.BIG, 0, new ArrayList<>(), null, 0, UUID.randomUUID(), 0 , null);
+        StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, planId, 0,
+                                                             0, 0, UUID.randomUUID());
         IncomingStreamMessage msg = new IncomingStreamMessage(null, header);
         StreamingInboundHandler.StreamDeserializingTask task = handler.new StreamDeserializingTask(sid -> StreamManager.instance.findSession(sid.from, sid.planId, sid.sessionIndex), null, channel);
         StreamSession session = task.deriveSession(msg);

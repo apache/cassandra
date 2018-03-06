@@ -241,10 +241,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         return previewKind;
     }
 
-    public LifecycleTransaction getTransaction(TableId tableId)
+    public StreamAggregator getAggregator(TableId tableId)
     {
         assert receivers.containsKey(tableId);
-        return receivers.get(tableId).getTransaction();
+        return receivers.get(tableId).getAggregator();
     }
 
     /**
@@ -709,12 +709,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             throw new RuntimeException("Cannot receive files for preview session");
         }
 
-        long headerSize = message.incomingStream.getSize();
+        long headerSize = message.stream.getSize();
         StreamingMetrics.totalIncomingBytes.inc(headerSize);
         metrics.incomingBytes.inc(headerSize);
         // send back file received message
         messageSender.sendMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber));
-        receivers.get(message.header.tableId).received(message.sstable);
+        receivers.get(message.header.tableId).received(message.stream);
     }
 
     public void progress(String filename, ProgressInfo.Direction direction, long bytes, long total)

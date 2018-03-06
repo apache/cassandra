@@ -26,6 +26,7 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
@@ -58,12 +59,6 @@ public class CassandraIncomingFile implements IncomingStream
     }
 
     @Override
-    public synchronized void finish()
-    {
-        assert false;  // TODO: do something with the sstable
-    }
-
-    @Override
     public synchronized String getName()
     {
         return sstable == null ? "null" : sstable.getFilename();
@@ -77,12 +72,25 @@ public class CassandraIncomingFile implements IncomingStream
     }
 
     @Override
+    public TableId getTableId()
+    {
+        Preconditions.checkState(sstable != null, "Stream hasn't been read yet");
+        return sstable.getTableId();
+    }
+
+    @Override
     public String toString()
     {
         SSTableMultiWriter sst = sstable;
         return "CassandraIncomingFile{" +
                "sstable=" + (sst == null ? "null" : sst.getFilename()) +
                '}';
+    }
+
+    public SSTableMultiWriter getSSTable()
+    {
+        Preconditions.checkState(sstable != null, "Stream hasn't been read yet");
+        return sstable;
     }
 
     public boolean equals(Object o)

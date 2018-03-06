@@ -18,16 +18,16 @@
 
 package org.apache.cassandra.streaming;
 
-import java.io.IOException;
-
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.schema.TableId;
-
-public interface IncomingStream
+/**
+ * Handles managing incoming stream data, and keeping it separate from the
+ * live data until all streams for a session have been received successfully
+ */
+public interface StreamAggregator
 {
-    void read(DataInputPlus inputPlus, int version) throws IOException;
+    void received(IncomingStream stream);
+    void discardStream(IncomingStream stream);
+    void abort();
+    void finished();
 
-    String getName();
-    long getSize();
-    TableId getTableId();
+    void cleanup(); // for cdc/mvs
 }

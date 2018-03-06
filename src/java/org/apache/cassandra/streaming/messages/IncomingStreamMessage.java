@@ -75,13 +75,13 @@ public class IncomingStreamMessage extends StreamMessage
     };
 
     public StreamMessageHeader header;
-    public IncomingStream incomingStream;
+    public IncomingStream stream;
 
-    public IncomingStreamMessage(IncomingStream incomingStream, StreamMessageHeader header)
+    public IncomingStreamMessage(IncomingStream stream, StreamMessageHeader header)
     {
         super(Type.STREAM);
+        this.stream = stream;
         this.header = header;
-        this.incomingStream = incomingStream;
     }
 
     @Override
@@ -89,7 +89,7 @@ public class IncomingStreamMessage extends StreamMessage
     {
         return "IncomingStreamMessage{" +
                "header=" + header +
-               ", incomingStream=" + incomingStream +
+               ", stream=" + stream +
                '}';
     }
 
@@ -99,13 +99,13 @@ public class IncomingStreamMessage extends StreamMessage
         if (o == null || getClass() != o.getClass()) return false;
         IncomingStreamMessage that = (IncomingStreamMessage) o;
         return Objects.equals(header, that.header) &&
-               Objects.equals(incomingStream, that.incomingStream);
+               Objects.equals(stream, that.stream);
     }
 
     public int hashCode()
     {
 
-        return Objects.hash(header, incomingStream);
+        return Objects.hash(header, stream);
     }
 }
 
