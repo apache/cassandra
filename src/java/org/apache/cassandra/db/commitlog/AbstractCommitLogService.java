@@ -263,10 +263,15 @@ public abstract class AbstractCommitLogService
      */
     public WaitQueue.Signal requestExtraSync()
     {
-        syncRequested = true;
         WaitQueue.Signal signal = syncComplete.register();
-        haveWork.release(1);
+        requestSync();
         return signal;
+    }
+
+    protected void requestSync()
+    {
+        syncRequested = true;
+        haveWork.release(1);
     }
 
     public void shutdown()
