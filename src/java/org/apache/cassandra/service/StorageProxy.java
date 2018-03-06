@@ -757,6 +757,7 @@ public class StorageProxy implements StorageProxyMBean
             long latency = System.nanoTime() - startTime;
             writeMetrics.addNano(latency);
             writeMetricsMap.get(consistency_level).addNano(latency);
+            updateCoordinatorWriteLatencyTableMetric(mutations, latency);
         }
     }
 
@@ -1030,13 +1031,37 @@ public class StorageProxy implements StorageProxyMBean
             long latency = System.nanoTime() - startTime;
             writeMetrics.addNano(latency);
             writeMetricsMap.get(consistency_level).addNano(latency);
-
+            updateCoordinatorWriteLatencyTableMetric(mutations, latency);
         }
     }
 
     public static boolean canDoLocalRequest(InetAddressAndPort replica)
     {
         return replica.equals(FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    private static void updateCoordinatorWriteLatencyTableMetric(Collection<? extends IMutation> mutations, long latency)
+    {
+        if (null == mutations)
+        {
+            return;
+        }
+
+        try
+        {
+            //TODO: Avoid giving same latency number for each CF in each mutation in a given set of mutations
+            //We could potentially pass a callback into performWrite. And add callback provision for mutateCounter or mutateAtomically (sendToHintedEndPoints)
+            //However, Trade off between write metric per CF accuracy vs performance hit due to callbacks. Similar issue exists with CoordinatorReadLatency metric.
+            mutations.forEach(mutation -> {
+                mutation.getTableIds().forEach(tableId -> {
+                    Keyspace.open(mutation.getKeyspaceName()).getColumnFamilyStore(tableId).metric.coordinatorWriteLatency.update(latency, TimeUnit.NANOSECONDS);
+                });
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.warn("Exception occurred updating coordinatorWriteLatency metric", ex);
+        }
     }
 
     private static void syncWriteToBatchlog(Collection<Mutation> mutations, Collection<InetAddressAndPort> endpoints, UUID uuid, long queryStartNanoTime)
