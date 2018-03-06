@@ -253,7 +253,7 @@ public class CommitLogReaderTest extends CQLTester
             reader.readCommitLogSegment(testHandler, f, minPos, maxPos, false);
 
         // if the end position of a sync segment equals to minPos, then this sync segment will be read
-        int expectedCount = endCount - startCount + 1;
+        int expectedCount = endCount - startCount;
         Assert.assertEquals("Expected " + expectedCount + " seen mutations, got: " + testHandler.seenMutations.size(),
                             expectedCount, testHandler.seenMutationCount());
 
@@ -279,8 +279,10 @@ public class CommitLogReaderTest extends CQLTester
         CommitLogReader reader;
         TestCLRHandler testHandler;
 
-        // when count < (endCount - startCount + 1), we expect the former number of mutations read
+        // when count < (endCount - startCount), we expect the former number of mutations read
         count = 10;
+        // readSection updates statusTracker if pos >= minPos, while readMutation only replays (handles) the mutation
+        // if pos > minPos. In our case, pos can match minPos perfectly during iterations, so we expect one fewer seen mutations.
         expectedCount = count;
         reader = new CommitLogReader();
         // we need to include non-cfm mutations because we are checking if count takes effect
@@ -292,9 +294,9 @@ public class CommitLogReaderTest extends CQLTester
         Assert.assertEquals("Expected " + expectedCount + " seen mutations, got: " + testHandler.seenMutations.size(),
                             expectedCount, testHandler.seenMutationCount());
 
-        // when count > (endCount - startCount + 1), we expect the latter number of mutations read
+        // when count > (endCount - startCount), we expect the latter number of mutations read
         count = 40;
-        expectedCount = endCount - startCount + 1;
+        expectedCount = endCount - startCount;
         reader = new CommitLogReader();
         // we need to exclude non-cfm mutations because we are checking if maxPos takes effect
         testHandler = new TestCLRHandler(currentTableMetadata());
@@ -463,7 +465,14 @@ public class CommitLogReaderTest extends CQLTester
 
         for (int i = 0; i < count; i++) {
             execute("INSERT INTO %s (idx, data) VALUES (?, ?)", i, Integer.toString(i));
-            positions[i + 1] = CommitLog.instance.getCurrentPosition();
+            currentPos = CommitLog.instance.getCurrentPosition();
+            int offsetDiff = currentPos.position - CommitLogSegment.SYNC_MARKER_SIZE - positions[i].position;
+            // retry when offset difference is weird because non-cfm mutations may result in unexpected positions
+            if (offsetDiff != (Integer.toString(i).length() + 64)) {
+                Thread.sleep(100);
+                currentPos = CommitLog.instance.getCurrentPosition();
+            }
+            positions[i + 1] = new CommitLogPosition(currentPos.segmentId, currentPos.position - CommitLogSegment.SYNC_MARKER_SIZE);
         }
 
         Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
