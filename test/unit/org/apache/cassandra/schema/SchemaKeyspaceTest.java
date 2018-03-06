@@ -34,6 +34,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -287,42 +288,6 @@ public class SchemaKeyspaceTest
                 return true;
         }
         return false;
-    }
-
-    @Test
-    public void testConvertSchemaToMutationsWithoutCDC() throws IOException
-    {
-        boolean oldCDCOption = DatabaseDescriptor.isCDCEnabled();
-        try
-        {
-            DatabaseDescriptor.setCDCEnabled(false);
-            Collection<Mutation> mutations = SchemaKeyspace.convertSchemaToMutations();
-            boolean foundTables = false;
-            for (Mutation m : mutations)
-            {
-                if (hasSchemaTables(m))
-                {
-                    foundTables = true;
-                    assertFalse(hasCDCColumn(m));
-                    assertFalse(hasCDCHandlerColumn(m));
-                    try (DataOutputBuffer output = new DataOutputBuffer())
-                    {
-                        Mutation.serializer.serialize(m, output, MessagingService.current_version);
-                        try (DataInputBuffer input = new DataInputBuffer(output.getData()))
-                        {
-                            Mutation out = Mutation.serializer.deserialize(input, MessagingService.current_version);
-                            assertFalse(hasCDCColumn(out));
-                            assertFalse(hasCDCHandlerColumn(out));
-                        }
-                    }
-                }
-            }
-            assertTrue(foundTables);
-        }
-        finally
-        {
-            DatabaseDescriptor.setCDCEnabled(oldCDCOption);
-        }
     }
 
     @Test

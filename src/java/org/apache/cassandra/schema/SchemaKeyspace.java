@@ -79,11 +79,6 @@ public final class SchemaKeyspace
     private static final boolean FLUSH_SCHEMA_TABLES = CassandraRelevantProperties.FLUSH_LOCAL_SCHEMA_CHANGES.getBoolean();
     private static final boolean IGNORE_CORRUPTED_SCHEMA_TABLES = Boolean.parseBoolean(System.getProperty("cassandra.ignore_corrupted_schema_tables", "false"));
 
-    /**
-     * The tables to which we added the cdc column. This is used in {@link #makeUpdateForSchema} below to make sure we skip that
-     * column is cdc is disabled as the columns breaks pre-cdc to post-cdc upgrades (typically, 3.0 -> 3.X).
-     */
-    private static final Set<String> TABLES_WITH_CDC_ADDED = ImmutableSet.of(TABLES, VIEWS, KEYSPACES);
     private static final TableMetadata Keyspaces =
         parse(KEYSPACES,
               "keyspace definitions",
@@ -402,35 +397,11 @@ public final class SchemaKeyspace
 
                     DecoratedKey key = partition.partitionKey();
                     Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
-                    puCollector.add(makeUpdateForSchema(partition, cmd.columnFilter()).withOnlyPresentColumns());
+
+                    puCollector.add(PartitionUpdate.fromIterator(partition, cmd.columnFilter()));
                 }
             }
         }
-    }
-
-    /**
-     * Creates a PartitionUpdate from a partition containing some schema table content.
-     * This is mainly calling {@code PartitionUpdate.fromIterator} except for the fact that it deals with
-     * the problem described in #12236.
-     */
-    private static PartitionUpdate makeUpdateForSchema(UnfilteredRowIterator partition, ColumnFilter filter)
-    {
-        // This method is used during schema migration tasks, and if cdc is disabled, we want to force excluding the
-        // 'cdc' column from the TABLES/VIEWS schema table because it is problematic if received by older nodes (see #12236
-        // and #12697). Otherwise though, we just simply "buffer" the content of the partition into a PartitionUpdate.
-        if (DatabaseDescriptor.isCDCEnabled() || !TABLES_WITH_CDC_ADDED.contains(partition.metadata().name))
-            return PartitionUpdate.fromIterator(partition, filter);
-
-        // We want to skip the 'cdc' column. A simple solution for that is based on the fact that
-        // 'PartitionUpdate.fromIterator()' will ignore any columns that are marked as 'fetched' but not 'queried'.
-        ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(partition.metadata(), false);
-        for (ColumnMetadata column : filter.fetchedColumns())
-        {
-            if (!column.name.toString().equals("cdc") && !column.name.toString().equals("cdc_handler"))
-                builder.add(column);
-        }
-
-        return PartitionUpdate.fromIterator(partition, builder.build());
     }
 
     private static boolean isSystemKeyspaceSchemaPartition(DecoratedKey partitionKey)
