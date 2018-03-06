@@ -42,6 +42,14 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+3.11.3
+=====
+
+Upgrading
+---------
+    - Materialized view users upgrading from 3.0.15 (3.0.X series) or 3.11.1 (3.11.X series) and  later that have performed range movements (join, decommission, move, etc),
+      should run repair on the base tables, and subsequently on the views to ensure data affected by CASSANDRA-14251 is correctly propagated to all replicas.
+
 3.11.2
 ======
 
