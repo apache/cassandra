@@ -148,6 +148,14 @@ Materialized Views
    - An 'enable_materialized_views' flag has been added to cassandra.yaml to allow operators to prevent creation of
      views
 
+3.11.3
+=====
+
+Upgrading
+---------
+    - Materialized view users upgrading from 3.0.15 (3.0.X series) or 3.11.1 (3.11.X series) and  later that have performed range movements (join, decommission, move, etc),
+      should run repair on the base tables, and subsequently on the views to ensure data affected by CASSANDRA-14251 is correctly propagated to all replicas.
+
 3.11.2
 ======
 
