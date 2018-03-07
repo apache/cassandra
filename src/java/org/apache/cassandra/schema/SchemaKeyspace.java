@@ -31,7 +31,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
@@ -43,6 +42,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -1003,7 +1003,7 @@ public final class SchemaKeyspace
                           .minIndexInterval(row.getInt("min_index_interval"))
                           .readRepairChance(row.getDouble("read_repair_chance"))
                           .crcCheckChance(row.getDouble("crc_check_chance"))
-                          .speculativeRetry(SpeculativeRetryParam.fromString(row.getString("speculative_retry")))
+                          .speculativeRetry(SpeculativeRetryPolicy.fromString(row.getString("speculative_retry")))
                           .cdc(row.has("cdc") && row.getBoolean("cdc"))
                           .build();
     }

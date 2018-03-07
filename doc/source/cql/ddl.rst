@@ -495,19 +495,32 @@ consistency levels: one for consistency level ``ONE``, a quorum for ``QUORUM``, 
 ``speculative_retry`` determines when coordinators may query additional replicas, which is useful
 when replicas are slow or unresponsive.  The following are legal values (case-insensitive):
 
-========================= ================ =============================================================================
- Format                    Example          Description
-========================= ================ =============================================================================
- ``XPERCENTILE``           90.5PERCENTILE   Coordinators record average per-table response times for all replicas.
-                                            If a replica takes longer than ``X`` percent of this table's average
-                                            response time, the coordinator queries an additional replica.
-                                            ``X`` must be between 0 and 100.
- ``XP``                    90.5P            Synonym for ``XPERCENTILE``
- ``Yms``                   25ms             If a replica takes more than ``Y`` milliseconds to respond,
-                                            the coordinator queries an additional replica.
- ``ALWAYS``                                 Coordinators always query all replicas.
- ``NONE``                                   Coordinators never query additional replicas.
-========================= ================ =============================================================================
+============================ ======================== =============================================================================
+ Format                       Example                  Description
+============================ ======================== =============================================================================
+ ``XPERCENTILE``             90.5PERCENTILE           Coordinators record average per-table response times for all replicas.
+                                                      If a replica takes longer than ``X`` percent of this table's average
+                                                      response time, the coordinator queries an additional replica.
+                                                      ``X`` must be between 0 and 100.
+ ``XP``                      90.5P                    Synonym for ``XPERCENTILE``
+ ``Yms``                     25ms                     If a replica takes more than ``Y`` milliseconds to respond,
+                                                      the coordinator queries an additional replica.
+ ``MIN(XPERCENTILE,YMS)``    MIN(99PERCENTILE,35MS)   A hybrid policy that will use either the specified percentile or fixed
+                                                      milliseconds depending on which value is lower at the time of calculation.
+                                                      Parameters are ``XPERCENTILE``, ``XP``, or ``Yms``.
+                                                      This is helpful to help protect against a single slow instance; in the
+                                                      happy case the 99th percentile is normally lower than the specified
+                                                      fixed value however, a slow host may skew the percentile very high
+                                                      meaning the slower the cluster gets, the higher the value of the percentile,
+                                                      and the higher the calculated time used to determine if we should
+                                                      speculate or not. This allows us to set an upper limit that we want to
+                                                      speculate at, but avoid skewing the tail latencies by speculating at the
+                                                      lower value when the percentile is less than the specified fixed upper bound.
+ ``MAX(XPERCENTILE,YMS)``    MAX(90.5P,25ms)          A hybrid policy that will use either the specified percentile or fixed
+                                                      milliseconds depending on which value is higher at the time of calculation.
+ ``ALWAYS``                                           Coordinators always query all replicas.
+ ``NEVER``                                            Coordinators never query additional replicas.
+============================ =================== =============================================================================
 
 This setting does not affect reads with consistency level ``ALL`` because they already query all replicas.
 

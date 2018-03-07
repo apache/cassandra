@@ -34,6 +34,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.github.jamm.Unmetered;
 
@@ -736,7 +737,7 @@ public final class TableMetadata
             return this;
         }
 
-        public Builder speculativeRetry(SpeculativeRetryParam val)
+        public Builder speculativeRetry(SpeculativeRetryPolicy val)
         {
             params.speculativeRetry(val);
             return this;

@@ -77,6 +77,7 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.TableMetrics.Sampler;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.TableStreamManager;
@@ -441,27 +442,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 throw new RuntimeException(e);
             }
-            logger.trace("retryPolicy for {} is {}", name, this.metadata.get().params.speculativeRetry);
-            latencyCalculator = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(new Runnable()
+
+            SpeculativeRetryPolicy retryPolicy = metadata.get().params.speculativeRetry;
+            logger.trace("retryPolicy for {} is {}", name, retryPolicy);
+            if (!retryPolicy.isDynamic())
             {
-                public void run()
+                // avoid scheduling the task in the first place for non-dynamic speculative retry policies
+                // e.g. always and never speculative policies will never change so we can just calculate once
+                // and avoid doing unnecessary work every ReadRpcTimeout()
+                sampleLatencyNanos = retryPolicy.calculateThreshold(metric.coordinatorReadLatency);
+                latencyCalculator = null;
+            }
+            else
+            {
+                latencyCalculator = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(() ->
                 {
-                    SpeculativeRetryParam retryPolicy = ColumnFamilyStore.this.metadata.get().params.speculativeRetry;
-                    switch (retryPolicy.kind())
-                    {
-                        case PERCENTILE:
-                            // get percentile in nanos
-                            sampleLatencyNanos = (long) (metric.coordinatorReadLatency.getSnapshot().getValue(retryPolicy.threshold()));
-                            break;
-                        case CUSTOM:
-                            sampleLatencyNanos = (long) retryPolicy.threshold();
-                            break;
-                        default:
-                            sampleLatencyNanos = Long.MAX_VALUE;
-                            break;
-                    }
-                }
-            }, DatabaseDescriptor.getReadRpcTimeout(), DatabaseDescriptor.getReadRpcTimeout(), TimeUnit.MILLISECONDS);
+                    SpeculativeRetryPolicy retryPolicy1 = metadata.get().params.speculativeRetry;
+                    sampleLatencyNanos = retryPolicy1.calculateThreshold(metric.coordinatorReadLatency);
+                }, DatabaseDescriptor.getReadRpcTimeout(), DatabaseDescriptor.getReadRpcTimeout(), TimeUnit.MILLISECONDS);
+            }
         }
         else
         {
@@ -528,7 +527,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        latencyCalculator.cancel(false);
+        if (latencyCalculator != null)
+            latencyCalculator.cancel(false);
+
         compactionStrategyManager.shutdown();
         SystemKeyspace.removeTruncationRecord(metadata.id);
 

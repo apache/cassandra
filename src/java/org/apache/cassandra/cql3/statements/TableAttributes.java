@@ -26,6 +26,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.TableParams.Option;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 
 import static java.lang.String.format;
 
@@ -125,7 +126,7 @@ public final class TableAttributes extends PropertyDefinitions
             builder.readRepairChance(getDouble(Option.READ_REPAIR_CHANCE));
 
         if (hasOption(Option.SPECULATIVE_RETRY))
-            builder.speculativeRetry(SpeculativeRetryParam.fromString(getString(Option.SPECULATIVE_RETRY)));
+            builder.speculativeRetry(SpeculativeRetryPolicy.fromString(getString(Option.SPECULATIVE_RETRY)));
 
         if (hasOption(Option.CRC_CHECK_CHANCE))
             builder.crcCheckChance(getDouble(Option.CRC_CHECK_CHANCE));
