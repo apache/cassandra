@@ -226,10 +226,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         return previewKind;
     }
 
-    public StreamAggregator getAggregator(TableId tableId)
+    public StreamReceiver getAggregator(TableId tableId)
     {
         assert receivers.containsKey(tableId);
-        return receivers.get(tableId).getAggregator();
+        return receivers.get(tableId).getReceiver();
     }
 
     /**

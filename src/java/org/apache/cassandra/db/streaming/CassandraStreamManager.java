@@ -43,7 +43,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.streaming.StreamAggregator;
+import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
@@ -76,9 +76,9 @@ public class CassandraStreamManager implements TableStreamManager
     }
 
     @Override
-    public StreamAggregator createIncomingAggregator(StreamSession session, int totalStreams)
+    public StreamReceiver createIncomingAggregator(StreamSession session, int totalStreams)
     {
-        return new CassandraStreamAggregator(cfs, session, totalStreams);
+        return new CassandraStreamReceiver(cfs, session, totalStreams);
     }
 
     private static Predicate<SSTableReader> getPreviewPredicate(PreviewKind kind)

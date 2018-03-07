@@ -19,11 +19,11 @@
 package org.apache.cassandra.streaming;
 
 /**
- * StreamAggregator acts as a staging area for incoming data. Received data
+ * StreamReceiver acts as a staging area for incoming data. Received data
  * ends up here, and is kept separate from the live data until all streams
  * for a session have been received successfully
  */
-public interface StreamAggregator
+public interface StreamReceiver
 {
     void received(IncomingStream stream);
     void discardStream(IncomingStream stream);

@@ -45,15 +45,15 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.streaming.IncomingStream;
-import org.apache.cassandra.streaming.StreamAggregator;
+import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
 
-public class CassandraStreamAggregator implements StreamAggregator
+public class CassandraStreamReceiver implements StreamReceiver
 {
-    private static final Logger logger = LoggerFactory.getLogger(CassandraStreamAggregator.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraStreamReceiver.class);
 
     private static final int MAX_ROWS_PER_BATCH = Integer.getInteger("cassandra.repair.mutation_repair_rows_per_batch", 100);
 
@@ -69,7 +69,7 @@ public class CassandraStreamAggregator implements StreamAggregator
     private final boolean requiresWritePath;
 
 
-    public CassandraStreamAggregator(ColumnFamilyStore cfs, StreamSession session, int totalFiles)
+    public CassandraStreamReceiver(ColumnFamilyStore cfs, StreamSession session, int totalFiles)
     {
         this.cfs = cfs;
         this.session = session;
@@ -85,10 +85,10 @@ public class CassandraStreamAggregator implements StreamAggregator
         return txn;
     }
 
-    public static CassandraStreamAggregator fromAggregator(StreamAggregator aggregator)
+    public static CassandraStreamReceiver fromReceiver(StreamReceiver receiver)
     {
-        Preconditions.checkArgument(aggregator instanceof CassandraStreamAggregator);
-        return (CassandraStreamAggregator) aggregator;
+        Preconditions.checkArgument(receiver instanceof CassandraStreamReceiver);
+        return (CassandraStreamReceiver) receiver;
     }
 
     private static CassandraIncomingFile getFile(IncomingStream stream)

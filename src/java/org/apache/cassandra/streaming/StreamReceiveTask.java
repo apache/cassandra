@@ -37,7 +37,7 @@ public class StreamReceiveTask extends StreamTask
 
     private static final ExecutorService executor = Executors.newCachedThreadPool(new NamedThreadFactory("StreamReceiveTask"));
 
-    private final StreamAggregator aggregator;
+    private final StreamReceiver receiver;
 
     // number of streams to receive
     private final int totalStreams;
@@ -53,7 +53,7 @@ public class StreamReceiveTask extends StreamTask
     public StreamReceiveTask(StreamSession session, TableId tableId, int totalStreams, long totalSize)
     {
         super(session, tableId);
-        this.aggregator = ColumnFamilyStore.getIfExists(tableId).getStreamManager().createIncomingAggregator(session, totalStreams);
+        this.receiver = ColumnFamilyStore.getIfExists(tableId).getStreamManager().createIncomingAggregator(session, totalStreams);
         this.totalStreams = totalStreams;
         this.totalSize = totalSize;
     }
@@ -71,7 +71,7 @@ public class StreamReceiveTask extends StreamTask
         {
             logger.warn("[{}] Received stream {} on already finished stream received task. Aborting stream.", session.planId(),
                         stream.getName());
-            aggregator.discardStream(stream);
+            receiver.discardStream(stream);
             return;
         }
 
@@ -79,7 +79,7 @@ public class StreamReceiveTask extends StreamTask
         Preconditions.checkArgument(tableId.equals(stream.getTableId()));
         logger.debug("recevied {} of {} total files", remoteStreamsReceived, totalStreams);
 
-        aggregator.received(stream);
+        receiver.received(stream);
 
         if (remoteStreamsReceived == totalStreams)
         {
@@ -98,11 +98,11 @@ public class StreamReceiveTask extends StreamTask
         return totalSize;
     }
 
-    public synchronized StreamAggregator getAggregator()
+    public synchronized StreamReceiver getReceiver()
     {
         if (done)
             throw new RuntimeException(String.format("Stream receive task %s of cf %s already finished.", session.planId(), tableId));
-        return aggregator;
+        return receiver;
     }
 
     private static class OnCompletionRunnable implements Runnable
@@ -121,12 +121,12 @@ public class StreamReceiveTask extends StreamTask
                 if (ColumnFamilyStore.getIfExists(task.tableId) == null)
                 {
                     // schema was dropped during streaming
-                    task.aggregator.abort();
+                    task.receiver.abort();
                     task.session.taskCompleted(task);
                     return;
                 }
 
-                task.aggregator.finished();;
+                task.receiver.finished();;
                 task.session.taskCompleted(task);
             }
             catch (Throwable t)
@@ -136,7 +136,7 @@ public class StreamReceiveTask extends StreamTask
             }
             finally
             {
-                task.aggregator.cleanup();
+                task.receiver.cleanup();
             }
         }
     }
@@ -153,6 +153,6 @@ public class StreamReceiveTask extends StreamTask
             return;
 
         done = true;
-        aggregator.abort();
+        receiver.abort();
     }
 }

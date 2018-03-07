@@ -41,8 +41,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.streaming.ProgressInfo;
-import org.apache.cassandra.streaming.StreamAggregator;
-import org.apache.cassandra.streaming.StreamHook;
+import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.StreamCompressionInputStream;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
@@ -152,9 +151,9 @@ public class CassandraStreamReader
         if (localDir == null)
             throw new IOException(String.format("Insufficient disk space to store %s", FBUtilities.prettyPrintMemory(totalSize)));
 
-        StreamAggregator streamAggregator = session.getAggregator(tableId);
-        Preconditions.checkState(streamAggregator instanceof CassandraStreamAggregator);
-        LifecycleTransaction txn = CassandraStreamAggregator.fromAggregator(session.getAggregator(tableId)).getTransaction();
+        StreamReceiver streamReceiver = session.getAggregator(tableId);
+        Preconditions.checkState(streamReceiver instanceof CassandraStreamReceiver);
+        LifecycleTransaction txn = CassandraStreamReceiver.fromReceiver(session.getAggregator(tableId)).getTransaction();
 
         RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, format, sstableLevel, totalSize, txn, getHeader(cfs.metadata()));
         return writer;
