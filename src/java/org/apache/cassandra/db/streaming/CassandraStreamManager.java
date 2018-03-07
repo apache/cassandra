@@ -70,13 +70,13 @@ public class CassandraStreamManager implements TableStreamManager
     }
 
     @Override
-    public IncomingStream createIncomingData(StreamSession session, StreamMessageHeader header)
+    public IncomingStream prepareIncomingStream(StreamSession session, StreamMessageHeader header)
     {
         return new CassandraIncomingFile(cfs, session, header);
     }
 
     @Override
-    public StreamReceiver createIncomingAggregator(StreamSession session, int totalStreams)
+    public StreamReceiver createStreamReceiver(StreamSession session, int totalStreams)
     {
         return new CassandraStreamReceiver(cfs, session, totalStreams);
     }

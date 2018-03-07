@@ -53,7 +53,7 @@ public class StreamReceiveTask extends StreamTask
     public StreamReceiveTask(StreamSession session, TableId tableId, int totalStreams, long totalSize)
     {
         super(session, tableId);
-        this.receiver = ColumnFamilyStore.getIfExists(tableId).getStreamManager().createIncomingAggregator(session, totalStreams);
+        this.receiver = ColumnFamilyStore.getIfExists(tableId).getStreamManager().createStreamReceiver(session, totalStreams);
         this.totalStreams = totalStreams;
         this.totalSize = totalSize;
     }

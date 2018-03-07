@@ -27,8 +27,8 @@ import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 
 public interface TableStreamManager
 {
-    IncomingStream createIncomingData(StreamSession session, StreamMessageHeader header);
-    StreamReceiver createIncomingAggregator(StreamSession session, int totalStreams);
+    IncomingStream prepareIncomingStream(StreamSession session, StreamMessageHeader header);
+    StreamReceiver createStreamReceiver(StreamSession session, int totalStreams);
     Collection<OutgoingStream> getOutgoingStreams(StreamSession session,
                                                   Collection<Range<Token>> ranges,
                                                   UUID pendingRepair,
