@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
@@ -75,6 +76,21 @@ public class CassandraStreamManager implements TableStreamManager
         return new CassandraStreamAggregator(cfs, session, totalStreams);
     }
 
+    private static Predicate<SSTableReader> getPreviewPredicate(PreviewKind kind)
+    {
+        switch (kind)
+        {
+            case ALL:
+                return Predicates.alwaysTrue();
+            case UNREPAIRED:
+                return Predicates.not(SSTableReader::isRepaired);
+            case REPAIRED:
+                return SSTableReader::isRepaired;
+            default:
+                throw new IllegalArgumentException("Unsupported kind: " + kind);
+        }
+    }
+
     @Override
     public Collection<OutgoingStream> getOutgoingStreams(StreamSession session, Collection<Range<Token>> ranges, UUID pendingRepair, PreviewKind previewKind)
     {
@@ -88,7 +104,7 @@ public class CassandraStreamManager implements TableStreamManager
             Predicate<SSTableReader> predicate;
             if (previewKind.isPreview())
             {
-                predicate = previewKind.getStreamingPredicate();
+                predicate = getPreviewPredicate(previewKind);
             }
             else if (pendingRepair == ActiveRepairService.NO_PENDING_REPAIR)
             {
