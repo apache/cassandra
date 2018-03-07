@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.utils.BloomCalculations;
 
 import static java.lang.String.format;
@@ -80,7 +81,7 @@ public final class TableParams
     public final int memtableFlushPeriodInMs;
     public final int minIndexInterval;
     public final int maxIndexInterval;
-    public final SpeculativeRetryParam speculativeRetry;
+    public final SpeculativeRetryPolicy speculativeRetry;
     public final CachingParams caching;
     public final CompactionParams compaction;
     public final CompressionParams compression;
@@ -289,7 +290,7 @@ public final class TableParams
         private int memtableFlushPeriodInMs = DEFAULT_MEMTABLE_FLUSH_PERIOD_IN_MS;
         private int minIndexInterval = DEFAULT_MIN_INDEX_INTERVAL;
         private int maxIndexInterval = DEFAULT_MAX_INDEX_INTERVAL;
-        private SpeculativeRetryParam speculativeRetry = SpeculativeRetryParam.DEFAULT;
+        private SpeculativeRetryPolicy speculativeRetry = SpeculativeRetryPolicy.DEFAULT;
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
         private CompressionParams compression = CompressionParams.DEFAULT;
@@ -365,7 +366,7 @@ public final class TableParams
             return this;
         }
 
-        public Builder speculativeRetry(SpeculativeRetryParam val)
+        public Builder speculativeRetry(SpeculativeRetryPolicy val)
         {
             speculativeRetry = val;
             return this;

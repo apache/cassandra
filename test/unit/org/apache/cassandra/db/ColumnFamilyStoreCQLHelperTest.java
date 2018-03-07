@@ -37,6 +37,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.index.sasi.*;
 import org.apache.cassandra.schema.*;
+import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
 import org.apache.cassandra.utils.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -255,7 +256,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
                .maxIndexInterval(7)
                .memtableFlushPeriod(8)
                .readRepairChance(0.9)
-               .speculativeRetry(SpeculativeRetryParam.always())
+               .speculativeRetry(AlwaysSpeculativeRetryPolicy.INSTANCE)
                .extensions(ImmutableMap.of("ext1", ByteBuffer.wrap("val1".getBytes())))
                .recordColumnDrop(ColumnMetadata.regularColumn(keyspace, table, "reg1", AsciiType.instance),
                                  FBUtilities.timestampMicros());
