@@ -18,15 +18,26 @@
 
 package org.apache.cassandra.db.commitlog;
 
+import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
+
+import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.security.EncryptionContext;
 
 public class BatchCommitLogTest extends CommitLogTest
 {
+    private static final long CL_BATCH_SYNC_WINDOW = 1000; // 1 second
+    
     public BatchCommitLogTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext)
     {
         super(commitLogCompression, encryptionContext);
@@ -38,5 +49,30 @@ public class BatchCommitLogTest extends CommitLogTest
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setCommitLogSync(Config.CommitLogSync.batch);
         beforeClass();
+    }
+
+    @Test
+    public void testBatchCLSyncImmediately()
+    {
+        ColumnFamilyStore cfs1 = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
+        Mutation m = new RowUpdateBuilder(cfs1.metadata.get(), 0, "key")
+                     .clustering("bytes")
+                     .add("val", ByteBuffer.allocate(10 * 1024))
+                     .build();
+
+        long startNano = System.nanoTime();
+        CommitLog.instance.add(m);
+        long delta = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
+        Assert.assertTrue("Expect batch commitlog sync immediately, but took " + delta, delta < CL_BATCH_SYNC_WINDOW);
+    }
+
+    @Test
+    public void testBatchCLShutDownImmediately() throws InterruptedException
+    {
+        long startNano = System.nanoTime();
+        CommitLog.instance.shutdownBlocking();
+        long delta = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
+        Assert.assertTrue("Expect batch commitlog shutdown immediately, but took " + delta, delta < CL_BATCH_SYNC_WINDOW);
+        CommitLog.instance.start();
     }
 }

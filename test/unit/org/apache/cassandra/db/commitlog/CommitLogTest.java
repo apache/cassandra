@@ -75,9 +75,9 @@ import static org.junit.Assert.assertTrue;
 @RunWith(Parameterized.class)
 public abstract class CommitLogTest
 {
-    private static final String KEYSPACE1 = "CommitLogTest";
+    protected static final String KEYSPACE1 = "CommitLogTest";
     private static final String KEYSPACE2 = "CommitLogTestNonDurable";
-    private static final String STANDARD1 = "Standard1";
+    protected static final String STANDARD1 = "Standard1";
     private static final String STANDARD2 = "Standard2";
 
     private static JVMStabilityInspector.Killer oldKiller;
