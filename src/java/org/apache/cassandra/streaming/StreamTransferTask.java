@@ -24,17 +24,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * StreamTransferTask sends sections of SSTable files in certain ColumnFamily.
@@ -58,11 +56,11 @@ public class StreamTransferTask extends StreamTask
         super(session, tableId);
     }
 
-    public synchronized void addTransferFile(Ref<SSTableReader> ref, long estimatedKeys, List<Pair<Long, Long>> sections)
+    public synchronized void addTransferStream(OutgoingStream stream)
     {
-        assert ref.get() != null && tableId.equals(ref.get().metadata().id);
-        OutgoingStreamMessage message = new OutgoingStreamMessage(session.getStreamOperation(), tableId, ref, session, sequenceNumber.getAndIncrement(), estimatedKeys, sections);
-        message = StreamHook.instance.reportOutgoingFile(session, ref.get(), message);
+        Preconditions.checkArgument(tableId.equals(stream.getTableId()));
+        OutgoingStreamMessage message = new OutgoingStreamMessage(tableId, session, stream, sequenceNumber.getAndIncrement());
+        message = StreamHook.instance.reportOutgoingStream(session, stream, message);
         streams.put(message.header.sequenceNumber, message);
         totalSize += message.stream.getSize();
     }

@@ -23,17 +23,11 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.Futures;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
-import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
@@ -43,7 +37,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelId;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
@@ -52,14 +45,12 @@ import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.async.OutboundConnectionIdentifier;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.async.NettyStreamingMessageSender;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
  * Handles the streaming a one or more section of one of more sstables to and from a specific
@@ -323,23 +314,15 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             flushSSTables(stores);
 
         List<Range<Token>> normalizedRanges = Range.normalize(ranges);
-        List<SSTableStreamingSections> sections = getSSTableSectionsForRanges(normalizedRanges, stores, pendingRepair, previewKind);
-        try
+        List<OutgoingStream> streams = getOutgoingStreamsForRanges(normalizedRanges, stores, pendingRepair, previewKind);
+        addTransferStreams(streams);
+        Set<Range<Token>> toBeUpdated = transferredRangesPerKeyspace.get(keyspace);
+        if (toBeUpdated == null)
         {
-            addTransferFiles(sections);
-            Set<Range<Token>> toBeUpdated = transferredRangesPerKeyspace.get(keyspace);
-            if (toBeUpdated == null)
-            {
-                toBeUpdated = new HashSet<>();
-            }
-            toBeUpdated.addAll(ranges);
-            transferredRangesPerKeyspace.put(keyspace, toBeUpdated);
+            toBeUpdated = new HashSet<>();
         }
-        finally
-        {
-            for (SSTableStreamingSections release : sections)
-                release.ref.release();
-        }
+        toBeUpdated.addAll(ranges);
+        transferredRangesPerKeyspace.put(keyspace, toBeUpdated);
     }
 
     private void failIfFinished()
@@ -365,83 +348,30 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
     @VisibleForTesting
-    public static List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, UUID pendingRepair, PreviewKind previewKind)
+    public List<OutgoingStream> getOutgoingStreamsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, UUID pendingRepair, PreviewKind previewKind)
     {
-        Refs<SSTableReader> refs = new Refs<>();
+        List<OutgoingStream> streams = new ArrayList<>();
         try
         {
-            for (ColumnFamilyStore cfStore : stores)
+            for (ColumnFamilyStore cfs: stores)
             {
-                final List<Range<PartitionPosition>> keyRanges = new ArrayList<>(ranges.size());
-                for (Range<Token> range : ranges)
-                    keyRanges.add(Range.makeRowRange(range));
-                refs.addAll(cfStore.selectAndReference(view -> {
-                    Set<SSTableReader> sstables = Sets.newHashSet();
-                    SSTableIntervalTree intervalTree = SSTableIntervalTree.build(view.select(SSTableSet.CANONICAL));
-                    Predicate<SSTableReader> predicate;
-                    if (previewKind.isPreview())
-                    {
-                        predicate = previewKind.getStreamingPredicate();
-                    }
-                    else if (pendingRepair == ActiveRepairService.NO_PENDING_REPAIR)
-                    {
-                        predicate = Predicates.alwaysTrue();
-                    }
-                    else
-                    {
-                        predicate = s -> s.isPendingRepair() && s.getSSTableMetadata().pendingRepair.equals(pendingRepair);
-                    }
-
-                    for (Range<PartitionPosition> keyRange : keyRanges)
-                    {
-                        // keyRange excludes its start, while sstableInBounds is inclusive (of both start and end).
-                        // This is fine however, because keyRange has been created from a token range through Range.makeRowRange (see above).
-                        // And that later method uses the Token.maxKeyBound() method to creates the range, which return a "fake" key that
-                        // sort after all keys having the token. That "fake" key cannot however be equal to any real key, so that even
-                        // including keyRange.left will still exclude any key having the token of the original token range, and so we're
-                        // still actually selecting what we wanted.
-                        for (SSTableReader sstable : Iterables.filter(View.sstablesInBounds(keyRange.left, keyRange.right, intervalTree), predicate))
-                        {
-                            sstables.add(sstable);
-                        }
-                    }
-
-                    if (logger.isDebugEnabled())
-                        logger.debug("ViewFilter for {}/{} sstables", sstables.size(), Iterables.size(view.select(SSTableSet.CANONICAL)));
-                    return sstables;
-                }).refs);
+                streams.addAll(cfs.getStreamManager().getOutgoingStreams(this, ranges, pendingRepair, previewKind));
             }
-
-            List<SSTableStreamingSections> sections = new ArrayList<>(refs.size());
-            for (SSTableReader sstable : refs)
-            {
-                sections.add(new SSTableStreamingSections(refs.get(sstable), sstable.getPositionsForRanges(ranges), sstable.estimatedKeysForRanges(ranges)));
-            }
-            return sections;
         }
         catch (Throwable t)
         {
-            refs.release();
+            streams.forEach(OutgoingStream::finish);
             throw t;
         }
+        return streams;
     }
 
-    synchronized void addTransferFiles(Collection<SSTableStreamingSections> sstableDetails)
+    synchronized void addTransferStreams(Collection<OutgoingStream> streams)
     {
         failIfFinished();
-        Iterator<SSTableStreamingSections> iter = sstableDetails.iterator();
-        while (iter.hasNext())
+        for (OutgoingStream stream: streams)
         {
-            SSTableStreamingSections details = iter.next();
-            if (details.sections.isEmpty())
-            {
-                // A reference was acquired on the sstable and we won't stream it
-                details.ref.release();
-                iter.remove();
-                continue;
-            }
-
-            TableId tableId = details.ref.get().metadata().id;
+            TableId tableId = stream.getTableId();
             StreamTransferTask task = transfers.get(tableId);
             if (task == null)
             {
@@ -451,8 +381,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 if (task == null)
                     task = newTask;
             }
-            task.addTransferFile(details.ref, details.estimatedKeys, details.sections);
-            iter.remove();
+            task.addTransferStream(stream);
         }
     }
 

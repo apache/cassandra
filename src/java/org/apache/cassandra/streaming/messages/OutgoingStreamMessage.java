@@ -72,12 +72,12 @@ public class OutgoingStreamMessage extends StreamMessage
     private boolean completed = false;
     private boolean transferring = false;
 
-    public OutgoingStreamMessage(StreamOperation streamOperation, TableId tableId, Ref<SSTableReader> ref, StreamSession session, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections)
+    public OutgoingStreamMessage(TableId tableId, StreamSession session, OutgoingStream stream, int sequenceNumber)
     {
         super(Type.STREAM);
         this.tableId = tableId;
 
-        stream = new CassandraOutgoingFile(session, ref, estimatedKeys, sections);
+        this.stream = stream;
         this.header = new StreamMessageHeader(tableId,
                                               FBUtilities.getBroadcastAddressAndPort(),
                                               session.planId(),

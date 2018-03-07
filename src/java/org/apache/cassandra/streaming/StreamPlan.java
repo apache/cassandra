@@ -140,15 +140,13 @@ public class StreamPlan
      * Add transfer task to send given SSTable files.
      *
      * @param to endpoint address of receiver
-     * @param sstableDetails sstables with file positions and estimated key count.
-     *                       this collection will be modified to remove those files that are successfully handed off
+     * @param streams streams to send
      * @return this object for chaining
      */
-    public StreamPlan transferFiles(InetAddressAndPort to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
+    public StreamPlan transferStreams(InetAddressAndPort to, Collection<OutgoingStream> streams)
     {
-        coordinator.transferFiles(to, sstableDetails);
+        coordinator.transferStreams(to, streams);
         return this;
-
     }
 
     public StreamPlan listeners(StreamEventHandler handler, StreamEventHandler... handlers)

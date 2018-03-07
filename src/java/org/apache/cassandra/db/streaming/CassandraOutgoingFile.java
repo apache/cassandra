@@ -23,6 +23,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.schema.TableId;
@@ -41,15 +44,15 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final CassandraStreamHeader header;
     private final boolean keepSSTableLevel;
 
-    public CassandraOutgoingFile(StreamSession session, Ref<SSTableReader> ref, long estimatedKeys, List<Pair<Long, Long>> sections)
+    public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref, List<Pair<Long, Long>> sections, long estimatedKeys)
     {
+        Preconditions.checkNotNull(ref.get());
         this.ref = ref;
         this.estimatedKeys = estimatedKeys;
         this.sections = sections;
         this.filename = ref.get().getFilename();
 
         SSTableReader sstable = ref.get();
-        StreamOperation operation = session.getStreamOperation();
         keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
         this.header = new CassandraStreamHeader(sstable.descriptor.version,
                                                 sstable.descriptor.formatType,
@@ -58,6 +61,18 @@ public class CassandraOutgoingFile implements OutgoingStream
                                                 sstable.getCompressionMetadata(),
                                                 keepSSTableLevel ? sstable.getSSTableLevel() : 0,
                                                 sstable.header.toComponent());
+    }
+
+    public static CassandraOutgoingFile fromStream(OutgoingStream stream)
+    {
+        Preconditions.checkArgument(stream instanceof CassandraOutgoingFile);
+        return (CassandraOutgoingFile) stream;
+    }
+
+    @VisibleForTesting
+    public Ref<SSTableReader> getRef()
+    {
+        return ref;
     }
 
     @Override

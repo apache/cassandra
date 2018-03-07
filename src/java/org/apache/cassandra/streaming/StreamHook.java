@@ -20,7 +20,6 @@ package org.apache.cassandra.streaming;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -28,7 +27,7 @@ public interface StreamHook
 {
     public static final StreamHook instance = createHook();
 
-    public OutgoingStreamMessage reportOutgoingFile(StreamSession session, SSTableReader sstable, OutgoingStreamMessage message);
+    public OutgoingStreamMessage reportOutgoingStream(StreamSession session, OutgoingStream stream, OutgoingStreamMessage message);
     public void reportStreamFuture(StreamSession session, StreamResultFuture future);
     public void reportIncomingFile(ColumnFamilyStore cfs, SSTableMultiWriter writer, StreamSession session, int sequenceNumber);
 
@@ -43,7 +42,7 @@ public interface StreamHook
         {
             return new StreamHook()
             {
-                public OutgoingStreamMessage reportOutgoingFile(StreamSession session, SSTableReader sstable, OutgoingStreamMessage message)
+                public OutgoingStreamMessage reportOutgoingStream(StreamSession session, OutgoingStream stream, OutgoingStreamMessage message)
                 {
                     return message;
                 }

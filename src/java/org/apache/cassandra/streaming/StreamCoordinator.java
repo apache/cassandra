@@ -191,51 +191,47 @@ public class StreamCoordinator
         return result;
     }
 
-    public synchronized void transferFiles(InetAddressAndPort to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
+    public synchronized void transferStreams(InetAddressAndPort to, Collection<OutgoingStream> streams)
     {
         HostStreamingData sessionList = getOrCreateHostData(to);
 
         if (connectionsPerHost > 1)
         {
-            List<List<StreamSession.SSTableStreamingSections>> buckets = sliceSSTableDetails(sstableDetails);
+            List<Collection<OutgoingStream>> buckets = bucketStreams(streams);
 
-            for (List<StreamSession.SSTableStreamingSections> subList : buckets)
+            for (Collection<OutgoingStream> bucket : buckets)
             {
                 StreamSession session = sessionList.getOrCreateNextSession(to, to);
-                session.addTransferFiles(subList);
+                session.addTransferStreams(bucket);
             }
         }
         else
         {
             StreamSession session = sessionList.getOrCreateNextSession(to, to);
-            session.addTransferFiles(sstableDetails);
+            session.addTransferStreams(streams);
         }
     }
 
-    private List<List<StreamSession.SSTableStreamingSections>> sliceSSTableDetails(Collection<StreamSession.SSTableStreamingSections> sstableDetails)
+    private List<Collection<OutgoingStream>> bucketStreams(Collection<OutgoingStream> streams)
     {
         // There's no point in divvying things up into more buckets than we have sstableDetails
-        int targetSlices = Math.min(sstableDetails.size(), connectionsPerHost);
-        int step = Math.round((float) sstableDetails.size() / (float) targetSlices);
+        int targetSlices = Math.min(streams.size(), connectionsPerHost);
+        int step = Math.round((float) streams.size() / (float) targetSlices);
         int index = 0;
 
-        List<List<StreamSession.SSTableStreamingSections>> result = new ArrayList<>();
-        List<StreamSession.SSTableStreamingSections> slice = null;
-        Iterator<StreamSession.SSTableStreamingSections> iter = sstableDetails.iterator();
-        while (iter.hasNext())
-        {
-            StreamSession.SSTableStreamingSections streamSession = iter.next();
+        List<Collection<OutgoingStream>> result = new ArrayList<>();
+        List<OutgoingStream> slice = null;
 
+        for (OutgoingStream stream: streams)
+        {
             if (index % step == 0)
             {
                 slice = new ArrayList<>();
                 result.add(slice);
             }
-            slice.add(streamSession);
+            slice.add(stream);
             ++index;
-            iter.remove();
         }
-
         return result;
     }
 
