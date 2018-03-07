@@ -25,10 +25,34 @@ package org.apache.cassandra.streaming;
  */
 public interface StreamReceiver
 {
+    /**
+     * Called after we've finished receiving stream data. The data covered by the given stream should
+     * be kept isolated from the live dataset for it's table.
+     */
     void received(IncomingStream stream);
+
+    /**
+     * This is called when we've received stream data we can't add to the received set for some reason,
+     * usually when we've received data for a session which has been closed. The data backing this stream
+     * should be deleted, and any resources associated with the given stream should be released.
+     */
     void discardStream(IncomingStream stream);
+
+    /**
+     * Called when something went wrong with a stream session. All data associated with this receiver
+     * should be deleted, and any associated resources should be cleaned up
+     */
     void abort();
+
+    /**
+     * Called when a stream session has succesfully completed. All stream data being held by this receiver
+     * should be added to the live data sets for their respective tables before this method returns.
+     */
     void finished();
 
-    void cleanup(); // for cdc/mvs
+    /**
+     * Called after finished has returned and we've sent any messages to other nodes. Mainly for
+     * signaling that mvs and cdc should cleanup.
+     */
+    void cleanup();
 }

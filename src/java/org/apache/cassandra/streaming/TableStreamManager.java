@@ -25,12 +25,33 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 
+/**
+ * The main streaming hook for a storage implementation.
+ *
+ * From here, the streaming system can get instances of {@link StreamReceiver}, {@link IncomingStream},
+ * and {@link OutgoingStream}, which expose the interfaces into the the underlying storage implementation
+ * needed to make streaming work.
+ */
 public interface TableStreamManager
 {
-    IncomingStream prepareIncomingStream(StreamSession session, StreamMessageHeader header);
+    /**
+     * Creates a {@link StreamReceiver} for the given session, expecting the given number of streams
+     */
     StreamReceiver createStreamReceiver(StreamSession session, int totalStreams);
-    Collection<OutgoingStream> getOutgoingStreams(StreamSession session,
-                                                  Collection<Range<Token>> ranges,
-                                                  UUID pendingRepair,
-                                                  PreviewKind previewKind);
+
+    /**
+     * Creates an {@link IncomingStream} for the given header
+     */
+    IncomingStream prepareIncomingStream(StreamSession session, StreamMessageHeader header);
+
+    /**
+     * Returns a collection of {@link OutgoingStream}s that contains the data selected by the
+     * given ranges, pendingRepair, and preview.
+     *
+     * There aren't any requirements on how data is divided between the outgoing streams
+     */
+    Collection<OutgoingStream> createOutgoingStreams(StreamSession session,
+                                                     Collection<Range<Token>> ranges,
+                                                     UUID pendingRepair,
+                                                     PreviewKind previewKind);
 }

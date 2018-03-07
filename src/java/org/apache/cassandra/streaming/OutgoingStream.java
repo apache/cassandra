@@ -25,12 +25,24 @@ import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.schema.TableId;
 
 /**
- * Subset of data to be streamed
+ * Some subset of data to be streamed. Implementations handle writing out their data via the write method.
+ * On the receiving end, {@link IncomingStream} streams the data in.
+ *
+ * All the data contained in a given stream needs to have the same repairedAt timestamp (or 0) and pendingRepair
+ * id (or null).
  */
 public interface OutgoingStream
 {
+    /**
+     * Write the streams data into the socket
+     */
     void write(StreamSession session, DataOutputStreamPlus output, int version) throws IOException;
+
+    /**
+     * Release any resources held by the stream
+     */
     void finish();
+
     long getRepairedAt();
     UUID getPendingRepair();
 

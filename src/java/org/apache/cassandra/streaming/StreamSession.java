@@ -347,7 +347,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         {
             for (ColumnFamilyStore cfs: stores)
             {
-                streams.addAll(cfs.getStreamManager().getOutgoingStreams(this, ranges, pendingRepair, previewKind));
+                streams.addAll(cfs.getStreamManager().createOutgoingStreams(this, ranges, pendingRepair, previewKind));
             }
         }
         catch (Throwable t)

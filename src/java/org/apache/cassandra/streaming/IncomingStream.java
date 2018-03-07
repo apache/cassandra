@@ -23,8 +23,20 @@ import java.io.IOException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableId;
 
+/**
+ * The counterpart of {@link OutgoingStream} on the receiving side.
+ *
+ * Data streamed in can (and should) be persisted, but must not be included in the table's
+ * live data set until added by {@link StreamReceiver}. If the stream fails, the stream receiver will
+ * delete the streamed data, but implementations still need to handle the case where it's process dies
+ * during streaming, and it has data left around on startup, in which case it should be deleted.
+ */
 public interface IncomingStream
 {
+
+    /**
+     * Read in the stream data.
+     */
     void read(DataInputPlus inputPlus, int version) throws IOException;
 
     String getName();

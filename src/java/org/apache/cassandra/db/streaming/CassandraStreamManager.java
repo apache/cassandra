@@ -97,7 +97,7 @@ public class CassandraStreamManager implements TableStreamManager
     }
 
     @Override
-    public Collection<OutgoingStream> getOutgoingStreams(StreamSession session, Collection<Range<Token>> ranges, UUID pendingRepair, PreviewKind previewKind)
+    public Collection<OutgoingStream> createOutgoingStreams(StreamSession session, Collection<Range<Token>> ranges, UUID pendingRepair, PreviewKind previewKind)
     {
         Refs<SSTableReader> refs = new Refs<>();
         final List<Range<PartitionPosition>> keyRanges = new ArrayList<>(ranges.size());
