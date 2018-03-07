@@ -336,22 +336,24 @@ public class ActiveRepairServiceTest
     public void repairedAt() throws Exception
     {
         // regular incremental repair
-        Assert.assertNotEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true))));
+        Assert.assertNotEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true)), false));
         // subrange incremental repair
         Assert.assertNotEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
-                                                                      RANGES_KEY, "1:2")));
+                                                                      RANGES_KEY, "1:2"), false));
 
         // hosts incremental repair
         Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
-                                                                   HOSTS_KEY, "127.0.0.1")));
+                                                                   HOSTS_KEY, "127.0.0.1"), false));
         // dc incremental repair
         Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
-                                                                   DATACENTERS_KEY, "DC2")));
+                                                                   DATACENTERS_KEY, "DC2"), false));
         // forced incremental repair
+        Assert.assertNotEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
+                                                                      FORCE_REPAIR_KEY, b2s(true)), false));
         Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
-                                                                   FORCE_REPAIR_KEY, b2s(true))));
+                                                                      FORCE_REPAIR_KEY, b2s(true)), true));
 
         // full repair
-        Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(false))));
+        Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(false)), false));
     }
 }

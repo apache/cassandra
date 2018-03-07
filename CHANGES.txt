@@ -1,4 +1,5 @@
 4.0
+ * Forced incremental repairs should promote sstables if they can (CASSANDRA-14294)
  * Use Murmur3 for validation compactions (CASSANDRA-14002)
  * Comma at the end of the seed list is interpretated as localhost (CASSANDRA-14285)
  * Refactor read executor and response resolver, abstract read repair (CASSANDRA-14058)
