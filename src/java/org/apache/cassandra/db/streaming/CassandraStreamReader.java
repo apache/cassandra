@@ -157,7 +157,6 @@ public class CassandraStreamReader
         LifecycleTransaction txn = CassandraStreamAggregator.fromAggregator(session.getAggregator(tableId)).getTransaction();
 
         RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, format, sstableLevel, totalSize, txn, getHeader(cfs.metadata()));
-        StreamHook.instance.reportIncomingFile(cfs, writer, session, fileSeqNum);
         return writer;
     }
 

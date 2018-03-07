@@ -31,6 +31,11 @@ import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 
+/**
+ * used to receive the part(or whole) of a SSTable data file.
+ *
+ * This class deserializes the data stream into partitions and rows, and writes that out as an sstable
+ */
 public class CassandraIncomingFile implements IncomingStream
 {
     private final ColumnFamilyStore cfs;

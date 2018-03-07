@@ -35,6 +35,9 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
 
+/**
+ * used to transfer the part(or whole) of a SSTable data file
+ */
 public class CassandraOutgoingFile implements OutgoingStream
 {
     private final Ref<SSTableReader> ref;

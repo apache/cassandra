@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
@@ -45,7 +44,6 @@ import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamAggregator;
-import org.apache.cassandra.streaming.StreamCoordinator;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
@@ -53,6 +51,13 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+/**
+ * Implements the streaming interface for the native cassandra storage engine.
+ *
+ * Handles the streaming a one or more section of one of more sstables to and from a specific
+ * remote node. The sending side performs a block-level transfer of the source stream, while the receiver
+ * must deserilaize that data stream into an partitions and rows, and then write that out as an sstable.
+ */
 public class CassandraStreamManager implements TableStreamManager
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraStreamManager.class);

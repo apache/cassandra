@@ -28,16 +28,13 @@ import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.FBUtilities;
 
-/**
- * OutgoingStreamMessage is used to transfer the part(or whole) of a SSTable data file.
- */
 public class OutgoingStreamMessage extends StreamMessage
 {
     public static Serializer<OutgoingStreamMessage> serializer = new Serializer<OutgoingStreamMessage>()
     {
         public OutgoingStreamMessage deserialize(DataInputPlus in, int version, StreamSession session)
         {
-            throw new UnsupportedOperationException("Not allowed to call deserialize on an outgoing file");
+            throw new UnsupportedOperationException("Not allowed to call deserialize on an outgoing stream");
         }
 
         public void serialize(OutgoingStreamMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException

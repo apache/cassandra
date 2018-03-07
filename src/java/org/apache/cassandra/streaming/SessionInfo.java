@@ -70,7 +70,7 @@ public final class SessionInfo implements Serializable
     }
 
     /**
-     * Update progress of receiving/sending file.
+     * Update progress of receiving/sending stream.
      *
      * @param newProgress new progress info
      */
@@ -157,11 +157,11 @@ public final class SessionInfo implements Serializable
         return getTotalSizes(sendingSummaries);
     }
 
-    private long getTotalSizeInProgress(Collection<ProgressInfo> files)
+    private long getTotalSizeInProgress(Collection<ProgressInfo> streams)
     {
         long total = 0;
-        for (ProgressInfo file : files)
-            total += file.currentBytes;
+        for (ProgressInfo stream : streams)
+            total += stream.currentBytes;
         return total;
     }
 

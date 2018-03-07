@@ -137,7 +137,7 @@ public class StreamPlan
     }
 
     /**
-     * Add transfer task to send given SSTable files.
+     * Add transfer task to send given streams
      *
      * @param to endpoint address of receiver
      * @param streams streams to send

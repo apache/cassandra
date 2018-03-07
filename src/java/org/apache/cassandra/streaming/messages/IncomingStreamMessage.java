@@ -30,10 +30,6 @@ import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-
-/**
- * IncomingStreamMessage is used to receive the part(or whole) of a SSTable data file.
- */
 public class IncomingStreamMessage extends StreamMessage
 {
     public static Serializer<IncomingStreamMessage> serializer = new Serializer<IncomingStreamMessage>()
@@ -65,12 +61,12 @@ public class IncomingStreamMessage extends StreamMessage
 
         public void serialize(IncomingStreamMessage message, DataOutputStreamPlus out, int version, StreamSession session)
         {
-            throw new UnsupportedOperationException("Not allowed to call serialize on an incoming file");
+            throw new UnsupportedOperationException("Not allowed to call serialize on an incoming stream");
         }
 
         public long serializedSize(IncomingStreamMessage message, int version)
         {
-            throw new UnsupportedOperationException("Not allowed to call serializedSize on an incoming file");
+            throw new UnsupportedOperationException("Not allowed to call serializedSize on an incoming stream");
         }
     };
 

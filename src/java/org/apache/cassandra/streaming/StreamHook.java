@@ -18,8 +18,7 @@
 
 package org.apache.cassandra.streaming;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -29,7 +28,7 @@ public interface StreamHook
 
     public OutgoingStreamMessage reportOutgoingStream(StreamSession session, OutgoingStream stream, OutgoingStreamMessage message);
     public void reportStreamFuture(StreamSession session, StreamResultFuture future);
-    public void reportIncomingFile(ColumnFamilyStore cfs, SSTableMultiWriter writer, StreamSession session, int sequenceNumber);
+    public void reportIncomingStream(TableId tableId, IncomingStream stream, StreamSession session, int sequenceNumber);
 
     static StreamHook createHook()
     {
@@ -49,7 +48,7 @@ public interface StreamHook
 
                 public void reportStreamFuture(StreamSession session, StreamResultFuture future) {}
 
-                public void reportIncomingFile(ColumnFamilyStore cfs, SSTableMultiWriter writer, StreamSession session, int sequenceNumber) {}
+                public void reportIncomingStream(TableId tableId, IncomingStream stream, StreamSession session, int sequenceNumber) {}
             };
         }
     }

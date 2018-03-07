@@ -35,7 +35,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 
 /**
- * StreamTransferTask sends sections of SSTable files in certain ColumnFamily.
+ * StreamTransferTask sends streams for a given table
  */
 public class StreamTransferTask extends StreamTask
 {
@@ -66,9 +66,9 @@ public class StreamTransferTask extends StreamTask
     }
 
     /**
-     * Received ACK for file at {@code sequenceNumber}.
+     * Received ACK for stream at {@code sequenceNumber}.
      *
-     * @param sequenceNumber sequence number of file
+     * @param sequenceNumber sequence number of stream
      */
     public void complete(int sequenceNumber)
     {
@@ -79,9 +79,9 @@ public class StreamTransferTask extends StreamTask
             if (timeout != null)
                 timeout.cancel(false);
 
-            OutgoingStreamMessage file = streams.remove(sequenceNumber);
-            if (file != null)
-                file.complete();
+            OutgoingStreamMessage stream = streams.remove(sequenceNumber);
+            if (stream != null)
+                stream.complete();
 
             logger.debug("recevied sequenceNumber {}, remaining files {}", sequenceNumber, streams.keySet());
             signalComplete = streams.isEmpty();
@@ -103,11 +103,11 @@ public class StreamTransferTask extends StreamTask
         timeoutTasks.clear();
 
         Throwable fail = null;
-        for (OutgoingStreamMessage file : streams.values())
+        for (OutgoingStreamMessage stream : streams.values())
         {
             try
             {
-                file.complete();
+                stream.complete();
             }
             catch (Throwable t)
             {
@@ -147,11 +147,11 @@ public class StreamTransferTask extends StreamTask
     }
 
     /**
-     * Schedule timeout task to release reference for file sent.
+     * Schedule timeout task to release reference for stream sent.
      * When not receiving ACK after sending to receiver in given time,
      * the task will release reference.
      *
-     * @param sequenceNumber sequence number of file sent.
+     * @param sequenceNumber sequence number of stream sent.
      * @param time time to timeout
      * @param unit unit of given time
      * @return scheduled future for timeout task

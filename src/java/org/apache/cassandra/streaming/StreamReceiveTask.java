@@ -21,13 +21,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
@@ -62,7 +59,7 @@ public class StreamReceiveTask extends StreamTask
     }
 
     /**
-     * Process received file.
+     * Process received stream.
      *
      * @param stream Stream received.
      */
@@ -72,7 +69,7 @@ public class StreamReceiveTask extends StreamTask
 
         if (done)
         {
-            logger.warn("[{}] Received sstable {} on already finished stream received task. Aborting sstable.", session.planId(),
+            logger.warn("[{}] Received stream {} on already finished stream received task. Aborting stream.", session.planId(),
                         stream.getName());
             aggregator.discardStream(stream);
             return;
@@ -115,17 +112,6 @@ public class StreamReceiveTask extends StreamTask
         public OnCompletionRunnable(StreamReceiveTask task)
         {
             this.task = task;
-        }
-
-
-        private boolean hasViews(ColumnFamilyStore cfs)
-        {
-            return !Iterables.isEmpty(View.findAll(cfs.metadata.keyspace, cfs.getTableName()));
-        }
-
-        private boolean hasCDC(ColumnFamilyStore cfs)
-        {
-            return cfs.metadata().params.cdc;
         }
 
         public void run()

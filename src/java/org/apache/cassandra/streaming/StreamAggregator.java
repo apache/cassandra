@@ -19,8 +19,9 @@
 package org.apache.cassandra.streaming;
 
 /**
- * Handles managing incoming stream data, and keeping it separate from the
- * live data until all streams for a session have been received successfully
+ * StreamAggregator acts as a staging area for incoming data. Received data
+ * ends up here, and is kept separate from the live data until all streams
+ * for a session have been received successfully
  */
 public interface StreamAggregator
 {

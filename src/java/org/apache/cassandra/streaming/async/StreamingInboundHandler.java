@@ -52,8 +52,8 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import static org.apache.cassandra.streaming.async.NettyStreamingMessageSender.createLogTag;
 
 /**
- * Handles the inbound side of streaming messages and sstable data. From the incoming data, we derserialize the message
- * and potentially reify partitions and rows and write those out to new sstable files. Because deserialization is a blocking affair,
+ * Handles the inbound side of streaming messages and stream data. From the incoming data, we derserialize the message
+ * including the actual stream data itself. Because the reading and deserialization of streams is a blocking affair,
  * we can't block the netty event loop. Thus we have a background thread perform all the blocking deserialization.
  */
 public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
@@ -127,7 +127,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
         if (cause instanceof IOException)
             logger.trace("connection problem while streaming", cause);
         else
-            logger.warn("exception occurred while in processing streaming file", cause);
+            logger.warn("exception occurred while in processing streaming data", cause);
         close();
     }
 
@@ -234,7 +234,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
             }
             else if (message instanceof IncomingStreamMessage)
             {
-                // TODO: it'd be great to check if the session actually exists before slurping in the entire sstable,
+                // TODO: it'd be great to check if the session actually exists before slurping in the entire stream,
                 // but that's a refactoring for another day
                 StreamMessageHeader header = ((IncomingStreamMessage) message).header;
                 streamSession = sessionProvider.apply(new SessionIdentifier(header.sender, header.planId, header.sessionIndex));

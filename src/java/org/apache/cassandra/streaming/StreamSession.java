@@ -28,8 +28,6 @@ import com.google.common.util.concurrent.Futures;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.sstable.SSTableMultiWriter;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,13 +47,9 @@ import org.apache.cassandra.streaming.async.NettyStreamingMessageSender;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
- * Handles the streaming a one or more section of one of more sstables to and from a specific
- * remote node. The sending side performs a block-level transfer of the source sstable, while the receiver
- * must deserilaize that data stream into an partitions and rows, and then write that out as an sstable.
+ * Handles the streaming a one or more streams to and from a specific remote node.
  *
  * Both this node and the remote one will create a similar symmetrical {@link StreamSession}. A streaming
  * session has the following life-cycle:
@@ -87,15 +81,15 @@ import org.apache.cassandra.utils.concurrent.Ref;
  *
  *   (a) The streaming phase is started at each node by calling {@link StreamSession#startStreamingFiles(boolean)}.
  *       This will send, sequentially on each outbound streaming connection (see {@link NettyStreamingMessageSender}),
- *       an {@link OutgoingStreamMessage} for each file in each of the {@link StreamTransferTask}.
- *       Each {@link OutgoingStreamMessage} consists of a {@link StreamMessageHeader} that contains metadata about the file
- *       being streamed, followed by the file content itself. Once all the files for a {@link StreamTransferTask} are sent,
+ *       an {@link OutgoingStreamMessage} for each stream in each of the {@link StreamTransferTask}.
+ *       Each {@link OutgoingStreamMessage} consists of a {@link StreamMessageHeader} that contains metadata about
+ *       the stream, followed by the stream content itself. Once all the files for a {@link StreamTransferTask} are sent,
  *       the task is marked complete {@link StreamTransferTask#complete(int)}.
- *   (b) On the receiving side, a SSTable will be written for the incoming file, and once the file is fully received,
- *       the file will be marked as complete ({@link StreamReceiveTask#received(SSTableMultiWriter)}). When all files
- *       for the {@link StreamReceiveTask} have been received, the sstables are added to the CFS (and 2ndary indexes/MV are built),
+ *   (b) On the receiving side, the incoming data is written to disk, and once the stream is fully received,
+ *       it will be marked as complete ({@link StreamReceiveTask#received(IncomingStream)}). When all streams
+ *       for the {@link StreamReceiveTask} have been received, the data is added to the CFS (and 2ndary indexes/MV are built),
  *        and the task is marked complete ({@link #taskCompleted(StreamReceiveTask)}).
- *   (b) If during the streaming of a particular file an error occurs on the receiving end of a stream
+ *   (b) If during the streaming of a particular stream an error occurs on the receiving end of a stream
  *       (it may be either the initiator or the follower), the node will send a {@link SessionFailedMessage}
  *       to the sender and close the stream session.
  *   (c) When all transfer and receive tasks for a session are complete, the session moves to the Completion phase
@@ -299,8 +293,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     /**
      * Set up transfer for specific keyspace/ranges/CFs
      *
-     * Used in repair - a streamed sstable in repair will be marked with the given repairedAt time
-     *
      * @param keyspace Transfer keyspace
      * @param ranges Transfer ranges
      * @param columnFamilies Transfer ColumnFamilies
@@ -382,20 +374,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                     task = newTask;
             }
             task.addTransferStream(stream);
-        }
-    }
-
-    public static class SSTableStreamingSections
-    {
-        public final Ref<SSTableReader> ref;
-        public final List<Pair<Long, Long>> sections;
-        public final long estimatedKeys;
-
-        public SSTableStreamingSections(Ref<SSTableReader> ref, List<Pair<Long, Long>> sections, long estimatedKeys)
-        {
-            this.ref = ref;
-            this.sections = sections;
-            this.estimatedKeys = estimatedKeys;
         }
     }
 
@@ -627,9 +605,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
     /**
-     * Call back after receiving a streamed file.
+     * Call back after receiving a stream.
      *
-     * @param message received file
+     * @param message received stream
      */
     public void receive(IncomingStreamMessage message)
     {
@@ -642,7 +620,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         StreamingMetrics.totalIncomingBytes.inc(headerSize);
         metrics.incomingBytes.inc(headerSize);
         // send back file received message
-        messageSender.sendMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber));
+        StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
         receivers.get(message.header.tableId).received(message.stream);
     }
 
@@ -740,8 +718,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
         finally
         {
-            // aborting the tasks here needs to be the last thing we do so that we
-            // accurately report expected streaming, but don't leak any sstable refs
+            // aborting the tasks here needs to be the last thing we do so that we accurately report
+            // expected streaming, but don't leak any resources held by the task
             for (StreamTask task : Iterables.concat(receivers.values(), transfers.values()))
                 task.abort();
         }
