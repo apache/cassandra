@@ -1244,6 +1244,24 @@ public class InsertUpdateIfConditionTest extends CQLTester
         }
     }
 
+    @Test
+    public void testFrozenWithNullValues() throws Throwable
+    {
+        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "frozen<list<text>>"));
+        execute("INSERT INTO %s (k, m) VALUES (0, null)");
+
+        assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m = ?", list("test"), list("comparison")), row(false, null));
+
+        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "frozen<map<text,int>>"));
+        execute("INSERT INTO %s (k, m) VALUES (0, null)");
+
+        assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m = ?", map("test", 3), map("comparison", 2)), row(false, null));
+
+        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, m %s)", "frozen<set<text>>"));
+        execute("INSERT INTO %s (k, m) VALUES (0, null)");
+
+        assertRows(execute("UPDATE %s SET m = ? WHERE k = 0 IF m = ?", set("test"), set("comparison")), row(false, null));
+    }
     /**
      * Test expanded functionality from CASSANDRA-6839,
      * migrated from cql_tests.py:TestCQL.expanded_map_item_conditional_test()

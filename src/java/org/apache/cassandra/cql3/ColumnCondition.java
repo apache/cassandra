@@ -539,6 +539,10 @@ public class ColumnCondition
                 else
                     throw new InvalidRequestException(String.format("Invalid comparison with null for operator \"%s\"", operator));
             }
+            else if (cell == null) // cell is null but condition has a value
+            {
+                return false;
+            }
 
             // make sure we use v3 serialization format for comparison
             ByteBuffer conditionValue;
