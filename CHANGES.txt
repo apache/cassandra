@@ -203,6 +203,7 @@
  * RateBasedBackPressure unnecessarily invokes a lock on the Guava RateLimiter  (CASSANDRA-14163)
  * Fix wildcard GROUP BY queries (CASSANDRA-14209)
 Merged from 3.0:
+ * Log when SSTables are deleted (CASSANDRA-14302)
  * Fix batch commitlog sync regression (CASSANDRA-14292)
  * Write to pending endpoint when view replica is also base replica (CASSANDRA-14251)
  * Chain commit log marker potential performance regression in batch commit mode (CASSANDRA-14194)
