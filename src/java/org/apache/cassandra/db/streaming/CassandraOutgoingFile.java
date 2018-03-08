@@ -61,7 +61,7 @@ public class CassandraOutgoingFile implements OutgoingStream
                                                 sstable.descriptor.formatType,
                                                 estimatedKeys,
                                                 sections,
-                                                sstable.getCompressionMetadata(),
+                                                sstable.compression ? sstable.getCompressionMetadata() : null,
                                                 keepSSTableLevel ? sstable.getSSTableLevel() : 0,
                                                 sstable.header.toComponent());
     }

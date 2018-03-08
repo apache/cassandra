@@ -620,6 +620,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         StreamingMetrics.totalIncomingBytes.inc(headerSize);
         metrics.incomingBytes.inc(headerSize);
         // send back file received message
+        messageSender.sendMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber));
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
         receivers.get(message.header.tableId).received(message.stream);
     }

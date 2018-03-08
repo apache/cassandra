@@ -84,6 +84,7 @@ public class OutgoingStreamMessage extends StreamMessage
         {
             return;
         }
+        StreamMessageHeader.serializer.serialize(header, out, version);
         stream.write(session, out, version);
     }
 
