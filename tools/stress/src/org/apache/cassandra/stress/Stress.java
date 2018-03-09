@@ -71,6 +71,7 @@ public final class Stress
                 e.printStackTrace();
                 return;
             }
+            
 
             PrintStream logout = settings.log.getOutput();
 

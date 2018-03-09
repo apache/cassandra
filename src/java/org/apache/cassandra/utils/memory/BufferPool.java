@@ -38,7 +38,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.BufferPoolMetrics;
 import org.apache.cassandra.utils.concurrent.Ref;
-
+import org.apache.cassandra.utils.ByteConvertor;
 /**
  * A pool of ByteBuffers that can be recycled.
  */
@@ -115,7 +115,7 @@ public class BufferPool
             return ret;
 
         if (logger.isTraceEnabled())
-            logger.trace("Requested buffer size {} has been allocated directly due to lack of capacity", size);
+            logger.trace("Requested buffer size {} MB has been allocated directly due to lack of capacity", ByteConvertor.bytesToMeg(size));
 
         return localPool.get().allocate(size, allocateOnHeapWhenExhausted);
     }
@@ -131,7 +131,7 @@ public class BufferPool
         if (size > CHUNK_SIZE)
         {
             if (logger.isTraceEnabled())
-                logger.trace("Requested buffer size {} is bigger than {}, allocating directly", size, CHUNK_SIZE);
+                logger.trace("Requested buffer size {} MB is bigger than {}, allocating directly", ByteConvertor.bytesToMeg(size), CHUNK_SIZE);
 
             return localPool.get().allocate(size, allocateOnHeapWhenExhausted);
         }
