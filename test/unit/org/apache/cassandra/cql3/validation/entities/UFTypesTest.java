@@ -34,6 +34,7 @@ import org.junit.Test;
 import com.datastax.driver.core.Row;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class UFTypesTest extends CQLTester
@@ -119,7 +120,7 @@ public class UFTypesTest extends CQLTester
         Assert.assertNull(row.getBytes("t"));
         Assert.assertNull(row.getBytes("u"));
 
-        for (int version : PROTOCOL_VERSIONS)
+        for (ProtocolVersion version : PROTOCOL_VERSIONS)
         {
             Row r = executeNet(version, "SELECT " +
                                         fList + "(lst) as l, " +

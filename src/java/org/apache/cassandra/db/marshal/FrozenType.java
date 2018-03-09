@@ -25,6 +25,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * A fake type that is only used for parsing type strings that include frozen types.
@@ -61,7 +62,7 @@ public class FrozenType extends AbstractType<Void>
         throw new UnsupportedOperationException();
     }
 
-    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         throw new UnsupportedOperationException();
     }

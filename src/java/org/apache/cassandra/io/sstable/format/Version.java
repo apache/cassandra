@@ -19,7 +19,6 @@ package org.apache.cassandra.io.sstable.format;
 
 import java.util.regex.Pattern;
 
-import org.apache.cassandra.utils.ChecksumType;
 
 /**
  * A set of feature flags associated with a SSTable format
@@ -46,33 +45,24 @@ public abstract class Version
 
     public abstract boolean isLatestVersion();
 
-    public abstract boolean hasSamplingLevel();
-
-    public abstract boolean hasNewStatsFile();
-
-    public abstract ChecksumType compressedChecksumType();
-
-    public abstract ChecksumType uncompressedChecksumType();
-
-    public abstract boolean hasRepairedAt();
-
-    public abstract boolean tracksLegacyCounterShards();
-
-    public abstract boolean hasNewFileName();
-
-    public abstract boolean storeRows();
-
     public abstract int correspondingMessagingVersion(); // Only use by storage that 'storeRows' so far
-
-    public abstract boolean hasOldBfHashOrder();
-
-    public abstract boolean hasCompactionAncestors();
-
-    public abstract boolean hasBoundaries();
 
     public abstract boolean hasCommitLogLowerBound();
 
     public abstract boolean hasCommitLogIntervals();
+
+    public abstract boolean hasMaxCompressedLength();
+
+    public abstract boolean hasPendingRepair();
+
+    public abstract boolean hasMetadataChecksum();
+
+    /**
+     * The old bloomfilter format serializes the data as BIG_ENDIAN long's, the new one uses the
+     * same format as in memory (serializes as bytes).
+     * @return True if the bloomfilter file is old serialization format
+     */
+    public abstract boolean hasOldBfFormat();
 
     public String getVersion()
     {

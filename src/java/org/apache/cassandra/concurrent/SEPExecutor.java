@@ -34,7 +34,8 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
     private final SharedExecutorPool pool;
 
     public final int maxWorkers;
-    private final int maxTasksQueued;
+    public final String name;
+    public final int maxTasksQueued;
     private final SEPMetrics metrics;
 
     // stores both a set of work permits and task permits:
@@ -55,6 +56,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
     SEPExecutor(SharedExecutorPool pool, int maxWorkers, int maxTasksQueued, String jmxPath, String name)
     {
         this.pool = pool;
+        this.name = name;
         this.maxWorkers = maxWorkers;
         this.maxTasksQueued = maxTasksQueued;
         this.permits.set(combine(0, maxWorkers));

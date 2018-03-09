@@ -23,9 +23,8 @@ import java.util.*;
 
 import com.google.common.collect.Iterators;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -59,7 +58,7 @@ public abstract class Slices implements Iterable<Slice>
      */
     public static Slices with(ClusteringComparator comparator, Slice slice)
     {
-        if (slice.start() == Slice.Bound.BOTTOM && slice.end() == Slice.Bound.TOP)
+        if (slice.start() == ClusteringBound.BOTTOM && slice.end() == ClusteringBound.TOP)
             return Slices.ALL;
 
         assert comparator.compare(slice.start(), slice.end()) <= 0;
@@ -141,17 +140,7 @@ public abstract class Slices implements Iterable<Slice>
      */
     public abstract boolean intersects(List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues);
 
-    /**
-     * Given a sliceable row iterator, returns a row iterator that only return rows selected by the slice of
-     * this {@code Slices} object.
-     *
-     * @param iter the sliceable iterator to filter.
-     *
-     * @return an iterator that only returns the rows (or rather Unfiltered) of {@code iter} that are selected by those slices.
-     */
-    public abstract UnfilteredRowIterator makeSliceIterator(SliceableUnfilteredRowIterator iter);
-
-    public abstract String toCQLString(CFMetaData metadata);
+    public abstract String toCQLString(TableMetadata metadata);
 
     /**
      * Checks if this <code>Slices</code> is empty.
@@ -196,7 +185,7 @@ public abstract class Slices implements Iterable<Slice>
             this.slices = new ArrayList<>(initialSize);
         }
 
-        public Builder add(Slice.Bound start, Slice.Bound end)
+        public Builder add(ClusteringBound start, ClusteringBound end)
         {
             return add(Slice.make(start, end));
         }
@@ -334,7 +323,7 @@ public abstract class Slices implements Iterable<Slice>
             return size;
         }
 
-        public Slices deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
+        public Slices deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             int size = (int)in.readUnsignedVInt();
 
@@ -345,7 +334,7 @@ public abstract class Slices implements Iterable<Slice>
             for (int i = 0; i < size; i++)
                 slices[i] = Slice.serializer.deserialize(in, version, metadata.comparator.subtypes());
 
-            if (size == 1 && slices[0].start() == Slice.Bound.BOTTOM && slices[0].end() == Slice.Bound.TOP)
+            if (size == 1 && slices[0].start() == ClusteringBound.BOTTOM && slices[0].end() == ClusteringBound.TOP)
                 return ALL;
 
             return new ArrayBackedSlices(metadata.comparator, slices);
@@ -459,65 +448,6 @@ public abstract class Slices implements Iterable<Slice>
             return false;
         }
 
-        public UnfilteredRowIterator makeSliceIterator(final SliceableUnfilteredRowIterator iter)
-        {
-            return new WrappingUnfilteredRowIterator(iter)
-            {
-                private int nextSlice = iter.isReverseOrder() ? slices.length - 1 : 0;
-                private Iterator<Unfiltered> currentSliceIterator = Collections.emptyIterator();
-
-                private Unfiltered next;
-
-                @Override
-                public boolean hasNext()
-                {
-                    prepareNext();
-                    return next != null;
-                }
-
-                @Override
-                public Unfiltered next()
-                {
-                    prepareNext();
-                    Unfiltered toReturn = next;
-                    next = null;
-                    return toReturn;
-                }
-
-                private boolean hasMoreSlice()
-                {
-                    return isReverseOrder()
-                         ? nextSlice >= 0
-                         : nextSlice < slices.length;
-                }
-
-                private Slice popNextSlice()
-                {
-                    return slices[isReverseOrder() ? nextSlice-- : nextSlice++];
-                }
-
-                private void prepareNext()
-                {
-                    if (next != null)
-                        return;
-
-                    while (true)
-                    {
-                        if (currentSliceIterator.hasNext())
-                        {
-                            next = currentSliceIterator.next();
-                            return;
-                        }
-
-                        if (!hasMoreSlice())
-                            return;
-
-                        currentSliceIterator = iter.slice(popNextSlice());
-                    }
-                }
-            };
-        }
-
         public Iterator<Slice> iterator()
         {
             return Iterators.forArray(slices);
@@ -618,7 +548,7 @@ public abstract class Slices implements Iterable<Slice>
             return sb.append("}").toString();
         }
 
-        public String toCQLString(CFMetaData metadata)
+        public String toCQLString(TableMetadata metadata)
         {
             StringBuilder sb = new StringBuilder();
 
@@ -642,7 +572,7 @@ public abstract class Slices implements Iterable<Slice>
             boolean needAnd = false;
             for (int i = 0; i < clusteringSize; i++)
             {
-                ColumnDefinition column = metadata.clusteringColumns().get(i);
+                ColumnMetadata column = metadata.clusteringColumns().get(i);
                 List<ComponentOfSlice> componentInfo = columnComponents.get(i);
                 if (componentInfo.isEmpty())
                     break;
@@ -704,7 +634,7 @@ public abstract class Slices implements Iterable<Slice>
             return sb.toString();
         }
 
-        // An somewhat adhoc utility class only used by toCQLString
+        // An somewhat adhoc utility class only used by nameAsCQLString
         private static class ComponentOfSlice
         {
             public final boolean startInclusive;
@@ -722,8 +652,8 @@ public abstract class Slices implements Iterable<Slice>
 
             public static ComponentOfSlice fromSlice(int component, Slice slice)
             {
-                Slice.Bound start = slice.start();
-                Slice.Bound end = slice.end();
+                ClusteringBound start = slice.start();
+                ClusteringBound end = slice.end();
 
                 if (component >= start.size() && component >= end.size())
                     return null;
@@ -810,11 +740,6 @@ public abstract class Slices implements Iterable<Slice>
             return true;
         }
 
-        public UnfilteredRowIterator makeSliceIterator(SliceableUnfilteredRowIterator iter)
-        {
-            return iter;
-        }
-
         public Iterator<Slice> iterator()
         {
             return Iterators.singletonIterator(Slice.ALL);
@@ -826,7 +751,7 @@ public abstract class Slices implements Iterable<Slice>
             return "ALL";
         }
 
-        public String toCQLString(CFMetaData metadata)
+        public String toCQLString(TableMetadata metadata)
         {
             return "";
         }
@@ -890,15 +815,9 @@ public abstract class Slices implements Iterable<Slice>
             return false;
         }
 
-        public UnfilteredRowIterator makeSliceIterator(SliceableUnfilteredRowIterator iter)
-        {
-            return UnfilteredRowIterators.noRowsIterator(iter.metadata(), iter.partitionKey(), iter.staticRow(),
-                                                         iter.partitionLevelDeletion(), iter.isReverseOrder());
-        }
-
         public Iterator<Slice> iterator()
         {
-            return Iterators.emptyIterator();
+            return Collections.emptyIterator();
         }
 
         @Override
@@ -907,7 +826,7 @@ public abstract class Slices implements Iterable<Slice>
             return "NONE";
         }
 
-        public String toCQLString(CFMetaData metadata)
+        public String toCQLString(TableMetadata metadata)
         {
             return "";
         }

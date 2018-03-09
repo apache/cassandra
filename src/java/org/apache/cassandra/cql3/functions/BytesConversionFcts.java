@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
@@ -60,7 +61,7 @@ public abstract class BytesConversionFcts
         String name = fromType.asCQL3Type() + "asblob";
         return new NativeScalarFunction(name, BytesType.instance, fromType)
         {
-            public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
             {
                 return parameters.get(0);
             }
@@ -72,7 +73,7 @@ public abstract class BytesConversionFcts
         final String name = "blobas" + toType.asCQL3Type();
         return new NativeScalarFunction(name, toType, BytesType.instance)
         {
-            public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
+            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
             {
                 ByteBuffer val = parameters.get(0);
                 try
@@ -92,7 +93,7 @@ public abstract class BytesConversionFcts
 
     public static final Function VarcharAsBlobFct = new NativeScalarFunction("varcharasblob", BytesType.instance, UTF8Type.instance)
     {
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             return parameters.get(0);
         }
@@ -100,7 +101,7 @@ public abstract class BytesConversionFcts
 
     public static final Function BlobAsVarcharFct = new NativeScalarFunction("blobasvarchar", UTF8Type.instance, BytesType.instance)
     {
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             return parameters.get(0);
         }

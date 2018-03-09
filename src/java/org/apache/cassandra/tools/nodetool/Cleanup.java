@@ -17,14 +17,14 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.command.Arguments;
-import io.airlift.command.Command;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.config.Schema;
-import io.airlift.command.Option;
+import io.airlift.airline.Option;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -47,7 +47,7 @@ public class Cleanup extends NodeToolCmd
 
         for (String keyspace : keyspaces)
         {
-            if (Schema.isLocalSystemKeyspace(keyspace))
+            if (SchemaConstants.isLocalSystemKeyspace(keyspace))
                 continue;
 
             try

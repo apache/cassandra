@@ -90,7 +90,7 @@ public class RoleOptions
     }
 
     /**
-     * Return a Map<String, String> representing custom options
+     * Return a {@code Map<String, String>} representing custom options
      * It is the responsiblity of IRoleManager implementations which support
      * IRoleManager.Option.OPTION to handle type checking and conversion of these
      * values, if present

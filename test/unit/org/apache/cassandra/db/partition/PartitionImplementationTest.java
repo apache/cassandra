@@ -35,11 +35,10 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.Slice.Bound;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.partitions.AbstractBTreePartition;
@@ -63,7 +62,7 @@ public class PartitionImplementationTest
 
     private static final int TIMESTAMP = KEY_RANGE + 1;
 
-    private static CFMetaData cfm;
+    private static TableMetadata metadata;
     private Random rand = new Random(2);
 
     @BeforeClass
@@ -71,15 +70,15 @@ public class PartitionImplementationTest
     {
         SchemaLoader.prepareServer();
 
-        cfm = CFMetaData.Builder.create(KEYSPACE, CF)
-                                        .addPartitionKey("pk", AsciiType.instance)
-                                        .addClusteringColumn("ck", AsciiType.instance)
-                                        .addRegularColumn("col", AsciiType.instance)
-                                        .addStaticColumn("static_col", AsciiType.instance)
-                                        .build();
-        SchemaLoader.createKeyspace(KEYSPACE,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
+        metadata =
+            TableMetadata.builder(KEYSPACE, CF)
+                         .addPartitionKeyColumn("pk", AsciiType.instance)
+                         .addClusteringColumn("ck", AsciiType.instance)
+                         .addRegularColumn("col", AsciiType.instance)
+                         .addStaticColumn("static_col", AsciiType.instance)
+                         .build();
+
+        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), metadata);
     }
 
     private List<Row> generateRows()
@@ -101,19 +100,19 @@ public class PartitionImplementationTest
 
     Row makeRow(Clustering clustering, String colValue)
     {
-        ColumnDefinition defCol = cfm.getColumnDefinition(new ColumnIdentifier("col", true));
+        ColumnMetadata defCol = metadata.getColumn(new ColumnIdentifier("col", true));
         Row.Builder row = BTreeRow.unsortedBuilder(TIMESTAMP);
         row.newRow(clustering);
-        row.addCell(BufferCell.live(cfm, defCol, TIMESTAMP, ByteBufferUtil.bytes(colValue)));
+        row.addCell(BufferCell.live(defCol, TIMESTAMP, ByteBufferUtil.bytes(colValue)));
         return row.build();
     }
 
     Row makeStaticRow()
     {
-        ColumnDefinition defCol = cfm.getColumnDefinition(new ColumnIdentifier("static_col", true));
+        ColumnMetadata defCol = metadata.getColumn(new ColumnIdentifier("static_col", true));
         Row.Builder row = BTreeRow.unsortedBuilder(TIMESTAMP);
         row.newRow(Clustering.STATIC_CLUSTERING);
-        row.addCell(BufferCell.live(cfm, defCol, TIMESTAMP, ByteBufferUtil.bytes("static value")));
+        row.addCell(BufferCell.live(defCol, TIMESTAMP, ByteBufferUtil.bytes("static value")));
         return row.build();
     }
 
@@ -149,7 +148,7 @@ public class PartitionImplementationTest
             markers.add(open);
             markers.add(close);
         }
-        markers.sort(cfm.comparator);
+        markers.sort(metadata.comparator);
 
         RangeTombstoneMarker toAdd = null;
         Set<DeletionTime> open = new HashSet<>();
@@ -164,7 +163,7 @@ public class PartitionImplementationTest
                 {
                     if (toAdd != null)
                     {
-                        if (cfm.comparator.compare(toAdd, marker) != 0)
+                        if (metadata.comparator.compare(toAdd, marker) != 0)
                             content.add(toAdd);
                         else
                         {
@@ -188,7 +187,7 @@ public class PartitionImplementationTest
                 {
                     if (toAdd != null)
                     {
-                        if (cfm.comparator.compare(toAdd, marker) != 0)
+                        if (metadata.comparator.compare(toAdd, marker) != 0)
                             content.add(toAdd);
                         else
                         {
@@ -213,7 +212,7 @@ public class PartitionImplementationTest
 
     private Clustering clustering(int i)
     {
-        return cfm.comparator.make(String.format("Row%06d", i));
+        return metadata.comparator.make(String.format("Row%06d", i));
     }
 
     private void test(Supplier<Collection<? extends Unfiltered>> content, Row staticRow)
@@ -234,18 +233,18 @@ public class PartitionImplementationTest
 
     private void testIter(Supplier<Collection<? extends Unfiltered>> contentSupplier, Row staticRow)
     {
-        NavigableSet<Clusterable> sortedContent = new TreeSet<Clusterable>(cfm.comparator);
+        NavigableSet<Clusterable> sortedContent = new TreeSet<Clusterable>(metadata.comparator);
         sortedContent.addAll(contentSupplier.get());
         AbstractBTreePartition partition;
-        try (UnfilteredRowIterator iter = new Util.UnfilteredSource(cfm, Util.dk("pk"), staticRow, sortedContent.stream().map(x -> (Unfiltered) x).iterator()))
+        try (UnfilteredRowIterator iter = new Util.UnfilteredSource(metadata, Util.dk("pk"), staticRow, sortedContent.stream().map(x -> (Unfiltered) x).iterator()))
         {
             partition = ImmutableBTreePartition.create(iter);
         }
 
-        ColumnDefinition defCol = cfm.getColumnDefinition(new ColumnIdentifier("col", true));
+        ColumnMetadata defCol = metadata.getColumn(new ColumnIdentifier("col", true));
         ColumnFilter cf = ColumnFilter.selectionBuilder().add(defCol).build();
-        Function<? super Clusterable, ? extends Clusterable> colFilter = x -> x instanceof Row ? ((Row) x).filter(cf, cfm) : x;
-        Slices slices = Slices.with(cfm.comparator, Slice.make(clustering(KEY_RANGE / 4), clustering(KEY_RANGE * 3 / 4)));
+        Function<? super Clusterable, ? extends Clusterable> colFilter = x -> x instanceof Row ? ((Row) x).filter(cf, metadata) : x;
+        Slices slices = Slices.with(metadata.comparator, Slice.make(clustering(KEY_RANGE / 4), clustering(KEY_RANGE * 3 / 4)));
         Slices multiSlices = makeSlices();
 
         // lastRow
@@ -279,45 +278,45 @@ public class PartitionImplementationTest
 
         // unfiltered iterator
         assertIteratorsEqual(sortedContent.iterator(),
-                             partition.unfilteredIterator(ColumnFilter.all(cfm), Slices.ALL, false));
+                             partition.unfilteredIterator(ColumnFilter.all(metadata), Slices.ALL, false));
         // column-filtered
         assertIteratorsEqual(sortedContent.stream().map(colFilter).iterator(),
                              partition.unfilteredIterator(cf, Slices.ALL, false));
         // sliced
         assertIteratorsEqual(slice(sortedContent, slices.get(0)),
-                             partition.unfilteredIterator(ColumnFilter.all(cfm), slices, false));
+                             partition.unfilteredIterator(ColumnFilter.all(metadata), slices, false));
         assertIteratorsEqual(streamOf(slice(sortedContent, slices.get(0))).map(colFilter).iterator(),
                              partition.unfilteredIterator(cf, slices, false));
         // randomly multi-sliced
         assertIteratorsEqual(slice(sortedContent, multiSlices),
-                             partition.unfilteredIterator(ColumnFilter.all(cfm), multiSlices, false));
+                             partition.unfilteredIterator(ColumnFilter.all(metadata), multiSlices, false));
         assertIteratorsEqual(streamOf(slice(sortedContent, multiSlices)).map(colFilter).iterator(),
                              partition.unfilteredIterator(cf, multiSlices, false));
         // reversed
         assertIteratorsEqual(sortedContent.descendingIterator(),
-                             partition.unfilteredIterator(ColumnFilter.all(cfm), Slices.ALL, true));
+                             partition.unfilteredIterator(ColumnFilter.all(metadata), Slices.ALL, true));
         assertIteratorsEqual(sortedContent.descendingSet().stream().map(colFilter).iterator(),
                              partition.unfilteredIterator(cf, Slices.ALL, true));
         assertIteratorsEqual(invert(slice(sortedContent, slices.get(0))),
-                             partition.unfilteredIterator(ColumnFilter.all(cfm), slices, true));
+                             partition.unfilteredIterator(ColumnFilter.all(metadata), slices, true));
         assertIteratorsEqual(streamOf(invert(slice(sortedContent, slices.get(0)))).map(colFilter).iterator(),
                              partition.unfilteredIterator(cf, slices, true));
         assertIteratorsEqual(invert(slice(sortedContent, multiSlices)),
-                             partition.unfilteredIterator(ColumnFilter.all(cfm), multiSlices, true));
+                             partition.unfilteredIterator(ColumnFilter.all(metadata), multiSlices, true));
         assertIteratorsEqual(streamOf(invert(slice(sortedContent, multiSlices))).map(colFilter).iterator(),
                              partition.unfilteredIterator(cf, multiSlices, true));
 
         // search iterator
-        testSearchIterator(sortedContent, partition, ColumnFilter.all(cfm), false);
+        testSearchIterator(sortedContent, partition, ColumnFilter.all(metadata), false);
         testSearchIterator(sortedContent, partition, cf, false);
-        testSearchIterator(sortedContent, partition, ColumnFilter.all(cfm), true);
+        testSearchIterator(sortedContent, partition, ColumnFilter.all(metadata), true);
         testSearchIterator(sortedContent, partition, cf, true);
 
         // sliceable iter
-        testSliceableIterator(sortedContent, partition, ColumnFilter.all(cfm), false);
-        testSliceableIterator(sortedContent, partition, cf, false);
-        testSliceableIterator(sortedContent, partition, ColumnFilter.all(cfm), true);
-        testSliceableIterator(sortedContent, partition, cf, true);
+        testSlicingOfIterators(sortedContent, partition, ColumnFilter.all(metadata), false);
+        testSlicingOfIterators(sortedContent, partition, cf, false);
+        testSlicingOfIterators(sortedContent, partition, ColumnFilter.all(metadata), true);
+        testSlicingOfIterators(sortedContent, partition, cf, true);
     }
 
     void testSearchIterator(NavigableSet<Clusterable> sortedContent, Partition partition, ColumnFilter cf, boolean reversed)
@@ -339,14 +338,14 @@ public class PartitionImplementationTest
             assertEquals(expected == null, row == null);
             if (row == null)
                 continue;
-            assertRowsEqual(expected.filter(cf, cfm), row);
+            assertRowsEqual(expected.filter(cf, metadata), row);
         }
     }
 
     Slices makeSlices()
     {
         int pos = 0;
-        Slices.Builder builder = new Slices.Builder(cfm.comparator);
+        Slices.Builder builder = new Slices.Builder(metadata.comparator);
         while (pos <= KEY_RANGE)
         {
             int skip = rand.nextInt(KEY_RANGE / 10) * (rand.nextInt(3) + 2 / 3); // increased chance of getting 0
@@ -355,29 +354,36 @@ public class PartitionImplementationTest
             Clustering start = clustering(pos);
             pos += sz;
             Clustering end = clustering(pos);
-            Slice slice = Slice.make(skip == 0 ? Bound.exclusiveStartOf(start) : Bound.inclusiveStartOf(start), Bound.inclusiveEndOf(end));
+            Slice slice = Slice.make(skip == 0 ? ClusteringBound.exclusiveStartOf(start) : ClusteringBound.inclusiveStartOf(start), ClusteringBound.inclusiveEndOf(end));
             builder.add(slice);
         }
         return builder.build();
     }
 
-    void testSliceableIterator(NavigableSet<Clusterable> sortedContent, AbstractBTreePartition partition, ColumnFilter cf, boolean reversed)
+    void testSlicingOfIterators(NavigableSet<Clusterable> sortedContent, AbstractBTreePartition partition, ColumnFilter cf, boolean reversed)
     {
-        Function<? super Clusterable, ? extends Clusterable> colFilter = x -> x instanceof Row ? ((Row) x).filter(cf, cfm) : x;
+        Function<? super Clusterable, ? extends Clusterable> colFilter = x -> x instanceof Row ? ((Row) x).filter(cf, metadata) : x;
         Slices slices = makeSlices();
-        try (SliceableUnfilteredRowIterator sliceableIter = partition.sliceableUnfilteredIterator(cf, reversed))
+
+        // fetch each slice in turn
+        for (Slice slice : (Iterable<Slice>) () -> directed(slices, reversed))
         {
-            for (Slice slice : (Iterable<Slice>) () -> directed(slices, reversed))
+            try (UnfilteredRowIterator slicedIter = partition.unfilteredIterator(cf, Slices.with(metadata.comparator, slice), reversed))
+            {
                 assertIteratorsEqual(streamOf(directed(slice(sortedContent, slice), reversed)).map(colFilter).iterator(),
-                                     sliceableIter.slice(slice));
+                                     slicedIter);
+            }
         }
 
-        // Try using sliceable as unfiltered iterator
-        try (SliceableUnfilteredRowIterator sliceableIter = partition.sliceableUnfilteredIterator(cf, reversed))
+        // Fetch all slices at once
+        try (UnfilteredRowIterator slicedIter = partition.unfilteredIterator(cf, slices, reversed))
         {
-            assertIteratorsEqual((reversed ? sortedContent.descendingSet() : sortedContent).
-                                     stream().map(colFilter).iterator(),
-                                 sliceableIter);
+            List<Iterator<? extends Clusterable>> slicelist = new ArrayList<>();
+            slices.forEach(slice -> slicelist.add(directed(slice(sortedContent, slice), reversed)));
+            if (reversed)
+                Collections.reverse(slicelist);
+
+            assertIteratorsEqual(Iterators.concat(slicelist.toArray(new Iterator[0])), slicedIter);
         }
     }
 
@@ -435,8 +441,8 @@ public class PartitionImplementationTest
         Clusterable[] a2 = (Clusterable[]) Iterators.toArray(it2, Clusterable.class);
         if (Arrays.equals(a1, a2))
             return;
-        String a1s = Stream.of(a1).map(x -> "\n" + (x instanceof Unfiltered ? ((Unfiltered) x).toString(cfm) : x.toString())).collect(Collectors.toList()).toString();
-        String a2s = Stream.of(a2).map(x -> "\n" + (x instanceof Unfiltered ? ((Unfiltered) x).toString(cfm) : x.toString())).collect(Collectors.toList()).toString();
+        String a1s = Stream.of(a1).map(x -> "\n" + (x instanceof Unfiltered ? ((Unfiltered) x).toString(metadata) : x.toString())).collect(Collectors.toList()).toString();
+        String a2s = Stream.of(a2).map(x -> "\n" + (x instanceof Unfiltered ? ((Unfiltered) x).toString(metadata) : x.toString())).collect(Collectors.toList()).toString();
         assertArrayEquals("Arrays differ. Expected " + a1s + " was " + a2s, a1, a2);
     }
 
@@ -445,7 +451,7 @@ public class PartitionImplementationTest
         NavigableSet<Clusterable> nexts = sortedContent.tailSet(cl, true);
         if (nexts.isEmpty())
             return null;
-        Row row = nexts.first() instanceof Row && cfm.comparator.compare(cl, nexts.first()) == 0 ? (Row) nexts.first() : null;
+        Row row = nexts.first() instanceof Row && metadata.comparator.compare(cl, nexts.first()) == 0 ? (Row) nexts.first() : null;
         for (Clusterable next : nexts)
             if (next instanceof RangeTombstoneMarker)
             {
@@ -453,7 +459,7 @@ public class PartitionImplementationTest
                 if (!rt.isClose(false))
                     return row;
                 DeletionTime delTime = rt.closeDeletionTime(false);
-                return row == null ? BTreeRow.emptyDeletedRow(cl, Deletion.regular(delTime)) : row.filter(ColumnFilter.all(cfm), delTime, true, cfm);
+                return row == null ? BTreeRow.emptyDeletedRow(cl, Deletion.regular(delTime)) : row.filter(ColumnFilter.all(metadata), delTime, true, metadata);
             }
         return row;
     }

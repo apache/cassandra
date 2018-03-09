@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.partitions;
 
 import java.util.*;
-import java.security.MessageDigest;
 
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.transform.MorePartitions;

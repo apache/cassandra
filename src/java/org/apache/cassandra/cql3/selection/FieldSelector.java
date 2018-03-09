@@ -20,11 +20,12 @@ package org.apache.cassandra.cql3.selection;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 final class FieldSelector extends Selector
 {
@@ -38,9 +39,7 @@ final class FieldSelector extends Selector
         {
             protected String getColumnName()
             {
-                return String.format("%s.%s",
-                                     factory.getColumnName(),
-                                     UTF8Type.instance.getString(type.fieldName(field)));
+                return String.format("%s.%s", factory.getColumnName(), type.fieldName(field));
             }
 
             protected AbstractType<?> getReturnType()
@@ -53,29 +52,39 @@ final class FieldSelector extends Selector
                 factory.addColumnMapping(mapping, resultsColumn);
             }
 
-            public Selector newInstance() throws InvalidRequestException
+            public Selector newInstance(QueryOptions options) throws InvalidRequestException
             {
-                return new FieldSelector(type, field, factory.newInstance());
+                return new FieldSelector(type, field, factory.newInstance(options));
             }
 
             public boolean isAggregateSelectorFactory()
             {
                 return factory.isAggregateSelectorFactory();
             }
+
+            public boolean areAllFetchedColumnsKnown()
+            {
+                return factory.areAllFetchedColumnsKnown();
+            }
+
+            public void addFetchedColumns(ColumnFilter.Builder builder)
+            {
+                factory.addFetchedColumns(builder);
+            }
         };
     }
 
-    public boolean isAggregate()
+    public void addFetchedColumns(ColumnFilter.Builder builder)
     {
-        return false;
+        selected.addFetchedColumns(builder);
     }
 
-    public void addInput(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
         selected.addInput(protocolVersion, rs);
     }
 
-    public ByteBuffer getOutput(int protocolVersion) throws InvalidRequestException
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
     {
         ByteBuffer value = selected.getOutput(protocolVersion);
         if (value == null)
@@ -97,7 +106,7 @@ final class FieldSelector extends Selector
     @Override
     public String toString()
     {
-        return String.format("%s.%s", selected, UTF8Type.instance.getString(type.fieldName(field)));
+        return String.format("%s.%s", selected, type.fieldName(field));
     }
 
     private FieldSelector(UserType type, int field, Selector selected)

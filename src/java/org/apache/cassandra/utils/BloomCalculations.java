@@ -40,7 +40,8 @@ public class BloomCalculations
      * Each cell (i,j) the false positive rate determined by using i buckets per
      * element and j hash functions.
      */
-    static final double[][] probs = new double[][]{
+    static final double[][] probs = new double[][]
+    {
         {1.0}, // dummy row representing 0 buckets per element
         {1.0, 1.0}, // dummy row representing 1 buckets per element
         {1.0, 0.393,  0.400},
@@ -143,10 +144,12 @@ public class BloomCalculations
         int maxK = probs[maxBucketsPerElement].length - 1;
 
         // Handle the trivial cases
-        if(maxFalsePosProb >= probs[minBuckets][minK]) {
+        if(maxFalsePosProb >= probs[minBuckets][minK])
+        {
             return new BloomSpecification(2, optKPerBuckets[2]);
         }
-        if (maxFalsePosProb < probs[maxBucketsPerElement][maxK]) {
+        if (maxFalsePosProb < probs[maxBucketsPerElement][maxK])
+        {
             throw new UnsupportedOperationException(String.format("Unable to satisfy %s with %s buckets per element",
                                                                   maxFalsePosProb, maxBucketsPerElement));
         }
@@ -154,13 +157,15 @@ public class BloomCalculations
         // First find the minimal required number of buckets:
         int bucketsPerElement = 2;
         int K = optKPerBuckets[2];
-        while(probs[bucketsPerElement][K] > maxFalsePosProb){
+        while(probs[bucketsPerElement][K] > maxFalsePosProb)
+        {
             bucketsPerElement++;
             K = optKPerBuckets[bucketsPerElement];
         }
         // Now that the number of buckets is sufficient, see if we can relax K
         // without losing too much precision.
-        while(probs[bucketsPerElement][K - 1] <= maxFalsePosProb){
+        while(probs[bucketsPerElement][K - 1] <= maxFalsePosProb)
+        {
             K--;
         }
 

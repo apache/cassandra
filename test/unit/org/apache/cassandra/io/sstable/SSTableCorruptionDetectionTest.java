@@ -74,18 +74,16 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
     @BeforeClass
     public static void setUp()
     {
-        CFMetaData cfm = CFMetaData.Builder.create(keyspace, table)
-                                           .addPartitionKey("pk", AsciiType.instance)
-                                           .addClusteringColumn("ck1", AsciiType.instance)
-                                           .addClusteringColumn("ck2", AsciiType.instance)
-                                           .addRegularColumn("reg1", BytesType.instance)
-                                           .addRegularColumn("reg2", BytesType.instance)
-                                           .build();
+        TableMetadata.Builder cfm =
+            TableMetadata.builder(keyspace, table)
+                         .addPartitionKeyColumn("pk", AsciiType.instance)
+                         .addClusteringColumn("ck1", AsciiType.instance)
+                         .addClusteringColumn("ck2", AsciiType.instance)
+                         .addRegularColumn("reg1", BytesType.instance)
+                         .addRegularColumn("reg2", BytesType.instance)
+                         .compression(CompressionParams.noCompression());
 
-        cfm.compression(CompressionParams.noCompression());
-        SchemaLoader.createKeyspace(keyspace,
-                                    KeyspaceParams.simple(1),
-                                    cfm);
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), cfm);
 
         cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
         cfs.disableAutoCompaction();
@@ -105,7 +103,7 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
         writer = getWriter(cfs, dir, txn);
         for (int i = 0; i < numberOfPks; i++)
         {
-            UpdateBuilder builder = UpdateBuilder.create(cfs.metadata, String.format("pkvalue_%07d", i)).withTimestamp(1);
+            UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), String.format("pkvalue_%07d", i)).withTimestamp(1);
             byte[] reg1 = new byte[valueSize];
             random.nextBytes(reg1);
             byte[] reg2 = new byte[valueSize];
@@ -168,6 +166,9 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
             }
             finally
             {
+                if (ChunkCache.instance != null)
+                    ChunkCache.instance.invalidateFile(ssTableReader.getFilename());
+
                 restore(raf, corruptionPosition, backup);
             }
         }
@@ -209,8 +210,8 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
             {
                 DecoratedKey dk = Util.dk(String.format("pkvalue_%07d", i));
                 try (UnfilteredRowIterator rowIter = sstable.iterator(dk,
-                                                                      ColumnFilter.all(cfs.metadata),
-                                                                      false,
+                                                                      Slices.ALL,
+                                                                      ColumnFilter.all(cfs.metadata()),
                                                                       false,
                                                                       SSTableReadsListener.NOOP_LISTENER))
                 {

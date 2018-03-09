@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.concurrent.atomic.AtomicLong;
-
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.RatioGauge;
@@ -56,7 +54,7 @@ public class CacheMetrics
      * @param type Type of Cache to identify metrics.
      * @param cache Cache to measure metrics
      */
-    public CacheMetrics(String type, final ICache cache)
+    public CacheMetrics(String type, final ICache<?, ?> cache)
     {
         MetricNameFactory factory = new DefaultNameFactory("Cache", type);
 

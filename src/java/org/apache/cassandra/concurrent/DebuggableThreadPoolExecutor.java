@@ -22,9 +22,6 @@ import java.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.tracing.TraceState;
-import org.apache.cassandra.tracing.Tracing;
-
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 
 /**

@@ -43,4 +43,9 @@ public interface ISerializer<T>
     public T deserialize(DataInputPlus in) throws IOException;
 
     public long serializedSize(T t);
+
+    public default void skip(DataInputPlus in) throws IOException
+    {
+        deserialize(in);
+    }
 }

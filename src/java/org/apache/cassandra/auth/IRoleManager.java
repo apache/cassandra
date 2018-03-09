@@ -170,7 +170,7 @@ public interface IRoleManager
 
     /**
      * Where an implementation supports OPTIONS in CREATE and ALTER operations
-     * this method should return the Map<String, String> representing the custom
+     * this method should return the {@code Map<String, String>} representing the custom
      * options associated with the role, as supplied to CREATE or ALTER.
      * It should never return null; if the implementation does not support
      * OPTIONS or if none were supplied then it should return an empty map.

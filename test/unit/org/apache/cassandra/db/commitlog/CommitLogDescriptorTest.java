@@ -15,88 +15,298 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
-
+import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileSegmentInputStream;
 import org.apache.cassandra.net.MessagingService;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.EncryptionContextGenerator;
 
 public class CommitLogDescriptorTest
 {
+    private static final byte[] iv = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+
+    ParameterizedClass compression;
+    TransparentDataEncryptionOptions enabledTdeOptions;
+
+    // Context with enabledTdeOptions enabled
+    EncryptionContext enabledEncryption;
+
+    // Context with enabledTdeOptions disabled, with the assumption that enabledTdeOptions was never previously enabled
+    EncryptionContext neverEnabledEncryption;
+
+    // Context with enabledTdeOptions disabled, with the assumption that enabledTdeOptions was previously enabled, but now disabled
+    // due to operator changing the yaml.
+    EncryptionContext previouslyEnabledEncryption;
+
+    @Before
+    public void setup()
+    {
+        Map<String,String> params = new HashMap<>();
+        compression = new ParameterizedClass(LZ4Compressor.class.getName(), params);
+
+        enabledTdeOptions = EncryptionContextGenerator.createEncryptionOptions();
+        enabledEncryption = new EncryptionContext(enabledTdeOptions, iv, false);
+        
+        neverEnabledEncryption = EncryptionContextGenerator.createDisabledContext();
+        TransparentDataEncryptionOptions disaabledTdeOptions = new TransparentDataEncryptionOptions(false, enabledTdeOptions.cipher, enabledTdeOptions.key_alias, enabledTdeOptions.key_provider);
+        previouslyEnabledEncryption = new EncryptionContext(disaabledTdeOptions);
+    }
+
     @Test
     public void testVersions()
     {
-        assertTrue(CommitLogDescriptor.isValid("CommitLog-1340512736956320000.log"));
-        assertTrue(CommitLogDescriptor.isValid("CommitLog-2-1340512736956320000.log"));
-        assertFalse(CommitLogDescriptor.isValid("CommitLog--1340512736956320000.log"));
-        assertFalse(CommitLogDescriptor.isValid("CommitLog--2-1340512736956320000.log"));
-        assertFalse(CommitLogDescriptor.isValid("CommitLog-2-1340512736956320000-123.log"));
+        Assert.assertTrue(CommitLogDescriptor.isValid("CommitLog-1340512736956320000.log"));
+        Assert.assertTrue(CommitLogDescriptor.isValid("CommitLog-2-1340512736956320000.log"));
+        Assert.assertFalse(CommitLogDescriptor.isValid("CommitLog--1340512736956320000.log"));
+        Assert.assertFalse(CommitLogDescriptor.isValid("CommitLog--2-1340512736956320000.log"));
+        Assert.assertFalse(CommitLogDescriptor.isValid("CommitLog-2-1340512736956320000-123.log"));
 
-        assertEquals(1340512736956320000L, CommitLogDescriptor.fromFileName("CommitLog-2-1340512736956320000.log").id);
+        Assert.assertEquals(1340512736956320000L, CommitLogDescriptor.fromFileName("CommitLog-2-1340512736956320000.log").id);
 
-        assertEquals(MessagingService.current_version, new CommitLogDescriptor(1340512736956320000L, null).getMessagingVersion());
+        Assert.assertEquals(MessagingService.current_version, new CommitLogDescriptor(1340512736956320000L, null, neverEnabledEncryption).getMessagingVersion());
         String newCLName = "CommitLog-" + CommitLogDescriptor.current_version + "-1340512736956320000.log";
-        assertEquals(MessagingService.current_version, CommitLogDescriptor.fromFileName(newCLName).getMessagingVersion());
+        Assert.assertEquals(MessagingService.current_version, CommitLogDescriptor.fromFileName(newCLName).getMessagingVersion());
     }
 
+    // migrated from CommitLogTest
     private void testDescriptorPersistence(CommitLogDescriptor desc) throws IOException
     {
         ByteBuffer buf = ByteBuffer.allocate(1024);
         CommitLogDescriptor.writeHeader(buf, desc);
+        long length = buf.position();
         // Put some extra data in the stream.
         buf.putDouble(0.1);
         buf.flip();
-
-        try (DataInputBuffer input = new DataInputBuffer(buf, false))
-        {
-            CommitLogDescriptor read = CommitLogDescriptor.readHeader(input);
-            assertEquals("Descriptors", desc, read);
-        }
+        FileDataInput input = new FileSegmentInputStream(buf, "input", 0);
+        CommitLogDescriptor read = CommitLogDescriptor.readHeader(input, neverEnabledEncryption);
+        Assert.assertEquals("Descriptor length", length, input.getFilePointer());
+        Assert.assertEquals("Descriptors", desc, read);
     }
 
+    // migrated from CommitLogTest
     @Test
     public void testDescriptorPersistence() throws IOException
     {
-        testDescriptorPersistence(new CommitLogDescriptor(11, null));
-        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.VERSION_21, 13, null));
-        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.VERSION_30, 15, null));
-        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.VERSION_30, 17, new ParameterizedClass("LZ4Compressor", null)));
-        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.VERSION_30, 19,
-                new ParameterizedClass("StubbyCompressor", ImmutableMap.of("parameter1", "value1", "flag2", "55", "argument3", "null"))));
+        testDescriptorPersistence(new CommitLogDescriptor(11, null, neverEnabledEncryption));
+        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.current_version, 13, null, neverEnabledEncryption));
+        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.current_version, 15, null, neverEnabledEncryption));
+        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.current_version, 17, new ParameterizedClass("LZ4Compressor", null), neverEnabledEncryption));
+        testDescriptorPersistence(new CommitLogDescriptor(CommitLogDescriptor.current_version, 19,
+                                                          new ParameterizedClass("StubbyCompressor", ImmutableMap.of("parameter1", "value1", "flag2", "55", "argument3", "null")
+                                                          ), neverEnabledEncryption));
     }
 
+    // migrated from CommitLogTest
     @Test
     public void testDescriptorInvalidParametersSize() throws IOException
     {
-        final int numberOfParameters = 65535;
-        Map<String, String> params = new HashMap<>(numberOfParameters);
-        for (int i=0; i<numberOfParameters; ++i)
+        Map<String, String> params = new HashMap<>();
+        for (int i=0; i<65535; ++i)
             params.put("key"+i, Integer.toString(i, 16));
         try {
-            CommitLogDescriptor desc = new CommitLogDescriptor(CommitLogDescriptor.VERSION_30,
+            CommitLogDescriptor desc = new CommitLogDescriptor(CommitLogDescriptor.current_version,
                                                                21,
-                                                               new ParameterizedClass("LZ4Compressor", params));
+                                                               new ParameterizedClass("LZ4Compressor", params),
+                                                               neverEnabledEncryption);
+
             ByteBuffer buf = ByteBuffer.allocate(1024000);
             CommitLogDescriptor.writeHeader(buf, desc);
-            fail("Parameter object too long should fail on writing descriptor.");
+            Assert.fail("Parameter object too long should fail on writing descriptor.");
         } catch (ConfigurationException e)
         {
             // correct path
         }
+    }
+
+    @Test
+    public void constructParametersString_NoCompressionOrEncryption()
+    {
+        String json = CommitLogDescriptor.constructParametersString(null, null, Collections.emptyMap());
+        Assert.assertFalse(json.contains(CommitLogDescriptor.COMPRESSION_CLASS_KEY));
+        Assert.assertFalse(json.contains(EncryptionContext.ENCRYPTION_CIPHER));
+
+        json = CommitLogDescriptor.constructParametersString(null, neverEnabledEncryption, Collections.emptyMap());
+        Assert.assertFalse(json.contains(CommitLogDescriptor.COMPRESSION_CLASS_KEY));
+        Assert.assertFalse(json.contains(EncryptionContext.ENCRYPTION_CIPHER));
+    }
+
+    @Test
+    public void constructParametersString_WithCompressionAndEncryption()
+    {
+        String json = CommitLogDescriptor.constructParametersString(compression, enabledEncryption, Collections.emptyMap());
+        Assert.assertTrue(json.contains(CommitLogDescriptor.COMPRESSION_CLASS_KEY));
+        Assert.assertTrue(json.contains(EncryptionContext.ENCRYPTION_CIPHER));
+    }
+
+    @Test
+    public void writeAndReadHeader_NoCompressionOrEncryption() throws IOException
+    {
+        CommitLogDescriptor descriptor = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, neverEnabledEncryption);
+        ByteBuffer buffer = ByteBuffer.allocate(16 * 1024);
+        CommitLogDescriptor.writeHeader(buffer, descriptor);
+        buffer.flip();
+        FileSegmentInputStream dataInput = new FileSegmentInputStream(buffer, null, 0);
+        CommitLogDescriptor result = CommitLogDescriptor.readHeader(dataInput, neverEnabledEncryption);
+        Assert.assertNotNull(result);
+        Assert.assertNull(result.compression);
+        Assert.assertFalse(result.getEncryptionContext().isEnabled());
+    }
+
+    @Test
+    public void writeAndReadHeader_OnlyCompression() throws IOException
+    {
+        CommitLogDescriptor descriptor = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, neverEnabledEncryption);
+        ByteBuffer buffer = ByteBuffer.allocate(16 * 1024);
+        CommitLogDescriptor.writeHeader(buffer, descriptor);
+        buffer.flip();
+        FileSegmentInputStream dataInput = new FileSegmentInputStream(buffer, null, 0);
+        CommitLogDescriptor result = CommitLogDescriptor.readHeader(dataInput, neverEnabledEncryption);
+        Assert.assertNotNull(result);
+        Assert.assertEquals(compression, result.compression);
+        Assert.assertFalse(result.getEncryptionContext().isEnabled());
+    }
+
+    @Test
+    public void writeAndReadHeader_WithEncryptionHeader_EncryptionEnabledInYaml() throws IOException
+    {
+        CommitLogDescriptor descriptor = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, enabledEncryption);
+        ByteBuffer buffer = ByteBuffer.allocate(16 * 1024);
+        CommitLogDescriptor.writeHeader(buffer, descriptor);
+        buffer.flip();
+        FileSegmentInputStream dataInput = new FileSegmentInputStream(buffer, null, 0);
+        CommitLogDescriptor result = CommitLogDescriptor.readHeader(dataInput, enabledEncryption);
+        Assert.assertNotNull(result);
+        Assert.assertNull(result.compression);
+        Assert.assertTrue(result.getEncryptionContext().isEnabled());
+        Assert.assertArrayEquals(iv, result.getEncryptionContext().getIV());
+    }
+
+    /**
+     * Check that even though enabledTdeOptions is disabled in the yaml, we can still read the commit log header as encrypted.
+     */
+    @Test
+    public void writeAndReadHeader_WithEncryptionHeader_EncryptionDisabledInYaml() throws IOException
+    {
+        CommitLogDescriptor descriptor = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, enabledEncryption);
+        ByteBuffer buffer = ByteBuffer.allocate(16 * 1024);
+        CommitLogDescriptor.writeHeader(buffer, descriptor);
+        buffer.flip();
+        FileSegmentInputStream dataInput = new FileSegmentInputStream(buffer, null, 0);
+        CommitLogDescriptor result = CommitLogDescriptor.readHeader(dataInput, previouslyEnabledEncryption);
+        Assert.assertNotNull(result);
+        Assert.assertNull(result.compression);
+        Assert.assertTrue(result.getEncryptionContext().isEnabled());
+        Assert.assertArrayEquals(iv, result.getEncryptionContext().getIV());
+    }
+
+    /**
+     * Shouldn't happen in the real world (should only have either compression or enabledTdeOptions), but the header
+     * functionality should be correct
+     */
+    @Test
+    public void writeAndReadHeader_WithCompressionAndEncryption() throws IOException
+    {
+        CommitLogDescriptor descriptor = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, enabledEncryption);
+        ByteBuffer buffer = ByteBuffer.allocate(16 * 1024);
+        CommitLogDescriptor.writeHeader(buffer, descriptor);
+        buffer.flip();
+        FileSegmentInputStream dataInput = new FileSegmentInputStream(buffer, null, 0);
+        CommitLogDescriptor result = CommitLogDescriptor.readHeader(dataInput, enabledEncryption);
+        Assert.assertNotNull(result);
+        Assert.assertEquals(compression, result.compression);
+        Assert.assertTrue(result.getEncryptionContext().isEnabled());
+        Assert.assertEquals(enabledEncryption, result.getEncryptionContext());
+        Assert.assertArrayEquals(iv, result.getEncryptionContext().getIV());
+    }
+
+    @Test
+    public void equals_NoCompressionOrEncryption()
+    {
+        CommitLogDescriptor desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, null);
+        Assert.assertEquals(desc1, desc1);
+
+        CommitLogDescriptor desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, null);
+        Assert.assertEquals(desc1, desc2);
+
+        desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, neverEnabledEncryption);
+        Assert.assertEquals(desc1, desc1);
+        desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, neverEnabledEncryption);
+        Assert.assertEquals(desc1, desc2);
+
+        desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, previouslyEnabledEncryption);
+        Assert.assertEquals(desc1, desc1);
+        desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, previouslyEnabledEncryption);
+        Assert.assertEquals(desc1, desc2);
+    }
+
+    @Test
+    public void equals_OnlyCompression()
+    {
+        CommitLogDescriptor desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, null);
+        Assert.assertEquals(desc1, desc1);
+
+        CommitLogDescriptor desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, null);
+        Assert.assertEquals(desc1, desc2);
+
+        desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, neverEnabledEncryption);
+        Assert.assertEquals(desc1, desc1);
+        desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, neverEnabledEncryption);
+        Assert.assertEquals(desc1, desc2);
+
+        desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, previouslyEnabledEncryption);
+        Assert.assertEquals(desc1, desc1);
+        desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, previouslyEnabledEncryption);
+        Assert.assertEquals(desc1, desc2);
+    }
+
+    @Test
+    public void equals_OnlyEncryption()
+    {
+        CommitLogDescriptor desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, enabledEncryption);
+        Assert.assertEquals(desc1, desc1);
+
+        CommitLogDescriptor desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, enabledEncryption);
+        Assert.assertEquals(desc1, desc2);
+
+        desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, neverEnabledEncryption);
+        Assert.assertEquals(desc1, desc1);
+        desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, neverEnabledEncryption);
+        Assert.assertEquals(desc1, desc2);
+
+        desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, previouslyEnabledEncryption);
+        Assert.assertEquals(desc1, desc1);
+        desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, previouslyEnabledEncryption);
+        Assert.assertEquals(desc1, desc2);
+    }
+
+    /**
+     * Shouldn't have both enabled in real life, but ensure they are correct, nonetheless
+     */
+    @Test
+    public void equals_BothCompressionAndEncryption()
+    {
+        CommitLogDescriptor desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, enabledEncryption);
+        Assert.assertEquals(desc1, desc1);
+
+        CommitLogDescriptor desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, enabledEncryption);
+        Assert.assertEquals(desc1, desc2);
     }
 }

@@ -26,6 +26,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 
+import com.codahale.metrics.Counter;
+
 public class ServerConnection extends Connection
 {
     private enum State { UNINITIALIZED, AUTHENTICATION, READY }
@@ -33,10 +35,11 @@ public class ServerConnection extends Connection
     private volatile IAuthenticator.SaslNegotiator saslNegotiator;
     private final ClientState clientState;
     private volatile State state;
+    public final Counter requests = new Counter();
 
     private final ConcurrentMap<Integer, QueryState> queryStates = new ConcurrentHashMap<>();
 
-    public ServerConnection(Channel channel, int version, Connection.Tracker tracker)
+    public ServerConnection(Channel channel, ProtocolVersion version, Connection.Tracker tracker)
     {
         super(channel, version, tracker);
         this.clientState = ClientState.forExternalCalls(channel.remoteAddress());
@@ -56,7 +59,12 @@ public class ServerConnection extends Connection
         return qState;
     }
 
-    public QueryState validateNewMessage(Message.Type type, int version, int streamId)
+    public ClientState getClientState()
+    {
+        return clientState;
+    }
+
+    public QueryState validateNewMessage(Message.Type type, ProtocolVersion version, int streamId)
     {
         switch (state)
         {
@@ -67,7 +75,7 @@ public class ServerConnection extends Connection
             case AUTHENTICATION:
                 // Support both SASL auth from protocol v2 and the older style Credentials auth from v1
                 if (type != Message.Type.AUTH_RESPONSE && type != Message.Type.CREDENTIALS)
-                    throw new ProtocolException(String.format("Unexpected message %s, expecting %s", type, version == 1 ? "CREDENTIALS" : "SASL_RESPONSE"));
+                    throw new ProtocolException(String.format("Unexpected message %s, expecting %s", type, version == ProtocolVersion.V1 ? "CREDENTIALS" : "SASL_RESPONSE"));
                 break;
             case READY:
                 if (type == Message.Type.STARTUP)

@@ -17,7 +17,8 @@
  */
 package org.apache.cassandra.net;
 
-import java.net.InetAddress;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public interface IAsyncCallbackWithFailure<T> extends IAsyncCallback<T>
 {
@@ -25,5 +26,5 @@ public interface IAsyncCallbackWithFailure<T> extends IAsyncCallback<T>
     /**
      * Called when there is an exception on the remote node or timeout happens
      */
-    public void onFailure(InetAddress from);
+    void onFailure(InetAddressAndPort from, RequestFailureReason failureReason);
 }

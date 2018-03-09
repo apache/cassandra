@@ -1,5 +1,5 @@
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,16 +7,16 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 package org.apache.cassandra.db.commitlog;
 
@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.TimeZone;
 import java.util.concurrent.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -46,6 +48,10 @@ public class CommitLogArchiver
     private static final Logger logger = LoggerFactory.getLogger(CommitLogArchiver.class);
     public static final SimpleDateFormat format = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss");
     private static final String DELIMITER = ",";
+    private static final Pattern NAME = Pattern.compile("%name");
+    private static final Pattern PATH = Pattern.compile("%path");
+    private static final Pattern FROM = Pattern.compile("%from");
+    private static final Pattern TO = Pattern.compile("%to");
     static
     {
         format.setTimeZone(TimeZone.getTimeZone("GMT"));
@@ -136,8 +142,8 @@ public class CommitLogArchiver
             protected void runMayThrow() throws IOException
             {
                 segment.waitForFinalSync();
-                String command = archiveCommand.replace("%name", segment.getName());
-                command = command.replace("%path", segment.getPath());
+                String command = NAME.matcher(archiveCommand).replaceAll(Matcher.quoteReplacement(segment.getName()));
+                command = PATH.matcher(command).replaceAll(Matcher.quoteReplacement(segment.getPath()));
                 exec(command);
             }
         }));
@@ -145,22 +151,32 @@ public class CommitLogArchiver
 
     /**
      * Differs from the above because it can be used on any file, rather than only
-     * managed commit log segments (and thus cannot call waitForFinalSync).
+     * managed commit log segments (and thus cannot call waitForFinalSync), and in
+     * the treatment of failures.
      *
-     * Used to archive files present in the commit log directory at startup (CASSANDRA-6904)
+     * Used to archive files present in the commit log directory at startup (CASSANDRA-6904).
+     * Since the files being already archived by normal operation could cause subsequent
+     * hard-linking or other operations to fail, we should not throw errors on failure
      */
     public void maybeArchive(final String path, final String name)
     {
         if (Strings.isNullOrEmpty(archiveCommand))
             return;
 
-        archivePending.put(name, executor.submit(new WrappedRunnable()
+        archivePending.put(name, executor.submit(new Runnable()
         {
-            protected void runMayThrow() throws IOException
+            public void run()
             {
-                String command = archiveCommand.replace("%name", name);
-                command = command.replace("%path", path);
-                exec(command);
+                try
+                {
+                    String command = NAME.matcher(archiveCommand).replaceAll(Matcher.quoteReplacement(name));
+                    command = PATH.matcher(command).replaceAll(Matcher.quoteReplacement(path));
+                    exec(command);
+                }
+                catch (IOException e)
+                {
+                    logger.warn("Archiving file {} failed, file may have already been archived.", name, e);
+                }
             }
         }));
     }
@@ -209,14 +225,14 @@ public class CommitLogArchiver
             }
             for (File fromFile : files)
             {
-                CommitLogDescriptor fromHeader = CommitLogDescriptor.fromHeader(fromFile);
+                CommitLogDescriptor fromHeader = CommitLogDescriptor.fromHeader(fromFile, DatabaseDescriptor.getEncryptionContext());
                 CommitLogDescriptor fromName = CommitLogDescriptor.isValid(fromFile.getName()) ? CommitLogDescriptor.fromFileName(fromFile.getName()) : null;
                 CommitLogDescriptor descriptor;
                 if (fromHeader == null && fromName == null)
                     throw new IllegalStateException("Cannot safely construct descriptor for segment, either from its name or its header: " + fromFile.getPath());
                 else if (fromHeader != null && fromName != null && !fromHeader.equalsIgnoringCompression(fromName))
                     throw new IllegalStateException(String.format("Cannot safely construct descriptor for segment, as name and header descriptors do not match (%s vs %s): %s", fromHeader, fromName, fromFile.getPath()));
-                else if (fromName != null && fromHeader == null && fromName.version >= CommitLogDescriptor.VERSION_21)
+                else if (fromName != null && fromHeader == null)
                     throw new IllegalStateException("Cannot safely construct descriptor for segment, as name descriptor implies a version that should contain a header descriptor, but that descriptor could not be read: " + fromFile.getPath());
                 else if (fromHeader != null)
                     descriptor = fromHeader;
@@ -225,7 +241,8 @@ public class CommitLogArchiver
                 if (descriptor.version > CommitLogDescriptor.current_version)
                     throw new IllegalStateException("Unsupported commit log version: " + descriptor.version);
 
-                if (descriptor.compression != null) {
+                if (descriptor.compression != null)
+                {
                     try
                     {
                         CompressionParams.createCompressor(descriptor.compression);
@@ -244,8 +261,8 @@ public class CommitLogArchiver
                     continue;
                 }
 
-                String command = restoreCommand.replace("%from", fromFile.getPath());
-                command = command.replace("%to", toFile.getPath());
+                String command = FROM.matcher(restoreCommand).replaceAll(Matcher.quoteReplacement(fromFile.getPath()));
+                command = TO.matcher(command).replaceAll(Matcher.quoteReplacement(toFile.getPath()));
                 try
                 {
                     exec(command);

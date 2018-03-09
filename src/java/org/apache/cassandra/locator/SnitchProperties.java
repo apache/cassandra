@@ -42,9 +42,9 @@ public class SnitchProperties
             URL url;
             if (configURL == null)
                 url = SnitchProperties.class.getClassLoader().getResource(RACKDC_PROPERTY_FILENAME);
-            else 
+            else
             	url = new URL(configURL);
-            
+
             stream = url.openStream(); // catch block handles potential NPE
             properties.load(stream);
         }

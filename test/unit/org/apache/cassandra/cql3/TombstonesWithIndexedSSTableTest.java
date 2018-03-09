@@ -24,8 +24,8 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class TombstonesWithIndexedSSTableTest extends CQLTester
@@ -76,13 +76,17 @@ public class TombstonesWithIndexedSSTableTest extends CQLTester
             {
                 // The line below failed with key caching off (CASSANDRA-11158)
                 @SuppressWarnings("unchecked")
-                RowIndexEntry<IndexHelper.IndexInfo> indexEntry = sstable.getPosition(dk, SSTableReader.Operator.EQ);
+                RowIndexEntry indexEntry = sstable.getPosition(dk, SSTableReader.Operator.EQ);
                 if (indexEntry != null && indexEntry.isIndexed())
                 {
-                    ClusteringPrefix firstName = indexEntry.columnsIndex().get(1).firstName;
-                    if (firstName.kind().isBoundary())
-                        break deletionLoop;
-                    indexedRow = Int32Type.instance.compose(firstName.get(0));
+                    try (FileDataInput reader = sstable.openIndexReader())
+                    {
+                        RowIndexEntry.IndexInfoRetriever infoRetriever = indexEntry.openWithIndex(sstable.getIndexFile());
+                        ClusteringPrefix firstName = infoRetriever.columnsIndex(1).firstName;
+                        if (firstName.kind().isBoundary())
+                            break deletionLoop;
+                        indexedRow = Int32Type.instance.compose(firstName.get(0));
+                    }
                 }
             }
             assert indexedRow >= 0;
@@ -104,7 +108,6 @@ public class TombstonesWithIndexedSSTableTest extends CQLTester
         assertRowCount(execute("SELECT DISTINCT s FROM %s WHERE k = ? ORDER BY t DESC", 0), 1);
     }
 
-    // Creates a random string
     public static String makeRandomString(int length)
     {
         Random random = new Random();

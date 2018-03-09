@@ -30,6 +30,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsPopulation implements Serializable
 {
@@ -125,6 +126,26 @@ public class SettingsPopulation implements Serializable
     }
 
     // CLI Utility Methods
+
+    public void printSettings(ResultLogger out)
+    {
+        if (distribution != null)
+        {
+            out.println("  Distribution: " +distribution.getConfigAsString());
+        }
+
+        if (sequence != null)
+        {
+            out.printf("  Sequence: %d..%d%n", sequence[0], sequence[1]);
+        }
+        if (readlookback != null)
+        {
+            out.println("  Read Look Back: " + readlookback.getConfigAsString());
+        }
+
+        out.printf("  Order: %s%n", order);
+        out.printf("  Wrap: %b%n", wrap);
+    }
 
     public static SettingsPopulation get(Map<String, String[]> clArgs, SettingsCommand command)
     {

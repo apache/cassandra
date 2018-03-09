@@ -48,6 +48,19 @@ public class Murmur3Partitioner implements IPartitioner
     public static final Murmur3Partitioner instance = new Murmur3Partitioner();
     public static final AbstractType<?> partitionOrdering = new PartitionerDefinedOrder(instance);
 
+    private final Splitter splitter = new Splitter(this)
+    {
+        public Token tokenForValue(BigInteger value)
+        {
+            return new LongToken(value.longValue());
+        }
+
+        public BigInteger valueForToken(Token token)
+        {
+            return BigInteger.valueOf(((LongToken) token).token);
+        }
+    };
+
     public DecoratedKey decorateKey(ByteBuffer key)
     {
         long[] hash = getHash(key);
@@ -79,6 +92,42 @@ public class Murmur3Partitioner implements IPartitioner
         }
 
         return new LongToken(midpoint.longValue());
+    }
+
+    public Token split(Token lToken, Token rToken, double ratioToLeft)
+    {
+        BigDecimal l = BigDecimal.valueOf(((LongToken) lToken).token),
+                   r = BigDecimal.valueOf(((LongToken) rToken).token),
+                   ratio = BigDecimal.valueOf(ratioToLeft);
+        long newToken;
+
+        if (l.compareTo(r) < 0)
+        {
+            newToken = r.subtract(l).multiply(ratio).add(l).toBigInteger().longValue();
+        }
+        else
+        {
+            // wrapping case
+            // L + ((R - min) + (max - L)) * pct
+            BigDecimal max = BigDecimal.valueOf(MAXIMUM);
+            BigDecimal min = BigDecimal.valueOf(MINIMUM.token);
+
+            BigInteger token = max.subtract(min).add(r).subtract(l).multiply(ratio).add(l).toBigInteger();
+
+            BigInteger maxToken = BigInteger.valueOf(MAXIMUM);
+
+            if (token.compareTo(maxToken) <= 0)
+            {
+                newToken = token.longValue();
+            }
+            else
+            {
+                // if the value is above maximum
+                BigInteger minToken = BigInteger.valueOf(MINIMUM.token);
+                newToken = minToken.add(token.subtract(maxToken)).longValue();
+            }
+        }
+        return new LongToken(newToken);
     }
 
     public LongToken getMinimumToken()
@@ -265,7 +314,7 @@ public class Murmur3Partitioner implements IPartitioner
         {
             try
             {
-                Long.valueOf(token);
+                fromString(token);
             }
             catch (NumberFormatException e)
             {
@@ -291,8 +340,18 @@ public class Murmur3Partitioner implements IPartitioner
         return LongType.instance;
     }
 
+    public Token getMaximumToken()
+    {
+        return new LongToken(Long.MAX_VALUE);
+    }
+
     public AbstractType<?> partitionOrdering()
     {
         return partitionOrdering;
+    }
+
+    public Optional<Splitter> splitter()
+    {
+        return Optional.of(splitter);
     }
 }

@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 
 /**
@@ -30,9 +31,9 @@ public final class KeyspaceParams
     public static final boolean DEFAULT_DURABLE_WRITES = true;
 
     /**
-     * This determines durable writes for the {@link org.apache.cassandra.db.SystemKeyspace#NAME}
-     * and {@link SchemaKeyspace#NAME} keyspaces, the only reason it is not final is for commitlog
-     * unit tests. It should only be changed for testing purposes.
+     * This determines durable writes for the {@link org.apache.cassandra.config.SchemaConstants#SCHEMA_KEYSPACE_NAME}
+     * and {@link org.apache.cassandra.config.SchemaConstants#SYSTEM_KEYSPACE_NAME} keyspaces,
+     * the only reason it is not final is for commitlog unit tests. It should only be changed for testing purposes.
      */
     @VisibleForTesting
     public static boolean DEFAULT_LOCAL_DURABLE_WRITES = true;
@@ -111,9 +112,9 @@ public final class KeyspaceParams
     @Override
     public String toString()
     {
-        return Objects.toStringHelper(this)
-                      .add(Option.DURABLE_WRITES.toString(), durableWrites)
-                      .add(Option.REPLICATION.toString(), replication)
-                      .toString();
+        return MoreObjects.toStringHelper(this)
+                          .add(Option.DURABLE_WRITES.toString(), durableWrites)
+                          .add(Option.REPLICATION.toString(), replication)
+                          .toString();
     }
 }

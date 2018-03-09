@@ -28,11 +28,13 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.apache.cassandra.index.TargetParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.*;
@@ -60,7 +62,6 @@ import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.index.internal.CassandraIndex.getFunctions;
 import static org.apache.cassandra.index.internal.CassandraIndex.indexCfsMetadata;
-import static org.apache.cassandra.index.internal.CassandraIndex.parseTarget;
 
 /**
  * Clone of KeysIndex used in CassandraIndexTest#testCustomIndexWithCFS to verify
@@ -73,7 +74,7 @@ public class CustomCassandraIndex implements Index
     public final ColumnFamilyStore baseCfs;
     protected IndexMetadata metadata;
     protected ColumnFamilyStore indexCfs;
-    protected ColumnDefinition indexedColumn;
+    protected ColumnMetadata indexedColumn;
     protected CassandraIndexFunctions functions;
 
     public CustomCassandraIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
@@ -88,19 +89,19 @@ public class CustomCassandraIndex implements Index
      * @param operator
      * @return
      */
-    protected boolean supportsOperator(ColumnDefinition indexedColumn, Operator operator)
+    protected boolean supportsOperator(ColumnMetadata indexedColumn, Operator operator)
     {
         return operator.equals(Operator.EQ);
     }
 
-    public ColumnDefinition getIndexedColumn()
+    public ColumnMetadata getIndexedColumn()
     {
         return indexedColumn;
     }
 
     public ClusteringComparator getIndexComparator()
     {
-        return indexCfs.metadata.comparator;
+        return indexCfs.metadata().comparator;
     }
 
     public ColumnFamilyStore getIndexCfs()
@@ -150,7 +151,6 @@ public class CustomCassandraIndex implements Index
     {
         setMetadata(indexDef);
         return () -> {
-            indexCfs.metadata.reloadIndexMetadataProperties(baseCfs.metadata);
             indexCfs.reload();
             return null;
         };
@@ -159,12 +159,12 @@ public class CustomCassandraIndex implements Index
     private void setMetadata(IndexMetadata indexDef)
     {
         metadata = indexDef;
-        Pair<ColumnDefinition, IndexTarget.Type> target = parseTarget(baseCfs.metadata, indexDef);
+        Pair<ColumnMetadata, IndexTarget.Type> target = TargetParser.parse(baseCfs.metadata(), indexDef);
         functions = getFunctions(indexDef, target);
-        CFMetaData cfm = indexCfsMetadata(baseCfs.metadata, indexDef);
+        TableMetadata cfm = indexCfsMetadata(baseCfs.metadata(), indexDef);
         indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.keyspace,
-                                                             cfm.cfName,
-                                                             cfm,
+                                                             cfm.name,
+                                                             TableMetadataRef.forOfflineTools(cfm),
                                                              baseCfs.getTracker().loadsstables);
         indexedColumn = target.left;
     }
@@ -182,12 +182,12 @@ public class CustomCassandraIndex implements Index
         return true;
     }
 
-    public boolean dependsOn(ColumnDefinition column)
+    public boolean dependsOn(ColumnMetadata column)
     {
         return column.equals(indexedColumn);
     }
 
-    public boolean supportsExpression(ColumnDefinition column, Operator operator)
+    public boolean supportsExpression(ColumnMetadata column, Operator operator)
     {
         return indexedColumn.name.equals(column.name)
                && supportsOperator(indexedColumn, operator);
@@ -285,7 +285,7 @@ public class CustomCassandraIndex implements Index
     }
 
     public Indexer indexerFor(final DecoratedKey key,
-                              final PartitionColumns columns,
+                              final RegularAndStaticColumns columns,
                               final int nowInSec,
                               final OpOrder.Group opGroup,
                               final IndexTransaction.Type transactionType)
@@ -376,7 +376,7 @@ public class CustomCassandraIndex implements Index
                 insert(key.getKey(),
                        clustering,
                        cell,
-                       LivenessInfo.create(cell.timestamp(), cell.ttl(), cell.localDeletionTime()),
+                       LivenessInfo.withExpirationTime(cell.timestamp(), cell.ttl(), cell.localDeletionTime()),
                        opGroup);
             }
 
@@ -424,7 +424,7 @@ public class CustomCassandraIndex implements Index
                         }
                     }
                 }
-                return LivenessInfo.create(baseCfs.metadata, timestamp, ttl, nowInSec);
+                return LivenessInfo.create(timestamp, ttl, nowInSec);
             }
         };
     }
@@ -553,8 +553,8 @@ public class CustomCassandraIndex implements Index
                                                            "Cannot index value of size %d for index %s on %s.%s(%s) (maximum allowed size=%d)",
                                                            value.remaining(),
                                                            metadata.name,
-                                                           baseCfs.metadata.ksName,
-                                                           baseCfs.metadata.cfName,
+                                                           baseCfs.metadata.keyspace,
+                                                           baseCfs.metadata.name,
                                                            indexedColumn.name.toString(),
                                                            FBUtilities.MAX_UNSIGNED_SHORT));
     }
@@ -586,7 +586,7 @@ public class CustomCassandraIndex implements Index
 
     private PartitionUpdate partitionUpdate(DecoratedKey valueKey, Row row)
     {
-        return PartitionUpdate.singleRowUpdate(indexCfs.metadata, valueKey, row);
+        return PartitionUpdate.singleRowUpdate(indexCfs.metadata(), valueKey, row);
     }
 
     private void invalidate()
@@ -629,10 +629,9 @@ public class CustomCassandraIndex implements Index
             if (sstables.isEmpty())
             {
                 logger.info("No SSTable data for {}.{} to build index {} from, marking empty index as built",
-                            baseCfs.metadata.ksName,
-                            baseCfs.metadata.cfName,
+                            baseCfs.metadata.keyspace,
+                            baseCfs.metadata.name,
                             metadata.name);
-                baseCfs.indexManager.markIndexBuilt(metadata.name);
                 return;
             }
 
@@ -640,13 +639,12 @@ public class CustomCassandraIndex implements Index
                         metadata.name,
                         getSSTableNames(sstables));
 
-            SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs,
-                                                                      Collections.singleton(this),
-                                                                      new ReducingKeyIterator(sstables));
+            SecondaryIndexBuilder builder = new CollatedViewIndexBuilder(baseCfs,
+                                                                         Collections.singleton(this),
+                                                                         new ReducingKeyIterator(sstables));
             Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
             FBUtilities.waitOnFuture(future);
             indexCfs.forceBlockingFlush();
-            baseCfs.indexManager.markIndexBuilt(metadata.name);
         }
         logger.info("Index build of {} complete", metadata.name);
     }

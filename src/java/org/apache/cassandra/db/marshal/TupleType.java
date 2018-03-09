@@ -22,13 +22,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.*;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -37,16 +41,31 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class TupleType extends AbstractType<ByteBuffer>
 {
+    private static final String COLON = ":";
+    private static final Pattern COLON_PAT = Pattern.compile(COLON);
+    private static final String ESCAPED_COLON = "\\\\:";
+    private static final Pattern ESCAPED_COLON_PAT = Pattern.compile(ESCAPED_COLON);
+    private static final String AT = "@";
+    private static final Pattern AT_PAT = Pattern.compile(AT);
+    private static final String ESCAPED_AT = "\\\\@";
+    private static final Pattern ESCAPED_AT_PAT = Pattern.compile(ESCAPED_AT);
+    
     protected final List<AbstractType<?>> types;
 
     private final TupleSerializer serializer;
 
     public TupleType(List<AbstractType<?>> types)
     {
+        this(types, true);
+    }
+
+    protected TupleType(List<AbstractType<?>> types, boolean freezeInner)
+    {
         super(ComparisonType.CUSTOM);
-        for (int i = 0; i < types.size(); i++)
-            types.set(i, types.get(i).freeze());
-        this.types = types;
+        if (freezeInner)
+            this.types = types.stream().map(AbstractType::freeze).collect(Collectors.toList());
+        else
+            this.types = types;
         this.serializer = new TupleSerializer(fieldSerializers(types));
     }
 
@@ -73,6 +92,12 @@ public class TupleType extends AbstractType<ByteBuffer>
         return allTypes().stream().anyMatch(f -> f.referencesUserType(name));
     }
 
+    @Override
+    public boolean referencesDuration()
+    {
+        return allTypes().stream().anyMatch(f -> f.referencesDuration());
+    }
+
     public AbstractType<?> type(int i)
     {
         return types.get(i);
@@ -86,6 +111,11 @@ public class TupleType extends AbstractType<ByteBuffer>
     public List<AbstractType<?>> allTypes()
     {
         return types;
+    }
+
+    public boolean isTuple()
+    {
+        return true;
     }
 
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
@@ -120,11 +150,22 @@ public class TupleType extends AbstractType<ByteBuffer>
                 return cmp;
         }
 
-        if (bb1.remaining() == 0)
-            return bb2.remaining() == 0 ? 0 : -1;
+        // handle trailing nulls
+        while (bb1.remaining() > 0)
+        {
+            int size = bb1.getInt();
+            if (size > 0) // non-null
+                return 1;
+        }
 
-        // bb1.remaining() > 0 && bb2.remaining() == 0
-        return 1;
+        while (bb2.remaining() > 0)
+        {
+            int size = bb2.getInt();
+            if (size > 0) // non-null
+                return -1;
+        }
+
+        return 0;
     }
 
     /**
@@ -140,8 +181,22 @@ public class TupleType extends AbstractType<ByteBuffer>
                 return Arrays.copyOfRange(components, 0, i);
 
             int size = input.getInt();
+
+            if (input.remaining() < size)
+                throw new MarshalException(String.format("Not enough bytes to read %dth component", i));
+
+            // size < 0 means null value
             components[i] = size < 0 ? null : ByteBufferUtil.readBytes(input, size);
         }
+
+        // error out if we got more values in the tuple/UDT than we expected
+        if (input.hasRemaining())
+        {
+            throw new InvalidRequestException(String.format(
+                    "Expected %s %s for %s column, but got more",
+                    size(), size() == 1 ? "value" : "values", this.asCQL3Type()));
+        }
+
         return components;
     }
 
@@ -171,6 +226,9 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public String getString(ByteBuffer value)
     {
+        if (value == null)
+            return "null";
+
         StringBuilder sb = new StringBuilder();
         ByteBuffer input = value.duplicate();
         for (int i = 0; i < size(); i++)
@@ -191,7 +249,9 @@ public class TupleType extends AbstractType<ByteBuffer>
 
             ByteBuffer field = ByteBufferUtil.readBytes(input, size);
             // We use ':' as delimiter, and @ to represent null, so escape them in the generated string
-            sb.append(type.getString(field).replaceAll(":", "\\\\:").replaceAll("@", "\\\\@"));
+            String fld = COLON_PAT.matcher(type.getString(field)).replaceAll(ESCAPED_COLON);
+            fld = AT_PAT.matcher(fld).replaceAll(ESCAPED_AT);
+            sb.append(fld);
         }
         return sb.toString();
     }
@@ -214,7 +274,9 @@ public class TupleType extends AbstractType<ByteBuffer>
                 continue;
 
             AbstractType<?> type = type(i);
-            fields[i] = type.fromString(fieldString.replaceAll("\\\\:", ":").replaceAll("\\\\@", "@"));
+            fieldString = ESCAPED_COLON_PAT.matcher(fieldString).replaceAll(COLON);
+            fieldString = ESCAPED_AT_PAT.matcher(fieldString).replaceAll(AT);
+            fields[i] = type.fromString(fieldString);
         }
         return buildValue(fields);
     }
@@ -255,7 +317,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     }
 
     @Override
-    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         ByteBuffer duplicated = buffer.duplicate();
         StringBuilder sb = new StringBuilder("[");
@@ -346,10 +408,5 @@ public class TupleType extends AbstractType<ByteBuffer>
     public String toString()
     {
         return getClass().getName() + TypeParser.stringifyTypeParameters(types, true);
-    }
-
-    public boolean isTuple()
-    {
-        return true;
     }
 }

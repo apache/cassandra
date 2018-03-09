@@ -31,7 +31,8 @@ public class ViewWriteMetrics extends ClientRequestMetrics
     // time between when mutation is applied to local memtable to when CL.ONE is achieved on MV
     public final Timer viewWriteLatency;
 
-    public ViewWriteMetrics(String scope) {
+    public ViewWriteMetrics(String scope)
+    {
         super(scope);
         viewReplicasAttempted = Metrics.counter(factory.createMetricName("ViewReplicasAttempted"));
         viewReplicasSuccess = Metrics.counter(factory.createMetricName("ViewReplicasSuccess"));

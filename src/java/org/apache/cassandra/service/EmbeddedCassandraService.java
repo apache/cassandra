@@ -19,12 +19,8 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.CassandraDaemon;
-
 /**
- * An embedded, in-memory cassandra storage service that listens
- * on the thrift interface as configured in cassandra.yaml
+ * An embedded, in-memory cassandra storage service.
  * This kind of service is useful when running unit tests of
  * services using cassandra for example.
  *
@@ -49,9 +45,14 @@ public class EmbeddedCassandraService
 
     public void start() throws IOException
     {
-        cassandraDaemon = new CassandraDaemon();
-        DatabaseDescriptor.setDaemonInitialized();
+        cassandraDaemon = CassandraDaemon.instance;
+        cassandraDaemon.applyConfig();
         cassandraDaemon.init(null);
         cassandraDaemon.start();
+    }
+
+    public void stop()
+    {
+        cassandraDaemon.stop();
     }
 }

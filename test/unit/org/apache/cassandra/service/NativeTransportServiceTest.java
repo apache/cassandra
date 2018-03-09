@@ -18,6 +18,7 @@
 package org.apache.cassandra.service;
 
 import java.util.Arrays;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -25,6 +26,7 @@ import java.util.stream.IntStream;
 
 import com.google.common.collect.Sets;
 import org.junit.After;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -37,6 +39,11 @@ import static org.junit.Assert.assertTrue;
 
 public class NativeTransportServiceTest
 {
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @After
     public void resetConfig()
@@ -78,12 +85,12 @@ public class NativeTransportServiceTest
     public void testDestroy()
     {
         withService((NativeTransportService service) -> {
-            Supplier<Boolean> allTerminated = () ->
+            BooleanSupplier allTerminated = () ->
                                               service.getWorkerGroup().isShutdown() && service.getWorkerGroup().isTerminated() &&
                                               service.getEventExecutor().isShutdown() && service.getEventExecutor().isTerminated();
-            assertFalse(allTerminated.get());
+            assertFalse(allTerminated.getAsBoolean());
             service.destroy();
-            assertTrue(allTerminated.get());
+            assertTrue(allTerminated.getAsBoolean());
         });
     }
 

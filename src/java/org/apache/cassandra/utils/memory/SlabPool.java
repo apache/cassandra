@@ -32,9 +32,4 @@ public class SlabPool extends MemtablePool
     {
         return new SlabAllocator(onHeap.newAllocator(), offHeap.newAllocator(), allocateOnHeap);
     }
-
-    public boolean needToCopyOnHeap()
-    {
-        return !allocateOnHeap;
-    }
 }

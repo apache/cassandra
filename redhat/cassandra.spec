@@ -103,9 +103,8 @@ mv bin/cassandra %{buildroot}/usr/sbin/
 cp -p bin/* %{buildroot}/usr/bin/
 cp -p tools/bin/* %{buildroot}/usr/bin/
 
-# copy cassandra, thrift jars
+# copy cassandra jar
 cp build/apache-cassandra-%{version}.jar %{buildroot}/usr/share/%{username}/
-cp build/apache-cassandra-thrift-%{version}.jar %{buildroot}/usr/share/%{username}/
 
 %clean
 %{__rm} -rf %{buildroot}
@@ -167,6 +166,7 @@ This package contains extra tools for working with Cassandra clusters.
 %files tools
 %attr(755,root,root) %{_bindir}/sstabledump
 %attr(755,root,root) %{_bindir}/cassandra-stressd
+%attr(755,root,root) %{_bindir}/compaction-stress
 %attr(755,root,root) %{_bindir}/sstableexpiredblockers
 %attr(755,root,root) %{_bindir}/sstablelevelreset
 %attr(755,root,root) %{_bindir}/sstablemetadata

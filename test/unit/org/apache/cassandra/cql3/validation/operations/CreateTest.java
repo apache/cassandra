@@ -17,39 +17,42 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
 
 import org.junit.Test;
 
-
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.locator.AbstractEndpointSnitch;
+import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.triggers.ITrigger;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
-import static junit.framework.Assert.assertFalse;
-import static junit.framework.Assert.fail;
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
+import static junit.framework.Assert.fail;
+import static org.apache.cassandra.cql3.Duration.*;
+import static org.junit.Assert.assertEquals;
 
 public class CreateTest extends CQLTester
 {
-    @Test
-    public void testCQL3PartitionKeyOnlyTable()
-    {
-        createTable("CREATE TABLE %s (id text PRIMARY KEY);");
-        assertFalse(currentTableMetadata().isThriftCompatible());
-    }
-
     @Test
     public void testCreateTableWithSmallintColumns() throws Throwable
     {
@@ -83,6 +86,161 @@ public class CreateTest extends CQLTester
 
         assertInvalidMessage("Expected 1 byte for a tinyint (0)",
                              "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", "3", (byte) 1, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+    }
+
+    @Test
+    public void testCreateTableWithDurationColumns() throws Throwable
+    {
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part a",
+                             "CREATE TABLE test (a duration PRIMARY KEY, b int);");
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part b",
+                             "CREATE TABLE test (a text, b duration, c duration, primary key (a, b));");
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part b",
+                             "CREATE TABLE test (a text, b duration, c duration, primary key (a, b)) with clustering order by (b DESC);");
+
+        createTable("CREATE TABLE %s (a int, b int, c duration, primary key (a, b));");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 1, 1y2mo)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, -1y2mo)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 3, 1Y2MO)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 4, 2w)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 5, 2d10h)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 6, 30h20m)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 7, 20m)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 8, 567ms)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 9, 1950us)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 10, 1950µs)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 11, 1950000NS)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 12, -1950000ns)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 13, 1y3mo2h10m)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 14, -P1Y2M)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 15, P2D)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 16, PT20M)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 17, P2W)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 18, P1Y3MT2H10M)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 19, P0000-00-00T30:20:00)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 20, P0001-03-00T02:10:00)");
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 21, duration(12, 10, 0));
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 22, duration(-12, -10, 0));
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, 1, Duration.newInstance(14, 0, 0)),
+                   row(1, 2, Duration.newInstance(-14, 0, 0)),
+                   row(1, 3, Duration.newInstance(14, 0, 0)),
+                   row(1, 4, Duration.newInstance(0, 14, 0)),
+                   row(1, 5, Duration.newInstance(0, 2, 10 * NANOS_PER_HOUR)),
+                   row(1, 6, Duration.newInstance(0, 0, 30 * NANOS_PER_HOUR + 20 * NANOS_PER_MINUTE)),
+                   row(1, 7, Duration.newInstance(0, 0, 20 * NANOS_PER_MINUTE)),
+                   row(1, 8, Duration.newInstance(0, 0, 567 * NANOS_PER_MILLI)),
+                   row(1, 9, Duration.newInstance(0, 0, 1950 * NANOS_PER_MICRO)),
+                   row(1, 10, Duration.newInstance(0, 0, 1950 * NANOS_PER_MICRO)),
+                   row(1, 11, Duration.newInstance(0, 0, 1950000)),
+                   row(1, 12, Duration.newInstance(0, 0, -1950000)),
+                   row(1, 13, Duration.newInstance(15, 0, 130 * NANOS_PER_MINUTE)),
+                   row(1, 14, Duration.newInstance(-14, 0, 0)),
+                   row(1, 15, Duration.newInstance(0, 2, 0)),
+                   row(1, 16, Duration.newInstance(0, 0, 20 * NANOS_PER_MINUTE)),
+                   row(1, 17, Duration.newInstance(0, 14, 0)),
+                   row(1, 18, Duration.newInstance(15, 0, 130 * NANOS_PER_MINUTE)),
+                   row(1, 19, Duration.newInstance(0, 0, 30 * NANOS_PER_HOUR + 20 * NANOS_PER_MINUTE)),
+                   row(1, 20, Duration.newInstance(15, 0, 130 * NANOS_PER_MINUTE)),
+                   row(1, 21, Duration.newInstance(12, 10, 0)),
+                   row(1, 22, Duration.newInstance(-12, -10, 0)));
+
+        assertInvalidMessage("Slice restrictions are not supported on duration columns",
+                             "SELECT * FROM %s WHERE c > 1y ALLOW FILTERING");
+
+        assertInvalidMessage("Slice restrictions are not supported on duration columns",
+                             "SELECT * FROM %s WHERE c <= 1y ALLOW FILTERING");
+
+        assertInvalidMessage("Expected at least 3 bytes for a duration (1)",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, (byte) 1);
+        assertInvalidMessage("Expected at least 3 bytes for a duration (0)",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        assertInvalidMessage("Invalid duration. The total number of days must be less or equal to 2147483647",
+                             "INSERT INTO %s (a, b, c) VALUES (1, 2, " + Long.MAX_VALUE + "d)");
+
+        assertInvalidMessage("The duration months, days and nanoseconds must be all of the same sign (2, -2, 0)",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(2, -2, 0));
+
+        assertInvalidMessage("The duration months, days and nanoseconds must be all of the same sign (-2, 0, 2000000)",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(-2, 0, 2000000));
+
+        assertInvalidMessage("The duration months must be a 32 bits integer but was: 9223372036854775807",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(9223372036854775807L, 1, 0));
+
+        assertInvalidMessage("The duration days must be a 32 bits integer but was: 9223372036854775807",
+                             "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 1, duration(0, 9223372036854775807L, 0));
+
+        // Test with duration column name
+        createTable("CREATE TABLE %s (a text PRIMARY KEY, duration duration);");
+
+        // Test duration within Map
+        assertInvalidMessage("Durations are not allowed as map keys: map<duration, text>",
+                             "CREATE TABLE test(pk int PRIMARY KEY, m map<duration, text>)");
+
+        createTable("CREATE TABLE %s(pk int PRIMARY KEY, m map<text, duration>)");
+        execute("INSERT INTO %s (pk, m) VALUES (1, {'one month' : 1mo, '60 days' : 60d})");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, map("one month", Duration.from("1mo"), "60 days", Duration.from("60d"))));
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part m",
+                "CREATE TABLE %s(m frozen<map<text, duration>> PRIMARY KEY, v int)");
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part m",
+                             "CREATE TABLE %s(pk int, m frozen<map<text, duration>>, v int, PRIMARY KEY (pk, m))");
+
+        // Test duration within Set
+        assertInvalidMessage("Durations are not allowed inside sets: set<duration>",
+                             "CREATE TABLE %s(pk int PRIMARY KEY, s set<duration>)");
+
+        assertInvalidMessage("Durations are not allowed inside sets: frozen<set<duration>>",
+                             "CREATE TABLE %s(s frozen<set<duration>> PRIMARY KEY, v int)");
+
+        // Test duration within List
+        createTable("CREATE TABLE %s(pk int PRIMARY KEY, l list<duration>)");
+        execute("INSERT INTO %s (pk, l) VALUES (1, [1mo, 60d])");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, list(Duration.from("1mo"), Duration.from("60d"))));
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part l",
+                             "CREATE TABLE %s(l frozen<list<duration>> PRIMARY KEY, v int)");
+
+        // Test duration within Tuple
+        createTable("CREATE TABLE %s(pk int PRIMARY KEY, t tuple<int, duration>)");
+        execute("INSERT INTO %s (pk, t) VALUES (1, (1, 1mo))");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, tuple(1, Duration.from("1mo"))));
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part t",
+                             "CREATE TABLE %s(t frozen<tuple<int, duration>> PRIMARY KEY, v int)");
+
+        // Test duration within UDT
+        String typename = createType("CREATE TYPE %s (a duration)");
+        String myType = KEYSPACE + '.' + typename;
+        createTable("CREATE TABLE %s(pk int PRIMARY KEY, u " + myType + ")");
+        execute("INSERT INTO %s (pk, u) VALUES (1, {a : 1mo})");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, userType("a", Duration.from("1mo"))));
+
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part u",
+                             "CREATE TABLE %s(pk int, u frozen<" + myType + ">, v int, PRIMARY KEY(pk, u))");
+
+        // Test duration with several level of depth
+        assertInvalidMessage("duration type is not supported for PRIMARY KEY part m",
+                "CREATE TABLE %s(pk int, m frozen<map<text, list<tuple<int, duration>>>>, v int, PRIMARY KEY (pk, m))");
+    }
+
+    private ByteBuffer duration(long months, long days, long nanoseconds) throws IOException
+    {
+        try(DataOutputBuffer output = new DataOutputBuffer())
+        {
+            output.writeVInt(months);
+            output.writeVInt(days);
+            output.writeVInt(nanoseconds);
+            return output.buffer();
+        }
     }
 
     /**
@@ -125,142 +283,7 @@ public class CreateTest extends CQLTester
                    row(id1, 36, null, null));
     }
 
-    /**
-     * Creation and basic operations on a static table with compact storage,
-     * migrated from cql_tests.py:TestCQL.noncomposite_static_cf_test()
-     */
-    @Test
-    public void testDenseStaticTable() throws Throwable
-    {
-        createTable("CREATE TABLE %s (userid uuid PRIMARY KEY, firstname text, lastname text, age int) WITH COMPACT STORAGE");
-
-        UUID id1 = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
-        UUID id2 = UUID.fromString("f47ac10b-58cc-4372-a567-0e02b2c3d479");
-
-        execute("INSERT INTO %s (userid, firstname, lastname, age) VALUES (?, ?, ?, ?)", id1, "Frodo", "Baggins", 32);
-        execute("UPDATE %s SET firstname = ?, lastname = ?, age = ? WHERE userid = ?", "Samwise", "Gamgee", 33, id2);
-
-        assertRows(execute("SELECT firstname, lastname FROM %s WHERE userid = ?", id1),
-                   row("Frodo", "Baggins"));
-
-        assertRows(execute("SELECT * FROM %s WHERE userid = ?", id1),
-                   row(id1, 32, "Frodo", "Baggins"));
-
-        assertRows(execute("SELECT * FROM %s"),
-                   row(id2, 33, "Samwise", "Gamgee"),
-                   row(id1, 32, "Frodo", "Baggins")
-        );
-
-        String batch = "BEGIN BATCH "
-                       + "INSERT INTO %1$s (userid, age) VALUES (?, ?) "
-                       + "UPDATE %1$s SET age = ? WHERE userid = ? "
-                       + "DELETE firstname, lastname FROM %1$s WHERE userid = ? "
-                       + "DELETE firstname, lastname FROM %1$s WHERE userid = ? "
-                       + "APPLY BATCH";
-
-        execute(batch, id1, 36, 37, id2, id1, id2);
-
-        assertRows(execute("SELECT * FROM %s"),
-                   row(id2, 37, null, null),
-                   row(id1, 36, null, null));
-    }
-
-    /**
-     * Creation and basic operations on a non-composite table with compact storage,
-     * migrated from cql_tests.py:TestCQL.dynamic_cf_test()
-     */
-    @Test
-    public void testDenseNonCompositeTable() throws Throwable
-    {
-        createTable("CREATE TABLE %s (userid uuid, url text, time bigint, PRIMARY KEY (userid, url)) WITH COMPACT STORAGE");
-
-        UUID id1 = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
-        UUID id2 = UUID.fromString("f47ac10b-58cc-4372-a567-0e02b2c3d479");
-        UUID id3 = UUID.fromString("810e8500-e29b-41d4-a716-446655440000");
-
-        execute("INSERT INTO %s (userid, url, time) VALUES (?, ?, ?)", id1, "http://foo.bar", 42L);
-        execute("INSERT INTO %s (userid, url, time) VALUES (?, ?, ?)", id1, "http://foo-2.bar", 24L);
-        execute("INSERT INTO %s (userid, url, time) VALUES (?, ?, ?)", id1, "http://bar.bar", 128L);
-        execute("UPDATE %s SET time = 24 WHERE userid = ? and url = 'http://bar.foo'", id2);
-        execute("UPDATE %s SET time = 12 WHERE userid IN (?, ?) and url = 'http://foo-3'", id2, id1);
-
-        assertRows(execute("SELECT url, time FROM %s WHERE userid = ?", id1),
-                   row("http://bar.bar", 128L),
-                   row("http://foo-2.bar", 24L),
-                   row("http://foo-3", 12L),
-                   row("http://foo.bar", 42L));
-
-        assertRows(execute("SELECT * FROM %s WHERE userid = ?", id2),
-                   row(id2, "http://bar.foo", 24L),
-                   row(id2, "http://foo-3", 12L));
-
-        assertRows(execute("SELECT time FROM %s"),
-                   row(24L), // id2
-                   row(12L),
-                   row(128L), // id1
-                   row(24L),
-                   row(12L),
-                   row(42L)
-        );
-
-        // Check we don't allow empty values for url since this is the full underlying cell name (#6152)
-        assertInvalid("INSERT INTO %s (userid, url, time) VALUES (?, '', 42)", id3);
-    }
-
-    /**
-     * Creation and basic operations on a composite table with compact storage,
-     * migrated from cql_tests.py:TestCQL.dense_cf_test()
-     */
-    @Test
-    public void testDenseCompositeTable() throws Throwable
-    {
-        createTable("CREATE TABLE %s (userid uuid, ip text, port int, time bigint, PRIMARY KEY (userid, ip, port)) WITH COMPACT STORAGE");
-
-        UUID id1 = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
-        UUID id2 = UUID.fromString("f47ac10b-58cc-4372-a567-0e02b2c3d479");
-
-        execute("INSERT INTO %s (userid, ip, port, time) VALUES (?, '192.168.0.1', 80, 42)", id1);
-        execute("INSERT INTO %s (userid, ip, port, time) VALUES (?, '192.168.0.2', 80, 24)", id1);
-        execute("INSERT INTO %s (userid, ip, port, time) VALUES (?, '192.168.0.2', 90, 42)", id1);
-        execute("UPDATE %s SET time = 24 WHERE userid = ? AND ip = '192.168.0.2' AND port = 80", id2);
-
-        // we don't have to include all of the clustering columns (see CASSANDRA-7990)
-        execute("INSERT INTO %s (userid, ip, time) VALUES (?, '192.168.0.3', 42)", id2);
-        execute("UPDATE %s SET time = 42 WHERE userid = ? AND ip = '192.168.0.4'", id2);
-
-        assertRows(execute("SELECT ip, port, time FROM %s WHERE userid = ?", id1),
-                   row("192.168.0.1", 80, 42L),
-                   row("192.168.0.2", 80, 24L),
-                   row("192.168.0.2", 90, 42L));
-
-        assertRows(execute("SELECT ip, port, time FROM %s WHERE userid = ? and ip >= '192.168.0.2'", id1),
-                   row("192.168.0.2", 80, 24L),
-                   row("192.168.0.2", 90, 42L));
-
-        assertRows(execute("SELECT ip, port, time FROM %s WHERE userid = ? and ip = '192.168.0.2'", id1),
-                   row("192.168.0.2", 80, 24L),
-                   row("192.168.0.2", 90, 42L));
-
-        assertEmpty(execute("SELECT ip, port, time FROM %s WHERE userid = ? and ip > '192.168.0.2'", id1));
-
-        assertRows(execute("SELECT ip, port, time FROM %s WHERE userid = ? AND ip = '192.168.0.3'", id2),
-                   row("192.168.0.3", null, 42L));
-
-        assertRows(execute("SELECT ip, port, time FROM %s WHERE userid = ? AND ip = '192.168.0.4'", id2),
-                   row("192.168.0.4", null, 42L));
-
-        execute("DELETE time FROM %s WHERE userid = ? AND ip = '192.168.0.2' AND port = 80", id1);
-
-        assertRowCount(execute("SELECT * FROM %s WHERE userid = ?", id1), 2);
-
-        execute("DELETE FROM %s WHERE userid = ?", id1);
-        assertEmpty(execute("SELECT * FROM %s WHERE userid = ?", id1));
-
-        execute("DELETE FROM %s WHERE userid = ? AND ip = '192.168.0.3'", id2);
-        assertEmpty(execute("SELECT * FROM %s WHERE userid = ? AND ip = '192.168.0.3'", id2));
-    }
-
-    /**
+   /**
      * Creation and basic operations on a composite table,
      * migrated from cql_tests.py:TestCQL.sparse_cf_test()
      */
@@ -304,8 +327,6 @@ public class CreateTest extends CQLTester
 
         assertInvalid("CREATE TABLE test (key text PRIMARY KEY, key int)");
         assertInvalid("CREATE TABLE test (key text PRIMARY KEY, c int, c text)");
-
-        assertInvalid("CREATE TABLE test (key text, key2 text, c int, d text, PRIMARY KEY (key, key2)) WITH COMPACT STORAGE");
     }
 
     /**
@@ -345,6 +366,47 @@ public class CreateTest extends CQLTester
     }
 
     /**
+     *  Test {@link ConfigurationException} is thrown on create keyspace with invalid DC option in replication configuration .
+     */
+    @Test
+    public void testCreateKeyspaceWithNTSOnlyAcceptsConfiguredDataCenterNames() throws Throwable
+    {
+        assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE testABC WITH replication = { 'class' : 'NetworkTopologyStrategy', 'INVALID_DC' : 2 }");
+        execute("CREATE KEYSPACE testABC WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2 }");
+
+        // Mix valid and invalid, should throw an exception
+        assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE testXYZ WITH replication={ 'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2 , 'INVALID_DC': 1}");
+
+        // clean-up
+        execute("DROP KEYSPACE IF EXISTS testABC");
+        execute("DROP KEYSPACE IF EXISTS testXYZ");
+    }
+
+    /**
+     * Test {@link ConfigurationException} is thrown on create keyspace without any options.
+     */
+    @Test
+    public void testConfigurationExceptionThrownWhenCreateKeyspaceWithNoOptions() throws Throwable
+    {
+        assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE testXYZ with replication = { 'class': 'NetworkTopologyStrategy' }");
+        assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE testXYZ WITH replication = { 'class' : 'SimpleStrategy' }");
+    }
+
+    @Test
+    public void testCreateKeyspaceWithMultipleInstancesOfSameDCThrowsException() throws Throwable
+    {
+        try
+        {
+            assertInvalidThrow(SyntaxException.class, "CREATE KEYSPACE testABC WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2, '" + DATA_CENTER + "' : 3 }");
+        }
+        finally
+        {
+            // clean-up
+            execute("DROP KEYSPACE IF EXISTS testABC");
+        }
+    }
+
+    /**
      * Test create and drop table
      * migrated from cql_tests.py:TestCQL.table_test()
      */
@@ -352,32 +414,12 @@ public class CreateTest extends CQLTester
     public void testTable() throws Throwable
     {
         String table1 = createTable(" CREATE TABLE %s (k int PRIMARY KEY, c int)");
-        createTable(" CREATE TABLE %s (k int, name int, value int, PRIMARY KEY(k, name)) WITH COMPACT STORAGE ");
-        createTable(" CREATE TABLE %s (k int, c int, PRIMARY KEY (k),)");
+        createTable("CREATE TABLE %s (k int, c int, PRIMARY KEY (k),)");
 
         String table4 = createTableName();
 
         // repeated column
         assertInvalidMessage("Multiple definition of identifier k", String.format("CREATE TABLE %s (k int PRIMARY KEY, c int, k text)", table4));
-
-        // compact storage limitations
-        assertInvalidThrow(SyntaxException.class,
-                           String.format("CREATE TABLE %s (k int, name, int, c1 int, c2 int, PRIMARY KEY(k, name)) WITH COMPACT STORAGE", table4));
-
-        execute(String.format("DROP TABLE %s.%s", keyspace(), table1));
-
-        createTable(String.format("CREATE TABLE %s.%s ( k int PRIMARY KEY, c1 int, c2 int, ) ", keyspace(), table1));
-    }
-
-    /**
-     * Test truncate statement,
-     * migrated from cql_tests.py:TestCQL.table_test().
-     */
-    @Test
-    public void testTruncate() throws Throwable
-    {
-        createTable(" CREATE TABLE %s (k int, name int, value int, PRIMARY KEY(k, name)) WITH COMPACT STORAGE ");
-        execute("TRUNCATE %s");
     }
 
     /**
@@ -463,35 +505,31 @@ public class CreateTest extends CQLTester
     }
 
     @Test
-    public void testCreateIndexOnCompactTableWithClusteringColumns() throws Throwable
+    // tests CASSANDRA-4278
+    public void testHyphenDatacenters() throws Throwable
     {
-        createTable("CREATE TABLE %s (a int, b int , c int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE;");
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
 
-        assertInvalidMessage("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns",
-                             "CREATE INDEX ON %s (a);");
+        // Register an EndpointSnitch which returns fixed values for test.
+        DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
+        {
+            @Override
+            public String getRack(InetAddressAndPort endpoint) { return RACK1; }
 
-        assertInvalidMessage("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns",
-                             "CREATE INDEX ON %s (b);");
+            @Override
+            public String getDatacenter(InetAddressAndPort endpoint) { return "us-east-1"; }
 
-        assertInvalidMessage("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns",
-                             "CREATE INDEX ON %s (c);");
-    }
+            @Override
+            public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2) { return 0; }
+        });
 
-    @Test
-    public void testCreateIndexOnCompactTableWithoutClusteringColumns() throws Throwable
-    {
-        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int) WITH COMPACT STORAGE;");
+        execute("CREATE KEYSPACE Foo WITH replication = { 'class' : 'NetworkTopologyStrategy', 'us-east-1' : 1 };");
 
-        assertInvalidMessage("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables",
-                             "CREATE INDEX ON %s (a);");
+        // Restore the previous EndpointSnitch
+        DatabaseDescriptor.setEndpointSnitch(snitch);
 
-        createIndex("CREATE INDEX ON %s (b);");
-
-        execute("INSERT INTO %s (a, b) values (1, 1)");
-        execute("INSERT INTO %s (a, b) values (2, 4)");
-        execute("INSERT INTO %s (a, b) values (3, 6)");
-
-        assertRows(execute("SELECT * FROM %s WHERE b = ?", 4), row(2, 4));
+        // clean up
+        execute("DROP KEYSPACE IF EXISTS Foo");
     }
 
     @Test
@@ -511,7 +549,7 @@ public class CreateTest extends CQLTester
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
@@ -521,7 +559,7 @@ public class CreateTest extends CQLTester
                 + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
@@ -531,7 +569,7 @@ public class CreateTest extends CQLTester
                 + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32, 'enabled' : true };");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
@@ -541,17 +579,47 @@ public class CreateTest extends CQLTester
                 + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'chunk_length_kb' : 32 };");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
                    row(map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 2 };");
+
+        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspace.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.SnappyCompressor", "min_compress_ratio", "2.0")));
+
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                    + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 1 };");
+
+        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspace.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.SnappyCompressor", "min_compress_ratio", "1.0")));
+
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                    + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 0 };");
+
+        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspace.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
+
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                 + " WITH compression = { 'sstable_compression' : '', 'chunk_length_kb' : 32 };");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
@@ -561,7 +629,7 @@ public class CreateTest extends CQLTester
                 + " WITH compression = { 'enabled' : 'false'};");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
@@ -591,35 +659,55 @@ public class CreateTest extends CQLTester
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_kb' : 32 , 'chunk_length_in_kb' : 32 };");
 
+        assertThrowsConfigurationException("chunk_length_in_kb must be a power of 2",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 31 };");
+
+        assertThrowsConfigurationException("Invalid negative or null chunk_length_in_kb",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : -1 };");
+
+        assertThrowsConfigurationException("Invalid negative min_compress_ratio",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                            + " WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : -1 };");
+
         assertThrowsConfigurationException("Unknown compression options unknownOption",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                             + " WITH compression = { 'class' : 'SnappyCompressor', 'unknownOption' : 32 };");
     }
 
-     private void assertThrowsConfigurationException(String errorMsg, String createStmt) {
-         try
-         {
-             createTable(createStmt);
-             fail("Query should be invalid but no error was thrown. Query is: " + createStmt);
-         }
-         catch (RuntimeException e)
-         {
-             Throwable cause = e.getCause();
-             assertTrue("The exception should be a ConfigurationException", cause instanceof ConfigurationException);
-             assertEquals(errorMsg, cause.getMessage());
-         }
-     }
+    @Test
+    public void compactTableTest() throws Throwable
+    {
+        assertInvalidMessage("Compact tables are not allowed in Cassandra starting with 4.0 version.",
+                             "CREATE TABLE compact_table_create (id text PRIMARY KEY, content text) WITH COMPACT STORAGE;");
+    }
+
+    private void assertThrowsConfigurationException(String errorMsg, String createStmt)
+    {
+        try
+        {
+            createTable(createStmt);
+            fail("Query should be invalid but no error was thrown. Query is: " + createStmt);
+        }
+        catch (RuntimeException e)
+        {
+            Throwable cause = e.getCause();
+            assertTrue("The exception should be a ConfigurationException", cause instanceof ConfigurationException);
+            assertEquals(errorMsg, cause.getMessage());
+        }
+    }
 
     private void assertTriggerExists(String name)
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), currentTable()).copy();
-        assertTrue("the trigger does not exist", cfm.getTriggers().get(name).isPresent());
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), currentTable());
+        assertTrue("the trigger does not exist", metadata.triggers.get(name).isPresent());
     }
 
     private void assertTriggerDoesNotExists(String name)
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), currentTable()).copy();
-        assertFalse("the trigger exists", cfm.getTriggers().get(name).isPresent());
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), currentTable());
+        assertFalse("the trigger exists", metadata.triggers.get(name).isPresent());
     }
 
     public static class TestTrigger implements ITrigger

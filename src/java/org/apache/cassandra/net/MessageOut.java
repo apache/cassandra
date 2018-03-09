@@ -19,35 +19,103 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.util.Collections;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.async.OutboundConnectionIdentifier.ConnectionType;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.tracing.Tracing.TRACE_HEADER;
-import static org.apache.cassandra.tracing.Tracing.TRACE_TYPE;
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 
+/**
+ * Each message contains a header with several fixed fields, an optional key-value parameters section, and then
+ * the message payload itself. Note: the IP address in the header may be either IPv4 (4 bytes) or IPv6 (16 bytes).
+ * The diagram below shows the IPv4 address for brevity.
+ *
+ * <pre>
+ * {@code
+ *            1 1 1 1 1 2 2 2 2 2 3 3 3 3 3 4 4 4 4 4 5 5 5 5 5 6 6
+ *  0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2 4 6 8 0 2
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                       PROTOCOL MAGIC                          |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                         Message ID                            |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                         Timestamp                             |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |  Addr len |           IP Address (IPv4)                       /
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * /           |                 Verb                              /
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * /           |            Parameters size                        /
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * /           |             Parameter data                        /
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * /                                                               |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                        Payload size                           |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                                                               /
+ * /                           Payload                             /
+ * /                                                               |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * }
+ * </pre>
+ *
+ * An individual parameter has a String key and a byte array value. The key is serialized with it's length,
+ * encoded as two bytes, followed by the UTF-8 byte encoding of the string (see {@link java.io.DataOutput#writeUTF(java.lang.String)}).
+ * The body is serialized with it's length, encoded as four bytes, followed by the bytes of the value.
+ *
+ * * @param <T> The type of the message payload.
+ */
 public class MessageOut<T>
 {
-    public final InetAddress from;
+    private static final int SERIALIZED_SIZE_VERSION_UNDEFINED = -1;
+    //Parameters are stored in an object array as tuples of size two
+    public static final int PARAMETER_TUPLE_SIZE = 2;
+    //Offset in a parameter tuple containing the type of the parameter
+    public static final int PARAMETER_TUPLE_TYPE_OFFSET = 0;
+    //Offset in a parameter tuple containing the actual parameter represented as a POJO
+    public static final int PARAMETER_TUPLE_PARAMETER_OFFSET = 1;
+
+    public final InetAddressAndPort from;
     public final MessagingService.Verb verb;
     public final T payload;
     public final IVersionedSerializer<T> serializer;
-    public final Map<String, byte[]> parameters;
-    private long payloadSize = -1;
-    private int payloadSizeVersion = -1;
+    //A list of tuples, first object is the ParameterType enum value,
+    //the second object is the POJO to serialize
+    public final List<Object> parameters;
+
+    /**
+     * Allows sender to explicitly state which connection type the message should be sent on.
+     */
+    public final ConnectionType connectionType;
+
+    /**
+     * Memoization of the serialized size of the just the payload.
+     */
+    private int payloadSerializedSize = -1;
+
+    /**
+     * Memoization of the serialized size of the entire message.
+     */
+    private int serializedSize = -1;
+
+    /**
+     * The internode protocol messaging version that was used to calculate the memoized serailized sizes.
+     */
+    private int serializedSizeVersion = SERIALIZED_SIZE_VERSION_UNDEFINED;
 
     // we do support messages that just consist of a verb
     public MessageOut(MessagingService.Verb verb)
@@ -60,32 +128,42 @@ public class MessageOut<T>
         this(verb,
              payload,
              serializer,
-             isTracing()
-                 ? ImmutableMap.of(TRACE_HEADER, UUIDGen.decompose(Tracing.instance.getSessionId()),
-                                   TRACE_TYPE, new byte[] { Tracing.TraceType.serialize(Tracing.instance.getTraceType()) })
-                 : Collections.<String, byte[]>emptyMap());
+             isTracing() ? Tracing.instance.getTraceHeaders() : ImmutableList.of(),
+             null);
     }
 
-    private MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, Map<String, byte[]> parameters)
+    public MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, ConnectionType connectionType)
     {
-        this(FBUtilities.getBroadcastAddress(), verb, payload, serializer, parameters);
+        this(verb,
+             payload,
+             serializer,
+             isTracing() ? Tracing.instance.getTraceHeaders() : ImmutableList.of(),
+             connectionType);
+    }
+
+    private MessageOut(MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, List<Object> parameters, ConnectionType connectionType)
+    {
+        this(FBUtilities.getBroadcastAddressAndPort(), verb, payload, serializer, parameters, connectionType);
     }
 
     @VisibleForTesting
-    public MessageOut(InetAddress from, MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, Map<String, byte[]> parameters)
+    public MessageOut(InetAddressAndPort from, MessagingService.Verb verb, T payload, IVersionedSerializer<T> serializer, List<Object> parameters, ConnectionType connectionType)
     {
         this.from = from;
         this.verb = verb;
         this.payload = payload;
         this.serializer = serializer;
         this.parameters = parameters;
+        this.connectionType = connectionType;
     }
 
-    public MessageOut<T> withParameter(String key, byte[] value)
+    public <VT> MessageOut<T> withParameter(ParameterType type, VT value)
     {
-        ImmutableMap.Builder<String, byte[]> builder = ImmutableMap.builder();
-        builder.putAll(parameters).put(key, value);
-        return new MessageOut<T>(verb, payload, serializer, builder.build());
+        List<Object> newParameters = new ArrayList<>(parameters.size() + 2);
+        newParameters.addAll(parameters);
+        newParameters.add(type);
+        newParameters.add(value);
+        return new MessageOut<T>(verb, payload, serializer, newParameters, connectionType);
     }
 
     public Stage getStage()
@@ -95,7 +173,7 @@ public class MessageOut<T>
 
     public long getTimeout()
     {
-        return DatabaseDescriptor.getTimeout(verb);
+        return verb.getTimeout();
     }
 
     public String toString()
@@ -107,69 +185,102 @@ public class MessageOut<T>
 
     public void serialize(DataOutputPlus out, int version) throws IOException
     {
-        CompactEndpointSerializationHelper.serialize(from, out);
+        CompactEndpointSerializationHelper.instance.serialize(from, out, version);
 
-        out.writeInt(MessagingService.Verb.convertForMessagingServiceVersion(verb, version).ordinal());
-        out.writeInt(parameters.size());
-        for (Map.Entry<String, byte[]> entry : parameters.entrySet())
+        out.writeInt(verb.getId());
+        assert parameters.size() % PARAMETER_TUPLE_SIZE == 0;
+        out.writeInt(parameters.size() / PARAMETER_TUPLE_SIZE);
+        for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
         {
-            out.writeUTF(entry.getKey());
-            out.writeInt(entry.getValue().length);
-            out.write(entry.getValue());
+            ParameterType type = (ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET);
+            out.writeUTF(type.key);
+            IVersionedSerializer serializer = type.serializer;
+            Object parameter = parameters.get(ii + PARAMETER_TUPLE_PARAMETER_OFFSET);
+            out.writeInt(Ints.checkedCast(serializer.serializedSize(parameter, version)));
+            serializer.serialize(parameter, out, version);
         }
 
-        long longSize = payloadSize(version);
-        assert longSize <= Integer.MAX_VALUE; // larger values are supported in sstables but not messages
-        out.writeInt((int) longSize);
         if (payload != null)
+        {
+            int payloadSize = payloadSerializedSize >= 0
+                              ? (int)payloadSerializedSize
+                              : (int) serializer.serializedSize(payload, version);
+
+            out.writeInt(payloadSize);
             serializer.serialize(payload, out, version);
+        }
+        else
+        {
+            out.writeInt(0);
+        }
     }
 
-    public int serializedSize(int version)
+    private Pair<Long, Long> calculateSerializedSize(int version)
     {
-        int size = CompactEndpointSerializationHelper.serializedSize(from);
+        long size = 0;
+        size += CompactEndpointSerializationHelper.instance.serializedSize(from, version);
 
-        size += TypeSizes.sizeof(verb.ordinal());
+        size += TypeSizes.sizeof(verb.getId());
         size += TypeSizes.sizeof(parameters.size());
-        for (Map.Entry<String, byte[]> entry : parameters.entrySet())
+        for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
         {
-            size += TypeSizes.sizeof(entry.getKey());
-            size += TypeSizes.sizeof(entry.getValue().length);
-            size += entry.getValue().length;
+            ParameterType type = (ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET);
+            size += TypeSizes.sizeof(type.key());
+            size += 4;//length prefix
+            IVersionedSerializer serializer = type.serializer;
+            Object parameter = parameters.get(ii + PARAMETER_TUPLE_PARAMETER_OFFSET);
+            size += serializer.serializedSize(parameter, version);
         }
 
-        long longSize = payloadSize(version);
-        assert longSize <= Integer.MAX_VALUE; // larger values are supported in sstables but not messages
-        size += TypeSizes.sizeof((int) longSize);
-        size += longSize;
-        return size;
+        long payloadSize = payload == null ? 0 : serializer.serializedSize(payload, version);
+        assert payloadSize <= Integer.MAX_VALUE; // larger values are supported in sstables but not messages
+        size += TypeSizes.sizeof((int) payloadSize);
+        size += payloadSize;
+        return Pair.create(size, payloadSize);
     }
 
     /**
-     * Calculate the size of the payload of this message for the specified protocol version
-     * and memoize the result for the specified protocol version. Memoization only covers the protocol
-     * version of the first invocation.
+     * Calculate the size of this message for the specified protocol version and memoize the result for the specified
+     * protocol version. Memoization only covers the protocol version of the first invocation.
      *
-     * It is not safe to call payloadSize concurrently from multiple threads unless it has already been invoked
+     * It is not safe to call this function concurrently from multiple threads unless it has already been invoked
      * once from a single thread and there is a happens before relationship between that invocation and other
-     * threads concurrently invoking payloadSize.
+     * threads concurrently invoking this function.
      *
      * For instance it would be safe to invokePayload size to make a decision in the thread that created the message
      * and then hand it off to other threads via a thread-safe queue, volatile write, or synchronized/ReentrantLock.
-     * @param version Protocol version to use when calculating payload size
-     * @return Size of the payload of this message in bytes
+     *
+     * @param version Protocol version to use when calculating size
+     * @return Size of this message in bytes, which will be less than or equal to {@link Integer#MAX_VALUE}
      */
-    public long payloadSize(int version)
+    public int serializedSize(int version)
     {
-        if (payloadSize == -1)
+        if (serializedSize > 0 && serializedSizeVersion == version)
+            return serializedSize;
+
+        Pair<Long, Long> sizes = calculateSerializedSize(version);
+        if (sizes.left > Integer.MAX_VALUE)
+            throw new IllegalStateException("message size exceeds maximum allowed size: size = " + sizes.left);
+
+        if (serializedSizeVersion == SERIALIZED_SIZE_VERSION_UNDEFINED)
         {
-            payloadSize = payload == null ? 0 : serializer.serializedSize(payload, version);
-            payloadSizeVersion = version;
+            serializedSize = sizes.left.intValue();
+            payloadSerializedSize = sizes.right.intValue();
+            serializedSizeVersion = version;
         }
-        else if (payloadSizeVersion != version)
+
+        return sizes.left.intValue();
+    }
+
+    public Object getParameter(ParameterType type)
+    {
+        for (int ii = 0; ii < parameters.size(); ii += PARAMETER_TUPLE_SIZE)
         {
-            return payload == null ? 0 : serializer.serializedSize(payload, version);
+            if (((ParameterType)parameters.get(ii + PARAMETER_TUPLE_TYPE_OFFSET)).equals(type))
+            {
+                return parameters.get(ii + PARAMETER_TUPLE_PARAMETER_OFFSET);
+            }
         }
-        return payloadSize;
+        return null;
     }
 }

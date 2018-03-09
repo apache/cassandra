@@ -18,13 +18,21 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -49,7 +57,7 @@ public class CompactionsCQLTest extends CQLTester
     @Test
     public void testTriggerMinorCompactionLCS() throws Throwable
     {
-        createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':1};");
+        createTable("CREATE TABLE %s (id text PRIMARY KEY) WITH compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':1, 'fanout_size':5};");
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         execute("insert into %s (id) values ('1')");
         flush();
@@ -103,6 +111,12 @@ public class CompactionsCQLTest extends CQLTester
         assertFalse(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
         getCurrentColumnFamilyStore().enableAutoCompaction();
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
+
+        // Alter keyspace replication settings to force compaction strategy reload and check strategy is still enabled
+        execute("alter keyspace "+keyspace()+" with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 }");
+        getCurrentColumnFamilyStore().getCompactionStrategyManager().maybeReloadDiskBoundaries();
+        assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
+
         execute("insert into %s (id) values ('1')");
         flush();
         execute("insert into %s (id) values ('1')");
@@ -160,8 +174,14 @@ public class CompactionsCQLTest extends CQLTester
         localOptions.put("class", "DateTieredCompactionStrategy");
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
+        // Invalidate disk boundaries to ensure that boundary invalidation will not cause the old strategy to be reloaded
+        getCurrentColumnFamilyStore().invalidateDiskBoundaries();
         // altering something non-compaction related
         execute("ALTER TABLE %s WITH gc_grace_seconds = 1000");
+        // should keep the local compaction strat
+        assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
+        // Alter keyspace replication settings to force compaction strategy reload
+        execute("alter keyspace "+keyspace()+" with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 }");
         // should keep the local compaction strat
         assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
         // altering a compaction option
@@ -169,7 +189,6 @@ public class CompactionsCQLTest extends CQLTester
         // will use the new option
         assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), SizeTieredCompactionStrategy.class));
     }
-
 
     @Test
     public void testSetLocalCompactionStrategyDisable() throws Throwable
@@ -214,12 +233,88 @@ public class CompactionsCQLTest extends CQLTester
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
     }
 
+    @Test
+    public void testPerCFSNeverPurgeTombstonesCell() throws Throwable
+    {
+        testPerCFSNeverPurgeTombstonesHelper(true);
+    }
+
+    @Test
+    public void testPerCFSNeverPurgeTombstones() throws Throwable
+    {
+        testPerCFSNeverPurgeTombstonesHelper(false);
+    }
+
+
+    public void testPerCFSNeverPurgeTombstonesHelper(boolean deletedCell) throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int primary key, b text) with gc_grace_seconds = 0");
+        for (int i = 0; i < 100; i++)
+        {
+            execute("INSERT INTO %s (id, b) VALUES (?, ?)", i, String.valueOf(i));
+        }
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+
+        assertTombstones(getCurrentColumnFamilyStore().getLiveSSTables().iterator().next(), false);
+        if (deletedCell)
+            execute("UPDATE %s SET b=null WHERE id = ?", 50);
+        else
+            execute("DELETE FROM %s WHERE id = ?", 50);
+        getCurrentColumnFamilyStore().setNeverPurgeTombstones(false);
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        Thread.sleep(2000); // wait for gcgs to pass
+        getCurrentColumnFamilyStore().forceMajorCompaction();
+        assertTombstones(getCurrentColumnFamilyStore().getLiveSSTables().iterator().next(), false);
+        if (deletedCell)
+            execute("UPDATE %s SET b=null WHERE id = ?", 44);
+        else
+            execute("DELETE FROM %s WHERE id = ?", 44);
+        getCurrentColumnFamilyStore().setNeverPurgeTombstones(true);
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        Thread.sleep(1100);
+        getCurrentColumnFamilyStore().forceMajorCompaction();
+        assertTombstones(getCurrentColumnFamilyStore().getLiveSSTables().iterator().next(), true);
+        // disable it again and make sure the tombstone is gone:
+        getCurrentColumnFamilyStore().setNeverPurgeTombstones(false);
+        getCurrentColumnFamilyStore().forceMajorCompaction();
+        assertTombstones(getCurrentColumnFamilyStore().getLiveSSTables().iterator().next(), false);
+        getCurrentColumnFamilyStore().truncateBlocking();
+    }
+
+    private void assertTombstones(SSTableReader sstable, boolean expectTS)
+    {
+        boolean foundTombstone = false;
+        try(ISSTableScanner scanner = sstable.getScanner())
+        {
+            while (scanner.hasNext())
+            {
+                try (UnfilteredRowIterator iter = scanner.next())
+                {
+                    if (!iter.partitionLevelDeletion().isLive())
+                        foundTombstone = true;
+                    while (iter.hasNext())
+                    {
+                        Unfiltered unfiltered = iter.next();
+                        assertTrue(unfiltered instanceof Row);
+                        for (Cell c : ((Row)unfiltered).cells())
+                        {
+                            if (c.isTombstone())
+                                foundTombstone = true;
+                        }
+
+                    }
+                }
+            }
+        }
+        assertEquals(expectTS, foundTombstone);
+    }
+
     public boolean verifyStrategies(CompactionStrategyManager manager, Class<? extends AbstractCompactionStrategy> expected)
     {
         boolean found = false;
-        for (AbstractCompactionStrategy actualStrategy : manager.getStrategies())
+        for (List<AbstractCompactionStrategy> strategies : manager.getStrategies())
         {
-            if (!actualStrategy.getClass().equals(expected))
+            if (!strategies.stream().allMatch((strategy) -> strategy.getClass().equals(expected)))
                 return false;
             found = true;
         }

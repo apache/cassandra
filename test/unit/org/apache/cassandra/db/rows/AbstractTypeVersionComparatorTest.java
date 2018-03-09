@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.marshal.*;
 
 import static java.util.Arrays.asList;
+import static org.apache.cassandra.cql3.FieldIdentifier.forUnquoted;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -41,12 +42,14 @@ public class AbstractTypeVersionComparatorTest
     {
         udtWith2Fields = new UserType("ks",
                                       bytes("myType"),
-                                      asList(bytes("a"), bytes("b")),
-                                      asList(Int32Type.instance, Int32Type.instance));
+                                      asList(forUnquoted("a"), forUnquoted("b")),
+                                      asList(Int32Type.instance, Int32Type.instance),
+                                      false);
         udtWith3Fields = new UserType("ks",
                                       bytes("myType"),
-                                      asList(bytes("a"), bytes("b"), bytes("c")),
-                                      asList(Int32Type.instance, Int32Type.instance, Int32Type.instance));
+                                      asList(forUnquoted("a"), forUnquoted("b"), forUnquoted("c")),
+                                      asList(Int32Type.instance, Int32Type.instance, Int32Type.instance),
+                                      false);
     }
 
     @After
@@ -139,7 +142,7 @@ public class AbstractTypeVersionComparatorTest
     @Test
     public void testInvalidComparison()
     {
-        assertInvalidComparison("Trying to compare 2 different types: org.apache.cassandra.db.marshal.UserType(ks,6d7954797065,61:org.apache.cassandra.db.marshal.Int32Type,62:org.apache.cassandra.db.marshal.Int32Type) and org.apache.cassandra.db.marshal.Int32Type",
+        assertInvalidComparison("Trying to compare 2 different types: org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.UserType(ks,6d7954797065,61:org.apache.cassandra.db.marshal.Int32Type,62:org.apache.cassandra.db.marshal.Int32Type)) and org.apache.cassandra.db.marshal.Int32Type",
                                 udtWith2Fields,
                                 Int32Type.instance);
         assertInvalidComparison("Trying to compare 2 different types: org.apache.cassandra.db.marshal.UTF8Type and org.apache.cassandra.db.marshal.InetAddressType",
@@ -165,6 +168,7 @@ public class AbstractTypeVersionComparatorTest
         }
         catch (IllegalArgumentException e)
         {
+            System.out.println(e.getMessage());
             assertEquals(e.getMessage(), expectedMessage);
         }
     }
@@ -177,7 +181,7 @@ public class AbstractTypeVersionComparatorTest
         assertEquals(1, compare(newVersion, oldVersion));
     }
 
-    private int compare(AbstractType<?> left, AbstractType<?> right)
+    private static int compare(AbstractType<?> left, AbstractType<?> right)
     {
         return AbstractTypeVersionComparator.INSTANCE.compare(left, right);
     }

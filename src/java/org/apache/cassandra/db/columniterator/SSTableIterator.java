@@ -24,38 +24,47 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileHandle;
 
 /**
  *  A Cell Iterator over SSTable
  */
 public class SSTableIterator extends AbstractSSTableIterator
 {
-    public SSTableIterator(SSTableReader sstable,
-                           DecoratedKey key,
-                           ColumnFilter columns,
-                           boolean isForThrift,
-                           SSTableReadsListener listener)
-    {
-        this(sstable, null, key, sstable.getPosition(key, SSTableReader.Operator.EQ, listener), columns, isForThrift);
-    }
+    /**
+     * The index of the slice being processed.
+     */
+    private int slice;
 
     public SSTableIterator(SSTableReader sstable,
                            FileDataInput file,
                            DecoratedKey key,
                            RowIndexEntry indexEntry,
+                           Slices slices,
                            ColumnFilter columns,
-                           boolean isForThrift)
+                           FileHandle ifile)
     {
-        super(sstable, file, key, indexEntry, columns, isForThrift);
+        super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
-    protected Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+    protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
     {
         return indexEntry.isIndexed()
              ? new ForwardIndexedReader(indexEntry, file, shouldCloseFile)
              : new ForwardReader(file, shouldCloseFile);
+    }
+
+    protected int nextSliceIndex()
+    {
+        int next = slice;
+        slice++;
+        return next;
+    }
+
+    protected boolean hasMoreSlices()
+    {
+        return slice < slices.size();
     }
 
     public boolean isReverseOrder()
@@ -66,9 +75,9 @@ public class SSTableIterator extends AbstractSSTableIterator
     private class ForwardReader extends Reader
     {
         // The start of the current slice. This will be null as soon as we know we've passed that bound.
-        protected Slice.Bound start;
+        protected ClusteringBound start;
         // The end of the current slice. Will never be null.
-        protected Slice.Bound end = Slice.Bound.TOP;
+        protected ClusteringBound end = ClusteringBound.TOP;
 
         protected Unfiltered next; // the next element to return: this is computed by hasNextInternal().
 
@@ -82,7 +91,7 @@ public class SSTableIterator extends AbstractSSTableIterator
 
         public void setForSlice(Slice slice) throws IOException
         {
-            start = slice.start() == Slice.Bound.BOTTOM ? null : slice.start();
+            start = slice.start() == ClusteringBound.BOTTOM ? null : slice.start();
             end = slice.end();
 
             sliceDone = false;
@@ -110,7 +119,7 @@ public class SSTableIterator extends AbstractSSTableIterator
                     updateOpenMarker((RangeTombstoneMarker)deserializer.readNext());
             }
 
-            Slice.Bound sliceStart = start;
+            ClusteringBound sliceStart = start;
             start = null;
 
             // We've reached the beginning of our queried slice. If we have an open marker
@@ -204,8 +213,15 @@ public class SSTableIterator extends AbstractSSTableIterator
         private ForwardIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
-            this.indexState = new IndexState(this, sstable.metadata.comparator, indexEntry, false);
+            this.indexState = new IndexState(this, metadata.comparator, indexEntry, false, ifile);
             this.lastBlockIdx = indexState.blocksCount(); // if we never call setForSlice, that's where we want to stop
+        }
+
+        @Override
+        public void close() throws IOException
+        {
+            super.close();
+            this.indexState.close();
         }
 
         @Override
@@ -254,12 +270,10 @@ public class SSTableIterator extends AbstractSSTableIterator
             // so if currentIdx == lastBlockIdx and slice.end < indexes[currentIdx].firstName, we're guaranteed that the
             // whole slice is between the previous block end and this block start, and thus has no corresponding
             // data. One exception is if the previous block ends with an openMarker as it will cover our slice
-            // and we need to return it (we also don't skip the slice for the old format because we didn't have the openMarker
-            // info in that case and can't rely on this optimization).
+            // and we need to return it.
             if (indexState.currentBlockIdx() == lastBlockIdx
                 && metadata().comparator.compare(slice.end(), indexState.currentIndex().firstName) < 0
-                && openMarker == null
-                && sstable.descriptor.version.storeRows())
+                && openMarker == null)
             {
                 sliceDone = true;
             }

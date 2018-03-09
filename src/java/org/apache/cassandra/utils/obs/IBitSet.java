@@ -18,9 +18,9 @@
 package org.apache.cassandra.utils.obs;
 
 import java.io.Closeable;
-import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 public interface IBitSet extends Closeable
@@ -44,7 +44,7 @@ public interface IBitSet extends Closeable
      */
     public void clear(long index);
 
-    public void serialize(DataOutput out) throws IOException;
+    public void serialize(DataOutputPlus out) throws IOException;
 
     public long serializedSize();
 

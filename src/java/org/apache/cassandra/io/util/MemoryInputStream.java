@@ -71,6 +71,6 @@ public class MemoryInputStream extends RebufferingInputStream implements DataInp
 
     private static ByteBuffer getByteBuffer(long offset, int length)
     {
-        return MemoryUtil.getByteBuffer(offset, length).order(ByteOrder.BIG_ENDIAN);
+        return MemoryUtil.getByteBuffer(offset, length, ByteOrder.BIG_ENDIAN);
     }
 }

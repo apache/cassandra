@@ -18,18 +18,28 @@
 
 package org.apache.cassandra.db.compaction.writers;
 
+import java.io.File;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.DiskBoundaries;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Transactional;
+import org.apache.cassandra.db.compaction.OperationType;
 
 
 /**
@@ -38,17 +48,23 @@ import org.apache.cassandra.utils.concurrent.Transactional;
  */
 public abstract class CompactionAwareWriter extends Transactional.AbstractTransactional implements Transactional
 {
+    protected static final Logger logger = LoggerFactory.getLogger(CompactionAwareWriter.class);
+
     protected final ColumnFamilyStore cfs;
     protected final Directories directories;
     protected final Set<SSTableReader> nonExpiredSSTables;
     protected final long estimatedTotalKeys;
     protected final long maxAge;
     protected final long minRepairedAt;
+    protected final UUID pendingRepair;
 
-    protected final LifecycleTransaction txn;
     protected final SSTableRewriter sstableWriter;
-    private boolean isInitialized = false;
+    protected final LifecycleTransaction txn;
+    private final List<Directories.DataDirectory> locations;
+    private final List<PartitionPosition> diskBoundaries;
+    private int locationIndex;
 
+    @Deprecated
     public CompactionAwareWriter(ColumnFamilyStore cfs,
                                  Directories directories,
                                  LifecycleTransaction txn,
@@ -56,14 +72,29 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
                                  boolean offline,
                                  boolean keepOriginals)
     {
+        this(cfs, directories, txn, nonExpiredSSTables, keepOriginals);
+    }
+
+    public CompactionAwareWriter(ColumnFamilyStore cfs,
+                                 Directories directories,
+                                 LifecycleTransaction txn,
+                                 Set<SSTableReader> nonExpiredSSTables,
+                                 boolean keepOriginals)
+    {
         this.cfs = cfs;
         this.directories = directories;
         this.nonExpiredSSTables = nonExpiredSSTables;
-        this.estimatedTotalKeys = SSTableReader.getApproximateKeyCount(nonExpiredSSTables);
-        this.maxAge = CompactionTask.getMaxDataAge(nonExpiredSSTables);
-        this.minRepairedAt = CompactionTask.getMinRepairedAt(nonExpiredSSTables);
         this.txn = txn;
-        this.sstableWriter = SSTableRewriter.construct(cfs, txn, keepOriginals, maxAge, offline);
+
+        estimatedTotalKeys = SSTableReader.getApproximateKeyCount(nonExpiredSSTables);
+        maxAge = CompactionTask.getMaxDataAge(nonExpiredSSTables);
+        sstableWriter = SSTableRewriter.construct(cfs, txn, keepOriginals, maxAge);
+        minRepairedAt = CompactionTask.getMinRepairedAt(nonExpiredSSTables);
+        pendingRepair = CompactionTask.getPendingRepair(nonExpiredSSTables);
+        DiskBoundaries db = cfs.getDiskBoundaries();
+        diskBoundaries = db.positions;
+        locations = db.directories;
+        locationIndex = -1;
     }
 
     @Override
@@ -103,6 +134,11 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         return estimatedTotalKeys;
     }
 
+    /**
+     * Writes a partition in an implementation specific way
+     * @param partition the partition to append
+     * @return true if the partition was written, false otherwise
+     */
     public final boolean append(UnfilteredRowIterator partition)
     {
         maybeSwitchWriter(partition.partitionKey());
@@ -124,9 +160,26 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
      */
     protected void maybeSwitchWriter(DecoratedKey key)
     {
-        if (!isInitialized)
-            switchCompactionLocation(getDirectories().getWriteableLocation(cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType())));
-        isInitialized = true;
+        if (diskBoundaries == null)
+        {
+            if (locationIndex < 0)
+            {
+                Directories.DataDirectory defaultLocation = getWriteDirectory(nonExpiredSSTables, cfs.getExpectedCompactedFileSize(nonExpiredSSTables, OperationType.UNKNOWN));
+                switchCompactionLocation(defaultLocation);
+                locationIndex = 0;
+            }
+            return;
+        }
+
+        if (locationIndex > -1 && key.compareTo(diskBoundaries.get(locationIndex)) < 0)
+            return;
+
+        int prevIdx = locationIndex;
+        while (locationIndex == -1 || key.compareTo(diskBoundaries.get(locationIndex)) > 0)
+            locationIndex++;
+        if (prevIdx >= 0)
+            logger.debug("Switching write location from {} to {}", locations.get(prevIdx), locations.get(locationIndex));
+        switchCompactionLocation(locations.get(locationIndex));
     }
 
     /**
@@ -147,13 +200,45 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
 
     /**
      * Return a directory where we can expect expectedWriteSize to fit.
+     *
+     * @param sstables the sstables to compact
+     * @return
      */
-    public Directories.DataDirectory getWriteDirectory(long expectedWriteSize)
+    public Directories.DataDirectory getWriteDirectory(Iterable<SSTableReader> sstables, long estimatedWriteSize)
     {
-        Directories.DataDirectory directory = getDirectories().getWriteableLocation(expectedWriteSize);
-        if (directory == null)
-            throw new RuntimeException("Insufficient disk space to write " + expectedWriteSize + " bytes");
+        File directory = null;
+        for (SSTableReader sstable : sstables)
+        {
+            if (directory == null)
+                directory = sstable.descriptor.directory;
+            if (!directory.equals(sstable.descriptor.directory))
+            {
+                logger.trace("All sstables not from the same disk - putting results in {}", directory);
+                break;
+            }
+        }
+        Directories.DataDirectory d = getDirectories().getDataDirectoryForFile(directory);
+        if (d != null)
+        {
+            long availableSpace = d.getAvailableSpace();
+            if (availableSpace < estimatedWriteSize)
+                throw new RuntimeException(String.format("Not enough space to write %s to %s (%s available)",
+                                                         FBUtilities.prettyPrintMemory(estimatedWriteSize),
+                                                         d.location,
+                                                         FBUtilities.prettyPrintMemory(availableSpace)));
+            logger.trace("putting compaction results in {}", directory);
+            return d;
+        }
+        d = getDirectories().getWriteableLocation(estimatedWriteSize);
+        if (d == null)
+            throw new RuntimeException(String.format("Not enough disk space to store %s",
+                                                     FBUtilities.prettyPrintMemory(estimatedWriteSize)));
+        return d;
+    }
 
-        return directory;
+    public CompactionAwareWriter setRepairedAt(long repairedAt)
+    {
+        this.sstableWriter.setRepairedAt(repairedAt);
+        return this;
     }
 }

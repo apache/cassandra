@@ -22,50 +22,97 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
 
-import org.apache.cassandra.io.util.ChannelProxy;
-import org.apache.cassandra.io.util.DataPosition;
-import org.apache.cassandra.io.util.RandomAccessReader;
+import com.google.common.base.Preconditions;
+
+import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.memory.BufferPool;
 
 /**
- * A {@link RandomAccessReader} wrapper that calctulates the CRC in place.
+ * A {@link RandomAccessReader} wrapper that calculates the CRC in place.
  *
  * Useful for {@link org.apache.cassandra.hints.HintsReader}, for example, where we must verify the CRC, yet don't want
  * to allocate an extra byte array just that purpose. The CRC can be embedded in the input stream and checked via checkCrc().
  *
- * In addition to calculating the CRC, it allows to enforce a maximim known size. This is needed
+ * In addition to calculating the CRC, it allows to enforce a maximum known size. This is needed
  * so that {@link org.apache.cassandra.db.Mutation.MutationSerializer} doesn't blow up the heap when deserializing a
  * corrupted sequence by reading a huge corrupted length of bytes via
- * via {@link org.apache.cassandra.utils.ByteBufferUtil#readWithLength(java.io.DataInput)}.
+ * {@link org.apache.cassandra.utils.ByteBufferUtil#readWithLength(java.io.DataInput)}.
  */
-public class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderWithOwnChannel
+public class ChecksummedDataInput extends RebufferingInputStream
 {
     private final CRC32 crc;
     private int crcPosition;
     private boolean crcUpdateDisabled;
 
     private long limit;
-    private DataPosition limitMark;
+    private long limitMark;
 
-    protected ChecksummedDataInput(Builder builder)
+    protected long bufferOffset;
+    protected final ChannelProxy channel;
+
+    ChecksummedDataInput(ChannelProxy channel, BufferType bufferType)
     {
-        super(builder);
+        super(BufferPool.get(RandomAccessReader.DEFAULT_BUFFER_SIZE, bufferType));
 
         crc = new CRC32();
         crcPosition = 0;
         crcUpdateDisabled = false;
+        this.channel = channel;
+        bufferOffset = 0;
+        buffer.limit(0);
 
         resetLimit();
     }
 
-    @SuppressWarnings("resource")   // channel owned by RandomAccessReaderWithOwnChannel
-    public static ChecksummedDataInput open(File file)
+    ChecksummedDataInput(ChannelProxy channel)
     {
-        return new Builder(new ChannelProxy(file)).build();
+        this(channel, BufferType.OFF_HEAP);
     }
 
-    protected void releaseBuffer()
+    @SuppressWarnings("resource")
+    public static ChecksummedDataInput open(File file)
     {
-        super.releaseBuffer();
+        return new ChecksummedDataInput(new ChannelProxy(file));
+    }
+
+    public boolean isEOF()
+    {
+        return getPosition() == channel.size();
+    }
+
+    static class Position implements InputPosition
+    {
+        final long sourcePosition;
+
+        public Position(long sourcePosition)
+        {
+            super();
+            this.sourcePosition = sourcePosition;
+        }
+
+        @Override
+        public long subtract(InputPosition other)
+        {
+            return sourcePosition - ((Position)other).sourcePosition;
+        }
+    }
+
+    /**
+     * Return a seekable representation of the current position. For compressed files this is chunk position
+     * in file and offset within chunk.
+     */
+    public InputPosition getSeekPosition()
+    {
+        return new Position(getPosition());
+    }
+
+    public void seek(InputPosition pos)
+    {
+        updateCrc();
+        bufferOffset = ((Position) pos).sourcePosition;
+        buffer.position(0).limit(0);
     }
 
     public void resetCrc()
@@ -76,29 +123,43 @@ public class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderW
 
     public void limit(long newLimit)
     {
-        limit = newLimit;
-        limitMark = mark();
+        limitMark = getPosition();
+        limit = limitMark + newLimit;
+    }
+
+    /**
+     * Returns the exact position in the uncompressed view of the file.
+     */
+    protected long getPosition()
+    {
+        return bufferOffset + buffer.position();
+    }
+
+    /**
+     * Returns the position in the source file, which is different for getPosition() for compressed/encrypted files
+     * and may be imprecise.
+     */
+    protected long getSourcePosition()
+    {
+        return bufferOffset;
     }
 
     public void resetLimit()
     {
         limit = Long.MAX_VALUE;
-        limitMark = null;
+        limitMark = -1;
     }
 
     public void checkLimit(int length) throws IOException
     {
-        if (limitMark == null)
-            return;
-
-        if ((bytesPastLimit() + length) > limit)
+        if (getPosition() + length > limit)
             throw new IOException("Digest mismatch exception");
     }
 
     public long bytesPastLimit()
     {
-        assert limitMark != null;
-        return bytesPastMark(limitMark);
+        assert limitMark != -1;
+        return getPosition() - limitMark;
     }
 
     public boolean checkCrc() throws IOException
@@ -134,11 +195,27 @@ public class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderW
     }
 
     @Override
-    public void reBuffer()
+    protected void reBuffer()
     {
+        Preconditions.checkState(buffer.remaining() == 0);
         updateCrc();
-        super.reBuffer();
+        bufferOffset += buffer.limit();
+
+        readBuffer();
+
         crcPosition = buffer.position();
+    }
+
+    protected void readBuffer()
+    {
+        buffer.clear();
+        while ((channel.read(buffer, bufferOffset)) == 0) {}
+        buffer.flip();
+    }
+
+    public void tryUncacheRead()
+    {
+        NativeLibrary.trySkipCache(getChannel().getFileDescriptor(), 0, getSourcePosition(), getPath());
     }
 
     private void updateCrc()
@@ -155,16 +232,20 @@ public class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderW
         crc.update(unprocessed);
     }
 
-    public static class Builder extends RandomAccessReader.Builder
+    @Override
+    public void close()
     {
-        public Builder(ChannelProxy channel)
-        {
-            super(channel);
-        }
+        BufferPool.put(buffer);
+        channel.close();
+    }
 
-        public ChecksummedDataInput build()
-        {
-            return new ChecksummedDataInput(this);
-        }
+    protected String getPath()
+    {
+        return channel.filePath();
+    }
+
+    public ChannelProxy getChannel()
+    {
+        return channel;
     }
 }

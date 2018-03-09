@@ -19,7 +19,6 @@ package org.apache.cassandra.hints;
 
 import java.io.File;
 import java.lang.management.ManagementFactory;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.UUID;
@@ -30,6 +29,7 @@ import java.util.function.Supplier;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +37,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.dht.Token;
@@ -60,7 +63,7 @@ public final class HintsService implements HintsServiceMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(HintsService.class);
 
-    public static final HintsService instance = new HintsService();
+    public static HintsService instance = new HintsService();
 
     private static final String MBEAN_NAME = "org.apache.cassandra.hints:type=HintsService";
 
@@ -82,6 +85,12 @@ public final class HintsService implements HintsServiceMBean
 
     private HintsService()
     {
+        this(FailureDetector.instance);
+    }
+
+    @VisibleForTesting
+    HintsService(IFailureDetector failureDetector)
+    {
         File hintsDirectory = DatabaseDescriptor.getHintsDirectory();
         int maxDeliveryThreads = DatabaseDescriptor.getMaxHintsDeliveryThreads();
 
@@ -92,7 +101,7 @@ public final class HintsService implements HintsServiceMBean
         bufferPool = new HintsBufferPool(bufferSize, writeExecutor::flushBuffer);
 
         isDispatchPaused = new AtomicBoolean(true);
-        dispatchExecutor = new HintsDispatchExecutor(hintsDirectory, maxDeliveryThreads, isDispatchPaused);
+        dispatchExecutor = new HintsDispatchExecutor(hintsDirectory, maxDeliveryThreads, isDispatchPaused, failureDetector::isAlive);
 
         // periodically empty the current content of the buffers
         int flushPeriod = DatabaseDescriptor.getHintsFlushPeriodInMS();
@@ -150,8 +159,7 @@ public final class HintsService implements HintsServiceMBean
         // we have to make sure that the HintsStore instances get properly initialized - otherwise dispatch will not trigger
         catalog.maybeLoadStores(hostIds);
 
-        if (hint.isLive())
-            bufferPool.write(hostIds, hint);
+        bufferPool.write(hostIds, hint);
 
         StorageMetrics.totalHints.inc(size(hostIds));
     }
@@ -225,7 +233,7 @@ public final class HintsService implements HintsServiceMBean
      * Will abort dispatch sessions that are currently in progress (which is okay, it's idempotent),
      * and make sure the buffers are flushed, hints files written and fsynced.
      */
-    public synchronized void shutdownBlocking()
+    public synchronized void shutdownBlocking() throws ExecutionException, InterruptedException
     {
         if (isShutDown)
             throw new IllegalStateException("HintsService has already been shut down");
@@ -237,8 +245,8 @@ public final class HintsService implements HintsServiceMBean
 
         triggerFlushingFuture.cancel(false);
 
-        writeExecutor.flushBufferPool(bufferPool);
-        writeExecutor.closeAllWriters();
+        writeExecutor.flushBufferPool(bufferPool).get();
+        writeExecutor.closeAllWriters().get();
 
         dispatchExecutor.shutdownBlocking();
         writeExecutor.shutdownBlocking();
@@ -259,10 +267,10 @@ public final class HintsService implements HintsServiceMBean
      */
     public void deleteAllHintsForEndpoint(String address)
     {
-        InetAddress target;
+        InetAddressAndPort target;
         try
         {
-            target = InetAddress.getByName(address);
+            target = InetAddressAndPort.getByName(address);
         }
         catch (UnknownHostException e)
         {
@@ -276,7 +284,7 @@ public final class HintsService implements HintsServiceMBean
      *
      * @param target inet address of the target node
      */
-    public void deleteAllHintsForEndpoint(InetAddress target)
+    public void deleteAllHintsForEndpoint(InetAddressAndPort target)
     {
         UUID hostId = StorageService.instance.getHostIdForEndpoint(target);
         if (hostId == null)
@@ -369,5 +377,13 @@ public final class HintsService implements HintsServiceMBean
     HintsCatalog getCatalog()
     {
         return catalog;
+    }
+
+    /**
+     * Returns true in case service is shut down.
+     */
+    public boolean isShutDown()
+    {
+        return isShutDown;
     }
 }

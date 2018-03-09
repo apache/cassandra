@@ -25,17 +25,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 public class ExpirationDateOverflowHandling
 {
-    private static final Logger logger = LoggerFactory.getLogger(Attributes.class);
+    private static final Logger logger = LoggerFactory.getLogger(ExpirationDateOverflowHandling.class);
 
     private static final int EXPIRATION_OVERFLOW_WARNING_INTERVAL_MINUTES = Integer.getInteger("cassandra.expiration_overflow_warning_interval_minutes", 5);
 
@@ -70,7 +69,7 @@ public class ExpirationDateOverflowHandling
                                                                                  "the expiration date overflow policy or upgrade to a version where this limitation " +
                                                                                  "is fixed. See CASSANDRA-14092 for more details.";
 
-    public static void maybeApplyExpirationDateOverflowPolicy(CFMetaData metadata, int ttl, boolean isDefaultTTL) throws InvalidRequestException
+    public static void maybeApplyExpirationDateOverflowPolicy(TableMetadata metadata, int ttl, boolean isDefaultTTL) throws InvalidRequestException
     {
         if (ttl == BufferCell.NO_TTL)
             return;
@@ -82,8 +81,8 @@ public class ExpirationDateOverflowHandling
             switch (policy)
             {
                 case CAP:
-                    ClientWarn.instance.warn(MessageFormatter.arrayFormat(MAXIMUM_EXPIRATION_DATE_EXCEEDED_WARNING, new Object[] { metadata.ksName,
-                                                                                                                                   metadata.cfName,
+                    ClientWarn.instance.warn(MessageFormatter.arrayFormat(MAXIMUM_EXPIRATION_DATE_EXCEEDED_WARNING, new Object[] { metadata.keyspace,
+                                                                                                                                   metadata.name,
                                                                                                                                    isDefaultTTL? "default " : "", ttl })
                                                              .getMessage());
                 case CAP_NOWARN:
@@ -93,11 +92,11 @@ public class ExpirationDateOverflowHandling
                      * to {@link org.apache.cassandra.db.BufferExpiringCell#MAX_DELETION_TIME}
                      */
                     NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, EXPIRATION_OVERFLOW_WARNING_INTERVAL_MINUTES, TimeUnit.MINUTES, MAXIMUM_EXPIRATION_DATE_EXCEEDED_WARNING,
-                                     metadata.ksName, metadata.cfName, isDefaultTTL? "default " : "", ttl);
+                                     metadata.keyspace, metadata.name, isDefaultTTL? "default " : "", ttl);
                     return;
 
                 default:
-                    throw new InvalidRequestException(String.format(MAXIMUM_EXPIRATION_DATE_EXCEEDED_REJECT_MESSAGE, metadata.ksName, metadata.cfName,
+                    throw new InvalidRequestException(String.format(MAXIMUM_EXPIRATION_DATE_EXCEEDED_REJECT_MESSAGE, metadata.keyspace, metadata.name,
                                                                     isDefaultTTL? "default " : "", ttl));
             }
         }
@@ -108,7 +107,7 @@ public class ExpirationDateOverflowHandling
      * which is {@link Cell#MAX_DELETION_TIME}.
      *
      * Please note that the {@link ExpirationDateOverflowHandling.ExpirationDateOverflowPolicy} is applied
-     * during {@link ExpirationDateOverflowHandling#maybeApplyExpirationDateOverflowPolicy(CFMetaData, int, boolean)},
+     * during {@link ExpirationDateOverflowHandling#maybeApplyExpirationDateOverflowPolicy(org.apache.cassandra.schema.TableMetadata, int, boolean)},
      * so if the request was not denied it means its expiration date should be capped.
      *
      * See CASSANDRA-14092

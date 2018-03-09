@@ -17,20 +17,24 @@
  */
 package org.apache.cassandra.tools;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.SetMultimap;
 
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
@@ -88,7 +92,7 @@ public class SSTableOfflineRelevel
         String columnfamily = args[args.length - 1];
         Schema.instance.loadFromDisk(false);
 
-        if (Schema.instance.getCFMetaData(keyspace, columnfamily) == null)
+        if (Schema.instance.getTableMetadataRef(keyspace, columnfamily) == null)
             throw new IllegalArgumentException(String.format("Unknown keyspace/columnFamily %s.%s",
                     keyspace,
                     columnfamily));
@@ -96,7 +100,7 @@ public class SSTableOfflineRelevel
         Keyspace ks = Keyspace.openWithoutSSTables(keyspace);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnfamily);
         Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
-        Set<SSTableReader> sstables = new HashSet<>();
+        SetMultimap<File, SSTableReader> sstableMultimap = HashMultimap.create();
         for (Map.Entry<Descriptor, Set<Component>> sstable : lister.list().entrySet())
         {
             if (sstable.getKey() != null)
@@ -104,7 +108,7 @@ public class SSTableOfflineRelevel
                 try
                 {
                     SSTableReader reader = SSTableReader.open(sstable.getKey());
-                    sstables.add(reader);
+                    sstableMultimap.put(reader.descriptor.directory, reader);
                 }
                 catch (Throwable t)
                 {
@@ -113,13 +117,20 @@ public class SSTableOfflineRelevel
                 }
             }
         }
-        if (sstables.isEmpty())
+        if (sstableMultimap.isEmpty())
         {
             out.println("No sstables to relevel for "+keyspace+"."+columnfamily);
             System.exit(1);
         }
-        Relevel rl = new Relevel(sstables);
-        rl.relevel(dryRun);
+        for (File directory : sstableMultimap.keySet())
+        {
+            if (!sstableMultimap.get(directory).isEmpty())
+            {
+                Relevel rl = new Relevel(sstableMultimap.get(directory));
+                out.println("For sstables in " + directory + ":");
+                rl.relevel(dryRun);
+            }
+        }
         System.exit(0);
 
     }
@@ -134,8 +145,23 @@ public class SSTableOfflineRelevel
             approxExpectedLevels = (int) Math.ceil(Math.log10(sstables.size()));
         }
 
+        private void printLeveling(Iterable<SSTableReader> sstables)
+        {
+            Multimap<Integer, SSTableReader> leveling = ArrayListMultimap.create();
+            int maxLevel = 0;
+            for (SSTableReader sstable : sstables)
+            {
+                leveling.put(sstable.getSSTableLevel(), sstable);
+                maxLevel = Math.max(sstable.getSSTableLevel(), maxLevel);
+            }
+            System.out.println("Current leveling:");
+            for (int i = 0; i <= maxLevel; i++)
+                System.out.println(String.format("L%d=%d", i, leveling.get(i).size()));
+        }
+
         public void relevel(boolean dryRun) throws IOException
         {
+            printLeveling(sstables);
             List<SSTableReader> sortedSSTables = new ArrayList<>(sstables);
             Collections.sort(sortedSSTables, new Comparator<SSTableReader>()
             {
@@ -178,8 +204,9 @@ public class SSTableOfflineRelevel
                 System.out.println("New leveling: ");
 
             System.out.println("L0="+l0.size());
+            // item 0 in levels is the highest level we will create, printing from L1 up here:
             for (int i = levels.size() - 1; i >= 0; i--)
-                System.out.println(String.format("L%d %d", levels.size() - i, levels.get(i).size()));
+                System.out.println(String.format("L%d=%d", levels.size() - i, levels.get(i).size()));
 
             if (!dryRun)
             {

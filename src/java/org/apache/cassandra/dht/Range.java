@@ -166,7 +166,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         boolean thatwraps = isWrapAround(that.left, that.right);
         if (!thiswraps && !thatwraps)
         {
-            // neither wraps.  the straightforward case.
+            // neither wraps:  the straightforward case.
             if (!(left.compareTo(that.right) < 0 && that.left.compareTo(right) < 0))
                 return Collections.emptySet();
             return rangeSet(new Range<T>(ObjectUtils.max(this.left, that.left),
@@ -174,7 +174,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         }
         if (thiswraps && thatwraps)
         {
-            // if the starts are the same, one contains the other, which we have already ruled out.
+            //both wrap: if the starts are the same, one contains the other, which we have already ruled out.
             assert !this.left.equals(that.left);
             // two wrapping ranges always intersect.
             // since we have already determined that neither this nor that contains the other, we have 2 cases,
@@ -188,9 +188,9 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
                    ? intersectionBothWrapping(this, that)
                    : intersectionBothWrapping(that, this);
         }
-        if (thiswraps && !thatwraps)
+        if (thiswraps) // this wraps, that does not wrap
             return intersectionOneWrapping(this, that);
-        assert (!thiswraps && thatwraps);
+        // the last case: this does not wrap, that wraps
         return intersectionOneWrapping(that, this);
     }
 
@@ -495,6 +495,23 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
     {
         return new Range<T>(left, newRight);
     }
+
+    public static <T extends RingPosition<T>> List<Range<T>> sort(Collection<Range<T>> ranges)
+    {
+        List<Range<T>> output = new ArrayList<>(ranges.size());
+        for (Range<T> r : ranges)
+            output.addAll(r.unwrap());
+        // sort by left
+        Collections.sort(output, new Comparator<Range<T>>()
+        {
+            public int compare(Range<T> b1, Range<T> b2)
+            {
+                return b1.left.compareTo(b2.left);
+            }
+        });
+        return output;
+    }
+
 
     /**
      * Compute a range of keys corresponding to a given range of token.

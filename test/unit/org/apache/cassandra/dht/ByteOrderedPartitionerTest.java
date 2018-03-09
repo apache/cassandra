@@ -23,4 +23,9 @@ public class ByteOrderedPartitionerTest extends PartitionerTestCase
     {
         partitioner = ByteOrderedPartitioner.instance;
     }
+
+    protected boolean shouldStopRecursion(Token left, Token right)
+    {
+        return false;
+    }
 }

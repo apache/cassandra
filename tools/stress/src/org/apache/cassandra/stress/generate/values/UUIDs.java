@@ -34,6 +34,7 @@ public class UUIDs extends Generator<UUID>
     @Override
     public UUID generate()
     {
-        return new UUID(identityDistribution.next(), identityDistribution.next());
+        long seed = identityDistribution.next();
+        return new UUID(seed, seed);
     }
 }

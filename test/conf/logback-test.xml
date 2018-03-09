@@ -17,7 +17,7 @@
  under the License.
 -->
 
-<configuration debug="false" scan="true">
+<configuration debug="false" scan="true" scanPeriod="60 seconds">
   <!-- Shutdown hook ensures that async appender flushes -->
   <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
 
@@ -42,13 +42,13 @@
       <immediateFlush>false</immediateFlush>
     </encoder>
   </appender>
-  
+
   <appender name="STDOUT" target="System.out" class="org.apache.cassandra.ConsoleAppender">
     <encoder>
-      <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
     </encoder>
     <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-      <level>INFO</level>
+      <level>DEBUG</level>
     </filter>
   </appender>
 
@@ -59,6 +59,8 @@
 
   <logger name="org.apache.hadoop" level="WARN"/>
 
+  <logger name="org.apache.cassandra.db.monitoring" level="DEBUG"/>
+
   <!-- Do not change the name of this appender. LogbackStatusListener uses the thread name
        tied to the appender name to know when to write to real stdout/stderr vs forwarding to logback -->
   <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
@@ -66,6 +68,7 @@
       <maxFlushTime>0</maxFlushTime>
       <queueSize>1024</queueSize>
       <appender-ref ref="TEE"/>
+      <includeCallerData>true</includeCallerData>
   </appender>
 
   <root level="DEBUG">

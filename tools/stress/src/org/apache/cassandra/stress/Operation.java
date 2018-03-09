@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,24 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.stress;
 
 import java.io.IOException;
 
-import com.google.common.util.concurrent.RateLimiter;
-
+import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.SettingsLog;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
-import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.stress.util.Timer;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.transport.SimpleClient;
 
 public abstract class Operation
 {
     public final StressSettings settings;
-    public final Timer timer;
+    private final Timer timer;
 
     public Operation(Timer timer, StressSettings settings)
     {
@@ -47,29 +44,24 @@ public abstract class Operation
         public int rowCount();
     }
 
-    public abstract boolean ready(WorkManager permits, RateLimiter rateLimiter);
+    public abstract int ready(WorkManager permits);
 
     public boolean isWrite()
     {
         return false;
     }
 
-    /**
-     * Run operation
-     * @param client Cassandra Thrift client connection
-     * @throws IOException on any I/O error.
-     */
-    public abstract void run(ThriftClient client) throws IOException;
-
-    public void run(SimpleClient client) throws IOException {
+    public void run(SimpleClient client) throws IOException
+    {
         throw new UnsupportedOperationException();
     }
 
-    public void run(JavaDriverClient client) throws IOException {
+    public void run(JavaDriverClient client) throws IOException
+    {
         throw new UnsupportedOperationException();
     }
 
-    public void timeWithRetry(RunOp run) throws IOException
+    public final void timeWithRetry(RunOp run) throws IOException
     {
         timer.start();
 
@@ -125,7 +117,7 @@ public abstract class Operation
     protected String getExceptionMessage(Exception e)
     {
         String className = e.getClass().getSimpleName();
-        String message = (e instanceof InvalidRequestException) ? ((InvalidRequestException) e).getWhy() : e.getMessage();
+        String message = e.getMessage();
         return (message == null) ? "(" + className + ")" : String.format("(%s): %s", className, message);
     }
 
@@ -137,4 +129,8 @@ public abstract class Operation
             System.err.println(message);
     }
 
+    public void intendedStartNs(long intendedTime)
+    {
+        timer.intendedTimeNs(intendedTime);
+    }
 }

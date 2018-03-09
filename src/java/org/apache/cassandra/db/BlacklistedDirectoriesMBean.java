@@ -20,10 +20,13 @@ package org.apache.cassandra.db;
 import java.io.File;
 import java.util.Set;
 
-public interface BlacklistedDirectoriesMBean {
-
+public interface BlacklistedDirectoriesMBean
+{
     public Set<File> getUnreadableDirectories();
     
     public Set<File> getUnwritableDirectories();
-    
+
+    public void markUnreadable(String path);
+
+    public void markUnwritable(String path);
 }

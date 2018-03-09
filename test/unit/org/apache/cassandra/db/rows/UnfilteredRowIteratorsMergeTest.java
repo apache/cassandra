@@ -19,7 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -31,9 +31,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.Slice.Bound;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.Unfiltered.Kind;
@@ -41,13 +41,19 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class UnfilteredRowIteratorsMergeTest
 {
+    static
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
     static DecoratedKey partitionKey = Util.dk("key");
     static DeletionTime partitionLevelDeletion = DeletionTime.LIVE;
-    static CFMetaData metadata = CFMetaData.Builder.create("UnfilteredRowIteratorsMergeTest", "Test").
-            addPartitionKey("key", AsciiType.instance).
-            addClusteringColumn("clustering", Int32Type.instance).
-            addRegularColumn("data", Int32Type.instance).
-            build();
+    static TableMetadata metadata =
+        TableMetadata.builder("UnfilteredRowIteratorsMergeTest", "Test")
+                     .addPartitionKeyColumn("key", AsciiType.instance)
+                     .addClusteringColumn("clustering", Int32Type.instance)
+                     .addRegularColumn("data", Int32Type.instance)
+                     .build();
+
     static Comparator<Clusterable> comparator = new ClusteringComparator(Int32Type.instance);
     static int nowInSec = FBUtilities.nowInSeconds();
 
@@ -97,14 +103,16 @@ public class UnfilteredRowIteratorsMergeTest
     @SuppressWarnings("unused")
     public void testTombstoneMerge(boolean reversed, boolean iterations)
     {
+        this.reversed = reversed;
+        UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(comparator, reversed);
+
         for (int seed = 1; seed <= 100; ++seed)
         {
-            this.reversed = reversed;
             if (ITEMS <= 20)
                 System.out.println("\nSeed " + seed);
 
             Random r = new Random(seed);
-            List<Function<Integer, Integer>> timeGenerators = ImmutableList.of(
+            List<IntUnaryOperator> timeGenerators = ImmutableList.of(
                     x -> -1,
                     x -> DEL_RANGE,
                     x -> r.nextInt(DEL_RANGE)
@@ -113,27 +121,29 @@ public class UnfilteredRowIteratorsMergeTest
             if (ITEMS <= 20)
                 System.out.println("Merging");
             for (int i=0; i<ITERATORS; ++i)
-                sources.add(generateSource(r, timeGenerators.get(r.nextInt(timeGenerators.size()))));
+                sources.add(generator.generateSource(r, ITEMS, RANGE, DEL_RANGE, timeGenerators.get(r.nextInt(timeGenerators.size()))));
             List<Unfiltered> merged = merge(sources, iterations);
     
             if (ITEMS <= 20)
                 System.out.println("results in");
             if (ITEMS <= 20)
-                dumpList(merged);
-            verifyEquivalent(sources, merged);
-            verifyValid(merged);
+                generator.dumpList(merged);
+            verifyEquivalent(sources, merged, generator);
+            generator.verifyValid(merged);
             if (reversed)
             {
                 Collections.reverse(merged);
-                this.reversed = false;
-                verifyValid(merged);
+                generator.verifyValid(merged, false);
             }
         }
     }
 
     private List<Unfiltered> merge(List<List<Unfiltered>> sources, boolean iterations)
     {
-        List<UnfilteredRowIterator> us = sources.stream().map(l -> new Source(l.iterator())).collect(Collectors.toList());
+        List<UnfilteredRowIterator> us = sources.
+                stream().
+                map(l -> new UnfilteredRowsGenerator.Source(l.iterator(), metadata, partitionKey, DeletionTime.LIVE, reversed)).
+                collect(Collectors.toList());
         List<Unfiltered> merged = new ArrayList<>();
         Iterators.addAll(merged, mergeIterators(us, iterations));
         return merged;
@@ -159,7 +169,7 @@ public class UnfilteredRowIteratorsMergeTest
     }
 
     @SuppressWarnings("unused")
-    private List<Unfiltered> generateSource(Random r, Function<Integer, Integer> timeGenerator)
+    private List<Unfiltered> generateSource(Random r, IntUnaryOperator timeGenerator)
     {
         int[] positions = new int[ITEMS + 1];
         for (int i=0; i<ITEMS; ++i)
@@ -230,9 +240,12 @@ public class UnfilteredRowIteratorsMergeTest
             if (prev != null && curr != null && prev.isClose(false) && curr.isOpen(false) && prev.clustering().invert().equals(curr.clustering()))
             {
                 // Join. Prefer not to use merger to check its correctness.
-                RangeTombstone.Bound b = prev.clustering();
-                b = b.withNewKind(b.isInclusive() ? RangeTombstone.Bound.Kind.INCL_END_EXCL_START_BOUNDARY : RangeTombstone.Bound.Kind.EXCL_END_INCL_START_BOUNDARY);
-                prev = new RangeTombstoneBoundaryMarker(b, prev.closeDeletionTime(false), curr.openDeletionTime(false));
+                ClusteringBound b = ((RangeTombstoneBoundMarker) prev).clustering();
+                ClusteringBoundary boundary = ClusteringBoundary.create(b.isInclusive()
+                                                                            ? ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY
+                                                                            : ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY,
+                                                                        b.getRawValues());
+                prev = new RangeTombstoneBoundaryMarker(boundary, prev.closeDeletionTime(false), curr.openDeletionTime(false));
                 currUnfiltered = prev;
                 --di;
             }
@@ -283,24 +296,24 @@ public class UnfilteredRowIteratorsMergeTest
         }
     }
 
-    void verifyEquivalent(List<List<Unfiltered>> sources, List<Unfiltered> merged)
+    void verifyEquivalent(List<List<Unfiltered>> sources, List<Unfiltered> merged, UnfilteredRowsGenerator generator)
     {
         try
         {
             for (int i=0; i<RANGE; ++i)
             {
-                Clusterable c = clusteringFor(i);
+                Clusterable c = UnfilteredRowsGenerator.clusteringFor(i);
                 DeletionTime dt = DeletionTime.LIVE;
                 for (List<Unfiltered> source : sources)
                 {
                     dt = deletionFor(c, source, dt);
                 }
-                Assert.assertEquals("Deletion time mismatch for position " + str(c), dt, deletionFor(c, merged));
+                Assert.assertEquals("Deletion time mismatch for position " + i, dt, deletionFor(c, merged));
                 if (dt == DeletionTime.LIVE)
                 {
                     Optional<Unfiltered> sourceOpt = sources.stream().map(source -> rowFor(c, source)).filter(x -> x != null).findAny();
                     Unfiltered mergedRow = rowFor(c, merged);
-                    Assert.assertEquals("Content mismatch for position " + str(c), str(sourceOpt.orElse(null)), str(mergedRow));
+                    Assert.assertEquals("Content mismatch for position " + i, clustering(sourceOpt.orElse(null)), clustering(mergedRow));
                 }
             }
         }
@@ -308,11 +321,18 @@ public class UnfilteredRowIteratorsMergeTest
         {
             System.out.println(e);
             for (List<Unfiltered> list : sources)
-                dumpList(list);
+                generator.dumpList(list);
             System.out.println("merged");
-            dumpList(merged);
+            generator.dumpList(merged);
             throw e;
         }
+    }
+
+    String clustering(Clusterable curr)
+    {
+        if (curr == null)
+            return "null";
+        return Int32Type.instance.getString(curr.clustering().get(0));
     }
 
     private Unfiltered rowFor(Clusterable pointer, List<Unfiltered> list)
@@ -357,20 +377,20 @@ public class UnfilteredRowIteratorsMergeTest
         return def;
     }
 
-    private static Bound boundFor(int pos, boolean start, boolean inclusive)
+    private static ClusteringBound boundFor(int pos, boolean start, boolean inclusive)
     {
-        return Bound.create(Bound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
+        return ClusteringBound.create(ClusteringBound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
     }
 
     private static Clustering clusteringFor(int i)
     {
-        return new Clustering(Int32Type.instance.decompose(i));
+        return Clustering.make(Int32Type.instance.decompose(i));
     }
 
-    static Row emptyRowAt(int pos, Function<Integer, Integer> timeGenerator)
+    static Row emptyRowAt(int pos, IntUnaryOperator timeGenerator)
     {
         final Clustering clustering = clusteringFor(pos);
-        final LivenessInfo live = LivenessInfo.create(metadata, timeGenerator.apply(pos), nowInSec);
+        final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos), nowInSec);
         return BTreeRow.noCellLiveRow(clustering, live);
     }
 
@@ -406,7 +426,7 @@ public class UnfilteredRowIteratorsMergeTest
             super(UnfilteredRowIteratorsMergeTest.metadata,
                   UnfilteredRowIteratorsMergeTest.partitionKey,
                   UnfilteredRowIteratorsMergeTest.partitionLevelDeletion,
-                  UnfilteredRowIteratorsMergeTest.metadata.partitionColumns(),
+                  UnfilteredRowIteratorsMergeTest.metadata.regularAndStaticColumns(),
                   null,
                   reversed,
                   EncodingStats.NO_STATS);
@@ -422,21 +442,23 @@ public class UnfilteredRowIteratorsMergeTest
 
     public void testForInput(String... inputs)
     {
+        reversed = false;
+        UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(comparator, false);
+
         List<List<Unfiltered>> sources = new ArrayList<>();
         for (String input : inputs)
         {
-            List<Unfiltered> source = parse(input);
-            attachBoundaries(source);
-            dumpList(source);
-            verifyValid(source);
+            List<Unfiltered> source = generator.parse(input, DEL_RANGE);
+            generator.dumpList(source);
+            generator.verifyValid(source);
             sources.add(source);
         }
 
         List<Unfiltered> merged = merge(sources, false);
         System.out.println("Merge to:");
-        dumpList(merged);
-        verifyEquivalent(sources, merged);
-        verifyValid(merged);
+        generator.dumpList(merged);
+        verifyEquivalent(sources, merged, generator);
+        generator.verifyValid(merged);
         System.out.println();
     }
 
@@ -485,8 +507,8 @@ public class UnfilteredRowIteratorsMergeTest
 
     private RangeTombstoneMarker marker(int pos, int delTime, boolean isStart, boolean inclusive)
     {
-        return new RangeTombstoneBoundMarker(Bound.create(Bound.boundKind(isStart, inclusive),
-                                                          new ByteBuffer[] {clusteringFor(pos).get(0)}),
+        return new RangeTombstoneBoundMarker(ClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
+                                                                    new ByteBuffer[] {clusteringFor(pos).get(0)}),
                                              new DeletionTime(delTime, delTime));
     }
 }

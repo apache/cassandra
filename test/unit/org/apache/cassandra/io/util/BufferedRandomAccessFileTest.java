@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,6 +18,8 @@
  *
  */
 package org.apache.cassandra.io.util;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.SyncUtil;
 
@@ -27,22 +29,28 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import static org.apache.cassandra.Util.expectEOF;
 import static org.apache.cassandra.Util.expectException;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
-
-import org.junit.Test;
+import static org.junit.Assert.assertTrue;
 
 public class BufferedRandomAccessFileTest
 {
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void testReadAndWrite() throws Exception
     {
         SequentialWriter w = createTempFile("braf");
-        ChannelProxy channel = new ChannelProxy(w.getPath());
 
-        // writting string of data to the file
+        // writing string of data to the file
         byte[] data = "Hello".getBytes();
         w.write(data);
         assertEquals(data.length, w.length());
@@ -51,136 +59,146 @@ public class BufferedRandomAccessFileTest
         w.sync();
 
         // reading small amount of data from file, this is handled by initial buffer
-        RandomAccessReader r = RandomAccessReader.open(channel);
-
-        byte[] buffer = new byte[data.length];
-        assertEquals(data.length, r.read(buffer));
-        assertTrue(Arrays.equals(buffer, data)); // we read exactly what we wrote
-        assertEquals(r.read(), -1); // nothing more to read EOF
-        assert r.bytesRemaining() == 0 && r.isEOF();
-
-        r.close();
-
-        // writing buffer bigger than page size, which will trigger reBuffer()
-        byte[] bigData = new byte[RandomAccessReader.DEFAULT_BUFFER_SIZE + 10];
-
-        for (int i = 0; i < bigData.length; i++)
-            bigData[i] = 'd';
-
-        long initialPosition = w.position();
-        w.write(bigData); // writing data
-        assertEquals(w.position(), initialPosition + bigData.length);
-        assertEquals(w.length(), initialPosition + bigData.length); // file size should equals to last position
-
-        w.sync();
-
-        r = RandomAccessReader.open(channel); // re-opening file in read-only mode
-
-        // reading written buffer
-        r.seek(initialPosition); // back to initial (before write) position
-        data = new byte[bigData.length];
-        long sizeRead = 0;
-        for (int i = 0; i < data.length; i++)
+        try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath()))
         {
-            data[i] = (byte) r.read();
-            sizeRead++;
+            try (FileHandle fh = builder.complete();
+                 RandomAccessReader r = fh.createReader())
+            {
+
+                byte[] buffer = new byte[data.length];
+                assertEquals(data.length, r.read(buffer));
+                assertTrue(Arrays.equals(buffer, data)); // we read exactly what we wrote
+                assertEquals(r.read(), -1); // nothing more to read EOF
+                assert r.bytesRemaining() == 0 && r.isEOF();
+            }
+
+            // writing buffer bigger than page size, which will trigger reBuffer()
+            byte[] bigData = new byte[RandomAccessReader.DEFAULT_BUFFER_SIZE + 10];
+
+            for (int i = 0; i < bigData.length; i++)
+                bigData[i] = 'd';
+
+            long initialPosition = w.position();
+            w.write(bigData); // writing data
+            assertEquals(w.position(), initialPosition + bigData.length);
+            assertEquals(w.length(), initialPosition + bigData.length); // file size should equals to last position
+
+            w.sync();
+
+            // re-opening file in read-only mode
+            try (FileHandle fh = builder.complete();
+                 RandomAccessReader r = fh.createReader())
+            {
+
+                // reading written buffer
+                r.seek(initialPosition); // back to initial (before write) position
+                data = new byte[bigData.length];
+                long sizeRead = 0;
+                for (int i = 0; i < data.length; i++)
+                {
+                    data[i] = (byte) r.read();
+                    sizeRead++;
+                }
+
+                assertEquals(sizeRead, data.length); // read exactly data.length bytes
+                assertEquals(r.getFilePointer(), initialPosition + data.length);
+                assertEquals(r.length(), initialPosition + bigData.length);
+                assertTrue(Arrays.equals(bigData, data));
+                assertTrue(r.bytesRemaining() == 0 && r.isEOF()); // we are at the of the file
+
+                // test readBytes(int) method
+                r.seek(0);
+                ByteBuffer fileContent = ByteBufferUtil.read(r, (int) w.length());
+                assertEquals(fileContent.limit(), w.length());
+                assert ByteBufferUtil.string(fileContent).equals("Hello" + new String(bigData));
+
+                // read the same buffer but using readFully(int)
+                data = new byte[bigData.length];
+                r.seek(initialPosition);
+                r.readFully(data);
+                assert r.bytesRemaining() == 0 && r.isEOF(); // we should be at EOF
+                assertTrue(Arrays.equals(bigData, data));
+
+                // try to read past mark (all methods should return -1)
+                data = new byte[10];
+                assertEquals(r.read(), -1);
+                assertEquals(r.read(data), -1);
+                assertEquals(r.read(data, 0, data.length), -1);
+
+                // test read(byte[], int, int)
+                r.seek(0);
+                data = new byte[20];
+                assertEquals(15, r.read(data, 0, 15));
+                assertTrue(new String(data).contains("Hellodddddddddd"));
+                for (int i = 16; i < data.length; i++)
+                {
+                    assert data[i] == 0;
+                }
+
+                w.finish();
+            }
         }
-
-        assertEquals(sizeRead, data.length); // read exactly data.length bytes
-        assertEquals(r.getFilePointer(), initialPosition + data.length);
-        assertEquals(r.length(), initialPosition + bigData.length);
-        assertTrue(Arrays.equals(bigData, data));
-        assertTrue(r.bytesRemaining() == 0 && r.isEOF()); // we are at the of the file
-
-        // test readBytes(int) method
-        r.seek(0);
-        ByteBuffer fileContent = ByteBufferUtil.read(r, (int) w.length());
-        assertEquals(fileContent.limit(), w.length());
-        assert ByteBufferUtil.string(fileContent).equals("Hello" + new String(bigData));
-
-        // read the same buffer but using readFully(int)
-        data = new byte[bigData.length];
-        r.seek(initialPosition);
-        r.readFully(data);
-        assert r.bytesRemaining() == 0 && r.isEOF(); // we should be at EOF
-        assertTrue(Arrays.equals(bigData, data));
-
-        // try to read past mark (all methods should return -1)
-        data = new byte[10];
-        assertEquals(r.read(), -1);
-        assertEquals(r.read(data), -1);
-        assertEquals(r.read(data, 0, data.length), -1);
-
-        // test read(byte[], int, int)
-        r.seek(0);
-        data = new byte[20];
-        assertEquals(15, r.read(data, 0, 15));
-        assertTrue(new String(data).contains("Hellodddddddddd"));
-        for (int i = 16; i < data.length; i++)
-        {
-            assert data[i] == 0;
-        }
-
-        w.finish();
-        r.close();
-        channel.close();
     }
 
     @Test
     public void testReadAndWriteOnCapacity() throws IOException
     {
         File tmpFile = File.createTempFile("readtest", "bin");
-        SequentialWriter w = SequentialWriter.open(tmpFile);
-
-        // Fully write the file and sync..
-        byte[] in = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE);
-        w.write(in);
-
-        ChannelProxy channel = new ChannelProxy(w.getPath());
-        RandomAccessReader r = RandomAccessReader.open(channel);
-
-        // Read it into a same size array.
-        byte[] out = new byte[RandomAccessReader.DEFAULT_BUFFER_SIZE];
-        r.read(out);
-
-        // Cannot read any more.
-        int negone = r.read();
-        assert negone == -1 : "We read past the end of the file, should have gotten EOF -1. Instead, " + negone;
-
-        r.close();
-        w.finish();
-        channel.close();
+        try (SequentialWriter w = new SequentialWriter(tmpFile))
+        {
+            // Fully write the file and sync..
+            byte[] in = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE);
+            w.write(in);
+    
+            try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
+                 FileHandle fh = builder.complete();
+                 RandomAccessReader r = fh.createReader())
+            {
+                // Read it into a same size array.
+                byte[] out = new byte[RandomAccessReader.DEFAULT_BUFFER_SIZE];
+                r.read(out);
+    
+                // Cannot read any more.
+                int negone = r.read();
+                assert negone == -1 : "We read past the end of the file, should have gotten EOF -1. Instead, " + negone;
+    
+                w.finish();
+            }
+        }
     }
 
     @Test
     public void testLength() throws IOException
     {
         File tmpFile = File.createTempFile("lengthtest", "bin");
-        SequentialWriter w = SequentialWriter.open(tmpFile);
-        assertEquals(0, w.length());
-
-        // write a chunk smaller then our buffer, so will not be flushed
-        // to disk
-        byte[] lessThenBuffer = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE / 2);
-        w.write(lessThenBuffer);
-        assertEquals(lessThenBuffer.length, w.length());
-
-        // sync the data and check length
-        w.sync();
-        assertEquals(lessThenBuffer.length, w.length());
-
-        // write more then the buffer can hold and check length
-        byte[] biggerThenBuffer = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE * 2);
-        w.write(biggerThenBuffer);
-        assertEquals(biggerThenBuffer.length + lessThenBuffer.length, w.length());
-
-        w.finish();
-
-        // will use cachedlength
-        try (ChannelProxy channel = new ChannelProxy(tmpFile);
-            RandomAccessReader r = RandomAccessReader.open(channel))
+        try (SequentialWriter w = new SequentialWriter(tmpFile))
         {
-            assertEquals(lessThenBuffer.length + biggerThenBuffer.length, r.length());
+            assertEquals(0, w.length());
+    
+            // write a chunk smaller then our buffer, so will not be flushed
+            // to disk
+            byte[] lessThenBuffer = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE / 2);
+            w.write(lessThenBuffer);
+            assertEquals(lessThenBuffer.length, w.length());
+    
+            // sync the data and check length
+            w.sync();
+            assertEquals(lessThenBuffer.length, w.length());
+    
+            // write more then the buffer can hold and check length
+            byte[] biggerThenBuffer = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE * 2);
+            w.write(biggerThenBuffer);
+            assertEquals(biggerThenBuffer.length + lessThenBuffer.length, w.length());
+    
+            w.finish();
+    
+            // will use cachedlength
+            try (FileHandle.Builder builder = new FileHandle.Builder(tmpFile.getPath());
+                 FileHandle fh = builder.complete();
+                 RandomAccessReader r = fh.createReader())
+            {
+                assertEquals(lessThenBuffer.length + biggerThenBuffer.length, r.length());
+            }
         }
     }
 
@@ -199,26 +217,27 @@ public class BufferedRandomAccessFileTest
         w.write(data);
         w.sync();
 
-        final ChannelProxy channel = new ChannelProxy(w.getPath());
-        final RandomAccessReader r = RandomAccessReader.open(channel);
+        try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
+             FileHandle fh = builder.complete();
+             RandomAccessReader r = fh.createReader())
+        {
 
-        ByteBuffer content = ByteBufferUtil.read(r, (int) r.length());
+            ByteBuffer content = ByteBufferUtil.read(r, (int) r.length());
 
-        // after reading whole file we should be at EOF
-        assertEquals(0, ByteBufferUtil.compare(content, data));
-        assert r.bytesRemaining() == 0 && r.isEOF();
+            // after reading whole file we should be at EOF
+            assertEquals(0, ByteBufferUtil.compare(content, data));
+            assert r.bytesRemaining() == 0 && r.isEOF();
 
-        r.seek(0);
-        content = ByteBufferUtil.read(r, 10); // reading first 10 bytes
-        assertEquals(ByteBufferUtil.compare(content, "cccccccccc".getBytes()), 0);
-        assertEquals(r.bytesRemaining(), r.length() - content.limit());
+            r.seek(0);
+            content = ByteBufferUtil.read(r, 10); // reading first 10 bytes
+            assertEquals(ByteBufferUtil.compare(content, "cccccccccc".getBytes()), 0);
+            assertEquals(r.bytesRemaining(), r.length() - content.limit());
 
-        // trying to read more than file has right now
-        expectEOF(() -> ByteBufferUtil.read(r, (int) r.length() + 10));
+            // trying to read more than file has right now
+            expectEOF(() -> ByteBufferUtil.read(r, (int) r.length() + 10));
 
-        w.finish();
-        r.close();
-        channel.close();
+            w.finish();
+        }
     }
 
     @Test
@@ -229,24 +248,29 @@ public class BufferedRandomAccessFileTest
         w.write(data);
         w.finish();
 
-        final ChannelProxy channel = new ChannelProxy(w.getPath());
-        final RandomAccessReader file = RandomAccessReader.open(channel);
+        try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
+             FileHandle fh = builder.complete();
+             RandomAccessReader file = fh.createReader())
+        {
+            file.seek(0);
+            assertEquals(file.getFilePointer(), 0);
+            assertEquals(file.bytesRemaining(), file.length());
 
-        file.seek(0);
-        assertEquals(file.getFilePointer(), 0);
-        assertEquals(file.bytesRemaining(), file.length());
+            file.seek(20);
+            assertEquals(file.getFilePointer(), 20);
+            assertEquals(file.bytesRemaining(), file.length() - 20);
 
-        file.seek(20);
-        assertEquals(file.getFilePointer(), 20);
-        assertEquals(file.bytesRemaining(), file.length() - 20);
+            // trying to seek past the end of the file should produce EOFException
+            expectException(() -> {
+                file.seek(file.length() + 30);
+                return null;
+            }, IllegalArgumentException.class);
 
-        // trying to seek past the end of the file should produce EOFException
-        expectException(() -> { file.seek(file.length() + 30); return null; }, IllegalArgumentException.class);
-
-        expectException(() -> { file.seek(-1); return null; }, IllegalArgumentException.class); // throws IllegalArgumentException
-
-        file.close();
-        channel.close();
+            expectException(() -> {
+                file.seek(-1);
+                return null;
+            }, IllegalArgumentException.class); // throws IllegalArgumentException
+        }
     }
 
     @Test
@@ -256,28 +280,28 @@ public class BufferedRandomAccessFileTest
         w.write(generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE * 2));
         w.finish();
 
-        ChannelProxy channel = new ChannelProxy(w.getPath());
-        RandomAccessReader file = RandomAccessReader.open(channel);
+        try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
+             FileHandle fh = builder.complete();
+             RandomAccessReader file = fh.createReader())
+        {
 
-        file.seek(0); // back to the beginning of the file
-        assertEquals(file.skipBytes(10), 10);
-        assertEquals(file.bytesRemaining(), file.length() - 10);
+            file.seek(0); // back to the beginning of the file
+            assertEquals(file.skipBytes(10), 10);
+            assertEquals(file.bytesRemaining(), file.length() - 10);
 
-        int initialPosition = (int) file.getFilePointer();
-        // can't skip more than file size
-        assertEquals(file.skipBytes((int) file.length() + 10), file.length() - initialPosition);
-        assertEquals(file.getFilePointer(), file.length());
-        assert file.bytesRemaining() == 0 && file.isEOF();
+            int initialPosition = (int) file.getFilePointer();
+            // can't skip more than file size
+            assertEquals(file.skipBytes((int) file.length() + 10), file.length() - initialPosition);
+            assertEquals(file.getFilePointer(), file.length());
+            assert file.bytesRemaining() == 0 && file.isEOF();
 
-        file.seek(0);
+            file.seek(0);
 
-        // skipping negative amount should return 0
-        assertEquals(file.skipBytes(-1000), 0);
-        assertEquals(file.getFilePointer(), 0);
-        assertEquals(file.bytesRemaining(), file.length());
-
-        file.close();
-        channel.close();
+            // skipping negative amount should return 0
+            assertEquals(file.skipBytes(-1000), 0);
+            assertEquals(file.getFilePointer(), 0);
+            assertEquals(file.bytesRemaining(), file.length());
+        }
     }
 
     @Test
@@ -292,22 +316,23 @@ public class BufferedRandomAccessFileTest
 
         w.sync();
 
-        ChannelProxy channel = new ChannelProxy(w.getPath());
-        RandomAccessReader r = RandomAccessReader.open(channel);
+        try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
+             FileHandle fh = builder.complete();
+             RandomAccessReader r = fh.createReader())
+        {
 
-        // position should change after skip bytes
-        r.seek(0);
-        r.skipBytes(15);
-        assertEquals(r.getFilePointer(), 15);
+            // position should change after skip bytes
+            r.seek(0);
+            r.skipBytes(15);
+            assertEquals(r.getFilePointer(), 15);
 
-        r.read();
-        assertEquals(r.getFilePointer(), 16);
-        r.read(new byte[4]);
-        assertEquals(r.getFilePointer(), 20);
+            r.read();
+            assertEquals(r.getFilePointer(), 16);
+            r.read(new byte[4]);
+            assertEquals(r.getFilePointer(), 20);
 
-        w.finish();
-        r.close();
-        channel.close();
+            w.finish();
+        }
     }
 
     @Test
@@ -329,10 +354,9 @@ public class BufferedRandomAccessFileTest
             for (final int offset : Arrays.asList(0, 8))
             {
                 File file1 = writeTemporaryFile(new byte[16]);
-                try (final ChannelProxy channel = new ChannelProxy(file1);
-                     final RandomAccessReader file = new RandomAccessReader.Builder(channel)
-                                                     .bufferSize(bufferSize)
-                                                     .build())
+                try (FileHandle.Builder builder = new FileHandle.Builder(file1.getPath()).bufferSize(bufferSize);
+                     FileHandle fh = builder.complete();
+                     RandomAccessReader file = fh.createReader())
                 {
                     expectEOF(() -> { file.readFully(target, offset, 17); return null; });
                 }
@@ -342,8 +366,9 @@ public class BufferedRandomAccessFileTest
             for (final int n : Arrays.asList(1, 2, 4, 8))
             {
                 File file1 = writeTemporaryFile(new byte[16]);
-                try (final ChannelProxy channel = new ChannelProxy(file1);
-                     final RandomAccessReader file = new RandomAccessReader.Builder(channel).bufferSize(bufferSize).build())
+                try (FileHandle.Builder builder = new FileHandle.Builder(file1.getPath()).bufferSize(bufferSize);
+                     FileHandle fh = builder.complete();
+                     RandomAccessReader file = fh.createReader())
                 {
                     expectEOF(() -> {
                         while (true)
@@ -374,24 +399,25 @@ public class BufferedRandomAccessFileTest
 
         w.sync();
 
-        ChannelProxy channel = new ChannelProxy(w.getPath());
-        RandomAccessReader r = RandomAccessReader.open(channel);
-
-        assertEquals(r.bytesRemaining(), toWrite);
-
-        for (int i = 1; i <= r.length(); i++)
+        try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
+             FileHandle fh = builder.complete();
+             RandomAccessReader r = fh.createReader())
         {
-            r.read();
-            assertEquals(r.bytesRemaining(), r.length() - i);
+
+            assertEquals(r.bytesRemaining(), toWrite);
+
+            for (int i = 1; i <= r.length(); i++)
+            {
+                r.read();
+                assertEquals(r.bytesRemaining(), r.length() - i);
+            }
+
+            r.seek(0);
+            r.skipBytes(10);
+            assertEquals(r.bytesRemaining(), r.length() - 10);
+
+            w.finish();
         }
-
-        r.seek(0);
-        r.skipBytes(10);
-        assertEquals(r.bytesRemaining(), r.length() - 10);
-
-        w.finish();
-        r.close();
-        channel.close();
     }
 
     @Test
@@ -401,7 +427,9 @@ public class BufferedRandomAccessFileTest
         tmpFile.deleteOnExit();
 
         // Create the BRAF by filename instead of by file.
-        try (final RandomAccessReader r = RandomAccessReader.open(new File(tmpFile.getPath())))
+        try (FileHandle.Builder builder = new FileHandle.Builder(tmpFile.getPath());
+             FileHandle fh = builder.complete();
+             RandomAccessReader r = fh.createReader())
         {
             assert tmpFile.getPath().equals(r.getPath());
 
@@ -453,33 +481,32 @@ public class BufferedRandomAccessFileTest
 
         w.finish();
 
-        ChannelProxy channel = new ChannelProxy(w.getPath());
-        RandomAccessReader file = RandomAccessReader.open(channel);
+        try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
+             FileHandle fh = builder.complete();
+             RandomAccessReader file = fh.createReader())
+        {
+            file.seek(10);
+            DataPosition mark = file.mark();
 
-        file.seek(10);
-        DataPosition mark = file.mark();
+            file.seek(file.length());
+            assertTrue(file.isEOF());
 
-        file.seek(file.length());
-        assertTrue(file.isEOF());
+            file.reset();
+            assertEquals(file.bytesRemaining(), 20);
 
-        file.reset();
-        assertEquals(file.bytesRemaining(), 20);
+            file.seek(file.length());
+            assertTrue(file.isEOF());
 
-        file.seek(file.length());
-        assertTrue(file.isEOF());
+            file.reset(mark);
+            assertEquals(file.bytesRemaining(), 20);
 
-        file.reset(mark);
-        assertEquals(file.bytesRemaining(), 20);
+            file.seek(file.length());
+            assertEquals(file.bytesPastMark(), 20);
+            assertEquals(file.bytesPastMark(mark), 20);
 
-        file.seek(file.length());
-        assertEquals(file.bytesPastMark(), 20);
-        assertEquals(file.bytesPastMark(mark), 20);
-
-        file.reset(mark);
-        assertEquals(file.bytesPastMark(), 0);
-
-        file.close();
-        channel.close();
+            file.reset(mark);
+            assertEquals(file.bytesPastMark(), 0);
+        }
     }
 
     @Test(expected = AssertionError.class)
@@ -490,8 +517,9 @@ public class BufferedRandomAccessFileTest
             w.write(new byte[30]);
             w.flush();
 
-            try (ChannelProxy channel = new ChannelProxy(w.getPath());
-                 RandomAccessReader r = RandomAccessReader.open(channel))
+            try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
+                 FileHandle fh = builder.complete();
+                 RandomAccessReader r = fh.createReader())
             {
                 r.seek(10);
                 r.mark();
@@ -561,7 +589,7 @@ public class BufferedRandomAccessFileTest
     public void testSetNegativeLength() throws IOException, IllegalArgumentException
     {
         File tmpFile = File.createTempFile("set_negative_length", "bin");
-        try (SequentialWriter file = SequentialWriter.open(tmpFile))
+        try (SequentialWriter file = new SequentialWriter(tmpFile))
         {
             file.truncate(-8L);
         }
@@ -572,7 +600,7 @@ public class BufferedRandomAccessFileTest
         File tempFile = File.createTempFile(name, null);
         tempFile.deleteOnExit();
 
-        return SequentialWriter.open(tempFile);
+        return new SequentialWriter(tempFile);
     }
 
     private File writeTemporaryFile(byte[] data) throws IOException

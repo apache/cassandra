@@ -29,6 +29,7 @@ import java.util.Map;
 import com.datastax.driver.core.BatchStatement;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.RatioDistributionFactory;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsInsert implements Serializable
 {
@@ -72,6 +73,37 @@ public class SettingsInsert implements Serializable
     }
 
     // CLI Utility Methods
+    public void printSettings(ResultLogger out)
+    {
+
+        if (revisit != null)
+        {
+            out.println("  Revisits: " +revisit.getConfigAsString());
+        }
+        if (visits != null)
+        {
+            out.println("  Visits: " + visits.getConfigAsString());
+        }
+        if (batchsize != null)
+        {
+            out.println("  Batchsize: " +batchsize.getConfigAsString());
+        }
+        if (batchsize != null)
+        {
+            out.println("  Select Ratio: " +selectRatio.getConfigAsString());
+        }
+        if (rowPopulationRatio != null)
+        {
+            out.println("  Row Population Ratio: " +rowPopulationRatio.getConfigAsString());
+        }
+        if (batchType != null)
+        {
+            out.printf("  Batch Type: %s%n", batchType);
+        } else {
+            out.println("  Batch Type: not batching");
+        }
+    }
+
 
     public static SettingsInsert get(Map<String, String[]> clArgs)
     {

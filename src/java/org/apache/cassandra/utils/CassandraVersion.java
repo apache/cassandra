@@ -26,12 +26,19 @@ import org.apache.commons.lang3.StringUtils;
 
 /**
  * Implements versioning used in Cassandra and CQL.
- * <p/>
+ * <p>
  * Note: The following code uses a slight variation from the semver document (http://semver.org).
+ * </p>
  */
 public class CassandraVersion implements Comparable<CassandraVersion>
 {
-    private static final String VERSION_REGEXP = "(\\d+)\\.(\\d+)\\.(\\d+)(\\-[.\\w]+)?([.+][.\\w]+)?";
+    /**
+     * note: 3rd group matches to words but only allows number and checked after regexp test.
+     * this is because 3rd and the last can be identical.
+     **/
+    private static final String VERSION_REGEXP = "(\\d+)\\.(\\d+)(?:\\.(\\w+))?(\\-[.\\w]+)?([.+][.\\w]+)?";
+    private static final Pattern PATTERN_WHITESPACE = Pattern.compile("\\w+");
+
     private static final Pattern pattern = Pattern.compile(VERSION_REGEXP);
     private static final Pattern SNAPSHOT = Pattern.compile("-SNAPSHOT");
 
@@ -41,15 +48,6 @@ public class CassandraVersion implements Comparable<CassandraVersion>
 
     private final String[] preRelease;
     private final String[] build;
-
-    private CassandraVersion(int major, int minor, int patch, String[] preRelease, String[] build)
-    {
-        this.major = major;
-        this.minor = minor;
-        this.patch = patch;
-        this.preRelease = preRelease;
-        this.build = build;
-    }
 
     /**
      * Parse a version from a string.
@@ -69,7 +67,7 @@ public class CassandraVersion implements Comparable<CassandraVersion>
         {
             this.major = Integer.parseInt(matcher.group(1));
             this.minor = Integer.parseInt(matcher.group(2));
-            this.patch = Integer.parseInt(matcher.group(3));
+            this.patch = matcher.group(3) != null ? Integer.parseInt(matcher.group(3)) : 0;
 
             String pr = matcher.group(4);
             String bld = matcher.group(5);
@@ -79,7 +77,7 @@ public class CassandraVersion implements Comparable<CassandraVersion>
         }
         catch (NumberFormatException e)
         {
-            throw new IllegalArgumentException("Invalid version value: " + version);
+            throw new IllegalArgumentException("Invalid version value: " + version, e);
         }
     }
 
@@ -87,10 +85,10 @@ public class CassandraVersion implements Comparable<CassandraVersion>
     {
         // Drop initial - or +
         str = str.substring(1);
-        String[] parts = str.split("\\.");
+        String[] parts = StringUtils.split(str, '.');
         for (String part : parts)
         {
-            if (!part.matches("\\w+"))
+            if (!PATTERN_WHITESPACE.matcher(part).matches())
                 throw new IllegalArgumentException("Invalid version value: " + version);
         }
         return parts;
@@ -123,13 +121,14 @@ public class CassandraVersion implements Comparable<CassandraVersion>
     /**
      * Returns a version that is backward compatible with this version amongst a list
      * of provided version, or null if none can be found.
-     * <p/>
+     * <p>
      * For instance:
      * "2.0.0".findSupportingVersion("2.0.0", "3.0.0") == "2.0.0"
      * "2.0.0".findSupportingVersion("2.1.3", "3.0.0") == "2.1.3"
      * "2.0.0".findSupportingVersion("3.0.0") == null
      * "2.0.3".findSupportingVersion("2.0.0") == "2.0.0"
      * "2.1.0".findSupportingVersion("2.0.0") == null
+     * </p>
      */
     public CassandraVersion findSupportingVersion(CassandraVersion... versions)
     {
@@ -143,7 +142,7 @@ public class CassandraVersion implements Comparable<CassandraVersion>
 
     public boolean isSupportedBy(CassandraVersion version)
     {
-        return major == version.major && this.compareTo(version) <= 0;
+        return version != null && major == version.major && this.compareTo(version) <= 0;
     }
 
     private static int compareIdentifiers(String[] ids1, String[] ids2, int defaultPred)

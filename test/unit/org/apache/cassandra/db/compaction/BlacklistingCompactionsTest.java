@@ -37,6 +37,7 @@ import static org.junit.Assert.assertNotNull;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.LongType;
@@ -90,7 +91,7 @@ public class BlacklistingCompactionsTest
     /**
      * Return a table metadata, we use types with fixed size to increase the chance of detecting corrupt data
      */
-    private static CFMetaData makeTable(String tableName)
+    private static TableMetadata.Builder makeTable(String tableName)
     {
         return SchemaLoader.standardCFMD(KEYSPACE1, tableName, 1, LongType.instance, LongType.instance, LongType.instance);
     }
@@ -130,7 +131,7 @@ public class BlacklistingCompactionsTest
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(tableName);
 
         final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = cfs.metadata.params.minIndexInterval * 2 / ROWS_PER_SSTABLE;
+        final int SSTABLES = cfs.metadata().params.minIndexInterval * 2 / ROWS_PER_SSTABLE;
         final int SSTABLES_TO_CORRUPT = 8;
 
         assertTrue(String.format("Not enough sstables (%d), expected at least %d sstables to corrupt", SSTABLES, SSTABLES_TO_CORRUPT),
@@ -149,7 +150,7 @@ public class BlacklistingCompactionsTest
             {
                 DecoratedKey key = Util.dk(String.valueOf(i));
                 long timestamp = j * ROWS_PER_SSTABLE + i;
-                new RowUpdateBuilder(cfs.metadata, timestamp, key.getKey())
+                new RowUpdateBuilder(cfs.metadata(), timestamp, key.getKey())
                         .clustering(Long.valueOf(i))
                         .add("val", Long.valueOf(i))
                         .build()
@@ -187,6 +188,8 @@ public class BlacklistingCompactionsTest
                 byte[] corruption = new byte[corruptionSize];
                 random.nextBytes(corruption);
                 raf.write(corruption);
+                if (ChunkCache.instance != null)
+                    ChunkCache.instance.invalidateFile(sstable.getFilename());
 
             }
             finally

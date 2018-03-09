@@ -21,6 +21,7 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.Semaphore;
 
@@ -66,22 +67,24 @@ public class CommitLogSegmentBackpressureTest
     @BMRules(rules = {@BMRule(name = "Acquire Semaphore before sync",
                               targetClass = "AbstractCommitLogService$SyncRunnable",
                               targetMethod = "sync",
-                              targetLocation = "AT INVOKE org.apache.cassandra.db.commitlog.CommitLog.sync(boolean, boolean)",
+                              targetLocation = "AT INVOKE org.apache.cassandra.db.commitlog.CommitLog.sync(boolean)",
                               action = "org.apache.cassandra.db.commitlog.CommitLogSegmentBackpressureTest.allowSync.acquire()"),
                       @BMRule(name = "Release Semaphore after sync",
                               targetClass = "AbstractCommitLogService$SyncRunnable",
                               targetMethod = "sync",
-                              targetLocation = "AFTER INVOKE org.apache.cassandra.db.commitlog.CommitLog.sync(boolean, boolean)",
+                              targetLocation = "AFTER INVOKE org.apache.cassandra.db.commitlog.CommitLog.sync(boolean)",
                               action = "org.apache.cassandra.db.commitlog.CommitLogSegmentBackpressureTest.allowSync.release()")})
     public void testCompressedCommitLogBackpressure() throws Throwable
     {
         // Perform all initialization before making CommitLog.Sync blocking
         // Doing the initialization within the method guarantee that Byteman has performed its injections when we start
         new Random().nextBytes(entropy);
+        DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", ImmutableMap.of()));
         DatabaseDescriptor.setCommitLogSegmentSize(1);
         DatabaseDescriptor.setCommitLogSync(CommitLogSync.periodic);
         DatabaseDescriptor.setCommitLogSyncPeriod(10 * 1000);
+        DatabaseDescriptor.setCommitLogMaxCompressionBuffersPerPool(3);
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -92,7 +95,7 @@ public class CommitLogSegmentBackpressureTest
 
         ColumnFamilyStore cfs1 = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
 
-        final Mutation m = new RowUpdateBuilder(cfs1.metadata, 0, "k").clustering("bytes")
+        final Mutation m = new RowUpdateBuilder(cfs1.metadata(), 0, "k").clustering("bytes")
                                                                       .add("val", ByteBuffer.wrap(entropy))
                                                                       .build();
 
@@ -108,18 +111,20 @@ public class CommitLogSegmentBackpressureTest
 
             dummyThread.start();
 
-            CommitLogSegmentManager clsm = CommitLog.instance.allocator;
+            AbstractCommitLogSegmentManager clsm = CommitLog.instance.segmentManager;
 
             Util.spinAssertEquals(3, () -> clsm.getActiveSegments().size(), 5);
 
             Thread.sleep(1000);
 
-            // Should only be able to create 3 segments (not 7) because it blocks waiting for truncation that never
-            // comes.
+            // Should only be able to create 3 segments not 7 because it blocks waiting for truncation that never comes
             Assert.assertEquals(3, clsm.getActiveSegments().size());
 
-            clsm.getActiveSegments().forEach(segment -> clsm.recycleSegment(segment));
+            // Discard the currently active segments so allocation can continue.
+            // Take snapshot of the list, otherwise this will also discard newly allocated segments.
+            new ArrayList<>(clsm.getActiveSegments()).forEach( clsm::archiveAndDiscard );
 
+            // The allocated count should reach the limit again.
             Util.spinAssertEquals(3, () -> clsm.getActiveSegments().size(), 5);
         }
         finally

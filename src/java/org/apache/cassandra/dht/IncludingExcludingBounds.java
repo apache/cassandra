@@ -23,7 +23,7 @@ import java.util.List;
 import org.apache.cassandra.utils.Pair;
 
 /**
- * AbstractBounds containing only its left endpoint: [left, right).  Used by CQL key >= X AND key < Y range scans.
+ * AbstractBounds containing only its left endpoint: [left, right).  Used by {@code CQL key >= X AND key < Y} range scans.
  */
 public class IncludingExcludingBounds<T extends RingPosition<T>> extends AbstractBounds<T>
 {

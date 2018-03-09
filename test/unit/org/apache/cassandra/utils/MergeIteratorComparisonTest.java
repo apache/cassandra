@@ -36,7 +36,6 @@ import org.junit.Test;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.utils.MergeIterator.Candidate;
 import org.apache.cassandra.utils.MergeIterator.Reducer;
 
 public class MergeIteratorComparisonTest

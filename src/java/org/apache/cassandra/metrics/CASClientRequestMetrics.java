@@ -23,19 +23,16 @@ import com.codahale.metrics.Histogram;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-
 public class CASClientRequestMetrics extends ClientRequestMetrics
 {
     public final Histogram contention;
-    /* Used only for write  */
-    public final Counter conditionNotMet;
 
     public final Counter unfinishedCommit;
 
-    public CASClientRequestMetrics(String scope) {
+    public CASClientRequestMetrics(String scope) 
+    {
         super(scope);
         contention = Metrics.histogram(factory.createMetricName("ContentionHistogram"), false);
-        conditionNotMet =  Metrics.counter(factory.createMetricName("ConditionNotMet"));
         unfinishedCommit =  Metrics.counter(factory.createMetricName("UnfinishedCommit"));
     }
 
@@ -43,7 +40,6 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
     {
         super.release();
         Metrics.remove(factory.createMetricName("ContentionHistogram"));
-        Metrics.remove(factory.createMetricName("ConditionNotMet"));
         Metrics.remove(factory.createMetricName("UnfinishedCommit"));
     }
 }

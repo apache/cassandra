@@ -21,10 +21,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
-import org.apache.cassandra.config.Config;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.config.Config;
 
 /**
  * An implementation of the DataOutputStream interface using a FastByteArrayOutputStream and exposing
@@ -39,9 +40,41 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
      */
     private static final long DOUBLING_THRESHOLD = Long.getLong(Config.PROPERTY_PREFIX + "DOB_DOUBLING_THRESHOLD_MB", 64);
 
+    /*
+     * Only recycle OutputBuffers up to 1Mb. Larger buffers will be trimmed back to this size.
+     */
+    private static final int MAX_RECYCLE_BUFFER_SIZE = Integer.getInteger(Config.PROPERTY_PREFIX + "dob_max_recycle_bytes", 1024 * 1024);
+
+    private static final int DEFAULT_INITIAL_BUFFER_SIZE = 128;
+
+    /**
+     * Scratch buffers used mostly for serializing in memory. It's important to call #recycle() when finished
+     * to keep the memory overhead from being too large in the system.
+     */
+    public static final FastThreadLocal<DataOutputBuffer> scratchBuffer = new FastThreadLocal<DataOutputBuffer>()
+    {
+        protected DataOutputBuffer initialValue() throws Exception
+        {
+            return new DataOutputBuffer()
+            {
+                public void close()
+                {
+                    if (buffer.capacity() <= MAX_RECYCLE_BUFFER_SIZE)
+                    {
+                        buffer.clear();
+                    }
+                    else
+                    {
+                        buffer = ByteBuffer.allocate(DEFAULT_INITIAL_BUFFER_SIZE);
+                    }
+                }
+            };
+        }
+    };
+
     public DataOutputBuffer()
     {
-        this(128);
+        this(DEFAULT_INITIAL_BUFFER_SIZE);
     }
 
     public DataOutputBuffer(int size)
@@ -49,7 +82,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         super(ByteBuffer.allocate(size));
     }
 
-    protected DataOutputBuffer(ByteBuffer buffer)
+    public DataOutputBuffer(ByteBuffer buffer)
     {
         super(buffer);
     }
@@ -135,6 +168,11 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         return new GrowingChannel();
     }
 
+    public void clear()
+    {
+        buffer.clear();
+    }
+
     @VisibleForTesting
     final class GrowingChannel implements WritableByteChannel
     {
@@ -170,6 +208,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     public byte[] getData()
     {
+        assert buffer.arrayOffset() == 0;
         return buffer.array();
     }
 
@@ -186,6 +225,11 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     public long position()
     {
         return getLength();
+    }
+
+    public ByteBuffer asNewBuffer()
+    {
+        return ByteBuffer.wrap(toByteArray());
     }
 
     public byte[] toByteArray()

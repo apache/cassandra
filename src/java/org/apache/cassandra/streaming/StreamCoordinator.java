@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.net.InetAddress;
 import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -37,23 +37,31 @@ public class StreamCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamCoordinator.class);
 
-    // Executor strictly for establishing the initial connections. Once we're connected to the other end the rest of the
-    // streaming is handled directly by the ConnectionHandler's incoming and outgoing threads.
+    /**
+     * Executor strictly for establishing the initial connections. Once we're connected to the other end the rest of the
+     * streaming is handled directly by the {@link StreamingMessageSender}'s incoming and outgoing threads.
+     */
     private static final DebuggableThreadPoolExecutor streamExecutor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("StreamConnectionEstablisher",
                                                                                                                             FBUtilities.getAvailableProcessors());
+    private final boolean connectSequentially;
 
-    private Map<InetAddress, HostStreamingData> peerSessions = new HashMap<>();
+    private Map<InetAddressAndPort, HostStreamingData> peerSessions = new HashMap<>();
     private final int connectionsPerHost;
     private StreamConnectionFactory factory;
     private final boolean keepSSTableLevel;
-    private final boolean isIncremental;
+    private Iterator<StreamSession> sessionsToConnect = null;
+    private final UUID pendingRepair;
+    private final PreviewKind previewKind;
 
-    public StreamCoordinator(int connectionsPerHost, boolean keepSSTableLevel, boolean isIncremental, StreamConnectionFactory factory)
+    public StreamCoordinator(int connectionsPerHost, boolean keepSSTableLevel, StreamConnectionFactory factory,
+                             boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
         this.connectionsPerHost = connectionsPerHost;
-        this.factory = factory;
         this.keepSSTableLevel = keepSSTableLevel;
-        this.isIncremental = isIncremental;
+        this.factory = factory;
+        this.connectSequentially = connectSequentially;
+        this.pendingRepair = pendingRepair;
+        this.previewKind = previewKind;
     }
 
     public void setConnectionFactory(StreamConnectionFactory factory)
@@ -89,25 +97,77 @@ public class StreamCoordinator
         return connectionsPerHost == 0;
     }
 
-    public void connectAllStreamSessions()
+    public void connect(StreamResultFuture future)
+    {
+        if (this.connectSequentially)
+            connectSequentially(future);
+        else
+            connectAllStreamSessions();
+    }
+
+    private void connectAllStreamSessions()
     {
         for (HostStreamingData data : peerSessions.values())
             data.connectAllStreamSessions();
     }
 
-    public synchronized Set<InetAddress> getPeers()
+    private void connectSequentially(StreamResultFuture future)
+    {
+        sessionsToConnect = getAllStreamSessions().iterator();
+        future.addEventListener(new StreamEventHandler()
+        {
+            public void handleStreamEvent(StreamEvent event)
+            {
+                if (event.eventType == StreamEvent.Type.STREAM_PREPARED || event.eventType == StreamEvent.Type.STREAM_COMPLETE)
+                    connectNext();
+            }
+
+            public void onSuccess(StreamState result)
+            {
+
+            }
+
+            public void onFailure(Throwable t)
+            {
+
+            }
+        });
+        connectNext();
+    }
+
+    private void connectNext()
+    {
+        if (sessionsToConnect == null)
+            return;
+
+        if (sessionsToConnect.hasNext())
+        {
+            StreamSession next = sessionsToConnect.next();
+            logger.debug("Connecting next session {} with {}.", next.planId(), next.peer.toString());
+            streamExecutor.execute(new StreamSessionConnector(next));
+        }
+        else
+            logger.debug("Finished connecting all sessions");
+    }
+
+    public synchronized Set<InetAddressAndPort> getPeers()
     {
         return new HashSet<>(peerSessions.keySet());
     }
 
-    public synchronized StreamSession getOrCreateNextSession(InetAddress peer, InetAddress connecting)
+    public synchronized StreamSession getOrCreateNextSession(InetAddressAndPort peer, InetAddressAndPort connecting)
     {
         return getOrCreateHostData(peer).getOrCreateNextSession(peer, connecting);
     }
 
-    public synchronized StreamSession getOrCreateSessionById(InetAddress peer, int id, InetAddress connecting)
+    public synchronized StreamSession getOrCreateSessionById(InetAddressAndPort peer, int id, InetAddressAndPort connecting)
     {
         return getOrCreateHostData(peer).getOrCreateSessionById(peer, id, connecting);
+    }
+
+    public StreamSession getSessionById(InetAddressAndPort peer, int id)
+    {
+        return getHostData(peer).getSessionById(id);
     }
 
     public synchronized void updateProgress(ProgressInfo info)
@@ -131,7 +191,7 @@ public class StreamCoordinator
         return result;
     }
 
-    public synchronized void transferFiles(InetAddress to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
+    public synchronized void transferFiles(InetAddressAndPort to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
     {
         HostStreamingData sessionList = getOrCreateHostData(to);
 
@@ -179,7 +239,7 @@ public class StreamCoordinator
         return result;
     }
 
-    private HostStreamingData getHostData(InetAddress peer)
+    private HostStreamingData getHostData(InetAddressAndPort peer)
     {
         HostStreamingData data = peerSessions.get(peer);
         if (data == null)
@@ -187,7 +247,7 @@ public class StreamCoordinator
         return data;
     }
 
-    private HostStreamingData getOrCreateHostData(InetAddress peer)
+    private HostStreamingData getOrCreateHostData(InetAddressAndPort peer)
     {
         HostStreamingData data = peerSessions.get(peer);
         if (data == null)
@@ -196,6 +256,11 @@ public class StreamCoordinator
             peerSessions.put(peer, data);
         }
         return data;
+    }
+
+    public UUID getPendingRepair()
+    {
+        return pendingRepair;
     }
 
     private static class StreamSessionConnector implements Runnable
@@ -216,8 +281,8 @@ public class StreamCoordinator
 
     private class HostStreamingData
     {
-        private Map<Integer, StreamSession> streamSessions = new HashMap<>();
-        private Map<Integer, SessionInfo> sessionInfos = new HashMap<>();
+        private final Map<Integer, StreamSession> streamSessions = new HashMap<>();
+        private final Map<Integer, SessionInfo> sessionInfos = new HashMap<>();
 
         private int lastReturned = -1;
 
@@ -232,12 +297,12 @@ public class StreamCoordinator
             return false;
         }
 
-        public StreamSession getOrCreateNextSession(InetAddress peer, InetAddress connecting)
+        public StreamSession getOrCreateNextSession(InetAddressAndPort peer, InetAddressAndPort connecting)
         {
             // create
             if (streamSessions.size() < connectionsPerHost)
             {
-                StreamSession session = new StreamSession(peer, connecting, factory, streamSessions.size(), keepSSTableLevel, isIncremental);
+                StreamSession session = new StreamSession(peer, connecting, factory, streamSessions.size(), keepSSTableLevel, pendingRepair, previewKind);
                 streamSessions.put(++lastReturned, session);
                 return session;
             }
@@ -264,15 +329,20 @@ public class StreamCoordinator
             return Collections.unmodifiableCollection(streamSessions.values());
         }
 
-        public StreamSession getOrCreateSessionById(InetAddress peer, int id, InetAddress connecting)
+        public StreamSession getOrCreateSessionById(InetAddressAndPort peer, int id, InetAddressAndPort connecting)
         {
             StreamSession session = streamSessions.get(id);
             if (session == null)
             {
-                session = new StreamSession(peer, connecting, factory, id, keepSSTableLevel, isIncremental);
+                session = new StreamSession(peer, connecting, factory, id, keepSSTableLevel, pendingRepair, previewKind);
                 streamSessions.put(id, session);
             }
             return session;
+        }
+
+        public StreamSession getSessionById(int id)
+        {
+            return streamSessions.get(id);
         }
 
         public void updateProgress(ProgressInfo info)

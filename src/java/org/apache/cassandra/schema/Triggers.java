@@ -43,6 +43,16 @@ public final class Triggers implements Iterable<TriggerMetadata>
         return builder().build();
     }
 
+    public static Triggers of(TriggerMetadata... triggers)
+    {
+        return builder().add(triggers).build();
+    }
+
+    public static Triggers of(Iterable<TriggerMetadata> triggers)
+    {
+        return builder().add(triggers).build();
+    }
+
     public Iterator<TriggerMetadata> iterator()
     {
         return triggers.values().iterator();
@@ -125,6 +135,13 @@ public final class Triggers implements Iterable<TriggerMetadata>
         public Builder add(TriggerMetadata trigger)
         {
             triggers.put(trigger.name, trigger);
+            return this;
+        }
+
+        public Builder add(TriggerMetadata... triggers)
+        {
+            for (TriggerMetadata trigger : triggers)
+                add(trigger);
             return this;
         }
 

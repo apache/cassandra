@@ -24,7 +24,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
+import java.util.concurrent.ThreadLocalRandom;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -246,5 +248,56 @@ public class ByteBufferUtilTest
         ByteBuffer bb2 = ByteBufferUtil.hexToBytes(s);
         assertEquals(bb, bb2);
         assertEquals("0102", s);
+    }
+
+    @Test
+    public void testStartsAndEndsWith()
+    {
+        byte[] bytes = new byte[512];
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        random.nextBytes(bytes);
+
+        ByteBuffer a = ByteBuffer.wrap(bytes);
+        ByteBuffer b = a.duplicate();
+
+        // let's take random slices of a and match
+        for (int i = 0; i < 512; i++)
+        {
+            // prefix from the original offset
+            b.position(0).limit(a.remaining() - random.nextInt(0, a.remaining() - 1));
+            Assert.assertTrue(ByteBufferUtil.startsWith(a, b));
+            Assert.assertTrue(ByteBufferUtil.startsWith(a, b.slice()));
+
+            // prefix from random position inside of array
+            int pos = random.nextInt(1, a.remaining() - 5);
+            a.position(pos);
+            b.limit(bytes.length - 1).position(pos);
+
+            Assert.assertTrue(ByteBufferUtil.startsWith(a, b));
+
+            a.position(0);
+
+            // endsWith at random position
+            b.limit(a.remaining()).position(random.nextInt(0, a.remaining() - 1));
+            Assert.assertTrue(ByteBufferUtil.endsWith(a, b));
+            Assert.assertTrue(ByteBufferUtil.endsWith(a, b.slice()));
+
+        }
+
+        a.limit(bytes.length - 1).position(0);
+        b.limit(bytes.length - 1).position(1);
+
+        Assert.assertFalse(ByteBufferUtil.startsWith(a, b));
+        Assert.assertFalse(ByteBufferUtil.startsWith(a, b.slice()));
+
+        Assert.assertTrue(ByteBufferUtil.endsWith(a, b));
+        Assert.assertTrue(ByteBufferUtil.endsWith(a, b.slice()));
+
+
+        a.position(5);
+
+        Assert.assertFalse(ByteBufferUtil.startsWith(a, b));
+        Assert.assertFalse(ByteBufferUtil.endsWith(a, b));
     }
 }

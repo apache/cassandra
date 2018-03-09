@@ -20,14 +20,14 @@ package org.apache.cassandra.db.columniterator;
 import java.io.IOException;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.btree.BTree;
 
@@ -36,26 +36,23 @@ import org.apache.cassandra.utils.btree.BTree;
  */
 public class SSTableReversedIterator extends AbstractSSTableIterator
 {
-    public SSTableReversedIterator(SSTableReader sstable,
-                                   DecoratedKey key,
-                                   ColumnFilter columns,
-                                   boolean isForThrift,
-                                   SSTableReadsListener listener)
-    {
-        this(sstable, null, key, sstable.getPosition(key, SSTableReader.Operator.EQ, listener), columns, isForThrift);
-    }
+    /**
+     * The index of the slice being processed.
+     */
+    private int slice;
 
     public SSTableReversedIterator(SSTableReader sstable,
                                    FileDataInput file,
                                    DecoratedKey key,
                                    RowIndexEntry indexEntry,
+                                   Slices slices,
                                    ColumnFilter columns,
-                                   boolean isForThrift)
+                                   FileHandle ifile)
     {
-        super(sstable, file, key, indexEntry, columns, isForThrift);
+        super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
-    protected Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+    protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
     {
         return indexEntry.isIndexed()
              ? new ReverseIndexedReader(indexEntry, file, shouldCloseFile)
@@ -65,6 +62,18 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
     public boolean isReverseOrder()
     {
         return true;
+    }
+
+    protected int nextSliceIndex()
+    {
+        int next = slice;
+        slice++;
+        return slices.size() - (next + 1);
+    }
+
+    protected boolean hasMoreSlices()
+    {
+        return slice < slices.size();
     }
 
     private class ReverseReader extends Reader
@@ -85,7 +94,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         protected ReusablePartitionData createBuffer(int blocksCount)
         {
             int estimatedRowCount = 16;
-            int columnCount = metadata().partitionColumns().regulars.size();
+            int columnCount = metadata().regularColumns().size();
             if (columnCount == 0 || metadata().clusteringColumns().isEmpty())
             {
                 estimatedRowCount = 1;
@@ -120,7 +129,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 // Note that we can reuse that buffer between slices (we could alternatively re-read from disk
                 // every time, but that feels more wasteful) so we want to include everything from the beginning.
                 // We can stop at the slice end however since any following slice will be before that.
-                loadFromDisk(null, slice.end(), true, false, false);
+                loadFromDisk(null, slice.end(), false, false);
             }
             setIterator(slice);
         }
@@ -156,16 +165,15 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             return iterator.next();
         }
 
-        protected boolean stopReadingDisk()
+        protected boolean stopReadingDisk() throws IOException
         {
             return false;
         }
 
         // Reads the unfiltered from disk and load them into the reader buffer. It stops reading when either the partition
         // is fully read, or when stopReadingDisk() returns true.
-        protected void loadFromDisk(Slice.Bound start,
-                                    Slice.Bound end,
-                                    boolean includeFirst,
+        protected void loadFromDisk(ClusteringBound start,
+                                    ClusteringBound end,
                                     boolean hasPreviousBlock,
                                     boolean hasNextBlock) throws IOException
         {
@@ -176,14 +184,11 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             skipFirstIteratedItem = false;
             skipLastIteratedItem = false;
 
-            boolean isFirst = true;
-
             // If the start might be in this block, skip everything that comes before it.
             if (start != null)
             {
                 while (deserializer.hasNext() && deserializer.compareNextTo(start) <= 0 && !stopReadingDisk())
                 {
-                    isFirst = false;
                     if (deserializer.nextIsRow())
                         deserializer.skipNext();
                     else
@@ -204,7 +209,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 // want to "return" it just yet, we'll wait until we reach it in the next blocks. That's why we trigger
                 // skipLastIteratedItem in that case (this is first item of the block, but we're iterating in reverse order
                 // so it will be last returned by the iterator).
-                RangeTombstone.Bound markerStart = start == null ? RangeTombstone.Bound.BOTTOM : RangeTombstone.Bound.fromSliceBound(start);
+                ClusteringBound markerStart = start == null ? ClusteringBound.BOTTOM : start;
                 buffer.add(new RangeTombstoneBoundMarker(markerStart, openMarker));
                 if (hasNextBlock)
                     skipLastIteratedItem = true;
@@ -219,10 +224,8 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             {
                 Unfiltered unfiltered = deserializer.readNext();
                 // We may get empty row for the same reason expressed on UnfilteredSerializer.deserializeOne.
-                if (!unfiltered.isEmpty() && (!isFirst || includeFirst))
+                if (!unfiltered.isEmpty())
                     buffer.add(unfiltered);
-
-                isFirst = false;
 
                 if (unfiltered.isRangeTombstoneMarker())
                     updateOpenMarker((RangeTombstoneMarker)unfiltered);
@@ -239,7 +242,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 // not breaking ImmutableBTreePartition, we should skip it when returning from the iterator, hence the
                 // skipFirstIteratedItem (this is the last item of the block, but we're iterating in reverse order so it will
                 // be the first returned by the iterator).
-                RangeTombstone.Bound markerEnd = end == null ? RangeTombstone.Bound.TOP : RangeTombstone.Bound.fromSliceBound(end);
+                ClusteringBound markerEnd = end == null ? ClusteringBound.TOP : end;
                 buffer.add(new RangeTombstoneBoundMarker(markerEnd, openMarker));
                 if (hasPreviousBlock)
                     skipFirstIteratedItem = true;
@@ -261,7 +264,14 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         private ReverseIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
-            this.indexState = new IndexState(this, sstable.metadata.comparator, indexEntry, true);
+            this.indexState = new IndexState(this, metadata.comparator, indexEntry, true, ifile);
+        }
+
+        @Override
+        public void close() throws IOException
+        {
+            super.close();
+            this.indexState.close();
         }
 
         @Override
@@ -318,7 +328,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             if (nextBlockIdx < 0 || nextBlockIdx < lastBlockIdx)
                 return false;
 
-            // The slice start can be in 
+            // The slice start can be in
             indexState.setToBlock(nextBlockIdx);
             readCurrentBlock(true, nextBlockIdx != lastBlockIdx);
             // since that new block is within the bounds we've computed in setToSlice(), we know there will
@@ -338,38 +348,20 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             if (buffer == null)
                 buffer = createBuffer(indexState.blocksCount());
 
-            int currentBlock = indexState.currentBlockIdx();
-
             // The slice start (resp. slice end) is only meaningful on the last (resp. first) block read (since again,
             // we read blocks in reverse order).
             boolean canIncludeSliceStart = !hasNextBlock;
             boolean canIncludeSliceEnd = !hasPreviousBlock;
 
-            // When dealing with old format sstable, we have the problem that a row can span 2 index block, i.e. it can
-            // start at the end of a block and end at the beginning of the next one. That's not a problem per se for
-            // UnfilteredDeserializer.OldFormatSerializer, since it always read rows entirely, even if they span index
-            // blocks, but as we reading index block in reverse we must be careful to not read the end of the row at
-            // beginning of a block before we're reading the beginning of that row. So what we do is that if we detect
-            // that the row starting this block is also the row ending the next one we're read (previous on disk), then
-            // we'll skip that first result and  let it be read with the next block.
-            boolean includeFirst = true;
-            if (!sstable.descriptor.version.storeRows() && currentBlock > 0)
-            {
-                ClusteringPrefix lastOfNext = indexState.index(currentBlock - 1).lastName;
-                ClusteringPrefix firstOfCurrent = indexState.index(currentBlock).firstName;
-                includeFirst = metadata().comparator.compare(lastOfNext, firstOfCurrent) != 0;
-            }
-
             loadFromDisk(canIncludeSliceStart ? slice.start() : null,
                          canIncludeSliceEnd ? slice.end() : null,
-                         includeFirst,
                          hasPreviousBlock,
                          hasNextBlock);
             setIterator(slice);
         }
 
         @Override
-        protected boolean stopReadingDisk()
+        protected boolean stopReadingDisk() throws IOException
         {
             return indexState.isPastCurrentBlock();
         }
@@ -377,18 +369,18 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
 
     private class ReusablePartitionData
     {
-        private final CFMetaData metadata;
+        private final TableMetadata metadata;
         private final DecoratedKey partitionKey;
-        private final PartitionColumns columns;
+        private final RegularAndStaticColumns columns;
 
         private MutableDeletionInfo.Builder deletionBuilder;
         private MutableDeletionInfo deletionInfo;
         private BTree.Builder<Row> rowBuilder;
         private ImmutableBTreePartition built;
 
-        private ReusablePartitionData(CFMetaData metadata,
+        private ReusablePartitionData(TableMetadata metadata,
                                       DecoratedKey partitionKey,
-                                      PartitionColumns columns,
+                                      RegularAndStaticColumns columns,
                                       int initialRowCapacity)
         {
             this.metadata = metadata;
@@ -409,7 +401,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         public void reset()
         {
             built = null;
-            rowBuilder.reuse();
+            rowBuilder = BTree.builder(metadata.comparator);
             deletionBuilder = MutableDeletionInfo.builder(partitionLevelDeletion, metadata().comparator, false);
         }
 

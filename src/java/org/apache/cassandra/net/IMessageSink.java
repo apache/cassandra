@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.net;
 
-import java.net.InetAddress;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public interface IMessageSink
 {
@@ -26,7 +26,7 @@ public interface IMessageSink
      *
      * @return true if the message is allowed, false if it should be dropped
      */
-    boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to);
+    boolean allowOutgoingMessage(MessageOut message, int id, InetAddressAndPort to);
 
     /**
      * Allow or drop an incoming message

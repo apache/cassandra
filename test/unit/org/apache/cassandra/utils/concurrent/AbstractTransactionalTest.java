@@ -31,7 +31,7 @@ public abstract class AbstractTransactionalTest
     @BeforeClass
     public static void setupDD()
     {
-        DatabaseDescriptor.setDaemonInitialized();
+        DatabaseDescriptor.daemonInitialization();
     }
 
     protected abstract TestableTransaction newTest() throws Exception;

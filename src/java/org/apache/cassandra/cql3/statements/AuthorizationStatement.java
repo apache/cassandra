@@ -32,7 +32,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 public abstract class AuthorizationStatement extends ParsedStatement implements CQLStatement
 {
     @Override
-    public Prepared prepare(ClientState clientState)
+    public Prepared prepare()
     {
         return new Prepared(this);
     }
@@ -42,7 +42,7 @@ public abstract class AuthorizationStatement extends ParsedStatement implements 
         return 0;
     }
 
-    public ResultMessage execute(QueryState state, QueryOptions options)
+    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
     throws RequestValidationException, RequestExecutionException
     {
         return execute(state.getClientState());

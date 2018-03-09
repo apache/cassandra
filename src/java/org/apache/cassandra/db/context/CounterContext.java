@@ -18,11 +18,11 @@
 package org.apache.cassandra.db.context;
 
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.hash.Hasher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -684,17 +684,17 @@ public class CounterContext
     }
 
     /**
-     * Update a MessageDigest with the content of a context.
+     * Update a {@link Hasher} with the content of a context.
      * Note that this skips the header entirely since the header information
      * has local meaning only, while digests are meant for comparison across
      * nodes. This means in particular that we always have:
      *  updateDigest(ctx) == updateDigest(clearAllLocal(ctx))
      */
-    public void updateDigest(MessageDigest message, ByteBuffer context)
+    public void updateDigest(Hasher hasher, ByteBuffer context)
     {
         ByteBuffer dup = context.duplicate();
         dup.position(context.position() + headerLength(context));
-        message.update(dup);
+        HashingUtils.updateBytes(hasher, dup);
     }
 
     /**

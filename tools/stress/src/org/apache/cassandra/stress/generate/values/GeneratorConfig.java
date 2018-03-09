@@ -62,4 +62,18 @@ public class GeneratorConfig implements Serializable
         return (sizeDistributions == null ? deflt : sizeDistributions).get();
     }
 
+    public String getConfigAsString()
+    {
+        StringBuilder sb = new StringBuilder();
+        if (clusteringDistributions != null){
+            sb.append(String.format("Clustering: %s;", clusteringDistributions.getConfigAsString()));
+        }
+        if (sizeDistributions != null){
+            sb.append(String.format("Size: %s;", sizeDistributions.getConfigAsString()));
+        }
+        if (identityDistributions != null){
+            sb.append(String.format("Identity: %s;", identityDistributions.getConfigAsString()));
+        }
+        return sb.toString();
+    }
 }

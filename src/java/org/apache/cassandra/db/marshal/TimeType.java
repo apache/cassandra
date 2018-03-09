@@ -18,6 +18,9 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Term;
@@ -25,12 +28,12 @@ import org.apache.cassandra.serializers.TimeSerializer;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Nanosecond resolution time values
  */
-public class TimeType extends AbstractType<Long>
+public class TimeType extends TemporalType<Long>
 {
     public static final TimeType instance = new TimeType();
     private TimeType() {super(ComparisonType.BYTE_ORDER);} // singleton
@@ -60,7 +63,7 @@ public class TimeType extends AbstractType<Long>
     }
 
     @Override
-    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         return '"' + TimeSerializer.instance.toString(TimeSerializer.instance.deserialize(buffer)) + '"';
     }
@@ -74,5 +77,11 @@ public class TimeType extends AbstractType<Long>
     public TypeSerializer<Long> getSerializer()
     {
         return TimeSerializer.instance;
+    }
+
+    @Override
+    public ByteBuffer now()
+    {
+        return decompose(LocalTime.now(ZoneOffset.UTC).toNanoOfDay());
     }
 }

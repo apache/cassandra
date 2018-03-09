@@ -18,13 +18,13 @@
  */
 package org.apache.cassandra.hints;
 
-import java.net.InetAddress;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -47,7 +47,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
     {
         UUID hostId = message.payload.hostId;
         Hint hint = message.payload.hint;
-        InetAddress address = StorageService.instance.getEndpointForHostId(hostId);
+        InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
 
         // If we see an unknown table id, it means the table, or one of the tables in the mutation, had been dropped.
         // In that case there is nothing we can really do, or should do, other than log it go on.
@@ -96,7 +96,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         }
     }
 
-    private static void reply(int id, InetAddress to)
+    private static void reply(int id, InetAddressAndPort to)
     {
         MessagingService.instance().sendReply(HintResponse.message, id, to);
     }

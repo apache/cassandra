@@ -19,54 +19,50 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.NavigableSet;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 /**
- * Builder that allow to build multiple Clustering/Slice.Bound at the same time.
+ * Builder that allow to build multiple Clustering/ClusteringBound at the same time.
  */
-public class MultiCBuilder
+public abstract class MultiCBuilder
 {
     /**
      * The table comparator.
      */
-    private final ClusteringComparator comparator;
+    protected final ClusteringComparator comparator;
 
     /**
-     * The elements of the clusterings
+     * The number of clustering elements that have been added.
      */
-    private final List<List<ByteBuffer>> elementsList = new ArrayList<>();
-
-    /**
-     * The number of elements that have been added.
-     */
-    private int size;
+    protected int size;
 
     /**
      * <code>true</code> if the clusterings have been build, <code>false</code> otherwise.
      */
-    private boolean built;
+    protected boolean built;
 
     /**
      * <code>true</code> if the clusterings contains some <code>null</code> elements.
      */
-    private boolean containsNull;
+    protected boolean containsNull;
 
     /**
      * <code>true</code> if the composites contains some <code>unset</code> elements.
      */
-    private boolean containsUnset;
+    protected boolean containsUnset;
 
     /**
      * <code>true</code> if some empty collection have been added.
      */
-    private boolean hasMissingElements;
+    protected boolean hasMissingElements;
 
-    private MultiCBuilder(ClusteringComparator comparator)
+    protected MultiCBuilder(ClusteringComparator comparator)
     {
         this.comparator = comparator;
     }
@@ -74,19 +70,11 @@ public class MultiCBuilder
     /**
      * Creates a new empty {@code MultiCBuilder}.
      */
-    public static MultiCBuilder create(ClusteringComparator comparator)
+    public static MultiCBuilder create(ClusteringComparator comparator, boolean forMultipleValues)
     {
-        return new MultiCBuilder(comparator);
-    }
-
-    /**
-     * Checks if this builder is empty.
-     *
-     * @return <code>true</code> if this builder is empty, <code>false</code> otherwise.
-     */
-    private boolean isEmpty()
-    {
-        return elementsList.isEmpty();
+        return forMultipleValues
+             ? new MultiClusteringBuilder(comparator)
+             : new OneClusteringBuilder(comparator);
     }
 
     /**
@@ -99,25 +87,7 @@ public class MultiCBuilder
      * @param value the value of the next element
      * @return this <code>MulitCBuilder</code>
      */
-    public MultiCBuilder addElementToAll(ByteBuffer value)
-    {
-        checkUpdateable();
-
-        if (isEmpty())
-            elementsList.add(new ArrayList<ByteBuffer>());
-
-        for (int i = 0, m = elementsList.size(); i < m; i++)
-        {
-            if (value == null)
-                containsNull = true;
-            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                containsUnset = true;
-
-            elementsList.get(i).add(value);
-        }
-        size++;
-        return this;
-    }
+    public abstract MultiCBuilder addElementToAll(ByteBuffer value);
 
     /**
      * Adds individually each of the specified elements to the end of all of the existing clusterings.
@@ -129,42 +99,7 @@ public class MultiCBuilder
      * @param values the elements to add
      * @return this <code>CompositeBuilder</code>
      */
-    public MultiCBuilder addEachElementToAll(List<ByteBuffer> values)
-    {
-        checkUpdateable();
-
-        if (isEmpty())
-            elementsList.add(new ArrayList<ByteBuffer>());
-
-        if (values.isEmpty())
-        {
-            hasMissingElements = true;
-        }
-        else
-        {
-            for (int i = 0, m = elementsList.size(); i < m; i++)
-            {
-                List<ByteBuffer> oldComposite = elementsList.remove(0);
-
-                for (int j = 0, n = values.size(); j < n; j++)
-                {
-                    List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
-                    elementsList.add(newComposite);
-
-                    ByteBuffer value = values.get(j);
-
-                    if (value == null)
-                        containsNull = true;
-                    if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                        containsUnset = true;
-
-                    newComposite.add(values.get(j));
-                }
-            }
-        }
-        size++;
-        return this;
-    }
+    public abstract MultiCBuilder addEachElementToAll(List<ByteBuffer> values);
 
     /**
      * Adds individually each of the specified list of elements to the end of all of the existing composites.
@@ -176,41 +111,12 @@ public class MultiCBuilder
      * @param values the elements to add
      * @return this <code>CompositeBuilder</code>
      */
-    public MultiCBuilder addAllElementsToAll(List<List<ByteBuffer>> values)
+    public abstract MultiCBuilder addAllElementsToAll(List<List<ByteBuffer>> values);
+
+    protected void checkUpdateable()
     {
-        checkUpdateable();
-
-        if (isEmpty())
-            elementsList.add(new ArrayList<ByteBuffer>());
-
-        if (values.isEmpty())
-        {
-            hasMissingElements = true;
-        }
-        else
-        {
-            for (int i = 0, m = elementsList.size(); i < m; i++)
-            {
-                List<ByteBuffer> oldComposite = elementsList.remove(0);
-
-                for (int j = 0, n = values.size(); j < n; j++)
-                {
-                    List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
-                    elementsList.add(newComposite);
-
-                    List<ByteBuffer> value = values.get(j);
-
-                    if (value.contains(null))
-                        containsNull = true;
-                    if (value.contains(ByteBufferUtil.UNSET_BYTE_BUFFER))
-                        containsUnset = true;
-
-                    newComposite.addAll(value);
-                }
-            }
-            size += values.get(0).size();
-        }
-        return this;
+        if (!hasRemaining() || built)
+            throw new IllegalStateException("this builder cannot be updated anymore");
     }
 
     /**
@@ -257,109 +163,30 @@ public class MultiCBuilder
      *
      * @return the clusterings
      */
-    public NavigableSet<Clustering> build()
-    {
-        built = true;
-
-        if (hasMissingElements)
-            return BTreeSet.empty(comparator);
-
-        CBuilder builder = CBuilder.create(comparator);
-
-        if (elementsList.isEmpty())
-            return BTreeSet.of(builder.comparator(), builder.build());
-
-        BTreeSet.Builder<Clustering> set = BTreeSet.builder(builder.comparator());
-        for (int i = 0, m = elementsList.size(); i < m; i++)
-        {
-            List<ByteBuffer> elements = elementsList.get(i);
-            set.add(builder.buildWith(elements));
-        }
-        return set.build();
-    }
+    public abstract NavigableSet<Clustering> build();
 
     /**
-     * Builds the <code>Slice.Bound</code>s for slice restrictions.
+     * Builds the <code>ClusteringBound</code>s for slice restrictions.
      *
      * @param isStart specify if the bound is a start one
      * @param isInclusive specify if the bound is inclusive or not
      * @param isOtherBoundInclusive specify if the other bound is inclusive or not
      * @param columnDefs the columns of the slice restriction
-     * @return the <code>Slice.Bound</code>s
+     * @return the <code>ClusteringBound</code>s
      */
-    public NavigableSet<Slice.Bound> buildBoundForSlice(boolean isStart,
-                                                        boolean isInclusive,
-                                                        boolean isOtherBoundInclusive,
-                                                        List<ColumnDefinition> columnDefs)
-    {
-        built = true;
+    public abstract NavigableSet<ClusteringBound> buildBoundForSlice(boolean isStart,
+                                                                 boolean isInclusive,
+                                                                 boolean isOtherBoundInclusive,
+                                                                 List<ColumnMetadata> columnDefs);
 
-        if (hasMissingElements)
-            return BTreeSet.empty(comparator);
-
-        CBuilder builder = CBuilder.create(comparator);
-
-        if (elementsList.isEmpty())
-            return BTreeSet.of(comparator, builder.buildBound(isStart, isInclusive));
-
-        // Use a TreeSet to sort and eliminate duplicates
-        BTreeSet.Builder<Slice.Bound> set = BTreeSet.builder(comparator);
-
-        // The first column of the slice might not be the first clustering column (e.g. clustering_0 = ? AND (clustering_1, clustering_2) >= (?, ?)
-        int offset = columnDefs.get(0).position();
-
-        for (int i = 0, m = elementsList.size(); i < m; i++)
-        {
-            List<ByteBuffer> elements = elementsList.get(i);
-
-            // Handle the no bound case
-            if (elements.size() == offset)
-            {
-                set.add(builder.buildBoundWith(elements, isStart, true));
-                continue;
-            }
-
-            // In the case of mixed order columns, we will have some extra slices where the columns change directions.
-            // For example: if we have clustering_0 DESC and clustering_1 ASC a slice like (clustering_0, clustering_1) > (1, 2)
-            // will produce 2 slices: [BOTTOM, 1) and (1.2, 1]
-            // So, the END bound will return 2 bounds with the same values 1
-            ColumnDefinition lastColumn = columnDefs.get(columnDefs.size() - 1);
-            if (elements.size() <= lastColumn.position() && i < m - 1 && elements.equals(elementsList.get(i + 1)))
-            {
-                set.add(builder.buildBoundWith(elements, isStart, false));
-                set.add(builder.buildBoundWith(elementsList.get(i++), isStart, true));
-                continue;
-            }
-
-            // Handle the normal bounds
-            ColumnDefinition column = columnDefs.get(elements.size() - 1 - offset);
-            set.add(builder.buildBoundWith(elements, isStart, column.isReversedType() ? isOtherBoundInclusive : isInclusive));
-        }
-        return set.build();
-    }
-
-    public NavigableSet<Slice.Bound> buildBound(boolean isStart, boolean isInclusive)
-    {
-        built = true;
-
-        if (hasMissingElements)
-            return BTreeSet.empty(comparator);
-
-        CBuilder builder = CBuilder.create(comparator);
-
-        if (elementsList.isEmpty())
-            return BTreeSet.of(comparator, builder.buildBound(isStart, isInclusive));
-
-        // Use a TreeSet to sort and eliminate duplicates
-        BTreeSet.Builder<Slice.Bound> set = BTreeSet.builder(comparator);
-
-        for (int i = 0, m = elementsList.size(); i < m; i++)
-        {
-            List<ByteBuffer> elements = elementsList.get(i);
-            set.add(builder.buildBoundWith(elements, isStart, isInclusive));
-        }
-        return set.build();
-    }
+    /**
+     * Builds the <code>ClusteringBound</code>s
+     *
+     * @param isStart specify if the bound is a start one
+     * @param isInclusive specify if the bound is inclusive or not
+     * @return the <code>ClusteringBound</code>s
+     */
+    public abstract NavigableSet<ClusteringBound> buildBound(boolean isStart, boolean isInclusive);
 
     /**
      * Checks if some elements can still be added to the clusterings.
@@ -371,9 +198,298 @@ public class MultiCBuilder
         return remainingCount() > 0;
     }
 
-    private void checkUpdateable()
+    /**
+     * Specialization of MultiCBuilder when we know only one clustering/bound is created.
+     */
+    private static class OneClusteringBuilder extends MultiCBuilder
     {
-        if (!hasRemaining() || built)
-            throw new IllegalStateException("this builder cannot be updated anymore");
+        /**
+         * The elements of the clusterings
+         */
+        private final ByteBuffer[] elements;
+
+        public OneClusteringBuilder(ClusteringComparator comparator)
+        {
+            super(comparator);
+            this.elements = new ByteBuffer[comparator.size()];
+        }
+
+        public MultiCBuilder addElementToAll(ByteBuffer value)
+        {
+            checkUpdateable();
+
+            if (value == null)
+                containsNull = true;
+            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                containsUnset = true;
+
+            elements[size++] = value;
+            return this;
+        }
+
+        public MultiCBuilder addEachElementToAll(List<ByteBuffer> values)
+        {
+            if (values.isEmpty())
+            {
+                hasMissingElements = true;
+                return this;
+            }
+
+            assert values.size() == 1;
+
+            return addElementToAll(values.get(0));
+        }
+
+        public MultiCBuilder addAllElementsToAll(List<List<ByteBuffer>> values)
+        {
+            if (values.isEmpty())
+            {
+                hasMissingElements = true;
+                return this;
+            }
+
+            assert values.size() == 1;
+            return addEachElementToAll(values.get(0));
+        }
+
+        public NavigableSet<Clustering> build()
+        {
+            built = true;
+
+            if (hasMissingElements)
+                return BTreeSet.empty(comparator);
+
+            return BTreeSet.of(comparator, size == 0 ? Clustering.EMPTY : Clustering.make(elements));
+        }
+
+        @Override
+        public NavigableSet<ClusteringBound> buildBoundForSlice(boolean isStart,
+                                                                boolean isInclusive,
+                                                                boolean isOtherBoundInclusive,
+                                                                List<ColumnMetadata> columnDefs)
+        {
+            return buildBound(isStart, columnDefs.get(0).isReversedType() ? isOtherBoundInclusive : isInclusive);
+        }
+
+        public NavigableSet<ClusteringBound> buildBound(boolean isStart, boolean isInclusive)
+        {
+            built = true;
+
+            if (hasMissingElements)
+                return BTreeSet.empty(comparator);
+
+            if (size == 0)
+                return BTreeSet.of(comparator, isStart ? ClusteringBound.BOTTOM : ClusteringBound.TOP);
+
+            ByteBuffer[] newValues = size == elements.length
+                                   ? elements
+                                   : Arrays.copyOf(elements, size);
+
+            return BTreeSet.of(comparator, ClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive), newValues));
+        }
+    }
+
+    /**
+     * MultiCBuilder implementation actually supporting the creation of multiple clustering/bound.
+     */
+    private static class MultiClusteringBuilder extends MultiCBuilder
+    {
+        /**
+         * The elements of the clusterings
+         */
+        private final List<List<ByteBuffer>> elementsList = new ArrayList<>();
+
+        public MultiClusteringBuilder(ClusteringComparator comparator)
+        {
+            super(comparator);
+        }
+
+        public MultiCBuilder addElementToAll(ByteBuffer value)
+        {
+            checkUpdateable();
+
+            if (elementsList.isEmpty())
+                elementsList.add(new ArrayList<ByteBuffer>());
+
+            if (value == null)
+                containsNull = true;
+            else if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                containsUnset = true;
+
+            for (int i = 0, m = elementsList.size(); i < m; i++)
+                elementsList.get(i).add(value);
+
+            size++;
+            return this;
+        }
+
+        public MultiCBuilder addEachElementToAll(List<ByteBuffer> values)
+        {
+            checkUpdateable();
+
+            if (elementsList.isEmpty())
+                elementsList.add(new ArrayList<ByteBuffer>());
+
+            if (values.isEmpty())
+            {
+                hasMissingElements = true;
+            }
+            else
+            {
+                for (int i = 0, m = elementsList.size(); i < m; i++)
+                {
+                    List<ByteBuffer> oldComposite = elementsList.remove(0);
+
+                    for (int j = 0, n = values.size(); j < n; j++)
+                    {
+                        List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
+                        elementsList.add(newComposite);
+
+                        ByteBuffer value = values.get(j);
+
+                        if (value == null)
+                            containsNull = true;
+                        if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                            containsUnset = true;
+
+                        newComposite.add(values.get(j));
+                    }
+                }
+            }
+            size++;
+            return this;
+        }
+
+        public MultiCBuilder addAllElementsToAll(List<List<ByteBuffer>> values)
+        {
+            checkUpdateable();
+
+            if (elementsList.isEmpty())
+                elementsList.add(new ArrayList<ByteBuffer>());
+
+            if (values.isEmpty())
+            {
+                hasMissingElements = true;
+            }
+            else
+            {
+                for (int i = 0, m = elementsList.size(); i < m; i++)
+                {
+                    List<ByteBuffer> oldComposite = elementsList.remove(0);
+
+                    for (int j = 0, n = values.size(); j < n; j++)
+                    {
+                        List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
+                        elementsList.add(newComposite);
+
+                        List<ByteBuffer> value = values.get(j);
+
+                        if (value.contains(null))
+                            containsNull = true;
+                        if (value.contains(ByteBufferUtil.UNSET_BYTE_BUFFER))
+                            containsUnset = true;
+
+                        newComposite.addAll(value);
+                    }
+                }
+                size += values.get(0).size();
+            }
+            return this;
+        }
+
+        public NavigableSet<Clustering> build()
+        {
+            built = true;
+
+            if (hasMissingElements)
+                return BTreeSet.empty(comparator);
+
+            CBuilder builder = CBuilder.create(comparator);
+
+            if (elementsList.isEmpty())
+                return BTreeSet.of(builder.comparator(), builder.build());
+
+            BTreeSet.Builder<Clustering> set = BTreeSet.builder(builder.comparator());
+            for (int i = 0, m = elementsList.size(); i < m; i++)
+            {
+                List<ByteBuffer> elements = elementsList.get(i);
+                set.add(builder.buildWith(elements));
+            }
+            return set.build();
+        }
+
+        public NavigableSet<ClusteringBound> buildBoundForSlice(boolean isStart,
+                                                            boolean isInclusive,
+                                                            boolean isOtherBoundInclusive,
+                                                            List<ColumnMetadata> columnDefs)
+        {
+            built = true;
+
+            if (hasMissingElements)
+                return BTreeSet.empty(comparator);
+
+            CBuilder builder = CBuilder.create(comparator);
+
+            if (elementsList.isEmpty())
+                return BTreeSet.of(comparator, builder.buildBound(isStart, isInclusive));
+
+            // Use a TreeSet to sort and eliminate duplicates
+            BTreeSet.Builder<ClusteringBound> set = BTreeSet.builder(comparator);
+
+            // The first column of the slice might not be the first clustering column (e.g. clustering_0 = ? AND (clustering_1, clustering_2) >= (?, ?)
+            int offset = columnDefs.get(0).position();
+
+            for (int i = 0, m = elementsList.size(); i < m; i++)
+            {
+                List<ByteBuffer> elements = elementsList.get(i);
+
+                // Handle the no bound case
+                if (elements.size() == offset)
+                {
+                    set.add(builder.buildBoundWith(elements, isStart, true));
+                    continue;
+                }
+
+                // In the case of mixed order columns, we will have some extra slices where the columns change directions.
+                // For example: if we have clustering_0 DESC and clustering_1 ASC a slice like (clustering_0, clustering_1) > (1, 2)
+                // will produce 2 slices: [BOTTOM, 1) and (1.2, 1]
+                // So, the END bound will return 2 bounds with the same values 1
+                ColumnMetadata lastColumn = columnDefs.get(columnDefs.size() - 1);
+                if (elements.size() <= lastColumn.position() && i < m - 1 && elements.equals(elementsList.get(i + 1)))
+                {
+                    set.add(builder.buildBoundWith(elements, isStart, false));
+                    set.add(builder.buildBoundWith(elementsList.get(i++), isStart, true));
+                    continue;
+                }
+
+                // Handle the normal bounds
+                ColumnMetadata column = columnDefs.get(elements.size() - 1 - offset);
+                set.add(builder.buildBoundWith(elements, isStart, column.isReversedType() ? isOtherBoundInclusive : isInclusive));
+            }
+            return set.build();
+        }
+
+        public NavigableSet<ClusteringBound> buildBound(boolean isStart, boolean isInclusive)
+        {
+            built = true;
+
+            if (hasMissingElements)
+                return BTreeSet.empty(comparator);
+
+            CBuilder builder = CBuilder.create(comparator);
+
+            if (elementsList.isEmpty())
+                return BTreeSet.of(comparator, builder.buildBound(isStart, isInclusive));
+
+            // Use a TreeSet to sort and eliminate duplicates
+            BTreeSet.Builder<ClusteringBound> set = BTreeSet.builder(comparator);
+
+            for (int i = 0, m = elementsList.size(); i < m; i++)
+            {
+                List<ByteBuffer> elements = elementsList.get(i);
+                set.add(builder.buildBoundWith(elements, isStart, isInclusive));
+            }
+            return set.build();
+        }
     }
 }

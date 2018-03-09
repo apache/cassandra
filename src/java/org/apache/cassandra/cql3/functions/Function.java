@@ -47,4 +47,12 @@ public interface Function extends AssignmentTestable
     public void addFunctionsTo(List<Function> functions);
 
     public boolean hasReferenceTo(Function function);
+
+    /**
+     * Returns the name of the function to use within a ResultSet.
+     *
+     * @param columnNames the names of the columns used to call the function
+     * @return the name of the function to use within a ResultSet
+     */
+    public String columnName(List<String> columnNames);
 }

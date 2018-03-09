@@ -24,12 +24,8 @@ import java.util.Iterator;
  * and does not require put or remove to return values, which lets SerializingCache
  * be more efficient by avoiding deserialize except on get.
  */
-public interface ICache<K, V>
+public interface ICache<K, V> extends CacheSize
 {
-    public long capacity();
-
-    public void setCapacity(long capacity);
-
     public void put(K key, V value);
 
     public boolean putIfAbsent(K key, V value);
@@ -39,10 +35,6 @@ public interface ICache<K, V>
     public V get(K key);
 
     public void remove(K key);
-
-    public int size();
-
-    public long weightedSize();
 
     public void clear();
 

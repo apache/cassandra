@@ -24,6 +24,8 @@ import java.util.Arrays;
 
 class Stack
 {
+    public static final Transformation[] EMPTY_TRANSFORMATIONS = new Transformation[0];
+    public static final MoreContentsHolder[] EMPTY_MORE_CONTENTS_HOLDERS = new MoreContentsHolder[0];
     static final Stack EMPTY = new Stack();
 
     Transformation[] stack;
@@ -44,8 +46,8 @@ class Stack
 
     Stack()
     {
-        stack = new Transformation[0];
-        moreContents = new MoreContentsHolder[0];
+        stack = EMPTY_TRANSFORMATIONS;
+        moreContents = EMPTY_MORE_CONTENTS_HOLDERS;
     }
 
     Stack(Stack copy)

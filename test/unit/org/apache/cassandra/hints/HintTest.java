@@ -18,7 +18,6 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.UUID;
 
@@ -30,9 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -41,12 +38,17 @@ import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -56,7 +58,6 @@ import static junit.framework.Assert.*;
 import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.hints.HintsTestUtil.assertHintsEqual;
 import static org.apache.cassandra.hints.HintsTestUtil.assertPartitionsEqual;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class HintTest
 {
@@ -80,13 +81,13 @@ public class HintTest
     public void resetGcGraceSeconds()
     {
         TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
-        InetAddress local = FBUtilities.getBroadcastAddress();
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         tokenMeta.clearUnsafe();
         tokenMeta.updateHostId(UUID.randomUUID(), local);
         tokenMeta.updateNormalTokens(BootStrapper.getRandomTokens(tokenMeta, 1), local);
 
-        for (CFMetaData table : Schema.instance.getTablesAndViews(KEYSPACE))
-            table.gcGraceSeconds(TableParams.DEFAULT_GC_GRACE_SECONDS);
+        for (TableMetadata table : Schema.instance.getTablesAndViews(KEYSPACE))
+            MigrationManager.announceTableUpdate(table.unbuild().gcGraceSeconds(TableParams.DEFAULT_GC_GRACE_SECONDS).build(), true);
     }
 
     @Test
@@ -127,7 +128,7 @@ public class HintTest
 
         // assert that we can read the inserted partitions
         for (PartitionUpdate partition : mutation.getPartitionUpdates())
-            assertPartitionsEqual(partition, readPartition(key, partition.metadata().cfName));
+            assertPartitionsEqual(partition, readPartition(key, partition.metadata().name, partition.columns()));
     }
 
     @Test
@@ -152,8 +153,10 @@ public class HintTest
         assertNoPartitions(key, TABLE1);
 
         // TABLE0 and TABLE2 updates should have been applied successfully
-        assertPartitionsEqual(mutation.getPartitionUpdate(Schema.instance.getId(KEYSPACE, TABLE0)), readPartition(key, TABLE0));
-        assertPartitionsEqual(mutation.getPartitionUpdate(Schema.instance.getId(KEYSPACE, TABLE2)), readPartition(key, TABLE2));
+        PartitionUpdate upd0 = mutation.getPartitionUpdate(Schema.instance.getTableMetadata(KEYSPACE, TABLE0));
+        assertPartitionsEqual(upd0, readPartition(key, TABLE0, upd0.columns()));
+        PartitionUpdate upd2 = mutation.getPartitionUpdate(Schema.instance.getTableMetadata(KEYSPACE, TABLE2));
+        assertPartitionsEqual(upd2, readPartition(key, TABLE2, upd2.columns()));
     }
 
     @Test
@@ -161,7 +164,6 @@ public class HintTest
     {
         long now = FBUtilities.timestampMicros();
         String key = "testApplyWithRegularExpiration";
-        Mutation mutation = createMutation(key, now);
 
         // sanity check that there is no data inside yet
         assertNoPartitions(key, TABLE0);
@@ -169,8 +171,15 @@ public class HintTest
         assertNoPartitions(key, TABLE2);
 
         // lower the GC GS on TABLE0 to 0 BEFORE the hint is created
-        Schema.instance.getCFMetaData(KEYSPACE, TABLE0).gcGraceSeconds(0);
+        TableMetadata updated =
+            Schema.instance
+                  .getTableMetadata(KEYSPACE, TABLE0)
+                  .unbuild()
+                  .gcGraceSeconds(0)
+                  .build();
+        MigrationManager.announceTableUpdate(updated, true);
 
+        Mutation mutation = createMutation(key, now);
         Hint.create(mutation, now / 1000).apply();
 
         // all updates should have been skipped and not applied, as expired
@@ -184,8 +193,6 @@ public class HintTest
     {
         long now = FBUtilities.timestampMicros();
         String key = "testApplyWithGCGSReducedLater";
-        Mutation mutation = createMutation(key, now);
-        Hint hint = Hint.create(mutation, now / 1000);
 
         // sanity check that there is no data inside yet
         assertNoPartitions(key, TABLE0);
@@ -193,8 +200,16 @@ public class HintTest
         assertNoPartitions(key, TABLE2);
 
         // lower the GC GS on TABLE0 AFTER the hint is already created
-        Schema.instance.getCFMetaData(KEYSPACE, TABLE0).gcGraceSeconds(0);
+        TableMetadata updated =
+            Schema.instance
+                  .getTableMetadata(KEYSPACE, TABLE0)
+                  .unbuild()
+                  .gcGraceSeconds(0)
+                  .build();
+        MigrationManager.announceTableUpdate(updated, true);
 
+        Mutation mutation = createMutation(key, now);
+        Hint hint = Hint.create(mutation, now / 1000);
         hint.apply();
 
         // all updates should have been skipped and not applied, as expired
@@ -215,8 +230,8 @@ public class HintTest
 
         // Prepare metadata with injected stale endpoint serving the mutation key.
         TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
-        InetAddress local = FBUtilities.getBroadcastAddress();
-        InetAddress endpoint = InetAddress.getByName("1.1.1.1");
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+        InetAddressAndPort endpoint = InetAddressAndPort.getByName("1.1.1.1");
         UUID localId = StorageService.instance.getLocalHostUUID();
         UUID targetId = UUID.randomUUID();
         tokenMeta.updateHostId(targetId, endpoint);
@@ -256,8 +271,8 @@ public class HintTest
 
         // Prepare metadata with injected stale endpoint.
         TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
-        InetAddress local = FBUtilities.getBroadcastAddress();
-        InetAddress endpoint = InetAddress.getByName("1.1.1.1");
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+        InetAddressAndPort endpoint = InetAddressAndPort.getByName("1.1.1.1");
         UUID localId = StorageService.instance.getLocalHostUUID();
         UUID targetId = UUID.randomUUID();
         tokenMeta.updateHostId(targetId, endpoint);
@@ -296,43 +311,47 @@ public class HintTest
 
     private static Mutation createMutation(String key, long now)
     {
-        Mutation mutation = new Mutation(KEYSPACE, dk(key));
+        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(KEYSPACE, dk(key));
 
-        new RowUpdateBuilder(Schema.instance.getCFMetaData(KEYSPACE, TABLE0), now, mutation)
-            .clustering("column0")
-            .add("val", "value0")
-            .build();
+        builder.update(Schema.instance.getTableMetadata(KEYSPACE, TABLE0))
+               .timestamp(now)
+               .row("column0")
+               .add("val", "value0");
 
-        new RowUpdateBuilder(Schema.instance.getCFMetaData(KEYSPACE, TABLE1), now + 1, mutation)
-            .clustering("column1")
-            .add("val", "value1")
-            .build();
+        builder.update(Schema.instance.getTableMetadata(KEYSPACE, TABLE1))
+               .timestamp(now + 1)
+               .row("column1")
+               .add("val", "value1");
 
-        new RowUpdateBuilder(Schema.instance.getCFMetaData(KEYSPACE, TABLE2), now + 2, mutation)
-            .clustering("column2")
-            .add("val", "value2")
-            .build();
+        builder.update(Schema.instance.getTableMetadata(KEYSPACE, TABLE2))
+               .timestamp(now + 2)
+               .row("column2")
+               .add("val", "value2");
 
-        return mutation;
+        return builder.build();
     }
 
-    private static SinglePartitionReadCommand cmd(String key, String table)
+    private static ColumnFamilyStore cfs(String table)
     {
-        CFMetaData meta = Schema.instance.getCFMetaData(KEYSPACE, table);
-        return SinglePartitionReadCommand.fullPartitionRead(meta, FBUtilities.nowInSeconds(), bytes(key));
+        return Schema.instance.getColumnFamilyStoreInstance(Schema.instance.getTableMetadata(KEYSPACE, table).id);
     }
 
-    private static FilteredPartition readPartition(String key, String table)
+    private static FilteredPartition readPartition(String key, String table, RegularAndStaticColumns columns)
     {
-        return Util.getOnlyPartition(cmd(key, table));
+        String[] columnNames = new String[columns.size()];
+        int i = 0;
+        for (ColumnMetadata column : columns)
+            columnNames[i++] = column.name.toString();
+
+        return Util.getOnlyPartition(Util.cmd(cfs(table), key).columns(columnNames).build());
     }
 
     private static void assertNoPartitions(String key, String table)
     {
-        ReadCommand cmd = cmd(key, table);
+        ReadCommand cmd = Util.cmd(cfs(table), key).build();
 
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup();
-             PartitionIterator iterator = cmd.executeInternal(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController();
+             PartitionIterator iterator = cmd.executeInternal(executionController))
         {
             assertFalse(iterator.hasNext());
         }

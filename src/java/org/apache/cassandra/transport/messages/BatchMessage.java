@@ -19,6 +19,7 @@ package org.apache.cassandra.transport.messages;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,6 +30,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
+import org.apache.cassandra.db.fullquerylog.FullQueryLogger;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
@@ -43,7 +45,7 @@ public class BatchMessage extends Message.Request
 {
     public static final Message.Codec<BatchMessage> codec = new Message.Codec<BatchMessage>()
     {
-        public BatchMessage decode(ByteBuf body, int version)
+        public BatchMessage decode(ByteBuf body, ProtocolVersion version)
         {
             byte type = body.readByte();
             int n = body.readUnsignedShort();
@@ -65,7 +67,7 @@ public class BatchMessage extends Message.Request
             return new BatchMessage(toType(type), queryOrIds, variables, options);
         }
 
-        public void encode(BatchMessage msg, ByteBuf dest, int version)
+        public void encode(BatchMessage msg, ByteBuf dest, ProtocolVersion version)
         {
             int queries = msg.queryOrIdList.size();
 
@@ -84,13 +86,13 @@ public class BatchMessage extends Message.Request
                 CBUtil.writeValueList(msg.values.get(i), dest);
             }
 
-            if (version < 3)
+            if (version.isSmallerThan(ProtocolVersion.V3))
                 CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
             else
                 QueryOptions.codec.encode(msg.options, dest, version);
         }
 
-        public int encodedSize(BatchMessage msg, int version)
+        public int encodedSize(BatchMessage msg, ProtocolVersion version)
         {
             int size = 3; // type + nb queries
             for (int i = 0; i < msg.queryOrIdList.size(); i++)
@@ -102,7 +104,7 @@ public class BatchMessage extends Message.Request
 
                 size += CBUtil.sizeOfValueList(msg.values.get(i));
             }
-            size += version < 3
+            size += version.isSmallerThan(ProtocolVersion.V3)
                   ? CBUtil.sizeOfConsistencyLevel(msg.options.getConsistency())
                   : QueryOptions.codec.encodedSize(msg.options, version);
             return size;
@@ -147,7 +149,7 @@ public class BatchMessage extends Message.Request
         this.options = options;
     }
 
-    public Message.Response execute(QueryState state)
+    public Message.Response execute(QueryState state, long queryStartNanoTime)
     {
         try
         {
@@ -160,7 +162,7 @@ public class BatchMessage extends Message.Request
 
             if (state.traceNextQuery())
             {
-                state.createTracingSession();
+                state.createTracingSession(getCustomPayload());
 
                 ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
                 if(options.getConsistency() != null)
@@ -174,19 +176,30 @@ public class BatchMessage extends Message.Request
 
             QueryHandler handler = ClientState.getCQLQueryHandler();
             List<ParsedStatement.Prepared> prepared = new ArrayList<>(queryOrIdList.size());
+            boolean fullQueryLogEnabled = FullQueryLogger.instance.enabled();
+            List<String> queryStrings = fullQueryLogEnabled ? new ArrayList<>(queryOrIdList.size()) : Collections.EMPTY_LIST;
             for (int i = 0; i < queryOrIdList.size(); i++)
             {
                 Object query = queryOrIdList.get(i);
+                String queryString;
                 ParsedStatement.Prepared p;
                 if (query instanceof String)
                 {
-                    p = QueryProcessor.parseStatement((String)query, state);
+                    p = QueryProcessor.parseStatement((String)query,
+                                                      state.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace()));
+                    queryString = (String)query;
                 }
                 else
                 {
                     p = handler.getPrepared((MD5Digest)query);
                     if (p == null)
                         throw new PreparedQueryNotFoundException((MD5Digest)query);
+                    queryString = p.rawCQLStatement;
+                }
+
+                if (fullQueryLogEnabled)
+                {
+                    queryStrings.add(queryString);
                 }
 
                 List<ByteBuffer> queryValues = values.get(i);
@@ -214,7 +227,16 @@ public class BatchMessage extends Message.Request
             // Note: It's ok at this point to pass a bogus value for the number of bound terms in the BatchState ctor
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
             BatchStatement batch = new BatchStatement(-1, batchType, statements, Attributes.none());
-            Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload());
+            long fqlTime = 0;
+            if (fullQueryLogEnabled)
+            {
+                fqlTime = System.currentTimeMillis();
+            }
+            Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);
+            if (fullQueryLogEnabled)
+            {
+                FullQueryLogger.instance.logBatch(batchType.name(), queryStrings, values, options, fqlTime);
+            }
 
             if (tracingId != null)
                 response.setTracingId(tracingId);

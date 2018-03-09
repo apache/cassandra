@@ -19,11 +19,13 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
-import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
+import com.google.common.collect.Lists;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,20 +33,26 @@ import org.junit.Test;
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.Util.PartitionerSwitcher;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.NodePair;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.Validator;
 import org.apache.cassandra.repair.messages.*;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.streaming.SessionSummary;
+import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
@@ -53,13 +61,16 @@ public class SerializationsTest extends AbstractSerializationsTester
     private static Range<Token> FULL_RANGE;
     private static RepairJobDesc DESC;
 
+    private static final int PORT = 7010;
+
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+        DatabaseDescriptor.daemonInitialization();
         partitionerSwitcher = Util.switchPartitioner(RandomPartitioner.instance);
         RANDOM_UUID = UUID.fromString("b5c3d033-75aa-4c2f-a819-947aac7a0c54");
         FULL_RANGE = new Range<>(Util.testPartitioner().getMinimumToken(), Util.testPartitioner().getMinimumToken());
-        DESC = new RepairJobDesc(getVersion() < MessagingService.VERSION_21 ? null : RANDOM_UUID, RANDOM_UUID, "Keyspace1", "Standard1", Arrays.asList(FULL_RANGE));
+        DESC = new RepairJobDesc(RANDOM_UUID, RANDOM_UUID, "Keyspace1", "Standard1", Arrays.asList(FULL_RANGE));
     }
 
     @AfterClass
@@ -67,7 +78,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     {
         partitionerSwitcher.close();
     }
-    
+
     private void testRepairMessageWrite(String fileName, RepairMessage... messages) throws IOException
     {
         try (DataOutputStreamPlus out = getOutput(fileName))
@@ -100,7 +111,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             RepairMessage message = RepairMessage.serializer.deserialize(in, getVersion());
             assert message.messageType == RepairMessage.Type.VALIDATION_REQUEST;
             assert DESC.equals(message.desc);
-            assert ((ValidationRequest) message).gcBefore == 1234;
+            assert ((ValidationRequest) message).nowInSec == 1234;
 
             assert MessageIn.read(in, getVersion(), -1) != null;
         }
@@ -114,7 +125,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         // empty validation
         mt.addMerkleTree((int) Math.pow(2, 15), FULL_RANGE);
-        Validator v0 = new Validator(DESC, FBUtilities.getBroadcastAddress(),  -1);
+        Validator v0 = new Validator(DESC, FBUtilities.getBroadcastAddressAndPort(), -1, PreviewKind.NONE);
         ValidationComplete c0 = new ValidationComplete(DESC, mt);
 
         // validation with a tree
@@ -122,7 +133,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         mt.addMerkleTree(Integer.MAX_VALUE, FULL_RANGE);
         for (int i = 0; i < 10; i++)
             mt.split(p.getRandomToken());
-        Validator v1 = new Validator(DESC, FBUtilities.getBroadcastAddress(), -1);
+        Validator v1 = new Validator(DESC, FBUtilities.getBroadcastAddressAndPort(), -1, PreviewKind.NONE);
         ValidationComplete c1 = new ValidationComplete(DESC, mt);
 
         // validation failed
@@ -171,11 +182,11 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testSyncRequestWrite() throws IOException
     {
-        InetAddress local = InetAddress.getByAddress(new byte[]{127, 0, 0, 1});
-        InetAddress src = InetAddress.getByAddress(new byte[]{127, 0, 0, 2});
-        InetAddress dest = InetAddress.getByAddress(new byte[]{127, 0, 0, 3});
-        SyncRequest message = new SyncRequest(DESC, local, src, dest, Collections.singleton(FULL_RANGE));
+        InetAddressAndPort local = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", PORT);
+        InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
+        InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
 
+        SyncRequest message = new SyncRequest(DESC, local, src, dest, Collections.singleton(FULL_RANGE), PreviewKind.NONE);
         testRepairMessageWrite("service.SyncRequest.bin", message);
     }
 
@@ -185,9 +196,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testSyncRequestWrite();
 
-        InetAddress local = InetAddress.getByAddress(new byte[]{127, 0, 0, 1});
-        InetAddress src = InetAddress.getByAddress(new byte[]{127, 0, 0, 2});
-        InetAddress dest = InetAddress.getByAddress(new byte[]{127, 0, 0, 3});
+        InetAddressAndPort local = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", PORT);
+        InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
+        InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
 
         try (DataInputStreamPlus in = getInput("service.SyncRequest.bin"))
         {
@@ -205,12 +216,17 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testSyncCompleteWrite() throws IOException
     {
-        InetAddress src = InetAddress.getByAddress(new byte[]{127, 0, 0, 2});
-        InetAddress dest = InetAddress.getByAddress(new byte[]{127, 0, 0, 3});
+        InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
+        InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
         // sync success
-        SyncComplete success = new SyncComplete(DESC, src, dest, true);
+        List<SessionSummary> summaries = new ArrayList<>();
+        summaries.add(new SessionSummary(src, dest,
+                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 5, 100)),
+                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 500, 10))
+        ));
+        SyncComplete success = new SyncComplete(DESC, src, dest, true, summaries);
         // sync fail
-        SyncComplete fail = new SyncComplete(DESC, src, dest, false);
+        SyncComplete fail = new SyncComplete(DESC, src, dest, false, Collections.emptyList());
 
         testRepairMessageWrite("service.SyncComplete.bin", success, fail);
     }
@@ -221,8 +237,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testSyncCompleteWrite();
 
-        InetAddress src = InetAddress.getByAddress(new byte[]{127, 0, 0, 2});
-        InetAddress dest = InetAddress.getByAddress(new byte[]{127, 0, 0, 3});
+        InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
+        InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
         NodePair nodes = new NodePair(src, dest);
 
         try (DataInputStreamPlus in = getInput("service.SyncComplete.bin"))
@@ -232,6 +248,8 @@ public class SerializationsTest extends AbstractSerializationsTester
             assert message.messageType == RepairMessage.Type.SYNC_COMPLETE;
             assert DESC.equals(message.desc);
 
+            System.out.println(nodes);
+            System.out.println(((SyncComplete) message).nodes);
             assert nodes.equals(((SyncComplete) message).nodes);
             assert ((SyncComplete) message).success;
 

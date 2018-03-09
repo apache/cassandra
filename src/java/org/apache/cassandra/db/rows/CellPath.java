@@ -19,12 +19,14 @@ package org.apache.cassandra.db.rows;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.Objects;
+
+import com.google.common.hash.Hasher;
 
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HashingUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
@@ -39,11 +41,11 @@ public abstract class CellPath
     public abstract int size();
     public abstract ByteBuffer get(int i);
 
-    // The only complex we currently have are collections that have only one value.
+    // The only complex paths we currently have are collections and UDTs, which both have a depth of one
     public static CellPath create(ByteBuffer value)
     {
         assert value != null;
-        return new CollectionCellPath(value);
+        return new SingleItemCellPath(value);
     }
 
     public int dataSize()
@@ -54,10 +56,10 @@ public abstract class CellPath
         return size;
     }
 
-    public void digest(MessageDigest digest)
+    public void digest(Hasher hasher)
     {
         for (int i = 0; i < size(); i++)
-            digest.update(get(i).duplicate());
+            HashingUtils.updateBytes(hasher, get(i).duplicate());
     }
 
     public abstract CellPath copy(AbstractAllocator allocator);
@@ -98,13 +100,13 @@ public abstract class CellPath
         public void skip(DataInputPlus in) throws IOException;
     }
 
-    private static class CollectionCellPath extends CellPath
+    private static class SingleItemCellPath extends CellPath
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measure(new CollectionCellPath(ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new SingleItemCellPath(ByteBufferUtil.EMPTY_BYTE_BUFFER));
 
         protected final ByteBuffer value;
 
-        private CollectionCellPath(ByteBuffer value)
+        private SingleItemCellPath(ByteBuffer value)
         {
             this.value = value;
         }
@@ -122,7 +124,7 @@ public abstract class CellPath
 
         public CellPath copy(AbstractAllocator allocator)
         {
-            return new CollectionCellPath(allocator.clone(value));
+            return new SingleItemCellPath(allocator.clone(value));
         }
 
         public long unsharedHeapSizeExcludingData()

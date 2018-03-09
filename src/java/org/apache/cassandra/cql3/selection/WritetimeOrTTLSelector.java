@@ -19,23 +19,25 @@ package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 final class WritetimeOrTTLSelector extends Selector
 {
-    private final String columnName;
+    private final ColumnMetadata column;
     private final int idx;
     private final boolean isWritetime;
     private ByteBuffer current;
     private boolean isSet;
 
-    public static Factory newFactory(final ColumnDefinition def, final int idx, final boolean isWritetime)
+    public static Factory newFactory(final ColumnMetadata def, final int idx, final boolean isWritetime)
     {
         return new Factory()
         {
@@ -54,9 +56,9 @@ final class WritetimeOrTTLSelector extends Selector
                mapping.addMapping(resultsColumn, def);
             }
 
-            public Selector newInstance()
+            public Selector newInstance(QueryOptions options)
             {
-                return new WritetimeOrTTLSelector(def.name.toString(), idx, isWritetime);
+                return new WritetimeOrTTLSelector(def, idx, isWritetime);
             }
 
             public boolean isWritetimeSelectorFactory()
@@ -68,10 +70,25 @@ final class WritetimeOrTTLSelector extends Selector
             {
                 return !isWritetime;
             }
+
+            public boolean areAllFetchedColumnsKnown()
+            {
+                return true;
+            }
+
+            public void addFetchedColumns(ColumnFilter.Builder builder)
+            {
+                builder.add(def);
+            }
         };
     }
 
-    public void addInput(int protocolVersion, ResultSetBuilder rs)
+    public void addFetchedColumns(ColumnFilter.Builder builder)
+    {
+        builder.add(column);
+    }
+
+    public void addInput(ProtocolVersion protocolVersion, ResultSetBuilder rs)
     {
         if (isSet)
             return;
@@ -90,7 +107,7 @@ final class WritetimeOrTTLSelector extends Selector
         }
     }
 
-    public ByteBuffer getOutput(int protocolVersion)
+    public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
         return current;
     }
@@ -109,14 +126,13 @@ final class WritetimeOrTTLSelector extends Selector
     @Override
     public String toString()
     {
-        return columnName;
+        return column.name.toString();
     }
 
-    private WritetimeOrTTLSelector(String columnName, int idx, boolean isWritetime)
+    private WritetimeOrTTLSelector(ColumnMetadata column, int idx, boolean isWritetime)
     {
-        this.columnName = columnName;
+        this.column = column;
         this.idx = idx;
         this.isWritetime = isWritetime;
     }
-
 }

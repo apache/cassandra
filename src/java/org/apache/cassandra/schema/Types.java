@@ -22,17 +22,13 @@ import java.util.*;
 
 import javax.annotation.Nullable;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.MapDifference;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
+import com.google.common.collect.*;
 
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static com.google.common.collect.Iterables.filter;
@@ -139,7 +135,30 @@ public final class Types implements Iterable<UserType>
     @Override
     public boolean equals(Object o)
     {
-        return this == o || (o instanceof Types && types.equals(((Types) o).types));
+        if (this == o)
+            return true;
+
+        if (!(o instanceof Types))
+            return false;
+
+        Types other = (Types) o;
+
+        if (types.size() != other.types.size())
+            return false;
+
+        Iterator<Map.Entry<ByteBuffer, UserType>> thisIter = this.types.entrySet().iterator();
+        Iterator<Map.Entry<ByteBuffer, UserType>> otherIter = other.types.entrySet().iterator();
+        while (thisIter.hasNext())
+        {
+            Map.Entry<ByteBuffer, UserType> thisNext = thisIter.next();
+            Map.Entry<ByteBuffer, UserType> otherNext = otherIter.next();
+            if (!thisNext.getKey().equals(otherNext.getKey()))
+                return false;
+
+            if (!thisNext.getValue().equals(otherNext.getValue(), true))  // ignore freezing
+                return false;
+        }
+        return true;
     }
 
     @Override
@@ -156,7 +175,7 @@ public final class Types implements Iterable<UserType>
 
     public static final class Builder
     {
-        final ImmutableMap.Builder<ByteBuffer, UserType> types = ImmutableMap.builder();
+        final ImmutableSortedMap.Builder<ByteBuffer, UserType> types = ImmutableSortedMap.naturalOrder();
 
         private Builder()
         {
@@ -169,6 +188,7 @@ public final class Types implements Iterable<UserType>
 
         public Builder add(UserType type)
         {
+            assert type.isMultiCell();
             types.put(type.name, type);
             return this;
         }
@@ -211,7 +231,7 @@ public final class Types implements Iterable<UserType>
             /*
              * build a DAG of UDT dependencies
              */
-            Map<RawUDT, Integer> vertices = new HashMap<>(); // map values are numbers of referenced types
+            Map<RawUDT, Integer> vertices = Maps.newHashMapWithExpectedSize(definitions.size()); // map values are numbers of referenced types
             for (RawUDT udt : definitions)
                 vertices.put(udt, 0);
 
@@ -283,9 +303,9 @@ public final class Types implements Iterable<UserType>
 
             UserType prepare(String keyspace, Types types)
             {
-                List<ByteBuffer> preparedFieldNames =
+                List<FieldIdentifier> preparedFieldNames =
                     fieldNames.stream()
-                              .map(ByteBufferUtil::bytes)
+                              .map(t -> FieldIdentifier.forInternalString(t))
                               .collect(toList());
 
                 List<AbstractType<?>> preparedFieldTypes =
@@ -293,7 +313,7 @@ public final class Types implements Iterable<UserType>
                               .map(t -> t.prepareInternal(keyspace, types).getType())
                               .collect(toList());
 
-                return new UserType(keyspace, bytes(name), preparedFieldNames, preparedFieldTypes);
+                return new UserType(keyspace, bytes(name), preparedFieldNames, preparedFieldTypes, true);
             }
 
             @Override

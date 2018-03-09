@@ -23,15 +23,15 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -44,12 +44,89 @@ public abstract class Maps
 
     public static ColumnSpecification keySpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("key(" + column.name + ")", true), ((MapType)column.type).getKeysType());
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("key(" + column.name + ")", true), ((MapType<? , ?>)column.type).getKeysType());
     }
 
     public static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((MapType)column.type).getValuesType());
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((MapType<?, ?>)column.type).getValuesType());
+    }
+
+    /**
+     * Tests that the map with the specified entries can be assigned to the specified column.
+     *
+     * @param receiver the receiving column
+     * @param entries the map entries
+     */
+    public static <T extends AssignmentTestable> AssignmentTestable.TestResult testMapAssignment(ColumnSpecification receiver,
+                                                                                                 List<Pair<T, T>> entries)
+    {
+        ColumnSpecification keySpec = keySpecOf(receiver);
+        ColumnSpecification valueSpec = valueSpecOf(receiver);
+
+        // It's an exact match if all are exact match, but is not assignable as soon as any is non assignable.
+        AssignmentTestable.TestResult res = AssignmentTestable.TestResult.EXACT_MATCH;
+        for (Pair<T, T> entry : entries)
+        {
+            AssignmentTestable.TestResult t1 = entry.left.testAssignment(receiver.ksName, keySpec);
+            AssignmentTestable.TestResult t2 = entry.right.testAssignment(receiver.ksName, valueSpec);
+            if (t1 == AssignmentTestable.TestResult.NOT_ASSIGNABLE || t2 == AssignmentTestable.TestResult.NOT_ASSIGNABLE)
+                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+            if (t1 != AssignmentTestable.TestResult.EXACT_MATCH || t2 != AssignmentTestable.TestResult.EXACT_MATCH)
+                res = AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+        }
+        return res;
+    }
+
+    /**
+     * Create a <code>String</code> representation of the list containing the specified elements.
+     *
+     * @param entries the list elements
+     * @return a <code>String</code> representation of the list
+     */
+    public static <T> String mapToString(List<Pair<T, T>> entries)
+    {
+        return mapToString(entries, Object::toString);
+    }
+
+    /**
+     * Create a <code>String</code> representation of the map from the specified items associated to
+     * the map entries.
+     *
+     * @param items items associated to the map entries
+     * @param mapper the mapper used to map the items to the <code>String</code> representation of the map entries
+     * @return a <code>String</code> representation of the map
+     */
+    public static <T> String mapToString(List<Pair<T, T>> items,
+                                         java.util.function.Function<T, String> mapper)
+    {
+        return items.stream()
+                .map(p -> String.format("%s: %s", mapper.apply(p.left), mapper.apply(p.right)))
+                .collect(Collectors.joining(", ", "{", "}"));
+    }
+
+    /**
+     * Returns the exact MapType from the entries if it can be known.
+     *
+     * @param entries the entries
+     * @param mapper the mapper used to retrieve the key and value types from the entries
+     * @return the exact MapType from the entries if it can be known or <code>null</code>
+     */
+    public static <T> AbstractType<?> getExactMapTypeIfKnown(List<Pair<T, T>> entries,
+                                                             java.util.function.Function<T, AbstractType<?>> mapper)
+    {
+        AbstractType<?> keyType = null;
+        AbstractType<?> valueType = null;
+        for (Pair<T, T> entry : entries)
+        {
+            if (keyType == null)
+                keyType = mapper.apply(entry.left);
+            if (valueType == null)
+                valueType = mapper.apply(entry.right);
+            if (keyType != null && valueType != null)
+                return MapType.getInstance(keyType, valueType, false);
+        }
+        return null;
     }
 
     public static class Literal extends Term.Raw
@@ -82,7 +159,7 @@ public abstract class Maps
 
                 values.put(k, v);
             }
-            DelayedValue value = new DelayedValue(((MapType)receiver.type).getKeysType(), values);
+            DelayedValue value = new DelayedValue(((MapType<?, ?>)receiver.type).getKeysType(), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -104,34 +181,18 @@ public abstract class Maps
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            if (!(receiver.type instanceof MapType))
-                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+            return testMapAssignment(receiver, entries);
+        }
 
-            // If there is no elements, we can't say it's an exact match (an empty map if fundamentally polymorphic).
-            if (entries.isEmpty())
-                return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
-
-            ColumnSpecification keySpec = Maps.keySpecOf(receiver);
-            ColumnSpecification valueSpec = Maps.valueSpecOf(receiver);
-            // It's an exact match if all are exact match, but is not assignable as soon as any is non assignable.
-            AssignmentTestable.TestResult res = AssignmentTestable.TestResult.EXACT_MATCH;
-            for (Pair<Term.Raw, Term.Raw> entry : entries)
-            {
-                AssignmentTestable.TestResult t1 = entry.left.testAssignment(keyspace, keySpec);
-                AssignmentTestable.TestResult t2 = entry.right.testAssignment(keyspace, valueSpec);
-                if (t1 == AssignmentTestable.TestResult.NOT_ASSIGNABLE || t2 == AssignmentTestable.TestResult.NOT_ASSIGNABLE)
-                    return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
-                if (t1 != AssignmentTestable.TestResult.EXACT_MATCH || t2 != AssignmentTestable.TestResult.EXACT_MATCH)
-                    res = AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
-            }
-            return res;
+        @Override
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            return getExactMapTypeIfKnown(entries, p -> p.getExactTypeIfKnown(keyspace));
         }
 
         public String getText()
         {
-            return entries.stream()
-                    .map(entry -> String.format("%s: %s", entry.left.getText(), entry.right.getText()))
-                    .collect(Collectors.joining(", ", "{", "}"));
+            return mapToString(entries, Term.Raw::getText);
         }
     }
 
@@ -144,7 +205,7 @@ public abstract class Maps
             this.map = map;
         }
 
-        public static Value fromSerialized(ByteBuffer value, MapType type, int version) throws InvalidRequestException
+        public static Value fromSerialized(ByteBuffer value, MapType type, ProtocolVersion version) throws InvalidRequestException
         {
             try
             {
@@ -162,7 +223,7 @@ public abstract class Maps
             }
         }
 
-        public ByteBuffer get(int protocolVersion)
+        public ByteBuffer get(ProtocolVersion protocolVersion)
         {
             List<ByteBuffer> buffers = new ArrayList<>(2 * map.size());
             for (Map.Entry<ByteBuffer, ByteBuffer> entry : map.entrySet())
@@ -267,7 +328,7 @@ public abstract class Maps
 
     public static class Setter extends Operation
     {
-        public Setter(ColumnDefinition column, Term t)
+        public Setter(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -289,7 +350,7 @@ public abstract class Maps
     {
         private final Term k;
 
-        public SetterByKey(ColumnDefinition column, Term k, Term t)
+        public SetterByKey(ColumnMetadata column, Term k, Term t)
         {
             super(column, t);
             this.k = k;
@@ -325,94 +386,9 @@ public abstract class Maps
         }
     }
 
-    // Currently only used internally counters support in SuperColumn families.
-    // Addition on the element level inside the collections are otherwise not supported in the CQL.
-    public static class AdderByKey extends Operation
-    {
-        private final Term k;
-
-        public AdderByKey(ColumnDefinition column, Term t, Term k)
-        {
-            super(column, t);
-            this.k = k;
-        }
-
-        @Override
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
-        {
-            super.collectMarkerSpecification(boundNames);
-            k.collectMarkerSpecification(boundNames);
-        }
-
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
-        {
-            assert column.type.isMultiCell() : "Attempted to set a value for a single key on a frozen map";
-
-            ByteBuffer key = k.bindAndGet(params.options);
-            ByteBuffer value = t.bindAndGet(params.options);
-
-            if (key == null)
-                throw new InvalidRequestException("Invalid null map key");
-            if (key == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                throw new InvalidRequestException("Invalid unset map key");
-
-            if (value == null)
-                throw new InvalidRequestException("Invalid null value for counter increment");
-            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return;
-
-            long increment = ByteBufferUtil.toLong(value);
-            params.addCounter(column, increment, CellPath.create(key));
-        }
-    }
-
-    // Currently only used internally counters support in SuperColumn families.
-    // Addition on the element level inside the collections are otherwise not supported in the CQL.
-    public static class SubtracterByKey extends Operation
-    {
-        private final Term k;
-
-        public SubtracterByKey(ColumnDefinition column, Term t, Term k)
-        {
-            super(column, t);
-            this.k = k;
-        }
-
-        @Override
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
-        {
-            super.collectMarkerSpecification(boundNames);
-            k.collectMarkerSpecification(boundNames);
-        }
-
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
-        {
-            assert column.type.isMultiCell() : "Attempted to set a value for a single key on a frozen map";
-
-            ByteBuffer key = k.bindAndGet(params.options);
-            ByteBuffer value = t.bindAndGet(params.options);
-
-            if (key == null)
-                throw new InvalidRequestException("Invalid null map key");
-            if (key == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                throw new InvalidRequestException("Invalid unset map key");
-
-            if (value == null)
-                throw new InvalidRequestException("Invalid null value for counter increment");
-            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return;
-
-            long increment = ByteBufferUtil.toLong(value);
-            if (increment == Long.MIN_VALUE)
-                throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
-
-            params.addCounter(column, -increment, CellPath.create(key));
-        }
-    }
-
     public static class Putter extends Operation
     {
-        public Putter(ColumnDefinition column, Term t)
+        public Putter(ColumnMetadata column, Term t)
         {
             super(column, t);
         }
@@ -425,7 +401,7 @@ public abstract class Maps
                 doPut(value, column, params);
         }
 
-        static void doPut(Term.Terminal value, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
+        static void doPut(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
             if (column.type.isMultiCell())
             {
@@ -442,14 +418,14 @@ public abstract class Maps
                 if (value == null)
                     params.addTombstone(column);
                 else
-                    params.addCell(column, value.get(Server.CURRENT_VERSION));
+                    params.addCell(column, value.get(ProtocolVersion.CURRENT));
             }
         }
     }
 
     public static class DiscarderByKey extends Operation
     {
-        public DiscarderByKey(ColumnDefinition column, Term k)
+        public DiscarderByKey(ColumnMetadata column, Term k)
         {
             super(column, k);
         }

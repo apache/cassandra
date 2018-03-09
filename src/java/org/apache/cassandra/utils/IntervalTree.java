@@ -114,7 +114,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
     public Iterator<I> iterator()
     {
         if (head == null)
-            return Iterators.<I>emptyIterator();
+            return Collections.emptyIterator();
 
         return new TreeIterator(head);
     }
@@ -272,20 +272,21 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
 
         protected I computeNext()
         {
-            if (current != null && current.hasNext())
-                return current.next();
+            while (true)
+            {
+                if (current != null && current.hasNext())
+                    return current.next();
 
-            IntervalNode node = stack.pollFirst();
-            if (node == null)
-                return endOfData();
+                IntervalNode node = stack.pollFirst();
+                if (node == null)
+                    return endOfData();
 
-            current = node.intersectsLeft.iterator();
+                current = node.intersectsLeft.iterator();
 
-            // We know this is the smaller not returned yet, but before doing
-            // its parent, we must do everyone on it's right.
-            gotoMinOf(node.right);
-
-            return computeNext();
+                // We know this is the smaller not returned yet, but before doing
+                // its parent, we must do everyone on it's right.
+                gotoMinOf(node.right);
+            }
         }
 
         private void gotoMinOf(IntervalNode node)

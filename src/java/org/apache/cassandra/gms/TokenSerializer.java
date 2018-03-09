@@ -19,6 +19,8 @@ package org.apache.cassandra.gms;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,9 +39,9 @@ public class TokenSerializer
     {
         for (Token token : tokens)
         {
-            byte[] bintoken = partitioner.getTokenFactory().toByteArray(token).array();
-            out.writeInt(bintoken.length);
-            out.write(bintoken);
+            ByteBuffer tokenBuffer = partitioner.getTokenFactory().toByteArray(token);
+            assert tokenBuffer.arrayOffset() == 0;
+            ByteBufferUtil.writeWithLength(tokenBuffer.array(), out);
         }
         out.writeInt(0);
     }
@@ -52,7 +54,7 @@ public class TokenSerializer
             int size = in.readInt();
             if (size < 1)
                 break;
-            logger.trace("Reading token of {} bytes", size);
+            logger.trace("Reading token of {}", FBUtilities.prettyPrintMemory(size));
             byte[] bintoken = new byte[size];
             in.readFully(bintoken);
             tokens.add(partitioner.getTokenFactory().fromByteArray(ByteBuffer.wrap(bintoken)));

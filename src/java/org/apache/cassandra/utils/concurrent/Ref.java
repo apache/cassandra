@@ -68,13 +68,14 @@ import static org.apache.cassandra.utils.Throwables.merge;
  * This class' functionality is achieved by what may look at first glance like a complex web of references,
  * but boils down to:
  *
+ * {@code
  * Target --> selfRef --> [Ref.State] <--> Ref.GlobalState --> Tidy
  *                                             ^
  *                                             |
  * Ref ----------------------------------------
  *                                             |
  * Global -------------------------------------
- *
+ * }
  * So that, if Target is collected, Impl is collected and, hence, so is selfRef.
  *
  * Once ref or selfRef are collected, the paired Ref.State's release method is called, which if it had
@@ -340,7 +341,8 @@ public final class Ref<T> implements RefCounted<T>
         }
     }
 
-    private static final Class<?>[] concurrentIterableClasses = new Class<?>[] {
+    private static final Class<?>[] concurrentIterableClasses = new Class<?>[]
+    {
         ConcurrentLinkedQueue.class,
         ConcurrentLinkedDeque.class,
         ConcurrentSkipListSet.class,
@@ -695,7 +697,7 @@ public final class Ref<T> implements RefCounted<T>
             this.candidates.retainAll(candidates);
             if (!this.candidates.isEmpty())
             {
-                List<String> names = new ArrayList<>();
+                List<String> names = new ArrayList<>(this.candidates.size());
                 for (Tidy tidy : this.candidates)
                     names.add(tidy.name());
                 logger.warn("Strong reference leak candidates detected: {}", names);

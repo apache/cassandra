@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.locator;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,8 +28,10 @@ import java.util.Map;
 import java.util.Set;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -43,14 +44,20 @@ public class OldNetworkTopologyStrategyTest
 {
     private List<Token> keyTokens;
     private TokenMetadata tmd;
-    private Map<String, ArrayList<InetAddress>> expectedResults;
+    private Map<String, ArrayList<InetAddressAndPort>> expectedResults;
+
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Before
     public void init()
     {
         keyTokens = new ArrayList<Token>();
         tmd = new TokenMetadata();
-        expectedResults = new HashMap<String, ArrayList<InetAddress>>();
+        expectedResults = new HashMap<String, ArrayList<InetAddressAndPort>>();
     }
 
     /**
@@ -128,12 +135,12 @@ public class OldNetworkTopologyStrategyTest
         testGetEndpoints(strategy, keyTokens.toArray(new Token[0]));
     }
 
-    private ArrayList<InetAddress> buildResult(String... addresses) throws UnknownHostException
+    private ArrayList<InetAddressAndPort> buildResult(String... addresses) throws UnknownHostException
     {
-        ArrayList<InetAddress> result = new ArrayList<InetAddress>();
+        ArrayList<InetAddressAndPort> result = new ArrayList<>();
         for (String address : addresses)
         {
-            result.add(InetAddress.getByName(address));
+            result.add(InetAddressAndPort.getByName(address));
         }
         return result;
     }
@@ -145,7 +152,7 @@ public class OldNetworkTopologyStrategyTest
         BigIntegerToken keyToken = new BigIntegerToken(keyTokenID);
         keyTokens.add(keyToken);
 
-        InetAddress ep = InetAddress.getByName(endpointAddress);
+        InetAddressAndPort ep = InetAddressAndPort.getByName(endpointAddress);
         tmd.updateNormalToken(endpointToken, ep);
     }
 
@@ -153,10 +160,10 @@ public class OldNetworkTopologyStrategyTest
     {
         for (Token keyToken : keyTokens)
         {
-            List<InetAddress> endpoints = strategy.getNaturalEndpoints(keyToken);
+            List<InetAddressAndPort> endpoints = strategy.getNaturalEndpoints(keyToken);
             for (int j = 0; j < endpoints.size(); j++)
             {
-                ArrayList<InetAddress> hostsExpected = expectedResults.get(keyToken.toString());
+                ArrayList<InetAddressAndPort> hostsExpected = expectedResults.get(keyToken.toString());
                 assertEquals(endpoints.get(j), hostsExpected.get(j));
             }
         }
@@ -332,7 +339,7 @@ public class OldNetworkTopologyStrategyTest
 
         int lastIPPart = 1;
         for (BigIntegerToken token : tokens)
-            tokenMetadataCurrent.updateNormalToken(token, InetAddress.getByName("254.0.0." + Integer.toString(lastIPPart++)));
+            tokenMetadataCurrent.updateNormalToken(token, InetAddressAndPort.getByName("254.0.0." + Integer.toString(lastIPPart++)));
 
         return tokenMetadataCurrent;
     }
@@ -352,7 +359,7 @@ public class OldNetworkTopologyStrategyTest
     {
         RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
-        InetAddress movingNode = InetAddress.getByName("254.0.0." + Integer.toString(movingNodeIdx + 1));
+        InetAddressAndPort movingNode = InetAddressAndPort.getByName("254.0.0." + Integer.toString(movingNodeIdx + 1));
 
 
         TokenMetadata tokenMetadataCurrent = initTokenMetadata(tokens);

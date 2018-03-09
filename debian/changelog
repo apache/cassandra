@@ -1,92 +1,44 @@
-cassandra (3.0.16) unstable; urgency=medium
+cassandra (4.0) UNRELEASED; urgency=medium
 
   * New release
 
- -- Michael Shuler <michael@pbandjelly.org>  Tue, 10 Oct 2017 17:13:31 -0500
+ -- Michael Shuler <michael@pbandjelly.org>  Wed, 15 Feb 2017 18:20:09 -0600
 
-cassandra (3.0.15) unstable; urgency=medium
-
-  * New release
-
- -- Michael Shuler <michael@pbandjelly.org>  Mon, 26 Jun 2017 18:47:08 -0500
-
-cassandra (3.0.14) unstable; urgency=medium
+cassandra (3.10) unstable; urgency=medium
 
   * New release
 
- -- Michael Shuler <michael@pbandjelly.org>  Fri, 14 Apr 2017 20:01:02 -0500
+ -- Michael Shuler <mshuler@apache.org>  Mon, 26 Sep 2016 09:07:34 -0500
 
-cassandra (3.0.13) unstable; urgency=medium
-
-  * New release
-
- -- Michael Shuler <michael@pbandjelly.org>  Tue, 11 Apr 2017 12:52:26 -0500
-
-cassandra (3.0.12) unstable; urgency=medium
+cassandra (3.8) unstable; urgency=medium
 
   * New release
 
- -- Michael Shuler <michael@pbandjelly.org>  Tue, 07 Mar 2017 09:28:21 -0600
+ -- Michael Shuler <mshuler@apache.org>  Mon, 26 Sep 2016 08:51:39 -0500
 
-cassandra (3.0.11) unstable; urgency=medium
-
-  * New release
-
- -- Michael Shuler <michael@pbandjelly.org>  Wed, 15 Feb 2017 18:15:14 -0600
-
-cassandra (3.0.10) unstable; urgency=medium
+cassandra (3.6) unstable; urgency=medium
 
   * New release
 
- -- Michael Shuler <michael@pbandjelly.org>  Mon, 31 Oct 2016 10:33:44 -0500
+ -- Jake Luciani <jake@apache.org>  Tue, 03 May 2016 09:12:18 -0400
 
-cassandra (3.0.9) unstable; urgency=medium
-
-  * New release
-
- -- Michael Shuler <mshuler@apache.org>  Tue, 16 Aug 2016 18:02:20 -0500
-
-cassandra (3.0.8) unstable; urgency=medium
-
-  * New release 
-
- -- Jake Luciani <jake@apache.org>  Tue, 28 Jun 2016 20:12:22 -0400
-
-cassandra (3.0.7) unstable; urgency=medium
+cassandra (3.4) unstable; urgency=medium
 
   * New release
 
- -- Jake Luciani <jake@apache.org>  Mon, 06 Jun 2016 14:27:28 -0400
+ -- Jake Luciani <jake@apache.org>  Mon, 29 Feb 2016 10:39:33 -0500
 
-cassandra (3.0.6) unstable; urgency=medium
-
-  * New release
-
- -- Jake Luciani <jake@apache.org>  Tue, 03 May 2016 09:29:31 -0400
-
-cassandra (3.0.5) unstable; urgency=medium
+cassandra (3.2) unstable; urgency=medium
 
   * New release
 
- -- Jake Luciani <jake@apache.org>  Sat, 02 Apr 2016 07:57:16 -0400
+ -- Jake Luciani <jake@apache.org>  Tue, 05 Jan 2016 10:24:04 -0500
 
-cassandra (3.0.4) unstable; urgency=medium
-
-  * New release
-
- -- Jake Luciani <jake@apache.org>  Mon, 29 Feb 2016 10:36:33 -0500
-
-cassandra (3.0.3) unstable; urgency=medium
-
-  * New release 
-
- -- Jake Luciani <jake@apache.org>  Wed, 03 Feb 2016 08:54:57 -0500
-
-cassandra (3.0.1) unstable; urgency=medium
+cassandra (3.1) unstable; urgency=medium
 
   * New release
 
- -- Jake Luciani <jake@apache.org>  Fri, 04 Dec 2015 15:56:02 -0500
+ -- Jake Luciani <jake@apache.org>  Fri, 04 Dec 2015 16:00:04 -0500
 
 cassandra (3.0.0) unstable; urgency=medium
 

@@ -17,33 +17,34 @@
  */
 package org.apache.cassandra.stress;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.util.concurrent.RateLimiter;
-import com.google.common.util.concurrent.Uninterruptibles;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 
 import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
+import org.apache.cassandra.stress.report.StressMetrics;
+import org.apache.cassandra.stress.settings.ConnectionAPI;
 import org.apache.cassandra.stress.settings.SettingsCommand;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
-import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.stress.util.TimingInterval;
+import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.transport.SimpleClient;
+import org.jctools.queues.SpscArrayQueue;
+import org.jctools.queues.SpscUnboundedArrayQueue;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 public class StressAction implements Runnable
 {
 
     private final StressSettings settings;
-    private final PrintStream output;
-
-    public StressAction(StressSettings settings, PrintStream out)
+    private final ResultLogger output;
+    public StressAction(StressSettings settings, ResultLogger out)
     {
         this.settings = settings;
         output = out;
@@ -66,13 +67,19 @@ public class StressAction implements Runnable
 
         if (!settings.command.noWarmup)
             warmup(settings.command.getFactory(settings));
-        if (settings.command.truncate == SettingsCommand.TruncateWhen.ONCE)
+
+        if ((settings.command.truncate == SettingsCommand.TruncateWhen.ONCE) ||
+            ((settings.rate.threadCount != -1) && (settings.command.truncate == SettingsCommand.TruncateWhen.ALWAYS)))
             settings.command.truncateTables(settings);
 
+        // Required for creating a graph from the output file
+        if (settings.rate.threadCount == -1)
+            output.println("Thread count was not specified");
+
         // TODO : move this to a new queue wrapper that gates progress based on a poisson (or configurable) distribution
-        RateLimiter rateLimiter = null;
-        if (settings.rate.opRateTargetPerSecond > 0)
-            rateLimiter = RateLimiter.create(settings.rate.opRateTargetPerSecond);
+        UniformRateLimiter rateLimiter = null;
+        if (settings.rate.opsPerSecond > 0)
+            rateLimiter = new UniformRateLimiter(settings.rate.opsPerSecond);
 
         boolean success;
         if (settings.rate.minThreads > 0)
@@ -87,12 +94,15 @@ public class StressAction implements Runnable
             output.println("FAILURE");
 
         settings.disconnect();
+
+        if (!success)
+            throw new RuntimeException("Failed to execute stress action");
     }
 
     // type provided separately to support recursive call for mixed command with each command type it is performing
+    @SuppressWarnings("resource") // warmupOutput doesn't need closing
     private void warmup(OpDistributionFactory operations)
     {
-        PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
         // do 25% of iterations as warmup but no more than 50k (by default hotspot compiles methods after 10k invocations)
         int iterations = Math.min(50000, (int) (settings.command.count * 0.25)) * settings.node.nodes.size();
         int threads = 100;
@@ -107,13 +117,16 @@ public class StressAction implements Runnable
             // we need to warm up all the nodes in the cluster ideally, but we may not be the only stress instance;
             // so warm up all the nodes we're speaking to only.
             output.println(String.format("Warming up %s with %d iterations...", single.desc(), iterations));
-            run(single, threads, iterations, 0, null, null, warmupOutput, true);
+            boolean success = null != run(single, threads, iterations, 0, null, null, ResultLogger.NOOP, true);
+            if (!success)
+                throw new RuntimeException("Failed to execute warmup");
         }
+
     }
 
     // TODO : permit varying more than just thread count
     // TODO : vary thread count based on percentage improvement of previous increment, not by fixed amounts
-    private boolean runMulti(boolean auto, RateLimiter rateLimiter)
+    private boolean runMulti(boolean auto, UniformRateLimiter rateLimiter)
     {
         if (settings.command.targetUncertainty >= 0)
             output.println("WARNING: uncertainty mode (err<) results in uneven workload between thread runs, so should be used for high level analysis only");
@@ -123,6 +136,7 @@ public class StressAction implements Runnable
         List<String> runIds = new ArrayList<>();
         do
         {
+            output.println("");
             output.println(String.format("Running with %d threadCount", threadCount));
 
             if (settings.command.truncate == SettingsCommand.TruncateWhen.ALWAYS)
@@ -165,7 +179,7 @@ public class StressAction implements Runnable
         } while (!auto || (hasAverageImprovement(results, 3, 0) && hasAverageImprovement(results, 5, settings.command.targetUncertainty)));
 
         // summarise all results
-        StressMetrics.summarise(runIds, results, output, settings.samples.historyCount);
+        StressMetrics.summarise(runIds, results, output);
         return true;
     }
 
@@ -179,8 +193,8 @@ public class StressAction implements Runnable
         double improvement = 0;
         for (int i = results.size() - count ; i < results.size() ; i++)
         {
-            double prev = results.get(i - 1).getTiming().getHistory().opRate();
-            double cur = results.get(i).getTiming().getHistory().opRate();
+            double prev = results.get(i - 1).opRate();
+            double cur = results.get(i).opRate();
             improvement += (cur - prev) / prev;
         }
         return improvement / count;
@@ -190,9 +204,9 @@ public class StressAction implements Runnable
                               int threadCount,
                               long opCount,
                               long duration,
-                              RateLimiter rateLimiter,
+                              UniformRateLimiter rateLimiter,
                               TimeUnit durationUnits,
-                              PrintStream output,
+                              ResultLogger output,
                               boolean isWarmup)
     {
         output.println(String.format("Running %s with %d threads %s",
@@ -209,19 +223,36 @@ public class StressAction implements Runnable
 
         final StressMetrics metrics = new StressMetrics(output, settings.log.intervalMillis, settings);
 
+        final CountDownLatch releaseConsumers = new CountDownLatch(1);
         final CountDownLatch done = new CountDownLatch(threadCount);
+        final CountDownLatch start = new CountDownLatch(threadCount);
         final Consumer[] consumers = new Consumer[threadCount];
-        int sampleCount = settings.samples.liveCount / threadCount;
         for (int i = 0; i < threadCount; i++)
         {
-
-            consumers[i] = new Consumer(operations.get(metrics.getTiming(), sampleCount, isWarmup),
-                                        done, workManager, metrics, rateLimiter);
+            consumers[i] = new Consumer(operations, isWarmup,
+                                        done, start, releaseConsumers, workManager, metrics, rateLimiter);
         }
 
         // starting worker threadCount
         for (int i = 0; i < threadCount; i++)
             consumers[i].start();
+
+        // wait for the lot of them to get their pants on
+        try
+        {
+            start.await();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException("Unexpected interruption", e);
+        }
+        // start counting from NOW!
+        if(rateLimiter != null)
+        {
+            rateLimiter.start();
+        }
+        // release the hounds!!!
+        releaseConsumers.countDown();
 
         metrics.start();
 
@@ -263,64 +294,169 @@ public class StressAction implements Runnable
         return metrics;
     }
 
-    private class Consumer extends Thread
+    /**
+     * Provides a 'next operation time' for rate limited operation streams. The rate limiter is thread safe and is to be
+     * shared by all consumer threads.
+     */
+    private static class UniformRateLimiter
     {
+        long start = Long.MIN_VALUE;
+        final long intervalNs;
+        final AtomicLong opIndex = new AtomicLong();
 
-        private final OpDistribution operations;
-        private final StressMetrics metrics;
-        private final RateLimiter rateLimiter;
-        private volatile boolean success = true;
-        private final WorkManager workManager;
-        private final CountDownLatch done;
-
-        public Consumer(OpDistribution operations,
-                        CountDownLatch done,
-                        WorkManager workManager,
-                        StressMetrics metrics,
-                        RateLimiter rateLimiter)
+        UniformRateLimiter(int opsPerSec)
         {
-            this.done = done;
+            intervalNs = 1000000000 / opsPerSec;
+        }
+
+        void start()
+        {
+            start = System.nanoTime();
+        }
+
+        /**
+         * @param partitionCount
+         * @return expect start time in ns for the operation
+         */
+        long acquire(int partitionCount)
+        {
+            long currOpIndex = opIndex.getAndAdd(partitionCount);
+            return start + currOpIndex * intervalNs;
+        }
+    }
+
+    /**
+     * Provides a blocking stream of operations per consumer.
+     */
+    private static class StreamOfOperations
+    {
+        private final OpDistribution operations;
+        private final UniformRateLimiter rateLimiter;
+        private final WorkManager workManager;
+
+        public StreamOfOperations(OpDistribution operations, UniformRateLimiter rateLimiter, WorkManager workManager)
+        {
+            this.operations = operations;
             this.rateLimiter = rateLimiter;
             this.workManager = workManager;
-            this.metrics = metrics;
-            this.operations = operations;
         }
+
+        /**
+         * This method will block until the next operation becomes available.
+         *
+         * @return next operation or null if no more ops are coming
+         */
+        Operation nextOp()
+        {
+            Operation op = operations.next();
+            final int partitionCount = op.ready(workManager);
+            if (partitionCount == 0)
+                return null;
+            if (rateLimiter != null)
+            {
+                long intendedTime = rateLimiter.acquire(partitionCount);
+                op.intendedStartNs(intendedTime);
+                long now;
+                while ((now = System.nanoTime()) < intendedTime)
+                {
+                    LockSupport.parkNanos(intendedTime - now);
+                }
+            }
+            return op;
+        }
+
+        void abort()
+        {
+            workManager.stop();
+        }
+    }
+    public static class OpMeasurement
+    {
+        public String opType;
+        public long intended,started,ended,rowCnt,partitionCnt;
+        public boolean err;
+        @Override
+        public String toString()
+        {
+            return "OpMeasurement [opType=" + opType + ", intended=" + intended + ", started=" + started + ", ended="
+                    + ended + ", rowCnt=" + rowCnt + ", partitionCnt=" + partitionCnt + ", err=" + err + "]";
+        }
+    }
+    public interface MeasurementSink
+    {
+        void record(String opType,long intended, long started, long ended, long rowCnt, long partitionCnt, boolean err);
+    }
+    public class Consumer extends Thread implements MeasurementSink
+    {
+        private final StreamOfOperations opStream;
+        private final StressMetrics metrics;
+        private volatile boolean success = true;
+        private final CountDownLatch done;
+        private final CountDownLatch start;
+        private final CountDownLatch releaseConsumers;
+        public final Queue<OpMeasurement> measurementsRecycling;
+        public final Queue<OpMeasurement> measurementsReporting;
+        public Consumer(OpDistributionFactory operations,
+                        boolean isWarmup,
+                        CountDownLatch done,
+                        CountDownLatch start,
+                        CountDownLatch releaseConsumers,
+                        WorkManager workManager,
+                        StressMetrics metrics,
+                        UniformRateLimiter rateLimiter)
+        {
+            OpDistribution opDistribution = operations.get(isWarmup, this);
+            this.done = done;
+            this.start = start;
+            this.releaseConsumers = releaseConsumers;
+            this.metrics = metrics;
+            this.opStream = new StreamOfOperations(opDistribution, rateLimiter, workManager);
+            this.measurementsRecycling =  new SpscArrayQueue<OpMeasurement>(8*1024);
+            this.measurementsReporting =  new SpscUnboundedArrayQueue<OpMeasurement>(2048);
+            metrics.add(this);
+        }
+
 
         public void run()
         {
-            operations.initTimers();
-
             try
             {
                 SimpleClient sclient = null;
-                ThriftClient tclient = null;
                 JavaDriverClient jclient = null;
+                final ConnectionAPI clientType = settings.mode.api;
 
-                switch (settings.mode.api)
+                try
                 {
-                    case JAVA_DRIVER_NATIVE:
-                        jclient = settings.getJavaDriverClient();
-                        break;
-                    case SIMPLE_NATIVE:
-                        sclient = settings.getSimpleNativeClient();
-                        break;
-                    case THRIFT:
-                    case THRIFT_SMART:
-                        tclient = settings.getThriftClient();
-                        break;
-                    default:
-                        throw new IllegalStateException();
+                    switch (clientType)
+                    {
+                        case JAVA_DRIVER_NATIVE:
+                            jclient = settings.getJavaDriverClient();
+                            break;
+                        case SIMPLE_NATIVE:
+                            sclient = settings.getSimpleNativeClient();
+                            break;
+                        default:
+                            throw new IllegalStateException();
+                    }
                 }
+                finally
+                {
+                    // synchronize the start of all the consumer threads
+                    start.countDown();
+                }
+
+                releaseConsumers.await();
 
                 while (true)
                 {
-                    Operation op = operations.next();
-                    if (!op.ready(workManager, rateLimiter))
+                    // Assumption: All ops are thread local, operations are never shared across threads.
+                    Operation op = opStream.nextOp();
+                    if (op == null)
                         break;
 
                     try
                     {
-                        switch (settings.mode.api)
+                        switch (clientType)
                         {
                             case JAVA_DRIVER_NATIVE:
                                 op.run(jclient);
@@ -328,34 +464,50 @@ public class StressAction implements Runnable
                             case SIMPLE_NATIVE:
                                 op.run(sclient);
                                 break;
-                            case THRIFT:
-                            case THRIFT_SMART:
                             default:
-                                op.run(tclient);
+                                throw new IllegalStateException();
                         }
                     }
                     catch (Exception e)
                     {
                         if (output == null)
-                        {
                             System.err.println(e.getMessage());
-                            success = false;
-                            System.exit(-1);
-                        }
+                        else
+                            output.printException(e);
 
-                        e.printStackTrace(output);
                         success = false;
-                        workManager.stop();
+                        opStream.abort();
                         metrics.cancel();
                         return;
                     }
                 }
             }
+            catch (Exception e)
+            {
+                System.err.println(e.getMessage());
+                success = false;
+            }
             finally
             {
                 done.countDown();
-                operations.closeTimers();
             }
+        }
+
+        @Override
+        public void record(String opType, long intended, long started, long ended, long rowCnt, long partitionCnt, boolean err)
+        {
+            OpMeasurement opMeasurement = measurementsRecycling.poll();
+            if(opMeasurement == null) {
+                opMeasurement = new OpMeasurement();
+            }
+            opMeasurement.opType = opType;
+            opMeasurement.intended = intended;
+            opMeasurement.started = started;
+            opMeasurement.ended = ended;
+            opMeasurement.rowCnt = rowCnt;
+            opMeasurement.partitionCnt = partitionCnt;
+            opMeasurement.err = err;
+            measurementsReporting.offer(opMeasurement);
         }
     }
 }

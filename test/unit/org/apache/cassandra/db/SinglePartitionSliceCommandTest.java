@@ -23,8 +23,6 @@ package org.apache.cassandra.db;
 import static org.junit.Assert.*;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.Iterator;
 import org.junit.Assert;
 import org.junit.Before;
@@ -34,11 +32,12 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.filter.AbstractClusteringIndexFilter;
@@ -73,38 +72,37 @@ public class SinglePartitionSliceCommandTest
     private static final String KEYSPACE = "ks";
     private static final String TABLE = "tbl";
 
-    private static CFMetaData cfm;
-    private static ColumnDefinition v;
-    private static ColumnDefinition s;
+    private static TableMetadata metadata;
+    private static ColumnMetadata v;
+    private static ColumnMetadata s;
 
     private static final String TABLE_SCLICES = "tbl_slices";
-    private static CFMetaData CFM_SLICES;
+    private static TableMetadata CFM_SLICES;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        cfm = CFMetaData.Builder.create(KEYSPACE, TABLE)
-                                .addPartitionKey("k", UTF8Type.instance)
-                                .addStaticColumn("s", UTF8Type.instance)
-                                .addClusteringColumn("i", IntegerType.instance)
-                                .addRegularColumn("v", UTF8Type.instance)
-                                .build();
+        DatabaseDescriptor.daemonInitialization();
 
-        CFM_SLICES = CFMetaData.Builder.create(KEYSPACE, TABLE_SCLICES)
-                                       .addPartitionKey("k", UTF8Type.instance)
-                                       .addClusteringColumn("c1", Int32Type.instance)
-                                       .addClusteringColumn("c2", Int32Type.instance)
-                                       .addRegularColumn("v", IntegerType.instance)
-                                       .build();
+        metadata =
+            TableMetadata.builder(KEYSPACE, TABLE)
+                         .addPartitionKeyColumn("k", UTF8Type.instance)
+                         .addStaticColumn("s", UTF8Type.instance)
+                         .addClusteringColumn("i", IntegerType.instance)
+                         .addRegularColumn("v", UTF8Type.instance)
+                         .build();
+
+        CFM_SLICES = TableMetadata.builder(KEYSPACE, TABLE_SCLICES)
+                                  .addPartitionKeyColumn("k", UTF8Type.instance)
+                                  .addClusteringColumn("c1", Int32Type.instance)
+                                  .addClusteringColumn("c2", Int32Type.instance)
+                                  .addRegularColumn("v", IntegerType.instance)
+                                  .build();
 
         SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), cfm, CFM_SLICES);
-
-        cfm = Schema.instance.getCFMetaData(KEYSPACE, TABLE);
-        v = cfm.getColumnDefinition(new ColumnIdentifier("v", true));
-        s = cfm.getColumnDefinition(new ColumnIdentifier("s", true));
-
-        CFM_SLICES = Schema.instance.getCFMetaData(KEYSPACE, TABLE_SCLICES);
+        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), metadata, CFM_SLICES);
+        v = metadata.getColumn(new ColumnIdentifier("v", true));
+        s = metadata.getColumn(new ColumnIdentifier("s", true));
     }
 
     @Before
@@ -112,56 +110,6 @@ public class SinglePartitionSliceCommandTest
     {
         Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).truncateBlocking();
         Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE_SCLICES).truncateBlocking();
-    }
-
-    @Test
-    public void staticColumnsAreFiltered() throws IOException
-    {
-        DecoratedKey key = cfm.decorateKey(ByteBufferUtil.bytes("k"));
-
-        UntypedResultSet rows;
-
-        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s, i, v) VALUES ('k', 's', 0, 'v')");
-        QueryProcessor.executeInternal("DELETE v FROM ks.tbl WHERE k='k' AND i=0");
-        QueryProcessor.executeInternal("DELETE FROM ks.tbl WHERE k='k' AND i=0");
-        rows = QueryProcessor.executeInternal("SELECT * FROM ks.tbl WHERE k='k' AND i=0");
-
-        for (UntypedResultSet.Row row: rows)
-        {
-            logger.debug("Current: k={}, s={}, v={}", (row.has("k") ? row.getString("k") : null), (row.has("s") ? row.getString("s") : null), (row.has("v") ? row.getString("v") : null));
-        }
-
-        assert rows.isEmpty();
-
-        ColumnFilter columnFilter = ColumnFilter.selection(PartitionColumns.of(v));
-        ByteBuffer zero = ByteBufferUtil.bytes(0);
-        Slices slices = Slices.with(cfm.comparator, Slice.make(Slice.Bound.inclusiveStartOf(zero), Slice.Bound.inclusiveEndOf(zero)));
-        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(slices, false);
-        ReadCommand cmd = SinglePartitionReadCommand.create(true,
-                                                            cfm,
-                                                            FBUtilities.nowInSeconds(),
-                                                            columnFilter,
-                                                            RowFilter.NONE,
-                                                            DataLimits.NONE,
-                                                            key,
-                                                            sliceFilter);
-
-        DataOutputBuffer out = new DataOutputBuffer((int) ReadCommand.legacyReadCommandSerializer.serializedSize(cmd, MessagingService.VERSION_21));
-        ReadCommand.legacyReadCommandSerializer.serialize(cmd, out, MessagingService.VERSION_21);
-        DataInputPlus in = new DataInputBuffer(out.buffer(), true);
-        cmd = ReadCommand.legacyReadCommandSerializer.deserialize(in, MessagingService.VERSION_21);
-
-        logger.debug("ReadCommand: {}", cmd);
-        UnfilteredPartitionIterator partitionIterator = cmd.executeLocally(ReadOrderGroup.emptyGroup());
-        ReadResponse response = ReadResponse.createDataResponse(partitionIterator, cmd);
-
-        logger.debug("creating response: {}", response);
-        partitionIterator = response.makeIterator(cmd);
-        assert partitionIterator.hasNext();
-        UnfilteredRowIterator partition = partitionIterator.next();
-
-        LegacyLayout.LegacyUnfilteredPartition rowIter = LegacyLayout.fromUnfilteredRowIterator(cmd, partition);
-        Assert.assertEquals(Collections.emptyList(), rowIter.cells);
     }
 
     @Test
@@ -216,7 +164,7 @@ public class SinglePartitionSliceCommandTest
         int uniqueCk1 = 2;
         int uniqueCk2 = 3;
 
-        DecoratedKey key = CFM_SLICES.decorateKey(ByteBufferUtil.bytes("k"));
+        DecoratedKey key = Util.dk(ByteBufferUtil.bytes("k"));
         QueryProcessor.executeInternal(String.format("DELETE FROM ks.tbl_slices USING TIMESTAMP %d WHERE k='k' AND c1=%d",
                                                      deletionTime,
                                                      ck1));
@@ -233,7 +181,7 @@ public class SinglePartitionSliceCommandTest
                                                             key,
                                                             clusteringFilter);
 
-        UnfilteredPartitionIterator partitionIterator = cmd.executeLocally(ReadOrderGroup.emptyGroup());
+        UnfilteredPartitionIterator partitionIterator = cmd.executeLocally(cmd.executionController());
         assert partitionIterator.hasNext();
         UnfilteredRowIterator partition = partitionIterator.next();
 
@@ -260,7 +208,7 @@ public class SinglePartitionSliceCommandTest
                 for (int i = 0; i < CFM_SLICES.comparator.size(); i++)
                 {
                     int cmp = CFM_SLICES.comparator.compareComponent(i,
-                                                                     clustering.values[i],
+                                                                     clustering.getRawValues()[i],
                                                                      marker.clustering().values[i]);
                     assertEquals(0, cmp);
                 }
@@ -289,7 +237,7 @@ public class SinglePartitionSliceCommandTest
         Assert.assertTrue(ri.columns().contains(s));
         Row staticRow = ri.staticRow();
         Iterator<Cell> cellIterator = staticRow.cells().iterator();
-        Assert.assertTrue(staticRow.toString(cfm, true), cellIterator.hasNext());
+        Assert.assertTrue(staticRow.toString(metadata, true), cellIterator.hasNext());
         Cell cell = cellIterator.next();
         Assert.assertEquals(s, cell.column());
         Assert.assertEquals(ByteBufferUtil.bytesToHex(cell.value()), ByteBufferUtil.bytes("s"), cell.value());
@@ -299,15 +247,14 @@ public class SinglePartitionSliceCommandTest
     @Test
     public void staticColumnsAreReturned() throws IOException
     {
-        DecoratedKey key = cfm.decorateKey(ByteBufferUtil.bytes("k1"));
+        DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.bytes("k1"));
 
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s) VALUES ('k1', 's')");
         Assert.assertFalse(QueryProcessor.executeInternal("SELECT s FROM ks.tbl WHERE k='k1'").isEmpty());
 
-        ColumnFilter columnFilter = ColumnFilter.selection(PartitionColumns.of(s));
+        ColumnFilter columnFilter = ColumnFilter.selection(RegularAndStaticColumns.of(s));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.NONE, false);
-        ReadCommand cmd = SinglePartitionReadCommand.create(true,
-                                                            cfm,
+        ReadCommand cmd = SinglePartitionReadCommand.create(metadata,
                                                             FBUtilities.nowInSeconds(),
                                                             columnFilter,
                                                             RowFilter.NONE,
@@ -316,7 +263,7 @@ public class SinglePartitionSliceCommandTest
                                                             sliceFilter);
 
         // check raw iterator for static cell
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
             checkForS(pi);
         }
@@ -327,7 +274,7 @@ public class SinglePartitionSliceCommandTest
         ReadResponse dst;
 
         // check (de)serialized iterator for memtable static cell
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
             response = ReadResponse.createDataResponse(pi, cmd);
         }
@@ -342,8 +289,8 @@ public class SinglePartitionSliceCommandTest
         }
 
         // check (de)serialized iterator for sstable static cell
-        Schema.instance.getColumnFamilyStoreInstance(cfm.cfId).forceBlockingFlush();
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
+        Schema.instance.getColumnFamilyStoreInstance(metadata.id).forceBlockingFlush();
+        try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
             response = ReadResponse.createDataResponse(pi, cmd);
         }
@@ -360,20 +307,18 @@ public class SinglePartitionSliceCommandTest
     @Test
     public void toCQLStringIsSafeToCall() throws IOException
     {
-        DecoratedKey key = cfm.decorateKey(ByteBufferUtil.bytes("k1"));
+        DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.bytes("k1"));
 
-        ColumnFilter columnFilter = ColumnFilter.selection(PartitionColumns.of(s));
-        Slice slice = Slice.make(Slice.Bound.BOTTOM, Slice.Bound.inclusiveEndOf(ByteBufferUtil.bytes("i1")));
-        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.with(cfm.comparator, slice), false);
-        ReadCommand cmd = SinglePartitionReadCommand.create(true,
-                                                            cfm,
+        ColumnFilter columnFilter = ColumnFilter.selection(RegularAndStaticColumns.of(s));
+        Slice slice = Slice.make(ClusteringBound.BOTTOM, ClusteringBound.inclusiveEndOf(ByteBufferUtil.bytes("i1")));
+        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.with(metadata.comparator, slice), false);
+        ReadCommand cmd = SinglePartitionReadCommand.create(metadata,
                                                             FBUtilities.nowInSeconds(),
                                                             columnFilter,
                                                             RowFilter.NONE,
                                                             DataLimits.NONE,
                                                             key,
                                                             sliceFilter);
-
         String ret = cmd.toCQLString();
         Assert.assertNotNull(ret);
         Assert.assertFalse(ret.isEmpty());

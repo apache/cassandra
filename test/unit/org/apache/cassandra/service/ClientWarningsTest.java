@@ -28,7 +28,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.transport.Message;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.QueryMessage;
 
@@ -49,7 +49,7 @@ public class ClientWarningsTest extends CQLTester
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v text)");
 
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.VERSION_4))
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V4))
         {
             client.connect(false);
 
@@ -68,13 +68,17 @@ public class ClientWarningsTest extends CQLTester
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v text)");
 
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.VERSION_4))
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V4))
         {
             client.connect(false);
 
-            QueryMessage query = new QueryMessage(createBatchStatement(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
+            QueryMessage query = new QueryMessage(createBatchStatement2(DatabaseDescriptor.getBatchSizeWarnThreshold() / 2 + 1), QueryOptions.DEFAULT);
             Message.Response resp = client.execute(query);
             assertEquals(1, resp.getWarnings().size());
+
+            query = new QueryMessage(createBatchStatement(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
+            resp = client.execute(query);
+            assertNull(resp.getWarnings());
         }
     }
 
@@ -84,7 +88,7 @@ public class ClientWarningsTest extends CQLTester
         final int iterations = 10000;
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.VERSION_4))
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V4))
         {
             client.connect(false);
 
@@ -124,7 +128,7 @@ public class ClientWarningsTest extends CQLTester
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v text)");
 
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.VERSION_3))
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V3))
         {
             client.connect(false);
 

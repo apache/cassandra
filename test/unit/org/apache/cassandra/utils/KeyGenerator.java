@@ -24,7 +24,8 @@ import java.util.Random;
 
 public class KeyGenerator
 {
-    private static ByteBuffer randomKey(Random r) {
+    private static ByteBuffer randomKey(Random r) 
+    {
         byte[] bytes = new byte[48];
         r.nextBytes(bytes);
         return ByteBuffer.wrap(bytes);
@@ -35,31 +36,37 @@ public class KeyGenerator
         int i, n, seed;
         Random random;
 
-        RandomStringGenerator(int seed, int n) {
+        RandomStringGenerator(int seed, int n) 
+        {
             i = 0;
             this.seed = seed;
             this.n = n;
             reset();
         }
 
-        public int size() {
+        public int size() 
+        {
             return n;
         }
 
-        public void reset() {
+        public void reset() 
+        {
             random = new Random(seed);
         }
 
-        public boolean hasNext() {
+        public boolean hasNext() 
+        {
             return i < n;
         }
 
-        public ByteBuffer next() {
+        public ByteBuffer next() 
+        {
             i++;
             return randomKey(random);
         }
 
-        public void remove() {
+        public void remove() 
+        {
             throw new UnsupportedOperationException();
         }
     }
@@ -68,33 +75,40 @@ public class KeyGenerator
     {
         private int i, start, n;
 
-        IntGenerator(int n) {
+        IntGenerator(int n) 
+        {
             this(0, n);
         }
 
-        IntGenerator(int start, int n) {
+        IntGenerator(int start, int n) 
+        {
             this.start = start;
             this.n = n;
             reset();
         }
 
-        public int size() {
+        public int size() 
+        {
             return n - start;
         }
 
-        public void reset() {
+        public void reset() 
+        {
             i = start;
         }
 
-        public boolean hasNext() {
+        public boolean hasNext() 
+        {
             return i < n;
         }
 
-        public ByteBuffer next() {
+        public ByteBuffer next() 
+        {
             return ByteBufferUtil.bytes(Integer.toString(i++));
         }
 
-        public void remove() {
+        public void remove() 
+        {
             throw new UnsupportedOperationException();
         }
     }
@@ -103,14 +117,18 @@ public class KeyGenerator
     {
         static int WORDS;
 
-        static {
-            try {
-                BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream("/usr/share/dict/words")));
-                while (br.ready()) {
+        static 
+        {
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream("/usr/share/dict/words")))) 
+            {
+                while (br.ready()) 
+                {
                     br.readLine();
                     WORDS++;
                 }
-            } catch (IOException e) {
+            } 
+            catch (IOException e) 
+            {
                 WORDS = 0;
             }
         }
@@ -120,50 +138,67 @@ public class KeyGenerator
         private int skip;
         byte[] next;
 
-        WordGenerator(int skip, int modulo) {
+        WordGenerator(int skip, int modulo) 
+        {
             this.skip = skip;
             this.modulo = modulo;
             reset();
         }
 
-        public int size() {
+        public int size() 
+        {
             return (1 + WORDS - skip) / modulo;
         }
 
-        public void reset() {
-            try {
+        public void reset() 
+        {
+            try 
+            {
                 reader = new BufferedReader(new InputStreamReader(new FileInputStream("/usr/share/dict/words")));
-            } catch (FileNotFoundException e) {
+            } 
+            catch (FileNotFoundException e) 
+            {
                 throw new RuntimeException(e);
             }
-            for (int i = 0; i < skip; i++) {
-                try {
+            for (int i = 0; i < skip; i++) 
+            {
+                try 
+                {
                     reader.readLine();
-                } catch (IOException e) {
+                } 
+                catch (IOException e) 
+                {
                     throw new RuntimeException(e);
                 }
             }
             next();
         }
 
-        public boolean hasNext() {
+        public boolean hasNext() 
+        {
             return next != null;
         }
 
-        public ByteBuffer next() {
-            try {
+        public ByteBuffer next() 
+        {
+            try 
+            {
                 byte[] s = next;
-                for (int i = 0; i < modulo; i++) {
+                for (int i = 0; i < modulo; i++) 
+                {
                     String line = reader.readLine();
                     next = line == null ? null : line.getBytes();
                 }
                 return s == null ? null : ByteBuffer.wrap(s);
-            } catch (IOException e) {
+            } 
+            catch (IOException e) 
+            {
                 throw new RuntimeException(e);
             }
         }
 
-        public void remove() {
+        public void remove() 
+        {
             throw new UnsupportedOperationException();
         }
     }

@@ -48,10 +48,10 @@ table_definition: |
 #      GAUSSIAN(min..max,mean,stdev)        A gaussian/normal distribution, with explicitly defined mean and stdev
 #      UNIFORM(min..max)                    A uniform distribution over the range [min, max]
 #      FIXED(val)                           A fixed distribution, always returning the same value
+#      SEQ(min..max)                        A fixed sequence, returning values in the range min to max sequentially (starting based on seed), wrapping if necessary.
 #      Aliases: extr, gauss, normal, norm, weibull
 #
 #      If preceded by ~, the distribution is inverted
-#
 # Defaults for all columns are size: uniform(4..8), population: uniform(1..100B), cluster: fixed(1)
 #
 

@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.sun.jna.LastErrorException;
+import sun.nio.ch.FileChannelImpl;
 
 import static org.apache.cassandra.utils.NativeLibrary.OSType.LINUX;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.MAC;
@@ -48,7 +49,7 @@ public final class NativeLibrary
         OTHER;
     }
 
-    private static final OSType osType;
+    public static final OSType osType;
 
     private static final int MCL_CURRENT;
     private static final int MCL_FUTURE;
@@ -71,8 +72,14 @@ public final class NativeLibrary
     private static final NativeLibraryWrapper wrappedLibrary;
     private static boolean jnaLockable = false;
 
+    private static final Field FILE_DESCRIPTOR_FD_FIELD;
+    private static final Field FILE_CHANNEL_FD_FIELD;
+
     static
     {
+        FILE_DESCRIPTOR_FD_FIELD = FBUtilities.getProtectedField(FileDescriptor.class, "fd");
+        FILE_CHANNEL_FD_FIELD = FBUtilities.getProtectedField(FileChannelImpl.class, "fd");
+
         // detect the OS type the JVM is running on and then set the CLibraryWrapper
         // instance to a compatable implementation of CLibraryWrapper for that OS type
         osType = getOsType();
@@ -119,11 +126,15 @@ public final class NativeLibrary
     private static OSType getOsType()
     {
         String osName = System.getProperty("os.name").toLowerCase();
-        if (osName.contains("mac"))
+        if  (osName.contains("linux"))
+            return LINUX;
+        else if (osName.contains("mac"))
             return MAC;
         else if (osName.contains("windows"))
             return WINDOWS;
-        else if (osName.contains("aix"))
+
+        logger.warn("the current operating system, {}, is unsupported by cassandra", osName);
+        if (osName.contains("aix"))
             return AIX;
         else
             // fall back to the Linux impl for all unknown OS types until otherwise implicitly supported as needed
@@ -249,7 +260,7 @@ public final class NativeLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("posix_fadvise(%d, %d) failed, errno (%d).", fd, offset, errno(e)));
+            logger.warn("posix_fadvise({}, {}) failed, errno ({}).", fd, offset, errno(e));
         }
     }
 
@@ -271,7 +282,7 @@ public final class NativeLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("fcntl(%d, %d, %d) failed, errno (%d).", fd, command, flags, errno(e)));
+            logger.warn("fcntl({}, {}, {}) failed, errno ({}).", fd, command, flags, errno(e));
         }
 
         return result;
@@ -294,7 +305,7 @@ public final class NativeLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("open(%s, O_RDONLY) failed, errno (%d).", path, errno(e)));
+            logger.warn("open({}, O_RDONLY) failed, errno ({}).", path, errno(e));
         }
 
         return fd;
@@ -318,7 +329,7 @@ public final class NativeLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn("fsync({}) failed, errorno ({}) {}", fd, errno(e), e);
+            logger.warn("fsync({}) failed, errorno ({}) {}", fd, errno(e), e.getMessage());
         }
     }
 
@@ -340,17 +351,15 @@ public final class NativeLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("close(%d) failed, errno (%d).", fd, errno(e)));
+            logger.warn("close({}) failed, errno ({}).", fd, errno(e));
         }
     }
 
     public static int getfd(FileChannel channel)
     {
-        Field field = FBUtilities.getProtectedField(channel.getClass(), "fd");
-
         try
         {
-            return getfd((FileDescriptor)field.get(channel));
+            return getfd((FileDescriptor)FILE_CHANNEL_FD_FIELD.get(channel));
         }
         catch (IllegalArgumentException|IllegalAccessException e)
         {
@@ -366,11 +375,9 @@ public final class NativeLibrary
      */
     public static int getfd(FileDescriptor descriptor)
     {
-        Field field = FBUtilities.getProtectedField(descriptor.getClass(), "fd");
-
         try
         {
-            return field.getInt(descriptor);
+            return FILE_DESCRIPTOR_FD_FIELD.getInt(descriptor);
         }
         catch (Exception e)
         {

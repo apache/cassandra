@@ -134,6 +134,11 @@ public class OptionRatioDistribution extends Option
     {
         return delegate.shortDisplay();
     }
+    public String getOptionAsString()
+    {
+        return delegate.getOptionAsString();
+    }
+
 
     // factories
 
@@ -153,6 +158,10 @@ public class OptionRatioDistribution extends Option
         {
             return new RatioDistribution(delegate.get(), divisor);
         }
+
+        @Override
+        public String getConfigAsString(){return String.format("Ratio: divisor=%f;delegate=%s",divisor, delegate.getConfigAsString());};
+
     }
 
     @Override

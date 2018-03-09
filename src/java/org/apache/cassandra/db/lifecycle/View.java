@@ -39,7 +39,6 @@ import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Iterables.all;
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
-import static com.google.common.collect.Iterables.transform;
 import static org.apache.cassandra.db.lifecycle.Helpers.emptySet;
 import static org.apache.cassandra.db.lifecycle.Helpers.filterOut;
 import static org.apache.cassandra.db.lifecycle.Helpers.replace;
@@ -324,7 +323,7 @@ public class View
     }
 
     // called after flush: removes memtable from flushingMemtables, and inserts flushed into the live sstable set
-    static Function<View, View> replaceFlushed(final Memtable memtable, final Collection<SSTableReader> flushed)
+    static Function<View, View> replaceFlushed(final Memtable memtable, final Iterable<SSTableReader> flushed)
     {
         return new Function<View, View>()
         {
@@ -333,7 +332,7 @@ public class View
                 List<Memtable> flushingMemtables = copyOf(filter(view.flushingMemtables, not(equalTo(memtable))));
                 assert flushingMemtables.size() == view.flushingMemtables.size() - 1;
 
-                if (flushed == null || flushed.isEmpty())
+                if (flushed == null || Iterables.isEmpty(flushed))
                     return new View(view.liveMemtables, flushingMemtables, view.sstablesMap,
                                     view.compactingMap, view.intervalTree);
 

@@ -17,11 +17,16 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.net.InetAddress;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public abstract class StreamEvent
 {
@@ -43,10 +48,12 @@ public abstract class StreamEvent
 
     public static class SessionCompleteEvent extends StreamEvent
     {
-        public final InetAddress peer;
+        public final InetAddressAndPort peer;
         public final boolean success;
         public final int sessionIndex;
         public final Set<StreamRequest> requests;
+        public final StreamOperation streamOperation;
+        public final Map<String, Set<Range<Token>>> transferredRangesPerKeyspace;
 
         public SessionCompleteEvent(StreamSession session)
         {
@@ -55,6 +62,8 @@ public abstract class StreamEvent
             this.success = session.isSuccess();
             this.sessionIndex = session.sessionIndex();
             this.requests = ImmutableSet.copyOf(session.requests);
+            this.streamOperation = session.streamOperation();
+            this.transferredRangesPerKeyspace = Collections.unmodifiableMap(session.transferredRangesPerKeyspace);
         }
     }
 

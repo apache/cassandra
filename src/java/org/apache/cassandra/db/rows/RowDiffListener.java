@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.db.rows;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.*;
 
 /**
  * Interface that allows to act on the result of merging multiple rows.
  *
- * More precisely, given N rows and the result of merging them, one can call {@link Rows#diff()}
+ * More precisely, given N rows and the result of merging them, one can call {@link Rows#diff(RowDiffListener, Row, Row...)}
  * with a {@code RowDiffListener} and that listener will be informed for each input row of the diff between
  * that input and merge row.
  */
@@ -63,7 +63,7 @@ public interface RowDiffListener
      * @param original the complex deletion of input {@code i} for column {@code column}. May be {@code null} if input {@code i}
      * had no complex deletion but the merged row has.
      */
-    public void onComplexDeletion(int i, Clustering clustering, ColumnDefinition column, DeletionTime merged, DeletionTime original);
+    public void onComplexDeletion(int i, Clustering clustering, ColumnMetadata column, DeletionTime merged, DeletionTime original);
 
     /**
      * Called for any cell that is either in the merged row or in input {@code i}.

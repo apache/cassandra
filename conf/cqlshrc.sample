@@ -30,14 +30,15 @@
 ; color = on
 
 ;; Used for displaying timestamps (and reading them with COPY)
-; datetimeformat = %Y-%m-%d %H:%M:%S%z
+; time_format = %Y-%m-%d %H:%M:%S%z
 
 ;; Display timezone
 ;timezone = Etc/UTC
 
-;; The number of digits displayed after the decimal point
+;; The number of digits displayed after the decimal point for single and double precision numbers
 ;; (note that increasing this to large numbers can result in unusual values)
-; float_precision = 5
+;float_precision = 5
+;double_precision = 12
 
 ;; Used for automatic completion and suggestions
 ; completekey = tab
@@ -75,6 +76,9 @@ hostname = 127.0.0.1
 
 ;; The port to connect to (9042 is the native protocol default)
 port = 9042
+
+;; Always connect using SSL - false by default
+; ssl = true
 
 ;; A timeout in seconds for opening new connections
 ; timeout = 10

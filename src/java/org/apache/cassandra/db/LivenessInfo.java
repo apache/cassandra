@@ -18,12 +18,12 @@
 package org.apache.cassandra.db;
 
 import java.util.Objects;
-import java.security.MessageDigest;
 
-import org.apache.cassandra.config.CFMetaData;
+import com.google.common.hash.Hasher;
+
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HashingUtils;
 
 /**
  * Stores the information relating to the liveness of the primary key columns of a row.
@@ -60,12 +60,8 @@ public class LivenessInfo
         this.timestamp = timestamp;
     }
 
-    public static LivenessInfo create(CFMetaData metadata, long timestamp, int nowInSec)
+    public static LivenessInfo create(long timestamp, int nowInSec)
     {
-        int defaultTTL = metadata.params.defaultTimeToLive;
-        if (defaultTTL != NO_TTL)
-            return expiring(timestamp, defaultTTL, nowInSec);
-
         return new LivenessInfo(timestamp);
     }
 
@@ -75,16 +71,16 @@ public class LivenessInfo
         return new ExpiringLivenessInfo(timestamp, ttl, ExpirationDateOverflowHandling.computeLocalExpirationTime(nowInSec, ttl));
     }
 
-    public static LivenessInfo create(CFMetaData metadata, long timestamp, int ttl, int nowInSec)
+    public static LivenessInfo create(long timestamp, int ttl, int nowInSec)
     {
         return ttl == NO_TTL
-             ? create(metadata, timestamp, nowInSec)
+             ? create(timestamp, nowInSec)
              : expiring(timestamp, ttl, nowInSec);
     }
 
-    // Note that this ctor ignores the default table ttl and takes the expiration time, not the current time.
+    // Note that this ctor takes the expiration time, not the current time.
     // Use when you know that's what you want.
-    public static LivenessInfo create(long timestamp, int ttl, int localExpirationTime)
+    public static LivenessInfo withExpirationTime(long timestamp, int ttl, int localExpirationTime)
     {
         if (ttl == EXPIRED_LIVENESS_TTL)
             return new ExpiredLivenessInfo(timestamp, ttl, localExpirationTime);
@@ -157,11 +153,11 @@ public class LivenessInfo
     /**
      * Adds this liveness information to the provided digest.
      *
-     * @param digest the digest to add this liveness information to.
+     * @param hasher the hasher digest to add this liveness information to.
      */
-    public void digest(MessageDigest digest)
+    public void digest(Hasher hasher)
     {
-        FBUtilities.updateWithLong(digest, timestamp());
+        HashingUtils.updateWithLong(hasher, timestamp());
     }
 
     /**
@@ -335,11 +331,11 @@ public class LivenessInfo
         }
 
         @Override
-        public void digest(MessageDigest digest)
+        public void digest(Hasher hasher)
         {
-            super.digest(digest);
-            FBUtilities.updateWithInt(digest, localExpirationTime);
-            FBUtilities.updateWithInt(digest, ttl);
+            super.digest(hasher);
+            HashingUtils.updateWithInt(hasher, localExpirationTime);
+            HashingUtils.updateWithInt(hasher, ttl);
         }
 
         @Override

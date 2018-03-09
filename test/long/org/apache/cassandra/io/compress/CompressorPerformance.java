@@ -23,6 +23,7 @@ package org.apache.cassandra.io.compress;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class CompressorPerformance
@@ -33,7 +34,7 @@ public class CompressorPerformance
         for (ICompressor compressor: new ICompressor[] {
                 SnappyCompressor.instance,  // warm up
                 DeflateCompressor.instance,
-                LZ4Compressor.instance,
+                LZ4Compressor.create(Collections.emptyMap()),
                 SnappyCompressor.instance
         })
         {

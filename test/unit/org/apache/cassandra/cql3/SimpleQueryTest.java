@@ -22,31 +22,6 @@ import org.junit.Test;
 public class SimpleQueryTest extends CQLTester
 {
     @Test
-    public void testStaticCompactTables() throws Throwable
-    {
-        createTable("CREATE TABLE %s (k text PRIMARY KEY, v1 int, v2 text) WITH COMPACT STORAGE");
-
-        execute("INSERT INTO %s (k, v1, v2) values (?, ?, ?)", "first", 1, "value1");
-        execute("INSERT INTO %s (k, v1, v2) values (?, ?, ?)", "second", 2, "value2");
-        execute("INSERT INTO %s (k, v1, v2) values (?, ?, ?)", "third", 3, "value3");
-
-        assertRows(execute("SELECT * FROM %s WHERE k = ?", "first"),
-            row("first", 1, "value1")
-        );
-
-        assertRows(execute("SELECT v2 FROM %s WHERE k = ?", "second"),
-            row("value2")
-        );
-
-        // Murmur3 order
-        assertRows(execute("SELECT * FROM %s"),
-            row("third",  3, "value3"),
-            row("second", 2, "value2"),
-            row("first",  1, "value1")
-        );
-    }
-
-    @Test
     public void testDynamicCompactTables() throws Throwable
     {
         createTable("CREATE TABLE %s (k text, t int, v text, PRIMARY KEY (k, t));");
@@ -388,24 +363,44 @@ public class SimpleQueryTest extends CQLTester
 
         execute("INSERT INTO %s (k, t, v, s) values (?, ?, ?, ?)", "key1", 3, "foo3", "st3");
         execute("INSERT INTO %s (k, t, v) values (?, ?, ?)", "key1", 4, "foo4");
+        execute("INSERT INTO %s (k, t, v, s) values (?, ?, ?, ?)", "key1", 2, "foo2", "st2-repeat");
+
+        flush();
+
+        execute("INSERT INTO %s (k, t, v, s) values (?, ?, ?, ?)", "key1", 5, "foo5", "st5");
+        execute("INSERT INTO %s (k, t, v) values (?, ?, ?)", "key1", 6, "foo6");
+
 
         assertRows(execute("SELECT * FROM %s"),
-            row("key1",  1, "st3", "foo1"),
-            row("key1",  2, "st3", "foo2"),
-            row("key1",  3, "st3", "foo3"),
-            row("key1",  4, "st3", "foo4")
+            row("key1",  1, "st5", "foo1"),
+            row("key1",  2, "st5", "foo2"),
+            row("key1",  3, "st5", "foo3"),
+            row("key1",  4, "st5", "foo4"),
+            row("key1",  5, "st5", "foo5"),
+            row("key1",  6, "st5", "foo6")
         );
 
         assertRows(execute("SELECT s FROM %s WHERE k = ?", "key1"),
-            row("st3"),
-            row("st3"),
-            row("st3"),
-            row("st3")
+            row("st5"),
+            row("st5"),
+            row("st5"),
+            row("st5"),
+            row("st5"),
+            row("st5")
         );
 
         assertRows(execute("SELECT DISTINCT s FROM %s WHERE k = ?", "key1"),
-            row("st3")
+            row("st5")
         );
+
+        assertEmpty(execute("SELECT * FROM %s WHERE k = ? AND t > ? AND t < ?", "key1", 7, 5));
+        assertEmpty(execute("SELECT * FROM %s WHERE k = ? AND t > ? AND t < ? ORDER BY t DESC", "key1", 7, 5));
+
+        assertRows(execute("SELECT * FROM %s WHERE k = ? AND t = ?", "key1", 2),
+            row("key1", 2, "st5", "foo2"));
+
+        assertRows(execute("SELECT * FROM %s WHERE k = ? AND t = ? ORDER BY t DESC", "key1", 2),
+            row("key1", 2, "st5", "foo2"));
     }
 
     @Test
@@ -482,26 +477,6 @@ public class SimpleQueryTest extends CQLTester
     }
 
     @Test
-    public void testCompactStorageUpdateWithNull() throws Throwable
-    {
-        createTable("CREATE TABLE %s (partitionKey int," +
-                "clustering_1 int," +
-                "value int," +
-                " PRIMARY KEY (partitionKey, clustering_1)) WITH COMPACT STORAGE");
-
-        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 0, 0)");
-        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 1, 1)");
-
-        flush();
-
-        execute("UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 = ?", null, 0, 0);
-
-        assertRows(execute("SELECT * FROM %s WHERE partitionKey = ? AND (clustering_1) IN ((?), (?))", 0, 0, 1),
-            row(0, 1, 1)
-        );
-    }
-
-    @Test
     public void test2ndaryIndexBug() throws Throwable
     {
         createTable("CREATE TABLE %s (k int, c1 int, c2 int, v int, PRIMARY KEY(k, c1, c2))");
@@ -525,6 +500,45 @@ public class SimpleQueryTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE v=?", 0),
             row(0, 0, 0, 0)
         );
+    }
+
+    /** Test for Cassandra issue 10958 **/
+    @Test
+    public void restrictionOnRegularColumnWithStaticColumnPresentTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int, id2 int, age int static, extra int, PRIMARY KEY(id, id2))");
+
+        execute("INSERT INTO %s (id, id2, age, extra) VALUES (?, ?, ?, ?)", 1, 1, 1, 1);
+        execute("INSERT INTO %s (id, id2, age, extra) VALUES (?, ?, ?, ?)", 2, 2, 2, 2);
+        execute("UPDATE %s SET age=? WHERE id=?", 3, 3);
+
+        assertRows(execute("SELECT * FROM %s"),
+            row(1, 1, 1, 1),
+            row(2, 2, 2, 2),
+            row(3, null, 3, null)
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE extra > 1 ALLOW FILTERING"),
+            row(2, 2, 2, 2)
+        );
+    }
+
+    @Test
+    public void testRowFilteringOnStaticColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int, name text, age int static, PRIMARY KEY (id, name))");
+        for (int i = 0; i < 5; i++)
+        {
+            execute("INSERT INTO %s (id, name, age) VALUES (?, ?, ?)", i, "NameDoesNotMatter", i);
+        }
+
+        assertInvalid("SELECT id, age FROM %s WHERE age < 1");
+        assertRows(execute("SELECT id, age FROM %s WHERE age < 1 ALLOW FILTERING"),
+                   row(0, 0));
+        assertRows(execute("SELECT id, age FROM %s WHERE age > 0 AND age < 3 ALLOW FILTERING"),
+                   row(1, 1), row(2, 2));
+        assertRows(execute("SELECT id, age FROM %s WHERE age > 3 ALLOW FILTERING"),
+                   row(4, 4));
     }
 
     @Test

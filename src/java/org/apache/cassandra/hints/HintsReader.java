@@ -31,12 +31,10 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.UnknownColumnFamilyException;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.NativeLibrary;
 
 /**
  * A paged non-compressed hints reader that provides two iterators:
@@ -85,6 +83,8 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 // The compressed input is instantiated with the uncompressed input's position
                 reader = CompressedChecksummedDataInput.upgradeInput(reader, descriptor.createCompressor());
             }
+            else if (descriptor.isEncrypted())
+                reader = EncryptedChecksummedDataInput.upgradeInput(reader, descriptor.getCipher(), descriptor.createCompressor());
             return new HintsReader(descriptor, file, reader, rateLimiter);
         }
         catch (IOException e)
@@ -109,7 +109,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         return descriptor;
     }
 
-    void seek(long newPosition)
+    void seek(InputPosition newPosition)
     {
         input.seek(newPosition);
     }
@@ -126,21 +126,21 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
     final class Page
     {
-        public final long offset;
+        public final InputPosition position;
 
-        private Page(long offset)
+        private Page(InputPosition inputPosition)
         {
-            this.offset = offset;
+            this.position = inputPosition;
         }
 
         Iterator<Hint> hintsIterator()
         {
-            return new HintsIterator(offset);
+            return new HintsIterator(position);
         }
 
         Iterator<ByteBuffer> buffersIterator()
         {
-            return new BuffersIterator(offset);
+            return new BuffersIterator(position);
         }
     }
 
@@ -149,12 +149,12 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         @SuppressWarnings("resource")
         protected Page computeNext()
         {
-            NativeLibrary.trySkipCache(input.getChannel().getFileDescriptor(), 0, input.getFilePointer(), input.getPath());
+            input.tryUncacheRead();
 
             if (input.isEOF())
                 return endOfData();
 
-            return new Page(input.getFilePointer());
+            return new Page(input.getSeekPosition());
         }
     }
 
@@ -163,9 +163,10 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
      */
     final class HintsIterator extends AbstractIterator<Hint>
     {
-        private final long offset;
+        private final InputPosition offset;
+        private final long now = System.currentTimeMillis();
 
-        HintsIterator(long offset)
+        HintsIterator(InputPosition offset)
         {
             super();
             this.offset = offset;
@@ -177,12 +178,12 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
             do
             {
-                long position = input.getFilePointer();
+                InputPosition position = input.getSeekPosition();
 
                 if (input.isEOF())
                     return endOfData(); // reached EOF
 
-                if (position - offset >= PAGE_SIZE)
+                if (position.subtract(offset) >= PAGE_SIZE)
                     return endOfData(); // read page size or more bytes
 
                 try
@@ -227,15 +228,15 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
             Hint hint;
             try
             {
-                hint = Hint.serializer.deserialize(input, descriptor.messagingVersion());
+                hint = Hint.serializer.deserializeIfLive(input, now, size, descriptor.messagingVersion());
                 input.checkLimit(0);
             }
-            catch (UnknownColumnFamilyException e)
+            catch (UnknownTableException e)
             {
                 logger.warn("Failed to read a hint for {}: {} - table with id {} is unknown in file {}",
                             StorageService.instance.getEndpointForHostId(descriptor.hostId),
                             descriptor.hostId,
-                            e.cfId,
+                            e.id,
                             descriptor.fileName());
                 input.skipBytes(Ints.checkedCast(size - input.bytesPastLimit()));
 
@@ -260,9 +261,10 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
      */
     final class BuffersIterator extends AbstractIterator<ByteBuffer>
     {
-        private final long offset;
+        private final InputPosition offset;
+        private final long now = System.currentTimeMillis();
 
-        BuffersIterator(long offset)
+        BuffersIterator(InputPosition offset)
         {
             super();
             this.offset = offset;
@@ -274,12 +276,12 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
             do
             {
-                long position = input.getFilePointer();
+                InputPosition position = input.getSeekPosition();
 
                 if (input.isEOF())
                     return endOfData(); // reached EOF
 
-                if (position - offset >= PAGE_SIZE)
+                if (position.subtract(offset) >= PAGE_SIZE)
                     return endOfData(); // read page size or more bytes
 
                 try
@@ -321,7 +323,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 rateLimiter.acquire(size);
             input.limit(size);
 
-            ByteBuffer buffer = ByteBufferUtil.read(input, size);
+            ByteBuffer buffer = Hint.serializer.readBufferIfLive(input, now, size, descriptor.messagingVersion());
             if (input.checkCrc())
                 return buffer;
 

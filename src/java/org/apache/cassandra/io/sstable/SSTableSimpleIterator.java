@@ -21,17 +21,12 @@ import java.io.IOException;
 import java.io.IOError;
 import java.util.Iterator;
 
-import org.apache.cassandra.io.util.RewindableDataInput;
-import org.apache.cassandra.utils.AbstractIterator;
-
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.DataPosition;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.AbstractIterator;
 
 /**
  * Utility class to handle deserializing atom from sstables.
@@ -41,23 +36,25 @@ import org.apache.cassandra.net.MessagingService;
  */
 public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered> implements Iterator<Unfiltered>
 {
-    protected final CFMetaData metadata;
+    final TableMetadata metadata;
     protected final DataInputPlus in;
     protected final SerializationHelper helper;
 
-    private SSTableSimpleIterator(CFMetaData metadata, DataInputPlus in, SerializationHelper helper)
+    private SSTableSimpleIterator(TableMetadata metadata, DataInputPlus in, SerializationHelper helper)
     {
         this.metadata = metadata;
         this.in = in;
         this.helper = helper;
     }
 
-    public static SSTableSimpleIterator create(CFMetaData metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper, DeletionTime partitionDeletion)
+    public static SSTableSimpleIterator create(TableMetadata metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper, DeletionTime partitionDeletion)
     {
-        if (helper.version < MessagingService.VERSION_30)
-            return new OldFormatIterator(metadata, in, helper, partitionDeletion);
-        else
-            return new CurrentFormatIterator(metadata, in, header, helper);
+        return new CurrentFormatIterator(metadata, in, header, helper);
+    }
+
+    public static SSTableSimpleIterator createTombstoneOnly(TableMetadata metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper, DeletionTime partitionDeletion)
+    {
+        return new CurrentFormatTombstoneIterator(metadata, in, header, helper);
     }
 
     public abstract Row readStaticRow() throws IOException;
@@ -68,7 +65,7 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
 
         private final Row.Builder builder;
 
-        private CurrentFormatIterator(CFMetaData metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper)
+        private CurrentFormatIterator(TableMetadata metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper)
         {
             super(metadata, in, helper);
             this.header = header;
@@ -94,71 +91,38 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
         }
     }
 
-    private static class OldFormatIterator extends SSTableSimpleIterator
+    private static class CurrentFormatTombstoneIterator extends SSTableSimpleIterator
     {
-        private final UnfilteredDeserializer deserializer;
+        private final SerializationHeader header;
 
-        private OldFormatIterator(CFMetaData metadata, DataInputPlus in, SerializationHelper helper, DeletionTime partitionDeletion)
+        private CurrentFormatTombstoneIterator(TableMetadata metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper)
         {
             super(metadata, in, helper);
-            // We use an UnfilteredDeserializer because even though we don't need all it's fanciness, it happens to handle all
-            // the details we need for reading the old format.
-            this.deserializer = UnfilteredDeserializer.create(metadata, in, null, helper, partitionDeletion, false);
+            this.header = header;
         }
 
         public Row readStaticRow() throws IOException
         {
-            if (metadata.isCompactTable())
+            if (header.hasStatic())
             {
-                // For static compact tables, in the old format, static columns are intermingled with the other columns, so we
-                // need to extract them. Which imply 2 passes (one to extract the static, then one for other value).
-                if (metadata.isStaticCompactTable())
-                {
-                    assert in instanceof RewindableDataInput;
-                    RewindableDataInput file = (RewindableDataInput)in;
-                    DataPosition mark = file.mark();
-                    Row staticRow = LegacyLayout.extractStaticColumns(metadata, file, metadata.partitionColumns().statics);
-                    file.reset(mark);
-
-                    // We've extracted the static columns, so we must ignore them on the 2nd pass
-                    ((UnfilteredDeserializer.OldFormatDeserializer)deserializer).setSkipStatic();
-                    return staticRow;
-                }
-                else
-                {
-                    return Rows.EMPTY_STATIC_ROW;
-                }
+                Row staticRow = UnfilteredSerializer.serializer.deserializeStaticRow(in, header, helper);
+                if (!staticRow.deletion().isLive())
+                    return BTreeRow.emptyDeletedRow(staticRow.clustering(), staticRow.deletion());
             }
-
-            return deserializer.hasNext() && deserializer.nextIsStatic()
-                 ? (Row)deserializer.readNext()
-                 : Rows.EMPTY_STATIC_ROW;
-
+            return Rows.EMPTY_STATIC_ROW;
         }
 
         protected Unfiltered computeNext()
         {
             try
             {
-                if (!deserializer.hasNext())
-                    return endOfData();
-
-                Unfiltered unfiltered = deserializer.readNext();
-                if (metadata.isStaticCompactTable() && unfiltered.kind() == Unfiltered.Kind.ROW)
-                {
-                    Row row = (Row) unfiltered;
-                    ColumnDefinition def = metadata.getColumnDefinition(LegacyLayout.encodeClustering(metadata, row.clustering()));
-                    if (def != null && def.isStatic())
-                        return computeNext();
-                }
-                return unfiltered;
+                Unfiltered unfiltered = UnfilteredSerializer.serializer.deserializeTombstonesOnly((FileDataInput) in, header, helper);
+                return unfiltered == null ? endOfData() : unfiltered;
             }
             catch (IOException e)
             {
                 throw new IOError(e);
             }
         }
-
     }
-
 }

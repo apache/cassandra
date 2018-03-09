@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.util.List;
 
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -57,7 +58,7 @@ public abstract class AbstractMarker extends Term.NonTerminal
      */
     public static class Raw extends Term.Raw
     {
-        private final int bindIndex;
+        protected final int bindIndex;
 
         public Raw(int bindIndex)
         {
@@ -66,32 +67,43 @@ public abstract class AbstractMarker extends Term.NonTerminal
 
         public NonTerminal prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!(receiver.type instanceof CollectionType))
-                return new Constants.Marker(bindIndex, receiver);
-
-            switch (((CollectionType)receiver.type).kind)
+            if (receiver.type.isCollection())
             {
-                case LIST: return new Lists.Marker(bindIndex, receiver);
-                case SET:  return new Sets.Marker(bindIndex, receiver);
-                case MAP:  return new Maps.Marker(bindIndex, receiver);
+                switch (((CollectionType) receiver.type).kind)
+                {
+                    case LIST:
+                        return new Lists.Marker(bindIndex, receiver);
+                    case SET:
+                        return new Sets.Marker(bindIndex, receiver);
+                    case MAP:
+                        return new Maps.Marker(bindIndex, receiver);
+                    default:
+                        throw new AssertionError();
+                }
             }
-            throw new AssertionError();
+            else if (receiver.type.isUDT())
+            {
+                return new UserTypes.Marker(bindIndex, receiver);
+            }
+
+            return new Constants.Marker(bindIndex, receiver);
         }
 
+        @Override
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
             return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+        }
+
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            return null;
         }
 
         @Override
         public String getText()
         {
             return "?";
-        }
-
-        public int bindIndex()
-        {
-            return bindIndex;
         }
     }
 
@@ -128,7 +140,7 @@ public abstract class AbstractMarker extends Term.NonTerminal
      *
      * Because a single type is used, a List is used to represent the values.
      */
-    public static class INRaw extends Raw
+    public static final class INRaw extends Raw
     {
         public INRaw(int bindIndex)
         {
@@ -142,9 +154,9 @@ public abstract class AbstractMarker extends Term.NonTerminal
         }
 
         @Override
-        public AbstractMarker prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+        public Lists.Marker prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            return new Lists.Marker(bindIndex(), makeInReceiver(receiver));
+            return new Lists.Marker(bindIndex, makeInReceiver(receiver));
         }
     }
 }

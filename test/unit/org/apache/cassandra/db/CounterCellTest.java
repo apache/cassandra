@@ -19,19 +19,18 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.util.Arrays;
 
+import com.google.common.hash.Hasher;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Cells;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -99,27 +98,27 @@ public class CounterCellTest
 
     private Cell createLegacyCounterCell(ColumnFamilyStore cfs, ByteBuffer colName, long count, long ts)
     {
-        ColumnDefinition cDef = cfs.metadata.getColumnDefinition(colName);
+        ColumnMetadata cDef = cfs.metadata().getColumn(colName);
         ByteBuffer val = CounterContext.instance().createLocal(count);
-        return BufferCell.live(cfs.metadata, cDef, ts, val);
+        return BufferCell.live(cDef, ts, val);
     }
 
     private Cell createCounterCell(ColumnFamilyStore cfs, ByteBuffer colName, CounterId id, long count, long ts)
     {
-        ColumnDefinition cDef = cfs.metadata.getColumnDefinition(colName);
+        ColumnMetadata cDef = cfs.metadata().getColumn(colName);
         ByteBuffer val = CounterContext.instance().createGlobal(id, ts, count);
-        return BufferCell.live(cfs.metadata, cDef, ts, val);
+        return BufferCell.live(cDef, ts, val);
     }
 
     private Cell createCounterCellFromContext(ColumnFamilyStore cfs, ByteBuffer colName, ContextState context, long ts)
     {
-        ColumnDefinition cDef = cfs.metadata.getColumnDefinition(colName);
-        return BufferCell.live(cfs.metadata, cDef, ts, context.context);
+        ColumnMetadata cDef = cfs.metadata().getColumn(colName);
+        return BufferCell.live(cDef, ts, context.context);
     }
 
     private Cell createDeleted(ColumnFamilyStore cfs, ByteBuffer colName, long ts, int localDeletionTime)
     {
-        ColumnDefinition cDef = cfs.metadata.getColumnDefinition(colName);
+        ColumnMetadata cDef = cfs.metadata().getColumn(colName);
         return BufferCell.tombstone(cDef, ts, localDeletionTime);
     }
 
@@ -262,8 +261,8 @@ public class CounterCellTest
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
         ByteBuffer col = ByteBufferUtil.bytes("val");
 
-        MessageDigest digest1 = MessageDigest.getInstance("md5");
-        MessageDigest digest2 = MessageDigest.getInstance("md5");
+        Hasher hasher1 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
+        Hasher hasher2 = HashingUtils.CURRENT_HASH_FUNCTION.newHasher();
 
         CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 2, 2);
         state.writeRemote(CounterId.fromInt(1), 4L, 4L);
@@ -273,12 +272,12 @@ public class CounterCellTest
 
         Cell original = createCounterCellFromContext(cfs, col, state, 5);
 
-        ColumnDefinition cDef = cfs.metadata.getColumnDefinition(col);
-        Cell cleared = BufferCell.live(cfs.metadata, cDef, 5, CounterContext.instance().clearAllLocal(state.context));
+        ColumnMetadata cDef = cfs.metadata().getColumn(col);
+        Cell cleared = BufferCell.live(cDef, 5, CounterContext.instance().clearAllLocal(state.context));
 
-        original.digest(digest1);
-        cleared.digest(digest2);
+        original.digest(hasher1);
+        cleared.digest(hasher2);
 
-        assert Arrays.equals(digest1.digest(), digest2.digest());
+        Assert.assertEquals(hasher1.hash(), hasher2.hash());
     }
 }

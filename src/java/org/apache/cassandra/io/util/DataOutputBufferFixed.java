@@ -38,7 +38,7 @@ public class DataOutputBufferFixed extends DataOutputBuffer
 
     public DataOutputBufferFixed(int size)
     {
-        super(ByteBuffer.allocate(size));
+        super(size);
     }
 
     public DataOutputBufferFixed(ByteBuffer buffer)
@@ -61,5 +61,10 @@ public class DataOutputBufferFixed extends DataOutputBuffer
     protected void reallocate(long newSize)
     {
         throw new BufferOverflowException();
+    }
+
+    public void clear()
+    {
+        buffer.clear();
     }
 }

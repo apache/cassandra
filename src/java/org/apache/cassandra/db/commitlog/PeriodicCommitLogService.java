@@ -18,42 +18,25 @@
 package org.apache.cassandra.db.commitlog;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 class PeriodicCommitLogService extends AbstractCommitLogService
 {
-    private static final int blockWhenSyncLagsMillis = (int) (DatabaseDescriptor.getCommitLogSyncPeriod() * 1.5);
+    private static final long blockWhenSyncLagsNanos = (long) (DatabaseDescriptor.getCommitLogSyncPeriod() * 1.5e6);
 
     public PeriodicCommitLogService(final CommitLog commitLog)
     {
         super(commitLog, "PERIODIC-COMMIT-LOG-SYNCER", DatabaseDescriptor.getCommitLogSyncPeriod(),
-              !commitLog.configuration.useCompression());
+              !(commitLog.configuration.useCompression() || commitLog.configuration.useEncryption()));
     }
 
     protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)
     {
-        if (waitForSyncToCatchUp(Long.MAX_VALUE))
+        long expectedSyncTime = System.nanoTime() - blockWhenSyncLagsNanos;
+        if (lastSyncedAt < expectedSyncTime)
         {
-            // wait until periodic sync() catches up with its schedule
-            long started = System.currentTimeMillis();
             pending.incrementAndGet();
-            while (waitForSyncToCatchUp(started))
-            {
-                WaitQueue.Signal signal = syncComplete.register(commitLog.metrics.waitingOnCommit.time());
-                if (waitForSyncToCatchUp(started))
-                    signal.awaitUninterruptibly();
-                else
-                    signal.cancel();
-            }
+            awaitSyncAt(expectedSyncTime, commitLog.metrics.waitingOnCommit.time());
             pending.decrementAndGet();
         }
-    }
-
-    /**
-     * @return true if sync is currently lagging behind inserts
-     */
-    private boolean waitForSyncToCatchUp(long started)
-    {
-        return started > lastSyncedAt + blockWhenSyncLagsMillis;
     }
 }

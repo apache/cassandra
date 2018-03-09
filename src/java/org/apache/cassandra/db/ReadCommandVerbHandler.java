@@ -41,15 +41,24 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         }
 
         ReadCommand command = message.payload;
+        command.setMonitoringTime(message.constructionTime, message.isCrossNode(), message.getTimeout(), message.getSlowQueryTimeout());
+
         ReadResponse response;
-        try (ReadOrderGroup opGroup = command.startOrderGroup(); UnfilteredPartitionIterator iterator = command.executeLocally(opGroup))
+        try (ReadExecutionController executionController = command.executionController();
+             UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
         {
             response = command.createResponse(iterator);
         }
 
-        MessageOut<ReadResponse> reply = new MessageOut<>(MessagingService.Verb.REQUEST_RESPONSE, response, serializer());
+        if (!command.complete())
+        {
+            Tracing.trace("Discarding partial response to {} (timed out)", message.from);
+            MessagingService.instance().incrementDroppedMessages(message, message.getLifetimeInMS());
+            return;
+        }
 
         Tracing.trace("Enqueuing response to {}", message.from);
+        MessageOut<ReadResponse> reply = new MessageOut<>(MessagingService.Verb.REQUEST_RESPONSE, response, serializer());
         MessagingService.instance().sendReply(reply, id, message.from);
     }
 }

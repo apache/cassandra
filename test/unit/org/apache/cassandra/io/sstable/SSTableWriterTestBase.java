@@ -31,7 +31,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -65,7 +64,9 @@ public class SSTableWriterTestBase extends SchemaLoader
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        if (FBUtilities.isWindows())
+        DatabaseDescriptor.daemonInitialization();
+
+        if (FBUtilities.isWindows)
         {
             standardMode = DatabaseDescriptor.getDiskAccessMode();
             indexMode = DatabaseDescriptor.getIndexAccessMode();
@@ -162,8 +163,8 @@ public class SSTableWriterTestBase extends SchemaLoader
 
     public static SSTableWriter getWriter(ColumnFamilyStore cfs, File directory, LifecycleTransaction txn)
     {
-        String filename = cfs.getSSTablePath(directory);
-        return SSTableWriter.create(filename, 0, 0, new SerializationHeader(true, cfs.metadata, cfs.metadata.partitionColumns(), EncodingStats.NO_STATS), txn);
+        Descriptor desc = cfs.newSSTableDescriptor(directory);
+        return SSTableWriter.create(desc, 0, 0, null, new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS), cfs.indexManager.listIndexes(), txn);
     }
 
     public static ByteBuffer random(int i, int size)

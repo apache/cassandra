@@ -21,6 +21,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.After;
 import org.junit.Before;
@@ -32,7 +33,7 @@ import com.google.common.base.Objects;
 
 public class ViewComplexTest extends CQLTester
 {
-    int protocolVersion = 4;
+    ProtocolVersion protocolVersion = ProtocolVersion.V4;
     private final List<String> views = new ArrayList<>();
 
     @BeforeClass
@@ -40,6 +41,7 @@ public class ViewComplexTest extends CQLTester
     {
         requireNetwork();
     }
+
     @Before
     public void begin()
     {
@@ -78,7 +80,7 @@ public class ViewComplexTest extends CQLTester
             Keyspace.open(keyspace()).flush();
     }
 
-    // for now, unselected column cannot be fully supported, SEE CASSANDRA-13826
+    // for now, unselected column cannot be fully supported, SEE CASSANDRA-11500
     @Ignore
     @Test
     public void testPartialDeleteUnselectedColumn() throws Throwable
@@ -849,10 +851,10 @@ public class ViewComplexTest extends CQLTester
         for (String view : Arrays.asList("mv1", "mv2"))
         {
             // paging
-            assertEquals(1, executeNetWithPaging(String.format("SELECT k,a,b FROM %s limit 1", view), 1).all().size());
-            assertEquals(2, executeNetWithPaging(String.format("SELECT k,a,b FROM %s limit 2", view), 1).all().size());
-            assertEquals(2, executeNetWithPaging(String.format("SELECT k,a,b FROM %s", view), 1).all().size());
-            assertRowsNet(executeNetWithPaging(String.format("SELECT k,a,b FROM %s ", view), 1),
+            assertEquals(1, executeNetWithPaging(protocolVersion, String.format("SELECT k,a,b FROM %s limit 1", view), 1).all().size());
+            assertEquals(2, executeNetWithPaging(protocolVersion, String.format("SELECT k,a,b FROM %s limit 2", view), 1).all().size());
+            assertEquals(2, executeNetWithPaging(protocolVersion, String.format("SELECT k,a,b FROM %s", view), 1).all().size());
+            assertRowsNet(protocolVersion, executeNetWithPaging(protocolVersion, String.format("SELECT k,a,b FROM %s ", view), 1),
                           row(50, 50, 50),
                           row(100, 100, 100));
             // limit
@@ -1402,5 +1404,4 @@ public class ViewComplexTest extends CQLTester
             }
         }
     }
-
 }

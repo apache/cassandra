@@ -16,6 +16,7 @@
 
 from cqlshlib.displaying import MAGENTA
 from datetime import datetime, timedelta
+from formatting import CqlType
 import time
 from cassandra.query import QueryTrace, TraceUnavailable
 
@@ -42,7 +43,7 @@ def print_trace(shell, trace):
     if not rows:
         shell.printerr("No rows for session %s found." % (trace.trace_id,))
         return
-    names = ['activity', 'timestamp', 'source', 'source_elapsed']
+    names = ['activity', 'timestamp', 'source', 'source_elapsed', 'client']
 
     formatted_names = map(shell.myformat_colname, names)
     formatted_values = [map(shell.myformat_value, row) for row in rows]
@@ -59,18 +60,19 @@ def make_trace_rows(trace):
     if not trace.events:
         return []
 
-    rows = [[trace.request_type, str(datetime_from_utc_to_local(trace.started_at)), trace.coordinator, 0]]
+    rows = [[trace.request_type, str(datetime_from_utc_to_local(trace.started_at)), trace.coordinator, 0, trace.client]]
 
     # append main rows (from events table).
     for event in trace.events:
         rows.append(["%s [%s]" % (event.description, event.thread_name),
                      str(datetime_from_utc_to_local(event.datetime)),
                      event.source,
-                     total_micro_seconds(event.source_elapsed)])
+                     total_micro_seconds(event.source_elapsed),
+                     trace.client])
     # append footer row (from sessions table).
     if trace.duration:
         finished_at = (datetime_from_utc_to_local(trace.started_at) + trace.duration)
-        rows.append(['Request complete', str(finished_at), trace.coordinator, total_micro_seconds(trace.duration)])
+        rows.append(['Request complete', str(finished_at), trace.coordinator, total_micro_seconds(trace.duration), trace.client])
     else:
         finished_at = trace.duration = "--"
 

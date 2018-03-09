@@ -27,12 +27,13 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 
-import org.apache.cassandra.config.CFMetaData;
+import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
@@ -59,24 +60,24 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     private final BlockingQueue<Buffer> writeQueue = new SynchronousQueue<Buffer>();
     private final DiskWriter diskWriter = new DiskWriter();
 
-    SSTableSimpleUnsortedWriter(File directory, CFMetaData metadata, PartitionColumns columns, long bufferSizeInMB)
+    SSTableSimpleUnsortedWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long bufferSizeInMB)
     {
         super(directory, metadata, columns);
         this.bufferSize = bufferSizeInMB * 1024L * 1024L;
-        this.header = new SerializationHeader(true, metadata, columns, EncodingStats.NO_STATS);
+        this.header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
         diskWriter.start();
     }
 
-    PartitionUpdate getUpdateFor(DecoratedKey key)
+    PartitionUpdate.Builder getUpdateFor(DecoratedKey key)
     {
         assert key != null;
-
-        PartitionUpdate previous = buffer.get(key);
+        PartitionUpdate.Builder previous = buffer.get(key);
         if (previous == null)
         {
-            previous = createPartitionUpdate(key);
-            currentSize += PartitionUpdate.serializer.serializedSize(previous, formatType.info.getLatestVersion().correspondingMessagingVersion());
-            previous.allowNewUpdates();
+            // todo: inefficient - we create and serialize a PU just to get its size, then recreate it
+            // todo: either allow PartitionUpdateBuilder to have .build() called several times or pre-calculate the size
+            currentSize += PartitionUpdate.serializer.serializedSize(createPartitionUpdateBuilder(key).build(), formatType.info.getLatestVersion().correspondingMessagingVersion());
+            previous = createPartitionUpdateBuilder(key);
             buffer.put(key, previous);
         }
         return previous;
@@ -107,9 +108,9 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         }
     }
 
-    private PartitionUpdate createPartitionUpdate(DecoratedKey key)
+    private PartitionUpdate.Builder createPartitionUpdateBuilder(DecoratedKey key)
     {
-        return new PartitionUpdate(metadata, key, columns, 4)
+        return new PartitionUpdate.Builder(metadata.get(), key, columns, 4)
         {
             @Override
             public void add(Row row)
@@ -187,9 +188,9 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     }
 
     //// typedef
-    static class Buffer extends TreeMap<DecoratedKey, PartitionUpdate> {}
+    static class Buffer extends TreeMap<DecoratedKey, PartitionUpdate.Builder> {}
 
-    private class DiskWriter extends Thread
+    private class DiskWriter extends FastThreadLocalThread
     {
         volatile Throwable exception = null;
 
@@ -205,8 +206,8 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
                         try (SSTableTxnWriter writer = createWriter())
                     {
-                        for (Map.Entry<DecoratedKey, PartitionUpdate> entry : b.entrySet())
-                            writer.append(entry.getValue().unfilteredIterator());
+                        for (Map.Entry<DecoratedKey, PartitionUpdate.Builder> entry : b.entrySet())
+                            writer.append(entry.getValue().build().unfilteredIterator());
                         writer.finish(false);
                     }
                 }

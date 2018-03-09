@@ -22,8 +22,9 @@ package org.apache.cassandra.index.internal.keys;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
@@ -39,17 +40,17 @@ public class KeysIndex extends CassandraIndex
         super(baseCfs, indexDef);
     }
 
-    public CFMetaData.Builder addIndexClusteringColumns(CFMetaData.Builder builder,
-                                                        CFMetaData baseMetadata,
-                                                        ColumnDefinition cfDef)
+    public TableMetadata.Builder addIndexClusteringColumns(TableMetadata.Builder builder,
+                                                           TableMetadataRef baseMetadata,
+                                                           ColumnMetadata cfDef)
     {
         // no additional clustering columns required
         return builder;
     }
 
     protected CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                               ClusteringPrefix prefix,
-                                               CellPath path)
+                                                  ClusteringPrefix prefix,
+                                                  CellPath path)
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
         builder.add(partitionKey);

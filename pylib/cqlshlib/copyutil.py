@@ -53,7 +53,7 @@ from cassandra.util import Date, Time
 
 from cql3handling import CqlRuleSet
 from displaying import NO_COLOR_MAP
-from formatting import format_value_default, DateTimeFormat, EMPTY, get_formatter
+from formatting import format_value_default, CqlType, DateTimeFormat, EMPTY, get_formatter
 from sslhandling import ssl_settings
 
 PROFILE_ON = False
@@ -339,8 +339,10 @@ class CopyTask(object):
         copy_options['pagetimeout'] = int(opts.pop('pagetimeout', max(10, 10 * (copy_options['pagesize'] / 1000))))
         copy_options['maxattempts'] = int(opts.pop('maxattempts', 5))
         copy_options['dtformats'] = DateTimeFormat(opts.pop('datetimeformat', shell.display_timestamp_format),
-                                                   shell.display_date_format, shell.display_nanotime_format)
-        copy_options['float_precision'] = shell.display_float_precision
+                                                   shell.display_date_format, shell.display_nanotime_format,
+                                                   milliseconds_only=True)
+        copy_options['floatprecision'] = int(opts.pop('floatprecision', '5'))
+        copy_options['doubleprecision'] = int(opts.pop('doubleprecision', '12'))
         copy_options['chunksize'] = int(opts.pop('chunksize', 5000))
         copy_options['ingestrate'] = int(opts.pop('ingestrate', 100000))
         copy_options['maxbatchsize'] = int(opts.pop('maxbatchsize', 20))
@@ -362,6 +364,7 @@ class CopyTask(object):
         copy_options['ratefile'] = safe_normpath(opts.pop('ratefile', ''))
         copy_options['maxoutputsize'] = int(opts.pop('maxoutputsize', '-1'))
         copy_options['preparedstatements'] = bool(opts.pop('preparedstatements', 'true').lower() == 'true')
+        copy_options['ttl'] = int(opts.pop('ttl', -1))
 
         # Hidden properties, they do not appear in the documentation but can be set in config files
         # or on the cmd line but w/o completion
@@ -406,8 +409,11 @@ class CopyTask(object):
         """
         try:
             num_cores_for_testing = os.environ.get('CQLSH_COPY_TEST_NUM_CORES', '')
-            return int(num_cores_for_testing) if num_cores_for_testing else mp.cpu_count()
+            ret = int(num_cores_for_testing) if num_cores_for_testing else mp.cpu_count()
+            printdebugmsg("Detected %d core(s)" % (ret,))
+            return ret
         except NotImplementedError:
+            printdebugmsg("Failed to detect number of cores, returning 1")
             return 1
 
     @staticmethod
@@ -877,15 +883,18 @@ class FilesReader(object):
             try:
                 return open(fname, 'rb')
             except IOError, e:
-                printdebugmsg("Can't open %r for reading: %s" % (fname, e))
-                return None
+                raise IOError("Can't open %r for reading: %s" % (fname, e))
 
         for path in paths.split(','):
             path = path.strip()
             if os.path.isfile(path):
                 yield make_source(path)
             else:
-                for f in glob.glob(path):
+                result = glob.glob(path)
+                if len(result) == 0:
+                    raise IOError("Can't open %r for reading: no matching file found" % (path,))
+
+                for f in result:
                     yield (make_source(f))
 
     def start(self):
@@ -1318,7 +1327,11 @@ class FeedingProcess(mp.Process):
         self.on_fork()
 
         reader = self.reader
-        reader.start()
+        try:
+            reader.start()
+        except IOError, exc:
+            self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message))
+
         channels = self.worker_channels
         max_pending_chunks = self.max_pending_chunks
         sent = 0
@@ -1524,7 +1537,8 @@ class ExportProcess(ChildProcess):
     def __init__(self, params):
         ChildProcess.__init__(self, params=params, target=self.run)
         options = params['options']
-        self.float_precision = options.copy['float_precision']
+        self.float_precision = options.copy['floatprecision']
+        self.double_precision = options.copy['doubleprecision']
         self.nullval = options.copy['nullval']
         self.max_requests = options.copy['maxrequests']
 
@@ -1648,12 +1662,17 @@ class ExportProcess(ChildProcess):
         return session
 
     def attach_callbacks(self, token_range, future, session):
+        metadata = session.cluster.metadata
+        ks_meta = metadata.keyspaces[self.ks]
+        table_meta = ks_meta.tables[self.table]
+        cql_types = [CqlType(table_meta.columns[c].cql_type, ks_meta) for c in self.columns]
+
         def result_callback(rows):
             if future.has_more_pages:
                 future.start_fetching_next_page()
-                self.write_rows_to_csv(token_range, rows)
+                self.write_rows_to_csv(token_range, rows, cql_types)
             else:
-                self.write_rows_to_csv(token_range, rows)
+                self.write_rows_to_csv(token_range, rows, cql_types)
                 self.send((None, None))
                 session.complete_request()
 
@@ -1663,7 +1682,7 @@ class ExportProcess(ChildProcess):
 
         future.add_callbacks(callback=result_callback, errback=err_callback)
 
-    def write_rows_to_csv(self, token_range, rows):
+    def write_rows_to_csv(self, token_range, rows, cql_types):
         if not rows:
             return  # no rows in this range
 
@@ -1672,7 +1691,7 @@ class ExportProcess(ChildProcess):
             writer = csv.writer(output, **self.options.dialect)
 
             for row in rows:
-                writer.writerow(map(self.format_value, row))
+                writer.writerow(map(self.format_value, row, cql_types))
 
             data = (output.getvalue(), len(rows))
             self.send((token_range, data))
@@ -1681,18 +1700,21 @@ class ExportProcess(ChildProcess):
         except Exception, e:
             self.report_error(e, token_range)
 
-    def format_value(self, val):
+    def format_value(self, val, cqltype):
         if val is None or val == EMPTY:
             return format_value_default(self.nullval, colormap=NO_COLOR_MAP)
 
-        ctype = type(val)
-        formatter = self.formatters.get(ctype, None)
+        formatter = self.formatters.get(cqltype, None)
         if not formatter:
-            formatter = get_formatter(ctype)
-            self.formatters[ctype] = formatter
+            formatter = get_formatter(val, cqltype)
+            self.formatters[cqltype] = formatter
 
-        return formatter(val, encoding=self.encoding, colormap=NO_COLOR_MAP, date_time_format=self.date_time_format,
-                         float_precision=self.float_precision, nullval=self.nullval, quote=False,
+        if not hasattr(cqltype, 'precision'):
+            cqltype.precision = self.double_precision if cqltype.type_name == 'double' else self.float_precision
+
+        return formatter(val, cqltype=cqltype,
+                         encoding=self.encoding, colormap=NO_COLOR_MAP, date_time_format=self.date_time_format,
+                         float_precision=cqltype.precision, nullval=self.nullval, quote=False,
                          decimal_sep=self.decimal_sep, thousands_sep=self.thousands_sep,
                          boolean_styles=self.boolean_styles)
 
@@ -1926,9 +1948,9 @@ class ImportConversion(object):
 
             return ret
 
-        # this should match all possible CQL datetime formats
+        # this should match all possible CQL and CQLSH datetime formats
         p = re.compile("(\d{4})\-(\d{2})\-(\d{2})\s?(?:'T')?" +  # YYYY-MM-DD[( |'T')]
-                       "(?:(\d{2}):(\d{2})(?::(\d{2}))?)?" +  # [HH:MM[:SS]]
+                       "(?:(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,6}))?))?" +  # [HH:MM[:SS[.NNNNNN]]]
                        "(?:([+\-])(\d{2}):?(\d{2}))?")  # [(+|-)HH[:]MM]]
 
         def convert_datetime(val, **_):
@@ -1955,13 +1977,16 @@ class ImportConversion(object):
                                     int(m.group(6)) if m.group(6) else 0,  # second
                                     0, 1, -1))  # day of week, day of year, dst-flag
 
-            if m.group(7):
-                offset = (int(m.group(8)) * 3600 + int(m.group(9)) * 60) * int(m.group(7) + '1')
+            # convert sub-seconds (a number between 1 and 6 digits) to milliseconds
+            milliseconds = 0 if not m.group(7) else int(m.group(7)) * pow(10, 3 - len(m.group(7)))
+
+            if m.group(8):
+                offset = (int(m.group(9)) * 3600 + int(m.group(10)) * 60) * int(m.group(8) + '1')
             else:
                 offset = -time.timezone
 
             # scale seconds to millis for the raw value
-            return (timegm(tval) + offset) * 1e3
+            return ((timegm(tval) + offset) * 1e3) + milliseconds
 
         def convert_date(v, **_):
             return Date(v)
@@ -2253,6 +2278,7 @@ class ImportProcess(ChildProcess):
         self.min_batch_size = options.copy['minbatchsize']
         self.max_batch_size = options.copy['maxbatchsize']
         self.use_prepared_statements = options.copy['preparedstatements']
+        self.ttl = options.copy['ttl']
         self.max_inflight_messages = options.copy['maxinflightmessages']
         self.max_backoff_attempts = options.copy['maxbackoffattempts']
         self.request_timeout = options.copy['requesttimeout']
@@ -2322,7 +2348,8 @@ class ImportProcess(ChildProcess):
                                                             protect_name(self.table),
                                                             ', '.join(protect_names(self.valid_columns),),
                                                             ', '.join(['?' for _ in self.valid_columns]))
-
+            if self.ttl >= 0:
+                query += 'USING TTL %s' % (self.ttl,)
             query = self.session.prepare(query)
             query.consistency_level = self.consistency_level
             prepared_statement = query
@@ -2331,6 +2358,8 @@ class ImportProcess(ChildProcess):
             query = 'INSERT INTO %s.%s (%s) VALUES (%%s)' % (protect_name(self.ks),
                                                              protect_name(self.table),
                                                              ', '.join(protect_names(self.valid_columns),))
+            if self.ttl >= 0:
+                query += 'USING TTL %s' % (self.ttl,)
             make_statement = self.wrap_make_statement(self.make_non_prepared_batch_statement)
 
         conv = ImportConversion(self, table_meta, prepared_statement)
@@ -2391,25 +2420,20 @@ class ImportProcess(ChildProcess):
         return make_statement_with_failures if self.test_failures else make_statement
 
     def make_counter_batch_statement(self, query, conv, batch, replicas):
-        def make_full_query(r):
+        statement = BatchStatement(batch_type=BatchType.COUNTER, consistency_level=self.consistency_level)
+        statement.replicas = replicas
+        statement.keyspace = self.ks
+        for row in batch['rows']:
             where_clause = []
             set_clause = []
-            for i, value in enumerate(r):
+            for i, value in enumerate(row):
                 if i in conv.primary_key_indexes:
                     where_clause.append("%s=%s" % (self.valid_columns[i], value))
                 else:
                     set_clause.append("%s=%s+%s" % (self.valid_columns[i], self.valid_columns[i], value))
-            return query % (','.join(set_clause), ' AND '.join(where_clause))
 
-        if len(batch['rows']) == 1:
-            statement = SimpleStatement(make_full_query(batch['rows'][0]), consistency_level=self.consistency_level)
-        else:
-            statement = BatchStatement(batch_type=BatchType.COUNTER, consistency_level=self.consistency_level)
-            for row in batch['rows']:
-                statement.add(make_full_query(row))
-
-        statement.replicas = replicas
-        statement.keyspace = self.ks
+            full_query_text = query % (','.join(set_clause), ' AND '.join(where_clause))
+            statement.add(full_query_text)
         return statement
 
     def make_prepared_batch_statement(self, query, _, batch, replicas):
@@ -2423,25 +2447,17 @@ class ImportProcess(ChildProcess):
         We could optimize further by removing bound_statements altogether but we'd have to duplicate much
         more driver's code (BoundStatement.bind()).
         """
-        if len(batch['rows']) == 1:
-            statement = query.bind(batch['rows'][0])
-        else:
-            statement = BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=self.consistency_level)
-            statement._statements_and_parameters = [(True, query.query_id, query.bind(r).values) for r in batch['rows']]
-
+        statement = BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=self.consistency_level)
         statement.replicas = replicas
         statement.keyspace = self.ks
+        statement._statements_and_parameters = [(True, query.query_id, query.bind(r).values) for r in batch['rows']]
         return statement
 
     def make_non_prepared_batch_statement(self, query, _, batch, replicas):
-        if len(batch['rows']) == 1:
-            statement = SimpleStatement(query % (','.join(batch['rows'][0]),), consistency_level=self.consistency_level)
-        else:
-            statement = BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=self.consistency_level)
-            statement._statements_and_parameters = [(False, query % (','.join(r),), ()) for r in batch['rows']]
-
+        statement = BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=self.consistency_level)
         statement.replicas = replicas
         statement.keyspace = self.ks
+        statement._statements_and_parameters = [(False, query % (','.join(r),), ()) for r in batch['rows']]
         return statement
 
     def convert_rows(self, conv, chunk):

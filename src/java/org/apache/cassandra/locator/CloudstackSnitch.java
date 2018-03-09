@@ -24,7 +24,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.File;
 import java.net.HttpURLConnection;
-import java.net.InetAddress;
 import java.net.URL;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -56,11 +55,11 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
     protected static final Logger logger = LoggerFactory.getLogger(CloudstackSnitch.class);
     protected static final String ZONE_NAME_QUERY_URI = "/latest/meta-data/availability-zone";
 
-    private Map<InetAddress, Map<String, String>> savedEndpoints;
+    private Map<InetAddressAndPort, Map<String, String>> savedEndpoints;
 
     private static final String DEFAULT_DC = "UNKNOWN-DC";
     private static final String DEFAULT_RACK = "UNKNOWN-RACK";
-    private static final String[] LEASE_FILES = 
+    private static final String[] LEASE_FILES =
     {
         "file:///var/lib/dhcp/dhclient.eth0.leases",
         "file:///var/lib/dhclient/dhclient.eth0.leases"
@@ -75,7 +74,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
         String zone = csQueryMetadata(endpoint + ZONE_NAME_QUERY_URI);
         String zone_parts[] = zone.split("-");
 
-        if (zone_parts.length != 3) 
+        if (zone_parts.length != 3)
         {
             throw new ConfigurationException("CloudstackSnitch cannot handle invalid zone format: " + zone);
         }
@@ -83,12 +82,12 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
         csZoneRack = zone_parts[2];
     }
 
-    public String getRack(InetAddress endpoint)
+    public String getRack(InetAddressAndPort endpoint)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return csZoneRack;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state == null || state.getApplicationState(ApplicationState.RACK) == null) 
+        if (state == null || state.getApplicationState(ApplicationState.RACK) == null)
         {
             if (savedEndpoints == null)
                 savedEndpoints = SystemKeyspace.loadDcRackInfo();
@@ -99,12 +98,12 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
         return state.getApplicationState(ApplicationState.RACK).value;
     }
 
-    public String getDatacenter(InetAddress endpoint)
+    public String getDatacenter(InetAddressAndPort endpoint)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return csZoneDc;
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state == null || state.getApplicationState(ApplicationState.DC) == null) 
+        if (state == null || state.getApplicationState(ApplicationState.DC) == null)
         {
             if (savedEndpoints == null)
                 savedEndpoints = SystemKeyspace.loadDcRackInfo();
@@ -120,18 +119,18 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
         HttpURLConnection conn = null;
         DataInputStream is = null;
 
-        try 
+        try
         {
             conn = (HttpURLConnection) new URL(url).openConnection();
-        } 
-        catch (Exception e) 
+        }
+        catch (Exception e)
         {
             throw new ConfigurationException("CloudstackSnitch cannot query wrong metadata URL: " + url);
         }
-        try 
+        try
         {
             conn.setRequestMethod("GET");
-            if (conn.getResponseCode() != 200) 
+            if (conn.getResponseCode() != 200)
             {
                 throw new ConfigurationException("CloudstackSnitch was unable to query metadata.");
             }
@@ -141,8 +140,8 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
             is = new DataInputStream(new BufferedInputStream(conn.getInputStream()));
             is.readFully(b);
             return new String(b, StandardCharsets.UTF_8);
-        } 
-        finally 
+        }
+        finally
         {
             FileUtils.close(is);
             conn.disconnect();
@@ -151,17 +150,17 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
 
     String csMetadataEndpoint() throws ConfigurationException
     {
-        for (String lease_uri: LEASE_FILES) 
+        for (String lease_uri: LEASE_FILES)
         {
-            try 
+            try
             {
                 File lease_file = new File(new URI(lease_uri));
-                if (lease_file.exists()) 
+                if (lease_file.exists())
                 {
                     return csEndpointFromLease(lease_file);
                 }
-            } 
-            catch (Exception e) 
+            }
+            catch (Exception e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
                 continue;
@@ -180,24 +179,24 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
 
         try (BufferedReader reader = new BufferedReader(new FileReader(lease)))
         {
-            
-            while ((line = reader.readLine()) != null) 
+
+            while ((line = reader.readLine()) != null)
             {
                 Matcher matcher = identifierPattern.matcher(line);
 
-                if (matcher.find()) 
+                if (matcher.find())
                 {
                     endpoint = matcher.group(1);
                     break;
                 }
             }
         }
-        catch (Exception e)  
+        catch (Exception e)
         {
             throw new ConfigurationException("CloudstackSnitch cannot access lease file.");
         }
 
-        if (endpoint == null) 
+        if (endpoint == null)
         {
             throw new ConfigurationException("No metadata server could be found in lease file.");
         }

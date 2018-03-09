@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableMap;
 
 public class ParameterizedClass
 {

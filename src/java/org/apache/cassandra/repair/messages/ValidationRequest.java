@@ -33,20 +33,20 @@ public class ValidationRequest extends RepairMessage
 {
     public static MessageSerializer serializer = new ValidationRequestSerializer();
 
-    public final int gcBefore;
+    public final int nowInSec;
 
-    public ValidationRequest(RepairJobDesc desc, int gcBefore)
+    public ValidationRequest(RepairJobDesc desc, int nowInSec)
     {
         super(Type.VALIDATION_REQUEST, desc);
-        this.gcBefore = gcBefore;
+        this.nowInSec = nowInSec;
     }
 
     @Override
     public String toString()
     {
         return "ValidationRequest{" +
-                "gcBefore=" + gcBefore +
-                "} " + super.toString();
+               "nowInSec=" + nowInSec +
+               "} " + super.toString();
     }
 
     @Override
@@ -56,13 +56,13 @@ public class ValidationRequest extends RepairMessage
         if (o == null || getClass() != o.getClass()) return false;
 
         ValidationRequest that = (ValidationRequest) o;
-        return gcBefore == that.gcBefore;
+        return nowInSec == that.nowInSec;
     }
 
     @Override
     public int hashCode()
     {
-        return gcBefore;
+        return nowInSec;
     }
 
     public static class ValidationRequestSerializer implements MessageSerializer<ValidationRequest>
@@ -70,7 +70,7 @@ public class ValidationRequest extends RepairMessage
         public void serialize(ValidationRequest message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
-            out.writeInt(message.gcBefore);
+            out.writeInt(message.nowInSec);
         }
 
         public ValidationRequest deserialize(DataInputPlus dis, int version) throws IOException
@@ -82,7 +82,7 @@ public class ValidationRequest extends RepairMessage
         public long serializedSize(ValidationRequest message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
-            size += TypeSizes.sizeof(message.gcBefore);
+            size += TypeSizes.sizeof(message.nowInSec);
             return size;
         }
     }

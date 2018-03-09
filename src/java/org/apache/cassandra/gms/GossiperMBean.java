@@ -18,6 +18,7 @@
 package org.apache.cassandra.gms;
 
 import java.net.UnknownHostException;
+import java.util.List;
 
 public interface GossiperMBean
 {
@@ -28,5 +29,9 @@ public interface GossiperMBean
     public void unsafeAssassinateEndpoint(String address) throws UnknownHostException;
 
     public void assassinateEndpoint(String address) throws UnknownHostException;
+
+    public List<String> reloadSeeds();
+
+    public List<String> getSeeds();
 
 }

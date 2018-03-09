@@ -17,38 +17,54 @@
  */
 package org.apache.cassandra.service.pager;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Pages a PartitionRangeReadCommand.
- *
- * Note: this only work for CQL3 queries for now (because thrift queries expect
- * a different limit on the rows than on the columns, which complicates it).
  */
 public class PartitionRangeQueryPager extends AbstractQueryPager
 {
-    private static final Logger logger = LoggerFactory.getLogger(PartitionRangeQueryPager.class);
-
     private volatile DecoratedKey lastReturnedKey;
     private volatile PagingState.RowMark lastReturnedRow;
 
-    public PartitionRangeQueryPager(PartitionRangeReadCommand command, PagingState state, int protocolVersion)
+    public PartitionRangeQueryPager(PartitionRangeReadCommand command, PagingState state, ProtocolVersion protocolVersion)
     {
         super(command, protocolVersion);
 
         if (state != null)
         {
-            lastReturnedKey = command.metadata().decorateKey(state.partitionKey);
+            lastReturnedKey = command.metadata().partitioner.decorateKey(state.partitionKey);
             lastReturnedRow = state.rowMark;
             restoreState(lastReturnedKey, state.remaining, state.remainingInPartition);
         }
+    }
+
+    public PartitionRangeQueryPager(ReadCommand command,
+                                    ProtocolVersion protocolVersion,
+                                    DecoratedKey lastReturnedKey,
+                                    PagingState.RowMark lastReturnedRow,
+                                    int remaining,
+                                    int remainingInPartition)
+    {
+        super(command, protocolVersion);
+        this.lastReturnedKey = lastReturnedKey;
+        this.lastReturnedRow = lastReturnedRow;
+        restoreState(lastReturnedKey, remaining, remainingInPartition);
+    }
+
+    public PartitionRangeQueryPager withUpdatedLimit(DataLimits newLimits)
+    {
+        return new PartitionRangeQueryPager(command.withUpdatedLimit(newLimits),
+                                            protocolVersion,
+                                            lastReturnedKey,
+                                            lastReturnedRow,
+                                            maxRemaining(),
+                                            remainingInPartition());
     }
 
     public PagingState state()

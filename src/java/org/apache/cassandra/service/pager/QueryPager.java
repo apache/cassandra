@@ -18,8 +18,9 @@
 package org.apache.cassandra.service.pager;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.EmptyIterators;
-import org.apache.cassandra.db.ReadOrderGroup;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -46,19 +47,19 @@ import org.apache.cassandra.service.ClientState;
  */
 public interface QueryPager
 {
-    public static final QueryPager EMPTY = new QueryPager()
+    QueryPager EMPTY = new QueryPager()
     {
-        public ReadOrderGroup startOrderGroup()
+        public ReadExecutionController executionController()
         {
-            return ReadOrderGroup.emptyGroup();
+            return ReadExecutionController.empty();
         }
 
-        public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState) throws RequestValidationException, RequestExecutionException
+        public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
         {
             return EmptyIterators.partition();
         }
 
-        public PartitionIterator fetchPageInternal(int pageSize, ReadOrderGroup orderGroup) throws RequestValidationException, RequestExecutionException
+        public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
         {
             return EmptyIterators.partition();
         }
@@ -77,6 +78,11 @@ public interface QueryPager
         {
             return null;
         }
+
+        public QueryPager withUpdatedLimit(DataLimits newLimits)
+        {
+            throw new UnsupportedOperationException();
+        }
     };
 
     /**
@@ -88,7 +94,7 @@ public interface QueryPager
      * {@code consistency} is a serial consistency.
      * @return the page of result.
      */
-    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState) throws RequestValidationException, RequestExecutionException;
+    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Starts a new read operation.
@@ -99,16 +105,16 @@ public interface QueryPager
      *
      * @return a newly started order group for this {@code QueryPager}.
      */
-    public ReadOrderGroup startOrderGroup();
+    public ReadExecutionController executionController();
 
     /**
      * Fetches the next page internally (in other, this does a local query).
      *
      * @param pageSize the maximum number of elements to return in the next page.
-     * @param orderGroup the {@code ReadOrderGroup} protecting the read.
+     * @param executionController the {@code ReadExecutionController} protecting the read.
      * @return the page of result.
      */
-    public PartitionIterator fetchPageInternal(int pageSize, ReadOrderGroup orderGroup) throws RequestValidationException, RequestExecutionException;
+    public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Whether or not this pager is exhausted, i.e. whether or not a call to
@@ -134,4 +140,12 @@ public interface QueryPager
      * beginning. If the pager is exhausted, the result is undefined.
      */
     public PagingState state();
+
+    /**
+     * Creates a new <code>QueryPager</code> that use the new limits.
+     *
+     * @param newLimits the new limits
+     * @return a new <code>QueryPager</code> that use the new limits
+     */
+    public QueryPager withUpdatedLimit(DataLimits newLimits);
 }

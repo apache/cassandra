@@ -22,7 +22,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.UUIDGen;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.Test;
@@ -300,7 +300,7 @@ public class JsonConversionTest
         ByteBuffer bb = type.getSerializer().serialize(value);
         int position = bb.position();
 
-        String output = type.toJSONString(bb, Server.CURRENT_VERSION);
+        String output = type.toJSONString(bb, ProtocolVersion.CURRENT);
         assertEquals(position, bb.position());
         assertEquals(json, output);
     }
@@ -313,7 +313,7 @@ public class JsonConversionTest
         ByteBuffer bb = type.fromJSONObject(jsonObject).bindAndGet(QueryOptions.DEFAULT);
         int position = bb.position();
 
-        String output = type.toJSONString(bb, Server.CURRENT_VERSION);
+        String output = type.toJSONString(bb, ProtocolVersion.CURRENT);
         assertEquals(position, bb.position());
         assertEquals(json, output);
     }

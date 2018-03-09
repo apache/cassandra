@@ -48,7 +48,7 @@ public class ExpiringMap<K, V>
             assert value != null;
             this.value = value;
             this.timeout = timeout;
-            this.createdAt = System.nanoTime();
+            this.createdAt = Clock.instance.nanoTime();
         }
 
         private boolean isReadyToDieAt(long atNano)
@@ -85,7 +85,7 @@ public class ExpiringMap<K, V>
         {
             public void run()
             {
-                long start = System.nanoTime();
+                long start = Clock.instance.nanoTime();
                 int n = 0;
                 for (Map.Entry<K, CacheableObject<V>> entry : cache.entrySet())
                 {

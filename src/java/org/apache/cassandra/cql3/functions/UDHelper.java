@@ -23,17 +23,18 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import com.google.common.reflect.TypeToken;
+
 import com.datastax.driver.core.CodecRegistry;
 import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.TypeCodec;
 import com.datastax.driver.core.exceptions.InvalidTypeException;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
- * Helper class for User Defined Functions + Aggregates.
+ * Helper class for User Defined Functions, Types and Aggregates.
  */
 public final class UDHelper
 {
@@ -45,7 +46,7 @@ public final class UDHelper
         try
         {
             Class<?> cls = Class.forName("com.datastax.driver.core.DataTypeClassNameParser");
-            Method m = cls.getDeclaredMethod("parseOne", String.class, ProtocolVersion.class, CodecRegistry.class);
+            Method m = cls.getDeclaredMethod("parseOne", String.class, com.datastax.driver.core.ProtocolVersion.class, CodecRegistry.class);
             m.setAccessible(true);
             methodParseOne = MethodHandles.lookup().unreflect(m);
             codecRegistry = new CodecRegistry();
@@ -64,7 +65,7 @@ public final class UDHelper
         return codecs;
     }
 
-    static TypeCodec<Object> codecFor(DataType dataType)
+    public static TypeCodec<Object> codecFor(DataType dataType)
     {
         return codecRegistry.codecFor(dataType);
     }
@@ -76,31 +77,32 @@ public final class UDHelper
      * @param calledOnNullInput whether to allow {@code null} as an argument value
      * @return array of same size with UDF arguments
      */
-    public static Class<?>[] javaTypes(TypeCodec<Object>[] dataTypes, boolean calledOnNullInput)
+    public static TypeToken<?>[] typeTokens(TypeCodec<Object>[] dataTypes, boolean calledOnNullInput)
     {
-        Class<?>[] paramTypes = new Class[dataTypes.length];
+        TypeToken<?>[] paramTypes = new TypeToken[dataTypes.length];
         for (int i = 0; i < paramTypes.length; i++)
         {
-            Class<?> clazz = asJavaClass(dataTypes[i]);
+            TypeToken<?> typeToken = dataTypes[i].getJavaType();
             if (!calledOnNullInput)
             {
                 // only care about classes that can be used in a data type
+                Class<?> clazz = typeToken.getRawType();
                 if (clazz == Integer.class)
-                    clazz = int.class;
+                    typeToken = TypeToken.of(int.class);
                 else if (clazz == Long.class)
-                    clazz = long.class;
+                    typeToken = TypeToken.of(long.class);
                 else if (clazz == Byte.class)
-                    clazz = byte.class;
+                    typeToken = TypeToken.of(byte.class);
                 else if (clazz == Short.class)
-                    clazz = short.class;
+                    typeToken = TypeToken.of(short.class);
                 else if (clazz == Float.class)
-                    clazz = float.class;
+                    typeToken = TypeToken.of(float.class);
                 else if (clazz == Double.class)
-                    clazz = double.class;
+                    typeToken = TypeToken.of(double.class);
                 else if (clazz == Boolean.class)
-                    clazz = boolean.class;
+                    typeToken = TypeToken.of(boolean.class);
             }
-            paramTypes[i] = clazz;
+            paramTypes[i] = typeToken;
         }
         return paramTypes;
     }
@@ -126,10 +128,16 @@ public final class UDHelper
     public static DataType driverType(AbstractType abstractType)
     {
         CQL3Type cqlType = abstractType.asCQL3Type();
+        String abstractTypeDef = cqlType.getType().toString();
+        return driverTypeFromAbstractType(abstractTypeDef);
+    }
+
+    public static DataType driverTypeFromAbstractType(String abstractTypeDef)
+    {
         try
         {
-            return (DataType) methodParseOne.invoke(cqlType.getType().toString(),
-                                                    ProtocolVersion.fromInt(Server.CURRENT_VERSION),
+            return (DataType) methodParseOne.invoke(abstractTypeDef,
+                                                    com.datastax.driver.core.ProtocolVersion.fromInt(ProtocolVersion.CURRENT.asInt()),
                                                     codecRegistry);
         }
         catch (RuntimeException | Error e)
@@ -139,21 +147,21 @@ public final class UDHelper
         }
         catch (Throwable e)
         {
-            throw new RuntimeException("cannot parse driver type " + cqlType.getType().toString(), e);
+            throw new RuntimeException("cannot parse driver type " + abstractTypeDef, e);
         }
     }
 
-    public static Object deserialize(TypeCodec<?> codec, int protocolVersion, ByteBuffer value)
+    public static Object deserialize(TypeCodec<?> codec, ProtocolVersion protocolVersion, ByteBuffer value)
     {
-        return codec.deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return codec.deserialize(value, com.datastax.driver.core.ProtocolVersion.fromInt(protocolVersion.asInt()));
     }
 
-    public static ByteBuffer serialize(TypeCodec<?> codec, int protocolVersion, Object value)
+    public static ByteBuffer serialize(TypeCodec<?> codec, ProtocolVersion protocolVersion, Object value)
     {
         if (!codec.getJavaType().getRawType().isAssignableFrom(value.getClass()))
-            throw new InvalidTypeException("Invalid value for CQL type " + codec.getCqlType().getName().toString());
+            throw new InvalidTypeException("Invalid value for CQL type " + codec.getCqlType().getName());
 
-        return ((TypeCodec)codec).serialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return ((TypeCodec)codec).serialize(value, com.datastax.driver.core.ProtocolVersion.fromInt(protocolVersion.asInt()));
     }
 
     public static Class<?> asJavaClass(TypeCodec<?> codec)

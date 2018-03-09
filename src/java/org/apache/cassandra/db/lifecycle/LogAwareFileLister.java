@@ -26,7 +26,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -50,7 +50,7 @@ final class LogAwareFileLister
     private final Path folder;
 
     // The filter determines which files the client wants returned
-    private final BiFunction<File, FileType, Boolean> filter; //file, file type
+    private final BiPredicate<File, FileType> filter; //file, file type
 
     // The behavior when we fail to list files
     private final OnTxnErr onTxnErr;
@@ -59,7 +59,7 @@ final class LogAwareFileLister
     NavigableMap<File, Directories.FileType> files = new TreeMap<>();
 
     @VisibleForTesting
-    LogAwareFileLister(Path folder, BiFunction<File, FileType, Boolean> filter, OnTxnErr onTxnErr)
+    LogAwareFileLister(Path folder, BiPredicate<File, FileType> filter, OnTxnErr onTxnErr)
     {
         this.folder = folder;
         this.filter = filter;
@@ -96,7 +96,7 @@ final class LogAwareFileLister
 
         // Finally we apply the user filter before returning our result
         return files.entrySet().stream()
-                    .filter((e) -> filter.apply(e.getKey(), e.getValue()))
+                    .filter((e) -> filter.test(e.getKey(), e.getValue()))
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toList());
     }
@@ -171,13 +171,12 @@ final class LogAwareFileLister
 
         logger.error("Failed to classify files in {}\n" +
                      "Some old files are missing but the txn log is still there and not completed\n" +
-                     "Files in folder:\n{}\nTxn: {}\n{}",
+                     "Files in folder:\n{}\nTxn: {}",
                      folder,
                      files.isEmpty()
                         ? "\t-"
                         : String.join("\n", files.keySet().stream().map(f -> String.format("\t%s", f)).collect(Collectors.toList())),
-                     txnFile.toString(),
-                     String.join("\n", txnFile.getRecords().stream().map(r -> String.format("\t%s", r)).collect(Collectors.toList())));
+                     txnFile.toString(true));
 
         // some old files are missing and yet the txn is still there and not completed
         // something must be wrong (see comment at the top of LogTransaction requiring txn to be

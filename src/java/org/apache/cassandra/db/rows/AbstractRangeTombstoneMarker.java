@@ -19,19 +19,19 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.db.ClusteringBoundOrBoundary;
 
-public abstract class AbstractRangeTombstoneMarker implements RangeTombstoneMarker
+public abstract class AbstractRangeTombstoneMarker<B extends ClusteringBoundOrBoundary> implements RangeTombstoneMarker
 {
-    protected final RangeTombstone.Bound bound;
+    protected final B bound;
 
-    protected AbstractRangeTombstoneMarker(RangeTombstone.Bound bound)
+    protected AbstractRangeTombstoneMarker(B bound)
     {
         this.bound = bound;
     }
 
-    public RangeTombstone.Bound clustering()
+    public B clustering()
     {
         return bound;
     }
@@ -56,9 +56,9 @@ public abstract class AbstractRangeTombstoneMarker implements RangeTombstoneMark
         return bound.isClose(reversed);
     }
 
-    public void validateData(CFMetaData metadata)
+    public void validateData(TableMetadata metadata)
     {
-        Slice.Bound bound = clustering();
+        ClusteringBoundOrBoundary bound = clustering();
         for (int i = 0; i < bound.size(); i++)
         {
             ByteBuffer value = bound.get(i);
@@ -67,11 +67,11 @@ public abstract class AbstractRangeTombstoneMarker implements RangeTombstoneMark
         }
     }
 
-    public String toString(CFMetaData metadata, boolean fullDetails)
+    public String toString(TableMetadata metadata, boolean fullDetails)
     {
         return toString(metadata);
     }
-    public String toString(CFMetaData metadata, boolean includeClusteringKeys, boolean fullDetails)
+    public String toString(TableMetadata metadata, boolean includeClusteringKeys, boolean fullDetails)
     {
         return toString(metadata);
     }

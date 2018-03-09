@@ -21,14 +21,20 @@ import java.nio.ByteBuffer;
 import java.util.Date;
 
 import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.statements.RequestValidations;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TimestampSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
  * Type for date-time values.
@@ -37,7 +43,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * pre-unix-epoch dates, sorting them *after* post-unix-epoch ones (due to it's
  * use of unsigned bytes comparison).
  */
-public class TimestampType extends AbstractType<Date>
+public class TimestampType extends TemporalType<Date>
 {
     private static final Logger logger = LoggerFactory.getLogger(TimestampType.class);
 
@@ -64,9 +70,16 @@ public class TimestampType extends AbstractType<Date>
       return ByteBufferUtil.bytes(TimestampSerializer.dateStringToTimestamp(source));
     }
 
+    @Override
     public ByteBuffer fromTimeInMillis(long millis) throws MarshalException
     {
         return ByteBufferUtil.bytes(millis);
+    }
+
+    @Override
+    public long toTimeInMillis(ByteBuffer value)
+    {
+        return ByteBufferUtil.toLong(value);
     }
 
     @Override
@@ -88,7 +101,7 @@ public class TimestampType extends AbstractType<Date>
     }
 
     @Override
-    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         return '"' + TimestampSerializer.getJsonDateFormatter().format(TimestampSerializer.instance.deserialize(buffer)) + '"';
     }
@@ -127,8 +140,15 @@ public class TimestampType extends AbstractType<Date>
     }
 
     @Override
-    protected int valueLengthIfFixed()
+    public int valueLengthIfFixed()
     {
         return 8;
+    }
+
+    @Override
+    protected void validateDuration(Duration duration)
+    {
+        if (!duration.hasMillisecondPrecision())
+            throw invalidRequest("The duration must have a millisecond precision. Was: %s", duration);
     }
 }

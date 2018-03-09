@@ -24,7 +24,7 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.*;
@@ -32,6 +32,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -80,13 +81,13 @@ public class Scrubber implements Closeable
     };
     private final SortedSet<Partition> outOfOrder = new TreeSet<>(partitionComparator);
 
-    public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData) throws IOException
+    public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData)
     {
         this(cfs, transaction, skipCorrupted, checkData, false);
     }
 
     public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData,
-                    boolean reinsertOverflowedTTLRows) throws IOException
+                    boolean reinsertOverflowedTTLRows)
     {
         this(cfs, transaction, skipCorrupted, new OutputHandler.LogOutput(), checkData, reinsertOverflowedTTLRows);
     }
@@ -97,7 +98,7 @@ public class Scrubber implements Closeable
                     boolean skipCorrupted,
                     OutputHandler outputHandler,
                     boolean checkData,
-                    boolean reinsertOverflowedTTLRows) throws IOException
+                    boolean reinsertOverflowedTTLRows)
     {
         this.cfs = cfs;
         this.transaction = transaction;
@@ -105,17 +106,14 @@ public class Scrubber implements Closeable
         this.outputHandler = outputHandler;
         this.skipCorrupted = skipCorrupted;
         this.reinsertOverflowedTTLRows = reinsertOverflowedTTLRows;
-        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata,
+        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(cfs.metadata(),
                                                                                                         sstable.descriptor.version,
                                                                                                         sstable.header);
+
         List<SSTableReader> toScrub = Collections.singletonList(sstable);
 
-        // Calculate the expected compacted filesize
-        this.destination = cfs.getDirectories().getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(toScrub, OperationType.SCRUB));
-        if (destination == null)
-            throw new IOException("disk full");
-
-        this.isCommutative = cfs.metadata.isCounter();
+        this.destination = cfs.getDirectories().getLocationForDisk(cfs.getDiskBoundaries().getCorrectDiskForSSTable(sstable));
+        this.isCommutative = cfs.metadata().isCounter();
 
         boolean hasIndexFile = (new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX))).exists();
         this.isIndex = cfs.isIndex();
@@ -126,7 +124,7 @@ public class Scrubber implements Closeable
         }
         this.checkData = checkData && !this.isIndex; //LocalByPartitionerType does not support validation
         this.expectedBloomFilterSize = Math.max(
-            cfs.metadata.params.minIndexInterval,
+            cfs.metadata().params.minIndexInterval,
             hasIndexFile ? SSTableReader.getApproximateKeyCount(toScrub) : 0);
 
         // loop through each row, deserializing to check for damage.
@@ -159,19 +157,20 @@ public class Scrubber implements Closeable
     {
         List<SSTableReader> finished = new ArrayList<>();
         boolean completed = false;
-        outputHandler.output(String.format("Scrubbing %s (%s bytes)", sstable, dataFile.length()));
-        try (SSTableRewriter writer = SSTableRewriter.construct(cfs, transaction, false, sstable.maxDataAge, transaction.isOffline());
+        outputHandler.output(String.format("Scrubbing %s (%s)", sstable, FBUtilities.prettyPrintMemory(dataFile.length())));
+        try (SSTableRewriter writer = SSTableRewriter.construct(cfs, transaction, false, sstable.maxDataAge);
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable)))
         {
             nextIndexKey = indexAvailable() ? ByteBufferUtil.readWithShortLength(indexFile) : null;
             if (indexAvailable())
             {
                 // throw away variable so we don't have a side effect in the assert
-                long firstRowPositionFromIndex = rowIndexEntrySerializer.deserialize(indexFile).position;
+                long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
                 assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
             }
 
-            writer.switchWriter(CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, sstable.getSSTableMetadata().repairedAt, sstable, transaction));
+            StatsMetadata metadata = sstable.getSSTableMetadata();
+            writer.switchWriter(CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, sstable, transaction));
 
             DecoratedKey prevKey = null;
 
@@ -208,7 +207,7 @@ public class Scrubber implements Closeable
 
                 // avoid an NPE if key is null
                 String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
-                outputHandler.debug(String.format("row %s is %s bytes", keyName, dataSizeFromIndex));
+                outputHandler.debug(String.format("row %s is %s", keyName, FBUtilities.prettyPrintMemory(dataSizeFromIndex)));
 
                 assert currentIndexKey != null || !indexAvailable();
 
@@ -276,9 +275,9 @@ public class Scrubber implements Closeable
             if (!outOfOrder.isEmpty())
             {
                 // out of order rows, but no bad rows found - we can keep our repairedAt time
-                long repairedAt = badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt;
+                long repairedAt = badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : metadata.repairedAt;
                 SSTableReader newInOrderSstable;
-                try (SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, sstable, transaction))
+                try (SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, metadata.pendingRepair, sstable, transaction))
                 {
                     for (Partition partition : outOfOrder)
                         inOrderWriter.append(partition.unfilteredIterator());
@@ -327,7 +326,7 @@ public class Scrubber implements Closeable
         // that one row is out of order, it will stop returning them. The remaining rows will be sorted and added
         // to the outOfOrder set that will be later written to a new SSTable.
         OrderCheckerIterator sstableIterator = new OrderCheckerIterator(getIterator(key),
-                                                                        cfs.metadata.comparator);
+                                                                        cfs.metadata().comparator);
 
         try (UnfilteredRowIterator iterator = withValidation(sstableIterator, dataFile.getPath()))
         {
@@ -358,7 +357,7 @@ public class Scrubber implements Closeable
      */
     private UnfilteredRowIterator getIterator(DecoratedKey key)
     {
-        RowMergingSSTableIterator rowMergingIterator = new RowMergingSSTableIterator(sstable, dataFile, key);
+        RowMergingSSTableIterator rowMergingIterator = new RowMergingSSTableIterator(SSTableIdentityIterator.create(sstable, dataFile, key));
         return reinsertOverflowedTTLRows ? new FixNegativeLocalDeletionTimeIterator(rowMergingIterator,
                                                                                     outputHandler,
                                                                                     negativeLocalDeletionInfoMetrics) : rowMergingIterator;
@@ -374,7 +373,7 @@ public class Scrubber implements Closeable
 
             nextRowPositionFromIndex = !indexAvailable()
                     ? dataFile.length()
-                    : rowIndexEntrySerializer.deserialize(indexFile).position;
+                    : rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
         }
         catch (Throwable th)
         {
@@ -471,7 +470,7 @@ public class Scrubber implements Closeable
         {
             try
             {
-                return new CompactionInfo(sstable.metadata,
+                return new CompactionInfo(sstable.metadata(),
                                           OperationType.SCRUB,
                                           dataFile.getFilePointer(),
                                           dataFile.length(),
@@ -479,7 +478,7 @@ public class Scrubber implements Closeable
             }
             catch (Exception e)
             {
-                throw new RuntimeException();
+                throw new RuntimeException(e);
             }
         }
     }
@@ -516,41 +515,45 @@ public class Scrubber implements Closeable
      *
      * For more details, refer to CASSANDRA-12144.
      */
-    private static class RowMergingSSTableIterator extends SSTableIdentityIterator
+    private static class RowMergingSSTableIterator extends WrappingUnfilteredRowIterator
     {
-        RowMergingSSTableIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key)
+        Unfiltered nextToOffer = null;
+
+        RowMergingSSTableIterator(UnfilteredRowIterator source)
         {
-            super(sstable, file, key);
+            super(source);
         }
 
         @Override
-        protected Unfiltered doCompute()
+        public boolean hasNext()
         {
-            if (!iterator.hasNext())
-                return endOfData();
+            return nextToOffer != null || wrapped.hasNext();
+        }
 
-            Unfiltered next = iterator.next();
-            if (!next.isRow())
-                return next;
+        @Override
+        public Unfiltered next()
+        {
+            Unfiltered next = nextToOffer != null ? nextToOffer : wrapped.next();
 
-            while (iterator.hasNext())
+            if (next.isRow())
             {
-                Unfiltered peek = iterator.peek();
-                // If there was a duplicate row, merge it.
-                if (next.clustering().equals(peek.clustering()) && peek.isRow())
+                while (wrapped.hasNext())
                 {
-                    iterator.next(); // Make sure that the peeked item was consumed.
+                    Unfiltered peek = wrapped.next();
+                    if (!peek.isRow() || !next.clustering().equals(peek.clustering()))
+                    {
+                        nextToOffer = peek; // Offer peek in next call
+                        return next;
+                    }
+
+                    // Duplicate row, merge it.
                     next = Rows.merge((Row) next, (Row) peek, FBUtilities.nowInSeconds());
-                }
-                else
-                {
-                    break;
                 }
             }
 
+            nextToOffer = null;
             return next;
         }
-
     }
 
     /**
@@ -579,7 +582,7 @@ public class Scrubber implements Closeable
             this.comparator = comparator;
         }
 
-        public CFMetaData metadata()
+        public TableMetadata metadata()
         {
             return iterator.metadata();
         }
@@ -589,7 +592,7 @@ public class Scrubber implements Closeable
             return iterator.isReverseOrder();
         }
 
-        public PartitionColumns columns()
+        public RegularAndStaticColumns columns()
         {
             return iterator.columns();
         }
@@ -677,7 +680,7 @@ public class Scrubber implements Closeable
             this.negativeLocalExpirationTimeMetrics = negativeLocalDeletionInfoMetrics;
         }
 
-        public CFMetaData metadata()
+        public TableMetadata metadata()
         {
             return iterator.metadata();
         }
@@ -687,7 +690,7 @@ public class Scrubber implements Closeable
             return iterator.isReverseOrder();
         }
 
-        public PartitionColumns columns()
+        public RegularAndStaticColumns columns()
         {
             return iterator.columns();
         }

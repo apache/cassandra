@@ -27,6 +27,7 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import javax.script.*;
 
+import jdk.nashorn.api.scripting.AbstractJSObject;
 import jdk.nashorn.api.scripting.ClassFilter;
 import jdk.nashorn.api.scripting.NashornScriptEngine;
 import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
@@ -34,6 +35,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 final class ScriptBasedUDFunction extends UDFunction
 {
@@ -78,7 +80,9 @@ final class ScriptBasedUDFunction extends UDFunction
     "com.google.common.reflect",
     // following required by UDF
     "com.datastax.driver.core",
-    "com.datastax.driver.core.utils"
+    "com.datastax.driver.core.utils",
+    //Driver Metadata class requires hashmap from this
+    "com.datastax.shaded.netty.util.collection"
     };
 
     // use a JVM standard ExecutorService as DebuggableThreadPoolExecutor references internal
@@ -122,6 +126,7 @@ final class ScriptBasedUDFunction extends UDFunction
     }
 
     private final CompiledScript script;
+    private final Object udfContextBinding;
 
     ScriptBasedUDFunction(FunctionName name,
                           List<ColumnIdentifier> argNames,
@@ -149,6 +154,10 @@ final class ScriptBasedUDFunction extends UDFunction
             throw new InvalidRequestException(
                                              String.format("Failed to compile function '%s' for language %s: %s", name, language, e));
         }
+
+        // It's not always possible to simply pass a plain Java object as a binding to Nashorn and
+        // let the script execute methods on it.
+        udfContextBinding = new UDFContextWrapper();
     }
 
     protected ExecutorService executor()
@@ -156,17 +165,41 @@ final class ScriptBasedUDFunction extends UDFunction
         return executor;
     }
 
-    public ByteBuffer executeUserDefined(int protocolVersion, List<ByteBuffer> parameters)
+    public ByteBuffer executeUserDefined(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
     {
         Object[] params = new Object[argTypes.size()];
         for (int i = 0; i < params.length; i++)
             params[i] = compose(protocolVersion, i, parameters.get(i));
 
+        Object result = executeScriptInternal(params);
+
+        return decompose(protocolVersion, result);
+    }
+
+    /**
+     * Like {@link UDFunction#executeUserDefined(ProtocolVersion, List)} but the first parameter is already in non-serialized form.
+     * Remaining parameters (2nd paramters and all others) are in {@code parameters}.
+     * This is used to prevent superfluous (de)serialization of the state of aggregates.
+     * Means: scalar functions of aggregates are called using this variant.
+     */
+    protected Object executeAggregateUserDefined(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> parameters)
+    {
+        Object[] params = new Object[argTypes.size()];
+        params[0] = firstParam;
+        for (int i = 1; i < params.length; i++)
+            params[i] = compose(protocolVersion, i, parameters.get(i - 1));
+
+        return executeScriptInternal(params);
+    }
+
+    private Object executeScriptInternal(Object[] params)
+    {
         ScriptContext scriptContext = new SimpleScriptContext();
         scriptContext.setAttribute("javax.script.filename", this.name.toString(), ScriptContext.ENGINE_SCOPE);
         Bindings bindings = scriptContext.getBindings(ScriptContext.ENGINE_SCOPE);
         for (int i = 0; i < params.length; i++)
             bindings.put(argNames.get(i).toString(), params[i]);
+        bindings.put("udfContext", udfContextBinding);
 
         Object result;
         try
@@ -235,6 +268,70 @@ final class ScriptBasedUDFunction extends UDFunction
             }
         }
 
-        return decompose(protocolVersion, result);
+        return result;
+    }
+
+    private final class UDFContextWrapper extends AbstractJSObject
+    {
+        private final AbstractJSObject fRetUDT;
+        private final AbstractJSObject fArgUDT;
+        private final AbstractJSObject fRetTup;
+        private final AbstractJSObject fArgTup;
+
+        UDFContextWrapper()
+        {
+            fRetUDT = new AbstractJSObject()
+            {
+                public Object call(Object thiz, Object... args)
+                {
+                    return udfContext.newReturnUDTValue();
+                }
+            };
+            fArgUDT = new AbstractJSObject()
+            {
+                public Object call(Object thiz, Object... args)
+                {
+                    if (args[0] instanceof String)
+                        return udfContext.newArgUDTValue((String) args[0]);
+                    if (args[0] instanceof Number)
+                        return udfContext.newArgUDTValue(((Number) args[0]).intValue());
+                    return super.call(thiz, args);
+                }
+            };
+            fRetTup = new AbstractJSObject()
+            {
+                public Object call(Object thiz, Object... args)
+                {
+                    return udfContext.newReturnTupleValue();
+                }
+            };
+            fArgTup = new AbstractJSObject()
+            {
+                public Object call(Object thiz, Object... args)
+                {
+                    if (args[0] instanceof String)
+                        return udfContext.newArgTupleValue((String) args[0]);
+                    if (args[0] instanceof Number)
+                        return udfContext.newArgTupleValue(((Number) args[0]).intValue());
+                    return super.call(thiz, args);
+                }
+            };
+        }
+
+        public Object getMember(String name)
+        {
+            switch(name)
+            {
+                case "newReturnUDTValue":
+                    return fRetUDT;
+                case "newArgUDTValue":
+                    return fArgUDT;
+                case "newReturnTupleValue":
+                    return fRetTup;
+                case "newArgTupleValue":
+                    return fArgTup;
+            }
+            return super.getMember(name);
+        }
     }
 }

@@ -28,7 +28,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 import com.google.common.collect.*;
 
-import io.airlift.command.*;
+import io.airlift.airline.*;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.nodetool.*;
@@ -59,11 +59,13 @@ public class NodeTool
                 TableHistograms.class,
                 Cleanup.class,
                 ClearSnapshot.class,
+                ClientStats.class,
                 Compact.class,
                 Scrub.class,
                 Verify.class,
                 Flush.class,
                 UpgradeSSTable.class,
+                GarbageCollect.class,
                 DisableAutoCompaction.class,
                 EnableAutoCompaction.class,
                 CompactionStats.class,
@@ -75,15 +77,20 @@ public class NodeTool
                 EnableGossip.class,
                 DisableGossip.class,
                 EnableHandoff.class,
-                EnableThrift.class,
+                EnableFullQueryLog.class,
+                DisableFullQueryLog.class,
                 GcStats.class,
+                GetBatchlogReplayTrottle.class,
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
+                GetTimeout.class,
                 GetStreamThroughput.class,
                 GetTraceProbability.class,
                 GetInterDCStreamThroughput.class,
                 GetEndpoints.class,
+                GetSeeds.class,
                 GetSSTables.class,
+                GetMaxHintWindow.class,
                 GossipInfo.class,
                 InvalidateKeyCache.class,
                 InvalidateRowCache.class,
@@ -97,23 +104,33 @@ public class NodeTool
                 Refresh.class,
                 RemoveNode.class,
                 Assassinate.class,
+                ReloadSeeds.class,
+                ResetFullQueryLog.class,
                 Repair.class,
+                RepairAdmin.class,
                 ReplayBatchlog.class,
                 SetCacheCapacity.class,
                 SetHintedHandoffThrottleInKB.class,
+                SetBatchlogReplayThrottle.class,
                 SetCompactionThreshold.class,
                 SetCompactionThroughput.class,
+                GetConcurrentCompactors.class,
+                SetConcurrentCompactors.class,
+                GetConcurrentViewBuilders.class,
+                SetConcurrentViewBuilders.class,
+                SetTimeout.class,
                 SetStreamThroughput.class,
                 SetInterDCStreamThroughput.class,
                 SetTraceProbability.class,
+                SetMaxHintWindow.class,
                 Snapshot.class,
                 ListSnapshots.class,
                 Status.class,
                 StatusBinary.class,
                 StatusGossip.class,
-                StatusThrift.class,
                 StatusBackup.class,
                 StatusHandoff.class,
+                StatusAutoCompaction.class,
                 Stop.class,
                 StopDaemon.class,
                 Version.class,
@@ -126,7 +143,6 @@ public class NodeTool
                 ReloadLocalSchema.class,
                 ReloadTriggers.class,
                 SetCacheKeysToSave.class,
-                DisableThrift.class,
                 DisableHandoff.class,
                 Drain.class,
                 TruncateHints.class,
@@ -137,7 +153,11 @@ public class NodeTool
                 DisableHintsForDC.class,
                 EnableHintsForDC.class,
                 FailureDetectorInfo.class,
-                RefreshSizeEstimates.class
+                RefreshSizeEstimates.class,
+                RelocateSSTables.class,
+                ViewBuildStatus.class,
+                HandoffWindow.class,
+                ReloadSslCertificates.class
         );
 
         Cli.CliBuilder<Runnable> builder = Cli.builder("nodetool");
@@ -232,6 +252,9 @@ public class NodeTool
         @Option(type = OptionType.GLOBAL, name = {"-pwf", "--password-file"}, description = "Path to the JMX password file")
         private String passwordFilePath = EMPTY;
 
+        @Option(type = OptionType.GLOBAL, name = { "-wp", "--with-port"}, description = "Operate in 4.0 mode with hosts disambiguated by port number", arity = 0)
+        protected boolean withPort = false;
+
         @Override
         public void run()
         {
@@ -306,7 +329,7 @@ public class NodeTool
                     nodeClient = new NodeProbe(host, parseInt(port));
                 else
                     nodeClient = new NodeProbe(host, parseInt(port), username, password);
-            } catch (IOException e)
+            } catch (IOException | SecurityException e)
             {
                 Throwable rootCause = Throwables.getRootCause(e);
                 System.err.println(format("nodetool: Failed to connect to '%s:%s' - %s: '%s'.", host, port, rootCause.getClass().getSimpleName(), rootCause.getMessage()));
@@ -373,6 +396,29 @@ public class NodeTool
                 String dc = epSnitchInfo.getDatacenter(tokenAndEndPoint.getValue());
                 if (!ownershipByDc.containsKey(dc))
                     ownershipByDc.put(dc, new SetHostStat(resolveIp));
+                ownershipByDc.get(dc).add(tokenAndEndPoint.getKey(), tokenAndEndPoint.getValue(), ownerships);
+            }
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return ownershipByDc;
+    }
+
+    public static SortedMap<String, SetHostStatWithPort> getOwnershipByDcWithPort(NodeProbe probe, boolean resolveIp,
+                                                                  Map<String, String> tokenToEndpoint,
+                                                                  Map<String, Float> ownerships)
+    {
+        SortedMap<String, SetHostStatWithPort> ownershipByDc = Maps.newTreeMap();
+        EndpointSnitchInfoMBean epSnitchInfo = probe.getEndpointSnitchInfoProxy();
+        try
+        {
+            for (Entry<String, String> tokenAndEndPoint : tokenToEndpoint.entrySet())
+            {
+                String dc = epSnitchInfo.getDatacenter(tokenAndEndPoint.getValue());
+                if (!ownershipByDc.containsKey(dc))
+                    ownershipByDc.put(dc, new SetHostStatWithPort(resolveIp));
                 ownershipByDc.get(dc).add(tokenAndEndPoint.getKey(), tokenAndEndPoint.getValue(), ownerships);
             }
         }

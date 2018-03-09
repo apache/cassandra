@@ -31,14 +31,15 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
@@ -64,7 +65,7 @@ public class HintsReaderTest
 
     private static Mutation createMutation(int index, long timestamp, String ks, String tb)
     {
-        CFMetaData table = Schema.instance.getCFMetaData(ks, tb);
+        TableMetadata table = Schema.instance.getTableMetadata(ks, tb);
         return new RowUpdateBuilder(table, timestamp, bytes(index))
                .clustering(bytes(index))
                .add("val", bytes(index))
@@ -157,11 +158,12 @@ public class HintsReaderTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(ks, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(ks, CF_STANDARD2));
+
         directory = Files.createTempDirectory(null).toFile();
         try
         {
             generateHints(3, ks);
-            Schema.instance.dropTable(ks, CF_STANDARD1);
+            MigrationManager.announceTableDrop(ks, CF_STANDARD1, true);
             readHints(3, 1);
         }
         finally

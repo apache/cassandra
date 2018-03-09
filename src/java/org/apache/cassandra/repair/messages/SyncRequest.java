@@ -18,7 +18,6 @@
 package org.apache.cassandra.repair.messages;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -30,9 +29,11 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.streaming.PreviewKind;
 
 /**
  * Body part of SYNC_REQUEST repair message.
@@ -44,18 +45,20 @@ public class SyncRequest extends RepairMessage
 {
     public static MessageSerializer serializer = new SyncRequestSerializer();
 
-    public final InetAddress initiator;
-    public final InetAddress src;
-    public final InetAddress dst;
+    public final InetAddressAndPort initiator;
+    public final InetAddressAndPort src;
+    public final InetAddressAndPort dst;
     public final Collection<Range<Token>> ranges;
+    public final PreviewKind previewKind;
 
-    public SyncRequest(RepairJobDesc desc, InetAddress initiator, InetAddress src, InetAddress dst, Collection<Range<Token>> ranges)
-    {
+   public SyncRequest(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, Collection<Range<Token>> ranges, PreviewKind previewKind)
+   {
         super(Type.SYNC_REQUEST, desc);
         this.initiator = initiator;
         this.src = src;
         this.dst = dst;
         this.ranges = ranges;
+        this.previewKind = previewKind;
     }
 
     @Override
@@ -69,13 +72,14 @@ public class SyncRequest extends RepairMessage
                initiator.equals(req.initiator) &&
                src.equals(req.src) &&
                dst.equals(req.dst) &&
-               ranges.equals(req.ranges);
+               ranges.equals(req.ranges) &&
+               previewKind == req.previewKind;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(messageType, desc, initiator, src, dst, ranges);
+        return Objects.hash(messageType, desc, initiator, src, dst, ranges, previewKind);
     }
 
     public static class SyncRequestSerializer implements MessageSerializer<SyncRequest>
@@ -83,37 +87,40 @@ public class SyncRequest extends RepairMessage
         public void serialize(SyncRequest message, DataOutputPlus out, int version) throws IOException
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
-            CompactEndpointSerializationHelper.serialize(message.initiator, out);
-            CompactEndpointSerializationHelper.serialize(message.src, out);
-            CompactEndpointSerializationHelper.serialize(message.dst, out);
+            CompactEndpointSerializationHelper.instance.serialize(message.initiator, out, version);
+            CompactEndpointSerializationHelper.instance.serialize(message.src, out, version);
+            CompactEndpointSerializationHelper.instance.serialize(message.dst, out, version);
             out.writeInt(message.ranges.size());
             for (Range<Token> range : message.ranges)
             {
                 MessagingService.validatePartitioner(range);
                 AbstractBounds.tokenSerializer.serialize(range, out, version);
             }
+            out.writeInt(message.previewKind.getSerializationVal());
         }
 
         public SyncRequest deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
-            InetAddress owner = CompactEndpointSerializationHelper.deserialize(in);
-            InetAddress src = CompactEndpointSerializationHelper.deserialize(in);
-            InetAddress dst = CompactEndpointSerializationHelper.deserialize(in);
+            InetAddressAndPort owner = CompactEndpointSerializationHelper.instance.deserialize(in, version);
+            InetAddressAndPort src = CompactEndpointSerializationHelper.instance.deserialize(in, version);
+            InetAddressAndPort dst = CompactEndpointSerializationHelper.instance.deserialize(in, version);
             int rangesCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangesCount);
             for (int i = 0; i < rangesCount; ++i)
                 ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, MessagingService.globalPartitioner(), version));
-            return new SyncRequest(desc, owner, src, dst, ranges);
+            PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
+            return new SyncRequest(desc, owner, src, dst, ranges, previewKind);
         }
 
         public long serializedSize(SyncRequest message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
-            size += 3 * CompactEndpointSerializationHelper.serializedSize(message.initiator);
+            size += 3 * CompactEndpointSerializationHelper.instance.serializedSize(message.initiator, version);
             size += TypeSizes.sizeof(message.ranges.size());
             for (Range<Token> range : message.ranges)
                 size += AbstractBounds.tokenSerializer.serializedSize(range, version);
+            size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
             return size;
         }
     }
@@ -126,6 +133,7 @@ public class SyncRequest extends RepairMessage
                 ", src=" + src +
                 ", dst=" + dst +
                 ", ranges=" + ranges +
+                ", previewKind=" + previewKind +
                 "} " + super.toString();
     }
 }

@@ -162,6 +162,20 @@ class OptionSimple extends Option implements Serializable
         return GroupedOptions.formatLong(sb.toString(), description);
     }
 
+    public String getOptionAsString()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append(displayPrefix);
+
+        if (!(displayPrefix.endsWith("=") || displayPrefix.endsWith("<") || displayPrefix.endsWith(">")))
+        {
+            sb.append(setByUser() ? ":*set*" : ":*not set*");
+        }else{
+            sb.append(value == null ? defaultValue : value);
+        }
+        return sb.toString();
+    }
+
     public List<String> multiLineDisplay()
     {
         return Collections.emptyList();

@@ -18,6 +18,8 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -74,16 +76,16 @@ public class QueryState
         this.preparedTracingSession = sessionId;
     }
 
-    public void createTracingSession()
+    public void createTracingSession(Map<String,ByteBuffer> customPayload)
     {
         UUID session = this.preparedTracingSession;
         if (session == null)
         {
-            Tracing.instance.newSession();
+            Tracing.instance.newSession(customPayload);
         }
         else
         {
-            Tracing.instance.newSession(session);
+            Tracing.instance.newSession(session, customPayload);
             this.preparedTracingSession = null;
         }
     }

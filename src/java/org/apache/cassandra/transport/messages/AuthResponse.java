@@ -23,6 +23,7 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.exceptions.AuthenticationException;
+import org.apache.cassandra.metrics.AuthMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
 
@@ -35,9 +36,9 @@ public class AuthResponse extends Message.Request
 {
     public static final Message.Codec<AuthResponse> codec = new Message.Codec<AuthResponse>()
     {
-        public AuthResponse decode(ByteBuf body, int version)
+        public AuthResponse decode(ByteBuf body, ProtocolVersion version)
         {
-            if (version == 1)
+            if (version == ProtocolVersion.V1)
                 throw new ProtocolException("SASL Authentication is not supported in version 1 of the protocol");
 
             ByteBuffer b = CBUtil.readValue(body);
@@ -46,12 +47,12 @@ public class AuthResponse extends Message.Request
             return new AuthResponse(token);
         }
 
-        public void encode(AuthResponse response, ByteBuf dest, int version)
+        public void encode(AuthResponse response, ByteBuf dest, ProtocolVersion version)
         {
             CBUtil.writeValue(response.token, dest);
         }
 
-        public int encodedSize(AuthResponse response, int version)
+        public int encodedSize(AuthResponse response, ProtocolVersion version)
         {
             return CBUtil.sizeOfValue(response.token);
         }
@@ -67,7 +68,7 @@ public class AuthResponse extends Message.Request
     }
 
     @Override
-    public Response execute(QueryState queryState)
+    public Response execute(QueryState queryState, long queryStartNanoTime)
     {
         try
         {
@@ -77,6 +78,7 @@ public class AuthResponse extends Message.Request
             {
                 AuthenticatedUser user = negotiator.getAuthenticatedUser();
                 queryState.getClientState().login(user);
+                AuthMetrics.instance.markSuccess();
                 // authentication is complete, send a ready message to the client
                 return new AuthSuccess(challenge);
             }
@@ -87,6 +89,7 @@ public class AuthResponse extends Message.Request
         }
         catch (AuthenticationException e)
         {
+            AuthMetrics.instance.markFailure();
             return ErrorMessage.fromException(e);
         }
     }

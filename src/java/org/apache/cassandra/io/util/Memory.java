@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
+
+import org.apache.cassandra.utils.Architecture;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.MemoryUtil;
@@ -51,16 +53,8 @@ public class Memory implements AutoCloseable
     private static final long BYTE_ARRAY_BASE_OFFSET = unsafe.arrayBaseOffset(byte[].class);
 
     private static final boolean bigEndian = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
-    private static final boolean unaligned;
 
     public static final ByteBuffer[] NO_BYTE_BUFFERS = new ByteBuffer[0];
-
-    static
-    {
-        String arch = System.getProperty("os.arch");
-        unaligned = arch.equals("i386") || arch.equals("x86")
-                    || arch.equals("amd64") || arch.equals("x86_64") || arch.equals("s390x");
-    }
 
     protected long peer;
     // size of the memory region
@@ -113,7 +107,7 @@ public class Memory implements AutoCloseable
     public void setLong(long offset, long l)
     {
         checkBounds(offset, offset + 8);
-        if (unaligned)
+        if (Architecture.IS_UNALIGNED)
         {
             unsafe.putLong(peer + offset, l);
         }
@@ -152,7 +146,7 @@ public class Memory implements AutoCloseable
     public void setInt(long offset, int l)
     {
         checkBounds(offset, offset + 4);
-        if (unaligned)
+        if (Architecture.IS_UNALIGNED)
         {
             unsafe.putInt(peer + offset, l);
         }
@@ -183,7 +177,7 @@ public class Memory implements AutoCloseable
     public void setShort(long offset, short l)
     {
         checkBounds(offset, offset + 2);
-        if (unaligned)
+        if (Architecture.IS_UNALIGNED)
         {
             unsafe.putShort(peer + offset, l);
         }
@@ -258,15 +252,18 @@ public class Memory implements AutoCloseable
     public long getLong(long offset)
     {
         checkBounds(offset, offset + 8);
-        if (unaligned) {
+        if (Architecture.IS_UNALIGNED)
+        {
             return unsafe.getLong(peer + offset);
         } else {
             return getLongByByte(peer + offset);
         }
     }
 
-    private long getLongByByte(long address) {
-        if (bigEndian) {
+    private long getLongByByte(long address)
+    {
+        if (bigEndian)
+        {
             return  (((long) unsafe.getByte(address    )       ) << 56) |
                     (((long) unsafe.getByte(address + 1) & 0xff) << 48) |
                     (((long) unsafe.getByte(address + 2) & 0xff) << 40) |
@@ -275,7 +272,9 @@ public class Memory implements AutoCloseable
                     (((long) unsafe.getByte(address + 5) & 0xff) << 16) |
                     (((long) unsafe.getByte(address + 6) & 0xff) <<  8) |
                     (((long) unsafe.getByte(address + 7) & 0xff)      );
-        } else {
+        }
+        else
+        {
             return  (((long) unsafe.getByte(address + 7)       ) << 56) |
                     (((long) unsafe.getByte(address + 6) & 0xff) << 48) |
                     (((long) unsafe.getByte(address + 5) & 0xff) << 40) |
@@ -290,24 +289,31 @@ public class Memory implements AutoCloseable
     public int getInt(long offset)
     {
         checkBounds(offset, offset + 4);
-        if (unaligned) {
+        if (Architecture.IS_UNALIGNED)
+        {
             return unsafe.getInt(peer + offset);
-        } else {
+        }
+        else
+        {
             return getIntByByte(peer + offset);
         }
     }
 
-    private int getIntByByte(long address) {
-        if (bigEndian) {
-            return  (((int) unsafe.getByte(address    )       ) << 24) |
-                    (((int) unsafe.getByte(address + 1) & 0xff) << 16) |
-                    (((int) unsafe.getByte(address + 2) & 0xff) << 8 ) |
-                    (((int) unsafe.getByte(address + 3) & 0xff)      );
-        } else {
-            return  (((int) unsafe.getByte(address + 3)       ) << 24) |
-                    (((int) unsafe.getByte(address + 2) & 0xff) << 16) |
-                    (((int) unsafe.getByte(address + 1) & 0xff) <<  8) |
-                    (((int) unsafe.getByte(address    ) & 0xff)      );
+    private int getIntByByte(long address)
+    {
+        if (bigEndian)
+        {
+            return  ((unsafe.getByte(address    )       ) << 24) |
+                    ((unsafe.getByte(address + 1) & 0xff) << 16) |
+                    ((unsafe.getByte(address + 2) & 0xff) << 8 ) |
+                    ((unsafe.getByte(address + 3) & 0xff)      );
+        }
+        else
+        {
+            return  ((unsafe.getByte(address + 3)       ) << 24) |
+                    ((unsafe.getByte(address + 2) & 0xff) << 16) |
+                    ((unsafe.getByte(address + 1) & 0xff) <<  8) |
+                    ((unsafe.getByte(address    ) & 0xff)      );
         }
     }
 

@@ -25,8 +25,10 @@ import java.util.Map;
 import java.util.Random;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
@@ -34,9 +36,18 @@ import static org.junit.Assert.fail;
 
 public abstract class PartitionerTestCase
 {
+    private static final double SPLIT_RATIO_MIN = 0.10;
+    private static final double SPLIT_RATIO_MAX = 1 - SPLIT_RATIO_MIN;
+
     protected IPartitioner partitioner;
 
     public abstract void initPartitioner();
+
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Before
     public void clean()
@@ -108,6 +119,46 @@ public abstract class PartitionerTestCase
     {
         assertMidpoint(tok("b"), tok("a"), 16);
         assertMidpoint(tok("bbb"), tok("a"), 16);
+    }
+
+    /**
+     * Test split token ranges
+     */
+    public void assertSplit(Token left, Token right, int depth)
+    {
+        Random rand = new Random();
+        for (int i = 0; i < 1000; i++)
+        {
+            assertSplit(left, right ,rand, depth);
+        }
+    }
+
+    protected abstract boolean shouldStopRecursion(Token left, Token right);
+
+    private void assertSplit(Token left, Token right, Random rand, int depth)
+    {
+        if (shouldStopRecursion(left, right))
+        {
+            System.out.println("Stop assertSplit at depth: " + depth);
+            return;
+        }
+
+        double ratio = SPLIT_RATIO_MIN + (SPLIT_RATIO_MAX - SPLIT_RATIO_MIN) * rand.nextDouble();
+        Token newToken = partitioner.split(left, right, ratio);
+
+        assertEquals("For " + left + "," + right + ", new token: " + newToken,
+                     ratio, left.size(newToken) / left.size(right), 0.1);
+
+        assert new Range<Token>(left, right).contains(newToken)
+            : "For " + left + "," + right + ": range did not contain new token:" + newToken;
+
+        if (depth < 1)
+            return;
+
+        if (rand.nextBoolean())
+            assertSplit(left, newToken, rand, depth-1);
+        else
+            assertSplit(newToken, right, rand, depth-1);
     }
 
     @Test

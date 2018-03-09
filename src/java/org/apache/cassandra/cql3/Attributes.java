@@ -20,12 +20,13 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.ExpirationDateOverflowHandling;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -99,7 +100,7 @@ public class Attributes
         return LongType.instance.compose(tval);
     }
 
-    public int getTimeToLive(QueryOptions options, CFMetaData metadata) throws InvalidRequestException
+    public int getTimeToLive(QueryOptions options, TableMetadata metadata) throws InvalidRequestException
     {
         if (timeToLive == null)
         {
@@ -109,10 +110,10 @@ public class Attributes
 
         ByteBuffer tval = timeToLive.bindAndGet(options);
         if (tval == null)
-            throw new InvalidRequestException("Invalid null value of TTL");
-
-        if (tval == ByteBufferUtil.UNSET_BYTE_BUFFER) // treat as unlimited
             return 0;
+
+        if (tval == ByteBufferUtil.UNSET_BYTE_BUFFER)
+            return metadata.params.defaultTimeToLive;
 
         try
         {
@@ -129,6 +130,9 @@ public class Attributes
 
         if (ttl > MAX_TTL)
             throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", ttl, MAX_TTL));
+
+        if (metadata.params.defaultTimeToLive != LivenessInfo.NO_TTL && ttl == LivenessInfo.NO_TTL)
+            return LivenessInfo.NO_TTL;
 
         ExpirationDateOverflowHandling.maybeApplyExpirationDateOverflowPolicy(metadata, ttl, false);
 

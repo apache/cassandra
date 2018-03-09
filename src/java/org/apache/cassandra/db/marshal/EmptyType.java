@@ -23,6 +23,7 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.serializers.EmptySerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -72,7 +73,8 @@ public class EmptyType extends AbstractType<Void>
         return CQL3Type.Native.EMPTY;
     }
 
-    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    @Override
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         return "\"\"";
     }
@@ -83,7 +85,7 @@ public class EmptyType extends AbstractType<Void>
     }
 
     @Override
-    protected int valueLengthIfFixed()
+    public int valueLengthIfFixed()
     {
         return 0;
     }

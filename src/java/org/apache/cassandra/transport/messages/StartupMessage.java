@@ -35,21 +35,21 @@ public class StartupMessage extends Message.Request
 {
     public static final String CQL_VERSION = "CQL_VERSION";
     public static final String COMPRESSION = "COMPRESSION";
-    public static final String NO_COMPACT = "NO_COMPACT";
+    public static final String PROTOCOL_VERSIONS = "PROTOCOL_VERSIONS";
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
-        public StartupMessage decode(ByteBuf body, int version)
+        public StartupMessage decode(ByteBuf body, ProtocolVersion version)
         {
             return new StartupMessage(upperCaseKeys(CBUtil.readStringMap(body)));
         }
 
-        public void encode(StartupMessage msg, ByteBuf dest, int version)
+        public void encode(StartupMessage msg, ByteBuf dest, ProtocolVersion version)
         {
             CBUtil.writeStringMap(msg.options, dest);
         }
 
-        public int encodedSize(StartupMessage msg, int version)
+        public int encodedSize(StartupMessage msg, ProtocolVersion version)
         {
             return CBUtil.sizeOfStringMap(msg.options);
         }
@@ -63,13 +63,13 @@ public class StartupMessage extends Message.Request
         this.options = options;
     }
 
-    public Message.Response execute(QueryState state)
+    public Message.Response execute(QueryState state, long queryStartNanoTime)
     {
         String cqlVersion = options.get(CQL_VERSION);
         if (cqlVersion == null)
             throw new ProtocolException("Missing value CQL_VERSION in STARTUP message");
 
-        try 
+        try
         {
             if (new CassandraVersion(cqlVersion).compareTo(new CassandraVersion("2.99.0")) < 0)
                 throw new ProtocolException(String.format("CQL version %s is not supported by the binary protocol (supported version are >= 3.0.0)", cqlVersion));
@@ -97,9 +97,6 @@ public class StartupMessage extends Message.Request
                 throw new ProtocolException(String.format("Unknown compression algorithm: %s", compression));
             }
         }
-
-        if (options.containsKey(NO_COMPACT) && Boolean.parseBoolean(options.get(NO_COMPACT)))
-            state.getClientState().setNoCompactMode();
 
         if (DatabaseDescriptor.getAuthenticator().requireAuthentication())
             return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());

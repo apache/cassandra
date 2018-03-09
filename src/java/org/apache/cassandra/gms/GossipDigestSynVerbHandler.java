@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.gms;
 
-import java.net.InetAddress;
 import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
@@ -35,10 +35,10 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
 
     public void doVerb(MessageIn<GossipDigestSyn> message, int id)
     {
-        InetAddress from = message.from;
+        InetAddressAndPort from = message.from;
         if (logger.isTraceEnabled())
             logger.trace("Received a GossipDigestSynMessage from {}", from);
-        if (!Gossiper.instance.isEnabled())
+        if (!Gossiper.instance.isEnabled() && !Gossiper.instance.isInShadowRound())
         {
             if (logger.isTraceEnabled())
                 logger.trace("Ignoring GossipDigestSynMessage because gossip is disabled");
@@ -60,6 +60,32 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
         }
 
         List<GossipDigest> gDigestList = gDigestMessage.getGossipDigests();
+
+        // if the syn comes from a peer performing a shadow round and this node is
+        // also currently in a shadow round, send back a minimal ack. This node must
+        // be in the sender's seed list and doing this allows the sender to
+        // differentiate between seeds from which it is partitioned and those which
+        // are in their shadow round
+        if (!Gossiper.instance.isEnabled() && Gossiper.instance.isInShadowRound())
+        {
+            // a genuine syn (as opposed to one from a node currently
+            // doing a shadow round) will always contain > 0 digests
+            if (gDigestList.size() > 0)
+            {
+                logger.debug("Ignoring non-empty GossipDigestSynMessage because currently in gossip shadow round");
+                return;
+            }
+
+            logger.debug("Received a shadow round syn from {}. Gossip is disabled but " +
+                         "currently also in shadow round, responding with a minimal ack", from);
+            MessagingService.instance()
+                            .sendOneWay(new MessageOut<>(MessagingService.Verb.GOSSIP_DIGEST_ACK,
+                                                         new GossipDigestAck(new ArrayList<>(), new HashMap<>()),
+                                                         GossipDigestAck.serializer),
+                                        from);
+            return;
+        }
+
         if (logger.isTraceEnabled())
         {
             StringBuilder sb = new StringBuilder();
@@ -71,10 +97,8 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
             logger.trace("Gossip syn digests are : {}", sb);
         }
 
-        doSort(gDigestList);
-
         List<GossipDigest> deltaGossipDigestList = new ArrayList<GossipDigest>();
-        Map<InetAddress, EndpointState> deltaEpStateMap = new HashMap<InetAddress, EndpointState>();
+        Map<InetAddressAndPort, EndpointState> deltaEpStateMap = new HashMap<InetAddressAndPort, EndpointState>();
         Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
         logger.trace("sending {} digests and {} deltas", deltaGossipDigestList.size(), deltaEpStateMap.size());
         MessageOut<GossipDigestAck> gDigestAckMessage = new MessageOut<GossipDigestAck>(MessagingService.Verb.GOSSIP_DIGEST_ACK,
@@ -83,48 +107,5 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
         if (logger.isTraceEnabled())
             logger.trace("Sending a GossipDigestAckMessage to {}", from);
         MessagingService.instance().sendOneWay(gDigestAckMessage, from);
-    }
-
-    /*
-     * First construct a map whose key is the endpoint in the GossipDigest and the value is the
-     * GossipDigest itself. Then build a list of version differences i.e difference between the
-     * version in the GossipDigest and the version in the local state for a given InetAddress.
-     * Sort this list. Now loop through the sorted list and retrieve the GossipDigest corresponding
-     * to the endpoint from the map that was initially constructed.
-    */
-    private void doSort(List<GossipDigest> gDigestList)
-    {
-        /* Construct a map of endpoint to GossipDigest. */
-        Map<InetAddress, GossipDigest> epToDigestMap = new HashMap<InetAddress, GossipDigest>();
-        for (GossipDigest gDigest : gDigestList)
-        {
-            epToDigestMap.put(gDigest.getEndpoint(), gDigest);
-        }
-
-        /*
-         * These digests have their maxVersion set to the difference of the version
-         * of the local EndpointState and the version found in the GossipDigest.
-        */
-        List<GossipDigest> diffDigests = new ArrayList<GossipDigest>(gDigestList.size());
-        for (GossipDigest gDigest : gDigestList)
-        {
-            InetAddress ep = gDigest.getEndpoint();
-            EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
-            int version = (epState != null) ? Gossiper.instance.getMaxEndpointStateVersion(epState) : 0;
-            int diffVersion = Math.abs(version - gDigest.getMaxVersion());
-            diffDigests.add(new GossipDigest(ep, gDigest.getGeneration(), diffVersion));
-        }
-
-        gDigestList.clear();
-        Collections.sort(diffDigests);
-        int size = diffDigests.size();
-        /*
-         * Report the digests in descending order. This takes care of the endpoints
-         * that are far behind w.r.t this local endpoint
-        */
-        for (int i = size - 1; i >= 0; --i)
-        {
-            gDigestList.add(epToDigestMap.get(diffDigests.get(i).getEndpoint()));
-        }
     }
 }

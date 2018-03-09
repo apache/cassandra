@@ -30,6 +30,7 @@ import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.ProtocolOptions;
 import com.datastax.driver.core.ProtocolVersion;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsMode implements Serializable
 {
@@ -49,6 +50,7 @@ public class SettingsMode implements Serializable
 
     private final String compression;
 
+
     public SettingsMode(GroupedOptions options)
     {
         if (options instanceof Cql3Options)
@@ -58,7 +60,7 @@ public class SettingsMode implements Serializable
             protocolVersion = "NEWEST_SUPPORTED".equals(opts.protocolVersion.value())
                     ? ProtocolVersion.NEWEST_SUPPORTED
                     : ProtocolVersion.fromInt(Integer.parseInt(opts.protocolVersion.value()));
-            api = opts.mode().displayPrefix.equals("native") ? ConnectionAPI.JAVA_DRIVER_NATIVE : ConnectionAPI.THRIFT;
+            api = ConnectionAPI.JAVA_DRIVER_NATIVE;
             style = opts.useUnPrepared.setByUser() ? ConnectionStyle.CQL :  ConnectionStyle.CQL_PREPARED;
             compression = ProtocolOptions.Compression.valueOf(opts.useCompression.value().toUpperCase()).name();
             username = opts.user.value();
@@ -108,21 +110,6 @@ public class SettingsMode implements Serializable
             maxPendingPerConnection = null;
             connectionsPerHost = null;
         }
-        else if (options instanceof ThriftOptions)
-        {
-            ThriftOptions opts = (ThriftOptions) options;
-            protocolVersion = ProtocolVersion.NEWEST_SUPPORTED;
-            cqlVersion = CqlVersion.NOCQL;
-            api = opts.smart.setByUser() ? ConnectionAPI.THRIFT_SMART : ConnectionAPI.THRIFT;
-            style = ConnectionStyle.THRIFT;
-            compression = ProtocolOptions.Compression.NONE.name();
-            username = opts.user.value();
-            password = opts.password.value();
-            authProviderClassname = null;
-            authProvider = null;
-            maxPendingPerConnection = null;
-            connectionsPerHost = null;
-        }
         else
             throw new IllegalStateException();
     }
@@ -143,15 +130,6 @@ public class SettingsMode implements Serializable
         }
     }
 
-    private static final class Cql3ThriftOptions extends Cql3Options
-    {
-        final OptionSimple mode = new OptionSimple("thrift", "", null, "", true);
-        OptionSimple mode()
-        {
-            return mode;
-        }
-    }
-
     private static abstract class Cql3Options extends GroupedOptions
     {
         final OptionSimple api = new OptionSimple("cql3", "", null, "", true);
@@ -162,8 +140,8 @@ public class SettingsMode implements Serializable
         final OptionSimple user = new OptionSimple("user=", ".+", null, "username", false);
         final OptionSimple password = new OptionSimple("password=", ".+", null, "password", false);
         final OptionSimple authProvider = new OptionSimple("auth-provider=", ".*", null, "Fully qualified implementation of com.datastax.driver.core.AuthProvider", false);
-        final OptionSimple maxPendingPerConnection = new OptionSimple("maxPending=", "[0-9]+", "", "Maximum pending requests per connection", false);
-        final OptionSimple connectionsPerHost = new OptionSimple("connectionsPerHost=", "[0-9]+", "", "Number of connections per host", false);
+        final OptionSimple maxPendingPerConnection = new OptionSimple("maxPending=", "[0-9]+", "128", "Maximum pending requests per connection", false);
+        final OptionSimple connectionsPerHost = new OptionSimple("connectionsPerHost=", "[0-9]+", "8", "Number of connections per host", false);
 
         abstract OptionSimple mode();
         @Override
@@ -173,7 +151,6 @@ public class SettingsMode implements Serializable
                                  maxPendingPerConnection, connectionsPerHost, protocolVersion);
         }
     }
-
 
     private static final class Cql3SimpleNativeOptions extends GroupedOptions
     {
@@ -189,22 +166,22 @@ public class SettingsMode implements Serializable
         }
     }
 
-    private static final class ThriftOptions extends GroupedOptions
+    // CLI Utility Methods
+    public void printSettings(ResultLogger out)
     {
-        final OptionSimple api = new OptionSimple("thrift", "", null, "", true);
-        final OptionSimple smart = new OptionSimple("smart", "", null, "", false);
-        final OptionSimple user = new OptionSimple("user=", ".+", null, "username", false);
-        final OptionSimple password = new OptionSimple("password=", ".+", null, "password", false);
+        out.printf("  API: %s%n", api);
+        out.printf("  Connection Style: %s%n", style);
+        out.printf("  CQL Version: %s%n", cqlVersion);
+        out.printf("  Protocol Version: %s%n", protocolVersion);
+        out.printf("  Username: %s%n", username);
+        out.printf("  Password: %s%n", (password==null?password:"*suppressed*"));
+        out.printf("  Auth Provide Class: %s%n", authProviderClassname);
+        out.printf("  Max Pending Per Connection: %d%n", maxPendingPerConnection);
+        out.printf("  Connections Per Host: %d%n", connectionsPerHost);
+        out.printf("  Compression: %s%n", compression);
 
-
-        @Override
-        public List<? extends Option> options()
-        {
-            return Arrays.asList(api, smart, user, password);
-        }
     }
 
-    // CLI Utility Methods
 
     public static SettingsMode get(Map<String, String[]> clArgs)
     {
@@ -218,7 +195,7 @@ public class SettingsMode implements Serializable
             return new SettingsMode(opts);
         }
 
-        GroupedOptions options = GroupedOptions.select(params, new ThriftOptions(), new Cql3NativeOptions(), new Cql3SimpleNativeOptions());
+        GroupedOptions options = GroupedOptions.select(params, new Cql3NativeOptions(), new Cql3SimpleNativeOptions());
         if (options == null)
         {
             printHelp();
@@ -230,7 +207,7 @@ public class SettingsMode implements Serializable
 
     public static void printHelp()
     {
-        GroupedOptions.printOptions(System.out, "-mode", new ThriftOptions(), new Cql3NativeOptions(), new Cql3SimpleNativeOptions());
+        GroupedOptions.printOptions(System.out, "-mode", new Cql3NativeOptions(), new Cql3SimpleNativeOptions());
     }
 
     public static Runnable helpPrinter()

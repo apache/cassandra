@@ -17,20 +17,25 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-
 class BatchCommitLogService extends AbstractCommitLogService
 {
+    /**
+     * Batch mode does not rely on the sync thread in {@link AbstractCommitLogService} to wake up for triggering
+     * the disk sync. Instead we trigger it explicitly in {@link #maybeWaitForSync(CommitLogSegment.Allocation)}.
+     * This value here is largely irrelevant, but should high enough so the sync thread is not continually waking up.
+     */
+    private static final int POLL_TIME_MILLIS = 1000;
+
     public BatchCommitLogService(CommitLog commitLog)
     {
-        super(commitLog, "COMMIT-LOG-WRITER", (int) DatabaseDescriptor.getCommitLogSyncBatchWindow());
+        super(commitLog, "COMMIT-LOG-WRITER", POLL_TIME_MILLIS);
     }
 
     protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)
     {
         // wait until record has been safely persisted to disk
         pending.incrementAndGet();
-        haveWork.release();
+        requestExtraSync();
         alloc.awaitDiskSync(commitLog.metrics.waitingOnCommit);
         pending.decrementAndGet();
     }

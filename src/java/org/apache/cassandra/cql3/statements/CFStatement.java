@@ -37,14 +37,16 @@ public abstract class CFStatement extends ParsedStatement
     {
         if (!cfName.hasKeyspace())
         {
-            // XXX: We explicitely only want to call state.getKeyspace() in this case, as we don't want to throw
-            // if not logged in any keyspace but a keyspace is explicitely set on the statement. So don't move
+            // XXX: We explicitly only want to call state.getKeyspace() in this case, as we don't want to throw
+            // if not logged in any keyspace but a keyspace is explicitly set on the statement. So don't move
             // the call outside the 'if' or replace the method by 'prepareKeyspace(state.getKeyspace())'
             cfName.setKeyspace(state.getKeyspace(), true);
         }
     }
 
-    // Only for internal calls, use the version with ClientState for user queries
+    // Only for internal calls, use the version with ClientState for user queries. In particular, the
+    // version with ClientState throws an exception if the statement does not have keyspace set *and*
+    // ClientState has no keyspace.
     public void prepareKeyspace(String keyspace)
     {
         if (!cfName.hasKeyspace())

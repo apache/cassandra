@@ -20,8 +20,6 @@ package org.apache.cassandra.utils.concurrent;
 
 import java.util.Arrays;
 
-import org.apache.cassandra.utils.Throwables;
-
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -35,7 +33,7 @@ public abstract class WrappedSharedCloseable extends SharedCloseableImpl
 
     public WrappedSharedCloseable(final AutoCloseable closeable)
     {
-        this(new AutoCloseable[] { closeable});
+        this(new AutoCloseable[] {closeable});
     }
 
     public WrappedSharedCloseable(final AutoCloseable[] closeable)

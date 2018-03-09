@@ -30,8 +30,8 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 
 
@@ -135,7 +135,7 @@ public class CrcCheckChanceTest extends CQLTester
             alterTable("ALTER TABLE %s WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance': 0.5}");
 
         //We should be able to get the new value by accessing directly the schema metadata
-        Assert.assertEquals(0.5, cfs.metadata.params.crcCheckChance);
+        Assert.assertEquals(0.5, cfs.metadata().params.crcCheckChance);
 
         //but previous JMX-set value will persist until next restart
         Assert.assertEquals(0.01, cfs.getLiveSSTables().iterator().next().getCrcCheckChance());
@@ -153,8 +153,8 @@ public class CrcCheckChanceTest extends CQLTester
         // note: only compressed files currently perform crc checks, so only the dfile reader is relevant here
         SSTableReader baseSSTable = cfs.getLiveSSTables().iterator().next();
         SSTableReader idxSSTable = indexCfs.getLiveSSTables().iterator().next();
-        try (CompressedRandomAccessReader baseDataReader = (CompressedRandomAccessReader)baseSSTable.openDataReader();
-             CompressedRandomAccessReader idxDataReader = (CompressedRandomAccessReader)idxSSTable.openDataReader())
+        try (RandomAccessReader baseDataReader = baseSSTable.openDataReader();
+             RandomAccessReader idxDataReader = idxSSTable.openDataReader())
         {
             Assert.assertEquals(0.03, baseDataReader.getCrcCheckChance());
             Assert.assertEquals(0.03, idxDataReader.getCrcCheckChance());

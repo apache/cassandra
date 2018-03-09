@@ -102,10 +102,7 @@ public class FastByteOperations
          */
         static ByteOperations getBest()
         {
-            String arch = System.getProperty("os.arch");
-            boolean unaligned = arch.equals("i386") || arch.equals("x86")
-                                || arch.equals("amd64") || arch.equals("x86_64") || arch.equals("s390x");
-            if (!unaligned)
+            if (!Architecture.IS_UNALIGNED)
                 return new PureJavaOperations();
             try
             {
@@ -269,7 +266,8 @@ public class FastByteOperations
 
         public static void copy(Object src, long srcOffset, Object dst, long dstOffset, long length)
         {
-            while (length > 0) {
+            while (length > 0)
+            {
                 long size = (length > UNSAFE_COPY_THRESHOLD) ? UNSAFE_COPY_THRESHOLD : length;
                 // if src or dst are null, the offsets are absolute base addresses:
                 theUnsafe.copyMemory(src, srcOffset, dst, dstOffset, size);
@@ -333,7 +331,7 @@ public class FastByteOperations
          * @param memoryOffset2 Where to start comparing in the right buffer (pure memory address if buffer1 is null, or relative otherwise)
          * @param length1 How much to compare from the left buffer
          * @param length2 How much to compare from the right buffer
-         * @return 0 if equal, < 0 if left is less than right, etc.
+         * @return 0 if equal, {@code < 0} if left is less than right, etc.
          */
         @Inline
         public static int compareTo(Object buffer1, long memoryOffset1, int length1,

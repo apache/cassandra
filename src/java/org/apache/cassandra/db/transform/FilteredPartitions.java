@@ -52,13 +52,8 @@ public final class FilteredPartitions extends BasePartitions<RowIterator, BasePa
      */
     public static FilteredPartitions filter(UnfilteredPartitionIterator iterator, int nowInSecs)
     {
-        FilteredPartitions filtered = filter(iterator,
-                                             new Filter(nowInSecs,
-                                                        iterator.metadata().enforceStrictLiveness()));
-
-        return iterator.isForThrift()
-             ? filtered
-             : (FilteredPartitions) Transformation.apply(filtered, new EmptyPartitionsDiscarder());
+        FilteredPartitions filtered = filter(iterator, new Filter(nowInSecs, iterator.metadata().enforceStrictLiveness()));
+        return (FilteredPartitions) Transformation.apply(filtered, new EmptyPartitionsDiscarder());
     }
 
     public static FilteredPartitions filter(UnfilteredPartitionIterator iterator, Filter filter)

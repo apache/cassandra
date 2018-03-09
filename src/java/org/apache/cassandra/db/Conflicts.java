@@ -68,6 +68,15 @@ public abstract class Conflicts
         if (!rightLive)
             return Resolution.RIGHT_WINS;
 
+        // Handle empty values. Counters can't truly have empty values, but we can have a counter cell that temporarily
+        // has one on read if the column for the cell is not queried by the user due to the optimization of #10657. We
+        // thus need to handle this (see #11726 too).
+        if (!leftValue.hasRemaining())
+            return rightValue.hasRemaining() || leftTimestamp > rightTimestamp ? Resolution.LEFT_WINS : Resolution.RIGHT_WINS;
+
+        if (!rightValue.hasRemaining())
+            return Resolution.RIGHT_WINS;
+
         return Resolution.MERGE;
     }
 

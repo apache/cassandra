@@ -28,7 +28,7 @@ public class Roles
     /**
      * Get all roles granted to the supplied Role, including both directly granted
      * and inherited roles.
-     * The returned roles may be cached if roles_validity_in_ms > 0
+     * The returned roles may be cached if {@code roles_validity_in_ms > 0}
      *
      * @param primaryRole the Role
      * @return set of all granted Roles for the primary Role

@@ -24,16 +24,17 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
-import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.StorageService;
 
 public class UserTypesTest extends CQLTester
 {
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpClass()     // overrides CQLTester.setUpClass()
     {
         // Selecting partitioner for a table is not exposed on CREATE TABLE.
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+
+        prepareServer();
     }
 
     @Test
@@ -60,7 +61,7 @@ public class UserTypesTest extends CQLTester
         createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<" + type + ">)");
         assertInvalidMessage("Invalid remaining data after end of tuple value",
                              "INSERT INTO %s (k, t) VALUES (0, ?)",
-                             userType(1, tuple(1, "1", 1.0, 1)));
+                             userType("a", 1, "b", tuple(1, "1", 1.0, 1)));
 
         assertInvalidMessage("Invalid user type literal for t: field b is not of type frozen<tuple<int, text, double>>",
                              "INSERT INTO %s (k, t) VALUES (0, {a: 1, b: (1, '1', 1.0, 1)})");
@@ -94,32 +95,86 @@ public class UserTypesTest extends CQLTester
         execute("INSERT INTO %s(k, v) VALUES (?, {x:?})", 1, -104.99251);
         execute("UPDATE %s SET b = ? WHERE k = ?", true, 1);
 
-        assertRows(execute("SELECT v.x FROM %s WHERE k = ? AND v = {x:?}", 1, -104.99251),
-            row(-104.99251)
-        );
-
-        flush();
-
-        assertRows(execute("SELECT v.x FROM %s WHERE k = ? AND v = {x:?}", 1, -104.99251),
-                   row(-104.99251)
+        beforeAndAfterFlush(() ->
+            assertRows(execute("SELECT v.x FROM %s WHERE k = ? AND v = {x:?}", 1, -104.99251),
+                row(-104.99251)
+            )
         );
     }
 
     @Test
-    public void testCreateInvalidTablesWithUDT() throws Throwable
+    public void testInvalidUDTStatements() throws Throwable
     {
-        String myType = createType("CREATE TYPE %s (f int)");
+        String typename = createType("CREATE TYPE %s (a int)");
+        String myType = KEYSPACE + '.' + typename;
 
-        // Using a UDT without frozen shouldn't work
-        assertInvalidMessage("Non-frozen User-Defined types are not supported, please use frozen<>",
-                             "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v " + KEYSPACE + '.' + myType + ")");
+        // non-frozen UDTs in a table PK
+        assertInvalidMessage("Invalid non-frozen user-defined type for PRIMARY KEY component k",
+                "CREATE TABLE " + KEYSPACE + ".wrong (k " + myType + " PRIMARY KEY , v int)");
+        assertInvalidMessage("Invalid non-frozen user-defined type for PRIMARY KEY component k2",
+                "CREATE TABLE " + KEYSPACE + ".wrong (k1 int, k2 " + myType + ", v int, PRIMARY KEY (k1, k2))");
 
+        // non-frozen UDTs in a collection
+        assertInvalidMessage("Non-frozen UDTs are not allowed inside collections: list<" + myType + ">",
+                "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v list<" + myType + ">)");
+        assertInvalidMessage("Non-frozen UDTs are not allowed inside collections: set<" + myType + ">",
+                "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v set<" + myType + ">)");
+        assertInvalidMessage("Non-frozen UDTs are not allowed inside collections: map<" + myType + ", int>",
+                "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v map<" + myType + ", int>)");
+        assertInvalidMessage("Non-frozen UDTs are not allowed inside collections: map<int, " + myType + ">",
+                "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v map<int, " + myType + ">)");
+
+        // non-frozen UDT in a collection (as part of a UDT definition)
+        assertInvalidMessage("Non-frozen UDTs are not allowed inside collections: list<" + myType + ">",
+                "CREATE TYPE " + KEYSPACE + ".wrong (a int, b list<" + myType + ">)");
+
+        // non-frozen UDT in a UDT
+        assertInvalidMessage("A user type cannot contain non-frozen UDTs",
+                "CREATE TYPE " + KEYSPACE + ".wrong (a int, b " + myType + ")");
+
+        // referencing a UDT in another keyspace
         assertInvalidMessage("Statement on keyspace " + KEYSPACE + " cannot refer to a user type in keyspace otherkeyspace;" +
                              " user types can only be used in the keyspace they are defined in",
                              "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v frozen<otherKeyspace.myType>)");
 
+        // referencing an unknown UDT
         assertInvalidMessage("Unknown type " + KEYSPACE + ".unknowntype",
                              "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v frozen<" + KEYSPACE + '.' + "unknownType>)");
+
+        // bad deletions on frozen UDTs
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<" + myType + ">, c int)");
+        assertInvalidMessage("Frozen UDT column b does not support field deletion", "DELETE b.a FROM %s WHERE a = 0");
+        assertInvalidMessage("Invalid field deletion operation for non-UDT column c", "DELETE c.a FROM %s WHERE a = 0");
+
+        // bad updates on frozen UDTs
+        assertInvalidMessage("Invalid operation (b.a = 0) for frozen UDT column b", "UPDATE %s SET b.a = 0 WHERE a = 0");
+        assertInvalidMessage("Invalid operation (c.a = 0) for non-UDT column c", "UPDATE %s SET c.a = 0 WHERE a = 0");
+
+        // bad deletions on non-frozen UDTs
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b " + myType + ", c int)");
+        assertInvalidMessage("UDT column b does not have a field named foo", "DELETE b.foo FROM %s WHERE a = 0");
+
+        // bad updates on non-frozen UDTs
+        assertInvalidMessage("UDT column b does not have a field named foo", "UPDATE %s SET b.foo = 0 WHERE a = 0");
+
+        // bad insert on non-frozen UDTs
+        assertInvalidMessage("Unknown field 'foo' in value of user defined type", "INSERT INTO %s (a, b, c) VALUES (0, {a: 0, foo: 0}, 0)");
+        if (usePrepared())
+        {
+            assertInvalidMessage("Invalid remaining data after end of UDT value",
+                    "INSERT INTO %s (a, b, c) VALUES (0, ?, 0)", userType("a", 0, "foo", 0));
+        }
+        else
+        {
+            assertInvalidMessage("Unknown field 'foo' in value of user defined type " + typename,
+                    "INSERT INTO %s (a, b, c) VALUES (0, ?, 0)", userType("a", 0, "foo", 0));
+        }
+
+        // non-frozen UDT with non-frozen nested collection
+        String typename2 = createType("CREATE TYPE %s (bar int, foo list<int>)");
+        String myType2 = KEYSPACE + '.' + typename2;
+        assertInvalidMessage("Non-frozen UDTs with nested non-frozen collections are not supported",
+                "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v " + myType2 + ")");
     }
 
     @Test
@@ -127,24 +182,61 @@ public class UserTypesTest extends CQLTester
     {
         String myType = KEYSPACE + '.' + createType("CREATE TYPE %s (a int)");
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<" + myType + ">)");
-        execute("INSERT INTO %s (a, b) VALUES (1, {a: 1})");
+        execute("INSERT INTO %s (a, b) VALUES (1, ?)", userType("a", 1));
 
         assertRows(execute("SELECT b.a FROM %s"), row(1));
 
         flush();
 
-        execute("ALTER TYPE " + myType + " ADD b int");
-        execute("INSERT INTO %s (a, b) VALUES (2, {a: 2, b :2})");
+        schemaChange("ALTER TYPE " + myType + " ADD b int");
+        execute("INSERT INTO %s (a, b) VALUES (2, ?)", userType("a", 2, "b", 2));
 
-        assertRows(execute("SELECT b.a, b.b FROM %s"),
-                   row(1, null),
-                   row(2, 2));
+        beforeAndAfterFlush(() ->
+            assertRows(execute("SELECT b.a, b.b FROM %s"),
+                       row(1, null),
+                       row(2, 2))
+        );
+    }
 
-        flush();
+    @Test
+    public void testAlterNonFrozenUDT() throws Throwable
+    {
+        String myType = KEYSPACE + '.' + createType("CREATE TYPE %s (a int, b text)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + myType + ")");
+        execute("INSERT INTO %s (k, v) VALUES (0, ?)", userType("a", 1, "b", "abc"));
 
-        assertRows(execute("SELECT b.a, b.b FROM %s"),
-                   row(1, null),
-                   row(2, 2));
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT v FROM %s"), row(userType("a", 1, "b", "abc")));
+            assertRows(execute("SELECT v.a FROM %s"), row(1));
+            assertRows(execute("SELECT v.b FROM %s"), row("abc"));
+        });
+
+        schemaChange("ALTER TYPE " + myType + " RENAME b TO foo");
+        assertRows(execute("SELECT v FROM %s"), row(userType("a", 1, "b", "abc")));
+        assertRows(execute("SELECT v.a FROM %s"), row(1));
+        assertRows(execute("SELECT v.foo FROM %s"), row("abc"));
+
+        execute("UPDATE %s SET v.foo = 'def' WHERE k = 0");
+        assertRows(execute("SELECT v FROM %s"), row(userType("a", 1, "foo", "def")));
+        assertRows(execute("SELECT v.a FROM %s"), row(1));
+        assertRows(execute("SELECT v.foo FROM %s"), row("def"));
+
+        execute("INSERT INTO %s (k, v) VALUES (0, ?)", userType("a", 2, "foo", "def"));
+        assertRows(execute("SELECT v FROM %s"), row(userType("a", 2, "foo", "def")));
+        assertRows(execute("SELECT v.a FROM %s"), row(2));
+        assertRows(execute("SELECT v.foo FROM %s"), row("def"));
+
+        schemaChange("ALTER TYPE " + myType + " ADD c int");
+        assertRows(execute("SELECT v FROM %s"), row(userType("a", 2, "foo", "def", "c", null)));
+        assertRows(execute("SELECT v.a FROM %s"), row(2));
+        assertRows(execute("SELECT v.foo FROM %s"), row("def"));
+        assertRows(execute("SELECT v.c FROM %s"), row(new Object[] {null}));
+
+        execute("INSERT INTO %s (k, v) VALUES (0, ?)", userType("a", 3, "foo", "abc", "c", 0));
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT v FROM %s"), row(userType("a", 3, "foo", "abc", "c", 0)));
+            assertRows(execute("SELECT v.c FROM %s"), row(0));
+        });
     }
 
     @Test
@@ -155,11 +247,14 @@ public class UserTypesTest extends CQLTester
         String myOtherType = createType("CREATE TYPE %s (a frozen<" + myType + ">)");
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<" + myType + ">, z frozen<" + myOtherType + ">)");
 
-        assertInvalidMessage("Invalid unset value for field 'y' of user defined type " + myType,
-                             "INSERT INTO %s (k, v) VALUES (10, {x:?, y:?})", 1, unset());
+        if (usePrepared())
+        {
+            assertInvalidMessage("Invalid unset value for field 'y' of user defined type " + myType,
+                    "INSERT INTO %s (k, v) VALUES (10, {x:?, y:?})", 1, unset());
 
-        assertInvalidMessage("Invalid unset value for field 'y' of user defined type " + myType,
-                             "INSERT INTO %s (k, v, z) VALUES (10, {x:?, y:?}, {a:{x: ?, y: ?}})", 1, 1, 1, unset());
+            assertInvalidMessage("Invalid unset value for field 'y' of user defined type " + myType,
+                    "INSERT INTO %s (k, v, z) VALUES (10, {x:?, y:?}, {a:{x: ?, y: ?}})", 1, 1, 1, unset());
+        }
     }
 
     @Test
@@ -174,28 +269,22 @@ public class UserTypesTest extends CQLTester
 
             createTable("CREATE TABLE %s (x int PRIMARY KEY, y " + columnType + ")");
 
-            execute("INSERT INTO %s (x, y) VALUES(1, {'firstValue':{a:1}})");
-            assertRows(execute("SELECT * FROM %s"), row(1, map("firstValue", userType(1))));
+            execute("INSERT INTO %s (x, y) VALUES(1, ?)", map("firstValue", userType("a", 1)));
+            assertRows(execute("SELECT * FROM %s"), row(1, map("firstValue", userType("a", 1))));
             flush();
 
             execute("ALTER TYPE " + KEYSPACE + "." + ut1 + " ADD b int");
-            execute("INSERT INTO %s (x, y) VALUES(2, {'secondValue':{a:2, b:2}})");
-            execute("INSERT INTO %s (x, y) VALUES(3, {'thirdValue':{a:3}})");
-            execute("INSERT INTO %s (x, y) VALUES(4, {'fourthValue':{b:4}})");
+            execute("INSERT INTO %s (x, y) VALUES(2, ?)", map("secondValue", userType("a", 2, "b", 2)));
+            execute("INSERT INTO %s (x, y) VALUES(3, ?)", map("thirdValue", userType("a", 3, "b", null)));
+            execute("INSERT INTO %s (x, y) VALUES(4, ?)", map("fourthValue", userType("a", null, "b", 4)));
 
-            assertRows(execute("SELECT * FROM %s"),
-                    row(1, map("firstValue", userType(1))),
-                    row(2, map("secondValue", userType(2, 2))),
-                    row(3, map("thirdValue", userType(3, null))),
-                    row(4, map("fourthValue", userType(null, 4))));
-
-            flush();
-
-            assertRows(execute("SELECT * FROM %s"),
-                    row(1, map("firstValue", userType(1))),
-                    row(2, map("secondValue", userType(2, 2))),
-                    row(3, map("thirdValue", userType(3, null))),
-                    row(4, map("fourthValue", userType(null, 4))));
+            beforeAndAfterFlush(() ->
+                assertRows(execute("SELECT * FROM %s"),
+                        row(1, map("firstValue", userType("a", 1))),
+                        row(2, map("secondValue", userType("a", 2, "b", 2))),
+                        row(3, map("thirdValue", userType("a", 3, "b", null))),
+                        row(4, map("fourthValue", userType("a", null, "b", 4))))
+            );
         }
     }
 
@@ -209,22 +298,18 @@ public class UserTypesTest extends CQLTester
 
         execute("INSERT INTO %s (x, y) VALUES(1, {'firstValue': {a: 1}})");
         assertRows(execute("SELECT * FROM %s"),
-                   row(1, map("firstValue", userType(1))));
+                   row(1, map("firstValue", userType("a", 1))));
 
         flush();
 
         execute("ALTER TYPE " + columnType + " ADD b int");
         execute("UPDATE %s SET y['secondValue'] = {a: 2, b: 2} WHERE x = 1");
 
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, map("firstValue", userType(1),
-                              "secondValue", userType(2, 2))));
-
-        flush();
-
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, map("firstValue", userType(1),
-                              "secondValue", userType(2, 2))));
+        beforeAndAfterFlush(() ->
+                            assertRows(execute("SELECT * FROM %s"),
+                                       row(1, map("firstValue", userType("a", 1),
+                                                  "secondValue", userType("a", 2, "b", 2))))
+        );
     }
 
     @Test
@@ -239,28 +324,22 @@ public class UserTypesTest extends CQLTester
 
             createTable("CREATE TABLE %s (x int PRIMARY KEY, y " + columnType + ")");
 
-            execute("INSERT INTO %s (x, y) VALUES(1, {1} )");
-            assertRows(execute("SELECT * FROM %s"), row(1, set(userType(1))));
+            execute("INSERT INTO %s (x, y) VALUES(1, ?)", set(userType("a", 1)));
+            assertRows(execute("SELECT * FROM %s"), row(1, set(userType("a", 1))));
             flush();
 
             execute("ALTER TYPE " + KEYSPACE + "." + ut1 + " ADD b int");
-            execute("INSERT INTO %s (x, y) VALUES(2, {{a:2, b:2}})");
-            execute("INSERT INTO %s (x, y) VALUES(3, {{a:3}})");
-            execute("INSERT INTO %s (x, y) VALUES(4, {{b:4}})");
+            execute("INSERT INTO %s (x, y) VALUES(2, ?)", set(userType("a", 2, "b", 2)));
+            execute("INSERT INTO %s (x, y) VALUES(3, ?)", set(userType("a", 3, "b", null)));
+            execute("INSERT INTO %s (x, y) VALUES(4, ?)", set(userType("a", null, "b", 4)));
 
-            assertRows(execute("SELECT * FROM %s"),
-                    row(1, set(userType(1))),
-                    row(2, set(userType(2, 2))),
-                    row(3, set(userType(3, null))),
-                    row(4, set(userType(null, 4))));
-
-            flush();
-
-            assertRows(execute("SELECT * FROM %s"),
-                    row(1, set(userType(1))),
-                    row(2, set(userType(2, 2))),
-                    row(3, set(userType(3, null))),
-                    row(4, set(userType(null, 4))));
+            beforeAndAfterFlush(() ->
+                assertRows(execute("SELECT * FROM %s"),
+                        row(1, set(userType("a", 1))),
+                        row(2, set(userType("a", 2, "b", 2))),
+                        row(3, set(userType("a", 3, "b", null))),
+                        row(4, set(userType("a", null, "b", 4))))
+            );
         }
     }
 
@@ -276,28 +355,22 @@ public class UserTypesTest extends CQLTester
 
             createTable("CREATE TABLE %s (x int PRIMARY KEY, y " + columnType + ")");
 
-            execute("INSERT INTO %s (x, y) VALUES(1, [1] )");
-            assertRows(execute("SELECT * FROM %s"), row(1, list(userType(1))));
+            execute("INSERT INTO %s (x, y) VALUES(1, ?)", list(userType("a", 1)));
+            assertRows(execute("SELECT * FROM %s"), row(1, list(userType("a", 1))));
             flush();
 
             execute("ALTER TYPE " + KEYSPACE + "." + ut1 + " ADD b int");
-            execute("INSERT INTO %s (x, y) VALUES(2, [{a:2, b:2}])");
-            execute("INSERT INTO %s (x, y) VALUES(3, [{a:3}])");
-            execute("INSERT INTO %s (x, y) VALUES(4, [{b:4}])");
+            execute("INSERT INTO %s (x, y) VALUES (2, ?)", list(userType("a", 2, "b", 2)));
+            execute("INSERT INTO %s (x, y) VALUES (3, ?)", list(userType("a", 3, "b", null)));
+            execute("INSERT INTO %s (x, y) VALUES (4, ?)", list(userType("a", null, "b", 4)));
 
-            assertRows(execute("SELECT * FROM %s"),
-                    row(1, list(userType(1))),
-                    row(2, list(userType(2, 2))),
-                    row(3, list(userType(3, null))),
-                    row(4, list(userType(null, 4))));
-
-            flush();
-
-            assertRows(execute("SELECT * FROM %s"),
-                    row(1, list(userType(1))),
-                    row(2, list(userType(2, 2))),
-                    row(3, list(userType(3, null))),
-                    row(4, list(userType(null, 4))));
+            beforeAndAfterFlush(() ->
+                assertRows(execute("SELECT * FROM %s"),
+                        row(1, list(userType("a", 1))),
+                        row(2, list(userType("a", 2, "b", 2))),
+                        row(3, list(userType("a", 3, "b", null))),
+                        row(4, list(userType("a", null, "b", 4))))
+            );
         }
     }
 
@@ -308,28 +381,22 @@ public class UserTypesTest extends CQLTester
 
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<tuple<int, " + KEYSPACE + "." + type + ">>)");
 
-        execute("INSERT INTO %s (a, b) VALUES(1, (1, {a:1, b:1}))");
-        assertRows(execute("SELECT * FROM %s"), row(1, tuple(1, userType(1, 1))));
+        execute("INSERT INTO %s (a, b) VALUES(1, (1, ?))", userType("a", 1, "b", 1));
+        assertRows(execute("SELECT * FROM %s"), row(1, tuple(1, userType("a", 1, "b", 1))));
         flush();
 
         execute("ALTER TYPE " + KEYSPACE + "." + type + " ADD c int");
-        execute("INSERT INTO %s (a, b) VALUES(2, (2, {a: 2, b: 2, c: 2}))");
-        execute("INSERT INTO %s (a, b) VALUES(3, (3, {a: 3, b: 3}))");
-        execute("INSERT INTO %s (a, b) VALUES(4, (4, {b:4}))");
+        execute("INSERT INTO %s (a, b) VALUES (2, (2, ?))", userType("a", 2, "b", 2, "c", 2));
+        execute("INSERT INTO %s (a, b) VALUES (3, (3, ?))", userType("a", 3, "b", 3, "c", null));
+        execute("INSERT INTO %s (a, b) VALUES (4, (4, ?))", userType("a", null, "b", 4, "c", null));
 
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, tuple(1, userType(1, 1))),
-                   row(2, tuple(2, userType(2, 2, 2))),
-                   row(3, tuple(3, userType(3, 3, null))),
-                   row(4, tuple(4, userType(null, 4, null))));
-
-        flush();
-
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, tuple(1, userType(1, 1))),
-                   row(2, tuple(2, userType(2, 2, 2))),
-                   row(3, tuple(3, userType(3, 3, null))),
-                   row(4, tuple(4, userType(null, 4, null))));
+        beforeAndAfterFlush(() ->
+            assertRows(execute("SELECT * FROM %s"),
+                    row(1, tuple(1, userType("a", 1, "b", 1))),
+                    row(2, tuple(2, userType("a", 2, "b", 2, "c", 2))),
+                    row(3, tuple(3, userType("a", 3, "b", 3, "c", null))),
+                    row(4, tuple(4, userType("a", null, "b", 4, "c", null))))
+        );
     }
 
     @Test
@@ -339,28 +406,22 @@ public class UserTypesTest extends CQLTester
 
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<tuple<int, tuple<int, " + KEYSPACE + "." + type + ">>>)");
 
-        execute("INSERT INTO %s (a, b) VALUES(1, (1, (1, {a:1, b:1})))");
-        assertRows(execute("SELECT * FROM %s"), row(1, tuple(1, tuple(1, userType(1, 1)))));
+        execute("INSERT INTO %s (a, b) VALUES(1, (1, (1, ?)))", userType("a", 1, "b", 1));
+        assertRows(execute("SELECT * FROM %s"), row(1, tuple(1, tuple(1, userType("a", 1, "b", 1)))));
         flush();
 
         execute("ALTER TYPE " + KEYSPACE + "." + type + " ADD c int");
-        execute("INSERT INTO %s (a, b) VALUES(2, (2, (1, {a: 2, b: 2, c: 2})))");
-        execute("INSERT INTO %s (a, b) VALUES(3, (3, (1, {a: 3, b: 3})))");
-        execute("INSERT INTO %s (a, b) VALUES(4, (4, (1, {b:4})))");
+        execute("INSERT INTO %s (a, b) VALUES(2, (2, (1, ?)))", userType("a", 2, "b", 2, "c", 2));
+        execute("INSERT INTO %s (a, b) VALUES(3, (3, ?))", tuple(1, userType("a", 3, "b", 3, "c", null)));
+        execute("INSERT INTO %s (a, b) VALUES(4, ?)", tuple(4, tuple(1, userType("a", null, "b", 4, "c", null))));
 
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, tuple(1, tuple(1, userType(1, 1)))),
-                   row(2, tuple(2, tuple(1, userType(2, 2, 2)))),
-                   row(3, tuple(3, tuple(1, userType(3, 3, null)))),
-                   row(4, tuple(4, tuple(1, userType(null, 4, null)))));
-
-        flush();
-
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, tuple(1, tuple(1, userType(1, 1)))),
-                   row(2, tuple(2, tuple(1, userType(2, 2, 2)))),
-                   row(3, tuple(3, tuple(1, userType(3, 3, null)))),
-                   row(4, tuple(4, tuple(1, userType(null, 4, null)))));
+        beforeAndAfterFlush(() ->
+            assertRows(execute("SELECT * FROM %s"),
+                    row(1, tuple(1, tuple(1, userType("a", 1, "b", 1)))),
+                    row(2, tuple(2, tuple(1, userType("a", 2, "b", 2, "c", 2)))),
+                    row(3, tuple(3, tuple(1, userType("a", 3, "b", 3, "c", null)))),
+                    row(4, tuple(4, tuple(1, userType("a", null, "b", 4, "c", null)))))
+        );
     }
 
     @Test
@@ -371,28 +432,24 @@ public class UserTypesTest extends CQLTester
 
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<" + KEYSPACE + "." + otherType + ">)");
 
-        execute("INSERT INTO %s (a, b) VALUES(1, {x: {a:1, b:1}})");
+        execute("INSERT INTO %s (a, b) VALUES(1, {x: ?})", userType("a", 1, "b", 1));
+        assertRows(execute("SELECT b.x.a, b.x.b FROM %s"), row(1, 1));
+        execute("INSERT INTO %s (a, b) VALUES(1, ?)", userType("x", userType("a", 1, "b", 1)));
         assertRows(execute("SELECT b.x.a, b.x.b FROM %s"), row(1, 1));
         flush();
 
         execute("ALTER TYPE " + KEYSPACE + "." + type + " ADD c int");
-        execute("INSERT INTO %s (a, b) VALUES(2, {x: {a: 2, b: 2, c: 2}})");
-        execute("INSERT INTO %s (a, b) VALUES(3, {x: {a: 3, b: 3}})");
-        execute("INSERT INTO %s (a, b) VALUES(4, {x: {b:4}})");
+        execute("INSERT INTO %s (a, b) VALUES(2, {x: ?})", userType("a", 2, "b", 2, "c", 2));
+        execute("INSERT INTO %s (a, b) VALUES(3, {x: ?})", userType("a", 3, "b", 3));
+        execute("INSERT INTO %s (a, b) VALUES(4, {x: ?})", userType("a", null, "b", 4));
 
-        assertRows(execute("SELECT b.x.a, b.x.b, b.x.c FROM %s"),
-                   row(1, 1, null),
-                   row(2, 2, 2),
-                   row(3, 3, null),
-                   row(null, 4, null));
-
-        flush();
-
-        assertRows(execute("SELECT b.x.a, b.x.b, b.x.c FROM %s"),
-                   row(1, 1, null),
-                   row(2, 2, 2),
-                   row(3, 3, null),
-                   row(null, 4, null));
+        beforeAndAfterFlush(() ->
+            assertRows(execute("SELECT b.x.a, b.x.b, b.x.c FROM %s"),
+                       row(1, 1, null),
+                       row(2, 2, 2),
+                       row(3, 3, null),
+                       row(null, 4, null))
+        );
     }
 
     /**
@@ -432,10 +489,11 @@ public class UserTypesTest extends CQLTester
 
         createTable("CREATE TABLE %s (id int PRIMARY KEY, val frozen<" + type2 + ">)");
 
-        execute("INSERT INTO %s (id, val) VALUES (0, { s : {{ s : {'foo', 'bar'}, m : { 'foo' : 'bar' }, l : ['foo', 'bar']} }})");
+        execute("INSERT INTO %s (id, val) VALUES (0, ?)",
+                userType("s", set(userType("s", set("foo", "bar"), "m", map("foo", "bar"), "l", list("foo", "bar")))));
 
-        // TODO: check result once we have an easy way to do it. For now we just check it doesn't crash
-        execute("SELECT * FROM %s");
+        assertRows(execute("SELECT * FROM %s"),
+                row(0, userType("s", set(userType("s", set("foo", "bar"), "m", map("foo", "bar"), "l", list("foo", "bar"))))));
     }
 
     /**
@@ -447,9 +505,11 @@ public class UserTypesTest extends CQLTester
         String typeName = createType("CREATE TYPE %s (fooint int, fooset set <text>)");
         createTable("CREATE TABLE %s (key int PRIMARY KEY, data frozen <" + typeName + ">)");
 
-        execute("INSERT INTO %s (key, data) VALUES (1, {fooint: 1, fooset: {'2'}})");
+        execute("INSERT INTO %s (key, data) VALUES (1, ?)", userType("fooint", 1, "fooset", set("2")));
         execute("ALTER TYPE " + keyspace() + "." + typeName + " ADD foomap map <int,text>");
-        execute("INSERT INTO %s (key, data) VALUES (1, {fooint: 1, fooset: {'2'}, foomap: {3 : 'bar'}})");
+        execute("INSERT INTO %s (key, data) VALUES (1, ?)", userType("fooint", 1, "fooset", set("2"), "foomap", map(3, "bar")));
+        assertRows(execute("SELECT * FROM %s"),
+                row(1, userType("fooint", 1, "fooset", set("2"), "foomap", map(3, "bar"))));
     }
 
     @Test
@@ -513,13 +573,13 @@ public class UserTypesTest extends CQLTester
 
         type1 = createType("CREATE TYPE %s (foo ascii)");
         String type2 = createType("CREATE TYPE %s (foo frozen<" + type1 + ">)");
-        assertComplexInvalidAlterDropStatements(type1, type2, "{foo: 'abc'}");
+        assertComplexInvalidAlterDropStatements(type1, type2, "{foo: {foo: 'abc'}}");
 
         type1 = createType("CREATE TYPE %s (foo ascii)");
         type2 = createType("CREATE TYPE %s (foo frozen<" + type1 + ">)");
         assertComplexInvalidAlterDropStatements(type1,
                                                 "list<frozen<" + type2 + ">>",
-                                                "[{foo: 'abc'}]");
+                                                "[{foo: {foo: 'abc'}}]");
 
         type1 = createType("CREATE TYPE %s (foo ascii)");
         type2 = createType("CREATE TYPE %s (foo frozen<set<" + type1 + ">>)");
@@ -564,6 +624,110 @@ public class UserTypesTest extends CQLTester
     }
 
     @Test
+    public void testInsertNonFrozenUDT() throws Throwable
+    {
+        String typeName = createType("CREATE TYPE %s (a int, b text)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + typeName + ")");
+
+        execute("INSERT INTO %s (k, v) VALUES (?, {a: ?, b: ?})", 0, 0, "abc");
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 0, "b", "abc")));
+
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, userType("a", 0, "b", "abc"));
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 0, "b", "abc")));
+
+        execute("INSERT INTO %s (k, v) VALUES (?, {a: ?, b: ?})", 0, 0, null);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 0, "b", null)));
+
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, userType("a", null, "b", "abc"));
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", null, "b", "abc")));
+    }
+
+    @Test
+    public void testUpdateNonFrozenUDT() throws Throwable
+    {
+        String typeName = createType("CREATE TYPE %s (a int, b text)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + typeName + ")");
+
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, userType("a", 0, "b", "abc"));
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 0, "b", "abc")));
+
+        // overwrite the whole UDT
+        execute("UPDATE %s SET v = ? WHERE k = ?", userType("a", 1, "b", "def"), 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 1, "b", "def")));
+
+        execute("UPDATE %s SET v = ? WHERE k = ?", userType("a", 0, "b", null), 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 0, "b", null)));
+
+        execute("UPDATE %s SET v = ? WHERE k = ?", userType("a", null, "b", "abc"), 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", null, "b", "abc")));
+
+        // individually set fields to non-null values
+        execute("UPDATE %s SET v.a = ? WHERE k = ?", 1, 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 1, "b", "abc")));
+
+        execute("UPDATE %s SET v.b = ? WHERE k = ?", "def", 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 1, "b", "def")));
+
+        execute("UPDATE %s SET v.a = ?, v.b = ? WHERE k = ?", 0, "abc", 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 0, "b", "abc")));
+
+        execute("UPDATE %s SET v.b = ?, v.a = ? WHERE k = ?", "abc", 0, 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 0, "b", "abc")));
+
+        // individually set fields to null values
+        execute("UPDATE %s SET v.a = ? WHERE k = ?", null, 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", null, "b", "abc")));
+
+        execute("UPDATE %s SET v.a = ? WHERE k = ?", 0, 0);
+        execute("UPDATE %s SET v.b = ? WHERE k = ?", null, 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 0, "b", null)));
+
+        execute("UPDATE %s SET v.a = ? WHERE k = ?", null, 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, null));
+
+        assertInvalid("UPDATE %s SET v.bad = ? FROM %s WHERE k = ?", 0, 0);
+        assertInvalid("UPDATE %s SET v = ? FROM %s WHERE k = ?", 0, 0);
+        assertInvalid("UPDATE %s SET v = ? FROM %s WHERE k = ?", userType("a", 1, "b", "abc", "bad", 123), 0);
+    }
+
+    @Test
+    public void testDeleteNonFrozenUDT() throws Throwable
+    {
+        String typeName = createType("CREATE TYPE %s (a int, b text)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + typeName + ")");
+
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, userType("a", 0, "b", "abc"));
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 0, "b", "abc")));
+
+        execute("DELETE v.b FROM %s WHERE k = ?", 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", 0, "b", null)));
+
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, userType("a", 0, "b", "abc"));
+        execute("DELETE v.a FROM %s WHERE k = ?", 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, userType("a", null, "b", "abc")));
+
+        execute("DELETE v.b FROM %s WHERE k = ?", 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, null));
+
+        // delete both fields at once
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, userType("a", 0, "b", "abc"));
+        execute("DELETE v.a, v.b FROM %s WHERE k = ?", 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, null));
+
+        // same, but reverse field order
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, userType("a", 0, "b", "abc"));
+        execute("DELETE v.b, v.a FROM %s WHERE k = ?", 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, null));
+
+        // delete the whole thing at once
+        execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, userType("a", 0, "b", "abc"));
+        execute("DELETE v FROM %s WHERE k = ?", 0);
+        assertRows(execute("SELECT * FROM %s WHERE k = ?", 0), row(0, null));
+
+        assertInvalid("DELETE v.bad FROM %s WHERE k = ?", 0);
+    }
+
+    @Test
     public void testReadAfterAlteringUserTypeNestedWithinSet() throws Throwable
     {
         String columnType = typeWithKs(createType("CREATE TYPE %s (a int)"));
@@ -573,33 +737,33 @@ public class UserTypesTest extends CQLTester
             createTable("CREATE TABLE %s (x int PRIMARY KEY, y set<frozen<" + columnType + ">>)");
             disableCompaction();
 
-            execute("INSERT INTO %s (x, y) VALUES(1, ?)", set(userType(1), userType(2)));
-            assertRows(execute("SELECT * FROM %s"), row(1, set(userType(1), userType(2))));
+            execute("INSERT INTO %s (x, y) VALUES(1, ?)", set(userType("a", 1), userType("a", 2)));
+            assertRows(execute("SELECT * FROM %s"), row(1, set(userType("a", 1), userType("a", 2))));
             flush();
 
             assertRows(execute("SELECT * FROM %s WHERE x = 1"),
-                       row(1, set(userType(1), userType(2))));
+                       row(1, set(userType("a", 1), userType("a", 2))));
 
             execute("ALTER TYPE " + columnType + " ADD b int");
             execute("UPDATE %s SET y = y + ? WHERE x = 1",
-                    set(userType(1, 1), userType(1, 2), userType(2, 1)));
+                    set(userType("a", 1, "b", 1), userType("a", 1, "b", 2), userType("a", 2, "b", 1)));
 
             flush();
             assertRows(execute("SELECT * FROM %s WHERE x = 1"),
-                           row(1, set(userType(1),
-                                      userType(1, 1),
-                                      userType(1, 2),
-                                      userType(2),
-                                      userType(2, 1))));
+                           row(1, set(userType("a", 1),
+                                      userType("a", 1, "b", 1),
+                                      userType("a", 1, "b", 2),
+                                      userType("a", 2),
+                                      userType("a", 2, "b", 1))));
 
             compact();
 
             assertRows(execute("SELECT * FROM %s WHERE x = 1"),
-                       row(1, set(userType(1),
-                                  userType(1, 1),
-                                  userType(1, 2),
-                                  userType(2),
-                                  userType(2, 1))));
+                       row(1, set(userType("a", 1),
+                                  userType("a", 1, "b", 1),
+                                  userType("a", 1, "b", 2),
+                                  userType("a", 2),
+                                  userType("a", 2, "b", 1))));
         }
         finally
         {
@@ -617,33 +781,33 @@ public class UserTypesTest extends CQLTester
             createTable("CREATE TABLE %s (x int PRIMARY KEY, y map<frozen<" + columnType + ">, int>)");
             disableCompaction();
 
-            execute("INSERT INTO %s (x, y) VALUES(1, ?)", map(userType(1), 1, userType(2), 2));
-            assertRows(execute("SELECT * FROM %s"), row(1, map(userType(1), 1, userType(2), 2)));
+            execute("INSERT INTO %s (x, y) VALUES(1, ?)", map(userType("a", 1), 1, userType("a", 2), 2));
+            assertRows(execute("SELECT * FROM %s"), row(1, map(userType("a", 1), 1, userType("a", 2), 2)));
             flush();
 
             assertRows(execute("SELECT * FROM %s WHERE x = 1"),
-                       row(1, map(userType(1), 1, userType(2), 2)));
+                       row(1, map(userType("a", 1), 1, userType("a", 2), 2)));
 
             execute("ALTER TYPE " + columnType + " ADD b int");
             execute("UPDATE %s SET y = y + ? WHERE x = 1",
-                    map(userType(1, 1), 1, userType(1, 2), 1, userType(2, 1), 2));
+                    map(userType("a", 1, "b", 1), 1, userType("a", 1, "b", 2), 1, userType("a", 2, "b", 1), 2));
 
             flush();
             assertRows(execute("SELECT * FROM %s WHERE x = 1"),
-                           row(1, map(userType(1), 1,
-                                      userType(1, 1), 1,
-                                      userType(1, 2), 1,
-                                      userType(2), 2,
-                                      userType(2, 1), 2)));
+                           row(1, map(userType("a", 1), 1,
+                                      userType("a", 1, "b", 1), 1,
+                                      userType("a", 1, "b", 2), 1,
+                                      userType("a", 2), 2,
+                                      userType("a", 2, "b", 1), 2)));
 
             compact();
 
             assertRows(execute("SELECT * FROM %s WHERE x = 1"),
-                       row(1, map(userType(1), 1,
-                                  userType(1, 1), 1,
-                                  userType(1, 2), 1,
-                                  userType(2), 2,
-                                  userType(2, 1), 2)));
+                       row(1, map(userType("a", 1), 1,
+                                  userType("a", 1, "b", 1), 1,
+                                  userType("a", 1, "b", 2), 1,
+                                  userType("a", 2), 2,
+                                  userType("a", 2, "b", 1), 2)));
         }
         finally
         {
@@ -661,33 +825,33 @@ public class UserTypesTest extends CQLTester
             createTable("CREATE TABLE %s (x int PRIMARY KEY, y list<frozen<" + columnType + ">>)");
             disableCompaction();
 
-            execute("INSERT INTO %s (x, y) VALUES(1, ?)", list(userType(1), userType(2)));
-            assertRows(execute("SELECT * FROM %s"), row(1, list(userType(1), userType(2))));
+            execute("INSERT INTO %s (x, y) VALUES(1, ?)", list(userType("a", 1), userType("a", 2)));
+            assertRows(execute("SELECT * FROM %s"), row(1, list(userType("a", 1), userType("a", 2))));
             flush();
 
             assertRows(execute("SELECT * FROM %s WHERE x = 1"),
-                       row(1, list(userType(1), userType(2))));
+                       row(1, list(userType("a", 1), userType("a", 2))));
 
             execute("ALTER TYPE " + columnType + " ADD b int");
             execute("UPDATE %s SET y = y + ? WHERE x = 1",
-                    list(userType(1, 1), userType(1, 2), userType(2, 1)));
+                    list(userType("a", 1, "b", 1), userType("a", 1, "b", 2), userType("a", 2, "b", 1)));
 
             flush();
             assertRows(execute("SELECT * FROM %s WHERE x = 1"),
-                           row(1, list(userType(1),
-                                       userType(2),
-                                       userType(1, 1),
-                                       userType(1, 2),
-                                       userType(2, 1))));
+                           row(1, list(userType("a", 1),
+                                       userType("a", 2),
+                                       userType("a", 1, "b", 1),
+                                       userType("a", 1, "b", 2),
+                                       userType("a", 2, "b", 1))));
 
             compact();
 
             assertRows(execute("SELECT * FROM %s WHERE x = 1"),
-                       row(1, list(userType(1),
-                                   userType(2),
-                                   userType(1, 1),
-                                   userType(1, 2),
-                                   userType(2, 1))));
+                       row(1, list(userType("a", 1),
+                                   userType("a", 2),
+                                   userType("a", 1, "b", 1),
+                                   userType("a", 1, "b", 2),
+                                   userType("a", 2, "b", 1))));
         }
         finally
         {
@@ -703,34 +867,15 @@ public class UserTypesTest extends CQLTester
         createTable("CREATE TABLE %s (pk int, c int, v int, s set<frozen<" + columnType + ">>, PRIMARY KEY (pk, c))");
         execute("CREATE MATERIALIZED VIEW " + keyspace() + ".view1 AS SELECT c, pk, v FROM %s WHERE pk IS NOT NULL AND c IS NOT NULL AND v IS NOT NULL PRIMARY KEY (c, pk)");
 
-        execute("INSERT INTO %s (pk, c, v, s) VALUES(?, ?, ?, ?)", 1, 1, 1, set(userType(1), userType(2)));
+        execute("INSERT INTO %s (pk, c, v, s) VALUES(?, ?, ?, ?)", 1, 1, 1, set(userType("a", 1), userType("a", 2)));
         flush();
 
         execute("ALTER TYPE " + columnType + " ADD b int");
         execute("UPDATE %s SET s = s + ?, v = ? WHERE pk = ? AND c = ?",
-                set(userType(1, 1), userType(1, 2), userType(2, 1)), 2, 1, 1);
+                set(userType("a", 1, "b", 1), userType("a", 1, "b", 2), userType("a", 2, "b", 1)), 2, 1, 1);
 
         assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c = ?", 1, 1),
-                       row(1, 1,set(userType(1), userType(1, 1), userType(1, 2), userType(2), userType(2, 1)), 2));
-    }
-
-    @Test(expected = SyntaxException.class)
-    public void emptyTypeNameTest() throws Throwable
-    {
-        execute("CREATE TYPE \"\" (a int, b int)");
-    }
-
-    @Test(expected = SyntaxException.class)
-    public void emptyFieldNameTest() throws Throwable
-    {
-        execute("CREATE TYPE mytype (\"\" int, b int)");
-    }
-
-    @Test(expected = SyntaxException.class)
-    public void renameColumnToEmpty() throws Throwable
-    {
-        String typeName = createType("CREATE TYPE %s (a int, b int)");
-        execute(String.format("ALTER TYPE %s.%s RENAME b TO \"\"", keyspace(), typeName));
+                       row(1, 1,set(userType("a", 1), userType("a", 1, "b", 1), userType("a", 1, "b", 2), userType("a", 2), userType("a", 2, "b", 1)), 2));
     }
 
     private String typeWithKs(String type1)

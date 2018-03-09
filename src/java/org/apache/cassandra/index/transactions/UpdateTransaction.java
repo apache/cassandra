@@ -53,7 +53,7 @@ import org.apache.cassandra.db.rows.Row;
  * onInserted(row)*              -- called for each Row not already present in the Memtable
  * onUpdated(existing, updated)* -- called for any Row in the update for where a version was already present
  *                                  in the Memtable. It's important to note here that existing is the previous
- *                                  row from the Memtable & updated is the final version replacing it. It is
+ *                                  row from the Memtable and updated is the final version replacing it. It is
  *                                  *not* the incoming row, but the result of merging the incoming and existing
  *                                  rows.
  * commit()                      -- finally, finish is called when the new Partition is swapped into the Memtable

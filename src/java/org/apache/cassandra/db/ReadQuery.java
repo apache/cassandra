@@ -23,6 +23,7 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.service.pager.PagingState;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Generic abstraction for read queries.
@@ -35,19 +36,24 @@ public interface ReadQuery
 {
     ReadQuery EMPTY = new ReadQuery()
     {
-        public ReadOrderGroup startOrderGroup()
+        public ReadExecutionController executionController()
         {
-            return ReadOrderGroup.emptyGroup();
+            return ReadExecutionController.empty();
         }
 
-        public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState) throws RequestExecutionException
+        public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
         {
             return EmptyIterators.partition();
         }
 
-        public PartitionIterator executeInternal(ReadOrderGroup orderGroup)
+        public PartitionIterator executeInternal(ReadExecutionController controller)
         {
             return EmptyIterators.partition();
+        }
+
+        public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
+        {
+            return EmptyIterators.unfilteredPartition(executionController.metadata());
         }
 
         public DataLimits limits()
@@ -58,12 +64,7 @@ public interface ReadQuery
             return DataLimits.cqlLimits(0);
         }
 
-        public QueryPager getPager(PagingState state, int protocolVersion)
-        {
-            return QueryPager.EMPTY;
-        }
-
-        public QueryPager getLocalPager()
+        public QueryPager getPager(PagingState state, ProtocolVersion protocolVersion)
         {
             return QueryPager.EMPTY;
         }
@@ -92,9 +93,9 @@ public interface ReadQuery
      * The returned object <b>must</b> be closed on all path and it is thus strongly advised to
      * use it in a try-with-ressource construction.
      *
-     * @return a newly started order group for this {@code ReadQuery}.
+     * @return a newly started execution controller for this {@code ReadQuery}.
      */
-    public ReadOrderGroup startOrderGroup();
+    public ReadExecutionController executionController();
 
     /**
      * Executes the query at the provided consistency level.
@@ -105,15 +106,24 @@ public interface ReadQuery
      *
      * @return the result of the query.
      */
-    public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState) throws RequestExecutionException;
+    public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException;
 
     /**
      * Execute the query for internal queries (that is, it basically executes the query locally).
      *
-     * @param orderGroup the {@code ReadOrderGroup} protecting the read.
+     * @param controller the {@code ReadExecutionController} protecting the read.
      * @return the result of the query.
      */
-    public PartitionIterator executeInternal(ReadOrderGroup orderGroup);
+    public PartitionIterator executeInternal(ReadExecutionController controller);
+
+    /**
+     * Execute the query locally. This is similar to {@link ReadQuery#executeInternal(ReadExecutionController)}
+     * but it returns an unfiltered partition iterator that can be merged later on.
+     *
+     * @param executionController the {@code ReadExecutionController} protecting the read.
+     * @return the result of the read query.
+     */
+    public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController);
 
     /**
      * Returns a pager for the query.
@@ -124,7 +134,7 @@ public interface ReadQuery
      *
      * @return a pager for the query.
      */
-    public QueryPager getPager(PagingState pagingState, int protocolVersion);
+    public QueryPager getPager(PagingState pagingState, ProtocolVersion protocolVersion);
 
     /**
      * The limits for the query.

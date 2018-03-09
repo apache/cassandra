@@ -19,9 +19,9 @@ package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.commons.lang3.StringUtils.join;
-import io.airlift.command.Arguments;
-import io.airlift.command.Command;
-import io.airlift.command.Option;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,7 +59,7 @@ public class TopPartitions extends NodeToolCmd
         checkArgument(topCount < size, "TopK count (-k) option must be smaller then the summary capacity (-s)");
         String keyspace = args.get(0);
         String cfname = args.get(1);
-        Integer duration = Integer.parseInt(args.get(2));
+        Integer duration = Integer.valueOf(args.get(2));
         // generate the list of samplers
         List<Sampler> targets = Lists.newArrayList();
         for (String s : samplers.split(","))
@@ -97,7 +97,7 @@ public class TopPartitions extends NodeToolCmd
             if(!first)
                 System.out.println();
             System.out.println(result.getKey().toString()+ " Sampler:");
-            System.out.printf("  Cardinality: ~%d (%d capacity)%n", (long) sampling.get("cardinality"), size);
+            System.out.printf("  Cardinality: ~%d (%d capacity)%n", sampling.get("cardinality"), size);
             System.out.printf("  Top %d partitions:%n", topCount);
             if (topk.size() == 0)
             {

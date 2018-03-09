@@ -25,13 +25,13 @@ import static org.junit.Assert.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.WindowsFailedSnapshotTracker;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SnapshotDeletingTask;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.GCInspector;
@@ -46,6 +46,7 @@ public class SnapshotDeletingTest
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+        DatabaseDescriptor.daemonInitialization();
         GCInspector.register();
         // Needed to init the output file where we print failed snapshots. This is called on node startup.
         WindowsFailedSnapshotTracker.deleteOldSnapshots();
@@ -58,7 +59,7 @@ public class SnapshotDeletingTest
     @Test
     public void testCompactionHook() throws Exception
     {
-        Assume.assumeTrue(FBUtilities.isWindows());
+        Assume.assumeTrue(FBUtilities.isWindows);
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);
@@ -89,7 +90,7 @@ public class SnapshotDeletingTest
 
     private void populate(int rowCount) {
         long timestamp = System.currentTimeMillis();
-        CFMetaData cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).metadata;
+        TableMetadata cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).metadata();
         for (int i = 0; i <= rowCount; i++)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));

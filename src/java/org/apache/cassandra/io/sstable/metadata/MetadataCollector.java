@@ -17,20 +17,18 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-
-import com.google.common.collect.Maps;
+import java.util.UUID;
 
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
@@ -41,7 +39,8 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MurmurHash;
-import org.apache.cassandra.utils.StreamingHistogram;
+import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
+import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder;
 
 public class MetadataCollector implements PartitionStatisticsCollector
 {
@@ -59,9 +58,9 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return new EstimatedHistogram(150);
     }
 
-    static StreamingHistogram.StreamingHistogramBuilder defaultTombstoneDropTimeHistogramBuilder()
+    static TombstoneHistogram defaultTombstoneDropTimeHistogram()
     {
-        return new StreamingHistogram.StreamingHistogramBuilder(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS);
+        return TombstoneHistogram.createDefault();
     }
 
     public static StatsMetadata defaultStatsMetadata()
@@ -76,25 +75,26 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  0,
                                  Integer.MAX_VALUE,
                                  NO_COMPRESSION_RATIO,
-                                 defaultTombstoneDropTimeHistogramBuilder().build(),
+                                 defaultTombstoneDropTimeHistogram(),
                                  0,
                                  Collections.<ByteBuffer>emptyList(),
                                  Collections.<ByteBuffer>emptyList(),
                                  true,
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                  -1,
-                                 -1);
+                                 -1,
+                                 null);
     }
 
     protected EstimatedHistogram estimatedPartitionSize = defaultPartitionSizeHistogram();
     // TODO: cound the number of row per partition (either with the number of cells, or instead)
     protected EstimatedHistogram estimatedCellPerPartitionCount = defaultCellPerPartitionCountHistogram();
-    protected IntervalSet commitLogIntervals = IntervalSet.empty();
+    protected IntervalSet<CommitLogPosition> commitLogIntervals = IntervalSet.empty();
     protected final MinMaxLongTracker timestampTracker = new MinMaxLongTracker();
     protected final MinMaxIntTracker localDeletionTimeTracker = new MinMaxIntTracker(Cell.NO_DELETION_TIME, Cell.NO_DELETION_TIME);
     protected final MinMaxIntTracker ttlTracker = new MinMaxIntTracker(Cell.NO_TTL, Cell.NO_TTL);
     protected double compressionRatio = NO_COMPRESSION_RATIO;
-    protected StreamingHistogram.StreamingHistogramBuilder estimatedTombstoneDropTime = defaultTombstoneDropTimeHistogramBuilder();
+    protected StreamingTombstoneHistogramBuilder estimatedTombstoneDropTime = new StreamingTombstoneHistogramBuilder(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS);
     protected int sstableLevel;
     protected ByteBuffer[] minClusteringValues;
     protected ByteBuffer[] maxClusteringValues;
@@ -123,7 +123,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     {
         this(comparator);
 
-        IntervalSet.Builder intervals = new IntervalSet.Builder();
+        IntervalSet.Builder<CommitLogPosition> intervals = new IntervalSet.Builder<>();
         for (SSTableReader sstable : sstables)
         {
             intervals.addAll(sstable.getSSTableMetadata().commitLogIntervals);
@@ -149,12 +149,6 @@ public class MetadataCollector implements PartitionStatisticsCollector
     public MetadataCollector addCellPerPartitionCount(long cellCount)
     {
         estimatedCellPerPartitionCount.add(cellCount);
-        return this;
-    }
-
-    public MetadataCollector mergeTombstoneHistogram(StreamingHistogram histogram)
-    {
-        estimatedTombstoneDropTime.merge(histogram);
         return this;
     }
 
@@ -217,7 +211,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         ttlTracker.update(newTTL);
     }
 
-    public MetadataCollector commitLogIntervals(IntervalSet commitLogIntervals)
+    public MetadataCollector commitLogIntervals(IntervalSet<CommitLogPosition> commitLogIntervals)
     {
         this.commitLogIntervals = commitLogIntervals;
         return this;
@@ -278,9 +272,9 @@ public class MetadataCollector implements PartitionStatisticsCollector
         this.hasLegacyCounterShards = this.hasLegacyCounterShards || hasLegacyCounterShards;
     }
 
-    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, SerializationHeader header)
+    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, UUID pendingRepair, SerializationHeader header)
     {
-        Map<MetadataType, MetadataComponent> components = Maps.newHashMap();
+        Map<MetadataType, MetadataComponent> components = new EnumMap<>(MetadataType.class);
         components.put(MetadataType.VALIDATION, new ValidationMetadata(partitioner, bloomFilterFPChance));
         components.put(MetadataType.STATS, new StatsMetadata(estimatedPartitionSize,
                                                              estimatedCellPerPartitionCount,
@@ -299,7 +293,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              hasLegacyCounterShards,
                                                              repairedAt,
                                                              totalColumnsSet,
-                                                             totalRows));
+                                                             totalRows,
+                                                             pendingRepair));
         components.put(MetadataType.COMPACTION, new CompactionMetadata(cardinality));
         components.put(MetadataType.HEADER, header.toComponent());
         return components;

@@ -23,6 +23,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import com.sun.jna.Native;
+
+import org.apache.cassandra.utils.Architecture;
+
 import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
 
@@ -31,7 +34,7 @@ public abstract class MemoryUtil
     private static final long UNSAFE_COPY_THRESHOLD = 1024 * 1024L; // copied from java.nio.Bits
 
     private static final Unsafe unsafe;
-    private static final Class<?> DIRECT_BYTE_BUFFER_CLASS;
+    private static final Class<?> DIRECT_BYTE_BUFFER_CLASS, RO_DIRECT_BYTE_BUFFER_CLASS;
     private static final long DIRECT_BYTE_BUFFER_ADDRESS_OFFSET;
     private static final long DIRECT_BYTE_BUFFER_CAPACITY_OFFSET;
     private static final long DIRECT_BYTE_BUFFER_LIMIT_OFFSET;
@@ -44,17 +47,10 @@ public abstract class MemoryUtil
 
     private static final boolean BIG_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
 
-    private static final boolean UNALIGNED;
-    public static final boolean INVERTED_ORDER;
+    public static final boolean INVERTED_ORDER = Architecture.IS_UNALIGNED && !BIG_ENDIAN;
 
     static
     {
-        String arch = System.getProperty("os.arch");
-        // Note that s390x architecture are not officially supported and adding it here is only done out of convenience
-        // for those that want to run C* on this architecture at their own risk (see #11214)
-        UNALIGNED = arch.equals("i386") || arch.equals("x86")
-                || arch.equals("amd64") || arch.equals("x86_64") || arch.equals("s390x");
-        INVERTED_ORDER = UNALIGNED && !BIG_ENDIAN;
         try
         {
             Field field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
@@ -67,6 +63,7 @@ public abstract class MemoryUtil
             DIRECT_BYTE_BUFFER_POSITION_OFFSET = unsafe.objectFieldOffset(Buffer.class.getDeclaredField("position"));
             DIRECT_BYTE_BUFFER_ATTACHMENT_OFFSET = unsafe.objectFieldOffset(clazz.getDeclaredField("att"));
             DIRECT_BYTE_BUFFER_CLASS = clazz;
+            RO_DIRECT_BYTE_BUFFER_CLASS = ByteBuffer.allocateDirect(0).asReadOnlyBuffer().getClass();
 
             clazz = ByteBuffer.allocate(0).getClass();
             BYTE_BUFFER_OFFSET_OFFSET = unsafe.objectFieldOffset(ByteBuffer.class.getDeclaredField("offset"));
@@ -107,6 +104,11 @@ public abstract class MemoryUtil
         unsafe.putByte(address, b);
     }
 
+    public static void setByte(long address, int count, byte b)
+    {
+        unsafe.setMemory(address, count, b);
+    }
+
     public static void setShort(long address, short s)
     {
         unsafe.putShort(address, s);
@@ -114,7 +116,7 @@ public abstract class MemoryUtil
 
     public static void setInt(long address, int l)
     {
-        if (UNALIGNED)
+        if (Architecture.IS_UNALIGNED)
             unsafe.putInt(address, l);
         else
             putIntByByte(address, l);
@@ -122,7 +124,7 @@ public abstract class MemoryUtil
 
     public static void setLong(long address, long l)
     {
-        if (UNALIGNED)
+        if (Architecture.IS_UNALIGNED)
             unsafe.putLong(address, l);
         else
             putLongByByte(address, l);
@@ -135,27 +137,37 @@ public abstract class MemoryUtil
 
     public static int getShort(long address)
     {
-        return (UNALIGNED ? unsafe.getShort(address) : getShortByByte(address)) & 0xffff;
+        return (Architecture.IS_UNALIGNED ? unsafe.getShort(address) : getShortByByte(address)) & 0xffff;
     }
 
     public static int getInt(long address)
     {
-        return UNALIGNED ? unsafe.getInt(address) : getIntByByte(address);
+        return Architecture.IS_UNALIGNED ? unsafe.getInt(address) : getIntByByte(address);
     }
 
     public static long getLong(long address)
     {
-        return UNALIGNED ? unsafe.getLong(address) : getLongByByte(address);
+        return Architecture.IS_UNALIGNED ? unsafe.getLong(address) : getLongByByte(address);
     }
 
     public static ByteBuffer getByteBuffer(long address, int length)
     {
-        ByteBuffer instance = getHollowDirectByteBuffer();
+        return getByteBuffer(address, length, ByteOrder.nativeOrder());
+    }
+
+    public static ByteBuffer getByteBuffer(long address, int length, ByteOrder order)
+    {
+        ByteBuffer instance = getHollowDirectByteBuffer(order);
         setByteBuffer(instance, address, length);
         return instance;
     }
 
     public static ByteBuffer getHollowDirectByteBuffer()
+    {
+        return getHollowDirectByteBuffer(ByteOrder.nativeOrder());
+    }
+
+    public static ByteBuffer getHollowDirectByteBuffer(ByteOrder order)
     {
         ByteBuffer instance;
         try
@@ -166,7 +178,7 @@ public abstract class MemoryUtil
         {
             throw new AssertionError(e);
         }
-        instance.order(ByteOrder.nativeOrder());
+        instance.order(order);
         return instance;
     }
 
@@ -206,7 +218,7 @@ public abstract class MemoryUtil
 
     public static ByteBuffer duplicateDirectByteBuffer(ByteBuffer source, ByteBuffer hollowBuffer)
     {
-        assert source.getClass() == DIRECT_BYTE_BUFFER_CLASS;
+        assert source.getClass() == DIRECT_BYTE_BUFFER_CLASS || source.getClass() == RO_DIRECT_BYTE_BUFFER_CLASS;
         unsafe.putLong(hollowBuffer, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET, unsafe.getLong(source, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET));
         unsafe.putInt(hollowBuffer, DIRECT_BYTE_BUFFER_POSITION_OFFSET, unsafe.getInt(source, DIRECT_BYTE_BUFFER_POSITION_OFFSET));
         unsafe.putInt(hollowBuffer, DIRECT_BYTE_BUFFER_LIMIT_OFFSET, unsafe.getInt(source, DIRECT_BYTE_BUFFER_LIMIT_OFFSET));

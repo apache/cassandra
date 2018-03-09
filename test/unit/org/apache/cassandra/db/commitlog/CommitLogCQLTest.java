@@ -20,7 +20,7 @@ public class CommitLogCQLTest extends CQLTester
         flush();
 
         // We write something in different table to advance the commit log position. Current table remains clean.
-        execute(String.format("INSERT INTO %s.%s (idx, data) VALUES (?, ?)", keyspace(), otherTable), 16, Integer.toString(16));
+        executeFormattedQuery(String.format("INSERT INTO %s.%s (idx, data) VALUES (?, ?)", keyspace(), otherTable), 16, Integer.toString(16));
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         assert cfs.getTracker().getView().getCurrentMemtable().isClean();
@@ -31,11 +31,11 @@ public class CommitLogCQLTest extends CQLTester
 
         execute("INSERT INTO %s (idx, data) VALUES (?, ?)", 15, Integer.toString(17));
 
-        Collection<CommitLogSegment> active = new ArrayList<>(CommitLog.instance.allocator.getActiveSegments());
+        Collection<CommitLogSegment> active = new ArrayList<>(CommitLog.instance.segmentManager.getActiveSegments());
         CommitLog.instance.forceRecycleAllSegments();
 
         // If one of the previous segments remains, it wasn't clean.
-        active.retainAll(CommitLog.instance.allocator.getActiveSegments());
+        active.retainAll(CommitLog.instance.segmentManager.getActiveSegments());
         assert active.isEmpty();
     }
 }

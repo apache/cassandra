@@ -19,23 +19,27 @@ package org.apache.cassandra.io.util;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-import java.util.stream.StreamSupport;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.utils.SyncUtil;
 import sun.nio.ch.DirectBuffer;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -60,8 +64,8 @@ public final class FileUtils
     public static final long ONE_TB = 1024 * ONE_GB;
 
     private static final DecimalFormat df = new DecimalFormat("#.##");
-    private static final boolean canCleanDirectBuffers;
-    private static final AtomicReference<FSErrorHandler> fsErrorHandler = new AtomicReference<>();
+    public static final boolean isCleanerAvailable;
+    private static final AtomicReference<Optional<FSErrorHandler>> fsErrorHandler = new AtomicReference<>(Optional.empty());
 
     static
     {
@@ -77,7 +81,7 @@ public final class FileUtils
             JVMStabilityInspector.inspectThrowable(t);
             logger.info("Cannot initialize un-mmaper.  (Are you using a non-Oracle JVM?)  Compacted data files will not be removed promptly.  Consider using an Oracle JVM or using standard disk access mode");
         }
-        canCleanDirectBuffers = canClean;
+        isCleanerAvailable = canClean;
     }
 
     public static void createHardLink(String from, String to)
@@ -117,6 +121,13 @@ public final class FileUtils
     public static File createTempFile(String prefix, String suffix)
     {
         return createTempFile(prefix, suffix, new File(System.getProperty("java.io.tmpdir")));
+    }
+
+    public static File createDeletableTempFile(String prefix, String suffix)
+    {
+        File f = createTempFile(prefix, suffix, new File(System.getProperty("java.io.tmpdir")));
+        f.deleteOnExit();
+        return f;
     }
 
     public static Throwable deleteWithConfirm(String filePath, boolean expect, Throwable accumulate)
@@ -179,7 +190,7 @@ public final class FileUtils
     {
         assert from.exists();
         if (logger.isTraceEnabled())
-            logger.trace((String.format("Renaming %s to %s", from.getPath(), to.getPath())));
+            logger.trace("Renaming {} to {}", from.getPath(), to.getPath());
         // this is not FSWE because usually when we see it it's because we didn't close the file before renaming it,
         // and Windows is picky about that.
         try
@@ -337,14 +348,11 @@ public final class FileUtils
         }
     }
 
-    public static boolean isCleanerAvailable()
-    {
-        return canCleanDirectBuffers;
-    }
-
     public static void clean(ByteBuffer buffer)
     {
-        if (isCleanerAvailable() && buffer.isDirect())
+        if (buffer == null)
+            return;
+        if (isCleanerAvailable && buffer.isDirect())
         {
             DirectBuffer db = (DirectBuffer) buffer;
             if (db.cleaner() != null)
@@ -374,13 +382,6 @@ public final class FileUtils
 
     public static void delete(File... files)
     {
-        if (files == null)
-        {
-            // CASSANDRA-13389: some callers use Files.listFiles() which, on error, silently returns null
-            logger.debug("Received null list of files to delete");
-            return;
-        }
-
         for ( File file : files )
         {
             file.delete();
@@ -399,22 +400,6 @@ public final class FileUtils
         ScheduledExecutors.nonPeriodicTasks.execute(runnable);
     }
 
-    public static void visitDirectory(Path dir, Predicate<? super File> filter, Consumer<? super File> consumer)
-    {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir))
-        {
-            StreamSupport.stream(stream.spliterator(), false)
-                         .map(Path::toFile)
-                         // stream directories are weakly consistent so we always check if the file still exists
-                         .filter(f -> f.exists() && (filter == null || filter.test(f)))
-                         .forEach(consumer);
-        }
-        catch (IOException|DirectoryIteratorException ex)
-        {
-            logger.error("Failed to list files in {} with exception: {}", dir, ex.getMessage(), ex);
-        }
-    }
-
     public static String stringifyFileSize(double value)
     {
         double d;
@@ -422,25 +407,25 @@ public final class FileUtils
         {
             d = value / ONE_TB;
             String val = df.format(d);
-            return val + " TB";
+            return val + " TiB";
         }
         else if ( value >= ONE_GB )
         {
             d = value / ONE_GB;
             String val = df.format(d);
-            return val + " GB";
+            return val + " GiB";
         }
         else if ( value >= ONE_MB )
         {
             d = value / ONE_MB;
             String val = df.format(d);
-            return val + " MB";
+            return val + " MiB";
         }
         else if ( value >= ONE_KB )
         {
             d = value / ONE_KB;
             String val = df.format(d);
-            return val + " KB";
+            return val + " KiB";
         }
         else
         {
@@ -480,39 +465,45 @@ public final class FileUtils
                 deleteRecursiveOnExit(new File(dir, child));
         }
 
-        logger.trace("Scheduling deferred deletion of file: " + dir);
+        logger.trace("Scheduling deferred deletion of file: {}", dir);
         dir.deleteOnExit();
     }
 
     public static void handleCorruptSSTable(CorruptSSTableException e)
     {
-        FSErrorHandler handler = fsErrorHandler.get();
-        if (handler != null)
-            handler.handleCorruptSSTable(e);
+        fsErrorHandler.get().ifPresent(handler -> handler.handleCorruptSSTable(e));
     }
 
     public static void handleFSError(FSError e)
     {
-        FSErrorHandler handler = fsErrorHandler.get();
-        if (handler != null)
-            handler.handleFSError(e);
+        fsErrorHandler.get().ifPresent(handler -> handler.handleFSError(e));
     }
+
     /**
      * Get the size of a directory in bytes
-     * @param directory The directory for which we need size.
+     * @param folder The directory for which we need size.
      * @return The size of the directory
      */
-    public static long folderSize(File directory)
+    public static long folderSize(File folder)
     {
-        long length = 0;
-        for (File file : directory.listFiles())
+        final long [] sizeArr = {0L};
+        try
         {
-            if (file.isFile())
-                length += file.length();
-            else
-                length += folderSize(file);
+            Files.walkFileTree(folder.toPath(), new SimpleFileVisitor<Path>()
+            {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                {
+                    sizeArr[0] += attrs.size();
+                    return FileVisitResult.CONTINUE;
+                }
+            });
         }
-        return length;
+        catch (IOException e)
+        {
+            logger.error("Error while getting {} folder size. {}", folder, e.getMessage());
+        }
+        return sizeArr[0];
     }
 
     public static void copyTo(DataInput in, OutputStream out, int length) throws IOException
@@ -571,14 +562,46 @@ public final class FileUtils
         write(file, Arrays.asList(lines), StandardOpenOption.TRUNCATE_EXISTING);
     }
 
+    /**
+     * Write lines to a file adding a newline to the end of each supplied line using the provided open options.
+     *
+     * If open option sync or dsync is provided this will not open the file with sync or dsync since it might end up syncing
+     * many times for a lot of lines. Instead it will write all the lines and sync once at the end. Since the file is
+     * never returned there is not much difference from the perspective of the caller.
+     * @param file
+     * @param lines
+     * @param options
+     */
     public static void write(File file, List<String> lines, StandardOpenOption ... options)
     {
-        try
+        Set<StandardOpenOption> optionsSet = new HashSet<>(Arrays.asList(options));
+        //Emulate the old FileSystemProvider.newOutputStream behavior for open options.
+        if (optionsSet.isEmpty())
         {
-            Files.write(file.toPath(),
-                        lines,
-                        CHARSET,
-                        options);
+            optionsSet.add(StandardOpenOption.CREATE);
+            optionsSet.add(StandardOpenOption.TRUNCATE_EXISTING);
+        }
+        boolean sync = optionsSet.remove(StandardOpenOption.SYNC);
+        boolean dsync = optionsSet.remove(StandardOpenOption.DSYNC);
+        optionsSet.add(StandardOpenOption.WRITE);
+
+        Path filePath = file.toPath();
+        try (FileChannel fc = filePath.getFileSystem().provider().newFileChannel(filePath, optionsSet);
+             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(Channels.newOutputStream(fc), CHARSET.newEncoder())))
+        {
+            for (CharSequence line: lines) {
+                writer.append(line);
+                writer.newLine();
+            }
+
+            if (sync)
+            {
+                SyncUtil.force(fc, true);
+            }
+            else if (dsync)
+            {
+                SyncUtil.force(fc, false);
+            }
         }
         catch (IOException ex)
         {
@@ -603,7 +626,7 @@ public final class FileUtils
 
     public static void setFSErrorHandler(FSErrorHandler handler)
     {
-        fsErrorHandler.getAndSet(handler);
+        fsErrorHandler.getAndSet(Optional.ofNullable(handler));
     }
 
     /**

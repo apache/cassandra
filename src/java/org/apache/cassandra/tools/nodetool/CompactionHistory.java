@@ -17,41 +17,32 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.collect.Iterables.toArray;
-import io.airlift.command.Command;
-
-import java.util.List;
-import java.util.Set;
-
-import javax.management.openmbean.TabularData;
-
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.stats.CompactionHistoryHolder;
+import org.apache.cassandra.tools.nodetool.stats.CompactionHistoryPrinter;
+import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
+import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
 
 @Command(name = "compactionhistory", description = "Print history of compaction")
 public class CompactionHistory extends NodeToolCmd
 {
+    @Option(title = "format",
+            name = {"-F", "--format"},
+            description = "Output format (json, yaml)")
+    private String outputFormat = "";
+
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println("Compaction History: ");
-
-        TabularData tabularData = probe.getCompactionHistory();
-        if (tabularData.isEmpty())
+        if (!outputFormat.isEmpty() && !"json".equals(outputFormat) && !"yaml".equals(outputFormat))
         {
-            System.out.printf("There is no compaction history");
-            return;
+            throw new IllegalArgumentException("arguments for -F are json,yaml only.");
         }
-
-        String format = "%-41s%-19s%-29s%-26s%-15s%-15s%s%n";
-        List<String> indexNames = tabularData.getTabularType().getIndexNames();
-        System.out.printf(format, toArray(indexNames, Object.class));
-
-        Set<?> values = tabularData.keySet();
-        for (Object eachValue : values)
-        {
-            List<?> value = (List<?>) eachValue;
-            System.out.printf(format, toArray(value, Object.class));
-        }
+        StatsHolder data = new CompactionHistoryHolder(probe);
+        StatsPrinter printer = CompactionHistoryPrinter.from(outputFormat);
+        printer.print(data, System.out);
     }
 }

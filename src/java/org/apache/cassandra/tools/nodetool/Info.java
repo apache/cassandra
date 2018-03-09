@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.command.Command;
-import io.airlift.command.Option;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 import java.lang.management.MemoryUsage;
 import java.util.Iterator;
@@ -43,11 +43,10 @@ public class Info extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        boolean gossipInitialized = probe.isInitialized();
+        boolean gossipInitialized = probe.isGossipRunning();
 
         System.out.printf("%-23s: %s%n", "ID", probe.getLocalHostId());
         System.out.printf("%-23s: %s%n", "Gossip active", gossipInitialized);
-        System.out.printf("%-23s: %s%n", "Thrift active", probe.isThriftServerRunning());
         System.out.printf("%-23s: %s%n", "Native Transport active", probe.isNativeTransportRunning());
         System.out.printf("%-23s: %s%n", "Load", probe.getLoadString());
         if (gossipInitialized)
@@ -117,6 +116,31 @@ public class Info extends NodeToolCmd
                 probe.getCacheMetric("CounterCache", "HitRate"),
                 cacheService.getCounterCacheSavePeriodInSeconds());
 
+        // Chunk Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
+        try
+        {
+            System.out.printf("%-23s: entries %d, size %s, capacity %s, %d misses, %d requests, %.3f recent hit rate, %.3f %s miss latency%n",
+                    "Chunk Cache",
+                    probe.getCacheMetric("ChunkCache", "Entries"),
+                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("ChunkCache", "Size")),
+                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("ChunkCache", "Capacity")),
+                    probe.getCacheMetric("ChunkCache", "Misses"),
+                    probe.getCacheMetric("ChunkCache", "Requests"),
+                    probe.getCacheMetric("ChunkCache", "HitRate"),
+                    probe.getCacheMetric("ChunkCache", "MissLatency"),
+                    probe.getCacheMetric("ChunkCache", "MissLatencyUnit"));
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e.getCause() instanceof InstanceNotFoundException))
+                throw e;
+
+            // Chunk cache is not on.
+        }
+
+        // Global table stats
+        System.out.printf("%-23s: %s%%%n", "Percent Repaired", probe.getColumnFamilyMetric(null, null, "PercentRepaired"));
+
         // check if node is already joined, before getting tokens, since it throws exception if not.
         if (probe.isJoined())
         {
@@ -149,7 +173,7 @@ public class Info extends NodeToolCmd
         {
             Entry<String, ColumnFamilyStoreMBean> entry = cfamilies.next();
             String keyspaceName = entry.getKey();
-            String cfName = entry.getValue().getColumnFamilyName();
+            String cfName = entry.getValue().getTableName();
 
             offHeapMemUsedInBytes += (Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableOffHeapSize");
             offHeapMemUsedInBytes += (Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "BloomFilterOffHeapMemoryUsed");

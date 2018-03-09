@@ -19,7 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import com.google.common.collect.UnmodifiableIterator;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 
 /**
@@ -29,7 +29,7 @@ import org.apache.cassandra.db.*;
  * some of the methods.
  * <p>
  * Note that if most of what you want to do is modifying/filtering the returned
- * {@code Unfiltered}, {@link org.apache.cassandra.db.transform.Transformation.apply} can be a simpler option.
+ * {@code Unfiltered}, {@link org.apache.cassandra.db.transform.Transformation#apply(UnfilteredRowIterator,Transformation)} can be a simpler option.
  */
 public abstract class WrappingUnfilteredRowIterator extends UnmodifiableIterator<Unfiltered>  implements UnfilteredRowIterator
 {
@@ -40,12 +40,12 @@ public abstract class WrappingUnfilteredRowIterator extends UnmodifiableIterator
         this.wrapped = wrapped;
     }
 
-    public CFMetaData metadata()
+    public TableMetadata metadata()
     {
         return wrapped.metadata();
     }
 
-    public PartitionColumns columns()
+    public RegularAndStaticColumns columns()
     {
         return wrapped.columns();
     }

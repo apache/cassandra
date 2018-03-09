@@ -18,11 +18,17 @@
 package org.apache.cassandra.utils.obs;
 
 import java.io.DataInput;
+import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.Memory;
+import org.apache.cassandra.io.util.MemoryOutputStream;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
@@ -35,8 +41,8 @@ public class OffHeapBitSet implements IBitSet
 
     public OffHeapBitSet(long numBits)
     {
-        // OpenBitSet.bits2words calculation is there for backward compatibility.
-        long wordCount = OpenBitSet.bits2words(numBits);
+        /** returns the number of 64 bit words it would take to hold numBits */
+        long wordCount = (((numBits - 1) >>> 6) + 1);
         if (wordCount > Integer.MAX_VALUE)
             throw new UnsupportedOperationException("Bloom filter size is > 16GB, reduce the bloom_filter_fp_chance");
         try
@@ -109,19 +115,26 @@ public class OffHeapBitSet implements IBitSet
         bytes.setMemory(0, bytes.size(), (byte) 0);
     }
 
-    public void serialize(DataOutput out) throws IOException
+    public void serialize(DataOutputPlus out) throws IOException
     {
         out.writeInt((int) (bytes.size() / 8));
-        for (long i = 0; i < bytes.size();)
+        out.write(bytes, 0, bytes.size());
+    }
+
+    @VisibleForTesting
+    public void serializeOldBfFormat(DataOutputPlus out) throws IOException
+    {
+        out.writeInt((int) (bytes.size() / 8));
+        for (long i = 0; i < bytes.size(); )
         {
             long value = ((bytes.getByte(i++) & 0xff) << 0)
-                       + ((bytes.getByte(i++) & 0xff) << 8)
-                       + ((bytes.getByte(i++) & 0xff) << 16)
-                       + ((long) (bytes.getByte(i++) & 0xff) << 24)
-                       + ((long) (bytes.getByte(i++) & 0xff) << 32)
-                       + ((long) (bytes.getByte(i++) & 0xff) << 40)
-                       + ((long) (bytes.getByte(i++) & 0xff) << 48)
-                       + ((long) bytes.getByte(i++) << 56);
+                         + ((bytes.getByte(i++) & 0xff) << 8)
+                         + ((bytes.getByte(i++) & 0xff) << 16)
+                         + ((long) (bytes.getByte(i++) & 0xff) << 24)
+                         + ((long) (bytes.getByte(i++) & 0xff) << 32)
+                         + ((long) (bytes.getByte(i++) & 0xff) << 40)
+                         + ((long) (bytes.getByte(i++) & 0xff) << 48)
+                         + ((long) bytes.getByte(i++) << 56);
             out.writeLong(value);
         }
     }
@@ -132,21 +145,28 @@ public class OffHeapBitSet implements IBitSet
     }
 
     @SuppressWarnings("resource")
-    public static OffHeapBitSet deserialize(DataInput in) throws IOException
+    public static OffHeapBitSet deserialize(DataInputStream in, boolean oldBfFormat) throws IOException
     {
         long byteCount = in.readInt() * 8L;
         Memory memory = Memory.allocate(byteCount);
-        for (long i = 0; i < byteCount;)
+        if (oldBfFormat)
         {
-            long v = in.readLong();
-            memory.setByte(i++, (byte) (v >>> 0));
-            memory.setByte(i++, (byte) (v >>> 8));
-            memory.setByte(i++, (byte) (v >>> 16));
-            memory.setByte(i++, (byte) (v >>> 24));
-            memory.setByte(i++, (byte) (v >>> 32));
-            memory.setByte(i++, (byte) (v >>> 40));
-            memory.setByte(i++, (byte) (v >>> 48));
-            memory.setByte(i++, (byte) (v >>> 56));
+            for (long i = 0; i < byteCount; )
+            {
+                long v = in.readLong();
+                memory.setByte(i++, (byte) (v >>> 0));
+                memory.setByte(i++, (byte) (v >>> 8));
+                memory.setByte(i++, (byte) (v >>> 16));
+                memory.setByte(i++, (byte) (v >>> 24));
+                memory.setByte(i++, (byte) (v >>> 32));
+                memory.setByte(i++, (byte) (v >>> 40));
+                memory.setByte(i++, (byte) (v >>> 48));
+                memory.setByte(i++, (byte) (v >>> 56));
+            }
+        }
+        else
+        {
+            FBUtilities.copy(in, new MemoryOutputStream(memory), byteCount);
         }
         return new OffHeapBitSet(memory);
     }

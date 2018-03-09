@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.db.rows;
 
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 
 /**
@@ -27,7 +27,7 @@ import org.apache.cassandra.db.*;
  *
  * This is used during partition range queries when we know the partition key but want
  * to defer the initialization of the rest of the UnfilteredRowIterator until we need those informations.
- * See {@link BigTableScanner#KeyScanningIterator} for instance.
+ * See {@link org.apache.cassandra.io.sstable.format.big.BigTableScanner.KeyScanningIterator} for instance.
  */
 public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIterator<Unfiltered> implements UnfilteredRowIterator
 {
@@ -42,19 +42,24 @@ public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIte
 
     protected abstract UnfilteredRowIterator initializeIterator();
 
-    private void maybeInit()
+    protected void maybeInit()
     {
         if (iterator == null)
             iterator = initializeIterator();
     }
 
-    public CFMetaData metadata()
+    public boolean initialized()
+    {
+        return iterator != null;
+    }
+
+    public TableMetadata metadata()
     {
         maybeInit();
         return iterator.metadata();
     }
 
-    public PartitionColumns columns()
+    public RegularAndStaticColumns columns()
     {
         maybeInit();
         return iterator.columns();

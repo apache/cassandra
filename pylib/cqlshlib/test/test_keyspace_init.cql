@@ -63,12 +63,12 @@ CREATE TABLE empty_table (
 
 
 
-CREATE COLUMNFAMILY dynamic_columns (
+CREATE TABLE dynamic_columns (
     somekey int,
     column1 float,
     value text,
     PRIMARY KEY(somekey, column1)
-) WITH COMPACT STORAGE;
+);
 
 INSERT INTO dynamic_columns (somekey, column1, value) VALUES (1, 1.2, 'one point two');
 INSERT INTO dynamic_columns (somekey, column1, value) VALUES (2, 2.3, 'two point three');

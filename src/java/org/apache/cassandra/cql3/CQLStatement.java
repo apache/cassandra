@@ -50,8 +50,9 @@ public interface CQLStatement
      *
      * @param state the current query state
      * @param options options for this query (consistency, variables, pageSize, ...)
+     * @param queryStartNanoTime the timestamp returned by System.nanoTime() when this statement was received
      */
-    public ResultMessage execute(QueryState state, QueryOptions options) throws RequestValidationException, RequestExecutionException;
+    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Variant of execute used for internal query against the system tables, and thus only query the local node.
@@ -66,4 +67,12 @@ public interface CQLStatement
      * @return functions all functions found (may contain duplicates)
      */
     public Iterable<Function> getFunctions();
+
+    /**
+     * Whether or not this CQL Statement has LWT conditions
+     */
+    default public boolean hasConditions()
+    {
+        return false;
+    }
 }

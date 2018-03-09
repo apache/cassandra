@@ -1,6 +1,6 @@
 package org.apache.cassandra.stress.settings;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.stress.settings;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -58,6 +58,15 @@ public final class OptionAnyProbabilities extends OptionMulti
         {
             return null;
         }
+        public String getOptionAsString()
+        {
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, Double> entry : options.entrySet())
+            {
+                sb.append(entry.getKey()).append("=").append(entry.getValue()).append(",");
+            }
+            return sb.toString();
+        }
 
         String longDisplay()
         {
@@ -91,5 +100,14 @@ public final class OptionAnyProbabilities extends OptionMulti
     {
         return ratios.options;
     }
+    public String getOptionAsString()
+    {
+        StringBuilder sb = new StringBuilder(super.getOptionAsString());
+        sb.append(" [Ratios: ");
+        sb.append(ratios.getOptionAsString());
+        sb.append("];");
+        return sb.toString();
+    }
+
 }
 

@@ -21,7 +21,7 @@ package org.apache.cassandra.db;
 import static org.junit.Assert.*;
 
 import org.apache.cassandra.utils.FBUtilities;
-
+import org.apache.hadoop.mapred.machines_jsp;
 import org.junit.Test;
 
 public class LivenessInfoTest
@@ -45,7 +45,7 @@ public class LivenessInfoTest
 
         // timestamp supersedes for mv expired liveness
         first = LivenessInfo.create(100, 0, nowInSeconds);
-        second = LivenessInfo.create(99, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds);
+        second = LivenessInfo.withExpirationTime(99, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds);
         assertSupersedes(first, second);
 
         // timestamp ties, ttl supersedes non-ttl
@@ -63,18 +63,18 @@ public class LivenessInfoTest
         assertSupersedes(second, first);
 
         // timestamp ties, mv expired liveness supersedes normal ttl
-        first = LivenessInfo.create(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds);
+        first = LivenessInfo.withExpirationTime(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds);
         second = LivenessInfo.expiring(100, 1000, nowInSeconds);
         assertSupersedes(first, second);
 
         // timestamp ties, mv expired liveness supersedes non-ttl
-        first = LivenessInfo.create(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds);
+        first = LivenessInfo.withExpirationTime(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds);
         second = LivenessInfo.create(100, 0, nowInSeconds);
         assertSupersedes(first, second);
 
         // timestamp ties, both are mv expired liveness, local deletion time win
-        first = LivenessInfo.create(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds + 1);
-        second = LivenessInfo.create(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds);
+        first = LivenessInfo.withExpirationTime(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds + 1);
+        second = LivenessInfo.withExpirationTime(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds);
         assertSupersedes(first, second);
     }
 
@@ -91,9 +91,9 @@ public class LivenessInfoTest
         assertIsLive(LivenessInfo.expiring(100, 2, nowInSeconds), nowInSeconds, true);
         assertIsLive(LivenessInfo.expiring(100, 2, nowInSeconds), nowInSeconds + 3, false);
 
-        assertIsLive(LivenessInfo.create(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds), nowInSeconds - 3, false);
-        assertIsLive(LivenessInfo.create(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds), nowInSeconds, false);
-        assertIsLive(LivenessInfo.create(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds), nowInSeconds + 3, false);
+        assertIsLive(LivenessInfo.withExpirationTime(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds), nowInSeconds - 3, false);
+        assertIsLive(LivenessInfo.withExpirationTime(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds), nowInSeconds, false);
+        assertIsLive(LivenessInfo.withExpirationTime(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds), nowInSeconds + 3, false);
     }
 
     /**

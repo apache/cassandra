@@ -124,6 +124,7 @@ public class OptionDistribution extends Option
                 GroupedOptions.formatMultiLine("GAUSSIAN(min..max,mean,stdev)", "A gaussian/normal distribution, with explicitly defined mean and stdev"),
                 GroupedOptions.formatMultiLine("UNIFORM(min..max)", "A uniform distribution over the range [min, max]"),
                 GroupedOptions.formatMultiLine("FIXED(val)", "A fixed distribution, always returning the same value"),
+                GroupedOptions.formatMultiLine("SEQ(min..max)", "A fixed sequence, returning values in the range min to max sequentially (starting based on seed), wrapping if necessary."),
                 "Preceding the name with ~ will invert the distribution, e.g. ~exp(1..10) will yield 10 most, instead of least, often",
                 "Aliases: extr, qextr, gauss, normal, norm, weibull"
         );
@@ -145,6 +146,11 @@ public class OptionDistribution extends Option
         return (defaultSpec != null ? "[" : "") + prefix + "DIST(?)" + (defaultSpec != null ? "]" : "");
     }
 
+    public String getOptionAsString()
+    {
+        return prefix + (spec == null ? defaultSpec : spec);
+    }
+
     private static final Map<String, Impl> LOOKUP;
     static
     {
@@ -161,6 +167,7 @@ public class OptionDistribution extends Option
         lookup.put("norm", lookup.get("gaussian"));
         lookup.put("uniform", new UniformImpl());
         lookup.put("fixed", new FixedImpl());
+        lookup.put("seq", new SequenceImpl());
         LOOKUP = lookup;
     }
 
@@ -334,17 +341,48 @@ public class OptionDistribution extends Option
         public DistributionFactory getFactory(List<String> params)
         {
             if (params.size() != 1)
-                throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
+                throw new IllegalArgumentException("Invalid parameter list for fixed distribution: " + params);
             try
             {
                 final long key = parseLong(params.get(0));
                 return new FixedFactory(key);
             } catch (Exception ignore)
             {
-                throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
+                throw new IllegalArgumentException("Invalid parameter list for fixed distribution: " + params);
             }
         }
     }
+
+    private static final class SequenceImpl implements Impl
+    {
+
+        @Override
+        public DistributionFactory getFactory(List<String> params)
+        {
+            if (params.size() != 1)
+                throw new IllegalArgumentException("Invalid parameter list for sequence distribution: " + params);
+            final long min;
+            final long max;
+            try
+            {
+                String[] bounds = params.get(0).split("\\.\\.+");
+                min = parseLong(bounds[0]);
+                max = parseLong(bounds[1]);
+            } catch (Exception ignore)
+            {
+                throw new IllegalArgumentException("Invalid parameter list for sequence distribution: " + params);
+            }
+            if (min == max)
+                throw new IllegalArgumentException("Invalid parameter list for sequence distribution (min==max): " + params);
+
+            if (min > max)
+                throw new IllegalArgumentException("Invalid parameter list for sequence distribution (min>max): " + params);
+
+            return new SequenceFactory(min, max);
+
+        }
+    }
+
 
     private static final class InverseFactory implements DistributionFactory
     {
@@ -358,6 +396,8 @@ public class OptionDistribution extends Option
         {
             return new DistributionInverted(wrapped.get());
         }
+        public String getConfigAsString(){return "Inverse: " + wrapped.getConfigAsString();};
+
     }
 
     // factories
@@ -378,6 +418,10 @@ public class OptionDistribution extends Option
         {
             return new DistributionOffsetApache(new ExponentialDistribution(new JDKRandomGenerator(), mean, ExponentialDistribution.DEFAULT_INVERSE_ABSOLUTE_ACCURACY), min, max);
         }
+
+        @Override
+        public String getConfigAsString(){return String.format("Exponential:  min=%d,max=%d,mean=%f", min, max, mean);}
+
     }
 
     private static class ExtremeFactory implements DistributionFactory
@@ -397,6 +441,10 @@ public class OptionDistribution extends Option
         {
             return new DistributionOffsetApache(new WeibullDistribution(new JDKRandomGenerator(), shape, scale, WeibullDistribution.DEFAULT_INVERSE_ABSOLUTE_ACCURACY), min, max);
         }
+
+        @Override
+        public String getConfigAsString(){return String.format("Extreme:  min=%d,max=%d,shape=%f, scale=%f", min, max, shape, scale);}
+
     }
 
     private static final class QuantizedExtremeFactory extends ExtremeFactory
@@ -432,6 +480,10 @@ public class OptionDistribution extends Option
         {
             return new DistributionBoundApache(new NormalDistribution(new JDKRandomGenerator(), mean, stdev, NormalDistribution.DEFAULT_INVERSE_ABSOLUTE_ACCURACY), min, max);
         }
+
+        @Override
+        public String getConfigAsString(){return String.format("Gaussian:  min=%d,max=%d,mean=%f,stdev=%f", min, max, mean, stdev);}
+
     }
 
     private static final class UniformFactory implements DistributionFactory
@@ -448,6 +500,10 @@ public class OptionDistribution extends Option
         {
             return new DistributionBoundApache(new UniformRealDistribution(new JDKRandomGenerator(), min, max + 1), min, max);
         }
+
+        @Override
+        public String getConfigAsString(){return String.format("Uniform:  min=%d,max=%d", min, max);}
+
     }
 
     private static final class FixedFactory implements DistributionFactory
@@ -463,7 +519,34 @@ public class OptionDistribution extends Option
         {
             return new DistributionFixed(key);
         }
+
+        @Override
+        public String getConfigAsString(){return String.format("Fixed:  key=%d", key);}
+
     }
+
+    private static final class SequenceFactory implements DistributionFactory
+    {
+        final long start;
+        final long end;
+
+        private SequenceFactory(long start, long end)
+        {
+            this.start=start;
+            this.end = end;
+        }
+
+        @Override
+        public Distribution get()
+        {
+            return new DistributionSequence(start, end);
+        }
+
+        @Override
+        public String getConfigAsString(){return String.format("Sequence:  start=%d,end=%d", start, end);}
+
+    }
+
 
     @Override
     public int hashCode()

@@ -17,15 +17,13 @@
  */
 package org.apache.cassandra.db;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.nio.ByteBuffer;
+import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.SuperColumnCompatibility;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.EmptyType;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Small utility methods pertaining to the encoding of COMPACT STORAGE tables.
@@ -56,71 +54,71 @@ import org.apache.cassandra.db.marshal.UTF8Type;
  * On variation is that if the table comparator is a CompositeType, then the underlying table will have one clustering column by
  * element of the CompositeType, but the rest of the layout is as above.
  *
- * SuperColumn families handling and detailed format description can be found in {@code SuperColumnCompatibility}.
+ * As far as thrift is concerned, one exception to this is super column families, which have a different layout. Namely, a super
+ * column families is encoded with:
+ * {@code
+ *   CREATE TABLE super (
+ *      key [key_validation_class],
+ *      super_column_name [comparator],
+ *      [column_metadata_1] [type1],
+ *      ...,
+ *      [column_metadata_n] [type1],
+ *      "" map<[sub_comparator], [default_validation_class]>
+ *      PRIMARY KEY (key, super_column_name)
+ *   )
+ * }
+ * In other words, every super column is encoded by a row. That row has one column for each defined "column_metadata", but it also
+ * has a special map column (whose name is the empty string as this is guaranteed to never conflict with a user-defined
+ * "column_metadata") which stores the super column "dynamic" sub-columns.
  */
 public abstract class CompactTables
 {
+    // We use an empty value for the 1) this can't conflict with a user-defined column and 2) this actually
+    // validate with any comparator.
+    public static final ByteBuffer SUPER_COLUMN_MAP_COLUMN = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
     private CompactTables() {}
 
-    public static ColumnDefinition getCompactValueColumn(PartitionColumns columns)
+    public static ColumnMetadata getCompactValueColumn(RegularAndStaticColumns columns, boolean isSuper)
     {
+        if (isSuper)
+        {
+            for (ColumnMetadata column : columns.regulars)
+                if (column.name.bytes.equals(SUPER_COLUMN_MAP_COLUMN))
+                    return column;
+            throw new AssertionError("Invalid super column table definition, no 'dynamic' map column");
+        }
         assert columns.regulars.simpleColumnCount() == 1 && columns.regulars.complexColumnCount() == 0;
         return columns.regulars.getSimple(0);
     }
 
-    public static AbstractType<?> columnDefinitionComparator(String kind, boolean isSuper, AbstractType<?> rawComparator, AbstractType<?> rawSubComparator)
+    public static boolean hasEmptyCompactValue(TableMetadata metadata)
     {
-        if (!"regular".equals(kind))
-            return UTF8Type.instance;
-
-        return isSuper ? rawSubComparator : rawComparator;
+        return metadata.compactValueColumn.type instanceof EmptyType;
     }
 
-    public static boolean hasEmptyCompactValue(CFMetaData metadata)
+    public static boolean isSuperColumnMapColumn(ColumnMetadata column)
     {
-        return metadata.compactValueColumn().type instanceof EmptyType;
+        return column.kind == ColumnMetadata.Kind.REGULAR && column.name.bytes.equals(SUPER_COLUMN_MAP_COLUMN);
     }
 
     public static DefaultNames defaultNameGenerator(Set<String> usedNames)
     {
-        return new DefaultNames(new HashSet<String>(usedNames));
-    }
-
-    public static DefaultNames defaultNameGenerator(Iterable<ColumnDefinition> defs)
-    {
-        Set<String> usedNames = new HashSet<>();
-        for (ColumnDefinition def : defs)
-            usedNames.add(def.name.toString());
-        return new DefaultNames(usedNames);
+        return new DefaultNames(new HashSet<>(usedNames));
     }
 
     public static class DefaultNames
     {
-        private static final String DEFAULT_PARTITION_KEY_NAME = "key";
         private static final String DEFAULT_CLUSTERING_NAME = "column";
         private static final String DEFAULT_COMPACT_VALUE_NAME = "value";
 
         private final Set<String> usedNames;
-        private int partitionIndex = 0;
         private int clusteringIndex = 1;
         private int compactIndex = 0;
 
         private DefaultNames(Set<String> usedNames)
         {
             this.usedNames = usedNames;
-        }
-
-        public String defaultPartitionKeyName()
-        {
-            while (true)
-            {
-                // For compatibility sake, we call the first alias 'key' rather than 'key1'. This
-                // is inconsistent with column alias, but it's probably not worth risking breaking compatibility now.
-                String candidate = partitionIndex == 0 ? DEFAULT_PARTITION_KEY_NAME : DEFAULT_PARTITION_KEY_NAME + (partitionIndex + 1);
-                ++partitionIndex;
-                if (usedNames.add(candidate))
-                    return candidate;
-            }
         }
 
         public String defaultClusteringName()

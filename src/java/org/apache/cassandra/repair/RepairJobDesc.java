@@ -32,6 +32,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
@@ -66,6 +67,11 @@ public class RepairJobDesc
         return "[repair #" + sessionId + " on " + keyspace + "/" + columnFamily + ", " + ranges + "]";
     }
 
+    public String toString(PreviewKind previewKind)
+    {
+        return '[' + previewKind.logPrefix() + " #" + sessionId + " on " + keyspace + "/" + columnFamily + ", " + ranges + "]";
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -93,12 +99,10 @@ public class RepairJobDesc
     {
         public void serialize(RepairJobDesc desc, DataOutputPlus out, int version) throws IOException
         {
-            if (version >= MessagingService.VERSION_21)
-            {
-                out.writeBoolean(desc.parentSessionId != null);
-                if (desc.parentSessionId != null)
-                    UUIDSerializer.serializer.serialize(desc.parentSessionId, out, version);
-            }
+            out.writeBoolean(desc.parentSessionId != null);
+            if (desc.parentSessionId != null)
+                UUIDSerializer.serializer.serialize(desc.parentSessionId, out, version);
+
             UUIDSerializer.serializer.serialize(desc.sessionId, out, version);
             out.writeUTF(desc.keyspace);
             out.writeUTF(desc.columnFamily);
@@ -111,17 +115,14 @@ public class RepairJobDesc
         public RepairJobDesc deserialize(DataInputPlus in, int version) throws IOException
         {
             UUID parentSessionId = null;
-            if (version >= MessagingService.VERSION_21)
-            {
-                if (in.readBoolean())
-                    parentSessionId = UUIDSerializer.serializer.deserialize(in, version);
-            }
+            if (in.readBoolean())
+                parentSessionId = UUIDSerializer.serializer.deserialize(in, version);
             UUID sessionId = UUIDSerializer.serializer.deserialize(in, version);
             String keyspace = in.readUTF();
             String columnFamily = in.readUTF();
 
             int nRanges = in.readInt();
-            Collection<Range<Token>> ranges = new ArrayList<>();
+            Collection<Range<Token>> ranges = new ArrayList<>(nRanges);
             Range<Token> range;
 
             for (int i = 0; i < nRanges; i++)
@@ -136,13 +137,9 @@ public class RepairJobDesc
 
         public long serializedSize(RepairJobDesc desc, int version)
         {
-            int size = 0;
-            if (version >= MessagingService.VERSION_21)
-            {
-                size += TypeSizes.sizeof(desc.parentSessionId != null);
-                if (desc.parentSessionId != null)
-                    size += UUIDSerializer.serializer.serializedSize(desc.parentSessionId, version);
-            }
+            int size = TypeSizes.sizeof(desc.parentSessionId != null);
+            if (desc.parentSessionId != null)
+                size += UUIDSerializer.serializer.serializedSize(desc.parentSessionId, version);
             size += UUIDSerializer.serializer.serializedSize(desc.sessionId, version);
             size += TypeSizes.sizeof(desc.keyspace);
             size += TypeSizes.sizeof(desc.columnFamily);

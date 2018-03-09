@@ -17,15 +17,10 @@
  */
 package org.apache.cassandra.auth;
 
-public interface RolesCacheMBean
+/**
+ * Retained since CASSANDRA-7715 for backwards compatibility of MBean interface
+ * classes. This should be removed in the next major version (4.0)
+ */
+public interface RolesCacheMBean extends AuthCacheMBean
 {
-    public void invalidate();
-
-    public void setValidity(int validityPeriod);
-
-    public int getValidity();
-
-    public void setUpdateInterval(int updateInterval);
-
-    public int getUpdateInterval();
 }

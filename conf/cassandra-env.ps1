@@ -47,7 +47,7 @@ Function BuildClassPath
     }
 
     # Add build/classes/main so it works in development
-    $cp = $cp + ";" + """$env:CASSANDRA_HOME\build\classes\main"";""$env:CASSANDRA_HOME\build\classes\thrift"""
+    $cp = $cp + ";" + """$env:CASSANDRA_HOME\build\classes\main"""
     $env:CLASSPATH=$cp
 }
 
@@ -393,33 +393,6 @@ Function SetCassandraEnvironment
         $env:JVM_OPTS="$env:JVM_OPTS -XX:HeapDumpPath=$env:CASSANDRA_HEAPDUMP_DIR\cassandra-$unixTimestamp-pid$pid.hprof"
     }
 
-    if ($env:JVM_VERSION.CompareTo("1.8.0") -eq -1 -or [convert]::ToInt32($env:JVM_PATCH_VERSION) -lt 40)
-    {
-        echo "Cassandra 3.0 and later require Java 8u40 or later."
-        exit
-    }
-
-    # enable assertions.  disabling this in production will give a modest
-    # performance benefit (around 5%).
-    $env:JVM_OPTS = "$env:JVM_OPTS -ea"
-
-    # Specifies the default port over which Cassandra will be available for
-    # JMX connections.
-    $JMX_PORT="7199"
-
-    # store in env to check if it's avail in verification
-    $env:JMX_PORT=$JMX_PORT
-
-    # enable thread priorities, primarily so we can give periodic tasks
-    # a lower priority to avoid interfering with client workload
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseThreadPriorities"
-    # allows lowering thread priority without being root on linux - probably
-    # not necessary on Windows but doesn't harm anything.
-    # see http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workar
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:ThreadPriorityPolicy=42"
-
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError"
-
     # stop the jvm on OutOfMemoryError as it can result in some data corruption
     # uncomment the preferred option
     # ExitOnOutOfMemoryError and CrashOnOutOfMemoryError require a JRE greater or equals to 1.7 update 101 or 1.8 update 92
@@ -430,39 +403,23 @@ Function SetCassandraEnvironment
     # print an heap histogram on OutOfMemoryError
     # $env:JVM_OPTS="$env:JVM_OPTS -Dcassandra.printHeapHistogramOnOutOfMemoryError=true"
 
-    # Per-thread stack size.
-    $env:JVM_OPTS="$env:JVM_OPTS -Xss256k"
+    if ($env:JVM_VERSION.CompareTo("1.8.0") -eq -1 -or [convert]::ToInt32($env:JVM_PATCH_VERSION) -lt 40)
+    {
+        echo "Cassandra 3.0 and later require Java 8u40 or later."
+        exit
+    }
 
-    # Larger interned string table, for gossip's benefit (CASSANDRA-6410)
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:StringTableSize=1000003"
+    # Specifies the default port over which Cassandra will be available for
+    # JMX connections.
+    $JMX_PORT="7199"
 
-    # Make sure all memory is faulted and zeroed on startup.
-    # This helps prevent soft faults in containers and makes
-    # transparent hugepage allocation more effective.
-    #$env:JVM_OPTS="$env:JVM_OPTS -XX:+AlwaysPreTouch"
-
-    # Biased locking does not benefit Cassandra.
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:-UseBiasedLocking"
-
-    # Enable thread-local allocation blocks and allow the JVM to automatically
-    # resize them at runtime.
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseTLAB -XX:+ResizeTLAB"
-
-    # http://www.evanjones.ca/jvm-mmap-pause.html
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:+PerfDisableSharedMem"
+    # store in env to check if it's avail in verification
+    $env:JMX_PORT=$JMX_PORT
 
     # Configure the following for JEMallocAllocator and if jemalloc is not available in the system
     # library path.
     # set LD_LIBRARY_PATH=<JEMALLOC_HOME>/lib/
     # $env:JVM_OPTS="$env:JVM_OPTS -Djava.library.path=<JEMALLOC_HOME>/lib/"
-
-    # uncomment to have Cassandra JVM listen for remote debuggers/profilers on port 1414
-    # $env:JVM_OPTS="$env:JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=1414"
-
-    # Prefer binding to IPv4 network intefaces (when net.ipv6.bindv6only=1). See
-    # http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6342561 (short version:
-    # comment out this entry to enable IPv6 support).
-    $env:JVM_OPTS="$env:JVM_OPTS -Djava.net.preferIPv4Stack=true"
 
     # jmx: metrics and administration interface
     #
@@ -479,12 +436,37 @@ Function SetCassandraEnvironment
     # with authentication and ssl enabled. See https://wiki.apache.org/cassandra/JmxSecurity
     #
     #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT"
-    #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.ssl=false"
+    #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.rmi.port=$JMX_PORT"
+    #
+    # JMX SSL options
+    #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.ssl=true"
+    #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.ssl.need.client.auth=true"
+    #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.ssl.enabled.protocols=<enabled-protocols>"
+    #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.ssl.enabled.cipher.suites=<enabled-cipher-suites>"
+    #$env:JVM_OPTS="$env:JVM_OPTS -Djavax.net.ssl.keyStore=C:/keystore"
+    #$env:JVM_OPTS="$env:JVM_OPTS -Djavax.net.ssl.keyStorePassword=<keystore-password>"
+    #$env:JVM_OPTS="$env:JVM_OPTS -Djavax.net.ssl.trustStore=C:/truststore"
+    #$env:JVM_OPTS="$env:JVM_OPTS -Djavax.net.ssl.trustStorePassword=<truststore-password>"
+    #
+    # JMX auth options
     #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=true"
+    ## Basic file based authn & authz
     #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.password.file=C:/jmxremote.password"
-    $env:JVM_OPTS="$env:JVM_OPTS -Dcassandra.jmx.local.port=$JMX_PORT -XX:+DisableExplicitGC"
+    #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.access.file=C:/jmxremote.access"
+
+    ## Custom auth settings which can be used as alternatives to JMX's out of the box auth utilities.
+    ## JAAS login modules can be used for authentication by uncommenting these two properties.
+    ## Cassandra ships with a LoginModule implementation - org.apache.cassandra.auth.CassandraLoginModule -
+    ## which delegates to the IAuthenticator configured in cassandra.yaml
+    #$env:JVM_OPTS="$env:JVM_OPTS -Dcassandra.jmx.remote.login.config=CassandraLogin"
+    #$env:JVM_OPTS="$env:JVM_OPTS -Djava.security.auth.login.config=C:/cassandra-jaas.config"
+
+    ## Cassandra also ships with a helper for delegating JMX authz calls to the configured IAuthorizer,
+    ## uncomment this to use it. Requires one of the two authentication options to be enabled
+    #$env:JVM_OPTS="$env:JVM_OPTS -Dcassandra.jmx.authorizer=org.apache.cassandra.auth.jmx.AuthorizationProxy"
+
+    # Default JMX setup, bound to local loopback address only
+    $env:JVM_OPTS="$env:JVM_OPTS -Dcassandra.jmx.local.port=$JMX_PORT"
 
     $env:JVM_OPTS="$env:JVM_OPTS $env:JVM_EXTRA_OPTS"
-
-    #$env:JVM_OPTS="$env:JVM_OPTS -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
 }

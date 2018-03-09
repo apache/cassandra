@@ -1,0 +1,5 @@
+#CommitLog upgrade test, version 3.4-SNAPSHOT
+#Thu Nov 24 16:36:34 CET 2016
+cells=14561
+hash=2026350947
+cfid=c5b59a80-b25b-11e6-b205-bb359f887ad3

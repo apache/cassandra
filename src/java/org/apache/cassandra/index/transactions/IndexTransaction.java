@@ -26,7 +26,7 @@ package org.apache.cassandra.index.transactions;
  *   Used on the regular write path and when indexing newly acquired SSTables from streaming or sideloading. This type
  *   of transaction may include both row inserts and updates to rows previously existing in the base Memtable. Instances
  *   are scoped to a single partition update and are obtained from the factory method
- *   @{code SecondaryIndexManager#newUpdateTransaction}
+ *   {@code SecondaryIndexManager#newUpdateTransaction}
  *
  * * {@code CompactionTransaction}
  *   Used during compaction when stale entries which have been superceded are cleaned up from the index. As rows in a

@@ -1,0 +1,8 @@
+RULE mutation_limiter
+CLASS org.apache.cassandra.db.MutationVerbHandler
+METHOD doVerb
+HELPER org.apache.cassandra.utils.TestRateLimiter
+AT ENTRY
+IF TRUE
+DO acquire(1000.0)
+ENDRULE

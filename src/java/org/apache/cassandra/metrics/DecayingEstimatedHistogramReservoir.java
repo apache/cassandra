@@ -21,10 +21,9 @@ package org.apache.cassandra.metrics;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -49,7 +48,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
  * end of the 30:th minute all collected values will roughly add up to 1.000.000 * 60 * pow(2, 30) which can be
  * represented with 56 bits giving us some head room in a signed 64 bit long.
  *
- * Internally two reservoirs are maintained, one with decay and one without decay. All public getters in a {@Snapshot}
+ * Internally two reservoirs are maintained, one with decay and one without decay. All public getters in a {@link Snapshot}
  * will expose the decay functionality with the exception of the {@link Snapshot#getValues()} which will return values
  * from the reservoir without decay. This makes it possible for the caller to maintain precise deltas in an interval of
  * its choise.
@@ -191,7 +190,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
     private double forwardDecayWeight(long now)
     {
-        return Math.exp(((now - decayLandmark) / 1000L) / MEAN_LIFETIME_IN_S);
+        return Math.exp(((now - decayLandmark) / 1000.0) / MEAN_LIFETIME_IN_S);
     }
 
     /**
@@ -331,9 +330,6 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
     {
         this.lock.writeLock().unlock();
     }
-
-
-    private static final Charset UTF_8 = Charset.forName("UTF-8");
 
     /**
      * Represents a snapshot of the decaying histogram.
@@ -519,29 +515,34 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
             final long count = count();
 
-            if(count <= 1) {
+            if(count <= 1)
+            {
                 return 0.0D;
-            } else {
+            }
+            else
+            {
                 double mean = this.getMean();
                 double sum = 0.0D;
 
-                for(int i = 0; i < lastBucket; ++i) {
+                for(int i = 0; i < lastBucket; ++i)
+                {
                     long value = bucketOffsets[i];
-                    double diff = (double)value - mean;
+                    double diff = value - mean;
                     sum += diff * diff * decayingBuckets[i];
                 }
 
-                return Math.sqrt(sum / (double)(count - 1));
+                return Math.sqrt(sum / (count - 1));
             }
         }
 
         public void dump(OutputStream output)
         {
-            try (PrintWriter out = new PrintWriter(new OutputStreamWriter(output, UTF_8)))
+            try (PrintWriter out = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8)))
             {
                 int length = decayingBuckets.length;
 
-                for(int i = 0; i < length; ++i) {
+                for(int i = 0; i < length; ++i)
+                {
                     out.printf("%d%n", decayingBuckets[i]);
                 }
             }

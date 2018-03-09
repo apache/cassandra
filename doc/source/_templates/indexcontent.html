@@ -1,0 +1,79 @@
+{% extends "defindex.html" %}
+{% block tables %}
+<div id="wipwarning">This documentation is currently a work-in-progress and contains a number of TODO sections.
+    <a href="{{ pathto("bugs") }}">Contributions</a> are welcome.</div>
+
+<h3>Main documentation</h3>
+
+<div>
+<form id="doc-search-form" action="{{ pathto('search') }}" method="get" role="search">
+  <div class="form-group">
+    Search the documentation:
+    <input type="text" size="30" class="form-control input-sm" name="q" placeholder="Search docs">
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </div>
+</form><br />
+</div>
+
+<table class="contentstable doc-landing-table" align="center">
+  <tr>
+    <td class="left-column">
+      <p class="biglink"><a class="biglink" href="{{ pathto("getting_started/index") }}">{% trans %}Getting started{% endtrans %}</a><br/>
+      <span class="linkdescr">{% trans %}Newbie friendly starting point{% endtrans %}</span></p>
+    </td>
+    <td class="right-column">
+      <p class="biglink"><a class="biglink" href="{{ pathto("operating/index") }}">{% trans %}Operating Cassandra{% endtrans %}</a><br/>
+      <span class="linkdescr">{% trans %}The operator's corner{% endtrans %}</span></p>
+    </td>
+  </tr>
+  <tr>
+    <td class="left-column">
+      <p class="biglink"><a class="biglink" href="{{ pathto("architecture/index") }}">{% trans %}Cassandra Architecture{% endtrans %}</a><br/>
+      <span class="linkdescr">{% trans %}Cassandra's big picture{% endtrans %}</span></p>
+    </td>
+    <td class="right-column">
+      <p class="biglink"><a class="biglink" href="{{ pathto("tools/index") }}">{% trans %}Cassandra's Tools{% endtrans %}</a><br/>
+      <span class="linkdescr">{% trans %}cqlsh, nodetool, ...{% endtrans %}</span></p>
+    </td>
+  </tr>
+  <tr>
+    <td class="left-column">
+      <p class="biglink"><a class="biglink" href="{{ pathto("data_modeling/index") }}">{% trans %}Data Modeling{% endtrans %}</a><br/>
+      <span class="linkdescr">{% trans %}Or how to make square pegs fit round holes{% endtrans %}</span></p>
+    </td>
+    <td class="right-column">
+      <p class="biglink"><a class="biglink" href="{{ pathto("troubleshooting/index") }}">{% trans %}Troubleshooting{% endtrans %}</a><br/>
+      <span class="linkdescr">{% trans %}What to look for when you have a problem{% endtrans %}</span></p>
+    </td>
+  </tr>
+  <tr>
+    <td class="left-column">
+      <p class="biglink"><a class="biglink" href="{{ pathto("cql/index") }}">{% trans %}Cassandra Query Language{% endtrans %}</a><br/>
+      <span class="linkdescr">{% trans %}CQL reference documentation{% endtrans %}</span></p>
+    </td>
+    <td class="right-column">
+      <p class="biglink"><a class="biglink" href="{{ pathto("development/index") }}">{% trans %}Cassandra Development{% endtrans %}</a><br/>
+      <span class="linkdescr">{% trans %}Learn how to improve Cassandra and contribute patches{% endtrans %}</span></p>
+    </td>
+  </tr>
+  <tr>
+    <td class="left-column">
+      <p class="biglink"><a class="biglink" href="{{ pathto("faq/index") }}">{% trans %}FAQs{% endtrans %}</a><br/>
+      <span class="linkdescr">{% trans %}Frequently Asked Questions (with answers!){% endtrans %}</span></p>
+    </td>
+    <td class="right-column">
+      <p class="biglink"><a class="biglink" href="{{ pathto("configuration/index") }}">{% trans %}Configuration{% endtrans %}</a><br/>
+      <span class="linkdescr">{% trans %}Cassandra's handles and knobs{% endtrans %}</span></p>
+    </td>
+  </tr>
+</table>
+
+<h3>Meta informations</h3>
+
+<ul>
+  <li><a class="biglink" href="{{ pathto("bugs") }}">{% trans %}Reporting bugs{% endtrans %}</a></li>
+  <li><a class="biglink" href="{{ pathto("contactus") }}">{% trans %}Contact us{% endtrans %}</a></li>
+</ul>
+
+{% endblock %}

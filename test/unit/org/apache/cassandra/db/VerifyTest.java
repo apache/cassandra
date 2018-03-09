@@ -21,22 +21,27 @@ package org.apache.cassandra.db;
 import com.google.common.base.Charsets;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
@@ -44,13 +49,17 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.*;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
+import static org.apache.cassandra.SchemaLoader.counterCFMD;
+import static org.apache.cassandra.SchemaLoader.createKeyspace;
+import static org.apache.cassandra.SchemaLoader.loadSchema;
+import static org.apache.cassandra.SchemaLoader.standardCFMD;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -79,27 +88,27 @@ public class VerifyTest
     {
         CompressionParams compressionParameters = CompressionParams.snappy(32768);
 
-        SchemaLoader.loadSchema();
-        SchemaLoader.createKeyspace(KEYSPACE,
-                                    KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF).compression(compressionParameters),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF2).compression(compressionParameters),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF3),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF4),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CORRUPT_CF),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CORRUPT_CF2),
-                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF).compression(compressionParameters),
-                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF2).compression(compressionParameters),
-                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF3),
-                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF4),
-                                    SchemaLoader.counterCFMD(KEYSPACE, CORRUPTCOUNTER_CF),
-                                    SchemaLoader.counterCFMD(KEYSPACE, CORRUPTCOUNTER_CF2),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF_UUID, 0, UUIDType.instance));
+        loadSchema();
+        createKeyspace(KEYSPACE,
+                       KeyspaceParams.simple(1),
+                       standardCFMD(KEYSPACE, CF).compression(compressionParameters),
+                       standardCFMD(KEYSPACE, CF2).compression(compressionParameters),
+                       standardCFMD(KEYSPACE, CF3),
+                       standardCFMD(KEYSPACE, CF4),
+                       standardCFMD(KEYSPACE, CORRUPT_CF),
+                       standardCFMD(KEYSPACE, CORRUPT_CF2),
+                       counterCFMD(KEYSPACE, COUNTER_CF).compression(compressionParameters),
+                       counterCFMD(KEYSPACE, COUNTER_CF2).compression(compressionParameters),
+                       counterCFMD(KEYSPACE, COUNTER_CF3),
+                       counterCFMD(KEYSPACE, COUNTER_CF4),
+                       counterCFMD(KEYSPACE, CORRUPTCOUNTER_CF),
+                       counterCFMD(KEYSPACE, CORRUPTCOUNTER_CF2),
+                       standardCFMD(KEYSPACE, CF_UUID, 0, UUIDType.instance));
     }
 
 
     @Test
-    public void testVerifyCorrect() throws IOException
+    public void testVerifyCorrect()
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -109,9 +118,9 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
-            verifier.verify(false);
+            verifier.verify();
         }
         catch (CorruptSSTableException err)
         {
@@ -120,7 +129,7 @@ public class VerifyTest
     }
 
     @Test
-    public void testVerifyCounterCorrect() throws IOException
+    public void testVerifyCounterCorrect()
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -129,10 +138,9 @@ public class VerifyTest
         fillCounterCF(cfs, 2);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
-            verifier.verify(false);
+            verifier.verify();
         }
         catch (CorruptSSTableException err)
         {
@@ -141,7 +149,7 @@ public class VerifyTest
     }
 
     @Test
-    public void testExtendedVerifyCorrect() throws IOException
+    public void testExtendedVerifyCorrect()
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -150,10 +158,9 @@ public class VerifyTest
         fillCF(cfs, 2);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
-            verifier.verify(true);
+            verifier.verify();
         }
         catch (CorruptSSTableException err)
         {
@@ -162,7 +169,7 @@ public class VerifyTest
     }
 
     @Test
-    public void testExtendedVerifyCounterCorrect() throws IOException
+    public void testExtendedVerifyCounterCorrect()
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -172,9 +179,9 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).extendedVerification(true).build()))
         {
-            verifier.verify(true);
+            verifier.verify();
         }
         catch (CorruptSSTableException err)
         {
@@ -183,7 +190,7 @@ public class VerifyTest
     }
 
     @Test
-    public void testVerifyCorrectUncompressed() throws IOException
+    public void testVerifyCorrectUncompressed()
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -193,9 +200,9 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
-            verifier.verify(false);
+            verifier.verify();
         }
         catch (CorruptSSTableException err)
         {
@@ -204,7 +211,7 @@ public class VerifyTest
     }
 
     @Test
-    public void testVerifyCounterCorrectUncompressed() throws IOException
+    public void testVerifyCounterCorrectUncompressed()
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -214,9 +221,9 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
-            verifier.verify(false);
+            verifier.verify();
         }
         catch (CorruptSSTableException err)
         {
@@ -225,7 +232,7 @@ public class VerifyTest
     }
 
     @Test
-    public void testExtendedVerifyCorrectUncompressed() throws IOException
+    public void testExtendedVerifyCorrectUncompressed()
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -235,9 +242,9 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().extendedVerification(true).invokeDiskFailurePolicy(true).build()))
         {
-            verifier.verify(true);
+            verifier.verify();
         }
         catch (CorruptSSTableException err)
         {
@@ -246,7 +253,7 @@ public class VerifyTest
     }
 
     @Test
-    public void testExtendedVerifyCounterCorrectUncompressed() throws IOException
+    public void testExtendedVerifyCounterCorrectUncompressed()
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -256,9 +263,9 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().extendedVerification(true).invokeDiskFailurePolicy(true).build()))
         {
-            verifier.verify(true);
+            verifier.verify();
         }
         catch (CorruptSSTableException err)
         {
@@ -281,18 +288,26 @@ public class VerifyTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
 
-        RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(sstable.descriptor.digestComponent), "rw");
-        Long correctChecksum = Long.parseLong(file.readLine());
-        file.close();
-
-        writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(sstable.descriptor.digestComponent));
-
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
         {
-            verifier.verify(false);
+            Long correctChecksum = Long.valueOf(file.readLine());
+
+            writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
+        }
+
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
+        {
+            verifier.verify();
             fail("Expected a CorruptSSTableException to be thrown");
         }
         catch (CorruptSSTableException err) {}
+
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(false).build()))
+        {
+            verifier.verify();
+            fail("Expected a RuntimeException to be thrown");
+        }
+        catch (RuntimeException err) {}
     }
 
 
@@ -319,26 +334,30 @@ public class VerifyTest
         file.seek(startPosition);
         file.writeBytes(StringUtils.repeat('z', (int) 2));
         file.close();
+        if (ChunkCache.instance != null)
+            ChunkCache.instance.invalidateFile(sstable.getFilename());
 
         // Update the Digest to have the right Checksum
-        writeChecksum(simpleFullChecksum(sstable.getFilename()), sstable.descriptor.filenameFor(sstable.descriptor.digestComponent));
+        writeChecksum(simpleFullChecksum(sstable.getFilename()), sstable.descriptor.filenameFor(Component.DIGEST));
 
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
             // First a simple verify checking digest, which should succeed
             try
             {
-                verifier.verify(false);
+                verifier.verify();
             }
             catch (CorruptSSTableException err)
             {
                 fail("Simple verify should have succeeded as digest matched");
             }
-
+        }
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).extendedVerification(true).build()))
+        {
             // Now try extended verify
             try
             {
-                verifier.verify(true);
+                verifier.verify();
 
             }
             catch (CorruptSSTableException err)
@@ -349,13 +368,13 @@ public class VerifyTest
         }
     }
 
-    @Test(expected = CorruptSSTableException.class)
+    @Test
     public void testVerifyBrokenSSTableMetadata() throws IOException, WriteTimeoutException
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
-
+        cfs.truncateBlocking();
         fillCF(cfs, 2);
 
         Util.getAll(Util.cmd(cfs).build());
@@ -367,11 +386,90 @@ public class VerifyTest
         file.seek(0);
         file.writeBytes(StringUtils.repeat('z', 2));
         file.close();
-
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
         {
-            verifier.verify(false);
+            verifier.verify();
+            fail("Expected a CorruptSSTableException to be thrown");
         }
+        catch (CorruptSSTableException err)
+        {}
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(false).build()))
+        {
+            verifier.verify();
+            fail("Expected a RuntimeException to be thrown");
+        }
+        catch (CorruptSSTableException err) { fail("wrong exception thrown"); }
+        catch (RuntimeException err)
+        {}
+    }
+
+    @Test
+    public void testVerifyMutateRepairStatus() throws IOException, WriteTimeoutException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
+        cfs.truncateBlocking();
+        fillCF(cfs, 2);
+
+        Util.getAll(Util.cmd(cfs).build());
+
+        // make the sstable repaired:
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        sstable.descriptor.getMetadataSerializer().mutateRepaired(sstable.descriptor, System.currentTimeMillis(), sstable.getSSTableMetadata().pendingRepair);
+        sstable.reloadSSTableMetadata();
+
+        // break the sstable:
+        Long correctChecksum;
+        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
+        {
+            correctChecksum = Long.parseLong(file.readLine());
+        }
+        writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().mutateRepairStatus(false).invokeDiskFailurePolicy(true).build()))
+        {
+            verifier.verify();
+            fail("Expected a CorruptSSTableException to be thrown");
+        }
+        catch (CorruptSSTableException err)
+        {}
+
+        assertTrue(sstable.isRepaired());
+
+        // now the repair status should be changed:
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().mutateRepairStatus(true).invokeDiskFailurePolicy(true).build()))
+        {
+            verifier.verify();
+            fail("Expected a CorruptSSTableException to be thrown");
+        }
+        catch (CorruptSSTableException err)
+        {}
+        assertFalse(sstable.isRepaired());
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testOutOfRangeTokens() throws IOException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        fillCF(cfs, 100);
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        byte[] tk1 = new byte[1], tk2 = new byte[1];
+        tk1[0] = 2;
+        tk2[0] = 1;
+        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
+        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().checkOwnsTokens(true).extendedVerification(true).build()))
+        {
+            verifier.verify();
+        }
+        finally
+        {
+            StorageService.instance.getTokenMetadata().clearUnsafe();
+        }
+
     }
 
     @Test
@@ -384,7 +482,7 @@ public class VerifyTest
         fillCF(cfs, 2);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        sstable.descriptor.getMetadataSerializer().mutateRepairedAt(sstable.descriptor, 1);
+        sstable.descriptor.getMetadataSerializer().mutateRepaired(sstable.descriptor, 1, sstable.getSSTableMetadata().pendingRepair);
         sstable.reloadSSTableMetadata();
         cfs.getTracker().notifySSTableRepairedStatusChanged(Collections.singleton(sstable));
         assertTrue(sstable.isRepaired());
@@ -392,14 +490,14 @@ public class VerifyTest
 
         sstable = cfs.getLiveSSTables().iterator().next();
         Long correctChecksum;
-        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(sstable.descriptor.digestComponent), "rw"))
+        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
         {
             correctChecksum = Long.parseLong(file.readLine());
         }
-        writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(sstable.descriptor.digestComponent));
-        try (Verifier verifier = new Verifier(cfs, sstable, false))
+        writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).mutateRepairStatus(true).build()))
         {
-            verifier.verify(false);
+            verifier.verify();
             fail("should be corrupt");
         }
         catch (CorruptSSTableException e)
@@ -407,12 +505,100 @@ public class VerifyTest
         assertFalse(sstable.isRepaired());
     }
 
+    @Test
+    public void testVerifyIndex() throws IOException
+    {
+        testBrokenComponentHelper(Component.PRIMARY_INDEX);
+    }
+    @Test
+    public void testVerifyBf() throws IOException
+    {
+        testBrokenComponentHelper(Component.FILTER);
+    }
+
+    @Test
+    public void testVerifyIndexSummary() throws IOException
+    {
+        testBrokenComponentHelper(Component.SUMMARY);
+    }
+
+    private void testBrokenComponentHelper(Component componentToBreak) throws IOException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
+
+        fillCF(cfs, 2);
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().build()))
+        {
+            verifier.verify(); //still not corrupt, should pass
+        }
+        String filenameToCorrupt = sstable.descriptor.filenameFor(componentToBreak);
+        try (RandomAccessFile file = new RandomAccessFile(filenameToCorrupt, "rw"))
+        {
+            file.setLength(3);
+        }
+
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
+        {
+            verifier.verify();
+            fail("should throw exception");
+        }
+        catch(CorruptSSTableException e)
+        {
+            //expected
+        }
+    }
+
+    @Test
+    public void testQuick() throws IOException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF);
+
+        fillCF(cfs, 2);
+
+        Util.getAll(Util.cmd(cfs).build());
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+
+
+        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
+        {
+            Long correctChecksum = Long.valueOf(file.readLine());
+
+            writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
+        }
+
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
+        {
+            verifier.verify();
+            fail("Expected a CorruptSSTableException to be thrown");
+        }
+        catch (CorruptSSTableException err) {}
+
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).quick(true).build())) // with quick = true we don't verify the digest
+        {
+            verifier.verify();
+        }
+
+        try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).build()))
+        {
+            verifier.verify();
+            fail("Expected a RuntimeException to be thrown");
+        }
+        catch (CorruptSSTableException err) {}
+    }
+
 
     protected void fillCF(ColumnFamilyStore cfs, int partitionsPerSSTable)
     {
         for (int i = 0; i < partitionsPerSSTable; i++)
         {
-            UpdateBuilder.create(cfs.metadata, String.valueOf(i))
+            UpdateBuilder.create(cfs.metadata(), String.valueOf(i))
                          .newRow("c1").add("val", "1")
                          .newRow("c2").add("val", "2")
                          .apply();
@@ -425,7 +611,7 @@ public class VerifyTest
     {
         for (int i = 0; i < partitionsPerSSTable; i++)
         {
-            UpdateBuilder.create(cfs.metadata, String.valueOf(i))
+            UpdateBuilder.create(cfs.metadata(), String.valueOf(i))
                          .newRow("c1").add("val", 100L)
                          .apply();
         }
@@ -435,13 +621,15 @@ public class VerifyTest
 
     protected long simpleFullChecksum(String filename) throws IOException
     {
-        FileInputStream inputStream = new FileInputStream(filename);
-        CRC32 checksum = new CRC32();
-        CheckedInputStream cinStream = new CheckedInputStream(inputStream, checksum);
-        byte[] b = new byte[128];
-        while (cinStream.read(b) >= 0) {
+        try (FileInputStream inputStream = new FileInputStream(filename))
+        {
+            CRC32 checksum = new CRC32();
+            CheckedInputStream cinStream = new CheckedInputStream(inputStream, checksum);
+            byte[] b = new byte[128];
+            while (cinStream.read(b) >= 0) {
+            }
+            return cinStream.getChecksum().getValue();
         }
-        return cinStream.getChecksum().getValue();
     }
 
     protected void writeChecksum(long checksum, String filePath)

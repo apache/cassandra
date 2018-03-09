@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
 import java.util.Collection;
 
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
@@ -30,14 +30,15 @@ import org.apache.cassandra.db.WriteType;
  */
 public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
 {
-    public DatacenterWriteResponseHandler(Collection<InetAddress> naturalEndpoints,
-                                          Collection<InetAddress> pendingEndpoints,
+    public DatacenterWriteResponseHandler(Collection<InetAddressAndPort> naturalEndpoints,
+                                          Collection<InetAddressAndPort> pendingEndpoints,
                                           ConsistencyLevel consistencyLevel,
                                           Keyspace keyspace,
                                           Runnable callback,
-                                          WriteType writeType)
+                                          WriteType writeType,
+                                          long queryStartNanoTime)
     {
-        super(naturalEndpoints, pendingEndpoints, consistencyLevel, keyspace, callback, writeType);
+        super(naturalEndpoints, pendingEndpoints, consistencyLevel, keyspace, callback, writeType, queryStartNanoTime);
         assert consistencyLevel.isDatacenterLocal();
     }
 
@@ -45,7 +46,15 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
     public void response(MessageIn<T> message)
     {
         if (message == null || waitingFor(message.from))
+        {
             super.response(message);
+        }
+        else
+        {
+            //WriteResponseHandler.response will call logResonseToIdealCLDelegate so only do it if not calling WriteResponseHandler.response.
+            //Must be last after all subclass processing
+            logResponseToIdealCLDelegate(message);
+        }
     }
 
     @Override
@@ -57,7 +66,7 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
     }
 
     @Override
-    protected boolean waitingFor(InetAddress from)
+    protected boolean waitingFor(InetAddressAndPort from)
     {
         return consistencyLevel.isLocal(from);
     }

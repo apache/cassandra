@@ -30,51 +30,14 @@ import org.apache.cassandra.service.StorageService;
 
 public class SelectLimitTest extends CQLTester
 {
+    // This method will be ran instead of the CQLTester#setUpClass
     @BeforeClass
-    public static void setUp()
+    public static void setUpClass()
     {
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
         DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-    }
 
-    /**
-     * Test limit across a partition range, requires byte ordered partitioner,
-     * migrated from cql_tests.py:TestCQL.limit_range_test()
-     */
-    @Test
-    public void testPartitionRange() throws Throwable
-    {
-        createTable("CREATE TABLE %s (userid int, url text, time bigint, PRIMARY KEY (userid, url)) WITH COMPACT STORAGE");
-
-        for (int i = 0; i < 100; i++)
-            for (String tld : new String[] { "com", "org", "net" })
-                execute("INSERT INTO %s (userid, url, time) VALUES (?, ?, ?)", i, String.format("http://foo.%s", tld), 42L);
-
-        assertRows(execute("SELECT * FROM %s WHERE token(userid) >= token(2) LIMIT 1"),
-                   row(2, "http://foo.com", 42L));
-
-        assertRows(execute("SELECT * FROM %s WHERE token(userid) > token(2) LIMIT 1"),
-                   row(3, "http://foo.com", 42L));
-    }
-
-    /**
-     * Test limit across a column range,
-     * migrated from cql_tests.py:TestCQL.limit_multiget_test()
-     */
-    @Test
-    public void testColumnRange() throws Throwable
-    {
-        createTable("CREATE TABLE %s (userid int, url text, time bigint, PRIMARY KEY (userid, url)) WITH COMPACT STORAGE");
-
-        for (int i = 0; i < 100; i++)
-            for (String tld : new String[] { "com", "org", "net" })
-                execute("INSERT INTO %s (userid, url, time) VALUES (?, ?, ?)", i, String.format("http://foo.%s", tld), 42L);
-
-        // Check that we do limit the output to 1 *and* that we respect query
-        // order of keys (even though 48 is after 2)
-        assertRows(execute("SELECT * FROM %s WHERE userid IN (48, 2) LIMIT 1"),
-                   row(2, "http://foo.com", 42L));
-
+        prepareServer();
     }
 
     /**
@@ -95,81 +58,101 @@ public class SelectLimitTest extends CQLTester
     }
 
     @Test
-    public void testLimitInStaticTable() throws Throwable
+    public void testPerPartitionLimit() throws Throwable
     {
-        createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY (k) ) WITH COMPACT STORAGE ");
+        String query = "CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))";
 
-        for (int i = 0; i < 10; i++)
-            execute("INSERT INTO %s(k, v) VALUES (?, ?)", i, i);
+        createTable(query);
 
-        assertRows(execute("SELECT * FROM %s LIMIT 5"),
-                   row(0, 0),
-                   row(1, 1),
-                   row(2, 2),
-                   row(3, 3),
-                   row(4, 4));
+        for (int i = 0; i < 5; i++)
+        {
+            for (int j = 0; j < 5; j++)
+            {
+                execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", i, j, j);
+            }
+        }
 
-        assertRows(execute("SELECT v FROM %s LIMIT 5"),
-                   row(0),
-                   row(1),
-                   row(2),
-                   row(3),
-                   row(4));
+        assertInvalidMessage("LIMIT must be strictly positive",
+                             "SELECT * FROM %s PER PARTITION LIMIT ?", 0);
+        assertInvalidMessage("LIMIT must be strictly positive",
+                             "SELECT * FROM %s PER PARTITION LIMIT ?", -1);
 
-        assertRows(execute("SELECT k FROM %s LIMIT 5"),
-                   row(0),
-                   row(1),
-                   row(2),
-                   row(3),
-                   row(4));
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s PER PARTITION LIMIT ?", 2),
+                                row(0, 0, 0),
+                                row(0, 1, 1),
+                                row(1, 0, 0),
+                                row(1, 1, 1),
+                                row(2, 0, 0),
+                                row(2, 1, 1),
+                                row(3, 0, 0),
+                                row(3, 1, 1),
+                                row(4, 0, 0),
+                                row(4, 1, 1));
 
-        assertRows(execute("SELECT DISTINCT k FROM %s LIMIT 5"),
-                   row(0),
-                   row(1),
-                   row(2),
-                   row(3),
-                   row(4));
-    }
+        // Combined Per Partition and "global" limit
+        assertRowCount(execute("SELECT * FROM %s PER PARTITION LIMIT ? LIMIT ?", 2, 6),
+                       6);
 
-    /**
-     * Check for #7052 bug,
-     * migrated from cql_tests.py:TestCQL.limit_compact_table()
-     */
-    @Test
-    public void testLimitInCompactTable() throws Throwable
-    {
-        createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY (k, v) ) WITH COMPACT STORAGE ");
+        // odd amount of results
+        assertRowCount(execute("SELECT * FROM %s PER PARTITION LIMIT ? LIMIT ?", 2, 5),
+                       5);
 
-        for (int i = 0; i < 4; i++)
-            for (int j = 0; j < 4; j++)
-                execute("INSERT INTO %s(k, v) VALUES (?, ?)", i, j);
+        // IN query
+        assertRows(execute("SELECT * FROM %s WHERE a IN (2,3) PER PARTITION LIMIT ?", 2),
+                   row(2, 0, 0),
+                   row(2, 1, 1),
+                   row(3, 0, 0),
+                   row(3, 1, 1));
 
-        assertRows(execute("SELECT v FROM %s WHERE k=0 AND v > 0 AND v <= 4 LIMIT 2"),
-                   row(1),
-                   row(2));
-        assertRows(execute("SELECT v FROM %s WHERE k=0 AND v > -1 AND v <= 4 LIMIT 2"),
-                   row(0),
-                   row(1));
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2) AND v > 0 AND v <= 4 LIMIT 2"),
-                   row(0, 1),
-                   row(0, 2));
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2) AND v > -1 AND v <= 4 LIMIT 2"),
-                   row(0, 0),
-                   row(0, 1));
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2) AND v > 0 AND v <= 4 LIMIT 6"),
-                   row(0, 1),
-                   row(0, 2),
-                   row(0, 3),
-                   row(1, 1),
-                   row(1, 2),
-                   row(1, 3));
-        assertRows(execute("SELECT * FROM %s WHERE v > 1 AND v <= 3 LIMIT 6 ALLOW FILTERING"),
-                   row(0, 2),
-                   row(0, 3),
-                   row(1, 2),
-                   row(1, 3),
-                   row(2, 2),
-                   row(2, 3));
+        assertRows(execute("SELECT * FROM %s WHERE a IN (2,3) PER PARTITION LIMIT ? LIMIT 3", 2),
+                   row(2, 0, 0),
+                   row(2, 1, 1),
+                   row(3, 0, 0));
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (1,2,3) PER PARTITION LIMIT ? LIMIT 3", 2),
+                   row(1, 0, 0),
+                   row(1, 1, 1),
+                   row(2, 0, 0));
+
+        // with restricted partition key
+        assertRows(execute("SELECT * FROM %s WHERE a = ? PER PARTITION LIMIT ?", 2, 3),
+                   row(2, 0, 0),
+                   row(2, 1, 1),
+                   row(2, 2, 2));
+
+        // with ordering
+        assertRows(execute("SELECT * FROM %s WHERE a IN (3, 2) ORDER BY b DESC PER PARTITION LIMIT ?", 2),
+                   row(2, 4, 4),
+                   row(3, 4, 4),
+                   row(2, 3, 3),
+                   row(3, 3, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (3, 2) ORDER BY b DESC PER PARTITION LIMIT ? LIMIT ?", 3, 4),
+                   row(2, 4, 4),
+                   row(3, 4, 4),
+                   row(2, 3, 3),
+                   row(3, 3, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? ORDER BY b DESC PER PARTITION LIMIT ?", 2, 3),
+                   row(2, 4, 4),
+                   row(2, 3, 3),
+                   row(2, 2, 2));
+
+        // with filtering
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b > ? PER PARTITION LIMIT ? ALLOW FILTERING", 2, 0, 2),
+                   row(2, 1, 1),
+                   row(2, 2, 2));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b > ? ORDER BY b DESC PER PARTITION LIMIT ? ALLOW FILTERING", 2, 2, 2),
+                   row(2, 4, 4),
+                   row(2, 3, 3));
+
+        assertInvalidMessage("PER PARTITION LIMIT is not allowed with SELECT DISTINCT queries",
+                             "SELECT DISTINCT a FROM %s PER PARTITION LIMIT ?", 3);
+        assertInvalidMessage("PER PARTITION LIMIT is not allowed with SELECT DISTINCT queries",
+                             "SELECT DISTINCT a FROM %s PER PARTITION LIMIT ? LIMIT ?", 3, 4);
+        assertInvalidMessage("PER PARTITION LIMIT is not allowed with aggregate queries.",
+                             "SELECT COUNT(*) FROM %s PER PARTITION LIMIT ?", 3);
     }
 
     @Test
@@ -208,7 +191,7 @@ public class SelectLimitTest extends CQLTester
     {
         // With only one clustering column
         createTable("CREATE TABLE %s (a int, b int, s int static, c int, primary key (a, b))"
-          + " WITH caching = {'keys': 'ALL', 'rows_per_partition' : 'ALL'}");
+             + " WITH caching = {'keys': 'ALL', 'rows_per_partition' : 'ALL'}");
 
         for (int i = 0; i < 4; i++)
         {
@@ -254,6 +237,14 @@ public class SelectLimitTest extends CQLTester
                               row(2, 1, 2, 3));
 
                 assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b >= 1 AND b <= 1 LIMIT 2 ALLOW FILTERING", pageSize),
+                              row(1, 1, 1, 2),
+                              row(2, 1, 2, 3));
+
+                assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b = 1 GROUP BY a LIMIT 2 ALLOW FILTERING", pageSize),
+                              row(1, 1, 1, 2),
+                              row(2, 1, 2, 3));
+
+                assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b >= 1 AND b <= 1 GROUP BY a LIMIT 2 ALLOW FILTERING", pageSize),
                               row(1, 1, 1, 2),
                               row(2, 1, 2, 3));
             }
@@ -349,6 +340,14 @@ public class SelectLimitTest extends CQLTester
                 assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b IN (1, 2, 3, 4) AND c >= 1 AND c <= 1 LIMIT 2 ALLOW FILTERING", pageSize),
                               row(1, 1, 1, 1, 2),
                               row(2, 1, 1, 2, 3));
+
+                assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b = 1 GROUP BY a, b LIMIT 2 ALLOW FILTERING", pageSize),
+                              row(1, 1, 1, 1, 2),
+                              row(2, 1, 1, 2, 3));
+
+                assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE b IN (1, 2, 3, 4) AND c >= 1 AND c <= 1 GROUP BY a, b LIMIT 2 ALLOW FILTERING", pageSize),
+                              row(1, 1, 1, 1, 2),
+                              row(2, 1, 1, 2, 3));
             }
         });
 
@@ -407,10 +406,18 @@ public class SelectLimitTest extends CQLTester
                    row(1, 1, 9, 1),
                    row(4, 1, 9, 1));
 
+        assertRows(execute("SELECT * FROM %s WHERE v = ? GROUP BY pk LIMIT 2", 1),
+                   row(1, 1, 9, 1),
+                   row(4, 1, 9, 1));
+
         // Test with paging
         for (int pageSize = 1; pageSize < 4; pageSize++)
         {
             assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE v = 1 LIMIT 2", pageSize),
+                          row(1, 1, 9, 1),
+                          row(4, 1, 9, 1));
+
+            assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE v = 1 GROUP BY pk LIMIT 2", pageSize),
                           row(1, 1, 9, 1),
                           row(4, 1, 9, 1));
         }

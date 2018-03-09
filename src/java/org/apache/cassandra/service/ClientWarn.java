@@ -20,24 +20,27 @@ package org.apache.cassandra.service;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.concurrent.ExecutorLocal;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ClientWarn implements ExecutorLocal<ClientWarn.State>
 {
     private static final String TRUNCATED = " [truncated]";
-    private static final ThreadLocal<ClientWarn.State> warnLocal = new ThreadLocal<>();
+    private static final FastThreadLocal<State> warnLocal = new FastThreadLocal<>();
     public static ClientWarn instance = new ClientWarn();
 
     private ClientWarn()
     {
     }
 
-    public State get() {
+    public State get()
+    {
         return warnLocal.get();
     }
 
-    public void set(State value) {
+    public void set(State value)
+    {
         warnLocal.set(value);
     }
 

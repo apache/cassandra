@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
 import java.util.Set;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Sets;
@@ -28,7 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -59,16 +60,18 @@ public class CompactionControllerTest extends SchemaLoader
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
-                                    CFMetaData.Builder.create(KEYSPACE, CF1, true, false, false)
-                                                      .addPartitionKey("pk", AsciiType.instance)
-                                                      .addClusteringColumn("ck", AsciiType.instance)
-                                                      .addRegularColumn("val", AsciiType.instance)
-                                                      .build(),
-                                    CFMetaData.Builder.create(KEYSPACE, CF2, true, false, false)
-                                                      .addPartitionKey("pk", AsciiType.instance)
-                                                      .addClusteringColumn("ck", AsciiType.instance)
-                                                      .addRegularColumn("val", AsciiType.instance)
-                                                      .build());
+                                    TableMetadata.builder(KEYSPACE, CF1)
+                                                 .isCompound(false)
+                                                 .isDense(true)
+                                                 .addPartitionKeyColumn("pk", AsciiType.instance)
+                                                 .addClusteringColumn("ck", AsciiType.instance)
+                                                 .addRegularColumn("val", AsciiType.instance),
+                                    TableMetadata.builder(KEYSPACE, CF2)
+                                                 .isCompound(false)
+                                                 .isDense(true)
+                                                 .addPartitionKeyColumn("pk", AsciiType.instance)
+                                                 .addClusteringColumn("ck", AsciiType.instance)
+                                                 .addRegularColumn("val", AsciiType.instance));
     }
 
     @Test
@@ -85,7 +88,7 @@ public class CompactionControllerTest extends SchemaLoader
         long timestamp3 = timestamp2 - 5; // oldest timestamp
 
         // add to first memtable
-        applyMutation(cfs.metadata, key, timestamp1);
+        applyMutation(cfs.metadata(), key, timestamp1);
 
         // check max purgeable timestamp without any sstables
         try(CompactionController controller = new CompactionController(cfs, null, 0))
@@ -99,7 +102,7 @@ public class CompactionControllerTest extends SchemaLoader
         Set<SSTableReader> compacting = Sets.newHashSet(cfs.getLiveSSTables()); // first sstable is compacting
 
         // create another sstable
-        applyMutation(cfs.metadata, key, timestamp2);
+        applyMutation(cfs.metadata(), key, timestamp2);
         cfs.forceBlockingFlush();
 
         // check max purgeable timestamp when compacting the first sstable with and without a memtable
@@ -107,7 +110,7 @@ public class CompactionControllerTest extends SchemaLoader
         {
             assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp2);
 
-            applyMutation(cfs.metadata, key, timestamp3);
+            applyMutation(cfs.metadata(), key, timestamp3);
 
             assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp3); //second sstable and second memtable
         }
@@ -118,9 +121,9 @@ public class CompactionControllerTest extends SchemaLoader
         //newest to oldest
         try (CompactionController controller = new CompactionController(cfs, null, 0))
         {
-            applyMutation(cfs.metadata, key, timestamp1);
-            applyMutation(cfs.metadata, key, timestamp2);
-            applyMutation(cfs.metadata, key, timestamp3);
+            applyMutation(cfs.metadata(), key, timestamp1);
+            applyMutation(cfs.metadata(), key, timestamp2);
+            applyMutation(cfs.metadata(), key, timestamp3);
 
             assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp3); //memtable only
         }
@@ -130,9 +133,9 @@ public class CompactionControllerTest extends SchemaLoader
         //oldest to newest
         try (CompactionController controller = new CompactionController(cfs, null, 0))
         {
-            applyMutation(cfs.metadata, key, timestamp3);
-            applyMutation(cfs.metadata, key, timestamp2);
-            applyMutation(cfs.metadata, key, timestamp1);
+            applyMutation(cfs.metadata(), key, timestamp3);
+            applyMutation(cfs.metadata(), key, timestamp2);
+            applyMutation(cfs.metadata(), key, timestamp1);
 
             assertPurgeBoundary(controller.getPurgeEvaluator(key), timestamp3);
         }
@@ -152,14 +155,14 @@ public class CompactionControllerTest extends SchemaLoader
         long timestamp3 = timestamp2 - 5; // oldest timestamp
 
         // create sstable with tombstone that should be expired in no older timestamps
-        applyDeleteMutation(cfs.metadata, key, timestamp2);
+        applyDeleteMutation(cfs.metadata(), key, timestamp2);
         cfs.forceBlockingFlush();
 
         // first sstable with tombstone is compacting
         Set<SSTableReader> compacting = Sets.newHashSet(cfs.getLiveSSTables());
 
         // create another sstable with more recent timestamp
-        applyMutation(cfs.metadata, key, timestamp1);
+        applyMutation(cfs.metadata(), key, timestamp1);
         cfs.forceBlockingFlush();
 
         // second sstable is overlapping
@@ -173,13 +176,18 @@ public class CompactionControllerTest extends SchemaLoader
         assertEquals(compacting.iterator().next(), expired.iterator().next());
 
         // however if we add an older mutation to the memtable then the sstable should not be expired
-        applyMutation(cfs.metadata, key, timestamp3);
+        applyMutation(cfs.metadata(), key, timestamp3);
         expired = CompactionController.getFullyExpiredSSTables(cfs, compacting, overlapping, gcBefore);
         assertNotNull(expired);
         assertEquals(0, expired.size());
+
+        // Now if we explicitly ask to ignore overlaped sstables, we should get back our expired sstable
+        expired = CompactionController.getFullyExpiredSSTables(cfs, compacting, overlapping, gcBefore, true);
+        assertNotNull(expired);
+        assertEquals(1, expired.size());
     }
 
-    private void applyMutation(CFMetaData cfm, DecoratedKey key, long timestamp)
+    private void applyMutation(TableMetadata cfm, DecoratedKey key, long timestamp)
     {
         ByteBuffer val = ByteBufferUtil.bytes(1L);
 
@@ -190,13 +198,13 @@ public class CompactionControllerTest extends SchemaLoader
         .applyUnsafe();
     }
 
-    private void applyDeleteMutation(CFMetaData cfm, DecoratedKey key, long timestamp)
+    private void applyDeleteMutation(TableMetadata cfm, DecoratedKey key, long timestamp)
     {
         new Mutation(PartitionUpdate.fullPartitionDelete(cfm, key, timestamp, FBUtilities.nowInSeconds()))
         .applyUnsafe();
     }
 
-    private void assertPurgeBoundary(Predicate<Long> evaluator, long boundary)
+    private void assertPurgeBoundary(LongPredicate evaluator, long boundary)
     {
         assertFalse(evaluator.test(boundary));
         assertTrue(evaluator.test(boundary - 1));

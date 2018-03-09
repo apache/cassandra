@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-import java.util.Comparator;
-
 import com.google.common.base.Objects;
 
 public class Interval<C, D>

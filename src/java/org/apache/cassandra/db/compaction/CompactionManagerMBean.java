@@ -19,7 +19,6 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import javax.management.openmbean.TabularData;
 
 public interface CompactionManagerMBean
@@ -43,6 +42,17 @@ public interface CompactionManagerMBean
      *                  must contain keyspace and columnfamily name in path(for 2.1+) or file name itself.
      */
     public void forceUserDefinedCompaction(String dataFiles);
+
+    /**
+     * Triggers the cleanup of user specified sstables.
+     * You can specify files from various keyspaces and columnfamilies.
+     * If you do so, cleanup is performed each file individually
+     *
+     * @param dataFiles a comma separated list of sstable file to cleanup.
+     *                  must contain keyspace and columnfamily name in path(for 2.1+) or file name itself.
+     */
+    public void forceUserDefinedCleanup(String dataFiles);
+
 
     /**
      * Stop all running compaction-like tasks having the provided {@code type}.
@@ -106,4 +116,26 @@ public interface CompactionManagerMBean
      * @param number New maximum of validator threads
      */
     public void setMaximumValidatorThreads(int number);
+
+    /**
+     * Returns core size of view build thread pool
+     */
+    public int getCoreViewBuildThreads();
+
+    /**
+     * Allows user to resize maximum size of the view build thread pool.
+     * @param number New maximum of view build threads
+     */
+    public void setCoreViewBuildThreads(int number);
+
+    /**
+     * Returns size of view build thread pool
+     */
+    public int getMaximumViewBuildThreads();
+
+    /**
+     * Allows user to resize maximum size of the view build thread pool.
+     * @param number New maximum of view build threads
+     */
+    public void setMaximumViewBuildThreads(int number);
 }

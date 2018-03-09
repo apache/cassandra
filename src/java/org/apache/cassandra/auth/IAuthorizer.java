@@ -29,6 +29,15 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 public interface IAuthorizer
 {
     /**
+     * Whether or not the authorizer will attempt authorization.
+     * If false the authorizer will not be called for authorization of resources.
+     */
+    default boolean requireAuthorization()
+    {
+        return true;
+    }
+
+    /**
      * Returns a set of permissions of a user on a resource.
      * Since Roles were introduced in version 2.2, Cassandra does not distinguish in any
      * meaningful way between users and roles. A role may or may not have login privileges

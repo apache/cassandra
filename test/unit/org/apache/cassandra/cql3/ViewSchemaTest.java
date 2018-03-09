@@ -34,12 +34,13 @@ import junit.framework.Assert;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.After;
 import org.junit.Before;
@@ -51,7 +52,7 @@ import com.datastax.driver.core.exceptions.InvalidQueryException;
 
 public class ViewSchemaTest extends CQLTester
 {
-    int protocolVersion = 4;
+    ProtocolVersion protocolVersion = ProtocolVersion.V4;
     private final List<String> views = new ArrayList<>();
 
     @BeforeClass
@@ -175,8 +176,8 @@ public class ViewSchemaTest extends CQLTester
 
         //Test alter add
         executeNet(protocolVersion, "ALTER TABLE %s ADD foo text");
-        CFMetaData metadata = Schema.instance.getCFMetaData(keyspace(), "mv1_test");
-        Assert.assertNotNull(metadata.getColumnDefinition(ByteBufferUtil.bytes("foo")));
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), "mv1_test");
+        Assert.assertNotNull(metadata.getColumn(ByteBufferUtil.bytes("foo")));
 
         updateView("INSERT INTO %s(k,asciival,bigintval,foo)VALUES(?,?,?,?)", 0, "foo", 1L, "bar");
         assertRows(execute("SELECT foo from %s"), row("bar"));
@@ -185,8 +186,8 @@ public class ViewSchemaTest extends CQLTester
         executeNet(protocolVersion, "ALTER TABLE %s RENAME asciival TO bar");
 
         assertRows(execute("SELECT bar from %s"), row("foo"));
-        metadata = Schema.instance.getCFMetaData(keyspace(), "mv1_test");
-        Assert.assertNotNull(metadata.getColumnDefinition(ByteBufferUtil.bytes("bar")));
+        metadata = Schema.instance.getTableMetadata(keyspace(), "mv1_test");
+        Assert.assertNotNull(metadata.getColumn(ByteBufferUtil.bytes("bar")));
     }
 
 
@@ -285,12 +286,12 @@ public class ViewSchemaTest extends CQLTester
                     "tupleval frozen<tuple<int, ascii, uuid>>," +
                     "udtval frozen<" + myType + ">)");
 
-        CFMetaData metadata = currentTableMetadata();
+        TableMetadata metadata = currentTableMetadata();
 
         execute("USE " + keyspace());
         executeNet(protocolVersion, "USE " + keyspace());
 
-        for (ColumnDefinition def : new HashSet<>(metadata.allColumns()))
+        for (ColumnMetadata def : new HashSet<>(metadata.columns()))
         {
             try
             {
@@ -682,5 +683,20 @@ public class ViewSchemaTest extends CQLTester
         {
             Assert.assertEquals("Cannot use DROP TABLE on Materialized View", e.getMessage());
         }
+    }
+
+    @Test
+    public void testCreateMVWithFilteringOnNonPkColumn() throws Throwable
+    {
+        // SEE CASSANDRA-13798, we cannot properly support non-pk base column filtering for mv without huge storage
+        // format changes.
+        createTable("CREATE TABLE %s ( a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        assertInvalidMessage("Non-primary key columns cannot be restricted in the SELECT statement used for materialized view creation",
+                             "CREATE MATERIALIZED VIEW " + keyspace() + ".mv AS SELECT * FROM %s "
+                                     + "WHERE b IS NOT NULL AND c IS NOT NULL AND a IS NOT NULL "
+                                     + "AND d = 1 PRIMARY KEY (c, b, a)");
     }
 }

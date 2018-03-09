@@ -27,7 +27,7 @@ import com.sun.jna.Pointer;
 
 /**
  * A {@code NativeLibraryWrapper} implementation for Windows.
- * <p> This implementation only offer support for the {@code callGetpid} method
+ * <p> This implementation only offers support for the {@code callGetpid} method
  * using the Windows/Kernel32 library.</p>
  *
  * @see org.apache.cassandra.utils.NativeLibraryWrapper
@@ -35,9 +35,9 @@ import com.sun.jna.Pointer;
  */
 public class NativeLibraryWindows implements NativeLibraryWrapper
 {
-    private static boolean available;
-
     private static final Logger logger = LoggerFactory.getLogger(NativeLibraryWindows.class);
+
+    private static boolean available;
 
     static
     {

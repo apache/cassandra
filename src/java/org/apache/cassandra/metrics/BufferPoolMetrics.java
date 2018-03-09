@@ -19,7 +19,6 @@ package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.RatioGauge;
 import org.apache.cassandra.utils.memory.BufferPool;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;

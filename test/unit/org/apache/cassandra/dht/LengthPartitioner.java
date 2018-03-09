@@ -20,9 +20,10 @@ package org.apache.cassandra.dht;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -56,14 +57,30 @@ public class LengthPartitioner implements IPartitioner
         return new BigIntegerToken(midpair.left);
     }
 
+    public Token split(Token left, Token right, double ratioToLeft)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public BigIntegerToken getMinimumToken()
     {
         return MINIMUM;
     }
 
+    @Override
+    public Token getMaximumToken()
+    {
+        return null;
+    }
+
     public BigIntegerToken getRandomToken()
     {
-        return new BigIntegerToken(BigInteger.valueOf(new Random().nextInt(15)));
+        return getRandomToken(ThreadLocalRandom.current());
+    }
+
+    public BigIntegerToken getRandomToken(Random random)
+    {
+        return new BigIntegerToken(BigInteger.valueOf(random.nextInt(15)));
     }
 
     private final Token.TokenFactory tokenFactory = new Token.TokenFactory() {
@@ -126,12 +143,12 @@ public class LengthPartitioner implements IPartitioner
 
         for (String ks : Schema.instance.getKeyspaces())
         {
-            for (CFMetaData cfmd : Schema.instance.getTablesAndViews(ks))
+            for (TableMetadata cfmd : Schema.instance.getTablesAndViews(ks))
             {
                 for (Range<Token> r : sortedRanges)
                 {
                     // Looping over every KS:CF:Range, get the splits size and add it to the count
-                    allTokens.put(r.right, allTokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.cfName, r, 1).size());
+                    allTokens.put(r.right, allTokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.name, r, 1).size());
                 }
             }
         }

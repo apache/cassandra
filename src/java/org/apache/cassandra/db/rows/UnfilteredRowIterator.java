@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.util.Iterator;
-
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 
 /**

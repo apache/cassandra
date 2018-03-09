@@ -20,11 +20,11 @@ package org.apache.cassandra.cql3.selection;
 
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
+import com.google.common.collect.Lists;
+
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Lists;
 
 public class RawSelector
 {
@@ -43,19 +43,14 @@ public class RawSelector
      * @param raws the <code>RawSelector</code>s to converts.
      * @return a list of <code>Selectable</code>s
      */
-    public static List<Selectable> toSelectables(List<RawSelector> raws, final CFMetaData cfm)
+    public static List<Selectable> toSelectables(List<RawSelector> raws, final TableMetadata table)
     {
-        return Lists.transform(raws, new Function<RawSelector, Selectable>()
-        {
-            public Selectable apply(RawSelector raw)
-            {
-                return raw.selectable.prepare(cfm);
-            }
-        });
+        return Lists.transform(raws, raw -> raw.prepare(table));
     }
 
-    public boolean processesSelection()
+    private Selectable prepare(TableMetadata table)
     {
-        return selectable.processesSelection();
+        Selectable s = selectable.prepare(table);
+        return alias != null ? new AliasedSelectable(s, alias) : s;
     }
 }

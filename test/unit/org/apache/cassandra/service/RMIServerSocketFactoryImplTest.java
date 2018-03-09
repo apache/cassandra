@@ -36,7 +36,7 @@ public class RMIServerSocketFactoryImplTest
     @Test
     public void testReusableAddrSocket() throws IOException
     {
-        RMIServerSocketFactory serverFactory = new RMIServerSocketFactoryImpl();
+        RMIServerSocketFactory serverFactory = new RMIServerSocketFactoryImpl(null);
         ServerSocket socket = serverFactory.createServerSocket(7199);
         assertTrue(socket.getReuseAddress());
     }

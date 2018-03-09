@@ -21,8 +21,6 @@ package org.apache.cassandra.stress.operations;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.common.util.concurrent.RateLimiter;
-
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.WorkManager;
 import org.apache.cassandra.stress.generate.Distribution;
@@ -31,9 +29,9 @@ import org.apache.cassandra.stress.generate.PartitionIterator;
 import org.apache.cassandra.stress.generate.RatioDistribution;
 import org.apache.cassandra.stress.generate.Seed;
 import org.apache.cassandra.stress.generate.SeedManager;
+import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.OptionRatioDistribution;
 import org.apache.cassandra.stress.settings.StressSettings;
-import org.apache.cassandra.stress.util.Timer;
 
 public abstract class PartitionOperation extends Operation
 {
@@ -77,14 +75,14 @@ public abstract class PartitionOperation extends Operation
         this.spec = spec;
     }
 
-    public boolean ready(WorkManager permits, RateLimiter rateLimiter)
+    public int ready(WorkManager permits)
     {
         int partitionCount = (int) spec.partitionCount.next();
         if (partitionCount <= 0)
-            return false;
+            return 0;
         partitionCount = permits.takePermits(partitionCount);
         if (partitionCount <= 0)
-            return false;
+            return 0;
 
         int i = 0;
         boolean success = true;
@@ -105,11 +103,8 @@ public abstract class PartitionOperation extends Operation
         }
         partitionCount = i;
 
-        if (rateLimiter != null)
-            rateLimiter.acquire(partitionCount);
-
         partitions = partitionCache.subList(0, partitionCount);
-        return !partitions.isEmpty();
+        return partitions.size();
     }
 
     protected boolean reset(Seed seed, PartitionIterator iterator)

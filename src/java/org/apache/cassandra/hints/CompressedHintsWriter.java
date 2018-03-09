@@ -24,6 +24,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.zip.CRC32;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.io.compress.ICompressor;
 
 public class CompressedHintsWriter extends HintsWriter
@@ -63,5 +65,11 @@ public class CompressedHintsWriter extends HintsWriter
         compressionBuffer.rewind();
         compressionBuffer.limit(compressedSize + METADATA_SIZE);
         super.writeBuffer(compressionBuffer);
+    }
+
+    @VisibleForTesting
+    ICompressor getCompressor()
+    {
+        return compressor;
     }
 }

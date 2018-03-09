@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.dht;
 
+import org.junit.Test;
+
 public class Murmur3PartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
@@ -33,6 +35,32 @@ public class Murmur3PartitionerTest extends PartitionerTestCase
         assertMidpoint(mintoken, tok("aaa"), 16);
         assertMidpoint(mintoken, mintoken, 62);
         assertMidpoint(tok("a"), mintoken, 16);
+    }
+
+    protected boolean shouldStopRecursion(Token left, Token right)
+    {
+        return left.size(right) < Math.scalb(1, -48);
+    }
+
+    @Test
+    public void testSplit()
+    {
+        assertSplit(tok("a"), tok("b"), 16);
+        assertSplit(tok("a"), tok("bbb"), 16);
+    }
+
+    @Test
+    public void testSplitWrapping()
+    {
+        assertSplit(tok("b"), tok("a"), 16);
+        assertSplit(tok("bbb"), tok("a"), 16);
+    }
+
+    @Test
+    public void testSplitExceedMaximumCase()
+    {
+        Murmur3Partitioner.LongToken left = new Murmur3Partitioner.LongToken(Long.MAX_VALUE - 100);
+        assertSplit(left, tok("a"), 16);
     }
 }
 
