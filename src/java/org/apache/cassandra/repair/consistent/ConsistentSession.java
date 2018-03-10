@@ -64,10 +64,10 @@ import org.apache.cassandra.tools.nodetool.RepairAdmin;
  *  The consistent prepare step promotes the parent repair session to a consistent session, and isolates the sstables
  *  being repaired other sstables. First, the coordinator sends a {@link PrepareConsistentRequest} message to each repair
  *  participant (including itself). When received, the node creates a {@link LocalSession} instance, sets it's state to
- *  {@code PREPARING}, persists it, and begins a {@link PendingAntiCompaction} task. When the pending anti compaction
- *  completes, the session state is set to {@code PREPARED}, and a {@link PrepareConsistentResponse} is sent to the
- *  coordinator indicating success or failure. If the pending anti-compaction fails, the local session state is set
- *  to {@code FAILED}.
+ *  {@code PREPARING}, persists it, and begins a preparing the tables for incremental repair, which segregates the data
+ *  being repaired from the rest of the table data. When the preparation completes, the session state is set to
+ *  {@code PREPARED}, and a {@link PrepareConsistentResponse} is sent to the coordinator indicating success or failure.
+ *  If the pending anti-compaction fails, the local session state is set to {@code FAILED}.
  *  <p/>
  *  (see {@link LocalSessions#handlePrepareMessage(InetAddressAndPort, PrepareConsistentRequest)}
  *  <p/>

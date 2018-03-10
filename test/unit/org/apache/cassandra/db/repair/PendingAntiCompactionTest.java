@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.consistent;
+package org.apache.cassandra.db.repair;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -144,17 +144,18 @@ public class PendingAntiCompactionTest
 
         Token left = ByteOrderedPartitioner.instance.getToken(ByteBufferUtil.bytes((int) 6));
         Token right = ByteOrderedPartitioner.instance.getToken(ByteBufferUtil.bytes((int) 16));
+        List<ColumnFamilyStore> tables = Lists.newArrayList(cfs);
         Collection<Range<Token>> ranges = Collections.singleton(new Range<>(left, right));
 
         // create a session so the anti compaction can fine it
         UUID sessionID = UUIDGen.getTimeUUID();
-        ActiveRepairService.instance.registerParentRepairSession(sessionID, InetAddressAndPort.getLocalHost(), Lists.newArrayList(cfs), ranges, true, 1, true, PreviewKind.NONE);
+        ActiveRepairService.instance.registerParentRepairSession(sessionID, InetAddressAndPort.getLocalHost(), tables, ranges, true, 1, true, PreviewKind.NONE);
 
         PendingAntiCompaction pac;
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try
         {
-            pac = new PendingAntiCompaction(sessionID, ranges, executor);
+            pac = new PendingAntiCompaction(sessionID, tables, ranges, executor);
             pac.run().get();
         }
         finally

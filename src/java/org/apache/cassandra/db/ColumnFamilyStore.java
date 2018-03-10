@@ -51,6 +51,7 @@ import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.streaming.CassandraStreamManager;
+import org.apache.cassandra.db.repair.CassandraTableRepairManager;
 import org.apache.cassandra.db.view.TableViews;
 import org.apache.cassandra.db.lifecycle.*;
 import org.apache.cassandra.db.partitions.CachedPartition;
@@ -75,6 +76,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.TableMetrics.Sampler;
+import org.apache.cassandra.repair.TableRepairManager;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.service.CacheService;
@@ -215,6 +217,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public volatile long sampleLatencyNanos;
 
     private final CassandraStreamManager streamManager;
+
+    private final TableRepairManager repairManager;
 
     private volatile boolean compactionSpaceCheck = true;
 
@@ -447,6 +451,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             oldMBeanName= null;
         }
         streamManager = new CassandraStreamManager(this);
+        repairManager = new CassandraTableRepairManager(this);
     }
 
     public void updateSpeculationThreshold()
@@ -464,6 +469,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public TableStreamManager getStreamManager()
     {
         return streamManager;
+    }
+
+    public TableRepairManager getRepairManager()
+    {
+        return repairManager;
     }
 
     public TableMetadata metadata()

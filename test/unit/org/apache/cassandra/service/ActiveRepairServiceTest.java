@@ -264,21 +264,19 @@ public class ActiveRepairServiceTest
         ColumnFamilyStore store = prepareColumnFamilyStore();
         UUID prsId = UUID.randomUUID();
         Set<SSTableReader> original = Sets.newHashSet(store.select(View.select(SSTableSet.CANONICAL, (s) -> !s.isRepaired())).sstables);
+        Collection<Range<Token>> ranges = Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(), store.getPartitioner().getMinimumToken()));
         ActiveRepairService.instance.registerParentRepairSession(prsId, FBUtilities.getBroadcastAddressAndPort(), Collections.singletonList(store),
-                                                                 Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(),
-                                                                                                   store.getPartitioner().getMinimumToken())),
-                                                                 true, System.currentTimeMillis(), true, PreviewKind.NONE);
-        ActiveRepairService.instance.getParentRepairSession(prsId).maybeSnapshot(store.metadata.id, prsId);
+                                                                 ranges, true, System.currentTimeMillis(), true, PreviewKind.NONE);
+        store.getRepairManager().snapshot(prsId.toString(), ranges, false);
 
         UUID prsId2 = UUID.randomUUID();
         ActiveRepairService.instance.registerParentRepairSession(prsId2, FBUtilities.getBroadcastAddressAndPort(),
                                                                  Collections.singletonList(store),
-                                                                 Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(),
-                                                                                                   store.getPartitioner().getMinimumToken())),
+                                                                 ranges,
                                                                  true, System.currentTimeMillis(),
                                                                  true, PreviewKind.NONE);
         createSSTables(store, 2);
-        ActiveRepairService.instance.getParentRepairSession(prsId).maybeSnapshot(store.metadata.id, prsId);
+        store.getRepairManager().snapshot(prsId.toString(), ranges, false);
         try (Refs<SSTableReader> refs = store.getSnapshotSSTableReaders(prsId.toString()))
         {
             assertEquals(original, Sets.newHashSet(refs.iterator()));
