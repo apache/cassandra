@@ -1,4 +1,5 @@
 4.0
+ * Abstract repair for pluggable storage (CASSANDRA-14116)
  * Add meaningful toString() impls (CASSANDRA-13653)
  * Add sstableloader option to accept target keyspace name (CASSANDRA-13884)
  * Move processing of EchoMessage response to gossip stage (CASSANDRA-13713)

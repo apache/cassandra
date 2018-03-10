@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair.consistent;
+package org.apache.cassandra.db.repair;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,7 +43,6 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
@@ -153,6 +152,10 @@ public class PendingAntiCompaction
                         result.abort();
                     }
                 }
+                logger.warn("Prepare phase for incremental repair session {} was unable to " +
+                            "acquire exclusive access to the neccesary sstables. " +
+                            "This is usually caused by running multiple incremental repairs on nodes that share token ranges",
+                            parentRepairSession);
                 return Futures.immediateFailedFuture(new SSTableAcquisitionException());
             }
             else
@@ -173,22 +176,22 @@ public class PendingAntiCompaction
     }
 
     private final UUID prsId;
+    private final Collection<ColumnFamilyStore> tables;
     private final Collection<Range<Token>> ranges;
     private final ExecutorService executor;
 
-    public PendingAntiCompaction(UUID prsId, Collection<Range<Token>> ranges, ExecutorService executor)
+    public PendingAntiCompaction(UUID prsId, Collection<ColumnFamilyStore> tables, Collection<Range<Token>> ranges, ExecutorService executor)
     {
         this.prsId = prsId;
+        this.tables = tables;
         this.ranges = ranges;
         this.executor = executor;
     }
 
     public ListenableFuture run()
     {
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(prsId);
-        Collection<ColumnFamilyStore> cfss = prs.getColumnFamilyStores();
-        List<ListenableFutureTask<AcquireResult>> tasks = new ArrayList<>(cfss.size());
-        for (ColumnFamilyStore cfs : cfss)
+        List<ListenableFutureTask<AcquireResult>> tasks = new ArrayList<>(tables.size());
+        for (ColumnFamilyStore cfs : tables)
         {
             cfs.forceBlockingFlush();
             ListenableFutureTask<AcquireResult> task = ListenableFutureTask.create(new AcquisitionCallable(cfs, ranges, prsId));

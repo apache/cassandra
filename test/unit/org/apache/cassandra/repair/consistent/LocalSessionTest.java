@@ -19,6 +19,7 @@
 package org.apache.cassandra.repair.consistent;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -40,8 +41,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.KeyspaceRepairManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -128,18 +132,20 @@ public class LocalSessionTest extends AbstractRepairTest
             sentMessages.get(destination).add(message);
         }
 
-        SettableFuture<Object> pendingAntiCompactionFuture = null;
-        boolean submitPendingAntiCompactionCalled = false;
-        ListenableFuture submitPendingAntiCompaction(LocalSession session, ExecutorService executor)
+        SettableFuture<Object> prepareSessionFuture = null;
+        boolean prepareSessionCalled = false;
+
+        @Override
+        ListenableFuture prepareSession(KeyspaceRepairManager repairManager, UUID sessionID, Collection<ColumnFamilyStore> tables, Collection<Range<Token>> ranges, ExecutorService executor)
         {
-            submitPendingAntiCompactionCalled = true;
-            if (pendingAntiCompactionFuture != null)
+            prepareSessionCalled = true;
+            if (prepareSessionFuture != null)
             {
-                return pendingAntiCompactionFuture;
+                return prepareSessionFuture;
             }
             else
             {
-                return super.submitPendingAntiCompaction(session, executor);
+                return super.prepareSession(repairManager, sessionID, tables, ranges, executor);
             }
         }
 
@@ -152,9 +158,9 @@ public class LocalSessionTest extends AbstractRepairTest
 
         public LocalSession prepareForTest(UUID sessionID)
         {
-            pendingAntiCompactionFuture = SettableFuture.create();
+            prepareSessionFuture = SettableFuture.create();
             handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
-            pendingAntiCompactionFuture.set(new Object());
+            prepareSessionFuture.set(new Object());
             sentMessages.clear();
             return getSession(sessionID);
         }
@@ -254,10 +260,10 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.start();
 
         // replacing future so we can inspect state before and after anti compaction callback
-        sessions.pendingAntiCompactionFuture = SettableFuture.create();
-        Assert.assertFalse(sessions.submitPendingAntiCompactionCalled);
+        sessions.prepareSessionFuture = SettableFuture.create();
+        Assert.assertFalse(sessions.prepareSessionCalled);
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
-        Assert.assertTrue(sessions.submitPendingAntiCompactionCalled);
+        Assert.assertTrue(sessions.prepareSessionCalled);
         Assert.assertTrue(sessions.sentMessages.isEmpty());
 
         // anti compaction hasn't finished yet, so state in memory and on disk should be PREPARING
@@ -267,7 +273,7 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertEquals(session, sessions.loadUnsafe(sessionID));
 
         // anti compaction has now finished, so state in memory and on disk should be PREPARED
-        sessions.pendingAntiCompactionFuture.set(new Object());
+        sessions.prepareSessionFuture.set(new Object());
         session = sessions.getSession(sessionID);
         Assert.assertNotNull(session);
         Assert.assertEquals(PREPARED, session.getState());
@@ -289,10 +295,10 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.start();
 
         // replacing future so we can inspect state before and after anti compaction callback
-        sessions.pendingAntiCompactionFuture = SettableFuture.create();
-        Assert.assertFalse(sessions.submitPendingAntiCompactionCalled);
+        sessions.prepareSessionFuture = SettableFuture.create();
+        Assert.assertFalse(sessions.prepareSessionCalled);
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
-        Assert.assertTrue(sessions.submitPendingAntiCompactionCalled);
+        Assert.assertTrue(sessions.prepareSessionCalled);
         Assert.assertTrue(sessions.sentMessages.isEmpty());
 
         // anti compaction hasn't finished yet, so state in memory and on disk should be PREPARING
@@ -302,7 +308,7 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertEquals(session, sessions.loadUnsafe(sessionID));
 
         // anti compaction has now finished, so state in memory and on disk should be PREPARED
-        sessions.pendingAntiCompactionFuture.setException(new RuntimeException());
+        sessions.prepareSessionFuture.setException(new RuntimeException());
         session = sessions.getSession(sessionID);
         Assert.assertNotNull(session);
         Assert.assertEquals(FAILED, session.getState());
@@ -657,7 +663,7 @@ public class LocalSessionTest extends AbstractRepairTest
         UUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
-        sessions.pendingAntiCompactionFuture = SettableFuture.create();  // prevent moving to prepared
+        sessions.prepareSessionFuture = SettableFuture.create();  // prevent moving to prepared
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
 
         LocalSession session = sessions.getSession(sessionID);
@@ -684,9 +690,9 @@ public class LocalSessionTest extends AbstractRepairTest
         UUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
-        sessions.pendingAntiCompactionFuture = SettableFuture.create();
+        sessions.prepareSessionFuture = SettableFuture.create();
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
-        sessions.pendingAntiCompactionFuture.set(new Object());
+        sessions.prepareSessionFuture.set(new Object());
 
         Assert.assertTrue(sessions.isSessionInProgress(sessionID));
         sessions.failSession(sessionID);

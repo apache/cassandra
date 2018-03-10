@@ -37,6 +37,7 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.repair.CassandraKeyspaceRepairManager;
 import org.apache.cassandra.db.view.ViewManager;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
@@ -45,6 +46,7 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
+import org.apache.cassandra.repair.KeyspaceRepairManager;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
@@ -90,6 +92,7 @@ public class Keyspace
     private volatile AbstractReplicationStrategy replicationStrategy;
     public final ViewManager viewManager;
     private volatile ReplicationParams replicationParams;
+    private final KeyspaceRepairManager repairManager;
 
     public static final Function<String,Keyspace> keyspaceTransformer = new Function<String, Keyspace>()
     {
@@ -335,6 +338,7 @@ public class Keyspace
             initCf(Schema.instance.getTableMetadataRef(cfm.id), loadSSTables);
         }
         this.viewManager.reload(false);
+        this.repairManager = new CassandraKeyspaceRepairManager(this);
     }
 
     private Keyspace(KeyspaceMetadata metadata)
@@ -343,6 +347,12 @@ public class Keyspace
         createReplicationStrategy(metadata);
         this.metric = new KeyspaceMetrics(this);
         this.viewManager = new ViewManager(this);
+        this.repairManager = new CassandraKeyspaceRepairManager(this);
+    }
+
+    public KeyspaceRepairManager getRepairManager()
+    {
+        return repairManager;
     }
 
     public static Keyspace mockKS(KeyspaceMetadata metadata)
