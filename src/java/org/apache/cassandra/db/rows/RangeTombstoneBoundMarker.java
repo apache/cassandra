@@ -140,7 +140,7 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker
 
     public String toString(CFMetaData metadata)
     {
-        return "Marker " + bound.toString(metadata) + '@' + deletion.markedForDeleteAt();
+        return String.format("Marker %s@%d/%d", bound.toString(metadata), deletion.markedForDeleteAt(), deletion.localDeletionTime());
     }
 
     @Override
