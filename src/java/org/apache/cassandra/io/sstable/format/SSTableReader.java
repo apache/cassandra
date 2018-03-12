@@ -371,19 +371,19 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
     {
-        return open(descriptor, components, metadata, true, true);
+        return open(descriptor, components, metadata, true, false);
     }
 
     // use only for offline or "Standalone" operations
     public static SSTableReader openNoValidation(Descriptor descriptor, Set<Component> components, ColumnFamilyStore cfs)
     {
-        return open(descriptor, components, cfs.metadata, false, false); // do not track hotness
+        return open(descriptor, components, cfs.metadata, false, true);
     }
 
     // use only for offline or "Standalone" operations
     public static SSTableReader openNoValidation(Descriptor descriptor, TableMetadataRef metadata)
     {
-        return open(descriptor, componentsFor(descriptor), metadata, false, false); // do not track hotness
+        return open(descriptor, componentsFor(descriptor), metadata, false, true);
     }
 
     /**
@@ -466,11 +466,22 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
     }
 
+    /**
+     * Open an SSTable for reading
+     * @param descriptor SSTable to open
+     * @param components Components included with this SSTable
+     * @param metadata for this SSTables CF
+     * @param validate Check SSTable for corruption (limited)
+     * @param isOffline Whether we are opening this SSTable "offline", for example from an external tool or not for inclusion in queries (validations)
+     *                  This stops regenerating BF + Summaries and also disables tracking of hotness for the SSTable.
+     * @return {@link SSTableReader}
+     * @throws IOException
+     */
     public static SSTableReader open(Descriptor descriptor,
                                      Set<Component> components,
                                      TableMetadataRef metadata,
                                      boolean validate,
-                                     boolean trackHotness)
+                                     boolean isOffline)
     {
         // Minimum components without which we can't do anything
         assert components.contains(Component.DATA) : "Data component is missing for sstable " + descriptor;
@@ -520,10 +531,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             // load index and filter
             long start = System.nanoTime();
-            sstable.load(validationMetadata);
+            sstable.load(validationMetadata, isOffline);
             logger.trace("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
-            sstable.setup(trackHotness);
+            sstable.setup(!isOffline); // Don't track hotness if we're offline.
             if (validate)
                 sstable.validate();
 
@@ -701,34 +712,37 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return keyCache != null;
     }
 
-    private void load(ValidationMetadata validation) throws IOException
+    /**
+     * See {@link #load(boolean, boolean)}
+     * @param validation Metadata for SSTable being loaded
+     * @param isOffline Whether the SSTable is being loaded by an offline tool (sstabledump, scrub, etc)
+     * @throws IOException
+     */
+    private void load(ValidationMetadata validation, boolean isOffline) throws IOException
     {
         if (metadata().params.bloomFilterFpChance == 1.0)
         {
             // bf is disabled.
-            load(false, true);
+            load(false, !isOffline);
             bf = FilterFactory.AlwaysPresent;
         }
-        else if (!components.contains(Component.PRIMARY_INDEX))
+        else if (!components.contains(Component.PRIMARY_INDEX)) // What happens if filter component and primary index is missing?
         {
             // avoid any reading of the missing primary index component.
             // this should only happen during StandaloneScrubber
-            load(false, false);
+            load(false, !isOffline);
         }
         else if (!components.contains(Component.FILTER) || validation == null)
         {
             // bf is enabled, but filter component is missing.
-            load(true, true);
-        }
-        else if (validation.bloomFilterFPChance != metadata().params.bloomFilterFpChance)
-        {
-            // bf fp chance in sstable metadata and it has changed since compaction.
-            load(true, true);
+            load(!isOffline, !isOffline);
+            if (isOffline)
+                bf = FilterFactory.AlwaysPresent;
         }
         else
         {
             // bf is enabled and fp chance matches the currently configured value.
-            load(false, true);
+            load(false, !isOffline);
             loadBloomFilter(descriptor.version.hasOldBfFormat());
         }
     }
@@ -748,7 +762,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     }
 
     /**
-     * Loads ifile, dfile and indexSummary, and optionally recreates the bloom filter.
+     * Loads ifile, dfile and indexSummary, and optionally recreates and persists the bloom filter.
+     * @param recreateBloomFilter Recreate the bloomfilter.
      * @param saveSummaryIfCreated for bulk loading purposes, if the summary was absent and needed to be built, you can
      *                             avoid persisting it to disk by setting this to false
      */
@@ -762,12 +777,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                                      .withChunkCache(ChunkCache.instance))
         {
             boolean summaryLoaded = loadSummary();
-            boolean builtSummary = false;
-            if (recreateBloomFilter || !summaryLoaded)
-            {
+            boolean buildSummary = !summaryLoaded || recreateBloomFilter;
+            if (buildSummary)
                 buildSummary(recreateBloomFilter, summaryLoaded, Downsampling.BASE_SAMPLING_LEVEL);
-                builtSummary = true;
-            }
 
             int dataBufferSize = optimizationStrategy.bufferSize(sstableMetadata.estimatedPartitionSize.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
 
@@ -780,8 +792,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
             dfile = dbuilder.bufferSize(dataBufferSize).complete();
 
-            if (saveSummaryIfCreated && builtSummary)
-                saveSummary();
+            if (buildSummary)
+            {
+                if (saveSummaryIfCreated)
+                    saveSummary();
+                if (recreateBloomFilter)
+                    saveBloomFilter();
+            }
         }
         catch (Throwable t)
         { // Because the tidier has not been set-up yet in SSTableReader.open(), we must release the files in case of error
@@ -945,6 +962,30 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             if (summariesFile.exists())
                 FileUtils.deleteWithConfirm(summariesFile);
         }
+    }
+
+    public void saveBloomFilter()
+    {
+        saveBloomFilter(this.descriptor, bf);
+    }
+
+    public static void saveBloomFilter(Descriptor descriptor, IFilter filter)
+    {
+        File filterFile = new File(descriptor.filenameFor(Component.FILTER));
+        try (DataOutputStreamPlus stream = new BufferedDataOutputStreamPlus(new FileOutputStream(filterFile)))
+        {
+            BloomFilterSerializer.serialize((BloomFilter) filter, stream);
+            stream.flush();
+        }
+        catch (IOException e)
+        {
+            logger.trace("Cannot save SSTable bloomfilter: ", e);
+
+            // corrupted hence delete it and let it load it now.
+            if (filterFile.exists())
+                FileUtils.deleteWithConfirm(filterFile);
+        }
+
     }
 
     public void setReplaced()
