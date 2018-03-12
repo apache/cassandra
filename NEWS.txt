@@ -155,6 +155,8 @@ Upgrading
 ---------
     - Materialized view users upgrading from 3.0.15 (3.0.X series) or 3.11.1 (3.11.X series) and  later that have performed range movements (join, decommission, move, etc),
       should run repair on the base tables, and subsequently on the views to ensure data affected by CASSANDRA-14251 is correctly propagated to all replicas.
+    - Changes to bloom_filter_fp_chance will no longer take effect on existing sstables when the node is restarted. Only
+      compactions/upgradesstables regenerates bloom filters and Summaries sstable components. See CASSANDRA-11163
 
 3.11.2
 ======
