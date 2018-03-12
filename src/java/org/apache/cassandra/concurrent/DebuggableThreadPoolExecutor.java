@@ -83,6 +83,13 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
         this(corePoolSize, corePoolSize, keepAliveTime, unit, queue, factory);
     }
 
+    public DebuggableThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue)
+    {
+        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue);
+        allowCoreThreadTimeOut(true);
+        this.setRejectedExecutionHandler(blockingExecutionHandler);
+    }
+
     public DebuggableThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory)
     {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory);

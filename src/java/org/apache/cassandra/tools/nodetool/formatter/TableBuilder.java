@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool.formatter;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nonnull;
@@ -81,6 +82,12 @@ public class TableBuilder
             i++;
         }
         rows.add(row);
+    }
+
+    public void add(@Nonnull Object... row)
+    {
+        Objects.requireNonNull(row);
+        add(Arrays.stream(row).map(o -> o.toString()).toArray(String[]::new));
     }
 
     public void printTo(PrintStream out)
