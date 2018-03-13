@@ -19,6 +19,7 @@ package org.apache.cassandra.locator;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -365,6 +366,39 @@ public abstract class AbstractReplicationStrategy
 
         strategy.validateOptions();
         return strategy;
+    }
+
+    /**
+     * Before constructing the ARS we first give it a chance to prepare the options map in any way it
+     * would like to. For example datacenter auto-expansion or other templating to make the user interface
+     * more usable. Note that this may mutate the passed strategyOptions Map.
+     *
+     * We do this prior to the construction of the strategyClass itself because at that point the option
+     * map is already immutable and comes from {@link org.apache.cassandra.schema.ReplicationParams}
+     * (and should probably stay that way so we don't start having bugs related to ReplicationParams being mutable).
+     * Instead ARS classes get a static hook here via the prepareOptions(Map, Map) method to mutate the user input
+     * before it becomes an immutable part of the ReplicationParams.
+     *
+     * @param strategyClass The class to call prepareOptions on
+     * @param strategyOptions The proposed strategy options that will be potentially mutated by the prepareOptions
+     *                        method.
+     * @param previousStrategyOptions In the case of an ALTER statement, the previous strategy options of this class.
+     *                                This map cannot be mutated.
+     */
+    public static void prepareReplicationStrategyOptions(Class<? extends AbstractReplicationStrategy> strategyClass,
+                                                         Map<String, String> strategyOptions,
+                                                         Map<String, String> previousStrategyOptions)
+    {
+        try
+        {
+            Method method = strategyClass.getDeclaredMethod("prepareOptions", Map.class, Map.class);
+            method.invoke(null, strategyOptions, previousStrategyOptions);
+        }
+        catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException ign)
+        {
+            // If the subclass doesn't specify a prepareOptions method, then that means that it
+            // doesn't want to do anything to the options. So do nothing on reflection related exceptions.
+        }
     }
 
     public static void validateReplicationStrategy(String keyspaceName,

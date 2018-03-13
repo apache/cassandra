@@ -70,4 +70,14 @@ public class ReplicationFactorTest
         assertRfParseFailure("3/3");
         assertRfParseFailure("3/4");
     }
+
+    @Test
+    public void roundTripParseTest()
+    {
+        String input = "3";
+        Assert.assertEquals(input, ReplicationFactor.fromString(input).toParseableString());
+
+        String transientInput = "3/1";
+        Assert.assertEquals(transientInput, ReplicationFactor.fromString(transientInput).toParseableString());
+    }
 }

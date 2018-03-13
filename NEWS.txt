@@ -105,6 +105,11 @@ New features
    - Faster streaming of entire SSTables using ZeroCopy APIs. If enabled, Cassandra will use stream
      entire SSTables, significantly speeding up transfers. Any streaming related operations will see
      corresponding improvement. See CASSANDRA-14556.
+   - NetworkTopologyStrategy now supports auto-expanding the replication_factor
+     option into all available datacenters at CREATE or ALTER time. For example,
+     specifying replication_factor: 3 translates to three replicas in every
+     datacenter. This auto-expansion will _only add_ datacenters for safety.
+     See CASSANDRA-14303 for more details.
 
 Upgrading
 ---------

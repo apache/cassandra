@@ -1,4 +1,5 @@
 4.0
+ * Auto-expand replication_factor for NetworkTopologyStrategy (CASSANDRA-14303)
  * Transient Replication: support EACH_QUORUM (CASSANDRA-14727)
  * BufferPool: allocating thread for new chunks should acquire directly (CASSANDRA-14832)
  * Send correct messaging version in internode messaging handshake's third message (CASSANDRA-14896)
