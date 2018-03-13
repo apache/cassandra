@@ -303,7 +303,7 @@ The partition key
 
 Within a table, CQL defines the notion of a *partition*. A partition is simply the set of rows that share the same value
 for their partition key. Note that if the partition key is composed of multiple columns, then rows belong to the same
-partition only they have the same values for all those partition key column. So for instance, given the following table
+partition only if they have the same values for all those partition key columns. So for instance, given the following table
 definition and content::
 
     CREATE TABLE t (
@@ -330,10 +330,10 @@ Note that a table always has a partition key, and that if the table has no :ref:
 <clustering-columns>`, then every partition of that table is only comprised of a single row (since the primary key
 uniquely identifies rows and the primary key is equal to the partition key if there is no clustering columns).
 
-The most important property of partition is that all the rows belonging to the same partition are guarantee to be stored
+The most important property of partition is that all the rows belonging to the same partition are guaranteed to be stored
 on the same set of replica nodes. In other words, the partition key of a table defines which of the rows will be
 localized together in the Cluster, and it is thus important to choose your partition key wisely so that rows that needs
-to be fetch together are in the same partition (so that querying those rows together require contacting a minimum of
+to be fetched together are in the same partition (so that querying those rows together require contacting a minimum of
 nodes).
 
 Please note however that there is a flip-side to this guarantee: as all rows sharing a partition key are guaranteed to
@@ -342,8 +342,8 @@ be stored on the same set of replica node, a partition key that groups too much 
 Another useful property of a partition is that when writing data, all the updates belonging to a single partition are
 done *atomically* and in *isolation*, which is not the case across partitions.
 
-The proper choice of the partition key and clustering columns for a table is probably one of the most important aspect
-of data modeling in Cassandra, and it largely impact which queries can be performed, and how efficiently they are.
+The proper choice of the partition key and clustering columns for a table is probably one of the most important aspects
+of data modeling in Cassandra, and it largely impacts which queries can be performed, and how efficient they are.
 
 
 .. _clustering-columns:
