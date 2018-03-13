@@ -122,9 +122,14 @@ public class ReplicationFactor
         }
     }
 
+    public String toParseableString()
+    {
+        return String.valueOf(allReplicas) + (hasTransientReplicas() ? "/" + transientReplicas() : "");
+    }
+
     @Override
     public String toString()
     {
-        return "rf(" + allReplicas + (hasTransientReplicas() ? '/' + transientReplicas() : "") + ')';
+        return "rf(" + toParseableString() + ')';
     }
 }

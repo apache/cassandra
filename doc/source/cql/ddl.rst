@@ -73,13 +73,15 @@ A keyspace is created using a ``CREATE KEYSPACE`` statement:
 
 For instance::
 
-    CREATE KEYSPACE Excelsior
-               WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};
+    CREATE KEYSPACE excelsior
+        WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};
 
-    CREATE KEYSPACE Excalibur
-               WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1' : 1, 'DC2' : 3}
-                AND durable_writes = false;
+    CREATE KEYSPACE excalibur
+        WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1' : 1, 'DC2' : 3}
+        AND durable_writes = false;
 
+Attempting to create a keyspace that already exists will return an error unless the ``IF NOT EXISTS`` option is used. If
+it is used, the statement will be a no-op if the keyspace already exists.
 
 The supported ``options`` are:
 
@@ -96,14 +98,72 @@ The ``replication`` property is mandatory and must at least contains the ``'clas
 :ref:`replication strategy <replication-strategy>` class to use. The rest of the sub-options depends on what replication
 strategy is used. By default, Cassandra support the following ``'class'``:
 
-- ``'SimpleStrategy'``: A simple strategy that defines a replication factor for the whole cluster. The only sub-options
-  supported is ``'replication_factor'`` to define that replication factor and is mandatory.
-- ``'NetworkTopologyStrategy'``: A replication strategy that allows to set the replication factor independently for
-  each data-center. The rest of the sub-options are key-value pairs where a key is a data-center name and its value is
-  the associated replication factor.
+``SimpleStrategy``
+""""""""""""""""""
 
-Attempting to create a keyspace that already exists will return an error unless the ``IF NOT EXISTS`` option is used. If
-it is used, the statement will be a no-op if the keyspace already exists.
+A simple strategy that defines a replication factor for data to be spread
+across the entire cluster. This is generally not a wise choice for production
+because it does not respect datacenter layouts and can lead to wildly varying
+query latency. For a production ready strategy, see
+``NetworkTopologyStrategy``. ``SimpleStrategy`` supports a single mandatory argument:
+
+========================= ====== ======= =============================================
+sub-option                 type   since   description
+========================= ====== ======= =============================================
+``'replication_factor'``   int    all     The number of replicas to store per range
+========================= ====== ======= =============================================
+
+``NetworkTopologyStrategy``
+"""""""""""""""""""""""""""
+
+A production ready replication strategy that allows to set the replication
+factor independently for each data-center. The rest of the sub-options are
+key-value pairs where a key is a data-center name and its value is the
+associated replication factor. Options:
+
+===================================== ====== ====== =============================================
+sub-option                             type   since  description
+===================================== ====== ====== =============================================
+``'<datacenter>'``                     int    all    The number of replicas to store per range in
+                                                     the provided datacenter.
+``'replication_factor'``               int    4.0    The number of replicas to use as a default
+                                                     per datacenter if not specifically provided.
+                                                     Note that this always defers to existing
+                                                     definitions or explicit datacenter settings.
+                                                     For example, to have three replicas per
+                                                     datacenter, supply this with a value of 3.
+===================================== ====== ====== =============================================
+
+Note that when ``ALTER`` ing keyspaces and supplying ``replication_factor``,
+auto-expansion will only *add* new datacenters for safety, it will not alter
+existing datacenters or remove any even if they are no longer in the cluster.
+If you want to remove datacenters while still supplying ``replication_factor``,
+explicitly zero out the datacenter you want to have zero replicas.
+
+An example of auto-expanding datacenters with two datacenters: ``DC1`` and ``DC2``::
+
+    CREATE KEYSPACE excalibur
+        WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor' : 3}
+
+    DESCRIBE KEYSPACE excalibur
+        CREATE KEYSPACE excalibur WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '3', 'DC2': '3'} AND durable_writes = true;
+
+
+An example of auto-expanding and overriding a datacenter::
+
+    CREATE KEYSPACE excalibur
+        WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor' : 3, 'DC2': 2}
+
+    DESCRIBE KEYSPACE excalibur
+        CREATE KEYSPACE excalibur WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '3', 'DC2': '2'} AND durable_writes = true;
+
+An example that excludes a datacenter while using ``replication_factor``::
+
+    CREATE KEYSPACE excalibur
+        WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor' : 3, 'DC2': 0} ;
+
+    DESCRIBE KEYSPACE excalibur
+        CREATE KEYSPACE excalibur WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '3'} AND durable_writes = true;
 
 If :ref:`transient replication <transient-replication>` has been enabled, transient replicas can be configured for both
 SimpleStrategy and NetworkTopologyStrategy by defining replication factors in the format ``'<total_replicas>/<transient_replicas>'``
@@ -139,7 +199,7 @@ An ``ALTER KEYSPACE`` statement allows to modify the options of a keyspace:
 For instance::
 
     ALTER KEYSPACE Excelsior
-              WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 4};
+        WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 4};
 
 The supported options are the same than for :ref:`creating a keyspace <create-keyspace-statement>`.
 
