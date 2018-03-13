@@ -629,15 +629,15 @@ For instance::
 The ``ALTER TABLE`` statement can:
 
 - Add new column(s) to the table (through the ``ADD`` instruction). Note that the primary key of a table cannot be
-  changed and thus newly added column will, by extension, never be part of the primary key. Also note that :ref:`compact
-  tables <compact-tables>` have restrictions regarding column addition. Note that this is constant (in the amount of
+  changed and thus newly added column(s) will, by extension, never be part of the primary key. Also note that :ref:`compact
+  tables <compact-tables>` have restrictions regarding column addition. Note that this is a constant (in the amount of
   data the cluster contains) time operation.
 - Remove column(s) from the table. This drops both the column and all its content, but note that while the column
   becomes immediately unavailable, its content is only removed lazily during compaction. Please also see the warnings
   below. Due to lazy removal, the altering itself is a constant (in the amount of data removed or contained in the
   cluster) time operation.
 - Change some of the table options (through the ``WITH`` instruction). The :ref:`supported options
-  <create-table-options>` are the same that when creating a table (outside of ``COMPACT STORAGE`` and ``CLUSTERING
+  <create-table-options>` are the same as when creating a table (outside of ``COMPACT STORAGE`` and ``CLUSTERING
   ORDER`` that cannot be changed after creation). Note that setting any ``compaction`` sub-options has the effect of
   erasing all previous ``compaction`` options, so you need to re-specify all the sub-options if you want to keep them.
   The same note applies to the set of ``compression`` sub-options.
