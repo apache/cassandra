@@ -653,7 +653,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param ksName The keyspace name
      * @param cfName The columnFamily name
      */
-    public static synchronized void loadNewSSTables(String ksName, String cfName)
+    public static void loadNewSSTables(String ksName, String cfName)
     {
         /** ks/cf existence checks will be done by open and getCFS methods for us */
         Keyspace keyspace = Keyspace.open(ksName);
