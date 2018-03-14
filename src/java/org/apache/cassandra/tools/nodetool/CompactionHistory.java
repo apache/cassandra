@@ -17,17 +17,22 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.collect.Iterables.toArray;
-import io.airlift.command.Command;
-
 import java.io.PrintStream;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-
 import javax.management.openmbean.TabularData;
 
+import io.airlift.command.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+
+import static com.google.common.collect.Iterables.toArray;
 
 @Command(name = "compactionhistory", description = "Print history of compaction")
 public class CompactionHistory extends NodeToolCmd
@@ -45,15 +50,75 @@ public class CompactionHistory extends NodeToolCmd
             return;
         }
 
-        String format = "%-41s%-19s%-29s%-26s%-15s%-15s%s%n";
+        TableBuilder table = new TableBuilder();
         List<String> indexNames = tabularData.getTabularType().getIndexNames();
-        out.printf(format, toArray(indexNames, Object.class));
+        table.add(toArray(indexNames, String.class));
 
         Set<?> values = tabularData.keySet();
+        List<CompactionHistoryRow> chr = new ArrayList<>();
         for (Object eachValue : values)
         {
             List<?> value = (List<?>) eachValue;
-            out.printf(format, toArray(value, Object.class));
+            CompactionHistoryRow chc = new CompactionHistoryRow((String)value.get(0),
+                                                                (String)value.get(1),
+                                                                (String)value.get(2),
+                                                                (Long)value.get(3),
+                                                                (Long)value.get(4),
+                                                                (Long)value.get(5),
+                                                                (String)value.get(6));
+            chr.add(chc);
+        }
+        Collections.sort(chr);
+        for (CompactionHistoryRow eachChc : chr)
+        {
+            table.add(eachChc.getAllAsArray());
+        }
+        table.printTo(out);
+    }
+
+    /**
+     * Allows the Compaction History output to be ordered by 'compactedAt' - that is the
+     * time at which compaction finished.
+     */
+    private static class CompactionHistoryRow implements Comparable<CompactionHistoryRow>
+    {
+        private final String id;
+        private final String ksName;
+        private final String cfName;
+        private final long compactedAt;
+        private final long bytesIn;
+        private final long bytesOut;
+        private final String rowMerged;
+
+        CompactionHistoryRow(String id, String ksName, String cfName, long compactedAt, long bytesIn, long bytesOut, String rowMerged)
+        {
+            this.id = id;
+            this.ksName = ksName;
+            this.cfName = cfName;
+            this.compactedAt = compactedAt;
+            this.bytesIn = bytesIn;
+            this.bytesOut = bytesOut;
+            this.rowMerged = rowMerged;
+        }
+
+        public int compareTo(CompactionHistoryRow chc)
+        {
+            return Long.signum(chc.compactedAt - this.compactedAt);
+        }
+
+        public String[] getAllAsArray()
+        {
+            String[] obj = new String[7];
+            obj[0] = this.id;
+            obj[1] = this.ksName;
+            obj[2] = this.cfName;
+            Instant instant = Instant.ofEpochMilli(this.compactedAt);
+            LocalDateTime ldt = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
+            obj[3] = ldt.toString();
+            obj[4] = Long.toString(this.bytesIn);
+            obj[5] = Long.toString(this.bytesOut);
+            obj[6] = this.rowMerged;
+            return obj;
         }
     }
 }
