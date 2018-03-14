@@ -1,0 +1,52 @@
+div:not(.highlight) > pre {
+    background: #fff;
+    border: 1px solid #e1e4e5;
+    color: #404040;
+    margin: 1px 0 24px 0;
+    overflow-x: auto;
+    padding: 12px 12px;
+    font-size: 12px;
+}
+
+a.reference.internal code.literal {
+    border: none;
+    font-size: 12px;
+    color: #2980B9;
+    padding: 0;
+    background: none;
+}
+
+a.reference.internal:visited code.literal {
+    color: #9B59B6;
+    padding: 0;
+    background: none;
+}
+
+
+/* override table width restrictions */
+.wy-table-responsive table td, .wy-table-responsive table th {
+    white-space: normal;
+}
+
+.wy-table-responsive {
+    margin-bottom: 24px;
+    max-width: 100%;
+    overflow: visible;
+}
+
+table.contentstable {
+    margin: 0;
+}
+
+td.rightcolumn {
+    padding-left: 30px;
+}
+
+div#wipwarning {
+    font-size: 14px;
+    border: 1px solid #ecc;
+    color: #f66;
+    background: #ffe8e8;
+    padding: 10px 30px;
+    margin-bottom: 30px;
+}
