@@ -17,23 +17,22 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static java.lang.String.format;
-import io.airlift.command.Command;
-import io.airlift.command.Option;
-
 import java.io.PrintStream;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.db.compaction.CompactionInfo;
+import io.airlift.command.Command;
+import io.airlift.command.Option;
+import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+
+import static java.lang.String.format;
 
 @Command(name = "compactionstats", description = "Print statistics on compactions")
 public class CompactionStats extends NodeToolCmd
@@ -50,14 +49,12 @@ public class CompactionStats extends NodeToolCmd
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
         out.println("pending tasks: " + probe.getCompactionMetric("PendingTasks"));
         long remainingBytes = 0;
+        TableBuilder table = new TableBuilder();
         List<Map<String, String>> compactions = cm.getCompactions();
         if (!compactions.isEmpty())
         {
             int compactionThroughput = probe.getCompactionThroughput();
-            List<String[]> lines = new ArrayList<>();
-            int[] columnSizes = new int[] { 0, 0, 0, 0, 0, 0, 0, 0 };
-
-            addLine(lines, columnSizes, "id", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
+            table.add("id", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
             for (Map<String, String> c : compactions)
             {
                 long total = Long.parseLong(c.get("total"));
@@ -71,24 +68,12 @@ public class CompactionStats extends NodeToolCmd
                 String totalStr = toFileSize ? FileUtils.stringifyFileSize(total) : Long.toString(total);
                 String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + "%";
                 String id = c.get("compactionId");
-                addLine(lines, columnSizes, id, taskType, keyspace, columnFamily, completedStr, totalStr, unit, percentComplete);
+                table.add(id, taskType, keyspace, columnFamily, completedStr, totalStr, unit, percentComplete);
                 if (taskType.equals(OperationType.COMPACTION.toString()))
                     remainingBytes += total - completed;
             }
 
-            StringBuilder buffer = new StringBuilder();
-            for (int columnSize : columnSizes) {
-                buffer.append("%");
-                buffer.append(columnSize + 3);
-                buffer.append("s");
-            }
-            buffer.append("%n");
-            String format = buffer.toString();
-
-            for (String[] line : lines)
-            {
-                out.printf(format, line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7]);
-            }
+            table.printTo(out);
 
             String remainingTime = "n/a";
             if (compactionThroughput != 0)
@@ -98,16 +83,5 @@ public class CompactionStats extends NodeToolCmd
             }
             out.printf("%25s%10s%n", "Active compaction remaining time : ", remainingTime);
         }
-    }
-
-    private void addLine(List<String[]> lines, int[] columnSizes, String... columns)
-    {
-        String[] newColumns = new String[columns.length];
-        for (int i = 0; i < columns.length; i++)
-        {
-            columnSizes[i] = Math.max(columnSizes[i], columns[i] != null ? columns[i].length() : 1);
-            newColumns[i] = columns[i] != null ? columns[i] : "";
-        }
-        lines.add(newColumns);
     }
 }
