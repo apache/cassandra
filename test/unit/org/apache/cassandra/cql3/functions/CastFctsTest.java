@@ -153,14 +153,14 @@ public class CastFctsTest extends CQLTester
                 "CAST(g AS decimal), " +
                 "CAST(h AS decimal), " +
                 "CAST(i AS decimal) FROM %s"),
-                   row(BigDecimal.valueOf(1.0),
-                       BigDecimal.valueOf(2.0),
-                       BigDecimal.valueOf(3.0),
-                       BigDecimal.valueOf(4.0),
+                   row(BigDecimal.valueOf(1),
+                       BigDecimal.valueOf(2),
+                       BigDecimal.valueOf(3),
+                       BigDecimal.valueOf(4),
                        BigDecimal.valueOf(5.2F),
                        BigDecimal.valueOf(6.3),
                        BigDecimal.valueOf(6.3),
-                       BigDecimal.valueOf(4.0),
+                       BigDecimal.valueOf(4),
                        null));
 
         assertRows(execute("SELECT CAST(a AS ascii), " +
@@ -200,6 +200,16 @@ public class CastFctsTest extends CQLTester
                        "6.3",
                        "4",
                        null));
+    }
+
+    @Test
+    public void testNoLossOfPrecisionForCastToDecimal() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, bigint_clmn bigint, varint_clmn varint)");
+        execute("INSERT INTO %s(k, bigint_clmn, varint_clmn) VALUES(2, 9223372036854775807, 1234567890123456789)");
+
+        assertRows(execute("SELECT CAST(bigint_clmn AS decimal), CAST(varint_clmn AS decimal) FROM %s"),
+                   row(BigDecimal.valueOf(9223372036854775807L), BigDecimal.valueOf(1234567890123456789L)));
     }
 
     @Test
@@ -309,6 +319,6 @@ public class CastFctsTest extends CQLTester
                 "CAST(b AS decimal), " +
                 "CAST(b AS ascii), " +
                 "CAST(b AS text) FROM %s"),
-                   row((byte) 2, (short) 2, 2, 2L, 2.0F, 2.0, BigDecimal.valueOf(2.0), "2", "2"));
+                   row((byte) 2, (short) 2, 2, 2L, 2.0F, 2.0, BigDecimal.valueOf(2), "2", "2"));
     }
 }
