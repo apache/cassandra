@@ -748,6 +748,8 @@ public class DatabaseDescriptor
 
         if (conf.otc_coalescing_enough_coalesced_messages <= 0)
             throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be positive", false);
+
+        validateMaxConcurrentAutoUpgradeTasksConf(conf.max_concurrent_automatic_sstable_upgrades);
     }
 
     private static String storagedirFor(String type)
@@ -2543,5 +2545,38 @@ public class DatabaseDescriptor
     public static int getBlockForPeersTimeoutInSeconds()
     {
         return conf.block_for_peers_timeout_in_secs;
+    }
+
+    public static boolean automaticSSTableUpgrade()
+    {
+        return conf.automatic_sstable_upgrade;
+    }
+
+    public static void setAutomaticSSTableUpgradeEnabled(boolean enabled)
+    {
+        if (conf.automatic_sstable_upgrade != enabled)
+            logger.debug("Changing automatic_sstable_upgrade to {}", enabled);
+        conf.automatic_sstable_upgrade = enabled;
+    }
+
+    public static int maxConcurrentAutoUpgradeTasks()
+    {
+        return conf.max_concurrent_automatic_sstable_upgrades;
+    }
+
+    public static void setMaxConcurrentAutoUpgradeTasks(int value)
+    {
+        if (conf.max_concurrent_automatic_sstable_upgrades != value)
+            logger.debug("Changing max_concurrent_automatic_sstable_upgrades to {}", value);
+        validateMaxConcurrentAutoUpgradeTasksConf(value);
+        conf.max_concurrent_automatic_sstable_upgrades = value;
+    }
+
+    private static void validateMaxConcurrentAutoUpgradeTasksConf(int value)
+    {
+        if (value < 0)
+            throw new ConfigurationException("max_concurrent_automatic_sstable_upgrades can't be negative");
+        if (value > getConcurrentCompactors())
+            logger.warn("max_concurrent_automatic_sstable_upgrades ({}) is larger than concurrent_compactors ({})", value, getConcurrentCompactors());
     }
 }

@@ -377,6 +377,8 @@ public class Config
     // parameters to adjust how much to delay startup until a certain amount of the cluster is connect to and marked alive
     public int block_for_peers_percentage = 70;
     public int block_for_peers_timeout_in_secs = 10;
+    public volatile boolean automatic_sstable_upgrade = false;
+    public volatile int max_concurrent_automatic_sstable_upgrades = 1;
 
 
     /**

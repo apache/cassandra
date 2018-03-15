@@ -38,6 +38,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - There is now an option to automatically upgrade sstables after Cassandra upgrade, enable
+     either in `cassandra.yaml:automatic_sstable_upgrade` or via JMX during runtime. See
+     CASSANDRA-14197.
    - `nodetool refresh` has been deprecated in favour of `nodetool import` - see CASSANDRA-6719
      for details
    - An experimental option to compare all merkle trees together has been added - for example, in
