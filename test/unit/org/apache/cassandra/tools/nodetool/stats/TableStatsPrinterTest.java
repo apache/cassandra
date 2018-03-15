@@ -35,6 +35,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
     public static final String expectedDefaultTable1Output =
         "\tTable: %s\n" +
         "\tSSTable count: 60000\n" +
+        "\tOld SSTable count: 0\n" +
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 9001\n" +
         "\tSpace used by snapshots (total): 1111\n" +
@@ -65,6 +66,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
     public static final String expectedDefaultTable2Output =
         "\tTable: %s\n" +
         "\tSSTable count: 3000\n" +
+        "\tOld SSTable count: 0\n" +
         "\tSpace used (live): 22\n" +
         "\tSpace used (total): 1024\n" +
         "\tSpace used by snapshots (total): 222\n" +
@@ -100,6 +102,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
     public static final String expectedDefaultTable3Output =
         "\tTable: %s\n" +
         "\tSSTable count: 50000\n" +
+        "\tOld SSTable count: 0\n" +
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 512\n" +
         "\tSpace used by snapshots (total): 0\n" +
@@ -130,6 +133,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
     public static final String expectedDefaultTable4Output =
         "\tTable: %s\n" +
         "\tSSTable count: 2000\n" +
+        "\tOld SSTable count: 0\n" +
         "\tSpace used (live): 4444\n" +
         "\tSpace used (total): 256\n" +
         "\tSpace used by snapshots (total): 44\n" +
@@ -165,6 +169,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
     public static final String expectedDefaultTable5Output =
         "\tTable: %s\n" +
         "\tSSTable count: 40000\n" +
+        "\tOld SSTable count: 0\n" +
         "\tSpace used (live): 55555\n" +
         "\tSpace used (total): 64\n" +
         "\tSpace used by snapshots (total): 55555\n" +
@@ -195,6 +200,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
     public static final String expectedDefaultTable6Output =
         "\tTable: %s\n" +
         "\tSSTable count: 1000\n" +
+        "\tOld SSTable count: 0\n" +
         "\tSpace used (live): 666666\n" +
         "\tSpace used (total): 0\n" +
         "\tSpace used by snapshots (total): 0\n" +

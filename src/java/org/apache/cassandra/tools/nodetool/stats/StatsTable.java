@@ -29,6 +29,7 @@ public class StatsTable
     public boolean isIndex;
     public boolean isLeveledSstable = false;
     public Object sstableCount;
+    public Object oldSSTableCount;
     public String spaceUsedLive;
     public String spaceUsedTotal;
     public String spaceUsedBySnapshotsTotal;

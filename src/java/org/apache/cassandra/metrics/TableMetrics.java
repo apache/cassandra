@@ -95,6 +95,8 @@ public class TableMetrics
     public final Gauge<Integer> pendingCompactions;
     /** Number of SSTables on disk for this CF */
     public final Gauge<Integer> liveSSTableCount;
+    /** Number of SSTables with old version on disk for this CF */
+    public final Gauge<Integer> oldVersionSSTableCount;
     /** Disk space used by SSTables belonging to this table */
     public final Counter liveDiskSpaceUsed;
     /** Total disk space used by SSTables belonging to this table, including obsolete ones waiting to be GC'd */
@@ -539,6 +541,17 @@ public class TableMetrics
             public Integer getValue()
             {
                 return cfs.getTracker().getView().liveSSTables().size();
+            }
+        });
+        oldVersionSSTableCount = createTableGauge("OldVersionSSTableCount", new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                int count = 0;
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                    if (!sstable.descriptor.version.isLatestVersion())
+                        count++;
+                return count;
             }
         });
         liveDiskSpaceUsed = createTableCounter("LiveDiskSpaceUsed");

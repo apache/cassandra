@@ -24,6 +24,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
@@ -76,6 +78,10 @@ public class CompactionStrategyManagerTest
          * disk assignment based on its generation - See {@link this#getSSTableIndex(Integer[], SSTableReader)}
          */
         originalPartitioner = StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+        SchemaLoader.createKeyspace(KS_PREFIX,
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KS_PREFIX, TABLE_PREFIX)
+                                                .compaction(CompactionParams.scts(Collections.emptyMap())));
     }
 
     @AfterClass
@@ -90,10 +96,6 @@ public class CompactionStrategyManagerTest
     {
         // Creates 100 SSTables with keys 0-99
         int numSSTables = 100;
-        SchemaLoader.createKeyspace(KS_PREFIX,
-                                    KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KS_PREFIX, TABLE_PREFIX)
-                                                .compaction(CompactionParams.scts(Collections.emptyMap())));
         ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
         cfs.disableAutoCompaction();
         Set<SSTableReader> previousSSTables = cfs.getLiveSSTables();
@@ -176,6 +178,81 @@ public class CompactionStrategyManagerTest
             }
         }
     }
+
+
+
+    @Test
+    public void testAutomaticUpgradeConcurrency() throws Exception
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
+        DatabaseDescriptor.setAutomaticSSTableUpgradeEnabled(true);
+        DatabaseDescriptor.setMaxConcurrentAutoUpgradeTasks(1);
+
+        // latch to block CompactionManager.BackgroundCompactionCandidate#maybeRunUpgradeTask
+        // inside the currentlyBackgroundUpgrading check - with max_concurrent_auto_upgrade_tasks = 1 this will make
+        // sure that BackgroundCompactionCandidate#maybeRunUpgradeTask returns false until the latch has been counted down
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicInteger upgradeTaskCount = new AtomicInteger(0);
+        MockCFSForCSM mock = new MockCFSForCSM(cfs, latch, upgradeTaskCount);
+
+        CompactionManager.BackgroundCompactionCandidate r = CompactionManager.instance.getBackgroundCompactionCandidate(mock);
+        CompactionStrategyManager mgr = mock.getCompactionStrategyManager();
+        // basic idea is that we start a thread which will be able to get in to the currentlyBackgroundUpgrading-guarded
+        // code in CompactionManager, then we try to run a bunch more of the upgrade tasks which should return false
+        // due to the currentlyBackgroundUpgrading count being >= max_concurrent_auto_upgrade_tasks
+        Thread t = new Thread(() -> r.maybeRunUpgradeTask(mgr));
+        t.start();
+        Thread.sleep(100); // let the thread start and grab the task
+        assertEquals(1, CompactionManager.instance.currentlyBackgroundUpgrading.get());
+        assertFalse(r.maybeRunUpgradeTask(mgr));
+        assertFalse(r.maybeRunUpgradeTask(mgr));
+        latch.countDown();
+        t.join();
+        assertEquals(1, upgradeTaskCount.get()); // we should only call findUpgradeSSTableTask once when concurrency = 1
+        assertEquals(0, CompactionManager.instance.currentlyBackgroundUpgrading.get());
+
+        DatabaseDescriptor.setAutomaticSSTableUpgradeEnabled(false);
+    }
+
+    @Test
+    public void testAutomaticUpgradeConcurrency2() throws Exception
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
+        DatabaseDescriptor.setAutomaticSSTableUpgradeEnabled(true);
+        DatabaseDescriptor.setMaxConcurrentAutoUpgradeTasks(2);
+        // latch to block CompactionManager.BackgroundCompactionCandidate#maybeRunUpgradeTask
+        // inside the currentlyBackgroundUpgrading check - with max_concurrent_auto_upgrade_tasks = 1 this will make
+        // sure that BackgroundCompactionCandidate#maybeRunUpgradeTask returns false until the latch has been counted down
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicInteger upgradeTaskCount = new AtomicInteger();
+        MockCFSForCSM mock = new MockCFSForCSM(cfs, latch, upgradeTaskCount);
+
+        CompactionManager.BackgroundCompactionCandidate r = CompactionManager.instance.getBackgroundCompactionCandidate(mock);
+        CompactionStrategyManager mgr = mock.getCompactionStrategyManager();
+
+        // basic idea is that we start 2 threads who will be able to get in to the currentlyBackgroundUpgrading-guarded
+        // code in CompactionManager, then we try to run a bunch more of the upgrade task which should return false
+        // due to the currentlyBackgroundUpgrading count being >= max_concurrent_auto_upgrade_tasks
+        Thread t = new Thread(() -> r.maybeRunUpgradeTask(mgr));
+        t.start();
+        Thread t2 = new Thread(() -> r.maybeRunUpgradeTask(mgr));
+        t2.start();
+        Thread.sleep(100); // let the threads start and grab the task
+        assertEquals(2, CompactionManager.instance.currentlyBackgroundUpgrading.get());
+        assertFalse(r.maybeRunUpgradeTask(mgr));
+        assertFalse(r.maybeRunUpgradeTask(mgr));
+        assertFalse(r.maybeRunUpgradeTask(mgr));
+        assertEquals(2, CompactionManager.instance.currentlyBackgroundUpgrading.get());
+        latch.countDown();
+        t.join();
+        t2.join();
+        assertEquals(2, upgradeTaskCount.get());
+        assertEquals(0, CompactionManager.instance.currentlyBackgroundUpgrading.get());
+
+        DatabaseDescriptor.setMaxConcurrentAutoUpgradeTasks(1);
+        DatabaseDescriptor.setAutomaticSSTableUpgradeEnabled(false);
+    }
+
 
     private MockCFS createJBODMockCFS(int disks)
     {
@@ -304,6 +381,52 @@ public class CompactionStrategyManagerTest
         MockCFS(ColumnFamilyStore cfs, Directories dirs)
         {
             super(cfs.keyspace, cfs.getTableName(), 0, cfs.metadata, dirs, false, false, true);
+        }
+    }
+
+    private static class MockCFSForCSM extends ColumnFamilyStore
+    {
+        private final CountDownLatch latch;
+        private final AtomicInteger upgradeTaskCount;
+
+        private MockCFSForCSM(ColumnFamilyStore cfs, CountDownLatch latch, AtomicInteger upgradeTaskCount)
+        {
+            super(cfs.keyspace, cfs.name, 10, cfs.metadata, cfs.getDirectories(), true, false, false);
+            this.latch = latch;
+            this.upgradeTaskCount = upgradeTaskCount;
+        }
+        @Override
+        public CompactionStrategyManager getCompactionStrategyManager()
+        {
+            return new MockCSM(this, latch, upgradeTaskCount);
+        }
+    }
+
+    private static class MockCSM extends CompactionStrategyManager
+    {
+        private final CountDownLatch latch;
+        private final AtomicInteger upgradeTaskCount;
+
+        private MockCSM(ColumnFamilyStore cfs, CountDownLatch latch, AtomicInteger upgradeTaskCount)
+        {
+            super(cfs);
+            this.latch = latch;
+            this.upgradeTaskCount = upgradeTaskCount;
+        }
+
+        @Override
+        public AbstractCompactionTask findUpgradeSSTableTask()
+        {
+            try
+            {
+                latch.await();
+                upgradeTaskCount.incrementAndGet();
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+            return null;
         }
     }
 }

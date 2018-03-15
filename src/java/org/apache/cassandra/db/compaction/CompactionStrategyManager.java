@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -29,7 +30,9 @@ import java.util.stream.Stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.primitives.Longs;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.index.Index;
 
@@ -38,12 +41,12 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -200,6 +203,36 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             readLock.unlock();
         }
+    }
+
+    /**
+     * finds the oldest (by modification date) non-latest-version sstable on disk and creates an upgrade task for it
+     * @return
+     */
+    @VisibleForTesting
+    AbstractCompactionTask findUpgradeSSTableTask()
+    {
+        if (!isEnabled() || !DatabaseDescriptor.automaticSSTableUpgrade())
+            return null;
+        Set<SSTableReader> compacting = cfs.getTracker().getCompacting();
+        List<SSTableReader> potentialUpgrade = cfs.getLiveSSTables()
+                                                  .stream()
+                                                  .filter(s -> !compacting.contains(s) && !s.descriptor.version.isLatestVersion())
+                                                  .sorted((o1, o2) -> {
+                                                      File f1 = new File(o1.descriptor.filenameFor(Component.DATA));
+                                                      File f2 = new File(o2.descriptor.filenameFor(Component.DATA));
+                                                      return Longs.compare(f1.lastModified(), f2.lastModified());
+                                                  }).collect(Collectors.toList());
+        for (SSTableReader sstable : potentialUpgrade)
+        {
+            LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.UPGRADE_SSTABLES);
+            if (txn != null)
+            {
+                logger.debug("Running automatic sstable upgrade for {}", sstable);
+                return getCompactionStrategyFor(sstable).getCompactionTask(txn, Integer.MIN_VALUE, Long.MAX_VALUE);
+            }
+        }
+        return null;
     }
 
     public boolean isEnabled()

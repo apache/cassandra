@@ -209,6 +209,7 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.tableName = tableName;
                 statsTable.isIndex = tableName.contains(".");
                 statsTable.sstableCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "LiveSSTableCount");
+                statsTable.oldSSTableCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "OldVersionSSTableCount");
                 int[] leveledSStables = table.getSSTableCountPerLevel();
                 if (leveledSStables != null)
                 {

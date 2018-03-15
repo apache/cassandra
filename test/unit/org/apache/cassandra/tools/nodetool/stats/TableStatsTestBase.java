@@ -70,6 +70,7 @@ public class TableStatsTestBase
         template.tableName = new String(tableName);
         template.isIndex = false;
         template.sstableCount = 0L;
+        template.oldSSTableCount = 0L;
         template.spaceUsedLive = "0";
         template.spaceUsedTotal = "0";
         template.spaceUsedBySnapshotsTotal = "0";
