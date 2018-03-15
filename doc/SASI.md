@@ -247,6 +247,27 @@ cqlsh:demo> SELECT * FROM sasi WHERE last_name LIKE '%a%' AND height >= 175 ALLO
 (4 rows)
 ```
 
+#### Delimiter based Tokenization Analysis
+
+A simple text analysis provided is delimiter based tokenization. This provides an alternative to indexing collections,
+as delimiter separated text can be indexed without the overhead of `CONTAINS` mode nor using `PREFIX` or `SUFFIX` queries.
+
+```
+cqlsh:demo> ALTER TABLE sasi ADD aliases text;
+cqlsh:demo> CREATE CUSTOM INDEX on sasi (aliases) USING 'org.apache.cassandra.index.sasi.SASIIndex'
+        ... WITH OPTIONS = {
+        ... 'analyzer_class': 'org.apache.cassandra.index.sasi.analyzer.DelimiterAnalyzer',
+        ... 'delimiter': ',',
+        ... 'mode': 'prefix',
+        ... 'analyzed': 'true'};
+cqlsh:demo> UPDATE sasi SET aliases = 'Mike,Mick,Mikey,Mickey' WHERE id = f5dfcabe-de96-4148-9b80-a1c41ed276b4;
+cqlsh:demo> SELECT * FROM sasi WHERE aliases LIKE 'Mikey' ALLOW FILTERING;
+
+ id                                   | age | aliases                | created_at    | first_name | height | last_name
+--------------------------------------+-----+------------------------+---------------+------------+--------+-----------
+ f5dfcabe-de96-4148-9b80-a1c41ed276b4 |  26 | Mike,Mick,Mikey,Mickey | 1442959315021 |    Michael |    180 |  Kjellman
+```
+
 #### Text Analysis (Tokenization and Stemming)
 
 Lastly, to demonstrate text analysis an additional column is needed on
