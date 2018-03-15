@@ -100,59 +100,67 @@ public class CassandraStreamManager implements TableStreamManager
     public Collection<OutgoingStream> createOutgoingStreams(StreamSession session, Collection<Range<Token>> ranges, UUID pendingRepair, PreviewKind previewKind)
     {
         Refs<SSTableReader> refs = new Refs<>();
-        final List<Range<PartitionPosition>> keyRanges = new ArrayList<>(ranges.size());
-        for (Range<Token> range : ranges)
-            keyRanges.add(Range.makeRowRange(range));
-        refs.addAll(cfs.selectAndReference(view -> {
-            Set<SSTableReader> sstables = Sets.newHashSet();
-            SSTableIntervalTree intervalTree = SSTableIntervalTree.build(view.select(SSTableSet.CANONICAL));
-            Predicate<SSTableReader> predicate;
-            if (previewKind.isPreview())
-            {
-                predicate = getPreviewPredicate(previewKind);
-            }
-            else if (pendingRepair == ActiveRepairService.NO_PENDING_REPAIR)
-            {
-                predicate = Predicates.alwaysTrue();
-            }
-            else
-            {
-                predicate = s -> s.isPendingRepair() && s.getSSTableMetadata().pendingRepair.equals(pendingRepair);
-            }
-
-            for (Range<PartitionPosition> keyRange : keyRanges)
-            {
-                // keyRange excludes its start, while sstableInBounds is inclusive (of both start and end).
-                // This is fine however, because keyRange has been created from a token range through Range.makeRowRange (see above).
-                // And that later method uses the Token.maxKeyBound() method to creates the range, which return a "fake" key that
-                // sort after all keys having the token. That "fake" key cannot however be equal to any real key, so that even
-                // including keyRange.left will still exclude any key having the token of the original token range, and so we're
-                // still actually selecting what we wanted.
-                for (SSTableReader sstable : Iterables.filter(View.sstablesInBounds(keyRange.left, keyRange.right, intervalTree), predicate))
-                {
-                    sstables.add(sstable);
-                }
-            }
-
-            if (logger.isDebugEnabled())
-                logger.debug("ViewFilter for {}/{} sstables", sstables.size(), Iterables.size(view.select(SSTableSet.CANONICAL)));
-            return sstables;
-        }).refs);
-
-
-        List<OutgoingStream> streams = new ArrayList<>(refs.size());
-        for (SSTableReader sstable: refs)
+        try
         {
-            Ref<SSTableReader> ref = refs.get(sstable);
-            List<Pair<Long, Long>> sections = sstable.getPositionsForRanges(ranges);
-            if (sections.isEmpty())
-            {
-                ref.release();
-                continue;
-            }
-            streams.add(new CassandraOutgoingFile(session.getStreamOperation(), ref, sections, sstable.estimatedKeysForRanges(ranges)));
-        }
+            final List<Range<PartitionPosition>> keyRanges = new ArrayList<>(ranges.size());
+            for (Range<Token> range : ranges)
+                keyRanges.add(Range.makeRowRange(range));
+            refs.addAll(cfs.selectAndReference(view -> {
+                Set<SSTableReader> sstables = Sets.newHashSet();
+                SSTableIntervalTree intervalTree = SSTableIntervalTree.build(view.select(SSTableSet.CANONICAL));
+                Predicate<SSTableReader> predicate;
+                if (previewKind.isPreview())
+                {
+                    predicate = getPreviewPredicate(previewKind);
+                }
+                else if (pendingRepair == ActiveRepairService.NO_PENDING_REPAIR)
+                {
+                    predicate = Predicates.alwaysTrue();
+                }
+                else
+                {
+                    predicate = s -> s.isPendingRepair() && s.getSSTableMetadata().pendingRepair.equals(pendingRepair);
+                }
 
-        return streams;
+                for (Range<PartitionPosition> keyRange : keyRanges)
+                {
+                    // keyRange excludes its start, while sstableInBounds is inclusive (of both start and end).
+                    // This is fine however, because keyRange has been created from a token range through Range.makeRowRange (see above).
+                    // And that later method uses the Token.maxKeyBound() method to creates the range, which return a "fake" key that
+                    // sort after all keys having the token. That "fake" key cannot however be equal to any real key, so that even
+                    // including keyRange.left will still exclude any key having the token of the original token range, and so we're
+                    // still actually selecting what we wanted.
+                    for (SSTableReader sstable : Iterables.filter(View.sstablesInBounds(keyRange.left, keyRange.right, intervalTree), predicate))
+                    {
+                        sstables.add(sstable);
+                    }
+                }
+
+                if (logger.isDebugEnabled())
+                    logger.debug("ViewFilter for {}/{} sstables", sstables.size(), Iterables.size(view.select(SSTableSet.CANONICAL)));
+                return sstables;
+            }).refs);
+
+
+            List<OutgoingStream> streams = new ArrayList<>(refs.size());
+            for (SSTableReader sstable: refs)
+            {
+                Ref<SSTableReader> ref = refs.get(sstable);
+                List<Pair<Long, Long>> sections = sstable.getPositionsForRanges(ranges);
+                if (sections.isEmpty())
+                {
+                    ref.release();
+                    continue;
+                }
+                streams.add(new CassandraOutgoingFile(session.getStreamOperation(), ref, sections, sstable.estimatedKeysForRanges(ranges)));
+            }
+
+            return streams;
+        }
+        catch (Throwable t)
+        {
+            refs.release();
+            throw t;
+        }
     }
 }
