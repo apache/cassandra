@@ -49,7 +49,7 @@ public class DefaultConnectionFactory implements StreamConnectionFactory
     @Override
     public Channel createConnection(OutboundConnectionIdentifier connectionId, int protocolVersion) throws IOException
     {
-        ServerEncryptionOptions encryptionOptions = DatabaseDescriptor.getServerEncryptionOptions();
+        ServerEncryptionOptions encryptionOptions = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
 
         if (encryptionOptions.internode_encryption == ServerEncryptionOptions.InternodeEncryption.none)
             encryptionOptions = null;
