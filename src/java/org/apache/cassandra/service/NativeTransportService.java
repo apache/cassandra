@@ -29,7 +29,6 @@ import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,7 +91,7 @@ public class NativeTransportService
                                                                 .withEventLoopGroup(workerGroup)
                                                                 .withHost(nativeAddr);
 
-        if (!DatabaseDescriptor.getClientEncryptionOptions().enabled)
+        if (!DatabaseDescriptor.getNativeProtocolEncryptionOptions().enabled)
         {
             servers = Collections.singleton(builder.withSSL(false).withPort(nativePort).build());
         }

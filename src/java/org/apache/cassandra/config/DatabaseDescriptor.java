@@ -2005,17 +2005,17 @@ public class DatabaseDescriptor
         conf.dynamic_snitch_badness_threshold = dynamicBadnessThreshold;
     }
 
-    public static EncryptionOptions.ServerEncryptionOptions getServerEncryptionOptions()
+    public static EncryptionOptions.ServerEncryptionOptions getInternodeMessagingEncyptionOptions()
     {
         return conf.server_encryption_options;
     }
 
-    public static void setServerEncryptionOptions(EncryptionOptions.ServerEncryptionOptions encryptionOptions)
+    public static void setInternodeMessagingEncyptionOptions(EncryptionOptions.ServerEncryptionOptions encryptionOptions)
     {
         conf.server_encryption_options = encryptionOptions;
     }
 
-    public static EncryptionOptions getClientEncryptionOptions()
+    public static EncryptionOptions getNativeProtocolEncryptionOptions()
     {
         return conf.client_encryption_options;
     }

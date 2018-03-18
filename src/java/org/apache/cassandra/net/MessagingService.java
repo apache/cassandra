@@ -737,7 +737,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void listen()
     {
-        listen(DatabaseDescriptor.getServerEncryptionOptions());
+        listen(DatabaseDescriptor.getInternodeMessagingEncyptionOptions());
     }
 
     public void listen(ServerEncryptionOptions serverEncryptionOptions)
@@ -1606,7 +1606,7 @@ public final class MessagingService implements MessagingServiceMBean
 
             InetAddressAndPort preferredRemote = SystemKeyspace.getPreferredIP(to);
             InetAddressAndPort local = FBUtilities.getLocalAddressAndPort();
-            ServerEncryptionOptions encryptionOptions = secure ? DatabaseDescriptor.getServerEncryptionOptions() : null;
+            ServerEncryptionOptions encryptionOptions = secure ? DatabaseDescriptor.getInternodeMessagingEncyptionOptions() : null;
             IInternodeAuthenticator authenticator = DatabaseDescriptor.getInternodeAuthenticator();
 
             pool = new OutboundMessagingPool(preferredRemote, local, encryptionOptions, backPressure.newState(to), authenticator);
@@ -1656,7 +1656,7 @@ public final class MessagingService implements MessagingServiceMBean
     public static boolean isEncryptedConnection(InetAddressAndPort address)
     {
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        switch (DatabaseDescriptor.getServerEncryptionOptions().internode_encryption)
+        switch (DatabaseDescriptor.getInternodeMessagingEncyptionOptions().internode_encryption)
         {
             case none:
                 return false; // if nothing needs to be encrypted then return immediately.
