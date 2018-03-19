@@ -276,7 +276,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         protected void onEmptyPartitionPostPurge(DecoratedKey key)
         {
             if (type == OperationType.COMPACTION)
-                controller.cfs.invalidateCachedPartition(key);
+                controller.cfs.getCacheHandler().invalidateCachedPartition(key);
         }
 
         @Override

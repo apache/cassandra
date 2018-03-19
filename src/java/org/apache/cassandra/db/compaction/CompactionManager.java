@@ -1251,7 +1251,7 @@ public class CompactionManager implements CompactionManagerMBean
                 if (Range.isInRanges(partition.partitionKey().getToken(), ranges))
                     return partition;
 
-                cfs.invalidateCachedPartition(partition.partitionKey());
+                cfs.getCacheHandler().invalidateCachedPartition(partition.partitionKey());
 
                 cfs.indexManager.deletePartition(partition, nowInSec);
                 return null;

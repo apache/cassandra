@@ -214,7 +214,7 @@ public class CassandraStreamReceiver implements StreamReceiver
 
                     if (cfs.isRowCacheEnabled())
                     {
-                        int invalidatedKeys = cfs.invalidateRowCache(nonOverlappingBounds);
+                        int invalidatedKeys = cfs.getCacheHandler().invalidateRowCache(nonOverlappingBounds);
                         if (invalidatedKeys > 0)
                             logger.debug("[Stream #{}] Invalidated {} row cache entries on table {}.{} after stream " +
                                          "receive task completed.", session.planId(), invalidatedKeys,

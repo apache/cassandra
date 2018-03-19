@@ -24,6 +24,7 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.db.CassandraWriteHandler;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -126,7 +127,7 @@ public class StreamReceiveTask extends StreamTask
                     return;
                 }
 
-                task.receiver.finished();;
+                task.receiver.finished();
                 task.session.taskCompleted(task);
             }
             catch (Throwable t)
