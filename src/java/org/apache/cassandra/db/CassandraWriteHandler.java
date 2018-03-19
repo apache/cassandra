@@ -61,9 +61,5 @@ public class CassandraWriteHandler implements WriteHandler
         // to update.
         if(timeDelta < Long.MAX_VALUE)
             cfs.metric.colUpdateTimeDeltaHistogram.update(Math.min(18165375903306L, timeDelta));
-
-        // Invalidate the cache
-        DecoratedKey key = update.partitionKey();
-        cfs.getCacheHandler().invalidateCachedPartition(key);
     }
 }

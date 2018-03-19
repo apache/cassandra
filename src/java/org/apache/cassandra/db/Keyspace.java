@@ -331,13 +331,13 @@ public class Keyspace
 
         metric = new KeyspaceMetrics(this);
         viewManager = new ViewManager(this);
+        writeHandler = new CassandraWriteHandler(this);
         for (TableMetadata cfm : metadata.tablesAndViews())
         {
             logger.trace("Initializing {}.{}", getName(), cfm.name);
             initCf(Schema.instance.getTableMetadataRef(cfm.id), loadSSTables);
         }
         viewManager.reload(false);
-        writeHandler = new CassandraWriteHandler(this);
     }
 
     private Keyspace(KeyspaceMetadata metadata)

@@ -1324,7 +1324,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         try
         {
             writeHandler.apply(this, update, indexer, opGroup, commitLogPosition);
+
+            // Invalidate the cache
             DecoratedKey key = update.partitionKey();
+            cacheHandler.invalidateCachedPartition(key);
+
             metric.samplers.get(Sampler.WRITES).addSample(key.getKey(), key.hashCode(), 1);
             StorageHook.instance.reportWrite(metadata.id, update);
             metric.writeLatency.addNano(System.nanoTime() - start);
