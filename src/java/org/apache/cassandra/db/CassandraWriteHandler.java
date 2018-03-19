@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
@@ -25,15 +26,31 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class CassandraWriteHandler implements WriteHandler
 {
-    private final ColumnFamilyStore cfs;
+    private final Keyspace keyspace;
 
-    public CassandraWriteHandler(ColumnFamilyStore cfs)
+    public CassandraWriteHandler(Keyspace keyspace)
     {
-        this.cfs = cfs;
+        this.keyspace = keyspace;
     }
 
     @Override
-    public void apply(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
+    public boolean hasCommitLog()
+    {
+        return true;
+    }
+
+    @Override
+    public CommitLogPosition writeCommitLog(Mutation mutation)
+    {
+        return CommitLog.instance.add(mutation);
+    }
+
+    @Override
+    public void apply(ColumnFamilyStore cfs,
+                      PartitionUpdate update,
+                      UpdateTransaction indexer,
+                      OpOrder.Group opGroup,
+                      CommitLogPosition commitLogPosition)
     {
         Memtable mt = cfs.getTracker().getMemtableFor(opGroup, commitLogPosition);
         long timeDelta = mt.put(update, indexer, opGroup);

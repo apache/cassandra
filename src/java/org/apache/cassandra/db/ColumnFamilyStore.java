@@ -390,7 +390,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         metric = new TableMetrics(this);
         fileIndexGenerator.set(generation);
         sampleLatencyNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getReadRpcTimeout() / 2);
-        writeHandler = new CassandraWriteHandler(this);
+        writeHandler = keyspace.writeHandler;
 
         logger.info("Initializing {}.{}", keyspace.getName(), name);
 
@@ -1311,7 +1311,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long start = System.nanoTime();
         try
         {
-            writeHandler.apply(update, indexer, opGroup, commitLogPosition);
+            writeHandler.apply(this, update, indexer, opGroup, commitLogPosition);
             DecoratedKey key = update.partitionKey();
             invalidateCachedPartition(key);
             metric.samplers.get(Sampler.WRITES).addSample(key.getKey(), key.hashCode(), 1);

@@ -91,6 +91,8 @@ public class Keyspace
     public final ViewManager viewManager;
     private volatile ReplicationParams replicationParams;
 
+    protected final WriteHandler writeHandler;
+
     public static final Function<String,Keyspace> keyspaceTransformer = new Function<String, Keyspace>()
     {
         public Keyspace apply(String keyspaceName)
@@ -327,22 +329,24 @@ public class Keyspace
         assert metadata != null : "Unknown keyspace " + keyspaceName;
         createReplicationStrategy(metadata);
 
-        this.metric = new KeyspaceMetrics(this);
-        this.viewManager = new ViewManager(this);
+        metric = new KeyspaceMetrics(this);
+        viewManager = new ViewManager(this);
         for (TableMetadata cfm : metadata.tablesAndViews())
         {
             logger.trace("Initializing {}.{}", getName(), cfm.name);
             initCf(Schema.instance.getTableMetadataRef(cfm.id), loadSSTables);
         }
-        this.viewManager.reload(false);
+        viewManager.reload(false);
+        writeHandler = new CassandraWriteHandler(this);
     }
 
     private Keyspace(KeyspaceMetadata metadata)
     {
         this.metadata = metadata;
         createReplicationStrategy(metadata);
-        this.metric = new KeyspaceMetrics(this);
-        this.viewManager = new ViewManager(this);
+        metric = new KeyspaceMetrics(this);
+        viewManager = new ViewManager(this);
+        writeHandler = new CassandraWriteHandler(this);
     }
 
     public static Keyspace mockKS(KeyspaceMetadata metadata)
@@ -596,12 +600,12 @@ public class Keyspace
         int nowInSec = FBUtilities.nowInSeconds();
         try (OpOrder.Group opGroup = writeOrder.start())
         {
-            // write the mutation to the commitlog and memtables
+            // write the mutation to the commitlog and storages
             CommitLogPosition commitLogPosition = null;
-            if (writeCommitLog)
+            if (writeHandler.hasCommitLog() && writeCommitLog)
             {
                 Tracing.trace("Appending to commitlog");
-                commitLogPosition = CommitLog.instance.add(mutation);
+                commitLogPosition = writeHandler.writeCommitLog(mutation);
             }
 
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
@@ -630,7 +634,7 @@ public class Keyspace
                     }
                 }
 
-                Tracing.trace("Adding to {} memtable", upd.metadata().name);
+                Tracing.trace("Adding to {} storage", upd.metadata().name);
                 UpdateTransaction indexTransaction = updateIndexes
                                                      ? cfs.indexManager.newUpdateTransaction(upd, opGroup, nowInSec)
                                                      : UpdateTransaction.NO_OP;

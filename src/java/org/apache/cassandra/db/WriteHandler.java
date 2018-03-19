@@ -26,9 +26,17 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 /**
  * A handler for write data into the storage engine implementation.
  *
- * Each table has a write handler instance.
+ * Each keyspace has a write handler instance.
  */
 public interface WriteHandler
 {
-    void apply(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, CommitLogPosition commitLogPosition);
+    boolean hasCommitLog();
+
+    CommitLogPosition writeCommitLog(Mutation mutation);
+
+    void apply(ColumnFamilyStore cfs,
+               PartitionUpdate update,
+               UpdateTransaction indexer,
+               OpOrder.Group opGroup,
+               CommitLogPosition commitLogPosition);
 }
