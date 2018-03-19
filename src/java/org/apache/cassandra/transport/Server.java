@@ -189,13 +189,17 @@ public class Server implements CassandraDaemon.Server
             if (connection instanceof ServerConnection)
             {
                 ServerConnection conn = (ServerConnection) connection;
+                SslHandler sslHandler = conn.channel().pipeline().get(SslHandler.class);
+
                 result.add(new ImmutableMap.Builder<String, String>()
                         .put("user", conn.getClientState().getUser().getName())
                         .put("keyspace", conn.getClientState().getRawKeyspace() == null ? "" : conn.getClientState().getRawKeyspace())
                         .put("address", conn.getClientState().getRemoteAddress().toString())
                         .put("version", String.valueOf(conn.getVersion().asInt()))
                         .put("requests", String.valueOf(conn.requests.getCount()))
-                        .put("ssl", conn.channel().pipeline().get(SslHandler.class) == null ? "false" : "true")
+                        .put("ssl", Boolean.toString(sslHandler == null))
+                        .put("cipher", sslHandler != null ? sslHandler.engine().getSession().getCipherSuite() : "undefined")
+                        .put("protocol", sslHandler != null ? sslHandler.engine().getSession().getProtocol() : "undefined")
                         .put("driverName", conn.getClientState().getDriverName().orElse("undefined"))
                         .put("driverVersion", conn.getClientState().getDriverVersion().orElse("undefined"))
                         .build());

@@ -43,10 +43,10 @@ public class ClientStats extends NodeToolCmd
             if (!clients.isEmpty())
             {
                 TableBuilder table = new TableBuilder();
-                table.add("Address", "SSL", "Version", "User", "Keyspace", "Requests", "Driver-Name", "Driver-Version");
+                table.add("Address", "SSL", "Cipher", "Protocol", "Version", "User", "Keyspace", "Requests", "Driver-Name", "Driver-Version");
                 for (Map<String, String> conn : clients)
                 {
-                    table.add(conn.get("address"), conn.get("ssl"), conn.get("version"), 
+                    table.add(conn.get("address"), conn.get("ssl"), conn.get("cipher"), conn.get("protocol"), conn.get("version"),
                               conn.get("user"), conn.get("keyspace"), conn.get("requests"), conn.get("driverName"), conn.get("driverVersion"));
                 }
                 table.printTo(System.out);
