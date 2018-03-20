@@ -1283,7 +1283,7 @@ public class NodeTool
         private int jobs = 2;
 
         @Option(title = "reinsert_overflowed_ttl",
-        name = {"r", "--reinsert-overflowed-ttl"},
+        name = {"-r", "--reinsert-overflowed-ttl"},
         description = StandaloneScrubber.REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION)
         private boolean reinsertOverflowedTTL = false;
 
