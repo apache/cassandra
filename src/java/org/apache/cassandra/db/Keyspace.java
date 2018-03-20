@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 
 import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,6 +87,7 @@ public class Keyspace
 
     /* ColumnFamilyStore per column family */
     private final ConcurrentMap<TableId, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<>();
+    private final ConcurrentMap<TableId, VirtualTable> virtualColumnFamilyStores = new ConcurrentHashMap<>();
 
     private volatile AbstractReplicationStrategy replicationStrategy;
     public final ViewManager viewManager;
@@ -200,6 +202,11 @@ public class Keyspace
     public Collection<ColumnFamilyStore> getColumnFamilyStores()
     {
         return Collections.unmodifiableCollection(columnFamilyStores.values());
+    }
+
+    public Collection<VirtualTable> getVirtualTables()
+    {
+        return Collections.unmodifiableCollection(virtualColumnFamilyStores.values());
     }
 
     public ColumnFamilyStore getColumnFamilyStore(String cfName)
@@ -332,7 +339,10 @@ public class Keyspace
         for (TableMetadata cfm : metadata.tablesAndViews())
         {
             logger.trace("Initializing {}.{}", getName(), cfm.name);
-            initCf(Schema.instance.getTableMetadataRef(cfm.id), loadSSTables);
+            if (cfm.isVirtual())
+                initVirtualCf(Schema.instance.getTableMetadata(cfm.id));
+            else
+                initCf(Schema.instance.getTableMetadataRef(cfm.id), loadSSTables);
         }
         this.viewManager.reload(false);
     }
@@ -369,6 +379,12 @@ public class Keyspace
     // best invoked on the compaction mananger.
     public void dropCf(TableId tableId)
     {
+        if (virtualColumnFamilyStores.containsKey(tableId))
+        {
+            virtualColumnFamilyStores.remove(tableId);
+            return;
+        }
+
         assert columnFamilyStores.containsKey(tableId);
         ColumnFamilyStore cfs = columnFamilyStores.remove(tableId);
         if (cfs == null)
@@ -437,6 +453,28 @@ public class Keyspace
             // on this node and it's getting repopulated from the rest of the cluster.
             assert cfs.name.equals(metadata.name);
             cfs.reload();
+        }
+    }
+
+    /**
+     * adds a virtual table to internal structures
+     * @param metadata
+     */
+    public void initVirtualCf(TableMetadata metadata)
+    {
+        VirtualTable virtualColumnFamilyStore = Schema.instance.getVirtualTable(metadata);
+
+        if (virtualColumnFamilyStore == null)
+        {
+            VirtualTable vtable = TableMetadata.createVirtualColumnFamilyInstance(metadata);
+            Schema.instance.putVirtualTable(metadata, vtable);
+            VirtualTable oldCfs = virtualColumnFamilyStores.putIfAbsent(metadata.id, vtable);
+            if (oldCfs != null)
+                throw new IllegalStateException("added multiple mappings for virtual cfid " + metadata.id);
+        }
+        else
+        {
+            Preconditions.checkArgument(virtualColumnFamilyStore.getTableName().equals(metadata.name));
         }
     }
 
@@ -606,6 +644,9 @@ public class Keyspace
 
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
             {
+                if (upd.metadata().isVirtual())
+                    continue;
+
                 ColumnFamilyStore cfs = columnFamilyStores.get(upd.metadata().id);
                 if (cfs == null)
                 {

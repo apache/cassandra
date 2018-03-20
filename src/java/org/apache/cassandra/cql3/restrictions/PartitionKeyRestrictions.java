@@ -28,7 +28,7 @@ import org.apache.cassandra.cql3.statements.Bound;
  * A set of restrictions on the partition key.
  *
  */
-interface PartitionKeyRestrictions extends Restrictions
+public interface PartitionKeyRestrictions extends Restrictions
 {
     public PartitionKeyRestrictions mergeWith(Restriction restriction);
 

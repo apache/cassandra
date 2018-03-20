@@ -126,7 +126,7 @@ public final class SchemaKeyspace
               + "dclocal_read_repair_chance double,"
               + "default_time_to_live int,"
               + "extensions frozen<map<text, blob>>,"
-              + "flags frozen<set<text>>," // SUPER, COUNTER, DENSE, COMPOUND
+              + "flags frozen<set<text>>," // SUPER, COUNTER, DENSE, COMPOUND, VIRTUAL
               + "gc_grace_seconds int,"
               + "id uuid,"
               + "max_index_interval int,"
@@ -135,6 +135,7 @@ public final class SchemaKeyspace
               + "read_repair_chance double,"
               + "speculative_retry text,"
               + "cdc boolean,"
+              + "virtual_class text, "
               + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final TableMetadata Columns =
@@ -277,6 +278,7 @@ public final class SchemaKeyspace
     {
         KeyspaceMetadata system = Schema.instance.getKeyspaceMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME);
         KeyspaceMetadata schema = Schema.instance.getKeyspaceMetadata(SchemaConstants.SCHEMA_KEYSPACE_NAME);
+        KeyspaceMetadata info = Schema.instance.getKeyspaceMetadata(SchemaConstants.INFO_KEYSPACE_NAME);
 
         long timestamp = FBUtilities.timestampMicros();
 
@@ -291,6 +293,7 @@ public final class SchemaKeyspace
         // (+1 to timestamp to make sure we don't get shadowed by the tombstones we just added)
         makeCreateKeyspaceMutation(system, timestamp + 1).build().apply();
         makeCreateKeyspaceMutation(schema, timestamp + 1).build().apply();
+        makeCreateKeyspaceMutation(info, timestamp + 1).build().apply();
     }
 
     public static void truncate()
@@ -501,6 +504,9 @@ public final class SchemaKeyspace
                                               .row(table.name)
                                               .add("id", table.id.asUUID())
                                               .add("flags", TableMetadata.Flag.toStringSet(table.flags));
+
+        if (table.isVirtual())
+            rowBuilder.add("virtual_class", table.virtualClass().getName());
 
         addTableParamsToRowBuilder(table.params, rowBuilder);
 
@@ -976,14 +982,17 @@ public final class SchemaKeyspace
             throw new IllegalArgumentException(TableMetadata.COMPACT_STORAGE_HALT_MESSAGE);
         }
 
-        return TableMetadata.builder(keyspaceName, tableName, TableId.fromUUID(row.getUUID("id")))
+        TableMetadata.Builder tmd = TableMetadata.builder(keyspaceName, tableName, TableId.fromUUID(row.getUUID("id")))
                             .flags(flags)
                             .params(createTableParamsFromRow(row))
                             .addColumns(fetchColumns(keyspaceName, tableName, types))
                             .droppedColumns(fetchDroppedColumns(keyspaceName, tableName))
                             .indexes(fetchIndexes(keyspaceName, tableName))
-                            .triggers(fetchTriggers(keyspaceName, tableName))
-                            .build();
+                            .triggers(fetchTriggers(keyspaceName, tableName));
+        if (row.has("virtual_class"))
+            tmd = tmd.virtualClass(row.getString("virtual_class"));
+
+        return tmd.build();
     }
 
     static TableParams createTableParamsFromRow(UntypedResultSet.Row row)

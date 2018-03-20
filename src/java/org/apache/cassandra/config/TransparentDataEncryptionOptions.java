@@ -73,4 +73,11 @@ public class TransparentDataEncryptionOptions
         return Objects.equal(cipher, other.cipher) &&
                Objects.equal(key_alias, other.key_alias);
     }
+
+    @Override
+    public String toString()
+    {
+        return "{'enabled': '" + enabled + "'}";
+    }
+
 }
