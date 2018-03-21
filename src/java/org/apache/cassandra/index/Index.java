@@ -377,7 +377,7 @@ public interface Index
      * This can be empty as an update might only contain partition, range and row deletions, but
      * the indexer is guaranteed to not get any cells for a column that is not part of {@code columns}.
      * @param nowInSec current time of the update operation
-     * @param opGroup operation group spanning the update operation
+     * @param ctx WriteContext spanning the update operation
      * @param transactionType indicates what kind of update is being performed on the base data
      *                        i.e. a write time insert/update/delete or the result of compaction
      * @return the newly created indexer or {@code null} if the index is not interested by the update
@@ -387,7 +387,7 @@ public interface Index
     public Indexer indexerFor(DecoratedKey key,
                               RegularAndStaticColumns columns,
                               int nowInSec,
-                              OpOrder.Group opGroup,
+                              WriteContext ctx,
                               IndexTransaction.Type transactionType);
 
     /**

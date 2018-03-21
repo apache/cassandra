@@ -242,7 +242,7 @@ public class SASIIndex implements Index, INotificationConsumer
     public void validate(PartitionUpdate update) throws InvalidRequestException
     {}
 
-    public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, OpOrder.Group opGroup, IndexTransaction.Type transactionType)
+    public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext context, IndexTransaction.Type transactionType)
     {
         return new Indexer()
         {
@@ -258,7 +258,7 @@ public class SASIIndex implements Index, INotificationConsumer
             public void insertRow(Row row)
             {
                 if (isNewData())
-                    adjustMemtableSize(index.index(key, row), opGroup);
+                    adjustMemtableSize(index.index(key, row), CassandraWriteContext.fromContext(context).getGroup());
             }
 
             public void updateRow(Row oldRow, Row newRow)

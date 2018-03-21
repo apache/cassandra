@@ -1048,13 +1048,14 @@ public class CustomIndexTest extends CQLTester
         public Indexer indexerFor(final DecoratedKey key,
                                   RegularAndStaticColumns columns,
                                   int nowInSec,
-                                  OpOrder.Group opGroup,
+                                  WriteContext ctx,
                                   IndexTransaction.Type transactionType)
         {
+            CassandraWriteContext cassandraWriteContext = (CassandraWriteContext) ctx;
             if (readOrderingAtStart == null)
                 readOrderingAtStart = baseCfs.readOrdering.getCurrent();
 
-            writeGroups.add(opGroup);
+            writeGroups.add(cassandraWriteContext.getGroup());
 
             return new Indexer()
             {

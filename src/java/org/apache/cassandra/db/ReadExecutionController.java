@@ -29,9 +29,9 @@ public class ReadExecutionController implements AutoCloseable
 
     // For index reads
     private final ReadExecutionController indexController;
-    private final OpOrder.Group writeOp;
+    private final WriteContext writeContext;
 
-    private ReadExecutionController(OpOrder.Group baseOp, TableMetadata baseMetadata, ReadExecutionController indexController, OpOrder.Group writeOp)
+    private ReadExecutionController(OpOrder.Group baseOp, TableMetadata baseMetadata, ReadExecutionController indexController, WriteContext writeContext)
     {
         // We can have baseOp == null, but only when empty() is called, in which case the controller will never really be used
         // (which validForReadOn should ensure). But if it's not null, we should have the proper metadata too.
@@ -39,7 +39,7 @@ public class ReadExecutionController implements AutoCloseable
         this.baseOp = baseOp;
         this.baseMetadata = baseMetadata;
         this.indexController = indexController;
-        this.writeOp = writeOp;
+        this.writeContext = writeContext;
     }
 
     public ReadExecutionController indexReadController()
@@ -47,9 +47,9 @@ public class ReadExecutionController implements AutoCloseable
         return indexController;
     }
 
-    public OpOrder.Group writeOpOrderGroup()
+    public WriteContext getWriteContext()
     {
-        return writeOp;
+        return writeContext;
     }
 
     public boolean validForReadOn(ColumnFamilyStore cfs)
@@ -83,7 +83,8 @@ public class ReadExecutionController implements AutoCloseable
         }
         else
         {
-            OpOrder.Group baseOp = null, writeOp = null;
+            OpOrder.Group baseOp = null;
+            WriteContext writeContext = null;
             ReadExecutionController indexController = null;
             // OpOrder.start() shouldn't fail, but better safe than sorry.
             try
@@ -92,13 +93,13 @@ public class ReadExecutionController implements AutoCloseable
                 indexController = new ReadExecutionController(indexCfs.readOrdering.start(), indexCfs.metadata(), null, null);
                 // TODO: this should perhaps not open and maintain a writeOp for the full duration, but instead only *try* to delete stale entries, without blocking if there's no room
                 // as it stands, we open a writeOp and keep it open for the duration to ensure that should this CF get flushed to make room we don't block the reclamation of any room being made
-                writeOp = Keyspace.writeOrder.start();
-                return new ReadExecutionController(baseOp, baseCfs.metadata(), indexController, writeOp);
+                writeContext = baseCfs.keyspace.getWriteHandler().createContextForRead();
+                return new ReadExecutionController(baseOp, baseCfs.metadata(), indexController, writeContext);
             }
             catch (RuntimeException e)
             {
-                // Note that must have writeOp == null since ReadOrderGroup ctor can't fail
-                assert writeOp == null;
+                // Note that must have writeContext == null since ReadOrderGroup ctor can't fail
+                assert writeContext == null;
                 try
                 {
                     if (baseOp != null)
@@ -142,7 +143,7 @@ public class ReadExecutionController implements AutoCloseable
                 }
                 finally
                 {
-                    writeOp.close();
+                    writeContext.close();
                 }
             }
         }

@@ -31,7 +31,6 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.internal.CassandraIndexSearcher;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class KeysSearcher extends CassandraIndexSearcher
 {
@@ -100,7 +99,7 @@ public class KeysSearcher extends CassandraIndexSearcher
                     UnfilteredRowIterator dataIter = filterIfStale(dataCmd.queryMemtableAndDisk(index.baseCfs, executionController),
                                                                    hit,
                                                                    indexKey.getKey(),
-                                                                   executionController.writeOpOrderGroup(),
+                                                                   executionController.getWriteContext(),
                                                                    command.nowInSec());
 
                     if (dataIter != null)
@@ -142,7 +141,7 @@ public class KeysSearcher extends CassandraIndexSearcher
     private UnfilteredRowIterator filterIfStale(UnfilteredRowIterator iterator,
                                                 Row indexHit,
                                                 ByteBuffer indexedValue,
-                                                OpOrder.Group writeOp,
+                                                WriteContext ctx,
                                                 int nowInSec)
     {
         Row data = iterator.staticRow();
@@ -152,7 +151,7 @@ public class KeysSearcher extends CassandraIndexSearcher
             index.deleteStaleEntry(index.getIndexCfs().decorateKey(indexedValue),
                     makeIndexClustering(iterator.partitionKey().getKey(), Clustering.EMPTY),
                     new DeletionTime(indexHit.primaryKeyLivenessInfo().timestamp(), nowInSec),
-                    writeOp);
+                    ctx);
             iterator.close();
             return null;
         }

@@ -216,6 +216,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final TableMetrics metric;
     public volatile long sampleLatencyNanos;
 
+    private final CassandraTableWriteHandler writeHandler;
     private final CassandraStreamManager streamManager;
 
     private final TableRepairManager repairManager;
@@ -450,6 +451,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             mbeanName = null;
             oldMBeanName= null;
         }
+        writeHandler = new CassandraTableWriteHandler(this);
         streamManager = new CassandraStreamManager(this);
         repairManager = new CassandraTableRepairManager(this);
     }
@@ -464,6 +466,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             logger.error("Exception caught while calculating speculative retry threshold for {}: {}", metadata(), e);
         }
+    }
+
+    public TableWriteHandler getWriteHandler()
+    {
+        return writeHandler;
     }
 
     public TableStreamManager getStreamManager()
