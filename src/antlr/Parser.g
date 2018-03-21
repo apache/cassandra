@@ -766,10 +766,15 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
  * ) WITH <property> = <value> AND ...;
  */
 createTableStatement returns [CreateTableStatement.RawStatement expr]
-    @init { boolean ifNotExists = false; }
+    @init {
+        boolean ifNotExists = false;
+        boolean isVirtual = false;
+        }
     : K_CREATE K_COLUMNFAMILY (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
       cf=columnFamilyName { $expr = new CreateTableStatement.RawStatement(cf, ifNotExists); }
       cfamDefinition[expr]
+    | K_CREATE K_COLUMNFAMILY K_USING cls=virtual_id { isVirtual=true; } (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+      cf=columnFamilyName { $expr = new CreateTableStatement.RawStatement(cf, ifNotExists, isVirtual, $cls.text ); }
     ;
 
 cfamDefinition[CreateTableStatement.RawStatement expr]
@@ -1770,6 +1775,11 @@ username
     : IDENT
     | STRING_LITERAL
     | QUOTED_NAME { addRecognitionError("Quoted strings are are not supported for user names and USER is deprecated, please use ROLE");}
+    ;
+
+virtual_id
+    : IDENT
+    | STRING_LITERAL
     ;
 
 mbean

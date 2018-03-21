@@ -148,6 +148,8 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
         TableMetadata metadata = Schema.instance.validateTable(baseName.getKeyspace(), baseName.getColumnFamily());
 
+        if (metadata.isVirtual())
+            throw new InvalidRequestException("Materialized views are not supported on virtual tables");
         if (metadata.isCounter())
             throw new InvalidRequestException("Materialized views are not supported on counter tables");
         if (metadata.isView())

@@ -28,15 +28,12 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.*;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.KeyspaceNotDefinedException;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.virtual.SystemInfoKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnknownTableException;
@@ -64,6 +61,9 @@ public final class Schema
     // Keyspace objects, one per keyspace. Only one instance should ever exist for any given keyspace.
     private final Map<String, Keyspace> keyspaceInstances = new NonBlockingHashMap<>();
 
+    // Virtual table objects, one per keyspace/table pair. Only one instance should ever exist for any given virtual table.
+    private final Map<TableId, VirtualTable> virtualTableMap = new NonBlockingHashMap<>();
+
     private volatile UUID version;
 
     private final List<SchemaChangeListener> changeListeners = new CopyOnWriteArrayList<>();
@@ -76,6 +76,7 @@ public final class Schema
         if (DatabaseDescriptor.isDaemonInitialized() || DatabaseDescriptor.isToolInitialized())
         {
             load(SchemaKeyspace.metadata());
+            load(SystemInfoKeyspace.metadata());
             load(SystemKeyspace.metadata());
         }
     }
@@ -579,6 +580,19 @@ public final class Schema
         updateVersionAndAnnounce();
     }
 
+    public VirtualTable getVirtualTable(TableMetadata metadata)
+    {
+        if (!virtualTableMap.containsKey(metadata.id))
+            return null;
+
+        return virtualTableMap.get(metadata.id);
+    }
+
+    public void putVirtualTable(TableMetadata metadata, VirtualTable virtualTable)
+    {
+        virtualTableMap.put(metadata.id, virtualTable);
+    }
+
     /**
      * Merge remote schema in form of mutations with local and mutate ks/cf metadata objects
      * (which also involves fs operations on add/drop ks/cf)
@@ -713,20 +727,24 @@ public final class Schema
 
     private void dropTable(TableMetadata metadata)
     {
-        ColumnFamilyStore cfs = Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name);
-        assert cfs != null;
-        // make sure all the indexes are dropped, or else.
-        cfs.indexManager.markAllIndexesRemoved();
-        CompactionManager.instance.interruptCompactionFor(Collections.singleton(metadata), true);
-        if (DatabaseDescriptor.isAutoSnapshot())
-            cfs.snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(cfs.name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
-        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
+        if (!metadata.isVirtual())
+        {
+            ColumnFamilyStore cfs = Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name);
+            assert cfs != null;
+            // make sure all the indexes are dropped, or else.
+            cfs.indexManager.markAllIndexesRemoved();
+            CompactionManager.instance.interruptCompactionFor(Collections.singleton(metadata), true);
+            if (DatabaseDescriptor.isAutoSnapshot())
+                cfs.snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(cfs.name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
+            CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
+        }
         Keyspace.open(metadata.keyspace).dropCf(metadata.id);
     }
 
     private void createTable(TableMetadata table)
     {
-        Keyspace.open(table.keyspace).initCf(metadataRefs.get(table.id), true);
+        if(!table.isVirtual())
+            Keyspace.open(table.keyspace).initCf(metadataRefs.get(table.id), true);
     }
 
     private void createView(ViewMetadata view)

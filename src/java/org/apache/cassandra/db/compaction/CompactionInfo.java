@@ -28,6 +28,16 @@ import org.apache.cassandra.schema.TableMetadata;
 public final class CompactionInfo implements Serializable
 {
     private static final long serialVersionUID = 3695381572726744816L;
+
+    public static final String ID = "id";
+    public static final String KEYSPACE = "keyspace";
+    public static final String COLUMNFAMILY = "columnfamily";
+    public static final String COMPLETED = "completed";
+    public static final String TOTAL = "total";
+    public static final String TASK_TYPE = "taskType";
+    public static final String UNIT = "unit";
+    public static final String COMPACTION_ID = "compactionId";
+
     private final TableMetadata metadata;
     private final OperationType tasktype;
     private final long completed;
@@ -121,14 +131,14 @@ public final class CompactionInfo implements Serializable
     public Map<String, String> asMap()
     {
         Map<String, String> ret = new HashMap<String, String>();
-        ret.put("id", getId() == null ? "" : getId().toString());
-        ret.put("keyspace", getKeyspace());
-        ret.put("columnfamily", getColumnFamily());
-        ret.put("completed", Long.toString(completed));
-        ret.put("total", Long.toString(total));
-        ret.put("taskType", tasktype.toString());
-        ret.put("unit", unit);
-        ret.put("compactionId", compactionId == null ? "" : compactionId.toString());
+        ret.put(ID, getId() == null ? "" : getId().toString());
+        ret.put(KEYSPACE, getKeyspace());
+        ret.put(COLUMNFAMILY, getColumnFamily());
+        ret.put(COMPLETED, Long.toString(completed));
+        ret.put(TOTAL, Long.toString(total));
+        ret.put(TASK_TYPE, tasktype.toString());
+        ret.put(UNIT, unit);
+        ret.put(COMPACTION_ID, compactionId == null ? "" : compactionId.toString());
         return ret;
     }
 

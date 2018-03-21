@@ -228,15 +228,20 @@ public class MigrationManager
     {
         cfm.validate();
 
-        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(cfm.keyspace);
-        if (ksm == null)
+        Keyspace keyspace = Schema.instance.getKeyspaceInstance(cfm.keyspace);
+        if (keyspace == null)
             throw new ConfigurationException(String.format("Cannot add table '%s' to non existing keyspace '%s'.", cfm.name, cfm.keyspace));
         // If we have a table or a view which has the same name, we can't add a new one
-        else if (throwOnDuplicate && ksm.getTableOrViewNullable(cfm.name) != null)
+        else if (throwOnDuplicate && keyspace.getMetadata().getTableOrViewNullable(cfm.name) != null)
             throw new AlreadyExistsException(cfm.keyspace, cfm.name);
 
+        if (cfm.isVirtual())
+        {
+            // Try to instantiate the virtual table class before we announce the table creation
+            keyspace.initVirtualCf(cfm);
+        }
         logger.info("Create new table: {}", cfm);
-        announce(SchemaKeyspace.makeCreateTableMutation(ksm, cfm, timestamp), announceLocally);
+        announce(SchemaKeyspace.makeCreateTableMutation(keyspace.getMetadata(), cfm, timestamp), announceLocally);
     }
 
     public static void announceNewView(ViewMetadata view, boolean announceLocally) throws ConfigurationException

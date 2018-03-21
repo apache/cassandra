@@ -35,7 +35,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
 /**
  * A set of restrictions on the clustering key.
  */
-final class ClusteringColumnRestrictions extends RestrictionSetWrapper
+public final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 {
     /**
      * The composite type.

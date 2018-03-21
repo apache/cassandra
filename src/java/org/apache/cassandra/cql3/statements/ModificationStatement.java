@@ -267,12 +267,18 @@ public abstract class ModificationStatement implements CQLStatement
         // columns is if we set some static columns, and in that case no clustering
         // columns should be given. So in practice, it's enough to check if we have
         // either the table has no clustering or if it has at least one of them set.
-        return metadata().clusteringColumns().isEmpty() || restrictions.hasClusteringColumnsRestrictions();
+        return !metadata().isVirtual() &&
+                (metadata().clusteringColumns().isEmpty() || restrictions.hasClusteringColumnsRestrictions());
     }
 
     public boolean updatesStaticRow()
     {
-        return operations.appliesToStaticColumns();
+        return !metadata().isVirtual() && operations.appliesToStaticColumns();
+    }
+
+    public boolean updatesVirtualRows()
+    {
+        return metadata().isVirtual();
     }
 
     public List<Operation> getRegularOperations()
@@ -283,6 +289,11 @@ public abstract class ModificationStatement implements CQLStatement
     public List<Operation> getStaticOperations()
     {
         return operations.staticOperations();
+    }
+
+    public List<Operation> getVirtualOperations()
+    {
+        return operations.virtualOperations();
     }
 
     public Iterable<Operation> allOperations()
@@ -429,6 +440,13 @@ public abstract class ModificationStatement implements CQLStatement
     public ResultMessage execute(QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
+        if (metadata.isVirtual())
+        {
+            UpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, 1);
+            addUpdates(collector, options, false, options.getTimestamp(queryState), queryStartNanoTime);
+            return null;
+        }
+
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
@@ -588,6 +606,13 @@ public abstract class ModificationStatement implements CQLStatement
 
     public ResultMessage executeInternal(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
+        if (metadata.isVirtual())
+        {
+            UpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, 1);
+            addUpdates(collector, options, true, options.getTimestamp(queryState), System.nanoTime());
+            return null;
+        }
+
         return hasConditions()
                ? executeInternalWithCondition(queryState, options)
                : executeInternalWithoutCondition(queryState, options, System.nanoTime());

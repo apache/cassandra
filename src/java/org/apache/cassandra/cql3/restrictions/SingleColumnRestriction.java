@@ -73,9 +73,10 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     @Override
     public boolean hasSupportingIndex(SecondaryIndexManager indexManager)
     {
-        for (Index index : indexManager.listIndexes())
-            if (isSupportedBy(index))
-                return true;
+        if(indexManager != null)
+            for (Index index : indexManager.listIndexes())
+                if (isSupportedBy(index))
+                    return true;
 
         return false;
     }
