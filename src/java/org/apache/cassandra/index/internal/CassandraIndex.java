@@ -340,7 +340,7 @@ public abstract class CassandraIndex implements Index
     public Indexer indexerFor(final DecoratedKey key,
                               final RegularAndStaticColumns columns,
                               final int nowInSec,
-                              final OpOrder.Group opGroup,
+                              final WriteContext ctx,
                               final IndexTransaction.Type transactionType)
     {
         /**
@@ -445,7 +445,7 @@ public abstract class CassandraIndex implements Index
                        clustering,
                        cell,
                        LivenessInfo.withExpirationTime(cell.timestamp(), cell.ttl(), cell.localDeletionTime()),
-                       opGroup);
+                       ctx);
             }
 
             private void removeCells(Clustering clustering, Iterable<Cell> cells)
@@ -462,7 +462,7 @@ public abstract class CassandraIndex implements Index
                 if (cell == null || !cell.isLive(nowInSec))
                     return;
 
-                delete(key.getKey(), clustering, cell, opGroup, nowInSec);
+                delete(key.getKey(), clustering, cell, ctx, nowInSec);
             }
 
             private void indexPrimaryKey(final Clustering clustering,
@@ -470,10 +470,10 @@ public abstract class CassandraIndex implements Index
                                          final Row.Deletion deletion)
             {
                 if (liveness.timestamp() != LivenessInfo.NO_TIMESTAMP)
-                    insert(key.getKey(), clustering, null, liveness, opGroup);
+                    insert(key.getKey(), clustering, null, liveness, ctx);
 
                 if (!deletion.isLive())
-                    delete(key.getKey(), clustering, deletion.time(), opGroup);
+                    delete(key.getKey(), clustering, deletion.time(), ctx);
             }
 
             private LivenessInfo getPrimaryKeyIndexLiveness(Row row)
@@ -503,14 +503,14 @@ public abstract class CassandraIndex implements Index
      * @param indexKey the partition key in the index table
      * @param indexClustering the clustering in the index table
      * @param deletion deletion timestamp etc
-     * @param opGroup the operation under which to perform the deletion
+     * @param ctx the write context under which to perform the deletion
      */
     public void deleteStaleEntry(DecoratedKey indexKey,
                                  Clustering indexClustering,
                                  DeletionTime deletion,
-                                 OpOrder.Group opGroup)
+                                 WriteContext ctx)
     {
-        doDelete(indexKey, indexClustering, deletion, opGroup);
+        doDelete(indexKey, indexClustering, deletion, ctx);
         logger.trace("Removed index entry for stale value {}", indexKey);
     }
 
@@ -521,14 +521,14 @@ public abstract class CassandraIndex implements Index
                         Clustering clustering,
                         Cell cell,
                         LivenessInfo info,
-                        OpOrder.Group opGroup)
+                        WriteContext ctx)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey,
                                                                clustering,
                                                                cell));
         Row row = BTreeRow.noCellLiveRow(buildIndexClustering(rowKey, clustering, cell), info);
         PartitionUpdate upd = partitionUpdate(valueKey, row);
-        indexCfs.apply(upd, UpdateTransaction.NO_OP, opGroup, null);
+        indexCfs.getWriteHandler().write(upd, ctx, UpdateTransaction.NO_OP);
         logger.trace("Inserted entry into index for value {}", valueKey);
     }
 
@@ -538,7 +538,7 @@ public abstract class CassandraIndex implements Index
     private void delete(ByteBuffer rowKey,
                         Clustering clustering,
                         Cell cell,
-                        OpOrder.Group opGroup,
+                        WriteContext ctx,
                         int nowInSec)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey,
@@ -547,7 +547,7 @@ public abstract class CassandraIndex implements Index
         doDelete(valueKey,
                  buildIndexClustering(rowKey, clustering, cell),
                  new DeletionTime(cell.timestamp(), nowInSec),
-                 opGroup);
+                 ctx);
     }
 
     /**
@@ -556,7 +556,7 @@ public abstract class CassandraIndex implements Index
     private void delete(ByteBuffer rowKey,
                         Clustering clustering,
                         DeletionTime deletion,
-                        OpOrder.Group opGroup)
+                        WriteContext ctx)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey,
                                                                clustering,
@@ -564,17 +564,17 @@ public abstract class CassandraIndex implements Index
         doDelete(valueKey,
                  buildIndexClustering(rowKey, clustering, null),
                  deletion,
-                 opGroup);
+                 ctx);
     }
 
     private void doDelete(DecoratedKey indexKey,
                           Clustering indexClustering,
                           DeletionTime deletion,
-                          OpOrder.Group opGroup)
+                          WriteContext ctx)
     {
         Row row = BTreeRow.emptyDeletedRow(indexClustering, Row.Deletion.regular(deletion));
         PartitionUpdate upd = partitionUpdate(indexKey, row);
-        indexCfs.apply(upd, UpdateTransaction.NO_OP, opGroup, null);
+        indexCfs.getWriteHandler().write(upd, ctx, UpdateTransaction.NO_OP);
         logger.trace("Removed index entry for value {}", indexKey);
     }
 
