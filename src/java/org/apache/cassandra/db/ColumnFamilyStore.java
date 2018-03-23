@@ -77,7 +77,6 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.TableMetrics.Sampler;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
-import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.TableStreamManager;
@@ -214,7 +213,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public final TableMetrics metric;
     public volatile long sampleLatencyNanos;
-    private final ScheduledFuture<?> latencyCalculator;
 
     private final CassandraStreamManager streamManager;
 
@@ -442,33 +440,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 throw new RuntimeException(e);
             }
-
-            SpeculativeRetryPolicy retryPolicy = metadata.get().params.speculativeRetry;
-            logger.trace("retryPolicy for {} is {}", name, retryPolicy);
-            if (!retryPolicy.isDynamic())
-            {
-                // avoid scheduling the task in the first place for non-dynamic speculative retry policies
-                // e.g. always and never speculative policies will never change so we can just calculate once
-                // and avoid doing unnecessary work every ReadRpcTimeout()
-                sampleLatencyNanos = retryPolicy.calculateThreshold(metric.coordinatorReadLatency);
-                latencyCalculator = null;
-            }
-            else
-            {
-                latencyCalculator = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(() ->
-                {
-                    SpeculativeRetryPolicy retryPolicy1 = metadata.get().params.speculativeRetry;
-                    sampleLatencyNanos = retryPolicy1.calculateThreshold(metric.coordinatorReadLatency);
-                }, DatabaseDescriptor.getReadRpcTimeout(), DatabaseDescriptor.getReadRpcTimeout(), TimeUnit.MILLISECONDS);
-            }
         }
         else
         {
-            latencyCalculator = ScheduledExecutors.optionalTasks.schedule(Runnables.doNothing(), 0, TimeUnit.NANOSECONDS);
             mbeanName = null;
             oldMBeanName= null;
         }
         streamManager = new CassandraStreamManager(this);
+    }
+
+    public void updateSpeculationThreshold()
+    {
+        try
+        {
+            sampleLatencyNanos = metadata().params.speculativeRetry.calculateThreshold(metric.coordinatorReadLatency);
+        }
+        catch (Throwable e)
+        {
+            logger.error("Exception caught while calculating speculative retry threshold for {}: {}", metadata(), e);
+        }
     }
 
     public TableStreamManager getStreamManager()
@@ -526,9 +516,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 logger.warn("Failed unregistering mbean: {}", mbeanName, e);
             }
         }
-
-        if (latencyCalculator != null)
-            latencyCalculator.cancel(false);
 
         compactionStrategyManager.shutdown();
         SystemKeyspace.removeTruncationRecord(metadata.id);

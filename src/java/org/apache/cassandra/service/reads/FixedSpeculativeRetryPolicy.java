@@ -34,12 +34,6 @@ public class FixedSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     }
 
     @Override
-    public boolean isDynamic()
-    {
-        return false;
-    }
-
-    @Override
     public long calculateThreshold(Timer readLatency)
     {
         return TimeUnit.MILLISECONDS.toNanos(speculateAtMilliseconds);
