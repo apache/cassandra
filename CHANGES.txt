@@ -2,7 +2,6 @@
  * Fix scheduling of speculative retry threshold recalculation (CASSANDRA-14338)
  * Add support for hybrid MIN(), MAX() speculative retry policies (CASSANDRA-14293)
  * Correct and clarify SSLFactory.getSslContext method and call sites (CASSANDRA-14314)
- * Use zero as default score in DynamicEndpointSnitch (CASSANDRA-14252)
  * Handle static and partition deletion properly on ThrottledUnfilteredIterator (CASSANDRA-14315)
  * NodeTool clientstats should show SSL Cipher (CASSANDRA-14322)
  * Add ability to specify driver name and version (CASSANDRA-14275)
@@ -214,6 +213,8 @@
  * RateBasedBackPressure unnecessarily invokes a lock on the Guava RateLimiter (CASSANDRA-14163)
  * Fix wildcard GROUP BY queries (CASSANDRA-14209)
 Merged from 3.0:
+ * Handle repeat open bound from SRP in read repair (CASSANDRA-14330)
+ * Use zero as default score in DynamicEndpointSnitch (CASSANDRA-14252)
  * Respect max hint window when hinting for LWT (CASSANDRA-14215)
  * Adding missing WriteType enum values to v3, v4, and v5 spec (CASSANDRA-13697)
  * Don't regenerate bloomfilter and summaries on startup (CASSANDRA-11163)
