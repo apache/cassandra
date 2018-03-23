@@ -107,11 +107,31 @@ public abstract class ReadResponse
                 try (UnfilteredRowIterator partition = iter.next())
                 {
                     if (partition.partitionKey().equals(key))
-                        return ImmutableBTreePartition.create(partition).toString();
+                        return toDebugString(partition, command.metadata());
                 }
             }
         }
         return "<key " + key + " not found>";
+    }
+
+    private String toDebugString(UnfilteredRowIterator partition, CFMetaData metadata)
+    {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(String.format("[%s.%s] key=%s partition_deletion=%s columns=%s",
+                                metadata.ksName,
+                                metadata.cfName,
+                                metadata.getKeyValidator().getString(partition.partitionKey().getKey()),
+                                partition.partitionLevelDeletion(),
+                                partition.columns()));
+
+        if (partition.staticRow() != Rows.EMPTY_STATIC_ROW)
+            sb.append("\n    ").append(partition.staticRow().toString(metadata, true));
+
+        while (partition.hasNext())
+            sb.append("\n    ").append(partition.next().toString(metadata, true));
+
+        return sb.toString();
     }
 
     protected static ByteBuffer makeDigest(UnfilteredPartitionIterator iterator, ReadCommand command)

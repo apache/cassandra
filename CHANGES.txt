@@ -1,10 +1,11 @@
 3.11.3
- * Use zero as default score in DynamicEndpointSnitch (CASSANDRA-14252)
  * SASI tokenizer for simple delimiter based entries (CASSANDRA-14247)
  * Fix Loss of digits when doing CAST from varint/bigint to decimal (CASSANDRA-14170)
  * RateBasedBackPressure unnecessarily invokes a lock on the Guava RateLimiter (CASSANDRA-14163)
  * Fix wildcard GROUP BY queries (CASSANDRA-14209)
 Merged from 3.0:
+ * Handle repeat open bound from SRP in read repair (CASSANDRA-14330)
+ * Use zero as default score in DynamicEndpointSnitch (CASSANDRA-14252)
  * Respect max hint window when hinting for LWT (CASSANDRA-14215)
  * Adding missing WriteType enum values to v3, v4, and v5 spec (CASSANDRA-13697)
  * Don't regenerate bloomfilter and summaries on startup (CASSANDRA-11163)
