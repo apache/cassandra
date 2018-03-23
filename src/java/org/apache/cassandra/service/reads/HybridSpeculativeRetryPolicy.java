@@ -43,12 +43,6 @@ public class HybridSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     }
 
     @Override
-    public boolean isDynamic()
-    {
-        return true;
-    }
-
-    @Override
     public long calculateThreshold(Timer readLatency)
     {
         long percentileThreshold = percentilePolicy.calculateThreshold(readLatency);

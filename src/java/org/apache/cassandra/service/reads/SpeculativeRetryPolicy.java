@@ -42,8 +42,6 @@ public interface SpeculativeRetryPolicy
                                                          Pattern.CASE_INSENSITIVE);
     public static final SpeculativeRetryPolicy DEFAULT = new PercentileSpeculativeRetryPolicy(99.0);
 
-    boolean isDynamic();
-
     long calculateThreshold(Timer readLatency);
 
     Kind kind();

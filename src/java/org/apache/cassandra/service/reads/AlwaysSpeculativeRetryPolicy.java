@@ -31,12 +31,6 @@ public class AlwaysSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     }
 
     @Override
-    public boolean isDynamic()
-    {
-        return false;
-    }
-
-    @Override
     public long calculateThreshold(Timer readLatency)
     {
         return 0;

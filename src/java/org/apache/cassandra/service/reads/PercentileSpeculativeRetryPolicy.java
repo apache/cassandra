@@ -32,12 +32,6 @@ public class PercentileSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     }
 
     @Override
-    public boolean isDynamic()
-    {
-        return true;
-    }
-
-    @Override
     public long calculateThreshold(Timer readLatency)
     {
         return (long) readLatency.getSnapshot().getValue(percentile / 100);

@@ -407,6 +407,14 @@ public class CassandraDaemon
         // due to scheduling errors or race conditions
         ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(ColumnFamilyStore.getBackgroundCompactionTaskSubmitter(), 5, 1, TimeUnit.MINUTES);
 
+        // schedule periodic recomputation of speculative retry thresholds
+        ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(
+            () -> Keyspace.all().forEach(k -> k.getColumnFamilyStores().forEach(ColumnFamilyStore::updateSpeculationThreshold)),
+            DatabaseDescriptor.getReadRpcTimeout(),
+            DatabaseDescriptor.getReadRpcTimeout(),
+            TimeUnit.MILLISECONDS
+        );
+
         // schedule periodic dumps of table size estimates into SystemKeyspace.SIZE_ESTIMATES_CF
         // set cassandra.size_recorder_interval to 0 to disable
         int sizeRecorderInterval = Integer.getInteger("cassandra.size_recorder_interval", 5 * 60);
