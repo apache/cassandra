@@ -2,7 +2,6 @@ package org.apache.cassandra.utils.logging;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.impl.StaticLoggerBinder;
 
 /**
  * Dynamically loads and instantiates an appropriate {@link LoggingSupport} implementation according to the used slf4j binding.
@@ -23,8 +22,8 @@ public class LoggingSupportFactory
     {
         if (selectedLoggingSupportImplementation == null)
         {
-            String loggerFactoryClassString = StaticLoggerBinder.getSingleton().getLoggerFactoryClassStr();
-            if (loggerFactoryClassString.contains("logback"))
+            String loggerFactoryClassName = LoggerFactory.getILoggerFactory().getClass().getName();
+            if (loggerFactoryClassName.contains("logback"))
             {
                 try {
                     selectedLoggingSupportImplementation = (LoggingSupport) Class.forName("org.apache.cassandra.utils.logging.LogbackLoggingSupport").newInstance();
@@ -33,8 +32,8 @@ public class LoggingSupportFactory
                 }
             } else {
                 selectedLoggingSupportImplementation = new NoOpFallbackLoggingSupport();
-                logger.warn("You are using Cassandra with an unsupported deployment. The intended logging implementation library logback is not used by slf4j. Detected slf4j binding: {}. "
-                        + "You will not be able to dynamically manage log levels via JMX and may have performance or other issues.", StaticLoggerBinder.getSingleton().getLoggerFactory().getClass().getName());
+                logger.warn("You are using Cassandra with an unsupported deployment. The intended logging implementation library logback is not used by slf4j. Detected slf4j logger factory: {}. "
+                        + "You will not be able to dynamically manage log levels via JMX and may have performance or other issues.", loggerFactoryClassName);
             }
         }
         return selectedLoggingSupportImplementation;
