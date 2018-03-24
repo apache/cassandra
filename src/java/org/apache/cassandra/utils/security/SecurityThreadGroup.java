@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.cql3.functions;
+package org.apache.cassandra.utils.security;
 
 import java.util.Set;
 
@@ -46,7 +46,7 @@ public final class SecurityThreadGroup extends ThreadGroup
     }
 
     @FunctionalInterface
-    interface ThreadInitializer
+    public interface ThreadInitializer
     {
         void initializeThread();
     }

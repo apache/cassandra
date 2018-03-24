@@ -46,11 +46,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.jmx.JMXConfiguratorMBean;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.Appender;
-import ch.qos.logback.core.hook.DelayingShutdownHook;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthMigrationListener;
 import org.apache.cassandra.batchlog.BatchRemoveVerbHandler;
@@ -96,6 +91,7 @@ import org.apache.cassandra.thrift.cassandraConstants;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
@@ -646,9 +642,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     WindowsTimer.endTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
 
                 // Cleanup logback
-                DelayingShutdownHook logbackHook = new DelayingShutdownHook();
-                logbackHook.setContext((LoggerContext)LoggerFactory.getILoggerFactory());
-                logbackHook.run();
+                LoggingSupportFactory.getLoggingSupport().onShutdown();
             }
         }, "StorageServiceShutdownHook");
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
@@ -3811,28 +3805,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setLoggingLevel(String classQualifier, String rawLevel) throws Exception
     {
-        ch.qos.logback.classic.Logger logBackLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(classQualifier);
-
-        // if both classQualifer and rawLevel are empty, reload from configuration
-        if (StringUtils.isBlank(classQualifier) && StringUtils.isBlank(rawLevel) )
-        {
-            JMXConfiguratorMBean jmxConfiguratorMBean = JMX.newMBeanProxy(ManagementFactory.getPlatformMBeanServer(),
-                    new ObjectName("ch.qos.logback.classic:Name=default,Type=ch.qos.logback.classic.jmx.JMXConfigurator"),
-                    JMXConfiguratorMBean.class);
-            jmxConfiguratorMBean.reloadDefaultConfiguration();
-            return;
-        }
-        // classQualifer is set, but blank level given
-        else if (StringUtils.isNotBlank(classQualifier) && StringUtils.isBlank(rawLevel) )
-        {
-            if (logBackLogger.getLevel() != null || hasAppenders(logBackLogger))
-                logBackLogger.setLevel(null);
-            return;
-        }
-
-        ch.qos.logback.classic.Level level = ch.qos.logback.classic.Level.toLevel(rawLevel);
-        logBackLogger.setLevel(level);
-        logger.info("set log level to {} for classes under '{}' (if the level doesn't look like '{}' then the logger couldn't parse '{}')", level, classQualifier, rawLevel, rawLevel);
+        LoggingSupportFactory.getLoggingSupport().setLoggingLevel(classQualifier, rawLevel);
     }
 
     /**
@@ -3841,20 +3814,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public Map<String,String>getLoggingLevels()
     {
-        Map<String, String> logLevelMaps = Maps.newLinkedHashMap();
-        LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
-        for (ch.qos.logback.classic.Logger logger : lc.getLoggerList())
-        {
-            if(logger.getLevel() != null || hasAppenders(logger))
-                logLevelMaps.put(logger.getName(), logger.getLevel().toString());
-        }
-        return logLevelMaps;
-    }
-
-    private boolean hasAppenders(ch.qos.logback.classic.Logger logger)
-    {
-        Iterator<Appender<ILoggingEvent>> it = logger.iteratorForAppenders();
-        return it.hasNext();
+        return LoggingSupportFactory.getLoggingSupport().getLoggingLevels();
     }
 
     /**

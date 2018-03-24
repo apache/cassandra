@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.cql3.functions;
+package org.apache.cassandra.utils.security;
 
 import java.security.AccessControlException;
 import java.security.AllPermission;
@@ -29,27 +29,22 @@ import java.security.ProtectionDomain;
 import java.util.Collections;
 import java.util.Enumeration;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.spi.TurboFilterList;
-import ch.qos.logback.classic.turbo.ReconfigureOnChangeFilter;
-import ch.qos.logback.classic.turbo.TurboFilter;
 import io.netty.util.concurrent.FastThreadLocal;
+
+import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 
 /**
  * Custom {@link SecurityManager} and {@link Policy} implementation that only performs access checks
  * if explicitly enabled.
  * <p>
- * This implementation gives no measurable performance panalty
+ * This implementation gives no measurable performance penalty
  * (see <a href="http://cstar.datastax.com/tests/id/1d461628-12ba-11e5-918f-42010af0688f">see cstar test</a>).
  * This is better than the penalty of 1 to 3 percent using a standard {@code SecurityManager} with an <i>allow all</i> policy.
  * </p>
  */
 public final class ThreadAwareSecurityManager extends SecurityManager
 {
-    static final PermissionCollection noPermissions = new PermissionCollection()
+    public static final PermissionCollection noPermissions = new PermissionCollection()
     {
         public void add(Permission permission)
         {
@@ -78,59 +73,8 @@ public final class ThreadAwareSecurityManager extends SecurityManager
         if (installed)
             return;
         System.setSecurityManager(new ThreadAwareSecurityManager());
-
-        // The default logback configuration in conf/logback.xml allows reloading the
-        // configuration when the configuration file has changed (every 60 seconds by default).
-        // This requires logback to use file I/O APIs. But file I/O is not allowed from UDFs.
-        // I.e. if logback decides to check for a modification of the config file while
-        // executiing a sandbox thread, the UDF execution and therefore the whole request
-        // execution will fail with an AccessControlException.
-        // To work around this, a custom ReconfigureOnChangeFilter is installed, that simply
-        // prevents this configuration file check and possible reload of the configration,
-        // while executing sandboxed UDF code.
-        Logger l = LoggerFactory.getLogger(ThreadAwareSecurityManager.class);
-        ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) l;
-        LoggerContext ctx = logbackLogger.getLoggerContext();
-
-        TurboFilterList turboFilterList = ctx.getTurboFilterList();
-        for (int i = 0; i < turboFilterList.size(); i++)
-        {
-            TurboFilter turboFilter = turboFilterList.get(i);
-            if (turboFilter instanceof ReconfigureOnChangeFilter)
-            {
-                ReconfigureOnChangeFilter reconfigureOnChangeFilter = (ReconfigureOnChangeFilter) turboFilter;
-                turboFilterList.set(i, new SMAwareReconfigureOnChangeFilter(reconfigureOnChangeFilter));
-                break;
-            }
-        }
-
+        LoggingSupportFactory.getLoggingSupport().onStartup();
         installed = true;
-    }
-
-    /**
-     * The purpose of this class is to prevent logback from checking for config file change,
-     * if the current thread is executing a sandboxed thread to avoid {@link AccessControlException}s.
-     */
-    private static class SMAwareReconfigureOnChangeFilter extends ReconfigureOnChangeFilter
-    {
-        SMAwareReconfigureOnChangeFilter(ReconfigureOnChangeFilter reconfigureOnChangeFilter)
-        {
-            setRefreshPeriod(reconfigureOnChangeFilter.getRefreshPeriod());
-            setName(reconfigureOnChangeFilter.getName());
-            setContext(reconfigureOnChangeFilter.getContext());
-            if (reconfigureOnChangeFilter.isStarted())
-            {
-                reconfigureOnChangeFilter.stop();
-                start();
-            }
-        }
-
-        protected boolean changeDetected(long now)
-        {
-            if (isSecuredThread())
-                return false;
-            return super.changeDetected(now);
-        }
     }
 
     static
@@ -199,7 +143,7 @@ public final class ThreadAwareSecurityManager extends SecurityManager
     {
     }
 
-    private static boolean isSecuredThread()
+    public static boolean isSecuredThread()
     {
         ThreadGroup tg = Thread.currentThread().getThreadGroup();
         if (!(tg instanceof SecurityThreadGroup))
