@@ -119,7 +119,7 @@ then the following view definitions are allowed::
         PRIMARY KEY (c1, k, c2)
 
     CREATE MATERIALIZED VIEW mv1 AS
-        SELECT * FROM t WHERE k IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL
+        SELECT * FROM t WHERE k IS NOT NULL AND c1 IS NOT NULL AND c2 IS NOT NULL AND v1 IS NOT NULL
         PRIMARY KEY (v1, k, c1, c2)
 
 but the following ones are **not** allowed::
