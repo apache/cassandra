@@ -86,13 +86,13 @@ abstract class AbstractQueryPager implements QueryPager
 
         if (rows.isEmpty())
         {
-            logger.debug("Got empty set of rows, considering pager exhausted");
+            logger.trace("Got empty set of rows, considering pager exhausted");
             exhausted = true;
             return Collections.emptyList();
         }
 
         int liveCount = getPageLiveCount(rows);
-        logger.debug("Fetched {} live rows", liveCount);
+        logger.trace("Fetched {} live rows", liveCount);
 
         // Because SP.getRangeSlice doesn't trim the result (see SP.trim()), liveCount may be greater than what asked
         // (currentPageSize). This would throw off the paging logic so we trim the excess. It's not extremely efficient
@@ -109,7 +109,8 @@ abstract class AbstractQueryPager implements QueryPager
         // we still need to return the current page)
         if (liveCount < currentPageSize)
         {
-            logger.debug("Got result ({}) smaller than page size ({}), considering pager exhausted", liveCount, currentPageSize);
+            logger.trace("Got result ({}) smaller than page size ({}), considering pager exhausted", liveCount,
+                    currentPageSize);
             exhausted = true;
         }
 
@@ -130,7 +131,7 @@ abstract class AbstractQueryPager implements QueryPager
             remaining++;
         }
 
-        logger.debug("Remaining rows to page: {}", remaining);
+        logger.trace("Remaining rows to page: {}", remaining);
 
         if (!isExhausted())
             shouldFetchExtraRow = recordLast(rows.get(rows.size() - 1));

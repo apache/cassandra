@@ -89,7 +89,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
         if (lastReturned != null)
             filter = filter.withUpdatedStart(lastReturned, cfm);
 
-        logger.debug("Querying next page of slice query; new filter: {}", filter);
+        logger.trace("Querying next page of slice query; new filter: {}", filter);
         ReadCommand pageCmd = command.withUpdatedFilter(filter);
         return localQuery
              ? Collections.singletonList(pageCmd.getRow(Keyspace.open(command.ksName)))
