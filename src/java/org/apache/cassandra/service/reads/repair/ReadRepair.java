@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.reads.repair;
 
 import java.util.List;
@@ -28,12 +27,9 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.reads.DigestResolver;
-import org.apache.cassandra.service.reads.ResponseResolver;
-import org.apache.cassandra.tracing.TraceState;
 
 public interface ReadRepair
 {
-
     /**
      * Used by DataResolver to generate corrections as the partition iterator is consumed
      */
@@ -43,28 +39,15 @@ public interface ReadRepair
      * Called when the digests from the initial read don't match. Reads may block on the
      * repair started by this method.
      */
-    public void startForegroundRepair(DigestResolver digestResolver,
-                                      List<InetAddressAndPort> allEndpoints,
-                                      List<InetAddressAndPort> contactedEndpoints,
-                                      Consumer<PartitionIterator> resultConsumer);
+    public void startRepair(DigestResolver digestResolver,
+                            List<InetAddressAndPort> allEndpoints,
+                            List<InetAddressAndPort> contactedEndpoints,
+                            Consumer<PartitionIterator> resultConsumer);
 
     /**
-     * Wait for any operations started by {@link ReadRepair#startForegroundRepair} to complete
-     * @throws ReadTimeoutException
+     * Wait for any operations started by {@link ReadRepair#startRepair} to complete
      */
-    public void awaitForegroundRepairFinish() throws ReadTimeoutException;
-
-    /**
-     * Called when responses from all replicas have been received. Read will not block on this.
-     * @param resolver
-     */
-    public void maybeStartBackgroundRepair(ResponseResolver resolver);
-
-    /**
-     * If {@link ReadRepair#maybeStartBackgroundRepair} was called with a {@link DigestResolver}, this will
-     * be called to perform a repair if there was a digest mismatch
-     */
-    public void backgroundDigestRepair(TraceState traceState);
+    public void awaitRepair() throws ReadTimeoutException;
 
     static ReadRepair create(ReadCommand command, List<InetAddressAndPort> endpoints, long queryStartNanoTime, ConsistencyLevel consistency)
     {

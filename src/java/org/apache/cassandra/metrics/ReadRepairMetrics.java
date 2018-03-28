@@ -29,6 +29,9 @@ public class ReadRepairMetrics
     private static final MetricNameFactory factory = new DefaultNameFactory("ReadRepair");
 
     public static final Meter repairedBlocking = Metrics.meter(factory.createMetricName("RepairedBlocking"));
+
+    @Deprecated
     public static final Meter repairedBackground = Metrics.meter(factory.createMetricName("RepairedBackground"));
+    @Deprecated
     public static final Meter attempted = Metrics.meter(factory.createMetricName("Attempted"));
 }

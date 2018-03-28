@@ -1,4 +1,6 @@
 4.0
+ * Eliminate background repair and probablistic read_repair_chance table options
+   (CASSANDRA-13910)
  * Bind to correct local address in 4.0 streaming (CASSANDRA-14362)
  * Use standard Amazon naming for datacenter and rack in Ec2Snitch (CASSANDRA-7839)
  * Fix junit failure for SSTableReaderTest (CASSANDRA-14387)

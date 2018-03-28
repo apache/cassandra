@@ -18,7 +18,6 @@
 package org.apache.cassandra.service.reads;
 
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Preconditions;
@@ -39,12 +38,10 @@ import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
@@ -162,22 +159,6 @@ public abstract class AbstractReadExecutor
      */
     public abstract void executeAsync();
 
-    private static ReadRepairDecision newReadRepairDecision(TableMetadata metadata)
-    {
-        if (metadata.params.readRepairChance > 0d ||
-            metadata.params.dcLocalReadRepairChance > 0)
-        {
-            double chance = ThreadLocalRandom.current().nextDouble();
-            if (metadata.params.readRepairChance > chance)
-                return ReadRepairDecision.GLOBAL;
-
-            if (metadata.params.dcLocalReadRepairChance > chance)
-                return ReadRepairDecision.DC_LOCAL;
-        }
-
-        return ReadRepairDecision.NONE;
-    }
-
     /**
      * @return an executor appropriate for the configured speculative read policy
      */
@@ -185,28 +166,17 @@ public abstract class AbstractReadExecutor
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         List<InetAddressAndPort> allReplicas = StorageProxy.getLiveSortedEndpoints(keyspace, command.partitionKey());
-        // 11980: Excluding EACH_QUORUM reads from potential RR, so that we do not miscount DC responses
-        ReadRepairDecision repairDecision = consistencyLevel == ConsistencyLevel.EACH_QUORUM
-                                            ? ReadRepairDecision.NONE
-                                            : newReadRepairDecision(command.metadata());
-        List<InetAddressAndPort> targetReplicas = consistencyLevel.filterForQuery(keyspace, allReplicas, repairDecision);
+        List<InetAddressAndPort> targetReplicas = consistencyLevel.filterForQuery(keyspace, allReplicas);
 
         // Throw UAE early if we don't have enough replicas.
         consistencyLevel.assureSufficientLiveNodes(keyspace, targetReplicas);
-
-        if (repairDecision != ReadRepairDecision.NONE)
-        {
-            Tracing.trace("Read-repair {}", repairDecision);
-            ReadRepairMetrics.attempted.mark();
-        }
 
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
         SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
 
         // Speculative retry is disabled *OR*
         // 11980: Disable speculative retry if using EACH_QUORUM in order to prevent miscounting DC responses
-        if (retry.equals(NeverSpeculativeRetryPolicy.INSTANCE)
-            | consistencyLevel == ConsistencyLevel.EACH_QUORUM)
+        if (retry.equals(NeverSpeculativeRetryPolicy.INSTANCE) || consistencyLevel == ConsistencyLevel.EACH_QUORUM)
             return new NeverSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime, false);
 
         // There are simply no extra replicas to speculate.
@@ -216,28 +186,13 @@ public abstract class AbstractReadExecutor
 
         if (targetReplicas.size() == allReplicas.size())
         {
-            // CL.ALL, RRD.GLOBAL or RRD.DC_LOCAL and a single-DC.
+            // CL.ALL
             // We are going to contact every node anyway, so ask for 2 full data requests instead of 1, for redundancy
             // (same amount of requests in total, but we turn 1 digest request into a full blown data request).
             return new AlwaysSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime);
         }
 
-        // RRD.NONE or RRD.DC_LOCAL w/ multiple DCs.
-        InetAddressAndPort extraReplica = allReplicas.get(targetReplicas.size());
-        // With repair decision DC_LOCAL all replicas/target replicas may be in different order, so
-        // we might have to find a replacement that's not already in targetReplicas.
-        if (repairDecision == ReadRepairDecision.DC_LOCAL && targetReplicas.contains(extraReplica))
-        {
-            for (InetAddressAndPort address : allReplicas)
-            {
-                if (!targetReplicas.contains(address))
-                {
-                    extraReplica = address;
-                    break;
-                }
-            }
-        }
-        targetReplicas.add(extraReplica);
+        targetReplicas.add(allReplicas.get(targetReplicas.size()));
 
         if (retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE))
             return new AlwaysSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas, queryStartNanoTime);
@@ -445,7 +400,7 @@ public abstract class AbstractReadExecutor
         else
         {
             Tracing.trace("Digest mismatch: Mismatch for key {}", getKey());
-            readRepair.startForegroundRepair(digestResolver, handler.endpoints, getContactedReplicas(), this::setResult);
+            readRepair.startRepair(digestResolver, handler.endpoints, getContactedReplicas(), this::setResult);
         }
     }
 
@@ -453,7 +408,7 @@ public abstract class AbstractReadExecutor
     {
         try
         {
-            readRepair.awaitForegroundRepairFinish();
+            readRepair.awaitRepair();
         }
         catch (ReadTimeoutException e)
         {

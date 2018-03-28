@@ -100,7 +100,6 @@ public class MigrationManagerTest
                          .addPartitionKeyColumn("keys", BytesType.instance)
                          .addClusteringColumn("col", BytesType.instance)
                          .comment("No comment")
-                         .readRepairChance(0.5)
                          .gcGraceSeconds(100000)
                          .compaction(CompactionParams.scts(ImmutableMap.of("min_threshold", "500", "max_threshold", "500")));
 
@@ -573,7 +572,6 @@ public class MigrationManagerTest
                          .addClusteringColumn("col", UTF8Type.instance)
                          .addRegularColumn("val", UTF8Type.instance)
                          .comment(comment)
-                         .readRepairChance(0.0)
                          .build();
     }
 }

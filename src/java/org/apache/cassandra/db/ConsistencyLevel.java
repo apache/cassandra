@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +29,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.reads.ReadRepairDecision;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -177,18 +175,13 @@ public enum ConsistencyLevel
 
     public List<InetAddressAndPort> filterForQuery(Keyspace keyspace, List<InetAddressAndPort> liveEndpoints)
     {
-        return filterForQuery(keyspace, liveEndpoints, ReadRepairDecision.NONE);
-    }
-
-    public List<InetAddressAndPort> filterForQuery(Keyspace keyspace, List<InetAddressAndPort> liveEndpoints, ReadRepairDecision readRepair)
-    {
         /*
          * If we are doing an each quorum query, we have to make sure that the endpoints we select
          * provide a quorum for each data center. If we are not using a NetworkTopologyStrategy,
          * we should fall through and grab a quorum in the replication strategy.
          */
         if (this == EACH_QUORUM && keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
-            return filterForEachQuorum(keyspace, liveEndpoints, readRepair);
+            return filterForEachQuorum(keyspace, liveEndpoints);
 
         /*
          * Endpoints are expected to be restricted to live replicas, sorted by snitch preference.
@@ -197,41 +190,14 @@ public enum ConsistencyLevel
          * the blockFor first ones).
          */
         if (isDCLocal)
-            Collections.sort(liveEndpoints, DatabaseDescriptor.getLocalComparator());
+            liveEndpoints.sort(DatabaseDescriptor.getLocalComparator());
 
-        switch (readRepair)
-        {
-            case NONE:
-                return liveEndpoints.subList(0, Math.min(liveEndpoints.size(), blockFor(keyspace)));
-            case GLOBAL:
-                return liveEndpoints;
-            case DC_LOCAL:
-                List<InetAddressAndPort> local = new ArrayList<>();
-                List<InetAddressAndPort> other = new ArrayList<>();
-                for (InetAddressAndPort add : liveEndpoints)
-                {
-                    if (isLocal(add))
-                        local.add(add);
-                    else
-                        other.add(add);
-                }
-                // check if blockfor more than we have localep's
-                int blockFor = blockFor(keyspace);
-                if (local.size() < blockFor)
-                    local.addAll(other.subList(0, Math.min(blockFor - local.size(), other.size())));
-                return local;
-            default:
-                throw new AssertionError();
-        }
+        return liveEndpoints.subList(0, Math.min(liveEndpoints.size(), blockFor(keyspace)));
     }
 
-    private List<InetAddressAndPort> filterForEachQuorum(Keyspace keyspace, List<InetAddressAndPort> liveEndpoints, ReadRepairDecision readRepair)
+    private List<InetAddressAndPort> filterForEachQuorum(Keyspace keyspace, List<InetAddressAndPort> liveEndpoints)
     {
         NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
-
-        // quickly drop out if read repair is GLOBAL, since we just use all of the live endpoints
-        if (readRepair == ReadRepairDecision.GLOBAL)
-            return liveEndpoints;
 
         Map<String, List<InetAddressAndPort>> dcsEndpoints = new HashMap<>();
         for (String dc: strategy.getDatacenters())
@@ -247,10 +213,7 @@ public enum ConsistencyLevel
         for (Map.Entry<String, List<InetAddressAndPort>> dcEndpoints : dcsEndpoints.entrySet())
         {
             List<InetAddressAndPort> dcEndpoint = dcEndpoints.getValue();
-            if (readRepair == ReadRepairDecision.DC_LOCAL && dcEndpoints.getKey().equals(DatabaseDescriptor.getLocalDataCenter()))
-                waitSet.addAll(dcEndpoint);
-            else
-                waitSet.addAll(dcEndpoint.subList(0, Math.min(localQuorumFor(keyspace, dcEndpoints.getKey()), dcEndpoint.size())));
+            waitSet.addAll(dcEndpoint.subList(0, Math.min(localQuorumFor(keyspace, dcEndpoints.getKey()), dcEndpoint.size())));
         }
 
         return waitSet;

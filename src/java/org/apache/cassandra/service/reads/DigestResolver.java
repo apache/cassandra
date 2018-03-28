@@ -78,14 +78,6 @@ public class DigestResolver extends ResponseResolver
         return true;
     }
 
-    public void evaluateAllResponses(TraceState traceState)
-    {
-        if (!responsesMatch())
-        {
-            readRepair.backgroundDigestRepair(traceState);
-        }
-    }
-
     public boolean isDataPresent()
     {
         return dataResponse != null;
