@@ -36,8 +36,6 @@ import com.google.common.util.concurrent.Futures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -53,12 +51,9 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.reads.AsyncRepairCallback;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
-import org.apache.cassandra.service.reads.ResponseResolver;
-import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 
 /**
@@ -225,7 +220,7 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
         return repair;
     }
 
-    public void startForegroundRepair(DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints, List<InetAddressAndPort> contactedEndpoints, Consumer<PartitionIterator> resultConsumer)
+    public void startRepair(DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints, List<InetAddressAndPort> contactedEndpoints, Consumer<PartitionIterator> resultConsumer)
     {
         ReadRepairMetrics.repairedBlocking.mark();
 
@@ -244,37 +239,12 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
         }
     }
 
-    public void awaitForegroundRepairFinish() throws ReadTimeoutException
+    public void awaitRepair() throws ReadTimeoutException
     {
         if (digestRepair != null)
         {
             digestRepair.readCallback.awaitResults();
             digestRepair.resultConsumer.accept(digestRepair.dataResolver.resolve());
         }
-    }
-
-    public void maybeStartBackgroundRepair(ResponseResolver resolver)
-    {
-        TraceState traceState = Tracing.instance.get();
-        if (traceState != null)
-            traceState.trace("Initiating read-repair");
-        StageManager.getStage(Stage.READ_REPAIR).execute(() -> resolver.evaluateAllResponses(traceState));
-    }
-
-    public void backgroundDigestRepair(TraceState traceState)
-    {
-        if (traceState != null)
-            traceState.trace("Digest mismatch");
-        if (logger.isDebugEnabled())
-            logger.debug("Digest mismatch");
-
-        ReadRepairMetrics.repairedBackground.mark();
-
-        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        final DataResolver repairResolver = new DataResolver(keyspace, command, consistency, endpoints.size(), queryStartNanoTime, this);
-        AsyncRepairCallback repairHandler = new AsyncRepairCallback(repairResolver, endpoints.size());
-
-        for (InetAddressAndPort endpoint : endpoints)
-            MessagingService.instance().sendRR(command.createMessage(), endpoint, repairHandler);
     }
 }

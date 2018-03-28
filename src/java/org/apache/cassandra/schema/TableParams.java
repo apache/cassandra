@@ -43,14 +43,12 @@ public final class TableParams
         COMMENT,
         COMPACTION,
         COMPRESSION,
-        DCLOCAL_READ_REPAIR_CHANCE,
         DEFAULT_TIME_TO_LIVE,
         EXTENSIONS,
         GC_GRACE_SECONDS,
         MAX_INDEX_INTERVAL,
         MEMTABLE_FLUSH_PERIOD_IN_MS,
         MIN_INDEX_INTERVAL,
-        READ_REPAIR_CHANCE,
         SPECULATIVE_RETRY,
         CRC_CHECK_CHANCE,
         CDC;
@@ -63,8 +61,6 @@ public final class TableParams
     }
 
     public final String comment;
-    public final double readRepairChance;
-    public final double dcLocalReadRepairChance;
     public final double bloomFilterFpChance;
     public final double crcCheckChance;
     public final int gcGraceSeconds;
@@ -82,8 +78,6 @@ public final class TableParams
     private TableParams(Builder builder)
     {
         comment = builder.comment;
-        readRepairChance = builder.readRepairChance;
-        dcLocalReadRepairChance = builder.dcLocalReadRepairChance;
         bloomFilterFpChance = builder.bloomFilterFpChance == null
                             ? builder.compaction.defaultBloomFilterFbChance()
                             : builder.bloomFilterFpChance;
@@ -113,14 +107,12 @@ public final class TableParams
                             .comment(params.comment)
                             .compaction(params.compaction)
                             .compression(params.compression)
-                            .dcLocalReadRepairChance(params.dcLocalReadRepairChance)
                             .crcCheckChance(params.crcCheckChance)
                             .defaultTimeToLive(params.defaultTimeToLive)
                             .gcGraceSeconds(params.gcGraceSeconds)
                             .maxIndexInterval(params.maxIndexInterval)
                             .memtableFlushPeriodInMs(params.memtableFlushPeriodInMs)
                             .minIndexInterval(params.minIndexInterval)
-                            .readRepairChance(params.readRepairChance)
                             .speculativeRetry(params.speculativeRetry)
                             .extensions(params.extensions)
                             .cdc(params.cdc);
@@ -143,20 +135,6 @@ public final class TableParams
                  Option.BLOOM_FILTER_FP_CHANCE,
                  minBloomFilterFpChanceValue,
                  bloomFilterFpChance);
-        }
-
-        if (dcLocalReadRepairChance < 0 || dcLocalReadRepairChance > 1.0)
-        {
-            fail("%s must be larger than or equal to 0 and smaller than or equal to 1.0 (got %s)",
-                 Option.DCLOCAL_READ_REPAIR_CHANCE,
-                 dcLocalReadRepairChance);
-        }
-
-        if (readRepairChance < 0 || readRepairChance > 1.0)
-        {
-            fail("%s must be larger than or equal to 0 and smaller than or equal to 1.0 (got %s)",
-                 Option.READ_REPAIR_CHANCE,
-                 readRepairChance);
         }
 
         if (crcCheckChance < 0 || crcCheckChance > 1.0)
@@ -208,8 +186,6 @@ public final class TableParams
         TableParams p = (TableParams) o;
 
         return comment.equals(p.comment)
-            && readRepairChance == p.readRepairChance
-            && dcLocalReadRepairChance == p.dcLocalReadRepairChance
             && bloomFilterFpChance == p.bloomFilterFpChance
             && crcCheckChance == p.crcCheckChance
             && gcGraceSeconds == p.gcGraceSeconds
@@ -229,8 +205,6 @@ public final class TableParams
     public int hashCode()
     {
         return Objects.hashCode(comment,
-                                readRepairChance,
-                                dcLocalReadRepairChance,
                                 bloomFilterFpChance,
                                 crcCheckChance,
                                 gcGraceSeconds,
@@ -251,8 +225,6 @@ public final class TableParams
     {
         return MoreObjects.toStringHelper(this)
                           .add(Option.COMMENT.toString(), comment)
-                          .add(Option.READ_REPAIR_CHANCE.toString(), readRepairChance)
-                          .add(Option.DCLOCAL_READ_REPAIR_CHANCE.toString(), dcLocalReadRepairChance)
                           .add(Option.BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
                           .add(Option.CRC_CHECK_CHANCE.toString(), crcCheckChance)
                           .add(Option.GC_GRACE_SECONDS.toString(), gcGraceSeconds)
@@ -272,8 +244,6 @@ public final class TableParams
     public static final class Builder
     {
         private String comment = "";
-        private double readRepairChance = 0.0;
-        private double dcLocalReadRepairChance = 0.1;
         private Double bloomFilterFpChance;
         public Double crcCheckChance = 1.0;
         private int gcGraceSeconds = 864000; // 10 days
@@ -300,18 +270,6 @@ public final class TableParams
         public Builder comment(String val)
         {
             comment = val;
-            return this;
-        }
-
-        public Builder readRepairChance(double val)
-        {
-            readRepairChance = val;
-            return this;
-        }
-
-        public Builder dcLocalReadRepairChance(double val)
-        {
-            dcLocalReadRepairChance = val;
             return this;
         }
 

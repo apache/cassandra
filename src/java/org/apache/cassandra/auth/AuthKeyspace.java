@@ -84,7 +84,6 @@ public final class AuthKeyspace
         return CreateTableStatement.parse(format(cql, name), SchemaConstants.AUTH_KEYSPACE_NAME)
                                    .id(TableId.forSystemTable(SchemaConstants.AUTH_KEYSPACE_NAME, name))
                                    .comment(description)
-                                   .dcLocalReadRepairChance(0.0)
                                    .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(90))
                                    .build();
     }

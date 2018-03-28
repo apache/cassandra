@@ -123,7 +123,7 @@ public final class SchemaKeyspace
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
               + "crc_check_chance double,"
-              + "dclocal_read_repair_chance double,"
+              + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
               + "default_time_to_live int,"
               + "extensions frozen<map<text, blob>>,"
               + "flags frozen<set<text>>," // SUPER, COUNTER, DENSE, COMPOUND
@@ -132,7 +132,7 @@ public final class SchemaKeyspace
               + "max_index_interval int,"
               + "memtable_flush_period_in_ms int,"
               + "min_index_interval int,"
-              + "read_repair_chance double,"
+              + "read_repair_chance double," // no longer used, left for drivers' sake
               + "speculative_retry text,"
               + "cdc boolean,"
               + "PRIMARY KEY ((keyspace_name), table_name))");
@@ -188,7 +188,7 @@ public final class SchemaKeyspace
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
               + "crc_check_chance double,"
-              + "dclocal_read_repair_chance double,"
+              + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
               + "default_time_to_live int,"
               + "extensions frozen<map<text, blob>>,"
               + "gc_grace_seconds int,"
@@ -197,7 +197,7 @@ public final class SchemaKeyspace
               + "max_index_interval int,"
               + "memtable_flush_period_in_ms int,"
               + "min_index_interval int,"
-              + "read_repair_chance double,"
+              + "read_repair_chance double," // no longer used, left for drivers' sake
               + "speculative_retry text,"
               + "cdc boolean,"
               + "PRIMARY KEY ((keyspace_name), view_name))");
@@ -258,7 +258,6 @@ public final class SchemaKeyspace
     {
         return CreateTableStatement.parse(format(cql, name), SchemaConstants.SCHEMA_KEYSPACE_NAME)
                                    .id(TableId.forSystemTable(SchemaConstants.SCHEMA_KEYSPACE_NAME, name))
-                                   .dcLocalReadRepairChance(0.0)
                                    .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(7))
                                    .memtableFlushPeriod((int) TimeUnit.HOURS.toMillis(1))
                                    .comment(description)
@@ -524,13 +523,13 @@ public final class SchemaKeyspace
     {
         builder.add("bloom_filter_fp_chance", params.bloomFilterFpChance)
                .add("comment", params.comment)
-               .add("dclocal_read_repair_chance", params.dcLocalReadRepairChance)
+               .add("dclocal_read_repair_chance", 0.0) // no longer used, left for drivers' sake
                .add("default_time_to_live", params.defaultTimeToLive)
                .add("gc_grace_seconds", params.gcGraceSeconds)
                .add("max_index_interval", params.maxIndexInterval)
                .add("memtable_flush_period_in_ms", params.memtableFlushPeriodInMs)
                .add("min_index_interval", params.minIndexInterval)
-               .add("read_repair_chance", params.readRepairChance)
+               .add("read_repair_chance", 0.0) // no longer used, left for drivers' sake
                .add("speculative_retry", params.speculativeRetry.toString())
                .add("crc_check_chance", params.crcCheckChance)
                .add("caching", params.caching.asMap())
@@ -994,14 +993,12 @@ public final class SchemaKeyspace
                           .comment(row.getString("comment"))
                           .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
                           .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
-                          .dcLocalReadRepairChance(row.getDouble("dclocal_read_repair_chance"))
                           .defaultTimeToLive(row.getInt("default_time_to_live"))
                           .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
                           .gcGraceSeconds(row.getInt("gc_grace_seconds"))
                           .maxIndexInterval(row.getInt("max_index_interval"))
                           .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
                           .minIndexInterval(row.getInt("min_index_interval"))
-                          .readRepairChance(row.getDouble("read_repair_chance"))
                           .crcCheckChance(row.getDouble("crc_check_chance"))
                           .speculativeRetry(SpeculativeRetryPolicy.fromString(row.getString("speculative_retry")))
                           .cdc(row.has("cdc") && row.getBoolean("cdc"))

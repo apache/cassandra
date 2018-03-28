@@ -523,11 +523,7 @@ public final class TableMetadata
 
     public TableMetadata updateIndexTableMetadata(TableParams baseTableParams)
     {
-        TableParams.Builder builder =
-            baseTableParams.unbuild()
-                           .readRepairChance(0.0)
-                           .dcLocalReadRepairChance(0.0)
-                           .gcGraceSeconds(0);
+        TableParams.Builder builder = baseTableParams.unbuild().gcGraceSeconds(0);
 
         // Depends on parent's cache setting, turn on its index table's cache.
         // Row caching is never enabled; see CASSANDRA-5732
@@ -689,12 +685,6 @@ public final class TableMetadata
             return this;
         }
 
-        public Builder dcLocalReadRepairChance(double val)
-        {
-            params.dcLocalReadRepairChance(val);
-            return this;
-        }
-
         public Builder defaultTimeToLive(int val)
         {
             params.defaultTimeToLive(val);
@@ -722,12 +712,6 @@ public final class TableMetadata
         public Builder minIndexInterval(int val)
         {
             params.minIndexInterval(val);
-            return this;
-        }
-
-        public Builder readRepairChance(double val)
-        {
-            params.readRepairChance(val);
             return this;
         }
 

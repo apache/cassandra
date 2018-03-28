@@ -145,6 +145,9 @@ Upgrading
       match the Amazon names. There is now a new option in conf/cassandra-rackdc.properties
       that lets users enable the correct names for new clusters, or use the legacy
       names for existing clusters. See conf/cassandra-rackdc.properties for details.
+    - Background repair has been removed. dclocal_read_repair_chance and
+      read_repair_chance table options have been removed and are now rejected.
+      See CASSANDRA-13910 for details.
 
 Materialized Views
 -------------------

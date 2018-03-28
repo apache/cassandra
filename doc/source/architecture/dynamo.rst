@@ -117,12 +117,8 @@ Write operations are always sent to all replicas, regardless of consistency leve
 controls how many responses the coordinator waits for before responding to the client.
 
 For read operations, the coordinator generally only issues read commands to enough replicas to satisfy the consistency
-level. There are a couple of exceptions to this:
-
-- Speculative retry may issue a redundant read request to an extra replica if the other replicas have not responded
-  within a specified time window.
-- Based on ``read_repair_chance`` and ``dclocal_read_repair_chance`` (part of a table's schema), read requests may be
-  randomly sent to all replicas in order to repair potentially inconsistent data.
+level, with one exception. Speculative retry may issue a redundant read request to an extra replica if the other replicas
+have not responded within a specified time window.
 
 Picking Consistency Levels
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

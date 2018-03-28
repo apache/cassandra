@@ -248,14 +248,12 @@ public class TableCQLHelperTest extends CQLTester
                .comment("comment")
                .compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")))
                .compression(CompressionParams.lz4(1 << 16, 1 << 15))
-               .dcLocalReadRepairChance(0.2)
                .crcCheckChance(0.3)
                .defaultTimeToLive(4)
                .gcGraceSeconds(5)
                .minIndexInterval(6)
                .maxIndexInterval(7)
                .memtableFlushPeriod(8)
-               .readRepairChance(0.9)
                .speculativeRetry(AlwaysSpeculativeRetryPolicy.INSTANCE)
                .extensions(ImmutableMap.of("ext1", ByteBuffer.wrap("val1".getBytes())))
                .recordColumnDrop(ColumnMetadata.regularColumn(keyspace, table, "reg1", AsciiType.instance),
@@ -267,14 +265,12 @@ public class TableCQLHelperTest extends CQLTester
 
         assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).endsWith(
         "AND bloom_filter_fp_chance = 1.0\n" +
-        "\tAND dclocal_read_repair_chance = 0.2\n" +
         "\tAND crc_check_chance = 0.3\n" +
         "\tAND default_time_to_live = 4\n" +
         "\tAND gc_grace_seconds = 5\n" +
         "\tAND min_index_interval = 6\n" +
         "\tAND max_index_interval = 7\n" +
         "\tAND memtable_flush_period_in_ms = 8\n" +
-        "\tAND read_repair_chance = 0.9\n" +
         "\tAND speculative_retry = 'ALWAYS'\n" +
         "\tAND comment = 'comment'\n" +
         "\tAND caching = { 'keys': 'ALL', 'rows_per_partition': 'NONE' }\n" +

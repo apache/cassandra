@@ -35,8 +35,8 @@ configured with the following properties on ``cassandra.yaml``:
 - ``dynamic_snitch``: whether the dynamic snitch should be enabled or disabled.
 - ``dynamic_snitch_update_interval_in_ms``: controls how often to perform the more expensive part of host score
   calculation.
-- ``dynamic_snitch_reset_interval_in_ms``: if set greater than zero and read_repair_chance is < 1.0, this will allow
-  'pinning' of replicas to hosts in order to increase cache capacity.
+- ``dynamic_snitch_reset_interval_in_ms``: if set greater than zero, this will allow 'pinning' of replicas to hosts
+  in order to increase cache capacity.
 - ``dynamic_snitch_badness_threshold:``: The badness threshold will control how much worse the pinned host has to be
   before the dynamic snitch will prefer other replicas over it.  This is expressed as a double which represents a
   percentage.  Thus, a value of 0.2 means Cassandra would continue to prefer the static snitch values until the pinned

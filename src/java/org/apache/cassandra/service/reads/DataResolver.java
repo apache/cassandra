@@ -22,19 +22,18 @@ import java.util.*;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.db.transform.*;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.*;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.transform.*;
-import org.apache.cassandra.net.*;
-import org.apache.cassandra.tracing.TraceState;
 
 public class DataResolver extends ResponseResolver
 {
@@ -88,7 +87,7 @@ public class DataResolver extends ResponseResolver
          */
 
         DataLimits.Counter mergedResultCounter =
-        command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
+            command.limits().newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
 
         UnfilteredPartitionIterator merged = mergeWithShortReadProtection(iters, sources, mergedResultCounter);
         FilteredPartitions filtered = FilteredPartitions.filter(merged, new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness()));
@@ -110,25 +109,9 @@ public class DataResolver extends ResponseResolver
          */
         if (!command.limits().isUnlimited())
             for (int i = 0; i < results.size(); i++)
-            {
                 results.set(i, ShortReadProtection.extend(sources[i], results.get(i), command, mergedResultCounter, queryStartNanoTime, enforceStrictLiveness));
-            }
 
         return UnfilteredPartitionIterators.merge(results, command.nowInSec(), wrapMergeListener(readRepair.getMergeListener(sources), sources));
-    }
-
-    public void evaluateAllResponses()
-    {
-        // We need to fully consume the results to trigger read repairs if appropriate
-        try (PartitionIterator iterator = resolve())
-        {
-            PartitionIterators.consume(iterator);
-        }
-    }
-
-    public void evaluateAllResponses(TraceState traceState)
-    {
-        evaluateAllResponses();
     }
 
     private String makeResponsesDebugString(DecoratedKey partitionKey)

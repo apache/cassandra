@@ -23,7 +23,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
-import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 
 public abstract class ResponseResolver
@@ -46,11 +45,6 @@ public abstract class ResponseResolver
         this.readRepair = readRepair;
         this.responses = new Accumulator<>(maxResponseCount);
     }
-
-    /**
-     * Consume the accumulated responses, starting a read repair if neccesary
-     */
-    public abstract void evaluateAllResponses(TraceState traceState);
 
     public abstract boolean isDataPresent();
 
