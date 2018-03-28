@@ -1,4 +1,5 @@
 4.1
+ * Add broadcast_rpc_address to system.local (CASSANDRA-11181)
  * Add support for type casting in WHERE clause components and in the values of INSERT/UPDATE statements (CASSANDRA-14337)
  * add credentials file support to CQLSH (CASSANDRA-16983)
  * Skip remaining bytes in the Envelope buffer when a ProtocolException is thrown to avoid double decoding (CASSANDRA-17026)
