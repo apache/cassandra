@@ -38,7 +38,10 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
@@ -57,7 +60,6 @@ import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.ResponseResolver;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.concurrent.Accumulator;
 
 /**
  * 'Classic' read repair. Doesn't allow the client read to return until
@@ -66,6 +68,9 @@ import org.apache.cassandra.utils.concurrent.Accumulator;
 public class BlockingReadRepair implements ReadRepair, RepairListener
 {
     private static final Logger logger = LoggerFactory.getLogger(BlockingReadRepair.class);
+
+    private static final boolean DROP_OVERSIZED_READ_REPAIR_MUTATIONS =
+        Boolean.getBoolean("cassandra.drop_oversized_readrepair_mutations");
 
     private final ReadCommand command;
     private final List<InetAddressAndPort> endpoints;
@@ -110,24 +115,66 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
     {
 
         final List<AsyncOneResponse<?>> responses;
+        final ReadCommand command;
+        final ConsistencyLevel consistency;
 
-        public BlockingPartitionRepair(int expectedResponses)
+        public BlockingPartitionRepair(int expectedResponses, ReadCommand command, ConsistencyLevel consistency)
         {
             this.responses = new ArrayList<>(expectedResponses);
+            this.command = command;
+            this.consistency = consistency;
         }
 
-        protected AsyncOneResponse sendMutation(InetAddressAndPort endpoint, Mutation mutation)
+        private AsyncOneResponse sendRepairMutation(Mutation mutation, InetAddressAndPort destination)
         {
-            // use a separate verb here because we don't want these to be get the white glove hint-
-            // on-timeout behavior that a "real" mutation gets
-            Tracing.trace("Sending read-repair-mutation to {}", endpoint);
-            MessageOut<Mutation> msg = mutation.createMessage(MessagingService.Verb.READ_REPAIR);
-            return MessagingService.instance().sendRR(msg, endpoint);
+            DecoratedKey key = mutation.key();
+            Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
+            int messagingVersion = MessagingService.instance().getVersion(destination);
+
+            int    mutationSize = (int) Mutation.serializer.serializedSize(mutation, messagingVersion);
+            int maxMutationSize = DatabaseDescriptor.getMaxMutationSize();
+
+            AsyncOneResponse callback = null;
+
+            if (mutationSize <= maxMutationSize)
+            {
+                Tracing.trace("Sending read-repair-mutation to {}", destination);
+                // use a separate verb here to avoid writing hints on timeouts
+                MessageOut<Mutation> message = mutation.createMessage(MessagingService.Verb.READ_REPAIR);
+                callback = MessagingService.instance().sendRR(message, destination);
+                ColumnFamilyStore.metricsFor(command.metadata().id).readRepairRequests.mark();
+            }
+            else if (DROP_OVERSIZED_READ_REPAIR_MUTATIONS)
+            {
+                logger.debug("Encountered an oversized ({}/{}) read repair mutation for table {}, key {}, node {}",
+                             mutationSize,
+                             maxMutationSize,
+                             command.metadata(),
+                             command.metadata().partitionKeyType.getString(key.getKey()),
+                             destination);
+            }
+            else
+            {
+                logger.warn("Encountered an oversized ({}/{}) read repair mutation for table {}, key {}, node {}",
+                            mutationSize,
+                            maxMutationSize,
+                            command.metadata(),
+                            command.metadata().partitionKeyType.getString(key.getKey()),
+                            destination);
+
+                int blockFor = consistency.blockFor(keyspace);
+                Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
+                throw new ReadTimeoutException(consistency, blockFor - 1, blockFor, true);
+            }
+            return callback;
         }
 
         public void reportMutation(InetAddressAndPort endpoint, Mutation mutation)
         {
-            responses.add(sendMutation(endpoint, mutation));
+            AsyncOneResponse<?> response = sendRepairMutation(mutation, endpoint);
+
+            if (response != null)
+                responses.add(response);
         }
 
         public void finish()
@@ -169,12 +216,11 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
         {
             throw new RuntimeException(e);
         }
-
     }
 
     public PartitionRepair startPartitionRepair()
     {
-        BlockingPartitionRepair repair = new BlockingPartitionRepair(endpoints.size());
+        BlockingPartitionRepair repair = new BlockingPartitionRepair(endpoints.size(), command, consistency);
         repairs.add(repair);
         return repair;
     }

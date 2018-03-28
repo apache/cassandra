@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import java.net.InetAddress;
 import java.util.List;
 import java.util.function.Consumer;
 

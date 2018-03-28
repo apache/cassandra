@@ -1,4 +1,5 @@
 4.0
+ * Fix some regressions caused by 14058 (CASSANDRA-14353)
  * Abstract repair for pluggable storage (CASSANDRA-14116)
  * Add meaningful toString() impls (CASSANDRA-13653)
  * Add sstableloader option to accept target keyspace name (CASSANDRA-13884)

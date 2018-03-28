@@ -20,9 +20,6 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DecoratedKey;
@@ -35,8 +32,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class PartitionIteratorMergeListener implements UnfilteredPartitionIterators.MergeListener
 {
-    private static final Logger logger = LoggerFactory.getLogger(PartitionIteratorMergeListener.class);
-
     private final InetAddressAndPort[] sources;
     private final ReadCommand command;
     private final RepairListener repairListener;
