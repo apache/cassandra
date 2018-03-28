@@ -33,11 +33,16 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.CassandraVersion;
 
+import static java.lang.String.format;
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.apache.cassandra.db.SystemKeyspace.LOCAL;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class SystemKeyspaceTest
@@ -153,6 +158,31 @@ public class SystemKeyspaceTest
         assertDeletedOrDeferred(baseline + 10);
 
         Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+    }
+
+    @Test
+    public void testPersistLocalMetadata() throws IOException
+    {
+        SystemKeyspace.persistLocalMetadata();
+
+        UntypedResultSet result = executeInternal(format("SELECT * FROM system.%s WHERE key='%s'", LOCAL, LOCAL));
+
+        assertNotNull(result);
+        UntypedResultSet.Row row = result.one();
+
+        assertEquals(DatabaseDescriptor.getClusterName(), row.getString("cluster_name"));
+        assertEquals(FBUtilities.getReleaseVersionString(), row.getString("release_version"));
+        assertEquals(QueryProcessor.CQL_VERSION.toString(), row.getString("cql_version"));
+        assertEquals(String.valueOf(ProtocolVersion.CURRENT.asInt()), row.getString("native_protocol_version"));
+        assertEquals(DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter(), row.getString("data_center"));
+        assertEquals(DatabaseDescriptor.getEndpointSnitch().getLocalRack(), row.getString("rack"));
+        assertEquals(DatabaseDescriptor.getPartitioner().getClass().getName(), row.getString("partitioner"));
+        assertEquals(FBUtilities.getJustBroadcastNativeAddress(), row.getInetAddress("rpc_address"));
+        assertEquals(DatabaseDescriptor.getNativeTransportPort(), row.getInt("rpc_port"));
+        assertEquals(FBUtilities.getJustBroadcastAddress(), row.getInetAddress("broadcast_address"));
+        assertEquals(DatabaseDescriptor.getStoragePort(), row.getInt("broadcast_port"));
+        assertEquals(FBUtilities.getJustLocalAddress(), row.getInetAddress("listen_address"));
+        assertEquals(DatabaseDescriptor.getStoragePort(), row.getInt("listen_port"));
     }
 
     private String getOlderVersionString()
