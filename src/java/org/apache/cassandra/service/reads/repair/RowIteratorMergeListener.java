@@ -20,9 +20,6 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.Arrays;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
-
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.DecoratedKey;
@@ -44,7 +41,6 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 
 public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeListener
 {
@@ -185,32 +181,6 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
     }
 
     public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions)
-    {
-        try
-        {
-            // The code for merging range tombstones is a tad complex and we had the assertions there triggered
-            // unexpectedly in a few occasions (CASSANDRA-13237, CASSANDRA-13719). It's hard to get insights
-            // when that happen without more context that what the assertion errors give us however, hence the
-            // catch here that basically gather as much as context as reasonable.
-            internalOnMergedRangeTombstoneMarkers(merged, versions);
-        }
-        catch (AssertionError e)
-        {
-            // The following can be pretty verbose, but it's really only triggered if a bug happen, so we'd
-            // rather get more info to debug than not.
-            TableMetadata table = command.metadata();
-            String details = String.format("Error merging RTs on %s: command=%s, reversed=%b, merged=%s, versions=%s, sources={%s}",
-                                           table,
-                                           command.toCQLString(),
-                                           isReversed,
-                                           merged == null ? "null" : merged.toString(table),
-                                           '[' + Joiner.on(", ").join(Iterables.transform(Arrays.asList(versions), rt -> rt == null ? "null" : rt.toString(table))) + ']',
-                                           Arrays.toString(sources));
-            throw new AssertionError(details, e);
-        }
-    }
-
-    private void internalOnMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions)
     {
         // The current deletion as of dealing with this marker.
         DeletionTime currentDeletion = currentDeletion();

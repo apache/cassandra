@@ -33,6 +33,7 @@ import org.apache.cassandra.tracing.TraceState;
 
 public interface ReadRepair
 {
+
     /**
      * Used by DataResolver to generate corrections as the partition iterator is consumed
      */
