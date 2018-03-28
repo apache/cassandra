@@ -1356,4 +1356,18 @@ public class JsonTest extends CQLTester
         executor.shutdown();
         Assert.assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
     }
+
+    @Test
+    public void emptyStringJsonSerializationTest() throws Throwable
+    {
+        createTable("create table %s(id INT, name TEXT, PRIMARY KEY(id));");
+        execute("insert into %s(id, name) VALUES (0, 'Foo');");
+        execute("insert into %s(id, name) VALUES (2, '');");
+        execute("insert into %s(id, name) VALUES (3, null);");
+
+        assertRows(execute("SELECT JSON * FROM %s"),
+                   row("{\"id\": 0, \"name\": \"Foo\"}"),
+                   row("{\"id\": 2, \"name\": \"\"}"),
+                   row("{\"id\": 3, \"name\": null}"));
+    }
 }

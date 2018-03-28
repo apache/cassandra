@@ -208,6 +208,7 @@
 
 
 3.11.3
+ * Serialize empty buffer as empty string for json output format (CASSANDRA-14245)
  * Allow logging implementation to be interchanged for embedded testing (CASSANDRA-13396)
  * SASI tokenizer for simple delimiter based entries (CASSANDRA-14247)
  * Fix Loss of digits when doing CAST from varint/bigint to decimal (CASSANDRA-14170)
