@@ -497,7 +497,7 @@ public final class SystemKeyspace
                             snitch.getLocalDatacenter(),
                             snitch.getLocalRack(),
                             DatabaseDescriptor.getPartitioner().getClass().getName(),
-                            DatabaseDescriptor.getRpcAddress(),
+                            FBUtilities.getJustBroadcastNativeAddress(),
                             DatabaseDescriptor.getNativeTransportPort(),
                             FBUtilities.getJustBroadcastAddress(),
                             DatabaseDescriptor.getStoragePort(),
