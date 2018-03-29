@@ -1015,7 +1015,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
             public void response(MessageIn msg)
             {
-                realMarkAlive(addr, localState);
+                // force processing of the echo response onto the gossip stage, as it comes in on the REQUEST_RESPONSE stage
+                StageManager.getStage(Stage.GOSSIP).submit(() -> realMarkAlive(addr, localState));
             }
         };
 
