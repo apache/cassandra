@@ -1,12 +1,12 @@
 4.0
+ * Add support for hybrid MIN(), MAX() speculative retry policies
+   (CASSANDRA-14293, CASSANDRA-14338, CASSANDRA-14352)
  * Fix some regressions caused by 14058 (CASSANDRA-14353)
  * Abstract repair for pluggable storage (CASSANDRA-14116)
  * Add meaningful toString() impls (CASSANDRA-13653)
  * Add sstableloader option to accept target keyspace name (CASSANDRA-13884)
  * Move processing of EchoMessage response to gossip stage (CASSANDRA-13713)
  * Add coordinator write metric per CF (CASSANDRA-14232)
- * Fix scheduling of speculative retry threshold recalculation (CASSANDRA-14338)
- * Add support for hybrid MIN(), MAX() speculative retry policies (CASSANDRA-14293)
  * Correct and clarify SSLFactory.getSslContext method and call sites (CASSANDRA-14314)
  * Handle static and partition deletion properly on ThrottledUnfilteredIterator (CASSANDRA-14315)
  * NodeTool clientstats should show SSL Cipher (CASSANDRA-14322)

@@ -15,20 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.reads;
 
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.common.base.Objects;
 
 import com.codahale.metrics.Timer;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.TableParams;
 
 public class FixedSpeculativeRetryPolicy implements SpeculativeRetryPolicy
 {
+    private static final Pattern PATTERN = Pattern.compile("^(?<val>[0-9.]+)ms$", Pattern.CASE_INSENSITIVE);
+
     private final int speculateAtMilliseconds;
 
-    public FixedSpeculativeRetryPolicy(int speculateAtMilliseconds)
+    FixedSpeculativeRetryPolicy(int speculateAtMilliseconds)
     {
         this.speculateAtMilliseconds = speculateAtMilliseconds;
     }
@@ -64,5 +69,29 @@ public class FixedSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     public String toString()
     {
         return String.format("%dms", speculateAtMilliseconds);
+    }
+
+    static FixedSpeculativeRetryPolicy fromString(String str)
+    {
+        Matcher matcher = PATTERN.matcher(str);
+
+        if (!matcher.matches())
+            throw new IllegalArgumentException();
+
+        String val = matcher.group("val");
+        try
+        {
+             // historically we've always parsed this as double, but treated as int; so we keep doing it for compatibility
+            return new FixedSpeculativeRetryPolicy((int) Double.parseDouble(val));
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ConfigurationException(String.format("Invalid value %s for option '%s'", str, TableParams.Option.SPECULATIVE_RETRY));
+        }
+    }
+
+    static boolean stringMatches(String str)
+    {
+        return PATTERN.matcher(str).matches();
     }
 }
