@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.reads;
 
 import com.google.common.base.Objects;
@@ -58,5 +57,10 @@ public class AlwaysSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     public String toString()
     {
         return Kind.ALWAYS.toString();
+    }
+
+    static boolean stringMatches(String str)
+    {
+        return str.equalsIgnoreCase("ALWAYS");
     }
 }

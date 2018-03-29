@@ -15,15 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.reads;
+
+import java.text.DecimalFormat;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.common.base.Objects;
 
 import com.codahale.metrics.Timer;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.TableParams;
 
 public class PercentileSpeculativeRetryPolicy implements SpeculativeRetryPolicy
 {
+    private static final Pattern PATTERN = Pattern.compile("^(?<val>[0-9.]+)p(ercentile)?$", Pattern.CASE_INSENSITIVE);
+    private static final DecimalFormat FORMATTER = new DecimalFormat("#.####");
+
     private final double percentile;
 
     public PercentileSpeculativeRetryPolicy(double percentile)
@@ -61,6 +69,39 @@ public class PercentileSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     @Override
     public String toString()
     {
-        return String.format("%.2fp", percentile);
+        return String.format("%sp", FORMATTER.format(percentile));
+    }
+
+    static PercentileSpeculativeRetryPolicy fromString(String str)
+    {
+        Matcher matcher = PATTERN.matcher(str);
+
+        if (!matcher.matches())
+            throw new IllegalArgumentException();
+
+        String val = matcher.group("val");
+
+        double percentile;
+        try
+        {
+            percentile = Double.parseDouble(val);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ConfigurationException(String.format("Invalid value %s for option '%s'", str, TableParams.Option.SPECULATIVE_RETRY));
+        }
+
+        if (percentile <= 0.0 || percentile >= 100.0)
+        {
+            throw new ConfigurationException(String.format("Invalid value %s for PERCENTILE option '%s': must be between (0.0 and 100.0)",
+                                                           str, TableParams.Option.SPECULATIVE_RETRY));
+        }
+
+        return new PercentileSpeculativeRetryPolicy(percentile);
+    }
+
+    static boolean stringMatches(String str)
+    {
+        return PATTERN.matcher(str).matches();
     }
 }
