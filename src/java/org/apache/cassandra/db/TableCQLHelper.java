@@ -34,19 +34,19 @@ import org.apache.cassandra.utils.*;
 /**
  * Helper methods to represent TableMetadata and related objects in CQL format
  */
-public class ColumnFamilyStoreCQLHelper
+public class TableCQLHelper
 {
     public static List<String> dumpReCreateStatements(TableMetadata metadata)
     {
         List<String> l = new ArrayList<>();
         // Types come first, as table can't be created without them
-        l.addAll(ColumnFamilyStoreCQLHelper.getUserTypesAsCQL(metadata));
+        l.addAll(TableCQLHelper.getUserTypesAsCQL(metadata));
         // Record re-create schema statements
-        l.add(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(metadata, true));
+        l.add(TableCQLHelper.getTableMetadataAsCQL(metadata, true));
         // Dropped columns (and re-additions)
-        l.addAll(ColumnFamilyStoreCQLHelper.getDroppedColumnsAsCQL(metadata));
+        l.addAll(TableCQLHelper.getDroppedColumnsAsCQL(metadata));
         // Indexes applied as last, since otherwise they may interfere with column drops / re-additions
-        l.addAll(ColumnFamilyStoreCQLHelper.getIndexesAsCQL(metadata));
+        l.addAll(TableCQLHelper.getIndexesAsCQL(metadata));
         return l;
     }
 
@@ -86,7 +86,7 @@ public class ColumnFamilyStoreCQLHelper
     }
 
     /**
-     * Build a CQL String representation of Column Family Metadata
+     * Build a CQL String representation of Table Metadata
      */
     @VisibleForTesting
     public static String getTableMetadataAsCQL(TableMetadata metadata, boolean includeDroppedColumns)
@@ -200,7 +200,7 @@ public class ColumnFamilyStoreCQLHelper
     }
 
     /**
-     * Build a CQL String representation of User Types used in the given Column Family.
+     * Build a CQL String representation of User Types used in the given Table.
      *
      * Type order is ensured as types are built incrementally: from the innermost (most nested)
      * to the outermost.
@@ -224,7 +224,7 @@ public class ColumnFamilyStoreCQLHelper
     }
 
     /**
-     * Build a CQL String representation of Dropped Columns in the given Column Family.
+     * Build a CQL String representation of Dropped Columns in the given Table.
      *
      * If the column was dropped once, but is now re-created `ADD` will be appended accordingly.
      */
@@ -245,7 +245,7 @@ public class ColumnFamilyStoreCQLHelper
     }
 
     /**
-     * Build a CQL String representation of Indexes on columns in the given Column Family
+     * Build a CQL String representation of Indexes on columns in the given Table
      */
     @VisibleForTesting
     public static List<String> getIndexesAsCQL(TableMetadata metadata)

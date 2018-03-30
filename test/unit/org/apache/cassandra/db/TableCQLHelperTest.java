@@ -46,7 +46,7 @@ import org.json.simple.parser.JSONParser;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class ColumnFamilyStoreCQLHelperTest extends CQLTester
+public class TableCQLHelperTest extends CQLTester
 {
     @Before
     public void defineSchema() throws ConfigurationException
@@ -103,7 +103,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         assertEquals(ImmutableList.of("CREATE TYPE cql_test_keyspace_user_types.a (a1 varint, a2 varint, a3 varint);",
                                       "CREATE TYPE cql_test_keyspace_user_types.b (b1 a, b2 a, b3 a);",
                                       "CREATE TYPE cql_test_keyspace_user_types.c (c1 b, c2 b, c3 b);"),
-                     ColumnFamilyStoreCQLHelper.getUserTypesAsCQL(cfs.metadata()));
+                     TableCQLHelper.getUserTypesAsCQL(cfs.metadata()));
     }
 
     @Test
@@ -139,9 +139,9 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         assertEquals(ImmutableList.of("ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg1 USING TIMESTAMP 10000;",
                                       "ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg3 USING TIMESTAMP 30000;",
                                       "ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg2 USING TIMESTAMP 20000;"),
-                     ColumnFamilyStoreCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
+                     TableCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
+        assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_dropped_columns.test_table_dropped_columns (\n" +
         "\tpk1 varint,\n" +
         "\tck1 varint,\n" +
@@ -182,7 +182,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
         // when re-adding, column is present in CREATE, then in DROP and then in ADD again, to record DROP with a proper timestamp
-        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
+        assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_readded_columns.test_table_readded_columns (\n" +
         "\tpk1 varint,\n" +
         "\tck1 varint,\n" +
@@ -195,7 +195,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns ADD reg1 varint;",
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns DROP reg2 USING TIMESTAMP 20000;",
                                       "ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns ADD reg2 varint static;"),
-                     ColumnFamilyStoreCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
+                     TableCQLHelper.getDroppedColumnsAsCQL(cfs.metadata()));
     }
 
     @Test
@@ -219,7 +219,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
+        assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).startsWith(
         "CREATE TABLE IF NOT EXISTS cql_test_keyspace_create_table.test_table_create_table (\n" +
         "\tpk1 varint,\n" +
         "\tpk2 ascii,\n" +
@@ -265,7 +265,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        assertTrue(ColumnFamilyStoreCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).endsWith(
+        assertTrue(TableCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true).endsWith(
         "AND bloom_filter_fp_chance = 1.0\n" +
         "\tAND dclocal_read_repair_chance = 0.2\n" +
         "\tAND crc_check_chance = 0.3\n" +
@@ -330,7 +330,7 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
                                       "CREATE INDEX \"indexName2\" ON cql_test_keyspace_3.test_table_3 (keys(reg1));",
                                       "CREATE INDEX \"indexName3\" ON cql_test_keyspace_3.test_table_3 (entries(reg1));",
                                       "CREATE CUSTOM INDEX \"indexName4\" ON cql_test_keyspace_3.test_table_3 (entries(reg1)) USING 'org.apache.cassandra.index.sasi.SASIIndex';"),
-                     ColumnFamilyStoreCQLHelper.getIndexesAsCQL(cfs.metadata()));
+                     TableCQLHelper.getIndexesAsCQL(cfs.metadata()));
     }
 
     private final static String SNAPSHOT = "testsnapshot";

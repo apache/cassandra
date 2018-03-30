@@ -1,4 +1,6 @@
 4.0
+ * Rename internals to reflect CQL vocabulary
+   (CASSANDRA-14354)
  * Add support for hybrid MIN(), MAX() speculative retry policies
    (CASSANDRA-14293, CASSANDRA-14338, CASSANDRA-14352)
  * Fix some regressions caused by 14058 (CASSANDRA-14353)
