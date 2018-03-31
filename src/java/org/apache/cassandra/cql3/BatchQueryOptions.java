@@ -26,6 +26,8 @@ import org.apache.cassandra.utils.MD5Digest;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.QueryState;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public abstract class BatchQueryOptions
 {
@@ -140,5 +142,11 @@ public abstract class BatchQueryOptions
         {
             return getQueryOrIdList().get(i) instanceof MD5Digest;
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

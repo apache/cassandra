@@ -24,6 +24,8 @@ import java.util.List;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.IndexName;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public class IndexRestrictions
 {
@@ -79,5 +81,11 @@ public class IndexRestrictions
     static InvalidRequestException customExpressionNotSupported(IndexName indexName)
     {
         return new InvalidRequestException(String.format(CUSTOM_EXPRESSION_NOT_SUPPORTED, indexName.getIdx()));
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

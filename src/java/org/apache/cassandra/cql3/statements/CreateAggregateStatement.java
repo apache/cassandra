@@ -36,6 +36,8 @@ import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 /**
  * A {@code CREATE AGGREGATE} statement parsed from a CQL query.
@@ -257,5 +259,11 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         r.add(stateType);
         r.addAll(argTypes);
         return r;
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

@@ -22,6 +22,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public class CustomIndexExpression
 {
@@ -52,5 +54,11 @@ public class CustomIndexExpression
                                              .get(targetIndex.getIdx())
                                              .orElseThrow(() -> IndexRestrictions.indexNotFound(targetIndex, table)),
                                         value.bindAndGet(options));
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

@@ -32,6 +32,8 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.Event;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public class AlterKeyspaceStatement extends SchemaAlteringStatement
 {
@@ -108,5 +110,11 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
         KeyspaceMetadata newKsm = oldKsm.withSwapped(attrs.asAlteredKeyspaceParams(oldKsm.params));
         MigrationManager.announceKeyspaceUpdate(newKsm, isLocalOnly);
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, keyspace());
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

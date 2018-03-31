@@ -51,6 +51,8 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public class CreateViewStatement extends SchemaAlteringStatement
 {
@@ -370,5 +372,11 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
         columns.add(def.name);
         return !isPk;
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

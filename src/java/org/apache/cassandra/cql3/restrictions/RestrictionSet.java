@@ -28,6 +28,8 @@ import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction.ContainsRe
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 /**
  * Sets of column restrictions.
@@ -353,5 +355,11 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
             }
             return endOfData();
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

@@ -25,6 +25,8 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 /**
  * A <code>RestrictionSet</code> wrapper that can be extended to allow to modify the <code>RestrictionSet</code>
@@ -107,5 +109,11 @@ class RestrictionSetWrapper implements Restrictions
     public Set<Restriction> getRestrictions(ColumnMetadata columnDef)
     {
         return restrictions.getRestrictions(columnDef);
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

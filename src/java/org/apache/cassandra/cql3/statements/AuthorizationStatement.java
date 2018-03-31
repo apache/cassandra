@@ -28,6 +28,8 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public abstract class AuthorizationStatement extends ParsedStatement implements CQLStatement
 {
@@ -65,5 +67,11 @@ public abstract class AuthorizationStatement extends ParsedStatement implements 
                 return DataResource.table(state.getKeyspace(), dataResource.getTable());
         }
         return resource;
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

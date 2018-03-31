@@ -29,6 +29,8 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.CQL3CasRequest;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 /**
  * A set of <code>ColumnCondition</code>s.
@@ -161,5 +163,11 @@ public final class ColumnConditions extends AbstractConditions
         private Builder()
         {
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

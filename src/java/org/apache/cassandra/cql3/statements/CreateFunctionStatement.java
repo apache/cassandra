@@ -34,6 +34,8 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 /**
  * A {@code CREATE FUNCTION} statement parsed from a CQL query.
@@ -179,5 +181,11 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
         AbstractType<?> type = rawType.prepare(functionName.keyspace).getType();
         return type;
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }
