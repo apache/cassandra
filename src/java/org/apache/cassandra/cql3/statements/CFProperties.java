@@ -23,6 +23,8 @@ import java.util.Map;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public class CFProperties
 {
@@ -52,5 +54,11 @@ public class CFProperties
             return type;
         }
         return definedOrdering.get(targetIdentifier) ? ReversedType.getInstance(type) : type;
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.statements;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 /**
  * Abstract class for statements that apply on a given column family.
@@ -62,5 +64,11 @@ public abstract class CFStatement extends ParsedStatement
     public String columnFamily()
     {
         return cfName.getColumnFamily();
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

@@ -29,6 +29,8 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public class ListPermissionsStatement extends AuthorizationStatement
 {
@@ -128,5 +130,11 @@ public class ListPermissionsStatement extends AuthorizationStatement
             result.addColumnValue(UTF8Type.instance.decompose(pd.permission.toString()));
         }
         return new ResultMessage.Rows(result);
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

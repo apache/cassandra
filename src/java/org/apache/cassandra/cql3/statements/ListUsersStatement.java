@@ -30,6 +30,8 @@ import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public class ListUsersStatement extends ListRolesStatement
 {
@@ -57,5 +59,11 @@ public class ListUsersStatement extends ListRolesStatement
         }
 
         return new ResultMessage.Rows(result);
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

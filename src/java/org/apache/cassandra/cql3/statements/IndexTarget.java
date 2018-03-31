@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.statements;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public class IndexTarget
 {
@@ -123,5 +125,11 @@ public class IndexTarget
 
             throw new AssertionError("Unrecognized index target type " + s);
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

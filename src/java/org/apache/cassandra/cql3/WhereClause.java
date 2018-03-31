@@ -23,6 +23,8 @@ import java.util.List;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.cql3.restrictions.CustomIndexExpression;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public final class WhereClause
 {
@@ -70,5 +72,11 @@ public final class WhereClause
         {
             return new WhereClause(this);
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

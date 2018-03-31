@@ -30,6 +30,8 @@ import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public class DropIndexStatement extends SchemaAlteringStatement
 {
@@ -112,5 +114,11 @@ public class DropIndexStatement extends SchemaAlteringStatement
                                                                           "of the tables of keyspace '%s'",
                                                                           indexName, keyspace()));
                   });
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

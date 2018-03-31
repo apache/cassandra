@@ -27,6 +27,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public abstract class PermissionsManagementStatement extends AuthorizationStatement
 {
@@ -75,5 +77,11 @@ public abstract class PermissionsManagementStatement extends AuthorizationStatem
         // check that the user has [a single permission or all in case of ALL] on the resource or its parents.
         for (Permission p : permissions)
             state.ensureHasPermission(p, resource);
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

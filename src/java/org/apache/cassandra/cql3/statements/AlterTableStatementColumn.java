@@ -19,6 +19,8 @@ package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 /**
  * Stores a column name and optionally type for an Alter Table statement definition.
@@ -62,5 +64,11 @@ public class AlterTableStatementColumn
     public Boolean getStaticType()
     {
         return isStatic;
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

@@ -24,6 +24,8 @@ import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 public class UseStatement extends ParsedStatement implements CQLStatement
 {
@@ -64,5 +66,11 @@ public class UseStatement extends ParsedStatement implements CQLStatement
         // In production, internal queries are exclusively on the system keyspace and 'use' is thus useless
         // but for some unit tests we need to set the keyspace (e.g. for tests with DROP INDEX)
         return execute(state, options, System.nanoTime());
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }
