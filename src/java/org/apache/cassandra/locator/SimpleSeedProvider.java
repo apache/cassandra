@@ -19,6 +19,7 @@ package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +54,7 @@ public class SimpleSeedProvider implements SeedProvider
             try
             {
                 if(!host.trim().isEmpty()) {
-                    seeds.add(InetAddressAndPort.getByName(host.trim()));
+                    seeds.addAll(InetAddressAndPort.getAllByName(host.trim()));
                 }
             }
             catch (UnknownHostException ex)
@@ -62,6 +63,11 @@ public class SimpleSeedProvider implements SeedProvider
                 logger.warn("Seed provider couldn't lookup host {}", host);
             }
         }
+
+        if(seeds.size() > 20) {
+            logger.warn("More than 20 seed addresses have been ({} detected). This can negatively impact 3rd round gossip behaviour", seeds.size());
+        }
+
         return Collections.unmodifiableList(seeds);
     }
 }
