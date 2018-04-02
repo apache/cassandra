@@ -1,4 +1,5 @@
 4.2
+ * SimpleSeedProvider can resolve multiple IP addresses per DNS record (CASSANDRA-14361)
  * Remove mocking in InternalNodeProbe spying on StorageServiceMBean (CASSANDRA-18152)
  * Add compaction_properties column to system.compaction_history table and nodetool compactionhistory command (CASSANDRA-18061)
  * Remove ProtocolVersion entirely from the CollectionSerializer ecosystem (CASSANDRA-18114)
