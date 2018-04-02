@@ -58,16 +58,16 @@ with_dtest_jobs_only: &with_dtest_jobs_only
                       - build
 # Set env_settings, env_vars, and workflows/build_and_run_tests based on environment
 env_settings: &env_settings
-    <<: *default_env_settings
-    #<<: *high_capacity_env_settings
+    #<<: *default_env_settings
+    <<: *high_capacity_env_settings
 env_vars: &env_vars
-    <<: *resource_constrained_env_vars
-    #<<: *high_capacity_env_vars
+    #<<: *resource_constrained_env_vars
+    <<: *high_capacity_env_vars
 workflows:
     version: 2
-    build_and_run_tests: *default_jobs
+    #build_and_run_tests: *default_jobs
     #build_and_run_tests: *with_dtest_jobs_only
-    #build_and_run_tests: *with_dtest_jobs
+    build_and_run_tests: *with_dtest_jobs
 docker_image: &docker_image kjellman/cassandra-test:0.4.3
 version: 2
 jobs:
