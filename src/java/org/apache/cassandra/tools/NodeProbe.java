@@ -89,6 +89,7 @@ import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 
 import com.google.common.base.Function;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
@@ -413,8 +414,12 @@ public class NodeProbe implements AutoCloseable
             }
         }
     }
+    public Map<String, Map<Sampler, CompositeData>> getPartitionSample(int capacity, int duration, int count, List<Sampler> samplers) throws OpenDataException
+    {
+        return ssProxy.samplePartitions(duration, capacity, count, samplers);
+    }
 
-    public Map<Sampler, CompositeData> getPartitionSample(String ks, String cf, int capacity, int duration, int count, List<Sampler> samplers) throws OpenDataException
+    public Map<String, Map<Sampler, CompositeData>> getPartitionSample(String ks, String cf, int capacity, int duration, int count, List<Sampler> samplers) throws OpenDataException
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(ks, cf);
         for(Sampler sampler : samplers)
@@ -427,7 +432,9 @@ public class NodeProbe implements AutoCloseable
         {
             result.put(sampler, cfsProxy.finishLocalSampling(sampler.name(), count));
         }
-        return result;
+        return new ImmutableMap.Builder<String, Map<Sampler, CompositeData>>()
+                .put(ks+"."+cf, result)
+                .build();
     }
 
     public void invalidateCounterCache()

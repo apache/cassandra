@@ -33,9 +33,13 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nullable;
 import javax.management.*;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.CompositeDataSupport;
+import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 import javax.management.openmbean.TabularDataSupport;
 
+import com.clearspring.analytics.stream.Counter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
@@ -73,6 +77,7 @@ import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.metrics.TableMetrics.Sampler;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.repair.*;
 import org.apache.cassandra.repair.messages.RepairOption;
@@ -95,6 +100,7 @@ import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.TopKSampler.SamplerResult;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -5215,6 +5221,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (DecoratedKey key : keys)
             sampledKeys.add(key.getToken().toString());
         return sampledKeys;
+    }
+
+    public Map<String, Map<Sampler, CompositeData>> samplePartitions(long duration, int capacity, int count,
+            List<Sampler> samplers) throws OpenDataException
+    {
+        for (Sampler sampler : samplers)
+            for (ColumnFamilyStore table : ColumnFamilyStore.all())
+            {
+                table.beginLocalSampling(sampler.toString(), capacity);
+            }
+        Uninterruptibles.sleepUninterruptibly(duration, TimeUnit.MILLISECONDS);
+        ConcurrentHashMap<String, Map<Sampler, CompositeData>> result = new ConcurrentHashMap<>();
+        for (Sampler sampler : samplers)
+            for (ColumnFamilyStore table : ColumnFamilyStore.all())
+            {
+                String name = table.keyspace.getName() + "." + table.name;
+                Map<Sampler, CompositeData> topk = result.computeIfAbsent(name,
+                        x -> new HashMap<Sampler, CompositeData>());
+                topk.put(sampler, table.finishLocalSampling(sampler.toString(), count));
+            }
+        return result;
     }
 
     public void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
