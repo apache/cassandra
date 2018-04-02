@@ -578,6 +578,9 @@ seed_provider:
       # seeds is actually a comma-delimited list of addresses.
       # Ex: "<ip1>,<ip2>,<ip3>"
       - seeds: "127.0.0.1:7000"
+      # If set to "true", SimpleSeedProvider will return all IP addresses for a DNS name,
+      # based on the configured name service on the system. Defaults to "false".
+      #  resolve_multiple_ip_addresses_per_dns_record: "false"
 
 # For workloads with more data than can fit in memory, Cassandra's
 # bottleneck will be reads that need to fetch data from

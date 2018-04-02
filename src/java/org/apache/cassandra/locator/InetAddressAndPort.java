@@ -26,7 +26,11 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.regex.Pattern;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.net.HostAndPort;
 
@@ -64,7 +68,8 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
 
     public final byte[] addressBytes;
 
-    private InetAddressAndPort(InetAddress address, byte[] addressBytes, int port)
+    @VisibleForTesting
+    InetAddressAndPort(InetAddress address, byte[] addressBytes, int port)
     {
         super(address, port);
         Preconditions.checkNotNull(address);
@@ -213,6 +218,31 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
     public static InetAddressAndPort getByName(String name) throws UnknownHostException
     {
         return getByNameOverrideDefaults(name, null);
+    }
+
+
+    public static List<InetAddressAndPort> getAllByName(String name) throws UnknownHostException
+    {
+        return getAllByNameOverrideDefaults(name, null);
+    }
+
+    /**
+     *
+     * @param name Hostname + optional ports string
+     * @param port Port to connect on, overridden by values in hostname string, defaults to DatabaseDescriptor default if not specified anywhere.
+     */
+    public static List<InetAddressAndPort> getAllByNameOverrideDefaults(String name, Integer port) throws UnknownHostException
+    {
+        HostAndPort hap = HostAndPort.fromString(name);
+        if (hap.hasPort())
+        {
+            port = hap.getPort();
+        }
+        Integer finalPort = port;
+
+        return Stream.of(InetAddress.getAllByName(hap.getHost()))
+                     .map((address) -> getByAddressOverrideDefaults(address, finalPort))
+                     .collect(Collectors.toList());
     }
 
     /**
