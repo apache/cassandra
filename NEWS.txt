@@ -111,6 +111,10 @@ New features
       aggregation functions, but they operate on the elements of collection columns. The new functions are `map_keys`,
       `map_values`, `collection_count`, `collection_min`, `collection_max`, `collection_sum` and `collection_avg`.
     - Added compaction_properties column to system.compaction_history table and nodetool compactionhistory command
+    - SimpleSeedProvider can resolve multiple IP addresses per DNS record. SimpleSeedProvider reacts on
+      the paramater called `resolve_multiple_ip_addresses_per_dns_record` which value is meant to be boolean and by
+      default it is set to false. When set to true, SimpleSeedProvider will resolve all IP addresses per DNS record,
+      based on the configured name service on the system.
 
 Upgrading
 ---------

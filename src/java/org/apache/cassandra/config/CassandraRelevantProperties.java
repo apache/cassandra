@@ -331,8 +331,14 @@ public enum CassandraRelevantProperties
      *
      * If only keyspaces are specified, mutations for all tables in such keyspace will be replayed
      * */
-    COMMIT_LOG_REPLAY_LIST("cassandra.replayList", null)
+    COMMIT_LOG_REPLAY_LIST("cassandra.replayList", null),
 
+    /**
+     * The maximum number of seeds returned by a seed provider before emmitting a warning.
+     * A large seed list may impact effectiveness of the third gossip round.
+     * The default used in SimpleSeedProvider is 20.
+     */
+    SEED_COUNT_WARN_THRESHOLD("cassandra.seed_count_warn_threshold"),
     ;
 
     CassandraRelevantProperties(String key, String defaultVal)
