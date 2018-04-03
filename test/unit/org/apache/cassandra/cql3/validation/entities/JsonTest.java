@@ -257,6 +257,13 @@ public class JsonTest extends CQLTester
 
         // handle nulls
         execute("INSERT INTO %s (k, asciival) VALUES (?, fromJson(?))", 0, null);
+        assertRows(execute("SELECT k, asciival FROM %s WHERE k = ?", 0), row(0, null));
+
+        execute("INSERT INTO %s (k, frozenmapval) VALUES (?, fromJson(?))", 0, null);
+        assertRows(execute("SELECT k, frozenmapval FROM %s WHERE k = ?", 0), row(0, null));
+
+        execute("INSERT INTO %s (k, udtval) VALUES (?, fromJson(?))", 0, null);
+        assertRows(execute("SELECT k, udtval FROM %s WHERE k = ?", 0), row(0, null));
 
         // ================ ascii ================
         execute("INSERT INTO %s (k, asciival) VALUES (?, fromJson(?))", 0, "\"ascii text\"");

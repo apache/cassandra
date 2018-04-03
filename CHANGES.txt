@@ -211,6 +211,7 @@
 
 
 3.11.3
+ * CQL fromJson(null) throws NullPointerException (CASSANDRA-13891)
  * Serialize empty buffer as empty string for json output format (CASSANDRA-14245)
  * Allow logging implementation to be interchanged for embedded testing (CASSANDRA-13396)
  * SASI tokenizer for simple delimiter based entries (CASSANDRA-14247)
