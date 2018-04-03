@@ -69,6 +69,7 @@ New features
    - SSTableDump now supports the -l option to output each partition as it's own json object
      See CASSANDRA-13848 for more detail
    - Metric for coordinator writes per table has been added. See CASSANDRA-14232
+   - Nodetool cfstats now has options to sort by various metrics as well as limit results.
 
 Upgrading
 ---------
