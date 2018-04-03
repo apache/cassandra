@@ -1,4 +1,5 @@
 4.0
+ * Add options to nodetool tablestats to sort and limit output (CASSANDRA-13889)
  * Rename internals to reflect CQL vocabulary
    (CASSANDRA-14354)
  * Add support for hybrid MIN(), MAX() speculative retry policies

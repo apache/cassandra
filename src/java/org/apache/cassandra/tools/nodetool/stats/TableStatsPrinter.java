@@ -21,11 +21,9 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.io.PrintStream;
 import java.util.List;
 
-import org.apache.cassandra.utils.FBUtilities;
-
 public class TableStatsPrinter
 {
-    public static StatsPrinter from(String format)
+    public static StatsPrinter from(String format, boolean sorted)
     {
         switch (format)
         {
@@ -34,10 +32,16 @@ public class TableStatsPrinter
             case "yaml":
                 return new StatsPrinter.YamlPrinter();
             default:
-                return new DefaultPrinter();
+                if (sorted)
+                    return new SortedDefaultPrinter();
+                else
+                    return new DefaultPrinter();
         }
     }
 
+    /**
+     * A StatsPrinter to print stats in a keyspace-centric way, nesting stats for each table under their parent keyspaces.
+     */
     private static class DefaultPrinter implements StatsPrinter<TableStatsHolder>
     {
         @Override
@@ -61,60 +65,86 @@ public class TableStatsPrinter
                 List<StatsTable> tables = keyspace.tables;
                 for (StatsTable table : tables)
                 {
-                    out.println("\t\tTable" + (table.isIndex ? " (index): " + table.name : ": ") + table.name);
-                    out.println("\t\tSSTable count: " + table.sstableCount);
-                    if (table.isLeveledSstable)
-                        out.println("\t\tSSTables in each level: [" + String.join(", ",
-                                                                                  table.sstablesInEachLevel) + "]");
-
-                    out.println("\t\tSpace used (live): " + table.spaceUsedLive);
-                    out.println("\t\tSpace used (total): " + table.spaceUsedTotal);
-                    out.println("\t\tSpace used by snapshots (total): " + table.spaceUsedBySnapshotsTotal);
-
-                    if (table.offHeapUsed)
-                        out.println("\t\tOff heap memory used (total): " + table.offHeapMemoryUsedTotal);
-                    out.println("\t\tSSTable Compression Ratio: " + table.sstableCompressionRatio);
-                    out.println("\t\tNumber of partitions (estimate): " + table.numberOfPartitionsEstimate);
-                    out.println("\t\tMemtable cell count: " + table.memtableCellCount);
-                    out.println("\t\tMemtable data size: " + table.memtableDataSize);
-
-                    if (table.memtableOffHeapUsed)
-                        out.println("\t\tMemtable off heap memory used: " + table.memtableOffHeapMemoryUsed);
-                    out.println("\t\tMemtable switch count: " + table.memtableSwitchCount);
-                    out.println("\t\tLocal read count: " + table.localReadCount);
-                    out.printf("\t\tLocal read latency: %01.3f ms%n", table.localReadLatencyMs);
-                    out.println("\t\tLocal write count: " + table.localWriteCount);
-                    out.printf("\t\tLocal write latency: %01.3f ms%n", table.localWriteLatencyMs);
-                    out.println("\t\tPending flushes: " + table.pendingFlushes);
-                    out.println("\t\tPercent repaired: " + table.percentRepaired);
-
-                    out.println("\t\tBytes repaired: " + FBUtilities.prettyPrintMemory(table.bytesRepaired));
-                    out.println("\t\tBytes unrepaired: " + FBUtilities.prettyPrintMemory(table.bytesUnrepaired));
-                    out.println("\t\tBytes pending repair: " + FBUtilities.prettyPrintMemory(table.bytesPendingRepair));
-
-                    out.println("\t\tBloom filter false positives: " + table.bloomFilterFalsePositives);
-                    out.printf("\t\tBloom filter false ratio: %01.5f%n", table.bloomFilterFalseRatio);
-                    out.println("\t\tBloom filter space used: " + table.bloomFilterSpaceUsed);
-
-                    if (table.bloomFilterOffHeapUsed)
-                        out.println("\t\tBloom filter off heap memory used: " + table.bloomFilterOffHeapMemoryUsed);
-                    if (table.indexSummaryOffHeapUsed)
-                        out.println("\t\tIndex summary off heap memory used: " + table.indexSummaryOffHeapMemoryUsed);
-                    if (table.compressionMetadataOffHeapUsed)
-                        out.println("\t\tCompression metadata off heap memory used: " + table.compressionMetadataOffHeapMemoryUsed);
-
-                    out.println("\t\tCompacted partition minimum bytes: " + table.compactedPartitionMinimumBytes);
-                    out.println("\t\tCompacted partition maximum bytes: " + table.compactedPartitionMaximumBytes);
-                    out.println("\t\tCompacted partition mean bytes: " + table.compactedPartitionMeanBytes);
-                    out.println("\t\tAverage live cells per slice (last five minutes): " + table.averageLiveCellsPerSliceLastFiveMinutes);
-                    out.println("\t\tMaximum live cells per slice (last five minutes): " + table.maximumLiveCellsPerSliceLastFiveMinutes);
-                    out.println("\t\tAverage tombstones per slice (last five minutes): " + table.averageTombstonesPerSliceLastFiveMinutes);
-                    out.println("\t\tMaximum tombstones per slice (last five minutes): " + table.maximumTombstonesPerSliceLastFiveMinutes);
-                    out.println("\t\tDropped Mutations: " + table.droppedMutations);
-                    out.println("");
+                    printStatsTable(table, table.tableName, "\t\t", out);
                 }
                 out.println("----------------");
             }
+        }
+
+        protected void printStatsTable(StatsTable table, String tableDisplayName, String indent, PrintStream out)
+        {
+            out.println(indent + "Table" + (table.isIndex ? " (index): " + table.tableName : ": ") + tableDisplayName);
+            out.println(indent + "SSTable count: " + table.sstableCount);
+            if (table.isLeveledSstable)
+                out.println(indent + "SSTables in each level: [" + String.join(", ",
+                                                                          table.sstablesInEachLevel) + "]");
+
+            out.println(indent + "Space used (live): " + table.spaceUsedLive);
+            out.println(indent + "Space used (total): " + table.spaceUsedTotal);
+            out.println(indent + "Space used by snapshots (total): " + table.spaceUsedBySnapshotsTotal);
+
+            if (table.offHeapUsed)
+                out.println(indent + "Off heap memory used (total): " + table.offHeapMemoryUsedTotal);
+            out.println(indent + "SSTable Compression Ratio: " + table.sstableCompressionRatio);
+            out.println(indent + "Number of partitions (estimate): " + table.numberOfPartitionsEstimate);
+            out.println(indent + "Memtable cell count: " + table.memtableCellCount);
+            out.println(indent + "Memtable data size: " + table.memtableDataSize);
+
+            if (table.memtableOffHeapUsed)
+                out.println(indent + "Memtable off heap memory used: " + table.memtableOffHeapMemoryUsed);
+            out.println(indent + "Memtable switch count: " + table.memtableSwitchCount);
+            out.println(indent + "Local read count: " + table.localReadCount);
+            out.printf(indent + "Local read latency: %01.3f ms%n", table.localReadLatencyMs);
+            out.println(indent + "Local write count: " + table.localWriteCount);
+            out.printf(indent + "Local write latency: %01.3f ms%n", table.localWriteLatencyMs);
+            out.println(indent + "Pending flushes: " + table.pendingFlushes);
+            out.println(indent + "Percent repaired: " + table.percentRepaired);
+
+            out.println(indent + "Bloom filter false positives: " + table.bloomFilterFalsePositives);
+            out.printf(indent + "Bloom filter false ratio: %01.5f%n", table.bloomFilterFalseRatio);
+            out.println(indent + "Bloom filter space used: " + table.bloomFilterSpaceUsed);
+
+            if (table.bloomFilterOffHeapUsed)
+                out.println(indent + "Bloom filter off heap memory used: " + table.bloomFilterOffHeapMemoryUsed);
+            if (table.indexSummaryOffHeapUsed)
+                out.println(indent + "Index summary off heap memory used: " + table.indexSummaryOffHeapMemoryUsed);
+            if (table.compressionMetadataOffHeapUsed)
+                out.println(indent + "Compression metadata off heap memory used: " + table.compressionMetadataOffHeapMemoryUsed);
+
+            out.println(indent + "Compacted partition minimum bytes: " + table.compactedPartitionMinimumBytes);
+            out.println(indent + "Compacted partition maximum bytes: " + table.compactedPartitionMaximumBytes);
+            out.println(indent + "Compacted partition mean bytes: " + table.compactedPartitionMeanBytes);
+            out.println(indent + "Average live cells per slice (last five minutes): " + table.averageLiveCellsPerSliceLastFiveMinutes);
+            out.println(indent + "Maximum live cells per slice (last five minutes): " + table.maximumLiveCellsPerSliceLastFiveMinutes);
+            out.println(indent + "Average tombstones per slice (last five minutes): " + table.averageTombstonesPerSliceLastFiveMinutes);
+            out.println(indent + "Maximum tombstones per slice (last five minutes): " + table.maximumTombstonesPerSliceLastFiveMinutes);
+            out.println(indent + "Dropped Mutations: " + table.droppedMutations);
+            out.println("");
+        }
+    }
+
+    /**
+     * A StatsPrinter to print stats in a sorted, table-centric way.
+     */
+    private static class SortedDefaultPrinter extends DefaultPrinter
+    {
+        @Override
+        public void print(TableStatsHolder data, PrintStream out)
+        {
+            List<StatsTable> tables = data.getSortedFilteredTables();
+            String totalTablesSummary = String.format("Total number of tables: %d", data.numberOfTables);
+            if (data.top > 0)
+            {
+                int k = (data.top <= data.numberOfTables) ? data.top : data.numberOfTables;
+                totalTablesSummary += String.format(" (showing top %d by %s)", k, data.sortKey);
+            }
+            out.println(totalTablesSummary);
+            out.println("----------------");
+            for (StatsTable table : tables)
+            {
+                printStatsTable(table, table.keyspaceName + "." + table.tableName, "\t", out);
+            }
+            out.println("----------------");
         }
     }
 }
