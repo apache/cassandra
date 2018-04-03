@@ -30,6 +30,8 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class LocalStrategy extends AbstractReplicationStrategy
 {
+    private static final ReplicationFactor RF = ReplicationFactor.rf(1);
+
     public LocalStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
@@ -41,21 +43,21 @@ public class LocalStrategy extends AbstractReplicationStrategy
      * LocalStrategy may be used before tokens are set up.
      */
     @Override
-    public ArrayList<InetAddressAndPort> getNaturalEndpoints(RingPosition searchPosition)
+    public ArrayList<Replica> getNaturalEndpoints(RingPosition searchPosition)
     {
-        ArrayList<InetAddressAndPort> l = new ArrayList<InetAddressAndPort>(1);
-        l.add(FBUtilities.getBroadcastAddressAndPort());
+        ArrayList<Replica> l = new ArrayList<>(1);
+        l.add(Replica.full(FBUtilities.getBroadcastAddressAndPort()));
         return l;
     }
 
-    public List<InetAddressAndPort> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+    public List<Replica> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
-        return Collections.singletonList(FBUtilities.getBroadcastAddressAndPort());
+        return Collections.singletonList(Replica.full(FBUtilities.getBroadcastAddressAndPort()));
     }
 
-    public int getReplicationFactor()
+    public ReplicationFactor getReplicationFactor()
     {
-        return 1;
+        return RF;
     }
 
     public void validateOptions() throws ConfigurationException

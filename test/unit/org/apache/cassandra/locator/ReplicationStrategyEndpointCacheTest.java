@@ -89,34 +89,34 @@ public class ReplicationStrategyEndpointCacheTest
     public void runCacheRespectsTokenChangesTest(Class stratClass, Map<String, String> configOptions) throws Exception
     {
         setup(stratClass, configOptions);
-        ArrayList<InetAddressAndPort> initial;
-        ArrayList<InetAddressAndPort> endpoints;
+        ArrayList<Replica> initial;
+        ArrayList<Replica> replicas;
 
-        endpoints = strategy.getNaturalEndpoints(searchToken);
-        assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
+        replicas = strategy.getNaturalEndpoints(searchToken);
+        assert replicas.size() == 5 : StringUtils.join(replicas, ",");
 
         // test token addition, in DC2 before existing token
         initial = strategy.getNaturalEndpoints(searchToken);
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(35)), InetAddressAndPort.getByName("127.0.0.5"));
-        endpoints = strategy.getNaturalEndpoints(searchToken);
-        assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
-        assert !endpoints.equals(initial);
+        replicas = strategy.getNaturalEndpoints(searchToken);
+        assert replicas.size() == 5 : StringUtils.join(replicas, ",");
+        assert !replicas.equals(initial);
 
         // test token removal, newly created token
         initial = strategy.getNaturalEndpoints(searchToken);
         tmd.removeEndpoint(InetAddressAndPort.getByName("127.0.0.5"));
-        endpoints = strategy.getNaturalEndpoints(searchToken);
-        assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
-        assert !endpoints.contains(InetAddressAndPort.getByName("127.0.0.5"));
-        assert !endpoints.equals(initial);
+        replicas = strategy.getNaturalEndpoints(searchToken);
+        assert replicas.size() == 5 : StringUtils.join(replicas, ",");
+        assert !Replicas.containsEndpoint(replicas, InetAddressAndPort.getByName("127.0.0.5"));
+        assert !replicas.equals(initial);
 
         // test token change
         initial = strategy.getNaturalEndpoints(searchToken);
         //move .8 after search token but before other DC3
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(25)), InetAddressAndPort.getByName("127.0.0.8"));
-        endpoints = strategy.getNaturalEndpoints(searchToken);
-        assert endpoints.size() == 5 : StringUtils.join(endpoints, ",");
-        assert !endpoints.equals(initial);
+        replicas = strategy.getNaturalEndpoints(searchToken);
+        assert replicas.size() == 5 : StringUtils.join(replicas, ",");
+        assert !replicas.equals(initial);
     }
 
     protected static class FakeSimpleStrategy extends SimpleStrategy
@@ -128,7 +128,7 @@ public class ReplicationStrategyEndpointCacheTest
             super(keyspaceName, tokenMetadata, snitch, configOptions);
         }
 
-        public List<InetAddressAndPort> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+        public List<Replica> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalEndpoints was already called, result should have been cached";
             called = true;
@@ -145,7 +145,7 @@ public class ReplicationStrategyEndpointCacheTest
             super(keyspaceName, tokenMetadata, snitch, configOptions);
         }
 
-        public List<InetAddressAndPort> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+        public List<Replica> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalEndpoints was already called, result should have been cached";
             called = true;
@@ -162,7 +162,7 @@ public class ReplicationStrategyEndpointCacheTest
             super(keyspaceName, tokenMetadata, snitch, configOptions);
         }
 
-        public List<InetAddressAndPort> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+        public List<Replica> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
         {
             assert !called : "calculateNaturalEndpoints was already called, result should have been cached";
             called = true;

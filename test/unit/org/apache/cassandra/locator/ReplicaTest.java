@@ -16,20 +16,27 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.reads.repair;
+package org.apache.cassandra.locator;
 
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
+import org.junit.Assert;
+import org.junit.Test;
 
-public interface RepairListener
+public class ReplicaTest
 {
-    interface PartitionRepair
+    @Test
+    public void equalityTest() throws Exception
     {
-        void reportMutation(Replica replica, Mutation mutation);
-        void finish();
-    }
+        Replica e1Full = Replica.full(InetAddressAndPort.getByName("127.0.0.1"));
+        Replica e2Full = Replica.full(InetAddressAndPort.getByName("127.0.0.1"));
 
-    PartitionRepair startPartitionRepair();
-    void awaitRepairs(long timeoutMillis);
+        Replica e1Trans = Replica.trans(InetAddressAndPort.getByName("127.0.0.1"));
+        Replica e2Trans = Replica.trans(InetAddressAndPort.getByName("127.0.0.1"));
+
+        Assert.assertEquals(e1Full, e1Trans);
+        Assert.assertEquals(e1Full, e1Full);
+        Assert.assertEquals(e2Full, e2Trans);
+
+        Assert.assertNotEquals(e1Full, e2Full);
+        Assert.assertNotEquals(e1Full, e2Trans);
+    }
 }

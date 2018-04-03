@@ -21,6 +21,7 @@ import com.google.common.base.Predicate;
 
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 
 /**
  * implementors of IAsyncCallback need to make sure that any public methods
@@ -30,13 +31,9 @@ import org.apache.cassandra.locator.InetAddressAndPort;
  */
 public interface IAsyncCallback<T>
 {
-    Predicate<InetAddressAndPort> isAlive = new Predicate<InetAddressAndPort>()
-    {
-        public boolean apply(InetAddressAndPort endpoint)
-        {
-            return FailureDetector.instance.isAlive(endpoint);
-        }
-    };
+    final Predicate<InetAddressAndPort> isAlive = FailureDetector.instance::isAlive;
+
+    final Predicate<Replica> isReplicaAlive = replica -> isAlive.apply(replica.getEndpoint());
 
     /**
      * @param msg response received.

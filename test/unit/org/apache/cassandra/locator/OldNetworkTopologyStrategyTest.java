@@ -160,7 +160,7 @@ public class OldNetworkTopologyStrategyTest
     {
         for (Token keyToken : keyTokens)
         {
-            List<InetAddressAndPort> endpoints = strategy.getNaturalEndpoints(keyToken);
+            List<InetAddressAndPort> endpoints = Replicas.asEndpointList(strategy.getNaturalEndpoints(keyToken));
             for (int j = 0; j < endpoints.size(); j++)
             {
                 ArrayList<InetAddressAndPort> hostsExpected = expectedResults.get(keyToken.toString());
@@ -366,8 +366,8 @@ public class OldNetworkTopologyStrategyTest
         TokenMetadata tokenMetadataAfterMove = initTokenMetadata(tokensAfterMove);
         AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tokenMetadataCurrent, endpointSnitch, optsWithRF(2));
 
-        Collection<Range<Token>> currentRanges = strategy.getAddressRanges().get(movingNode);
-        Collection<Range<Token>> updatedRanges = strategy.getPendingAddressRanges(tokenMetadataAfterMove, tokensAfterMove[movingNodeIdx], movingNode);
+        Collection<ReplicatedRange> currentRanges = strategy.getAddressRanges().get(movingNode);
+        Collection<ReplicatedRange> updatedRanges = strategy.getPendingAddressRanges(tokenMetadataAfterMove, tokensAfterMove[movingNodeIdx], movingNode);
 
         Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = StorageService.instance.calculateStreamAndFetchRanges(currentRanges, updatedRanges);
 

@@ -22,6 +22,11 @@ import java.util.*;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 
+import com.google.common.collect.Maps;
+
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.partitions.*;
@@ -30,21 +35,23 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.transform.*;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.reads.repair.ReadRepair;
 
 public class DataResolver extends ResponseResolver
 {
     private final long queryStartNanoTime;
     private final boolean enforceStrictLiveness;
+    private final Map<InetAddressAndPort, Replica> replicaMap;
 
-    public DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, int maxResponseCount, long queryStartNanoTime, ReadRepair readRepair)
+    public DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, Collection<Replica> replicas, int maxResponseCount, long queryStartNanoTime, ReadRepair readRepair)
     {
         super(keyspace, command, consistency, readRepair, maxResponseCount);
         this.queryStartNanoTime = queryStartNanoTime;
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
+
+        replicaMap = Maps.newHashMapWithExpectedSize(replicas.size());
+        replicas.forEach(r -> replicaMap.put(r.getEndpoint(), r));
     }
 
     public PartitionIterator getData()
@@ -64,12 +71,14 @@ public class DataResolver extends ResponseResolver
         // at the beginning of this method), so grab the response count once and use that through the method.
         int count = responses.size();
         List<UnfilteredPartitionIterator> iters = new ArrayList<>(count);
-        InetAddressAndPort[] sources = new InetAddressAndPort[count];
+        Replica[] sources = new Replica[count];
         for (int i = 0; i < count; i++)
         {
             MessageIn<ReadResponse> msg = responses.get(i);
             iters.add(msg.payload.makeIterator(command));
-            sources[i] = msg.from;
+
+            Replica replica = replicaMap.get(msg.from);
+            sources[i] = replica != null ? replica : Replica.full(msg.from);
         }
 
         /*
@@ -96,7 +105,7 @@ public class DataResolver extends ResponseResolver
     }
 
     private UnfilteredPartitionIterator mergeWithShortReadProtection(List<UnfilteredPartitionIterator> results,
-                                                                     InetAddressAndPort[] sources,
+                                                                     Replica[] sources,
                                                                      DataLimits.Counter mergedResultCounter)
     {
         // If we have only one results, there is no read repair to do and we can't get short reads
@@ -119,7 +128,7 @@ public class DataResolver extends ResponseResolver
         return Joiner.on(",\n").join(Iterables.transform(getMessages(), m -> m.from + " => " + m.payload.toDebugString(command, partitionKey)));
     }
 
-    private UnfilteredPartitionIterators.MergeListener wrapMergeListener(UnfilteredPartitionIterators.MergeListener partitionListener, InetAddressAndPort[] sources)
+    private UnfilteredPartitionIterators.MergeListener wrapMergeListener(UnfilteredPartitionIterators.MergeListener partitionListener, Replica[] sources)
     {
         return new UnfilteredPartitionIterators.MergeListener()
         {

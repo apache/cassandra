@@ -40,6 +40,8 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.StorageProxy;
@@ -48,7 +50,7 @@ import org.apache.cassandra.tracing.Tracing;
 public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
 {
     private final ReadCommand command;
-    private final InetAddressAndPort source;
+    private final Replica source;
 
     private final DataLimits.Counter singleResultCounter; // unmerged per-source counter
     private final DataLimits.Counter mergedResultCounter; // merged end-result counter
@@ -59,11 +61,12 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
     private final long queryStartNanoTime;
 
-    public ShortReadPartitionsProtection(ReadCommand command, InetAddressAndPort source,
+    public ShortReadPartitionsProtection(ReadCommand command, Replica source,
                                          DataLimits.Counter singleResultCounter,
                                          DataLimits.Counter mergedResultCounter,
                                          long queryStartNanoTime)
     {
+        Replicas.checkFull(source);
         this.command = command;
         this.source = source;
         this.singleResultCounter = singleResultCounter;
@@ -171,13 +174,13 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
     private UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd)
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        DataResolver resolver = new DataResolver(keyspace, cmd, ConsistencyLevel.ONE, 1, queryStartNanoTime, NoopReadRepair.instance);
+        DataResolver resolver = new DataResolver(keyspace, cmd, ConsistencyLevel.ONE, Collections.singleton(source), 1, queryStartNanoTime, NoopReadRepair.instance);
         ReadCallback handler = new ReadCallback(resolver, ConsistencyLevel.ONE, cmd, Collections.singletonList(source), queryStartNanoTime, NoopReadRepair.instance);
 
-        if (StorageProxy.canDoLocalRequest(source))
+        if (StorageProxy.canDoLocalRequest(source.getEndpoint()))
             StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
         else
-            MessagingService.instance().sendRRWithFailure(cmd.createMessage(), source, handler);
+            MessagingService.instance().sendRRWithFailure(cmd.createMessage(), source.getEndpoint(), handler);
 
         // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.
         handler.awaitResults();

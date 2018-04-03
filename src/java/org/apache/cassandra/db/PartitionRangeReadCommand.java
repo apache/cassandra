@@ -24,6 +24,8 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.*;
@@ -45,6 +47,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -414,6 +417,15 @@ public class PartitionRangeReadCommand extends ReadCommand
     protected long selectionSerializedSize(int version)
     {
         return DataRange.serializer.serializedSize(dataRange(), version, metadata());
+    }
+
+    @Override
+    protected Replica decorateEndpoint(InetAddressAndPort endpoint)
+    {
+        for (Replica replica: StorageService.instance.getNaturalAndPendingEndpoints(metadata().keyspace, dataRange.stopKey().getToken()))
+            if (replica.getEndpoint().equals(endpoint))
+                return replica;
+        return null;
     }
 
     /*

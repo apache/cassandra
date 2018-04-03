@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.locator.ReplicatedRange;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Schema;
@@ -109,8 +110,8 @@ public class SSTableLoaderTest
         public void init(String keyspace)
         {
             this.keyspace = keyspace;
-            for (Range<Token> range : StorageService.instance.getLocalRanges(KEYSPACE1))
-                addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
+            for (ReplicatedRange range : StorageService.instance.getLocalRanges(KEYSPACE1))
+                addRangeForEndpoint(range.getRange(), FBUtilities.getBroadcastAddressAndPort());
         }
 
         public TableMetadataRef getTableMetadata(String tableName)

@@ -48,6 +48,8 @@ import org.apache.cassandra.concurrent.JMXConfigurableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.locator.ReplicatedRange;
+import org.apache.cassandra.locator.ReplicatedRanges;
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.Keyspace;
@@ -239,7 +241,9 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
         //pre-calculate output of getLocalRanges and pass it to getNeighbors to increase performance and prevent
         //calculation multiple times
-        Collection<Range<Token>> keyspaceLocalRanges = storageService.getLocalRanges(keyspace);
+        Collection<ReplicatedRange> replicatedRanges = storageService.getLocalRanges(keyspace);
+        ReplicatedRanges.checkFull(replicatedRanges);
+        Collection<Range<Token>> keyspaceLocalRanges = ReplicatedRanges.asRanges(storageService.getLocalRanges(keyspace));
 
         try
         {

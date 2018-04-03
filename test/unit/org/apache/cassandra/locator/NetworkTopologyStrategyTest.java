@@ -68,11 +68,11 @@ public class NetworkTopologyStrategyTest
 
         // Set the localhost to the tokenmetadata. Embedded cassandra way?
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
-        assert strategy.getReplicationFactor("DC1") == 3;
-        assert strategy.getReplicationFactor("DC2") == 2;
-        assert strategy.getReplicationFactor("DC3") == 1;
+        assert strategy.getReplicationFactor("DC1").replicas == 3;
+        assert strategy.getReplicationFactor("DC2").replicas == 2;
+        assert strategy.getReplicationFactor("DC3").replicas == 1;
         // Query for the natural hosts
-        ArrayList<InetAddressAndPort> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
+        ArrayList<Replica> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
         assert 6 == endpoints.size();
         assert 6 == new HashSet<>(endpoints).size(); // ensure uniqueness
     }
@@ -92,11 +92,11 @@ public class NetworkTopologyStrategyTest
 
         // Set the localhost to the tokenmetadata. Embedded cassandra way?
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
-        assert strategy.getReplicationFactor("DC1") == 3;
-        assert strategy.getReplicationFactor("DC2") == 3;
-        assert strategy.getReplicationFactor("DC3") == 0;
+        assert strategy.getReplicationFactor("DC1").replicas == 3;
+        assert strategy.getReplicationFactor("DC2").replicas == 3;
+        assert strategy.getReplicationFactor("DC3").replicas == 0;
         // Query for the natural hosts
-        ArrayList<InetAddressAndPort> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
+        ArrayList<Replica> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
         assert 6 == endpoints.size();
         assert 6 == new HashSet<>(endpoints).size(); // ensure uniqueness
     }
@@ -137,8 +137,8 @@ public class NetworkTopologyStrategyTest
 
         for (String testToken : new String[]{"123456", "200000", "000402", "ffffff", "400200"})
         {
-            List<InetAddressAndPort> endpoints = strategy.calculateNaturalEndpoints(new StringToken(testToken), metadata);
-            Set<InetAddressAndPort> epSet = new HashSet<>(endpoints);
+            List<Replica> endpoints = strategy.calculateNaturalEndpoints(new StringToken(testToken), metadata);
+            Set<Replica> epSet = new HashSet<>(endpoints);
 
             Assert.assertEquals(totalRF, endpoints.size());
             Assert.assertEquals(totalRF, epSet.size());
@@ -209,7 +209,7 @@ public class NetworkTopologyStrategyTest
         {
             Token token = Murmur3Partitioner.instance.getRandomToken(rand);
             List<InetAddressAndPort> expected = calculateNaturalEndpoints(token, tokenMetadata, datacenters, snitch);
-            List<InetAddressAndPort> actual = nts.calculateNaturalEndpoints(token, tokenMetadata);
+            List<InetAddressAndPort> actual = Replicas.asEndpointList(nts.calculateNaturalEndpoints(token, tokenMetadata));
             if (endpointsDiffer(expected, actual))
             {
                 System.err.println("Endpoints mismatch for token " + token);

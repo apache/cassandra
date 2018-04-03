@@ -50,6 +50,11 @@ public class DynamicEndpointSnitchTest
         Thread.sleep(150);
     }
 
+    private static List<Replica> fullReplicas(InetAddressAndPort... endpoints)
+    {
+        return Replicas.decorateEndpointList(Arrays.asList(endpoints), true);
+    }
+
     @Test
     public void testSnitch() throws InterruptedException, IOException, ConfigurationException
     {
@@ -66,41 +71,41 @@ public class DynamicEndpointSnitchTest
 
         // first, make all hosts equal
         setScores(dsnitch, 1, hosts, 10, 10, 10);
-        List<InetAddressAndPort> order = Arrays.asList(host1, host2, host3);
-        assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3)));
+        List<Replica> order = fullReplicas(host1, host2, host3);
+        assertEquals(order, dsnitch.getSortedListByProximity(self, fullReplicas(host1, host2, host3)));
 
         // make host1 a little worse
         setScores(dsnitch, 1, hosts, 20, 10, 10);
-        order = Arrays.asList(host2, host3, host1);
-        assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3)));
+        order = fullReplicas(host2, host3, host1);
+        assertEquals(order, dsnitch.getSortedListByProximity(self, fullReplicas(host1, host2, host3)));
 
         // make host2 as bad as host1
         setScores(dsnitch, 2, hosts, 15, 20, 10);
-        order = Arrays.asList(host3, host1, host2);
-        assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3)));
+        order = fullReplicas(host3, host1, host2);
+        assertEquals(order, dsnitch.getSortedListByProximity(self, fullReplicas(host1, host2, host3)));
 
         // make host3 the worst
         setScores(dsnitch, 3, hosts, 10, 10, 30);
-        order = Arrays.asList(host1, host2, host3);
-        assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3)));
+        order = fullReplicas(host1, host2, host3);
+        assertEquals(order, dsnitch.getSortedListByProximity(self, fullReplicas(host1, host2, host3)));
 
         // make host3 equal to the others
         setScores(dsnitch, 5, hosts, 10, 10, 10);
-        order = Arrays.asList(host1, host2, host3);
-        assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3)));
+        order = fullReplicas(host1, host2, host3);
+        assertEquals(order, dsnitch.getSortedListByProximity(self, fullReplicas(host1, host2, host3)));
 
         /// Tests CASSANDRA-6683 improvements
         // make the scores differ enough from the ideal order that we sort by score; under the old
         // dynamic snitch behavior (where we only compared neighbors), these wouldn't get sorted
         setScores(dsnitch, 20, hosts, 10, 70, 20);
-        order = Arrays.asList(host1, host3, host2);
-        assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3)));
+        order = fullReplicas(host1, host3, host2);
+        assertEquals(order, dsnitch.getSortedListByProximity(self, fullReplicas(host1, host2, host3)));
 
-        order = Arrays.asList(host4, host1, host3, host2);
-        assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3, host4)));
+        order = fullReplicas(host4, host1, host3, host2);
+        assertEquals(order, dsnitch.getSortedListByProximity(self, fullReplicas(host1, host2, host3, host4)));
 
         setScores(dsnitch, 20, hosts, 10, 10, 10);
-        order = Arrays.asList(host4, host1, host2, host3);
-        assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3, host4)));
+        order = fullReplicas(host4, host1, host2, host3);
+        assertEquals(order, dsnitch.getSortedListByProximity(self, fullReplicas(host1, host2, host3, host4)));
     }
 }

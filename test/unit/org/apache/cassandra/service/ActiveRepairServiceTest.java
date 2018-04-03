@@ -43,6 +43,10 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.ReplicatedRange;
+import org.apache.cassandra.locator.ReplicatedRanges;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -107,9 +111,9 @@ public class ActiveRepairServiceTest
     public void testGetNeighborsPlusOne() throws Throwable
     {
         // generate rf+1 nodes, and ensure that all nodes are returned
-        Set<InetAddressAndPort> expected = addTokens(1 + Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor());
+        Set<InetAddressAndPort> expected = addTokens(1 + Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor().replicas);
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(KEYSPACE5);
+        Collection<Range<Token>> ranges = ReplicatedRanges.asRanges(StorageService.instance.getLocalRanges(KEYSPACE5));
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
@@ -124,15 +128,15 @@ public class ActiveRepairServiceTest
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
 
         // generate rf*2 nodes, and ensure that only neighbors specified by the ARS are returned
-        addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor());
+        addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor().replicas);
         AbstractReplicationStrategy ars = Keyspace.open(KEYSPACE5).getReplicationStrategy();
         Set<InetAddressAndPort> expected = new HashSet<>();
-        for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPort()))
+        for (ReplicatedRange replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPort()))
         {
-            expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange));
+            expected.addAll(Replicas.asEndpoints(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange.getRange())));
         }
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(KEYSPACE5);
+        Collection<Range<Token>> ranges = ReplicatedRanges.asRanges(StorageService.instance.getLocalRanges(KEYSPACE5));
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
@@ -147,14 +151,14 @@ public class ActiveRepairServiceTest
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
 
         // generate rf+1 nodes, and ensure that all nodes are returned
-        Set<InetAddressAndPort> expected = addTokens(1 + Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor());
+        Set<InetAddressAndPort> expected = addTokens(1 + Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor().replicas);
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
         // remove remote endpoints
         TokenMetadata.Topology topology = tmd.cloneOnlyTokenMap().getTopology();
         HashSet<InetAddressAndPort> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
         expected = Sets.intersection(expected, localEndpoints);
 
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(KEYSPACE5);
+        Collection<Range<Token>> ranges = ReplicatedRanges.asRanges(StorageService.instance.getLocalRanges(KEYSPACE5));
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
@@ -169,12 +173,12 @@ public class ActiveRepairServiceTest
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
 
         // generate rf*2 nodes, and ensure that only neighbors specified by the ARS are returned
-        addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor());
+        addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor().replicas);
         AbstractReplicationStrategy ars = Keyspace.open(KEYSPACE5).getReplicationStrategy();
         Set<InetAddressAndPort> expected = new HashSet<>();
-        for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPort()))
+        for (ReplicatedRange replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPort()))
         {
-            expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange));
+            expected.addAll(Replicas.asEndpoints(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange.getRange())));
         }
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
         // remove remote endpoints
@@ -182,7 +186,7 @@ public class ActiveRepairServiceTest
         HashSet<InetAddressAndPort> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
         expected = Sets.intersection(expected, localEndpoints);
 
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(KEYSPACE5);
+        Collection<Range<Token>> ranges = ReplicatedRanges.asRanges(StorageService.instance.getLocalRanges(KEYSPACE5));
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
@@ -197,17 +201,17 @@ public class ActiveRepairServiceTest
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
 
         // generate rf*2 nodes, and ensure that only neighbors specified by the hosts are returned
-        addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor());
+        addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor().replicas);
         AbstractReplicationStrategy ars = Keyspace.open(KEYSPACE5).getReplicationStrategy();
         List<InetAddressAndPort> expected = new ArrayList<>();
-        for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPort()))
+        for (ReplicatedRange replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddressAndPort()))
         {
-            expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange));
+            expected.addAll(Replicas.asEndpoints(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange.getRange())));
         }
 
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
         Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().toString(),expected.get(0).toString());
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(KEYSPACE5);
+        Collection<Range<Token>> ranges = ReplicatedRanges.asRanges(StorageService.instance.getLocalRanges(KEYSPACE5));
 
         assertEquals(expected.get(0), ActiveRepairService.getNeighbors(KEYSPACE5, ranges,
                                                                        ranges.iterator().next(),
@@ -217,10 +221,10 @@ public class ActiveRepairServiceTest
     @Test(expected = IllegalArgumentException.class)
     public void testGetNeighborsSpecifiedHostsWithNoLocalHost() throws Throwable
     {
-        addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor());
+        addTokens(2 * Keyspace.open(KEYSPACE5).getReplicationStrategy().getReplicationFactor().replicas);
         //Dont give local endpoint
         Collection<String> hosts = Arrays.asList("127.0.0.3");
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(KEYSPACE5);
+        Collection<Range<Token>> ranges = ReplicatedRanges.asRanges(StorageService.instance.getLocalRanges(KEYSPACE5));
         ActiveRepairService.getNeighbors(KEYSPACE5, ranges, ranges.iterator().next(), null, hosts);
     }
 

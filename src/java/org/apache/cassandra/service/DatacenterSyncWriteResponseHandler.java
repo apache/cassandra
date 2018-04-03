@@ -25,8 +25,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
@@ -41,8 +41,8 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
     private final Map<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
     private final AtomicInteger acks = new AtomicInteger(0);
 
-    public DatacenterSyncWriteResponseHandler(Collection<InetAddressAndPort> naturalEndpoints,
-                                              Collection<InetAddressAndPort> pendingEndpoints,
+    public DatacenterSyncWriteResponseHandler(Collection<Replica> naturalReplicas,
+                                              Collection<Replica> pendingReplicas,
                                               ConsistencyLevel consistencyLevel,
                                               Keyspace keyspace,
                                               Runnable callback,
@@ -50,20 +50,21 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
                                               long queryStartNanoTime)
     {
         // Response is been managed by the map so make it 1 for the superclass.
-        super(keyspace, naturalEndpoints, pendingEndpoints, consistencyLevel, callback, writeType, queryStartNanoTime);
+        super(keyspace, naturalReplicas, pendingReplicas, consistencyLevel, callback, writeType, queryStartNanoTime);
         assert consistencyLevel == ConsistencyLevel.EACH_QUORUM;
 
         NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
 
         for (String dc : strategy.getDatacenters())
         {
-            int rf = strategy.getReplicationFactor(dc);
+            // TODO: support transient replicas
+            int rf = strategy.getReplicationFactor(dc).replicas;
             responses.put(dc, new AtomicInteger((rf / 2) + 1));
         }
 
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
-        for (InetAddressAndPort pending : pendingEndpoints)
+        for (Replica pending : pendingReplicas)
         {
             responses.get(snitch.getDatacenter(pending)).incrementAndGet();
         }

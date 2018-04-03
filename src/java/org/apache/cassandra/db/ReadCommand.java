@@ -40,6 +40,8 @@ import org.apache.cassandra.index.IndexNotAvailableException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -128,6 +130,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
     protected abstract void serializeSelection(DataOutputPlus out, int version) throws IOException;
     protected abstract long selectionSerializedSize(int version);
+    protected abstract Replica decorateEndpoint(InetAddressAndPort endpoint);
 
     public abstract boolean isLimitedToOnePartition();
 

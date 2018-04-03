@@ -25,7 +25,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.reads.DigestResolver;
 
 public interface ReadRepair
@@ -33,15 +33,15 @@ public interface ReadRepair
     /**
      * Used by DataResolver to generate corrections as the partition iterator is consumed
      */
-    UnfilteredPartitionIterators.MergeListener getMergeListener(InetAddressAndPort[] endpoints);
+    UnfilteredPartitionIterators.MergeListener getMergeListener(Replica[] replicas);
 
     /**
      * Called when the digests from the initial read don't match. Reads may block on the
      * repair started by this method.
      */
     public void startRepair(DigestResolver digestResolver,
-                            List<InetAddressAndPort> allEndpoints,
-                            List<InetAddressAndPort> contactedEndpoints,
+                            List<Replica> allEndpoints,
+                            List<Replica> contactedEndpoints,
                             Consumer<PartitionIterator> resultConsumer);
 
     /**
@@ -49,7 +49,7 @@ public interface ReadRepair
      */
     public void awaitRepair() throws ReadTimeoutException;
 
-    static ReadRepair create(ReadCommand command, List<InetAddressAndPort> endpoints, long queryStartNanoTime, ConsistencyLevel consistency)
+    static ReadRepair create(ReadCommand command, List<Replica> endpoints, long queryStartNanoTime, ConsistencyLevel consistency)
     {
         return new BlockingReadRepair(command, endpoints, queryStartNanoTime, consistency);
     }

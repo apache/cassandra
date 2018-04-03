@@ -216,7 +216,7 @@ public class TableMetrics
             Keyspace k = Schema.instance.getKeyspaceInstance(keyspace);
             if (SchemaConstants.DISTRIBUTED_KEYSPACE_NAME.equals(k.getName()))
                 continue;
-            if (k.getReplicationStrategy().getReplicationFactor() < 2)
+            if (k.getReplicationStrategy().getReplicationFactor().replicas < 2)
                 continue;
 
             for (ColumnFamilyStore cf : k.getColumnFamilyStores())

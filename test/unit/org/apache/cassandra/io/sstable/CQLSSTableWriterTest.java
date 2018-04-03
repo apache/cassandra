@@ -38,6 +38,7 @@ import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.locator.ReplicatedRanges;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
@@ -649,7 +650,7 @@ public class CQLSSTableWriterTest
             public void init(String keyspace)
             {
                 this.keyspace = keyspace;
-                for (Range<Token> range : StorageService.instance.getLocalRanges(ks))
+                for (Range<Token> range : ReplicatedRanges.asRanges(StorageService.instance.getLocalRanges(ks)))
                     addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
             }
 

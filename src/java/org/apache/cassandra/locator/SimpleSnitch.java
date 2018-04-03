@@ -37,12 +37,13 @@ public class SimpleSnitch extends AbstractEndpointSnitch
     }
 
     @Override
-    public void sortByProximity(final InetAddressAndPort address, List<InetAddressAndPort> addresses)
+    public void sortByProximity(final InetAddressAndPort address, List<Replica> addresses)
     {
         // Optimization to avoid walking the list
     }
 
-    public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2)
+    @Override
+    public int compareEndpoints(InetAddressAndPort target, Replica r1, Replica r2)
     {
         // Making all endpoints equal ensures we won't change the original ordering (since
         // Collections.sort is guaranteed to be stable)

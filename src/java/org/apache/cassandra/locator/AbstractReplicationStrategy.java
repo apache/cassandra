@@ -73,9 +73,9 @@ public abstract class AbstractReplicationStrategy
         // lazy-initialize keyspace itself since we don't create them until after the replication strategies
     }
 
-    private final Map<Token, ArrayList<InetAddressAndPort>> cachedEndpoints = new NonBlockingHashMap<Token, ArrayList<InetAddressAndPort>>();
+    private final Map<Token, ArrayList<Replica>> cachedEndpoints = new NonBlockingHashMap<>();
 
-    public ArrayList<InetAddressAndPort> getCachedEndpoints(Token t)
+    public ArrayList<Replica> getCachedEndpoints(Token t)
     {
         long lastVersion = tokenMetadata.getRingVersion();
 
@@ -102,21 +102,21 @@ public abstract class AbstractReplicationStrategy
      * @param searchPosition the position the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
      */
-    public ArrayList<InetAddressAndPort> getNaturalEndpoints(RingPosition searchPosition)
+    public ArrayList<Replica> getNaturalEndpoints(RingPosition searchPosition)
     {
         Token searchToken = searchPosition.getToken();
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
-        ArrayList<InetAddressAndPort> endpoints = getCachedEndpoints(keyToken);
+        ArrayList<Replica> endpoints = getCachedEndpoints(keyToken);
         if (endpoints == null)
         {
             TokenMetadata tm = tokenMetadata.cachedOnlyTokenMap();
             // if our cache got invalidated, it's possible there is a new token to account for too
             keyToken = TokenMetadata.firstToken(tm.sortedTokens(), searchToken);
-            endpoints = new ArrayList<InetAddressAndPort>(calculateNaturalEndpoints(searchToken, tm));
+            endpoints = new ArrayList<>(calculateNaturalEndpoints(searchToken, tm));
             cachedEndpoints.put(keyToken, endpoints);
         }
 
-        return new ArrayList<InetAddressAndPort>(endpoints);
+        return new ArrayList<>(endpoints);
     }
 
     /**
@@ -127,10 +127,10 @@ public abstract class AbstractReplicationStrategy
      * @param searchToken the token the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
      */
-    public abstract List<InetAddressAndPort> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata);
+    public abstract List<Replica> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata);
 
-    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Collection<InetAddressAndPort> naturalEndpoints,
-                                                                       Collection<InetAddressAndPort> pendingEndpoints,
+    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Collection<Replica> naturalEndpoints,
+                                                                       Collection<Replica> pendingEndpoints,
                                                                        ConsistencyLevel consistency_level,
                                                                        Runnable callback,
                                                                        WriteType writeType,
@@ -139,8 +139,8 @@ public abstract class AbstractReplicationStrategy
         return getWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, callback, writeType, queryStartNanoTime, DatabaseDescriptor.getIdealConsistencyLevel());
     }
 
-    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Collection<InetAddressAndPort> naturalEndpoints,
-                                                                       Collection<InetAddressAndPort> pendingEndpoints,
+    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(Collection<Replica> naturalEndpoints,
+                                                                       Collection<Replica> pendingEndpoints,
                                                                        ConsistencyLevel consistency_level,
                                                                        Runnable callback,
                                                                        WriteType writeType,
@@ -202,7 +202,7 @@ public abstract class AbstractReplicationStrategy
      *
      * @return the replication factor
      */
-    public abstract int getReplicationFactor();
+    public abstract ReplicationFactor getReplicationFactor();
 
     /*
      * NOTE: this is pretty inefficient. also the inverse (getRangeAddresses) below.
@@ -210,49 +210,49 @@ public abstract class AbstractReplicationStrategy
      * (fixing this would probably require merging tokenmetadata into replicationstrategy,
      * so we could cache/invalidate cleanly.)
      */
-    public Multimap<InetAddressAndPort, Range<Token>> getAddressRanges(TokenMetadata metadata)
+    public Multimap<InetAddressAndPort, ReplicatedRange> getAddressRanges(TokenMetadata metadata)
     {
-        Multimap<InetAddressAndPort, Range<Token>> map = HashMultimap.create();
+        Multimap<InetAddressAndPort, ReplicatedRange> map = HashMultimap.create();
 
         for (Token token : metadata.sortedTokens())
         {
             Range<Token> range = metadata.getPrimaryRangeFor(token);
-            for (InetAddressAndPort ep : calculateNaturalEndpoints(token, metadata))
+            for (Replica replica : calculateNaturalEndpoints(token, metadata))
             {
-                map.put(ep, range);
+                map.put(replica.getEndpoint(), replica.decorateRange(range));
             }
         }
 
         return map;
     }
 
-    public Multimap<Range<Token>, InetAddressAndPort> getRangeAddresses(TokenMetadata metadata)
+    public Multimap<Range<Token>, Replica> getRangeAddresses(TokenMetadata metadata)
     {
-        Multimap<Range<Token>, InetAddressAndPort> map = HashMultimap.create();
+        Multimap<Range<Token>, Replica> map = HashMultimap.create();
 
         for (Token token : metadata.sortedTokens())
         {
             Range<Token> range = metadata.getPrimaryRangeFor(token);
-            for (InetAddressAndPort ep : calculateNaturalEndpoints(token, metadata))
+            for (Replica replica : calculateNaturalEndpoints(token, metadata))
             {
-                map.put(range, ep);
+                map.put(range, replica);
             }
         }
 
         return map;
     }
 
-    public Multimap<InetAddressAndPort, Range<Token>> getAddressRanges()
+    public Multimap<InetAddressAndPort, ReplicatedRange> getAddressRanges()
     {
         return getAddressRanges(tokenMetadata.cloneOnlyTokenMap());
     }
 
-    public Collection<Range<Token>> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddressAndPort pendingAddress)
+    public Collection<ReplicatedRange> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddressAndPort pendingAddress)
     {
         return getPendingAddressRanges(metadata, Arrays.asList(pendingToken), pendingAddress);
     }
 
-    public Collection<Range<Token>> getPendingAddressRanges(TokenMetadata metadata, Collection<Token> pendingTokens, InetAddressAndPort pendingAddress)
+    public Collection<ReplicatedRange> getPendingAddressRanges(TokenMetadata metadata, Collection<Token> pendingTokens, InetAddressAndPort pendingAddress)
     {
         TokenMetadata temp = metadata.cloneOnlyTokenMap();
         temp.updateNormalTokens(pendingTokens, pendingAddress);
@@ -347,18 +347,15 @@ public abstract class AbstractReplicationStrategy
         return getClass().equals(other.getClass()) && getReplicationFactor() == other.getReplicationFactor();
     }
 
-    protected void validateReplicationFactor(String rf) throws ConfigurationException
+    protected void validateReplicationFactor(String s) throws ConfigurationException
     {
         try
         {
-            if (Integer.parseInt(rf) < 0)
-            {
-                throw new ConfigurationException("Replication factor must be non-negative; found " + rf);
-            }
+            ReplicationFactor.fromString(s);
         }
-        catch (NumberFormatException e2)
+        catch (IllegalArgumentException e)
         {
-            throw new ConfigurationException("Replication factor must be numeric; found " + rf);
+            throw new ConfigurationException(e.getMessage());
         }
     }
 

@@ -29,6 +29,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.locator.ReplicatedRange;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -121,8 +122,8 @@ public class LongStreamingTest
             private String ks;
             public void init(String keyspace)
             {
-                for (Range<Token> range : StorageService.instance.getLocalRanges(KS))
-                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
+                for (ReplicatedRange range : StorageService.instance.getLocalRanges(KS))
+                    addRangeForEndpoint(range.getRange(), FBUtilities.getBroadcastAddressAndPort());
 
                 this.ks = keyspace;
             }
@@ -148,8 +149,8 @@ public class LongStreamingTest
             private String ks;
             public void init(String keyspace)
             {
-                for (Range<Token> range : StorageService.instance.getLocalRanges(KS))
-                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
+                for (ReplicatedRange range : StorageService.instance.getLocalRanges(KS))
+                    addRangeForEndpoint(range.getRange(), FBUtilities.getBroadcastAddressAndPort());
 
                 this.ks = keyspace;
             }

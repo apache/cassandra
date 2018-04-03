@@ -107,12 +107,12 @@ public class SimpleStrategyTest
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                List<InetAddressAndPort> endpoints = strategy.getNaturalEndpoints(keyTokens[i]);
-                assertEquals(strategy.getReplicationFactor(), endpoints.size());
+                List<Replica> replicas = strategy.getNaturalEndpoints(keyTokens[i]);
+                assertEquals(strategy.getReplicationFactor().replicas, replicas.size());
                 List<InetAddressAndPort> correctEndpoints = new ArrayList<>();
-                for (int j = 0; j < endpoints.size(); j++)
+                for (int j = 0; j < replicas.size(); j++)
                     correctEndpoints.add(hosts.get((i + j + 1) % hosts.size()));
-                assertEquals(new HashSet<>(correctEndpoints), new HashSet<>(endpoints));
+                assertEquals(new HashSet<>(correctEndpoints), Replicas.asEndpointSet(replicas));
             }
         }
     }
@@ -154,24 +154,24 @@ public class SimpleStrategyTest
 
             PendingRangeCalculatorService.calculatePendingRanges(strategy, keyspaceName);
 
-            int replicationFactor = strategy.getReplicationFactor();
+            int replicationFactor = strategy.getReplicationFactor().replicas;
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                Collection<InetAddressAndPort> endpoints = tmd.getWriteEndpoints(keyTokens[i], keyspaceName, strategy.getNaturalEndpoints(keyTokens[i]));
-                assertTrue(endpoints.size() >= replicationFactor);
+                Collection<Replica> replicas = tmd.getWriteEndpoints(keyTokens[i], keyspaceName, strategy.getNaturalEndpoints(keyTokens[i]));
+                assertTrue(replicas.size() >= replicationFactor);
 
                 for (int j = 0; j < replicationFactor; j++)
                 {
                     //Check that the old nodes are definitely included
-                    assertTrue(endpoints.contains(hosts.get((i + j + 1) % hosts.size())));
+                   assertTrue(Replicas.containsEndpoint(replicas, hosts.get((i + j + 1) % hosts.size())));
                 }
 
                 // bootstrapEndpoint should be in the endpoints for i in MAX-RF to MAX, but not in any earlier ep.
                 if (i < RING_SIZE - replicationFactor)
-                    assertFalse(endpoints.contains(bootstrapEndpoint));
+                    assertFalse(Replicas.containsEndpoint(replicas, bootstrapEndpoint));
                 else
-                    assertTrue(endpoints.contains(bootstrapEndpoint));
+                    assertTrue(Replicas.containsEndpoint(replicas, bootstrapEndpoint));
             }
         }
 

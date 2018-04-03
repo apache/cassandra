@@ -38,6 +38,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
@@ -113,7 +114,7 @@ public class TokenAllocation
     {
         double size = current.size(next);
         Token representative = current.getPartitioner().midpoint(current, next);
-        for (InetAddressAndPort n : rs.calculateNaturalEndpoints(representative, tokenMetadata))
+        for (InetAddressAndPort n : Replicas.asEndpoints(rs.calculateNaturalEndpoints(representative, tokenMetadata)))
         {
             Double v = ownership.get(n);
             ownership.put(n, v != null ? v + size : size);
@@ -169,7 +170,7 @@ public class TokenAllocation
 
     static StrategyAdapter getStrategy(final TokenMetadata tokenMetadata, final SimpleStrategy rs, final InetAddressAndPort endpoint)
     {
-        final int replicas = rs.getReplicationFactor();
+        final int replicas = rs.getReplicationFactor().replicas;
 
         return new StrategyAdapter()
         {
@@ -196,7 +197,7 @@ public class TokenAllocation
     static StrategyAdapter getStrategy(final TokenMetadata tokenMetadata, final NetworkTopologyStrategy rs, final IEndpointSnitch snitch, final InetAddressAndPort endpoint)
     {
         final String dc = snitch.getDatacenter(endpoint);
-        final int replicas = rs.getReplicationFactor(dc);
+        final int replicas = rs.getReplicationFactor(dc).replicas;
 
         if (replicas == 0 || replicas == 1)
         {

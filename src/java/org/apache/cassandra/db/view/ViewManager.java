@@ -79,7 +79,7 @@ public class ViewManager
             {
                 assert keyspace.getName().equals(update.metadata().keyspace);
 
-                if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor() == 1)
+                if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor().replicas == 1)
                     continue;
 
                 if (!forTable(update.metadata().id).updatedViews(update).isEmpty())

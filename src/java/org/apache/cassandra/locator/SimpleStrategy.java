@@ -36,34 +36,37 @@ import org.apache.cassandra.dht.Token;
  */
 public class SimpleStrategy extends AbstractReplicationStrategy
 {
+    private final ReplicationFactor rf;
+
     public SimpleStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
+        this.rf = ReplicationFactor.fromString(this.configOptions.get("replication_factor"));
     }
 
-    public List<InetAddressAndPort> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+    public List<Replica> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
-        int replicas = getReplicationFactor();
         ArrayList<Token> tokens = metadata.sortedTokens();
-        List<InetAddressAndPort> endpoints = new ArrayList<InetAddressAndPort>(replicas);
+        List<Replica> replicas = new ArrayList<>(rf.replicas);
 
         if (tokens.isEmpty())
-            return endpoints;
+            return replicas;
 
         // Add the token at the index by default
         Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token, false);
-        while (endpoints.size() < replicas && iter.hasNext())
+        while (replicas.size() < rf.replicas && iter.hasNext())
         {
+            assert rf.trans == 0 : "support transient replicas";
             InetAddressAndPort ep = metadata.getEndpoint(iter.next());
-            if (!endpoints.contains(ep))
-                endpoints.add(ep);
+            if (!replicas.contains(ep))
+                replicas.add(Replica.full(ep));
         }
-        return endpoints;
+        return replicas;
     }
 
-    public int getReplicationFactor()
+    public ReplicationFactor getReplicationFactor()
     {
-        return Integer.parseInt(this.configOptions.get("replication_factor"));
+        return rf;
     }
 
     public void validateOptions() throws ConfigurationException

@@ -40,6 +40,7 @@ import org.apache.cassandra.db.rows.RowDiffListener;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ColumnMetadata;
 
 public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeListener
@@ -47,7 +48,7 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
     private final DecoratedKey partitionKey;
     private final RegularAndStaticColumns columns;
     private final boolean isReversed;
-    private final InetAddressAndPort[] sources;
+    private final Replica[] sources;
     private final ReadCommand command;
 
     private final PartitionUpdate.Builder[] repairs;
@@ -66,7 +67,7 @@ public class RowIteratorMergeListener implements UnfilteredRowIterators.MergeLis
 
     private final RepairListener repairListener;
 
-    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, InetAddressAndPort[] sources, ReadCommand command, RepairListener repairListener)
+    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, Replica[] sources, ReadCommand command, RepairListener repairListener)
     {
         this.partitionKey = partitionKey;
         this.columns = columns;

@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 
 
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -38,6 +39,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -49,7 +51,19 @@ public class WriteResponseHandlerTest
 {
     static Keyspace ks;
     static ColumnFamilyStore cfs;
-    static List<InetAddressAndPort> targets;
+    static List<Replica> targets;
+
+    private static Replica full(String name)
+    {
+        try
+        {
+            return Replica.full(InetAddressAndPort.getByName(name));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new AssertionError(e);
+        }
+    }
 
     @BeforeClass
     public static void setUpClass() throws Throwable
@@ -77,17 +91,17 @@ public class WriteResponseHandlerTest
                     return "datacenter2";
             }
 
-            public List<InetAddressAndPort> getSortedListByProximity(InetAddressAndPort address, Collection<InetAddressAndPort> unsortedAddress)
+            public List<Replica> getSortedListByProximity(InetAddressAndPort address, Collection<Replica> unsortedAddress)
             {
                 return null;
             }
 
-            public void sortByProximity(InetAddressAndPort address, List<InetAddressAndPort> addresses)
+            public void sortByProximity(InetAddressAndPort address, List<Replica> replicas)
             {
 
             }
 
-            public int compareEndpoints(InetAddressAndPort target, InetAddressAndPort a1, InetAddressAndPort a2)
+            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
                 return 0;
             }
@@ -97,7 +111,7 @@ public class WriteResponseHandlerTest
 
             }
 
-            public boolean isWorthMergingForRangeQuery(List<InetAddressAndPort> merged, List<InetAddressAndPort> l1, List<InetAddressAndPort> l2)
+            public boolean isWorthMergingForRangeQuery(List<Replica> merged, List<Replica> l1, List<Replica> l2)
             {
                 return false;
             }
@@ -106,8 +120,8 @@ public class WriteResponseHandlerTest
         SchemaLoader.createKeyspace("Foo", KeyspaceParams.nts("datacenter1", 3, "datacenter2", 3), SchemaLoader.standardCFMD("Foo", "Bar"));
         ks = Keyspace.open("Foo");
         cfs = ks.getColumnFamilyStore("Bar");
-        targets = ImmutableList.of(InetAddressAndPort.getByName("127.1.0.255"), InetAddressAndPort.getByName("127.1.0.254"), InetAddressAndPort.getByName("127.1.0.253"),
-                                   InetAddressAndPort.getByName("127.2.0.255"), InetAddressAndPort.getByName("127.2.0.254"), InetAddressAndPort.getByName("127.2.0.253"));
+        targets = ImmutableList.of(full("127.1.0.255"), full("127.1.0.254"), full("127.1.0.253"),
+                                   full("127.2.0.255"), full("127.2.0.254"), full("127.2.0.253"));
     }
 
     @Before
@@ -230,6 +244,6 @@ public class WriteResponseHandlerTest
 
     private static MessageIn createDummyMessage(int target)
     {
-        return MessageIn.create(targets.get(target), null, null,  null, 0, 0L);
+        return MessageIn.create(targets.get(target).getEndpoint(), null, null,  null, 0, 0L);
     }
 }

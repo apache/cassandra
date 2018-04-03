@@ -96,7 +96,7 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
                                                                                                         StorageService.instance.getTokenMetadata(),
                                                                                                         DatabaseDescriptor.getEndpointSnitch(),
                                                                                                         params.replication.options);
-        if (newStrategy.getReplicationFactor() > oldStrategy.getReplicationFactor())
+        if (newStrategy.getReplicationFactor().full > oldStrategy.getReplicationFactor().full)
             ClientWarn.instance.warn("When increasing replication factor you need to run a full (-full) repair to distribute the data.");
     }
 

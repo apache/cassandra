@@ -21,7 +21,7 @@ package org.apache.cassandra.net;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.utils.FBUtilities;
@@ -30,24 +30,31 @@ public class WriteCallbackInfo extends CallbackInfo
 {
     // either a Mutation, or a Paxos Commit (MessageOut)
     private final Object mutation;
+    private final Replica replica;
 
-    public WriteCallbackInfo(InetAddressAndPort target,
+    public WriteCallbackInfo(Replica replica,
                              IAsyncCallback callback,
                              MessageOut message,
                              IVersionedSerializer<?> serializer,
                              ConsistencyLevel consistencyLevel,
                              boolean allowHints)
     {
-        super(target, callback, serializer, true);
+        super(replica.getEndpoint(), callback, serializer, true);
         assert message != null;
         this.mutation = shouldHint(allowHints, message, consistencyLevel);
         //Local writes shouldn't go through messaging service (https://issues.apache.org/jira/browse/CASSANDRA-10477)
         assert (!target.equals(FBUtilities.getBroadcastAddressAndPort()));
+        this.replica = replica;
     }
 
     public boolean shouldHint()
     {
-        return mutation != null && StorageProxy.shouldHint(target);
+        return mutation != null && StorageProxy.shouldHint(replica);
+    }
+
+    public Replica getReplica()
+    {
+        return replica;
     }
 
     public Mutation mutation()

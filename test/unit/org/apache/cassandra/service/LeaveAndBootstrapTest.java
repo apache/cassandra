@@ -34,6 +34,8 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.Util.PartitionerSwitcher;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -130,9 +132,9 @@ public class LeaveAndBootstrapTest
             strategy = getStrategy(keyspaceName, tmd);
             for (Token token : keyTokens)
             {
-                int replicationFactor = strategy.getReplicationFactor();
+                int replicationFactor = strategy.getReplicationFactor().replicas;
 
-                HashSet<InetAddressAndPort> actual = new HashSet<>(tmd.getWriteEndpoints(token, keyspaceName, strategy.calculateNaturalEndpoints(token, tmd.cloneOnlyTokenMap())));
+                HashSet<InetAddressAndPort> actual = new HashSet<>(Replicas.asEndpoints(tmd.getWriteEndpoints(token, keyspaceName, strategy.calculateNaturalEndpoints(token, tmd.cloneOnlyTokenMap()))));
                 HashSet<InetAddressAndPort> expected = new HashSet<>();
 
                 for (int i = 0; i < replicationFactor; i++)
@@ -198,7 +200,7 @@ public class LeaveAndBootstrapTest
                     ApplicationState.STATUS,
                     valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(7))));
 
-        Collection<InetAddressAndPort> endpoints = null;
+        Collection<Replica> replicas = null;
 
         /* don't require test update every time a new keyspace is added to test/conf/cassandra.yaml */
         Map<String, AbstractReplicationStrategy> keyspaceStrategyMap = new HashMap<String, AbstractReplicationStrategy>();
@@ -263,88 +265,88 @@ public class LeaveAndBootstrapTest
 
             for (int i = 0; i < keyTokens.size(); i++)
             {
-                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(i)));
-                assertEquals(expectedEndpoints.get(keyspaceName).get(keyTokens.get(i)).size(), endpoints.size());
-                assertTrue(expectedEndpoints.get(keyspaceName).get(keyTokens.get(i)).containsAll(endpoints));
+                replicas = tmd.getWriteEndpoints(keyTokens.get(i), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(i)));
+                assertEquals(expectedEndpoints.get(keyspaceName).get(keyTokens.get(i)).size(), replicas.size());
+                assertTrue(expectedEndpoints.get(keyspaceName).get(keyTokens.get(i)).containsAll(replicas));
             }
 
             // just to be sure that things still work according to the old tests, run them:
-            if (strategy.getReplicationFactor() != 3)
+            if (strategy.getReplicationFactor().replicas != 3)
                 continue;
             // tokens 5, 15 and 25 should go three nodes
             for (int i=0; i<3; ++i)
             {
-                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(i)));
-                assertEquals(3, endpoints.size());
-                assertTrue(endpoints.contains(hosts.get(i+1)));
-                assertTrue(endpoints.contains(hosts.get(i+2)));
-                assertTrue(endpoints.contains(hosts.get(i+3)));
+                replicas = tmd.getWriteEndpoints(keyTokens.get(i), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(i)));
+                assertEquals(3, replicas.size());
+                assertTrue(replicas.contains(hosts.get(i+1)));
+                assertTrue(replicas.contains(hosts.get(i+2)));
+                assertTrue(replicas.contains(hosts.get(i+3)));
             }
 
             // token 35 should go to nodes 4, 5, 6, 7 and boot1
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(3), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(3)));
-            assertEquals(5, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(4)));
-            assertTrue(endpoints.contains(hosts.get(5)));
-            assertTrue(endpoints.contains(hosts.get(6)));
-            assertTrue(endpoints.contains(hosts.get(7)));
-            assertTrue(endpoints.contains(boot1));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(3), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(3)));
+            assertEquals(5, replicas.size());
+            assertTrue(replicas.contains(hosts.get(4)));
+            assertTrue(replicas.contains(hosts.get(5)));
+            assertTrue(replicas.contains(hosts.get(6)));
+            assertTrue(replicas.contains(hosts.get(7)));
+            assertTrue(replicas.contains(boot1));
 
             // token 45 should go to nodes 5, 6, 7, 0, boot1 and boot2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(4), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(4)));
-            assertEquals(6, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(5)));
-            assertTrue(endpoints.contains(hosts.get(6)));
-            assertTrue(endpoints.contains(hosts.get(7)));
-            assertTrue(endpoints.contains(hosts.get(0)));
-            assertTrue(endpoints.contains(boot1));
-            assertTrue(endpoints.contains(boot2));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(4), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(4)));
+            assertEquals(6, replicas.size());
+            assertTrue(replicas.contains(hosts.get(5)));
+            assertTrue(replicas.contains(hosts.get(6)));
+            assertTrue(replicas.contains(hosts.get(7)));
+            assertTrue(replicas.contains(hosts.get(0)));
+            assertTrue(replicas.contains(boot1));
+            assertTrue(replicas.contains(boot2));
 
             // token 55 should go to nodes 6, 7, 8, 0, 1, boot1 and boot2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(5), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(5)));
-            assertEquals(7, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(6)));
-            assertTrue(endpoints.contains(hosts.get(7)));
-            assertTrue(endpoints.contains(hosts.get(8)));
-            assertTrue(endpoints.contains(hosts.get(0)));
-            assertTrue(endpoints.contains(hosts.get(1)));
-            assertTrue(endpoints.contains(boot1));
-            assertTrue(endpoints.contains(boot2));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(5), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(5)));
+            assertEquals(7, replicas.size());
+            assertTrue(replicas.contains(hosts.get(6)));
+            assertTrue(replicas.contains(hosts.get(7)));
+            assertTrue(replicas.contains(hosts.get(8)));
+            assertTrue(replicas.contains(hosts.get(0)));
+            assertTrue(replicas.contains(hosts.get(1)));
+            assertTrue(replicas.contains(boot1));
+            assertTrue(replicas.contains(boot2));
 
             // token 65 should go to nodes 7, 8, 9, 0, 1 and boot2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(6), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(6)));
-            assertEquals(6, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(7)));
-            assertTrue(endpoints.contains(hosts.get(8)));
-            assertTrue(endpoints.contains(hosts.get(9)));
-            assertTrue(endpoints.contains(hosts.get(0)));
-            assertTrue(endpoints.contains(hosts.get(1)));
-            assertTrue(endpoints.contains(boot2));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(6), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(6)));
+            assertEquals(6, replicas.size());
+            assertTrue(replicas.contains(hosts.get(7)));
+            assertTrue(replicas.contains(hosts.get(8)));
+            assertTrue(replicas.contains(hosts.get(9)));
+            assertTrue(replicas.contains(hosts.get(0)));
+            assertTrue(replicas.contains(hosts.get(1)));
+            assertTrue(replicas.contains(boot2));
 
             // token 75 should to go nodes 8, 9, 0, 1, 2 and boot2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(7), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(7)));
-            assertEquals(6, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(8)));
-            assertTrue(endpoints.contains(hosts.get(9)));
-            assertTrue(endpoints.contains(hosts.get(0)));
-            assertTrue(endpoints.contains(hosts.get(1)));
-            assertTrue(endpoints.contains(hosts.get(2)));
-            assertTrue(endpoints.contains(boot2));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(7), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(7)));
+            assertEquals(6, replicas.size());
+            assertTrue(replicas.contains(hosts.get(8)));
+            assertTrue(replicas.contains(hosts.get(9)));
+            assertTrue(replicas.contains(hosts.get(0)));
+            assertTrue(replicas.contains(hosts.get(1)));
+            assertTrue(replicas.contains(hosts.get(2)));
+            assertTrue(replicas.contains(boot2));
 
             // token 85 should go to nodes 9, 0, 1 and 2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(8), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(8)));
-            assertEquals(4, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(9)));
-            assertTrue(endpoints.contains(hosts.get(0)));
-            assertTrue(endpoints.contains(hosts.get(1)));
-            assertTrue(endpoints.contains(hosts.get(2)));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(8), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(8)));
+            assertEquals(4, replicas.size());
+            assertTrue(replicas.contains(hosts.get(9)));
+            assertTrue(replicas.contains(hosts.get(0)));
+            assertTrue(replicas.contains(hosts.get(1)));
+            assertTrue(replicas.contains(hosts.get(2)));
 
             // token 95 should go to nodes 0, 1 and 2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(9), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(9)));
-            assertEquals(3, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(0)));
-            assertTrue(endpoints.contains(hosts.get(1)));
-            assertTrue(endpoints.contains(hosts.get(2)));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(9), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(9)));
+            assertEquals(3, replicas.size());
+            assertTrue(replicas.contains(hosts.get(0)));
+            assertTrue(replicas.contains(hosts.get(1)));
+            assertTrue(replicas.contains(hosts.get(2)));
 
         }
 
@@ -385,78 +387,78 @@ public class LeaveAndBootstrapTest
 
             for (int i = 0; i < keyTokens.size(); i++)
             {
-                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(i)));
-                assertEquals(expectedEndpoints.get(keyspaceName).get(keyTokens.get(i)).size(), endpoints.size());
-                assertTrue(expectedEndpoints.get(keyspaceName).get(keyTokens.get(i)).containsAll(endpoints));
+                replicas = tmd.getWriteEndpoints(keyTokens.get(i), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(i)));
+                assertEquals(expectedEndpoints.get(keyspaceName).get(keyTokens.get(i)).size(), replicas.size());
+                assertTrue(expectedEndpoints.get(keyspaceName).get(keyTokens.get(i)).containsAll(replicas));
             }
 
-            if (strategy.getReplicationFactor() != 3)
+            if (strategy.getReplicationFactor().replicas != 3)
                 continue;
             // leave this stuff in to guarantee the old tests work the way they were supposed to.
             // tokens 5, 15 and 25 should go three nodes
             for (int i=0; i<3; ++i)
             {
-                endpoints = tmd.getWriteEndpoints(keyTokens.get(i), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(i)));
-                assertEquals(3, endpoints.size());
-                assertTrue(endpoints.contains(hosts.get(i+1)));
-                assertTrue(endpoints.contains(hosts.get(i+2)));
-                assertTrue(endpoints.contains(hosts.get(i+3)));
+                replicas = tmd.getWriteEndpoints(keyTokens.get(i), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(i)));
+                assertEquals(3, replicas.size());
+                assertTrue(replicas.contains(hosts.get(i+1)));
+                assertTrue(replicas.contains(hosts.get(i+2)));
+                assertTrue(replicas.contains(hosts.get(i+3)));
             }
 
             // token 35 goes to nodes 4, 5 and boot1
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(3), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(3)));
-            assertEquals(3, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(4)));
-            assertTrue(endpoints.contains(hosts.get(5)));
-            assertTrue(endpoints.contains(boot1));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(3), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(3)));
+            assertEquals(3, replicas.size());
+            assertTrue(replicas.contains(hosts.get(4)));
+            assertTrue(replicas.contains(hosts.get(5)));
+            assertTrue(replicas.contains(boot1));
 
             // token 45 goes to nodes 5, boot1 and node7
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(4), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(4)));
-            assertEquals(3, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(5)));
-            assertTrue(endpoints.contains(boot1));
-            assertTrue(endpoints.contains(hosts.get(7)));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(4), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(4)));
+            assertEquals(3, replicas.size());
+            assertTrue(replicas.contains(hosts.get(5)));
+            assertTrue(replicas.contains(boot1));
+            assertTrue(replicas.contains(hosts.get(7)));
 
             // token 55 goes to boot1, 7, boot2, 8 and 0
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(5), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(5)));
-            assertEquals(5, endpoints.size());
-            assertTrue(endpoints.contains(boot1));
-            assertTrue(endpoints.contains(hosts.get(7)));
-            assertTrue(endpoints.contains(boot2));
-            assertTrue(endpoints.contains(hosts.get(8)));
-            assertTrue(endpoints.contains(hosts.get(0)));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(5), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(5)));
+            assertEquals(5, replicas.size());
+            assertTrue(replicas.contains(boot1));
+            assertTrue(replicas.contains(hosts.get(7)));
+            assertTrue(replicas.contains(boot2));
+            assertTrue(replicas.contains(hosts.get(8)));
+            assertTrue(replicas.contains(hosts.get(0)));
 
             // token 65 goes to nodes 7, boot2, 8, 0 and 1
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(6), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(6)));
-            assertEquals(5, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(7)));
-            assertTrue(endpoints.contains(boot2));
-            assertTrue(endpoints.contains(hosts.get(8)));
-            assertTrue(endpoints.contains(hosts.get(0)));
-            assertTrue(endpoints.contains(hosts.get(1)));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(6), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(6)));
+            assertEquals(5, replicas.size());
+            assertTrue(replicas.contains(hosts.get(7)));
+            assertTrue(replicas.contains(boot2));
+            assertTrue(replicas.contains(hosts.get(8)));
+            assertTrue(replicas.contains(hosts.get(0)));
+            assertTrue(replicas.contains(hosts.get(1)));
 
             // token 75 goes to nodes boot2, 8, 0, 1 and 2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(7), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(7)));
-            assertEquals(5, endpoints.size());
-            assertTrue(endpoints.contains(boot2));
-            assertTrue(endpoints.contains(hosts.get(8)));
-            assertTrue(endpoints.contains(hosts.get(0)));
-            assertTrue(endpoints.contains(hosts.get(1)));
-            assertTrue(endpoints.contains(hosts.get(2)));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(7), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(7)));
+            assertEquals(5, replicas.size());
+            assertTrue(replicas.contains(boot2));
+            assertTrue(replicas.contains(hosts.get(8)));
+            assertTrue(replicas.contains(hosts.get(0)));
+            assertTrue(replicas.contains(hosts.get(1)));
+            assertTrue(replicas.contains(hosts.get(2)));
 
             // token 85 goes to nodes 0, 1 and 2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(8), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(8)));
-            assertEquals(3, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(0)));
-            assertTrue(endpoints.contains(hosts.get(1)));
-            assertTrue(endpoints.contains(hosts.get(2)));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(8), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(8)));
+            assertEquals(3, replicas.size());
+            assertTrue(replicas.contains(hosts.get(0)));
+            assertTrue(replicas.contains(hosts.get(1)));
+            assertTrue(replicas.contains(hosts.get(2)));
 
             // token 95 goes to nodes 0, 1 and 2
-            endpoints = tmd.getWriteEndpoints(keyTokens.get(9), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(9)));
-            assertEquals(3, endpoints.size());
-            assertTrue(endpoints.contains(hosts.get(0)));
-            assertTrue(endpoints.contains(hosts.get(1)));
-            assertTrue(endpoints.contains(hosts.get(2)));
+            replicas = tmd.getWriteEndpoints(keyTokens.get(9), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(9)));
+            assertEquals(3, replicas.size());
+            assertTrue(replicas.contains(hosts.get(0)));
+            assertTrue(replicas.contains(hosts.get(1)));
+            assertTrue(replicas.contains(hosts.get(2)));
         }
     }
 

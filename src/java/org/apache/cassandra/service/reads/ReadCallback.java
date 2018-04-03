@@ -35,7 +35,7 @@ import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.metrics.ReadRepairMetrics;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -53,7 +53,7 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
     final SimpleCondition condition = new SimpleCondition();
     private final long queryStartNanoTime;
     final int blockfor;
-    final List<InetAddressAndPort> endpoints;
+    final List<Replica> replicas;
     private final ReadCommand command;
     private final ConsistencyLevel consistencyLevel;
     private static final AtomicIntegerFieldUpdater<ReadCallback> recievedUpdater
@@ -71,18 +71,18 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
     /**
      * Constructor when response count has to be calculated and blocked for.
      */
-    public ReadCallback(ResponseResolver resolver, ConsistencyLevel consistencyLevel, ReadCommand command, List<InetAddressAndPort> filteredEndpoints, long queryStartNanoTime, ReadRepair readRepair)
+    public ReadCallback(ResponseResolver resolver, ConsistencyLevel consistencyLevel, ReadCommand command, List<Replica> filteredReplicas, long queryStartNanoTime, ReadRepair readRepair)
     {
         this(resolver,
              consistencyLevel,
              consistencyLevel.blockFor(Keyspace.open(command.metadata().keyspace)),
              command,
              Keyspace.open(command.metadata().keyspace),
-             filteredEndpoints,
+             filteredReplicas,
              queryStartNanoTime, readRepair);
     }
 
-    public ReadCallback(ResponseResolver resolver, ConsistencyLevel consistencyLevel, int blockfor, ReadCommand command, Keyspace keyspace, List<InetAddressAndPort> endpoints, long queryStartNanoTime, ReadRepair readRepair)
+    public ReadCallback(ResponseResolver resolver, ConsistencyLevel consistencyLevel, int blockfor, ReadCommand command, Keyspace keyspace, List<Replica> replicas, long queryStartNanoTime, ReadRepair readRepair)
     {
         this.command = command;
         this.keyspace = keyspace;
@@ -90,14 +90,14 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
         this.consistencyLevel = consistencyLevel;
         this.resolver = resolver;
         this.queryStartNanoTime = queryStartNanoTime;
-        this.endpoints = endpoints;
+        this.replicas = replicas;
         this.readRepair = readRepair;
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
-        assert !(command instanceof PartitionRangeReadCommand) || blockfor >= endpoints.size();
+        assert !(command instanceof PartitionRangeReadCommand) || blockfor >= replicas.size();
 
         if (logger.isTraceEnabled())
-            logger.trace("Blockfor is {}; setting up requests to {}", blockfor, StringUtils.join(this.endpoints, ","));
+            logger.trace("Blockfor is {}; setting up requests to {}", blockfor, StringUtils.join(this.replicas, ","));
     }
 
     public boolean await(long timePastStart, TimeUnit unit)
@@ -116,7 +116,7 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
     public void awaitResults() throws ReadFailureException, ReadTimeoutException
     {
         boolean signaled = await(command.getTimeout(), TimeUnit.MILLISECONDS);
-        boolean failed = blockfor + failures > endpoints.size();
+        boolean failed = blockfor + failures > replicas.size();
         if (signaled && !failed)
             return;
 
@@ -183,7 +183,7 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
 
     public void assureSufficientLiveNodes() throws UnavailableException
     {
-        consistencyLevel.assureSufficientLiveNodes(keyspace, endpoints);
+        consistencyLevel.assureSufficientLiveNodes(keyspace, replicas);
     }
 
     public boolean isLatencyForSnitch()
@@ -200,7 +200,7 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
 
         failureReasonByEndpoint.put(from, failureReason);
 
-        if (blockfor + n > endpoints.size())
+        if (blockfor + n > replicas.size())
             condition.signalAll();
     }
 }

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.view;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,6 +44,8 @@ import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.ReplicatedRange;
+import org.apache.cassandra.locator.ReplicatedRanges;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -135,7 +138,9 @@ class ViewBuilder
         }
 
         // Get the local ranges for which the view hasn't already been built nor it's building
-        Set<Range<Token>> newRanges = StorageService.instance.getLocalRanges(ksName)
+        Collection<ReplicatedRange> replicatedRanges = StorageService.instance.getLocalRanges(ksName);
+        ReplicatedRanges.checkFull(StorageService.instance.getLocalRanges(ksName));
+        Set<Range<Token>> newRanges = ReplicatedRanges.asRanges(replicatedRanges)
                                                              .stream()
                                                              .map(r -> r.subtractAll(builtRanges))
                                                              .flatMap(Set::stream)

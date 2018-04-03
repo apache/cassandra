@@ -36,6 +36,7 @@ import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.DataIntegrityMetadata.FileDigestValidator;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.locator.ReplicatedRanges;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
@@ -57,7 +58,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.LongPredicate;
-import java.util.function.Predicate;
 
 public class Verifier implements Closeable
 {
@@ -209,7 +209,9 @@ public class Verifier implements Closeable
                     markAndThrow();
             }
 
-            List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(StorageService.instance.getLocalAndPendingRanges(cfs.metadata().keyspace));
+            List<Range<Token>> ownedRanges = isOffline
+                                             ? Collections.emptyList()
+                                             : Range.normalize(ReplicatedRanges.asRanges(StorageService.instance.getLocalAndPendingRanges(cfs.metadata().keyspace)));
             int rangeIndex = -1;
             DecoratedKey prevKey = null;
 

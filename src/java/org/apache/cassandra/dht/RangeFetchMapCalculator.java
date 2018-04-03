@@ -19,10 +19,8 @@
 package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -33,6 +31,8 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,7 +73,7 @@ public class RangeFetchMapCalculator
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeFetchMapCalculator.class);
     private static final long TRIVIAL_RANGE_LIMIT = 1000;
-    private final Multimap<Range<Token>, InetAddressAndPort> rangesWithSources;
+    private final Multimap<Range<Token>, Replica> rangesWithSources;
     private final Collection<RangeStreamer.ISourceFilter> sourceFilters;
     private final String keyspace;
     //We need two Vertices to act as source and destination in the algorithm
@@ -81,7 +81,7 @@ public class RangeFetchMapCalculator
     private final Vertex destinationVertex = OuterVertex.getDestinationVertex();
     private final Set<Range<Token>> trivialRanges;
 
-    public RangeFetchMapCalculator(Multimap<Range<Token>, InetAddressAndPort> rangesWithSources,
+    public RangeFetchMapCalculator(Multimap<Range<Token>, Replica> rangesWithSources,
                                    Collection<RangeStreamer.ISourceFilter> sourceFilters,
                                    String keyspace)
     {
@@ -158,14 +158,15 @@ public class RangeFetchMapCalculator
             boolean localDCCheck = true;
             while (!added)
             {
-                List<InetAddressAndPort> srcs = new ArrayList<>(rangesWithSources.get(trivialRange));
+                List<Replica> replicas = new ArrayList<>(rangesWithSources.get(trivialRange));
                 // sort with the endpoint having the least number of streams first:
-                srcs.sort(Comparator.comparingInt(o -> optimisedMap.get(o).size()));
-                for (InetAddressAndPort src : srcs)
+                replicas.sort(Comparator.comparingInt(o -> optimisedMap.get(o.getEndpoint()).size()));
+                Replicas.checkFull(replicas);
+                for (Replica replica : replicas)
                 {
-                    if (passFilters(src, localDCCheck))
+                    if (passFilters(replica, localDCCheck))
                     {
-                        fetchMap.put(src, trivialRange);
+                        fetchMap.put(replica.getEndpoint(), trivialRange);
                         added = true;
                         break;
                     }
@@ -347,15 +348,16 @@ public class RangeFetchMapCalculator
     private boolean addEndpoints(MutableCapacityGraph<Vertex, Integer> capacityGraph, RangeVertex rangeVertex, boolean localDCCheck)
     {
         boolean sourceFound = false;
-        for (InetAddressAndPort endpoint : rangesWithSources.get(rangeVertex.getRange()))
+        Replicas.checkFull(rangesWithSources.get(rangeVertex.getRange()));
+        for (Replica replica : rangesWithSources.get(rangeVertex.getRange()))
         {
-            if (passFilters(endpoint, localDCCheck))
+            if (passFilters(replica, localDCCheck))
             {
                 sourceFound = true;
                 // if we pass filters, it means that we don't filter away localhost and we can count it as a source:
-                if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+                if (replica.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
                     continue; // but don't add localhost to the graph to avoid streaming locally
-                final Vertex endpointVertex = new EndpointVertex(endpoint);
+                final Vertex endpointVertex = new EndpointVertex(replica.getEndpoint());
                 capacityGraph.insertVertex(rangeVertex);
                 capacityGraph.insertVertex(endpointVertex);
                 capacityGraph.addEdge(rangeVertex, endpointVertex, Integer.MAX_VALUE);
@@ -364,26 +366,26 @@ public class RangeFetchMapCalculator
         return sourceFound;
     }
 
-    private boolean isInLocalDC(InetAddressAndPort endpoint)
+    private boolean isInLocalDC(Replica replica)
     {
-        return DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint));
+        return DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(replica));
     }
 
     /**
      *
-     * @param endpoint   Endpoint to check
+     * @param replica   Replica to check
      * @param localDCCheck Allow endpoints with local DC
      * @return   True if filters pass this endpoint
      */
-    private boolean passFilters(final InetAddressAndPort endpoint, boolean localDCCheck)
+    private boolean passFilters(final Replica replica, boolean localDCCheck)
     {
         for (RangeStreamer.ISourceFilter filter : sourceFilters)
         {
-            if (!filter.shouldInclude(endpoint))
+            if (!filter.shouldInclude(replica))
                 return false;
         }
 
-        return !localDCCheck || isInLocalDC(endpoint);
+        return !localDCCheck || isInLocalDC(replica);
     }
 
     private static abstract class Vertex

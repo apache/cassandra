@@ -34,6 +34,8 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -78,7 +80,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testWithSingleSource() throws Exception
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.2");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3");
@@ -95,7 +97,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testWithNonOverlappingSource() throws Exception
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1", "127.0.0.2");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.3", "127.0.0.4");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.5", "127.0.0.6");
@@ -112,7 +114,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testWithRFThreeReplacement() throws Exception
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1", "127.0.0.2");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.2", "127.0.0.3");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3", "127.0.0.4");
@@ -128,7 +130,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testForMultipleRoundsComputation() throws Exception
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.3");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.3");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3");
@@ -150,7 +152,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testForMultipleRoundsComputationWithLocalHost() throws Exception
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.1");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.1");
@@ -170,7 +172,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testForEmptyGraph() throws Exception
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.1");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.1");
@@ -186,7 +188,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testWithNoSourceWithLocal() throws Exception
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1", "127.0.0.5");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.2");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3");
@@ -194,11 +196,11 @@ public class RangeFetchMapCalculatorTest
         //Return false for all except 127.0.0.5
         final RangeStreamer.ISourceFilter filter = new RangeStreamer.ISourceFilter()
         {
-            public boolean shouldInclude(InetAddressAndPort endpoint)
+            public boolean shouldInclude(Replica replica)
             {
                 try
                 {
-                    if (endpoint.equals(InetAddressAndPort.getByName("127.0.0.5")))
+                    if (replica.getEndpoint().equals(InetAddressAndPort.getByName("127.0.0.5")))
                         return false;
                     else
                         return true;
@@ -225,14 +227,14 @@ public class RangeFetchMapCalculatorTest
     @Test (expected = IllegalStateException.class)
     public void testWithNoLiveSource() throws Exception
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.5");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.2");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.3");
 
         final RangeStreamer.ISourceFilter allDeadFilter = new RangeStreamer.ISourceFilter()
         {
-            public boolean shouldInclude(InetAddressAndPort endpoint)
+            public boolean shouldInclude(Replica replica)
             {
                 return false;
             }
@@ -245,7 +247,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testForLocalDC() throws Exception
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.1", "127.0.0.3", "127.0.0.53");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.1", "127.0.0.3", "127.0.0.57");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.2", "127.0.0.59", "127.0.0.61");
@@ -263,7 +265,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testForRemoteDC() throws Exception
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.3", "127.0.0.51");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.3", "127.0.0.55");
         addNonTrivialRangeAndSources(rangesWithSources, 21, 30, "127.0.0.2", "127.0.0.59");
@@ -271,11 +273,11 @@ public class RangeFetchMapCalculatorTest
         //Reject only 127.0.0.3 and accept everyone else
         final RangeStreamer.ISourceFilter localHostFilter = new RangeStreamer.ISourceFilter()
         {
-            public boolean shouldInclude(InetAddressAndPort endpoint)
+            public boolean shouldInclude(Replica replica)
             {
                 try
                 {
-                    if (endpoint.equals(InetAddressAndPort.getByName("127.0.0.3")))
+                    if (replica.getEndpoint().equals(InetAddressAndPort.getByName("127.0.0.3")))
                         return false;
                     else
                         return true;
@@ -301,7 +303,7 @@ public class RangeFetchMapCalculatorTest
     @Test
     public void testTrivialRanges() throws UnknownHostException
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         // add non-trivial ranges
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.3", "127.0.0.51");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.3", "127.0.0.55");
@@ -319,7 +321,7 @@ public class RangeFetchMapCalculatorTest
     @Test(expected = IllegalStateException.class)
     public void testNotEnoughEndpointsForTrivialRange() throws UnknownHostException
     {
-        Multimap<Range<Token>, InetAddressAndPort> rangesWithSources = HashMultimap.create();
+        Multimap<Range<Token>, Replica> rangesWithSources = HashMultimap.create();
         // add non-trivial ranges
         addNonTrivialRangeAndSources(rangesWithSources, 1, 10, "127.0.0.3", "127.0.0.51");
         addNonTrivialRangeAndSources(rangesWithSources, 11, 20, "127.0.0.3", "127.0.0.55");
@@ -329,11 +331,11 @@ public class RangeFetchMapCalculatorTest
 
         RangeStreamer.ISourceFilter filter = new RangeStreamer.ISourceFilter()
         {
-            public boolean shouldInclude(InetAddressAndPort endpoint)
+            public boolean shouldInclude(Replica replica)
             {
                 try
                 {
-                    if (endpoint.equals(InetAddressAndPort.getByName("127.0.0.3")))
+                    if (replica.getEndpoint().equals(InetAddressAndPort.getByName("127.0.0.3")))
                         return false;
                 }
                 catch (UnknownHostException e)
@@ -355,27 +357,27 @@ public class RangeFetchMapCalculatorTest
         assertTrue(result.containsAll(expected));
     }
 
-    private void validateRange(Multimap<Range<Token>, InetAddressAndPort> rangesWithSources, Multimap<InetAddressAndPort, Range<Token>> result)
+    private void validateRange(Multimap<Range<Token>, Replica> rangesWithSources, Multimap<InetAddressAndPort, Range<Token>> result)
     {
         for (Map.Entry<InetAddressAndPort, Range<Token>> entry : result.entries())
         {
-            assertTrue(rangesWithSources.get(entry.getValue()).contains(entry.getKey()));
+            assertTrue(Replicas.containsEndpoint(rangesWithSources.get(entry.getValue()), entry.getKey()));
         }
     }
 
-    private void addNonTrivialRangeAndSources(Multimap<Range<Token>, InetAddressAndPort> rangesWithSources, int left, int right, String... hosts) throws UnknownHostException
+    private void addNonTrivialRangeAndSources(Multimap<Range<Token>, Replica> rangesWithSources, int left, int right, String... hosts) throws UnknownHostException
     {
         for (InetAddressAndPort endpoint : makeAddrs(hosts))
         {
-            rangesWithSources.put(generateNonTrivialRange(left, right), endpoint);
+            rangesWithSources.put(generateNonTrivialRange(left, right), Replica.full(endpoint));
         }
     }
 
-    private void addTrivialRangeAndSources(Multimap<Range<Token>, InetAddressAndPort> rangesWithSources, int left, int right, String... hosts) throws UnknownHostException
+    private void addTrivialRangeAndSources(Multimap<Range<Token>, Replica> rangesWithSources, int left, int right, String... hosts) throws UnknownHostException
     {
         for (InetAddressAndPort endpoint : makeAddrs(hosts))
         {
-            rangesWithSources.put(generateTrivialRange(left, right), endpoint);
+            rangesWithSources.put(generateTrivialRange(left, right), Replica.full(endpoint));
         }
     }
 

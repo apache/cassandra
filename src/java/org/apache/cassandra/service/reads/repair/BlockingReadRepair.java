@@ -47,6 +47,8 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.MessageOut;
@@ -68,7 +70,7 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
         Boolean.getBoolean("cassandra.drop_oversized_readrepair_mutations");
 
     private final ReadCommand command;
-    private final List<InetAddressAndPort> endpoints;
+    private final List<Replica> replicas;
     private final long queryStartNanoTime;
     private final ConsistencyLevel consistency;
 
@@ -91,19 +93,20 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
     }
 
     public BlockingReadRepair(ReadCommand command,
-                              List<InetAddressAndPort> endpoints,
+                              List<Replica> replicas,
                               long queryStartNanoTime,
                               ConsistencyLevel consistency)
     {
+        Replicas.checkFull(replicas);
         this.command = command;
-        this.endpoints = endpoints;
+        this.replicas = replicas;
         this.queryStartNanoTime = queryStartNanoTime;
         this.consistency = consistency;
     }
 
-    public UnfilteredPartitionIterators.MergeListener getMergeListener(InetAddressAndPort[] endpoints)
+    public UnfilteredPartitionIterators.MergeListener getMergeListener(Replica[] replicas)
     {
-        return new PartitionIteratorMergeListener(endpoints, command, this);
+        return new PartitionIteratorMergeListener(replicas, command, this);
     }
 
     public static class BlockingPartitionRepair extends AbstractFuture<Object> implements RepairListener.PartitionRepair
@@ -164,9 +167,10 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
             return callback;
         }
 
-        public void reportMutation(InetAddressAndPort endpoint, Mutation mutation)
+        public void reportMutation(Replica replica, Mutation mutation)
         {
-            AsyncOneResponse<?> response = sendRepairMutation(mutation, endpoint);
+            Replicas.checkFull(replica);
+            AsyncOneResponse<?> response = sendRepairMutation(mutation, replica.getEndpoint());
 
             if (response != null)
                 responses.add(response);
@@ -215,27 +219,27 @@ public class BlockingReadRepair implements ReadRepair, RepairListener
 
     public PartitionRepair startPartitionRepair()
     {
-        BlockingPartitionRepair repair = new BlockingPartitionRepair(endpoints.size(), command, consistency);
+        BlockingPartitionRepair repair = new BlockingPartitionRepair(replicas.size(), command, consistency);
         repairs.add(repair);
         return repair;
     }
 
-    public void startRepair(DigestResolver digestResolver, List<InetAddressAndPort> allEndpoints, List<InetAddressAndPort> contactedEndpoints, Consumer<PartitionIterator> resultConsumer)
+    public void startRepair(DigestResolver digestResolver, List<Replica> allReplicas, List<Replica> contactedReplicas, Consumer<PartitionIterator> resultConsumer)
     {
         ReadRepairMetrics.repairedBlocking.mark();
 
         // Do a full data read to resolve the correct response (and repair node that need be)
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        DataResolver resolver = new DataResolver(keyspace, command, ConsistencyLevel.ALL, allEndpoints.size(), queryStartNanoTime, this);
-        ReadCallback readCallback = new ReadCallback(resolver, ConsistencyLevel.ALL, contactedEndpoints.size(), command,
-                                                     keyspace, allEndpoints, queryStartNanoTime, this);
+        DataResolver resolver = new DataResolver(keyspace, command, ConsistencyLevel.ALL, allReplicas, allReplicas.size(), queryStartNanoTime, this);
+        ReadCallback readCallback = new ReadCallback(resolver, ConsistencyLevel.ALL, contactedReplicas.size(), command,
+                                                     keyspace, allReplicas, queryStartNanoTime, this);
 
         digestRepair = new DigestRepair(resolver, readCallback, resultConsumer);
 
-        for (InetAddressAndPort endpoint : contactedEndpoints)
+        for (Replica replica : contactedReplicas)
         {
-            Tracing.trace("Enqueuing full data read to {}", endpoint);
-            MessagingService.instance().sendRRWithFailure(command.createMessage(), endpoint, readCallback);
+            Tracing.trace("Enqueuing full data read to {}", replica);
+            MessagingService.instance().sendRRWithFailure(command.createMessage(), replica.getEndpoint(), readCallback);
         }
     }
 

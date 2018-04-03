@@ -49,14 +49,17 @@ import com.google.common.collect.Multimap;
  */
 public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 {
-    private final Map<String, Integer> datacenters;
+    private final Map<String, ReplicationFactor> datacenters;
+    private final ReplicationFactor aggregateRf;
     private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategy.class);
 
     public NetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
 
-        Map<String, Integer> newDatacenters = new HashMap<String, Integer>();
+        int replicas = 0;
+        int trans = 0;
+        Map<String, ReplicationFactor> newDatacenters = new HashMap<>();
         if (configOptions != null)
         {
             for (Entry<String, String> entry : configOptions.entrySet())
@@ -64,12 +67,15 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                 String dc = entry.getKey();
                 if (dc.equalsIgnoreCase("replication_factor"))
                     throw new ConfigurationException("replication_factor is an option for SimpleStrategy, not NetworkTopologyStrategy");
-                Integer replicas = Integer.valueOf(entry.getValue());
-                newDatacenters.put(dc, replicas);
+                ReplicationFactor rf = ReplicationFactor.fromString(entry.getValue());
+                replicas += rf.replicas;
+                trans += rf.trans;
+                newDatacenters.put(dc, rf);
             }
         }
 
         datacenters = Collections.unmodifiableMap(newDatacenters);
+        aggregateRf = ReplicationFactor.rf(replicas, trans);
         logger.info("Configured datacenter replicas are {}", FBUtilities.toString(datacenters));
     }
 
@@ -79,7 +85,8 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     private static final class DatacenterEndpoints
     {
         /** List accepted endpoints get pushed into. */
-        Set<InetAddressAndPort> endpoints;
+        Set<Replica> replicas;
+
         /**
          * Racks encountered so far. Replicas are put into separate racks while possible.
          * For efficiency the set is shared between the instances, using the location pair (dc, rack) to make sure
@@ -91,9 +98,9 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         int rfLeft;
         int acceptableRackRepeats;
 
-        DatacenterEndpoints(int rf, int rackCount, int nodeCount, Set<InetAddressAndPort> endpoints, Set<Pair<String, String>> racks)
+        DatacenterEndpoints(int rf, int rackCount, int nodeCount, Set<Replica> replicas, Set<Pair<String, String>> racks)
         {
-            this.endpoints = endpoints;
+            this.replicas = replicas;
             this.racks = racks;
             // If there aren't enough nodes in this DC to fill the RF, the number of nodes is the effective RF.
             this.rfLeft = Math.min(rf, nodeCount);
@@ -103,7 +110,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         }
 
         /**
-         * Attempts to add an endpoint to the replicas for this datacenter, adding to the endpoints set if successful.
+         * Attempts to add an endpoint to the replicas for this datacenter, adding to the replicas set if successful.
          * Returns true if the endpoint was added, and this datacenter does not require further replicas.
          */
         boolean addEndpointAndCheckIfDone(InetAddressAndPort ep, Pair<String,String> location)
@@ -115,14 +122,14 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             {
                 // New rack.
                 --rfLeft;
-                boolean added = endpoints.add(ep);
+                boolean added = replicas.add(Replica.full(ep));
                 assert added;
                 return done();
             }
             if (acceptableRackRepeats <= 0)
                 // There must be rfLeft distinct racks left, do not add any more rack repeats.
                 return false;
-            if (!endpoints.add(ep))
+            if (!replicas.add(Replica.full(ep)))
                 // Cannot repeat a node.
                 return false;
             // Added a node that is from an already met rack to match RF when there aren't enough racks.
@@ -141,10 +148,10 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     /**
      * calculate endpoints in one pass through the tokens by tracking our progress in each DC.
      */
-    public List<InetAddressAndPort> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
+    public List<Replica> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
     {
         // we want to preserve insertion order so that the first added endpoint becomes primary
-        Set<InetAddressAndPort> replicas = new LinkedHashSet<>();
+        Set<Replica> replicas = new LinkedHashSet<>();
         Set<Pair<String, String>> seenRacks = new HashSet<>();
 
         Topology topology = tokenMetadata.getTopology();
@@ -158,10 +165,11 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         Map<String, DatacenterEndpoints> dcs = new HashMap<>(datacenters.size() * 2);
 
         // Create a DatacenterEndpoints object for each non-empty DC.
-        for (Map.Entry<String, Integer> en : datacenters.entrySet())
+        for (Map.Entry<String, ReplicationFactor> en : datacenters.entrySet())
         {
             String dc = en.getKey();
-            int rf = en.getValue();
+            assert en.getValue().trans == 0 : "support transient replicas";
+            int rf = en.getValue().replicas;
             int nodeCount = sizeOrZero(allEndpoints.get(dc));
 
             if (rf <= 0 || nodeCount <= 0)
@@ -195,18 +203,15 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         return collection != null ? collection.size() : 0;
     }
 
-    public int getReplicationFactor()
+    public ReplicationFactor getReplicationFactor()
     {
-        int total = 0;
-        for (int repFactor : datacenters.values())
-            total += repFactor;
-        return total;
+        return aggregateRf;
     }
 
-    public int getReplicationFactor(String dc)
+    public ReplicationFactor getReplicationFactor(String dc)
     {
-        Integer replicas = datacenters.get(dc);
-        return replicas == null ? 0 : replicas;
+        ReplicationFactor replicas = datacenters.get(dc);
+        return replicas == null ? ReplicationFactor.ZERO : replicas;
     }
 
     public Set<String> getDatacenters()
