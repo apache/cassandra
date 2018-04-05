@@ -98,6 +98,8 @@ public class FunctionCall extends Term.NonTerminal
 
     private static Term.Terminal makeTerminal(Function fun, ByteBuffer result, int version) throws InvalidRequestException
     {
+        if (result == null)
+            return null;
         if (!(fun.returnType() instanceof CollectionType))
             return new Constants.Value(result);
 
