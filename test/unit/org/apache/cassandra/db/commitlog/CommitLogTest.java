@@ -39,14 +39,18 @@ import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayException;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.DeflateCompressor;
@@ -65,6 +69,7 @@ public class CommitLogTest
     private static final String KEYSPACE2 = "CommitLogTestNonDurable";
     private static final String CF1 = "Standard1";
     private static final String CF2 = "Standard2";
+    private static final String CF3 = "Custom1";
 
     public CommitLogTest(ParameterizedClass commitLogCompression)
     {
@@ -91,11 +96,19 @@ public class CommitLogTest
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
+        CFMetaData custom = CFMetaData.compile(String.format("CREATE TABLE \"%s\" (" +
+                                                             "k int," +
+                                                             "c1 frozen<map<text, text>>," +
+                                                             "c2 frozen<set<text>>," +
+                                                             "s int static," +
+                                                             "PRIMARY KEY (k, c1, c2)" +
+                                                             ");", CF3),KEYSPACE1);
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF2));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF2),
+                                    custom);
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     false,
                                     true,
@@ -103,6 +116,7 @@ public class CommitLogTest
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF2));
+
         CompactionManager.instance.disableAutoCompaction();
     }
 
@@ -496,5 +510,36 @@ public class CommitLogTest
         DatabaseDescriptor.setAutoSnapshot(prevAutoSnapshot);
         row = command.getRow(notDurableKs);
         Assert.assertEquals(null, row.cf);
+    }
+
+    @Test
+    public void testRecoveryWithCollectionClusteringKeysStatic() throws Exception
+    {
+        Mutation rm = new Mutation(KEYSPACE1, bytes(0));
+
+        CFMetaData cfm = Schema.instance.getCFMetaData(KEYSPACE1,CF3);
+
+        int clusterSize = cfm.comparator.clusteringPrefixSize();
+        ByteBuffer[] elements = new ByteBuffer[clusterSize];
+        for (int i = 0; i < clusterSize; i++)
+            elements[i] = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
+        rm.add(CF3, CellNames.compositeSparse(elements, new ColumnIdentifier("s", true), true), bytes(1), 0);
+
+        CommitLog.instance.add(rm);
+        int replayed = 0;
+
+        try
+        {
+            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+            replayed = CommitLog.instance.resetUnsafe(false);
+        }
+        finally
+        {
+            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+        }
+
+        Assert.assertEquals(replayed, 1);
+
     }
 }
