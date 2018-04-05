@@ -201,7 +201,7 @@ public class RowCacheTest
         int keysLeft = 109;
         for (int i = 109; i >= 10; i--)
         {
-            cachedStore.invalidateCachedPartition(Util.dk("key" + i));
+            cachedStore.getCacheHandler().invalidateCachedPartition(Util.dk("key" + i));
             assert CacheService.instance.rowCache.size() == keysLeft;
             keysLeft--;
         }
@@ -268,7 +268,7 @@ public class RowCacheTest
         int keysLeft = 109;
         for (int i = 109; i >= 10; i--)
         {
-            cachedStore.invalidateCachedPartition(Util.dk("key" + i));
+            cachedStore.getCacheHandler().invalidateCachedPartition(Util.dk("key" + i));
             assert CacheService.instance.rowCache.size() == keysLeft;
             keysLeft--;
         }
@@ -322,7 +322,7 @@ public class RowCacheTest
 
         //invalidate 3 of the 5 bounds
         ArrayList<Bounds<Token>> boundsToInvalidate = Lists.newArrayList(subranges.get(0), subranges.get(2), subranges.get(4));
-        int invalidatedKeys = store.invalidateRowCache(boundsToInvalidate);
+        int invalidatedKeys = store.getCacheHandler().invalidateRowCache(boundsToInvalidate);
         assertEquals(60, invalidatedKeys);
 
         //now there should be only 40 cached entries left

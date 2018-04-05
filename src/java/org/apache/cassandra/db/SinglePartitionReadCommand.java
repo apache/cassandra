@@ -552,7 +552,7 @@ public class SinglePartitionReadCommand extends ReadCommand
             finally
             {
                 if (sentinelSuccess && !sentinelReplaced)
-                    cfs.invalidateCachedPartition(key);
+                    cfs.getCacheHandler().invalidateCachedPartition(key);
             }
         }
 

@@ -121,7 +121,7 @@ public class CompactionsPurgeTest
 
         // major compact and test that all columns but the resurrected one is completely gone
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
-        cfs.invalidateCachedPartition(dk(key));
+        cfs.getCacheHandler().invalidateCachedPartition(dk(key));
 
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         assertEquals(1, partition.rowCount());
@@ -166,7 +166,7 @@ public class CompactionsPurgeTest
 
         cfs.forceBlockingFlush();
 
-        cfs.invalidateCachedPartition(dk(key));
+        cfs.getCacheHandler().invalidateCachedPartition(dk(key));
 
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         assertEquals(1, partition.rowCount());
@@ -210,7 +210,7 @@ public class CompactionsPurgeTest
 
         cfs.forceBlockingFlush();
 
-        cfs.invalidateCachedPartition(dk(key));
+        cfs.getCacheHandler().invalidateCachedPartition(dk(key));
 
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         assertEquals(1, partition.rowCount());
@@ -252,7 +252,7 @@ public class CompactionsPurgeTest
 
         cfs.forceBlockingFlush();
 
-        cfs.invalidateCachedPartition(dk(key));
+        cfs.getCacheHandler().invalidateCachedPartition(dk(key));
 
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         assertEquals(1, partition.rowCount());

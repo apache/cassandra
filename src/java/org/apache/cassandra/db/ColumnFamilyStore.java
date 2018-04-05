@@ -218,6 +218,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private volatile boolean compactionSpaceCheck = true;
 
+    private final WriteHandler writeHandler;
+    private final CacheHandler cacheHandler;
+
+    public WriteHandler getWriteHandler()
+    {
+        return writeHandler;
+    }
+
+    public CacheHandler getCacheHandler()
+    {
+        return cacheHandler;
+    }
+
     @VisibleForTesting
     final DiskBoundaryManager diskBoundaryManager = new DiskBoundaryManager();
 
@@ -387,6 +400,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         metric = new TableMetrics(this);
         fileIndexGenerator.set(generation);
         sampleLatencyNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getReadRpcTimeout() / 2);
+        writeHandler = keyspace.writeHandler;
+        cacheHandler = new CassandraCacheHandler(this);
 
         logger.info("Initializing {}.{}", keyspace.getName(), name);
 
@@ -1292,25 +1307,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ columnFamily - columnFamily changes
      */
     public void apply(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
-
     {
         long start = System.nanoTime();
         try
         {
-            Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
-            long timeDelta = mt.put(update, indexer, opGroup);
+            writeHandler.apply(this, update, indexer, opGroup, commitLogPosition);
+
+            // Invalidate the cache
             DecoratedKey key = update.partitionKey();
-            invalidateCachedPartition(key);
+            cacheHandler.invalidateCachedPartition(key);
+
             metric.samplers.get(Sampler.WRITES).addSample(key.getKey(), key.hashCode(), 1);
             StorageHook.instance.reportWrite(metadata.id, update);
             metric.writeLatency.addNano(System.nanoTime() - start);
-            // CASSANDRA-11117 - certain resolution paths on memtable put can result in very
-            // large time deltas, either through a variety of sentinel timestamps (used for empty values, ensuring
-            // a minimal write, etc). This limits the time delta to the max value the histogram
-            // can bucket correctly. This also filters the Long.MAX_VALUE case where there was no previous value
-            // to update.
-            if(timeDelta < Long.MAX_VALUE)
-                metric.colUpdateTimeDeltaHistogram.update(Math.min(18165375903306L, timeDelta));
         }
         catch (RuntimeException e)
         {
@@ -1715,28 +1724,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void cleanupCache()
     {
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace.getName());
-
-        for (Iterator<RowCacheKey> keyIter = CacheService.instance.rowCache.keyIterator();
-             keyIter.hasNext(); )
-        {
-            RowCacheKey key = keyIter.next();
-            DecoratedKey dk = decorateKey(ByteBuffer.wrap(key.key));
-            if (key.sameTable(metadata()) && !Range.isInRanges(dk.getToken(), ranges))
-                invalidateCachedPartition(dk);
-        }
-
-        if (metadata().isCounter())
-        {
-            for (Iterator<CounterCacheKey> keyIter = CacheService.instance.counterCache.keyIterator();
-                 keyIter.hasNext(); )
-            {
-                CounterCacheKey key = keyIter.next();
-                DecoratedKey dk = decorateKey(key.partitionKey());
-                if (key.sameTable(metadata()) && !Range.isInRanges(dk.getToken(), ranges))
-                    CacheService.instance.counterCache.remove(key);
-            }
-        }
+        cacheHandler.cleanupCache();
     }
 
     public ClusteringComparator getComparator()
@@ -1984,23 +1972,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             CacheService.instance.invalidateCounterCacheForCf(metadata());
     }
 
-    public int invalidateRowCache(Collection<Bounds<Token>> boundsToInvalidate)
-    {
-        int invalidatedKeys = 0;
-        for (Iterator<RowCacheKey> keyIter = CacheService.instance.rowCache.keyIterator();
-             keyIter.hasNext(); )
-        {
-            RowCacheKey key = keyIter.next();
-            DecoratedKey dk = decorateKey(ByteBuffer.wrap(key.key));
-            if (key.sameTable(metadata()) && Bounds.isInBounds(dk.getToken(), boundsToInvalidate))
-            {
-                invalidateCachedPartition(dk);
-                invalidatedKeys++;
-            }
-        }
-        return invalidatedKeys;
-    }
-
     public int invalidateCounterCache(Collection<Bounds<Token>> boundsToInvalidate)
     {
         int invalidatedKeys = 0;
@@ -2024,19 +1995,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean containsCachedParition(DecoratedKey key)
     {
         return CacheService.instance.rowCache.getCapacity() != 0 && CacheService.instance.rowCache.containsKey(new RowCacheKey(metadata(), key));
-    }
-
-    public void invalidateCachedPartition(RowCacheKey key)
-    {
-        CacheService.instance.rowCache.remove(key);
-    }
-
-    public void invalidateCachedPartition(DecoratedKey key)
-    {
-        if (!isRowCacheEnabled())
-            return;
-
-        invalidateCachedPartition(new RowCacheKey(metadata(), key));
     }
 
     public ClockAndCount getCachedCounter(ByteBuffer partitionKey, Clustering clustering, ColumnMetadata column, CellPath path)
