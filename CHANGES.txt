@@ -1,6 +1,7 @@
 3.0.17
  * Deprecate background repair and probablistic read_repair_chance table options
    (CASSANDRA-13910)
+ * Add missed CQL keywords to documentation (CASSANDRA-14359)
  * Fix unbounded validation compactions on repair / revert CASSANDRA-13797 (CASSANDRA-14332)
  * Avoid deadlock when running nodetool refresh before node is fully up (CASSANDRA-14310)
  * Handle all exceptions when opening sstables (CASSANDRA-14202)
