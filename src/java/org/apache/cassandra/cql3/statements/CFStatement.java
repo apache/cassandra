@@ -20,8 +20,8 @@ package org.apache.cassandra.cql3.statements;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.commons.lang.builder.ToStringBuilder;
-import org.apache.commons.lang.builder.ToStringStyle;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 /**
  * Abstract class for statements that apply on a given column family.
