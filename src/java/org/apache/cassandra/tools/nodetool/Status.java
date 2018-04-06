@@ -91,7 +91,7 @@ public class Status extends NodeToolCmd
             SortedMap<String, SetHostStatWithPort> dcs = NodeTool.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships);
 
             // More tokens than nodes (aka vnodes)?
-            if (dcs.values().size() < tokensToEndpoints.keySet().size())
+            if (dcs.size() < tokensToEndpoints.size())
                 isTokenPerNode = false;
 
             findMaxAddressLengthWithPort(dcs);

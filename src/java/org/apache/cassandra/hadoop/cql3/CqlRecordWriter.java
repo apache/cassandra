@@ -438,7 +438,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
                 return true;
             if (e instanceof NoHostAvailableException)
             {
-                if (((NoHostAvailableException) e).getErrors().values().size() == 1)
+                if (((NoHostAvailableException) e).getErrors().size() == 1)
                 {
                     Throwable cause = ((NoHostAvailableException) e).getErrors().values().iterator().next();
                     if (cause != null && cause.getCause() instanceof java.nio.channels.ClosedByInterruptException)
