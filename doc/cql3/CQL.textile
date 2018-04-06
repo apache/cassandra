@@ -2193,6 +2193,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @INSERT@       | yes |
 | @INT@          | no  |
 | @INTO@         | yes |
+| @IS@           | yes |
 | @JSON@         | no  |
 | @KEY@          | no  |
 | @KEYS@         | no  |
@@ -2203,6 +2204,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @LIST@         | no  |
 | @LOGIN@        | no  |
 | @MAP@          | no  |
+| @MATERIALIZED@ | yes |
 | @MODIFY@       | yes |
 | @NAN@          | yes |
 | @NOLOGIN@      | no  |
@@ -2257,6 +2259,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @VALUES@       | no  |
 | @VARCHAR@      | no  |
 | @VARINT@       | no  |
+| @VIEW@         | yes |
 | @WHERE@        | yes |
 | @WITH@         | yes |
 | @WRITETIME@    | no  |
