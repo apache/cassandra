@@ -18,19 +18,50 @@
 
 package org.apache.cassandra.net.async;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.net.MessagingService;
 
 public class OutboundConnectionParamsTest
 {
+    static int version;
+
+    @BeforeClass
+    public static void before()
+    {
+        DatabaseDescriptor.daemonInitialization();
+        version = MessagingService.current_version;
+    }
+
     @Test (expected = IllegalArgumentException.class)
     public void build_SendSizeLessThanZero()
     {
-        OutboundConnectionParams.builder().sendBufferSize(-1).build();
+        OutboundConnectionParams.builder().protocolVersion(version).sendBufferSize(-1).build();
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void build_SendSizeHuge()
     {
-        OutboundConnectionParams.builder().sendBufferSize(1 << 30).build();
+        OutboundConnectionParams.builder().protocolVersion(version).sendBufferSize(1 << 30).build();
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void build_TcpConnectTimeoutLessThanZero()
+    {
+        OutboundConnectionParams.builder().protocolVersion(version).tcpConnectTimeoutInMS(-1).build();
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void build_TcpUserTimeoutLessThanZero()
+    {
+        OutboundConnectionParams.builder().protocolVersion(version).tcpUserTimeoutInMS(-1).build();
+    }
+
+    @Test
+    public void build_TcpUserTimeoutEqualsZero()
+    {
+        OutboundConnectionParams.builder().protocolVersion(version).tcpUserTimeoutInMS(0).build();
     }
 }

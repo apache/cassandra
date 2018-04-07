@@ -185,6 +185,14 @@ Upgrading
     - Background repair has been removed. dclocal_read_repair_chance and
       read_repair_chance table options have been removed and are now rejected.
       See CASSANDRA-13910 for details.
+    - Internode TCP connections that do not ack segments for 30s will now
+      be automatically detected and closed via the Linux TCP_USER_TIMEOUT
+      socket option. This should be exceedingly rare, but AWS networks (and
+      other stateful firewalls) apparently suffer from this issue. You can
+      tune the timeouts on TCP connection and segment ack via the
+      `cassandra.yaml:internode_tcp_connect_timeout_in_ms` and
+      `cassandra.yaml:internode_tcp_user_timeout_in_ms` options respectively.
+      See CASSANDRA-14358 for details.
 
 Materialized Views
 -------------------

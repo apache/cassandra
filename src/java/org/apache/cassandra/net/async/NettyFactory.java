@@ -21,6 +21,7 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ServerChannel;
+import io.netty.channel.epoll.EpollChannelOption;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.epoll.EpollSocketChannel;
@@ -200,6 +201,9 @@ public final class NettyFactory
                                                          .childOption(ChannelOption.SO_SNDBUF, INBOUND_CHANNEL_SEND_BUFFER_SIZE)
                                                          .childHandler(initializer);
 
+        if (useEpoll)
+            bootstrap.childOption(EpollChannelOption.TCP_USER_TIMEOUT, DatabaseDescriptor.getInternodeTcpUserTimeoutInMS());
+
         if (receiveBufferSize > 0)
             bootstrap.childOption(ChannelOption.SO_RCVBUF, receiveBufferSize);
 
@@ -326,7 +330,7 @@ public final class NettyFactory
         Class<? extends Channel> transport = useEpoll ? EpollSocketChannel.class : NioSocketChannel.class;
         Bootstrap bootstrap = new Bootstrap().group(params.mode == Mode.MESSAGING ? outboundGroup : streamingGroup)
                               .channel(transport)
-                              .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 2000)
+                              .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, params.tcpConnectTimeoutInMS)
                               .option(ChannelOption.SO_KEEPALIVE, true)
                               .option(ChannelOption.SO_REUSEADDR, true)
                               .option(ChannelOption.SO_SNDBUF, params.sendBufferSize)
@@ -334,6 +338,9 @@ public final class NettyFactory
                               .option(ChannelOption.TCP_NODELAY, params.tcpNoDelay)
                               .option(ChannelOption.WRITE_BUFFER_WATER_MARK, params.waterMark)
                               .handler(new OutboundInitializer(params));
+        if (useEpoll)
+            bootstrap.option(EpollChannelOption.TCP_USER_TIMEOUT, params.tcpUserTimeoutInMS);
+
         InetAddressAndPort remoteAddress = params.connectionId.connectionAddress();
         bootstrap.remoteAddress(new InetSocketAddress(remoteAddress.address, remoteAddress.port));
         return bootstrap;

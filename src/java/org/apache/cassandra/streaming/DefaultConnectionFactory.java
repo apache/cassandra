@@ -70,12 +70,17 @@ public class DefaultConnectionFactory implements StreamConnectionFactory
                              ? DatabaseDescriptor.getInternodeSendBufferSize()
                              : OutboundConnectionParams.DEFAULT_SEND_BUFFER_SIZE;
 
+        int tcpConnectTimeout = DatabaseDescriptor.getInternodeTcpConnectTimeoutInMS();
+        int tcpUserTimeout = DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
+
         OutboundConnectionParams params = OutboundConnectionParams.builder()
                                                                   .connectionId(connectionId)
                                                                   .encryptionOptions(encryptionOptions)
                                                                   .mode(NettyFactory.Mode.STREAMING)
                                                                   .protocolVersion(protocolVersion)
                                                                   .sendBufferSize(sendBufferSize)
+                                                                  .tcpConnectTimeoutInMS(tcpConnectTimeout)
+                                                                  .tcpUserTimeoutInMS(tcpUserTimeout)
                                                                   .waterMark(waterMark)
                                                                   .build();
 

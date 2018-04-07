@@ -25,6 +25,7 @@ import java.util.function.Supplier;
 import com.google.common.base.Preconditions;
 
 import io.netty.channel.WriteBufferWaterMark;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.net.async.OutboundHandshakeHandler.HandshakeResult;
 import org.apache.cassandra.utils.CoalescingStrategies.CoalescingStrategy;
@@ -48,6 +49,8 @@ public class OutboundConnectionParams
     final Consumer<MessageResult> messageResultConsumer;
     final WriteBufferWaterMark waterMark;
     final int protocolVersion;
+    final int tcpConnectTimeoutInMS;
+    final int tcpUserTimeoutInMS;
 
     private OutboundConnectionParams(OutboundConnectionIdentifier connectionId,
                                      Consumer<HandshakeResult> callback,
@@ -60,7 +63,9 @@ public class OutboundConnectionParams
                                      Supplier<QueuedMessage> backlogSupplier,
                                      Consumer<MessageResult> messageResultConsumer,
                                      WriteBufferWaterMark waterMark,
-                                     int protocolVersion)
+                                     int protocolVersion,
+                                     int tcpConnectTimeoutInMS,
+                                     int tcpUserTimeoutInMS)
     {
         this.connectionId = connectionId;
         this.callback = callback;
@@ -74,6 +79,8 @@ public class OutboundConnectionParams
         this.messageResultConsumer = messageResultConsumer;
         this.waterMark = waterMark;
         this.protocolVersion = protocolVersion;
+        this.tcpConnectTimeoutInMS = tcpConnectTimeoutInMS;
+        this.tcpUserTimeoutInMS = tcpUserTimeoutInMS;
     }
 
     public static Builder builder()
@@ -99,10 +106,15 @@ public class OutboundConnectionParams
         private Supplier<QueuedMessage> backlogSupplier;
         private Consumer<MessageResult> messageResultConsumer;
         private WriteBufferWaterMark waterMark = WriteBufferWaterMark.DEFAULT;
-        int protocolVersion;
+        private int protocolVersion;
+        private int tcpConnectTimeoutInMS;
+        private int tcpUserTimeoutInMS;
 
         private Builder()
-        {   }
+        {
+            this.tcpConnectTimeoutInMS = DatabaseDescriptor.getInternodeTcpConnectTimeoutInMS();
+            this.tcpUserTimeoutInMS = DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
+        }
 
         private Builder(OutboundConnectionParams params)
         {
@@ -116,6 +128,8 @@ public class OutboundConnectionParams
             this.tcpNoDelay = params.tcpNoDelay;
             this.backlogSupplier = params.backlogSupplier;
             this.messageResultConsumer = params.messageResultConsumer;
+            this.tcpConnectTimeoutInMS = params.tcpConnectTimeoutInMS;
+            this.tcpUserTimeoutInMS = params.tcpUserTimeoutInMS;
         }
 
         public Builder connectionId(OutboundConnectionIdentifier connectionId)
@@ -190,13 +204,27 @@ public class OutboundConnectionParams
             return this;
         }
 
+        public Builder tcpConnectTimeoutInMS(int tcpConnectTimeoutInMS)
+        {
+            this.tcpConnectTimeoutInMS = tcpConnectTimeoutInMS;
+            return this;
+        }
+
+        public Builder tcpUserTimeoutInMS(int tcpUserTimeoutInMS)
+        {
+            this.tcpUserTimeoutInMS = tcpUserTimeoutInMS;
+            return this;
+        }
+
         public OutboundConnectionParams build()
         {
             Preconditions.checkArgument(protocolVersion > 0, "illegal protocol version: " + protocolVersion);
             Preconditions.checkArgument(sendBufferSize > 0 && sendBufferSize < 1 << 20, "illegal send buffer size: " + sendBufferSize);
+            Preconditions.checkArgument(tcpUserTimeoutInMS >= 0, "tcp user timeout must be non negative: " + tcpUserTimeoutInMS);
+            Preconditions.checkArgument(tcpConnectTimeoutInMS > 0, "tcp connect timeout must be positive: " + tcpConnectTimeoutInMS);
 
             return new OutboundConnectionParams(connectionId, callback, encryptionOptions, mode, compress, coalescingStrategy, sendBufferSize,
-                                                tcpNoDelay, backlogSupplier, messageResultConsumer, waterMark, protocolVersion);
+                                                tcpNoDelay, backlogSupplier, messageResultConsumer, waterMark, protocolVersion, tcpConnectTimeoutInMS, tcpUserTimeoutInMS);
         }
     }
 }
