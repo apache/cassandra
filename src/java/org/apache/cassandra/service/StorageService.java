@@ -1370,6 +1370,28 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getWriteRpcTimeout();
     }
 
+    public void setInternodeTcpConnectTimeoutInMS(int value)
+    {
+        DatabaseDescriptor.setInternodeTcpConnectTimeoutInMS(value);
+        logger.info("set internode tcp connect timeout to {} ms", value);
+    }
+
+    public int getInternodeTcpConnectTimeoutInMS()
+    {
+        return DatabaseDescriptor.getInternodeTcpConnectTimeoutInMS();
+    }
+
+    public void setInternodeTcpUserTimeoutInMS(int value)
+    {
+        DatabaseDescriptor.setInternodeTcpUserTimeoutInMS(value);
+        logger.info("set internode tcp user timeout to {} ms", value);
+    }
+
+    public int getInternodeTcpUserTimeoutInMS()
+    {
+        return DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
+    }
+
     public void setCounterWriteRpcTimeout(long value)
     {
         DatabaseDescriptor.setCounterWriteRpcTimeout(value);

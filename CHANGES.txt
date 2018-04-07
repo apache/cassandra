@@ -1,4 +1,5 @@
 4.0
+ * Partitioned outbound internode TCP connections can occur when nodes restart (CASSANDRA-14358)
  * Don't write to system_distributed.repair_history, system_traces.sessions, system_traces.events in mixed version 3.X/4.0 clusters (CASSANDRA-14841)
  * Avoid running query to self through messaging service (CASSANDRA-14807)
  * Allow using custom script for chronicle queue BinLog archival (CASSANDRA-14373)
