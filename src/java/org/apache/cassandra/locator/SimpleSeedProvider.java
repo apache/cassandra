@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 public class SimpleSeedProvider implements SeedProvider
 {
     private static final Logger logger = LoggerFactory.getLogger(SimpleSeedProvider.class);
+    private static final int seedCountWarnThreshold = Integer.valueOf(System.getProperty("cassandra.seed_count_warn_threshold", "20"));
 
     public SimpleSeedProvider(Map<String, String> args) {}
 
@@ -54,8 +55,11 @@ public class SimpleSeedProvider implements SeedProvider
             try
             {
                 if(!host.trim().isEmpty()) {
-                    seeds.addAll(InetAddressAndPort.getAllByName(host.trim()));
+                    List<InetAddressAndPort> resolvedSeeds = InetAddressAndPort.getAllByName(host.trim());
+                    seeds.addAll(resolvedSeeds);
+                    logger.debug("{} resolves to {}", host, resolvedSeeds);
                 }
+
             }
             catch (UnknownHostException ex)
             {
@@ -64,9 +68,9 @@ public class SimpleSeedProvider implements SeedProvider
             }
         }
 
-        if(seeds.size() > 20) {
-            logger.warn("More than 20 seed addresses have been ({} detected). This can negatively impact 3rd round gossip behaviour", seeds.size());
-        }
+
+        if (seeds.size() >= seedCountWarnThreshold)
+            logger.warn("Seed provider returned more than {} seeds. A large seed list may impact effectiveness of the third gossip round", seedCountWarnThreshold);
 
         return Collections.unmodifiableList(seeds);
     }

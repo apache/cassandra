@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -163,7 +164,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     }
 
 
-    public static Collection<InetAddressAndPort> getAllByName(String name) throws UnknownHostException
+    public static List<InetAddressAndPort> getAllByName(String name) throws UnknownHostException
     {
         return getAllByNameOverrideDefaults(name, null);
     }
@@ -173,7 +174,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
      * @param name Hostname + optional ports string
      * @param port Port to connect on, overridden by values in hostname string, defaults to DatabaseDescriptor default if not specified anywhere.
      */
-    public static Collection<InetAddressAndPort> getAllByNameOverrideDefaults(String name, Integer port) throws UnknownHostException
+    public static List<InetAddressAndPort> getAllByNameOverrideDefaults(String name, Integer port) throws UnknownHostException
     {
         HostAndPort hap = HostAndPort.fromString(name);
         if (hap.hasPort())
