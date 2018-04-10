@@ -183,9 +183,9 @@ credentials_validity_in_ms: 2000
 #
 partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 
-# Directories where Cassandra should store data on disk.  Cassandra
-# will spread data evenly across them, subject to the granularity of
-# the configured compaction strategy.
+# Directories where Cassandra should store data on disk. If multiple
+# directories are specified, Cassandra will spread data evenly across 
+# them by partitioning the token ranges.
 # If not set, the default directory is $CASSANDRA_HOME/data/data.
 # data_file_directories:
 #     - /var/lib/cassandra/data
