@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +54,7 @@ public class MockMessagingSpy
      */
     public ListenableFuture<Message<?>> captureMockedMessage()
     {
-        return Futures.transform(captureMockedMessageN(1), (List<Message<?>> result) -> result.isEmpty() ? null : result.get(0));
+        return Futures.transform(captureMockedMessageN(1), (List<Message<?>> result) -> result.isEmpty() ? null : result.get(0), MoreExecutors.directExecutor());
     }
 
     /**
@@ -89,7 +90,7 @@ public class MockMessagingSpy
      */
     public ListenableFuture<Message<?>> captureMessageOut()
     {
-        return Futures.transform(captureMessageOut(1), (List<Message<?>> result) -> result.isEmpty() ? null : result.get(0));
+        return Futures.transform(captureMessageOut(1), (List<Message<?>> result) -> result.isEmpty() ? null : result.get(0), MoreExecutors.directExecutor());
     }
 
     /**

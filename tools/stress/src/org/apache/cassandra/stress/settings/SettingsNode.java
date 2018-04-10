@@ -39,7 +39,6 @@ public class SettingsNode implements Serializable
     public final List<String> nodes;
     public final boolean isWhiteList;
     public final String datacenter;
-    public final boolean allowServerPortDiscovery;
 
     public SettingsNode(Options options)
     {
@@ -72,7 +71,6 @@ public class SettingsNode implements Serializable
 
         isWhiteList = options.whitelist.setByUser();
         datacenter = options.datacenter.value();
-        allowServerPortDiscovery = options.allowServerPortDiscovery.setByUser();
     }
 
     public Set<String> resolveAllPermitted(StressSettings settings)
@@ -145,13 +143,12 @@ public class SettingsNode implements Serializable
         final OptionSimple datacenter = new OptionSimple("datacenter=", ".*", null, "Datacenter used for DCAwareRoundRobinLoadPolicy", false);
         final OptionSimple whitelist = new OptionSimple("whitelist", "", null, "Limit communications to the provided nodes", false);
         final OptionSimple file = new OptionSimple("file=", ".*", null, "Node file (one per line)", false);
-        final OptionSimple allowServerPortDiscovery = new OptionSimple("allow_server_port_discovery", "", null, "Allow Java client to discover server client port numbers", false);
         final OptionSimple list = new OptionSimple("", "[^=,]+(,[^=,]+)*", "localhost", "comma delimited list of nodes", false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(datacenter, whitelist, file, allowServerPortDiscovery, list);
+            return Arrays.asList(datacenter, whitelist, file, list);
         }
     }
 
@@ -161,7 +158,6 @@ public class SettingsNode implements Serializable
         out.println("  Nodes: " + nodes);
         out.println("  Is White List: " + isWhiteList);
         out.println("  Datacenter: " + datacenter);
-        out.println("  Allow server port discovery: " + allowServerPortDiscovery);
     }
 
     public static SettingsNode get(Map<String, String[]> clArgs)

@@ -382,7 +382,7 @@ public class CoordinatorSession extends ConsistentSession
                     resultFuture.setException(t);
                 }
             }
-        });
+        }, MoreExecutors.directExecutor());
 
         return resultFuture;
     }

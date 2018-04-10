@@ -344,7 +344,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                 Tracing.traceRepair("Session completed with the following error: {}", t);
                 forceShutdown(t);
             }
-        });
+        }, MoreExecutors.directExecutor());
     }
 
     public void terminate()
