@@ -29,7 +29,6 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.CompressedPoolingSegmentedFile;
 import org.apache.cassandra.io.util.PoolingSegmentedFile;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * CRAR extends RAR to transparently uncompress blocks from the file into RAR.buffer.  Most of the RAR
@@ -107,6 +106,11 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         // technically flip() is unnecessary since all the remaining work uses the raw array, but if that changes
         // in the future this will save a lot of hair-pulling
         compressed.flip();
+
+        // If the checksum is on compressed data we want to check it before uncompressing the data
+        if (metadata.hasPostCompressionAdlerChecksums)
+            checkChecksumIfNeeded(chunk, compressed.array(), chunk.length);
+
         try
         {
             validBufferBytes = metadata.compressor().uncompress(compressed.array(), 0, chunk.length, buffer, 0);
@@ -116,24 +120,9 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             throw new CorruptBlockException(getPath(), chunk, e);
         }
 
-        if (metadata.parameters.getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
-        {
+        if (!metadata.hasPostCompressionAdlerChecksums)
+            checkChecksumIfNeeded(chunk, buffer, validBufferBytes);
 
-            if (metadata.hasPostCompressionAdlerChecksums)
-            {
-                checksum.update(compressed.array(), 0, chunk.length);
-            }
-            else
-            {
-                checksum.update(buffer, 0, validBufferBytes);
-            }
-
-            if (checksum(chunk) != (int) checksum.getValue())
-                throw new CorruptBlockException(getPath(), chunk);
-
-            // reset checksum object back to the original (blank) state
-            checksum.reset();
-        }
 
         // buffer offset is always aligned
         bufferOffset = current & ~(buffer.length - 1);
@@ -141,6 +130,18 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         // this is permitted to occur within a compressed segment, so we truncate validBufferBytes if we cross the imposed length
         if (bufferOffset + validBufferBytes > length())
             validBufferBytes = (int)(length() - bufferOffset);
+    }
+
+    private void checkChecksumIfNeeded(CompressionMetadata.Chunk chunk, byte[] bytes, int length) throws IOException
+    {
+        if (metadata.parameters.getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
+        {
+            checksum.update(bytes, 0, length);
+            if (checksum(chunk) != (int) checksum.getValue())
+                throw new CorruptBlockException(getPath(), chunk);
+            // reset checksum object back to the original (blank) state
+            checksum.reset();
+        }
     }
 
     private int checksum(CompressionMetadata.Chunk chunk) throws IOException

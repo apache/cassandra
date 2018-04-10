@@ -1,4 +1,5 @@
 2.1.21
+ * Check checksum before decompressing data (CASSANDRA-14284)
  * CVE-2017-5929 Security vulnerability in Logback warning in NEWS.txt (CASSANDRA-14183)
 
 2.1.20
