@@ -47,6 +47,11 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         return metadata.parameters.getCrcCheckChance();
     }
 
+    protected final boolean shouldCheckCrc()
+    {
+        return getCrcCheckChance() >= 1d || getCrcCheckChance() > ThreadLocalRandom.current().nextDouble();
+    }
+
     @Override
     public String toString()
     {
@@ -109,9 +114,13 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 CompressionMetadata.Chunk chunk = metadata.chunkFor(position);
                 ByteBuffer compressed = compressedHolder.get();
 
-                if (compressed.capacity() < chunk.length)
+                boolean shouldCheckCrc = shouldCheckCrc();
+
+                int length = shouldCheckCrc ? chunk.length + Integer.BYTES : chunk.length;
+
+                if (compressed.capacity() < length)
                 {
-                    compressed = allocateBuffer(chunk.length);
+                    compressed = allocateBuffer(length);
                     compressedHolder.set(compressed);
                 }
                 else
@@ -119,12 +128,25 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                     compressed.clear();
                 }
 
-                compressed.limit(chunk.length);
-                if (channel.read(compressed, chunk.offset) != chunk.length)
+                compressed.limit(length);
+                if (channel.read(compressed, chunk.offset) != length)
                     throw new CorruptBlockException(channel.filePath(), chunk);
 
                 compressed.flip();
                 uncompressed.clear();
+
+                compressed.position(0).limit(chunk.length);
+
+                if (shouldCheckCrc)
+                {
+                    int checksum = (int) metadata.checksumType.of(compressed);
+
+                    compressed.limit(length);
+                    if (compressed.getInt() != checksum)
+                        throw new CorruptBlockException(channel.filePath(), chunk);
+
+                    compressed.position(0).limit(chunk.length);
+                }
 
                 try
                 {
@@ -137,18 +159,6 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 finally
                 {
                     uncompressed.flip();
-                }
-
-                if (getCrcCheckChance() >= 1d ||
-                    getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
-                {
-                    compressed.rewind();
-                    int checksum = (int) metadata.checksumType.of(compressed);
-
-                    compressed.clear().limit(Integer.BYTES);
-                    if (channel.read(compressed, chunk.offset + chunk.length) != Integer.BYTES
-                                || compressed.getInt(0) != checksum)
-                        throw new CorruptBlockException(channel.filePath(), chunk);
                 }
             }
             catch (CorruptBlockException e)
@@ -188,6 +198,17 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
                 uncompressed.clear();
 
+                if (shouldCheckCrc())
+                {
+                    int checksum = (int) metadata.checksumType.of(compressedChunk);
+
+                    compressedChunk.limit(compressedChunk.capacity());
+                    if (compressedChunk.getInt() != checksum)
+                        throw new CorruptBlockException(channel.filePath(), chunk);
+
+                    compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
+                }
+
                 try
                 {
                     metadata.compressor().uncompress(compressedChunk, uncompressed);
@@ -199,18 +220,6 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
                 finally
                 {
                     uncompressed.flip();
-                }
-
-                if (getCrcCheckChance() >= 1d ||
-                    getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
-                {
-                    compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
-
-                    int checksum = (int) metadata.checksumType.of(compressedChunk);
-
-                    compressedChunk.limit(compressedChunk.capacity());
-                    if (compressedChunk.getInt() != checksum)
-                        throw new CorruptBlockException(channel.filePath(), chunk);
                 }
             }
             catch (CorruptBlockException e)
