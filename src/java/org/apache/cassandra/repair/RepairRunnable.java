@@ -388,7 +388,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         {
             ranges.addAll(range);
         }
-        Futures.addCallback(repairResult, new RepairCompleteCallback(parentSession, ranges, startTime, traceState, hasFailure, executor));
+        Futures.addCallback(repairResult, new RepairCompleteCallback(parentSession, ranges, startTime, traceState, hasFailure, executor), MoreExecutors.directExecutor());
     }
 
     private void previewRepair(UUID parentSession,
@@ -463,7 +463,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                 executor.shutdownNow();
                 return message;
             }
-        });
+        }, MoreExecutors.directExecutor());
     }
 
     private ListenableFuture<List<RepairSessionResult>> submitRepairSessions(UUID parentSession,
@@ -493,7 +493,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                                                                                      cfnames);
             if (session == null)
                 continue;
-            Futures.addCallback(session, new RepairSessionCallback(session));
+            Futures.addCallback(session, new RepairSessionCallback(session), MoreExecutors.directExecutor());
             futures.add(session);
         }
         return Futures.successfulAsList(futures);

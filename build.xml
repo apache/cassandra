@@ -487,7 +487,7 @@
           <dependency groupId="org.lz4" artifactId="lz4-java" version="1.4.0"/>
           <dependency groupId="com.ning" artifactId="compress-lzf" version="0.8.4"/>
           <dependency groupId="com.github.luben" artifactId="zstd-jni" version="1.3.8-5"/>
-          <dependency groupId="com.google.guava" artifactId="guava" version="23.3-jre"/>
+          <dependency groupId="com.google.guava" artifactId="guava" version="27.0-jre"/>
           <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.9"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.9"/>
@@ -557,15 +557,13 @@
           <dependency groupId="net.openhft" artifactId="chronicle-threads" version="${chronicle-threads.version}"/>
           <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" />
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
-	  <!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
-          <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="3.4.0-SNAPSHOT" classifier="shaded">
+          <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="3.6.0" classifier="shaded">
             <exclusion groupId="io.netty" artifactId="netty-buffer"/>
             <exclusion groupId="io.netty" artifactId="netty-codec"/>
             <exclusion groupId="io.netty" artifactId="netty-handler"/>
             <exclusion groupId="io.netty" artifactId="netty-transport"/>
             <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
           </dependency>
-	  -->
           <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj" version="${ecj.version}" />
           <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core" version="${ohc.version}">
             <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
@@ -647,9 +645,7 @@
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster"/>
         <dependency groupId="com.google.code.findbugs" artifactId="jsr305"/>
         <dependency groupId="org.antlr" artifactId="antlr"/>
-	<!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
-	-->
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core-j8"/>
@@ -666,9 +662,7 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <dependency groupId="junit" artifactId="junit"/>
-	<!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
-	-->
         <dependency groupId="io.netty" artifactId="netty-all"/>
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
@@ -743,14 +737,12 @@
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" optional="true"/>
 
         <!-- don't need the Java Driver to run, but if you use the hadoop stuff or UDFs -->
-	<!-- UPDATE AND UNCOMMENT ON THE DRIVER RELEASE, BEFORE 4.0 RELEASE
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded" optional="true">
           <exclusion groupId="io.netty" artifactId="netty-buffer"/>
           <exclusion groupId="io.netty" artifactId="netty-codec"/>
           <exclusion groupId="io.netty" artifactId="netty-handler"/>
           <exclusion groupId="io.netty" artifactId="netty-transport"/>
         </dependency>
-	-->
 
         <!-- don't need jna to run, but nice to have -->
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>

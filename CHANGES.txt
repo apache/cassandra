@@ -1,4 +1,5 @@
 4.0-alpha2
+ * Upgrade Guava to 27, and to java-driver 3.6.0 (from 3.4.0-SNAPSHOT) (CASSANDRA-14655)
  * Extract an AbstractCompactionController to allow for custom implementations (CASSANDRA-15286)
  * Move chronicle-core version from snapshot to stable, and include carrotsearch in generated pom.xml (CASSANDRA-15321)
  * Untangle RepairMessage sub-hierarchy of messages, use new messaging (more) correctly (CASSANDRA-15163)

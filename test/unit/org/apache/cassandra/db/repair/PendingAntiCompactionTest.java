@@ -552,7 +552,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
                     public void onFailure(Throwable throwable)
                     {
                     }
-                });
+                }, MoreExecutors.directExecutor());
                 assertTrue(cdl.await(1, TimeUnit.MINUTES));
             }
         }
