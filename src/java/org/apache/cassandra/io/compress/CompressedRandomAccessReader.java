@@ -21,7 +21,6 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.zip.Checksum;
-import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -116,6 +115,20 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             compressed.flip();
             buffer.clear();
 
+            if (getCrcCheckChance() >= 1d ||
+                    getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
+            {
+                metadata.checksumType.update(checksum, (compressed));
+
+                if (checksum(chunk) != (int) checksum.getValue())
+                    throw new CorruptBlockException(getPath(), chunk);
+
+                // reset checksum object back to the original (blank) state
+                checksum.reset();
+
+                compressed.rewind();
+            }
+
             try
             {
                 metadata.compressor().uncompress(compressed, buffer);
@@ -127,19 +140,6 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             finally
             {
                 buffer.flip();
-            }
-
-            if (getCrcCheckChance() >= 1d ||
-                getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
-            {
-                compressed.rewind();
-                metadata.checksumType.update( checksum, (compressed));
-
-                if (checksum(chunk) != (int) checksum.getValue())
-                    throw new CorruptBlockException(getPath(), chunk);
-
-                // reset checksum object back to the original (blank) state
-                checksum.reset();
             }
 
             // buffer offset is always aligned
@@ -179,6 +179,21 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
             buffer.clear();
 
+            if (getCrcCheckChance() >= 1d ||
+                getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
+            {
+                metadata.checksumType.update( checksum, compressedChunk);
+
+                compressedChunk.limit(compressedChunk.capacity());
+                if (compressedChunk.getInt() != (int) checksum.getValue())
+                    throw new CorruptBlockException(getPath(), chunk);
+
+                // reset checksum object back to the original (blank) state
+                checksum.reset();
+
+                compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
+            }
+
             try
             {
                 metadata.compressor().uncompress(compressedChunk, buffer);
@@ -190,21 +205,6 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             finally
             {
                 buffer.flip();
-            }
-
-            if (getCrcCheckChance() >= 1d ||
-                getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
-            {
-                compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
-
-                metadata.checksumType.update( checksum, compressedChunk);
-
-                compressedChunk.limit(compressedChunk.capacity());
-                if (compressedChunk.getInt() != (int) checksum.getValue())
-                    throw new CorruptBlockException(getPath(), chunk);
-
-                // reset checksum object back to the original (blank) state
-                checksum.reset();
             }
 
             // buffer offset is always aligned

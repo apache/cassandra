@@ -15,6 +15,7 @@
 Merged from 2.2:
  * Backport circleci yaml (CASSANDRA-14240)
 Merged from 2.1:
+ * Check checksum before decompressing data (CASSANDRA-14284)
  * CVE-2017-5929 Security vulnerability in Logback warning in NEWS.txt (CASSANDRA-14183)
 
 
