@@ -497,9 +497,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor, types);
         }
-        catch (IOException e)
+        catch (Throwable t)
         {
-            throw new CorruptSSTableException(e, descriptor.filenameFor(Component.STATS));
+            throw new CorruptSSTableException(t, descriptor.filenameFor(Component.STATS));
         }
         ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
         StatsMetadata statsMetadata = (StatsMetadata) sstableMetadata.get(MetadataType.STATS);
@@ -543,15 +543,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
             return sstable;
         }
-        catch (IOException e)
-        {
-            sstable.selfRef().release();
-            throw new CorruptSSTableException(e, sstable.getFilename());
-        }
         catch (Throwable t)
         {
             sstable.selfRef().release();
-            throw t;
+            throw new CorruptSSTableException(t, sstable.getFilename());
         }
     }
 
