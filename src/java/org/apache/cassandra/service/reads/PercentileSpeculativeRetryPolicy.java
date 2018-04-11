@@ -29,6 +29,8 @@ import org.apache.cassandra.schema.TableParams;
 
 public class PercentileSpeculativeRetryPolicy implements SpeculativeRetryPolicy
 {
+    public static final PercentileSpeculativeRetryPolicy NINETY_NINE_P = new PercentileSpeculativeRetryPolicy(99.0);
+
     private static final Pattern PATTERN = Pattern.compile("^(?<val>[0-9.]+)p(ercentile)?$", Pattern.CASE_INSENSITIVE);
     private static final DecimalFormat FORMATTER = new DecimalFormat("#.####");
 

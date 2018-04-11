@@ -34,6 +34,8 @@ import static java.lang.String.format;
 
 public final class TableParams
 {
+    public static final TableParams DEFAULT = TableParams.builder().build();
+
     public enum Option
     {
         BLOOM_FILTER_FP_CHANCE,
@@ -59,19 +61,6 @@ public final class TableParams
             return name().toLowerCase();
         }
     }
-
-    public static final String DEFAULT_COMMENT = "";
-    public static final double DEFAULT_READ_REPAIR_CHANCE = 0.0;
-    public static final double DEFAULT_DCLOCAL_READ_REPAIR_CHANCE = 0.1;
-    public static final int DEFAULT_GC_GRACE_SECONDS = 864000; // 10 days
-    public static final int DEFAULT_DEFAULT_TIME_TO_LIVE = 0;
-    public static final int DEFAULT_MEMTABLE_FLUSH_PERIOD_IN_MS = 0;
-    public static final int DEFAULT_MIN_INDEX_INTERVAL = 128;
-    public static final int DEFAULT_MAX_INDEX_INTERVAL = 2048;
-    public static final double DEFAULT_CRC_CHECK_CHANCE = 1.0;
-    public static final SpeculativeRetryPolicy DEFAULT_SPECULATIVE_RETRY = new PercentileSpeculativeRetryPolicy(99.0);
-
-    public static final TableParams DEFAULT = TableParams.builder().build();
 
     public final String comment;
     public final double readRepairChance;
@@ -282,17 +271,17 @@ public final class TableParams
 
     public static final class Builder
     {
-        private String comment = DEFAULT_COMMENT;
-        private double readRepairChance = DEFAULT_READ_REPAIR_CHANCE;
-        private double dcLocalReadRepairChance = DEFAULT_DCLOCAL_READ_REPAIR_CHANCE;
+        private String comment = "";
+        private double readRepairChance = 0.0;
+        private double dcLocalReadRepairChance = 0.1;
         private Double bloomFilterFpChance;
-        public Double crcCheckChance = DEFAULT_CRC_CHECK_CHANCE;
-        private int gcGraceSeconds = DEFAULT_GC_GRACE_SECONDS;
-        private int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
-        private int memtableFlushPeriodInMs = DEFAULT_MEMTABLE_FLUSH_PERIOD_IN_MS;
-        private int minIndexInterval = DEFAULT_MIN_INDEX_INTERVAL;
-        private int maxIndexInterval = DEFAULT_MAX_INDEX_INTERVAL;
-        private SpeculativeRetryPolicy speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
+        public Double crcCheckChance = 1.0;
+        private int gcGraceSeconds = 864000; // 10 days
+        private int defaultTimeToLive = 0;
+        private int memtableFlushPeriodInMs = 0;
+        private int minIndexInterval = 128;
+        private int maxIndexInterval = 2048;
+        private SpeculativeRetryPolicy speculativeRetry = PercentileSpeculativeRetryPolicy.NINETY_NINE_P;
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
         private CompressionParams compression = CompressionParams.DEFAULT;
